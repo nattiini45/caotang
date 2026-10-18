@@ -31,8 +31,9 @@ const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp
   { name: 'weekly and monthly goals', pattern: /weekly|monthly/i },
   { name: 'goals counted in characters', pattern: /characters, are not|counted in characters/i },
   // In these lists the phrase "spreadsheet export(s)" itself names the export as missing, so it is flagged wherever it stands;
-  // a true limitation sentence about the files names them as "the .xlsx files" or "the spreadsheet files" instead. The other
-  // branches catch a claim that the export is missing in other words.
+  // a true limitation sentence about the files names them as "the .xlsx files" or "the spreadsheet files" and also avoids the
+  // verbs of the last branch (not built, exported, available, supported, in this build), e.g. "have not been opened in Excel".
+  // The other branches catch a claim that the export is missing in other words.
   {
     name: 'spreadsheet export',
     pattern: /spreadsheet exports?|no (?:spreadsheet|xlsx)\b|(?:xlsx|spreadsheet)[^.\n]*not (?:yet )?(?:built|exported|available|supported|in this build)/i,
