@@ -183,8 +183,11 @@ describe('the user guide’s reviewed claims match the code', () => {
 
   it('says which leading characters get the Yarn guard apostrophe, that it is written into the cell, and that Yarn Spinner was not checked', () => {
     const claim =
-      "In the Yarn strings file, a line or choice whose cell starts with `=`, `+`, `-`, `@`, a tab or a carriage return gets an apostrophe in front, as in every CSV export, so a spreadsheet does not run it as a formula.";
+      "In the Yarn strings file, a line or choice whose text cell starts with `=`, `+`, `-`, `@`, a tab or a carriage return gets an apostrophe in front, as in every CSV export, so a spreadsheet does not run it as a formula.";
     expect(guide).toContain(claim);
+    expect(guide).toContain("A spoken line's cell starts with the speaker's name when it has one.");
+    expect(guide).toContain('The language, file and comment cells get the same guard.');
+    expect(changelog).toContain("A spoken line's `text` cell starts with the speaker's name when it has one.");
     expect(guide).toContain("The apostrophe is written into the cell itself, so a tool that reads the file gets it with the line; Caotang has not checked how Yarn Spinner shows it.");
     expect(changelog).toContain('how Yarn Spinner shows it has not been checked.');
     // The trigger list in the guide is the guard's own list, and the Yarn writer applies that guard to its cells.
@@ -193,5 +196,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     const table = read('packages/dialogue/src/table.ts');
     expect(table).toContain('cell(row.locale),');
     expect(table).toContain('cell(text),');
+    expect(table).toContain('cell(fileOf(row.container)),');
+    expect(table).toContain('cell(row.context),');
   });
 });
