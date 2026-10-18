@@ -61,8 +61,10 @@ const FORMAT_GROUPS: readonly { readonly name: string; readonly formats: readonl
       { format: 'fdx', label: 'Final Draft (.fdx)', help: 'The screenplay in Final Draft’s XML.' },
       { format: 'pdf', label: 'Screenplay PDF (.pdf)', help: 'The screenplay on US Letter pages in Courier Prime, ready to print.' },
       { format: 'ink-json', label: 'Ink story (.ink.json)', help: 'The dialogue compiled for a game engine that reads Ink. One file per story.' },
-      { format: 'dialogue-csv', label: 'Dialogue table (.csv)', help: 'Each spoken line with its id, speaker and text, for translation or recording.' },
+      { format: 'dialogue-csv', label: 'Dialogue table (.csv)', help: 'Each spoken line with its id, speaker, text and locale, for translation or recording. A Yarn container gets a Yarn strings file.' },
       { format: 'shot-list-csv', label: 'Shot list (.csv)', help: 'Each shot in order, with its size, angle, movement and duration.' },
+      { format: 'dialogue-xlsx', label: 'Dialogue table (.xlsx)', help: 'The dialogue table as a spreadsheet, for Excel, Numbers or LibreOffice.' },
+      { format: 'shot-list-xlsx', label: 'Shot list (.xlsx)', help: 'The shot list as a spreadsheet, with shot numbers and durations as numbers.' },
     ],
   },
   // The coherence report (media-track.md, Review): the findings file and its run history, for reading outside Caotang.
@@ -361,7 +363,7 @@ export function ExportDialog({
             value={shown.author}
             onSave={(author) => saveOptions({ ...shown, author })}
           />
-          {format === 'dialogue-csv' ? (
+          {format === 'dialogue-csv' || format === 'dialogue-xlsx' ? (
             <CharLimitField
               key={`limit:${recipe?.name ?? ''}`}
               value={shown.charLimit}
@@ -537,8 +539,10 @@ function holdsOf(digest: ExportCommandDigest): string {
     case 'ink-json':
       return countPhrase(digest.sceneCount, 'container');
     case 'dialogue-csv':
+    case 'dialogue-xlsx':
       return `${countPhrase(digest.blockCount, 'line')} in ${countPhrase(digest.sceneCount, 'container')}, ${countPhrase(digest.wordCount, 'word')}`;
     case 'shot-list-csv':
+    case 'shot-list-xlsx':
     case 'promptpack':
       return countPhrase(digest.blockCount, 'shot');
     case 'coherence-md':

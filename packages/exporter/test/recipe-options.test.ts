@@ -141,7 +141,7 @@ describe('the default recipe a project that predates recipes holds (exporter.md 
 });
 
 describe('a dialogue table under a recipe — the character limit reaches the charLimit column', () => {
-  it('writes the recipe\'s limit into the last column of every line', async () => {
+  it('writes the recipe\'s limit into the charLimit column of every line, before the locale', async () => {
     const state = makeMediaProject();
     const r = rig(state);
     await r.exporter.ready();
@@ -152,11 +152,11 @@ describe('a dialogue table under a recipe — the character limit reaches the ch
 
     const output = (outcome.result as { output: string }).output;
     const lines = (r.fs.snapshot()[output] ?? '').trim().split('\r\n');
-    expect(lines[0]).toBe('lineId,speaker,text,context,charLimit');
+    expect(lines[0]).toBe('lineId,speaker,text,context,charLimit,locale');
     const rows = lines.slice(1);
     // The innkeeper's container holds its five keyed lines and choice labels, so there is a row to check.
     expect(rows.length).toBeGreaterThan(0);
-    for (const row of rows) expect(row.endsWith(',42'), row).toBe(true);
+    for (const row of rows) expect(row.endsWith(',42,en'), row).toBe(true);
   });
 
   it('leaves the column empty when the recipe sets no limit, which is no limit', async () => {
@@ -171,7 +171,7 @@ describe('a dialogue table under a recipe — the character limit reaches the ch
     const output = (outcome.result as { output: string }).output;
     const rows = (r.fs.snapshot()[output] ?? '').trim().split('\r\n').slice(1);
     expect(rows.length).toBeGreaterThan(0);
-    for (const row of rows) expect(row.endsWith(','), row).toBe(true);
+    for (const row of rows) expect(row.endsWith(',,en'), row).toBe(true);
   });
 });
 

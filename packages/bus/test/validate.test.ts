@@ -834,7 +834,9 @@ describe('export.compile, export.compileSelection and project.deleteNode', () =>
       // The coherence report, as Markdown and JSON. Ten formats before it.
       'coherence-md',
       'coherence-json',
-      // The screenplay PDF, appended: thirteen in all.
+      // The dialogue table and the shot list as spreadsheets. Then the screenplay PDF: fifteen in all.
+      'dialogue-xlsx',
+      'shot-list-xlsx',
       'pdf',
     ]);
   });

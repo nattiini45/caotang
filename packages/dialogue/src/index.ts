@@ -14,7 +14,7 @@
  * What is not: the UI (the graph view, the inspector, the table dialog), the store's dialogue node
  * types and the bus commands that write a container's body, the exporter's recipe enum and renderer
  * wiring, the harness registration of these tools and the model call that drafts the Ink (the agent
- * loop stages it), the Twee importer (v0.3 candidate), the XLSX stack (deferred with storyboard.md's spreadsheet stack),
+ * loop stages it), the Twee importer (v0.3 candidate), the XLSX writer (the exporter's, shared with the shot list),
  * and the play mode over inkjs's runtime (v0.3 candidate).
  */
 
@@ -90,16 +90,19 @@ export {
 
 export {
   TABLE_COLUMNS,
+  YARN_COLUMNS,
   buildRows,
   csvField,
   exportCsv,
   toCsv,
   toJsonRows,
+  toYarnCsv,
   type CsvExport,
   type CsvRefusal,
   type DialogueSource,
   type TableOptions,
   type TableRow,
+  type YarnCsvOptions,
 } from './table.js';
 
 export { INK_JSON_FORMAT, INK_JSON_MIME, exportInkJson, type InkJsonArtifact, type InkJsonRefusal } from './export-ink.js';

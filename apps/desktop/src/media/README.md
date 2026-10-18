@@ -12,8 +12,10 @@ binder makes their nodes (`media/create-menu.ts`, through `binder.create`).
 - **Write a screenplay scene.** The Script tab draws the scene as it reads; the Source tab edits the Fountain text, with
   the headings, cues, parentheticals, transitions and notes drawn in their own styles over it; the Pages tab shows the
   scene paginated, read only. Enter at the end of a cue moves onto its dialogue, and Enter on an empty line after dialogue
-  starts action. Tab completes a half-typed cue from the cues in the scene and the codex's characters. All three write
-  through the session's autosave, which is the path the prose editor uses.
+  starts action. Tab completes a half-typed cue from the cues in the scene and the codex's characters. The element menu
+  (the Element button, or Ctrl+E) rewrites the caret's line as the element chosen, through the screenplay engine's
+  `convertLine` (element-menu.ts). All of these write through the session's autosave, which is the path the prose editor
+  uses.
 - **Write a dialogue container.** The Ink text sits under the outline, with its knots, stitches, choices, diverts,
   declarations and tags drawn in their own styles. Tab after a divert arrow completes the knot or stitch name. Clicking a
   card in the graph moves the caret to that knot's header in the text. Each choice's label is drawn on its arrow, and the
@@ -23,7 +25,9 @@ binder makes their nodes (`media/create-menu.ts`, through `binder.create`).
 - **Container settings.** The Inspector's *Container settings* section sets a dialogue container's default speaker (a
   codex character), its engine target, its line-id opt-in and its locale. Each change is a `dialogue.setMeta` command.
   The default speaker fills the speaker column of the dialogue table, and the line-id opt-in writes the missing ids into
-  the Ink on save. The engine target and the locale are recorded only (*What is not wired*, *Dialogue table and container settings*).
+  the Ink on save. The engine target picks the dialogue table's file: a `yarn-csv` container writes a Yarn Spinner strings
+  file, and any other container writes the dialogue table. The locale fills each row's locale (the project's language when
+  the container has none), and a container's own locale names its Ink story file (*Dialogue table and container settings*).
 - **Import a script or an Ink story.** The binder's *Import script* reads a `.fountain` or `.fdx` file: its sections become
   folders, and its scenes become screenplay documents, in one undo step (`screenplay.import`). *Import Ink* reads a `.ink`
   file, and makes one branching container for each knot cluster, in one undo step (`dialogue.importInk`). Text above the
@@ -126,11 +130,12 @@ One exception is open: `ScreenplayPreview.tsx` imports `paginate` and `LAYOUT` f
 4. **Prompt pack in the Compile dialog.** The Compile dialog does not offer the prompt pack: it is written for one vendor
    template, which the Prompt pack tab chooses, and the dialog does not ask for one.
 5. **Dialogue table and container settings.** The dialogue table's character limit (`charLimit`) is a recipe option, set in the
-   export dialog's Character limit field when the dialogue table is chosen, so a `dialogue-csv` export from the app carries it.
-   The engine target is a hint for the compile, and the compile does not yet change its output for it. The locale
-   (`locBaseline`) is stored, and no table, compile or export reads it yet.
-6. **Screenplay source affordances.** Enter and Tab work on a cue, and the Source tab draws the parse. The element palette
-   beyond those keys (a menu of element types, and a key for each element) is not built.
+   export dialog's Character limit field when the dialogue table is chosen, so a `dialogue-csv` or `dialogue-xlsx` export from the app carries it.
+   The engine target and the locale reach the exports (*What a writer can do*, *Container settings*). The agent's
+   `dialogue.table` tool does not read them: it returns §6's columns.
+6. **Screenplay source affordances.** The element menu offers no section or synopsis: a section is a binder folder, and a
+   scene's synopsis is the binder's (screenplay.md §2.2). Its digits work while the menu is open; there is no chord for each
+   element outside it.
 7. **Coverage in a file with carriage returns.** The text area shows the stored text with line feeds, so a selection in a
    body stored with Windows line endings is located by its words, and a passage that appears twice is refused.
 8. **Page preview.** The Pages tab is `paginate()`'s output, read only, and it is not the PDF. The PDF is the `pdf` export

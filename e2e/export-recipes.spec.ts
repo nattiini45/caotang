@@ -42,7 +42,8 @@ test('the export dialog offers the prose formats, then the media formats, then t
   const prose = dialog.getByRole('group', { name: 'Prose' });
   const media = dialog.getByRole('group', { name: 'Media' });
   await expect(prose.getByRole('radio')).toHaveCount(4);
-  await expect(media.getByRole('radio')).toHaveCount(6);
+  await expect(media.getByRole('radio')).toHaveCount(8);
+  await expect(media.getByRole('radio', { name: /^Shot list \(\.xlsx\)/ })).toBeVisible();
   await expect(media.getByRole('radio', { name: /^Fountain \(\.fountain\)/ })).toBeVisible();
   await expect(media.getByRole('radio', { name: /^Screenplay PDF \(\.pdf\)/ })).toBeVisible();
   // The prompt pack is written for one vendor template, which the storyboard's prompt-pack tab chooses, so the dialog leaves it out.

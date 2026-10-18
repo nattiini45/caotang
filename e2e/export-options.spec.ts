@@ -44,7 +44,7 @@ test('the dialogue table’s character limit is a recipe setting: shown for that
   let dialog = page.getByRole('dialog', { name: 'Export' });
   // The limit belongs to the dialogue table, so the field is not offered for the Markdown default.
   await expect(dialog.getByLabel('Character limit for each line')).toHaveCount(0);
-  await dialog.getByRole('radio', { name: /^Dialogue table/ }).check();
+  await dialog.getByRole('radio', { name: /^Dialogue table \(\.csv\)/ }).check();
   await dialog.getByLabel('Character limit for each line').fill('42');
   // The limit is saved when the writer leaves the field, as the author line is.
   await dialog.getByLabel('Character limit for each line').press('Tab');
@@ -53,7 +53,10 @@ test('the dialogue table’s character limit is a recipe setting: shown for that
 
   await page.getByRole('button', { name: 'Compile…' }).click();
   dialog = page.getByRole('dialog', { name: 'Export' });
-  await dialog.getByRole('radio', { name: /^Dialogue table/ }).check();
+  await dialog.getByRole('radio', { name: /^Dialogue table \(\.csv\)/ }).check();
+  await expect(dialog.getByLabel('Character limit for each line')).toHaveValue('42');
+  // The spreadsheet is the same table, so it reads the same limit.
+  await dialog.getByRole('radio', { name: /^Dialogue table \(\.xlsx\)/ }).check();
   await expect(dialog.getByLabel('Character limit for each line')).toHaveValue('42');
 });
 
