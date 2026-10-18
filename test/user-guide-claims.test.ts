@@ -198,6 +198,8 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(pdfSection).toContain('Script pages count from 1. The number is printed at the top right from page 2.');
     expect(paginate).toContain('const all = number >= 2 ? [...lines, pageNumberLine(number)] : [...lines];');
     expect(paginate).toContain('x: LAYOUT.pageWidth - LAYOUT.marginRight - text.length * LAYOUT.charWidth,');
+    expect(paginate).toContain('y: LAYOUT.pageNumberY,');
+    expect(paginate).toContain('pageNumberY: 46,');
     // The recipe controls, in the words the export dialog shows.
     const dialog = read('apps/desktop/src/components/ExportDialog.tsx');
     expect(pdfSection).toContain('**Scene numbers** can be printed in the left margin, the right margin or both. They are off unless you choose them.');

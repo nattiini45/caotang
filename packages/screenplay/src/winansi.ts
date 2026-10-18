@@ -4,7 +4,7 @@
  */
 
 /**
- * Characters WinAnsi encodes above 0x7F that the Latin-1 range does not cover: all 27 of them, the code points
+ * Characters WinAnsi encodes above 0x7F that the Latin-1 range does not cover: all 27 of them, the character codes
  * 0x80 to 0x9F hold in Windows-1252 (PDF 1.7 Annex D.2). 0x81, 0x8D, 0x8F, 0x90 and 0x9D encode nothing.
  */
 export const WIN_ANSI_EXTRA: Readonly<Record<string, number>> = {

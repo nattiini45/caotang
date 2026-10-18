@@ -253,7 +253,7 @@ describe('layoutPdf — what the fonts cannot print', () => {
   it('renderPdf without the fallbacks a script needs says which characters print as "?"', () => {
     const result = renderPdf(blocksOf(text('INT. 草堂 - DAY', '', 'She reads 草堂 aloud 👍.')), { title: 'T' });
     expect(decode(result.bytes)).not.toContain('/F2');
-    expect(result.notes).toEqual(['pdf: the fallback font that prints these 3 characters was not passed to renderPdf, so they are printed as "?": 草 堂 👍']);
+    expect(result.notes).toEqual(['pdf: the fallback font that prints these 3 characters was not passed to renderPdf, or has no glyph for them, so they are not printed as written: 草 堂 👍']);
   });
 
   it('counts the script pages apart from the title page', () => {

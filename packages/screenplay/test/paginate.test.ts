@@ -418,7 +418,7 @@ describe('paginate — dual dialogue side by side (screenplay.md §2.2)', () => 
 
   it('wraps each column to its own width, so the columns never overlap, cues and parentheticals included', () => {
     const long = 'Every word of this speech is here to make it wrap onto several rows of its column.';
-    // Cue names long enough to wrap: 26 and 25 characters, one with no space to break at.
+    // Cue names long enough to wrap: 25 characters each, one with no space to break at.
     const leftCue = 'ANNA-MARIA VON HOHENSTEIN';
     const rightCue = 'BARTHOLOMEWJONATHANSMYTHE';
     const source = text(leftCue, '(a long aside, to make it wrap)', long, '', `${rightCue} ^`, '(a long aside, to make it wrap)', long);

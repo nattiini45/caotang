@@ -45,7 +45,7 @@ export interface PdfLayout {
   readonly scriptPageCount: number;
   readonly title: string;
   readonly author?: string;
-  /** What the Fountain step left out, and the characters neither font can print, in order. */
+  /** What the Fountain step left out, and the characters neither font can print (CJK first, then emoji). */
   readonly notes: readonly string[];
   /** The characters WinAnsi cannot encode that the CJK fallback prints, in order of first use. Empty: no fallback is loaded. */
   readonly fallbackCharacters: readonly string[];
@@ -210,7 +210,7 @@ export function renderPdf(
   const unprinted = [...cjkMissing, ...emojiMissing];
   if (unprinted.length > 0) {
     const { what, verb, shown } = counted(unprinted, 'character', 'characters');
-    notes.push(`pdf: the fallback font that prints ${what} was not passed to renderPdf, so ${verb} printed as "?": ${shown}`);
+    notes.push(`pdf: the fallback font that prints ${what} was not passed to renderPdf, or has no glyph for ${unprinted.length === 1 ? 'it' : 'them'}, so ${verb} not printed as written: ${shown}`);
   }
   return { bytes: drawPdf(layout, font, fallback, emoji), pageCount: layout.pages.length, notes };
 }
