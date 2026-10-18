@@ -151,6 +151,18 @@ describe('dialogue table: the engine target picks the file', () => {
     expect(lines[1]).toBe("en,line:l_0000000301,'=1+1,The innkeeper,start,2,,start");
   });
 
+  it('guards a hand-edited locale in both files, from the container and from the project language', () => {
+    // readDialogueMeta and the manifest loader accept any non-empty string, so a hand edit can put a formula here.
+    const state = withSettings({ engineTarget: 'yarn-csv', locBaseline: '=HYPERLINK("x")' });
+    addCellar(state, {});
+    state.manifest.project.language = '@SUM(1)';
+    const output = renderMedia(requestFor(state, 'dialogue-csv'));
+    const table = linesOf(output.files[0]?.text);
+    const yarn = linesOf(output.files[1]?.text);
+    expect(table[1]).toBe("l_0000000201,Mara,It is cold down here.,cellar,,'@SUM(1)");
+    expect(yarn[1]).toBe(`"'=HYPERLINK(""x"")",line:l_0000000001,The innkeeper looks up.,The innkeeper,start,2,,start`);
+  });
+
   it('writes both files when the selection mixes a Yarn container and a table container', () => {
     const state = withSettings({ engineTarget: 'yarn-csv' });
     addCellar(state, {});

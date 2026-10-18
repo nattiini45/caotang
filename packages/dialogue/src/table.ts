@@ -137,7 +137,10 @@ export function toCsv(rows: readonly TableRow[], options: { includeConditions?: 
 export interface YarnCsvOptions {
   /** The `file` column: the name of the container a row comes from. Absent writes the container id. */
   readonly fileOf?: (containerId: string) => string;
-  /** Applied to `text`, `file` and `comment` after they are composed, such as a spreadsheet formula guard. Default: unchanged. */
+  /**
+   * Applied to `language`, `text`, `file` and `comment` after they are composed, such as a spreadsheet formula guard. Default:
+   * unchanged.
+   */
   readonly cell?: (value: string) => string;
 }
 
@@ -154,7 +157,7 @@ export function toYarnCsv(rows: readonly TableRow[], options: YarnCsvOptions = {
   const records = rows.map((row) => {
     const text = row.kind === 'line' && row.speakerName !== '' ? `${row.speakerName}: ${row.text}` : row.text;
     const values = [
-      row.locale,
+      cell(row.locale),
       `line:${row.lineId}`,
       cell(text),
       cell(fileOf(row.container)),

@@ -77,8 +77,8 @@ describe('toYarnCsv — the yarn-csv target', () => {
     ]);
   });
 
-  it('writes the container id as the file when no name is given, and applies the cell transform to the free text', () => {
+  it('writes the container id as the file when no name is given, and applies the cell transform to the language and the free text', () => {
     const lines = toYarnCsv(rows, { cell: (value) => (value === '' ? value : `[${value}]`) }).split('\r\n');
-    expect(lines[2]).toBe('en,line:l_0000000002,"[Alice: Welcome, friend.]",[d1],hall,4,,[hall / Alice]');
+    expect(lines[2]).toBe('[en],line:l_0000000002,"[Alice: Welcome, friend.]",[d1],hall,4,,[hall / Alice]');
   });
 });

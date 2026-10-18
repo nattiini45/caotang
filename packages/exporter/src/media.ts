@@ -375,18 +375,26 @@ function inkJsonOutput(request: MediaRequest): MediaOutput {
  * shot list and the prompt pack apply to their text cells. The table's writer quotes but does not guard, and its text
  * comes from manuscript and imported Ink, so the guard is applied here, to the speaker, the text and the context. The
  * line id is not guarded: the parser admits only ids of the minted `l_` form, and none of them opens with a trigger. The
- * `locale` column follows §6's five: each row's locale, which is a validated locale code or the project's language.
+ * `locale` column follows §6's five: each row's locale, the container's `locBaseline` or the project's language. Both are
+ * read from the project file, where a hand edit can put any non-empty string, so the locale is guarded too.
  */
 export function dialogueCsv(rows: readonly TableRow[]): string {
   return toCsv(
-    rows.map((row) => ({ ...row, speaker: guardFormula(row.speaker), text: guardFormula(row.text), context: guardFormula(row.context) })),
+    rows.map((row) => ({
+      ...row,
+      speaker: guardFormula(row.speaker),
+      text: guardFormula(row.text),
+      context: guardFormula(row.context),
+      locale: guardFormula(row.locale),
+    })),
     { includeLocale: true },
   );
 }
 
 /**
  * The Yarn Spinner strings file for the rows of `yarn-csv` containers (`toYarnCsv`, dialogue table.ts), with the same formula
- * guard on its free-text cells: the text, the file and the comment.
+ * guard on its free-text cells: the language, the text, the file and the comment. The guard is for a spreadsheet that opens
+ * the file; Yarn Spinner reads the apostrophe it adds as part of the line (a known limit in the changelog and the guide).
  */
 export function dialogueYarnCsv(rows: readonly TableRow[], titleOf: (containerId: string) => string): string {
   return toYarnCsv(rows, { fileOf: titleOf, cell: guardFormula });
