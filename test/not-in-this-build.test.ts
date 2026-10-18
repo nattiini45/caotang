@@ -30,6 +30,7 @@ const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp
   { name: 'the continuity check reporting outside the Findings tab', pattern: /continuity check/i },
   { name: 'weekly and monthly goals', pattern: /weekly|monthly/i },
   { name: 'goals counted in characters', pattern: /characters, are not|counted in characters/i },
+  { name: 'the Source tab element menu', pattern: /element menu/i },
 ];
 
 describe('the not-in-this-build lists name only what is missing', () => {

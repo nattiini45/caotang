@@ -12,7 +12,7 @@ import { getBody, getRevision, type TreeNode } from '@caotang/store';
 import type { ProjectSession } from '../app/session.js';
 import type { RevealRequest } from '../components/EditorPane.js';
 import { radioStep } from '../components/radio-keys.js';
-import { useReport, useSession } from '../components/shared.js';
+import { Menu, useReport, useSession, type MenuAnchor } from '../components/shared.js';
 import type { LocatedElement } from './engines.js';
 import { useCodexEntries } from './hooks.js';
 import { printedOf, saveLineOf, screenplayModelOf, sceneOffset, unwrittenFlushOf, type DialogueBlock, type ScreenplayUnit } from './screenplay-model.js';
@@ -22,6 +22,7 @@ import { SourceField } from './SourceField.js';
 import { fountainSegments } from './source-decor.js';
 import { cueCompletion, cueNames, enterAfterCue, enterOnEmptyDialogue, type KeyEdit } from './screenplay-keys.js';
 import { ScreenplayPreview } from './ScreenplayPreview.js';
+import { ELEMENT_MENU_LABEL, elementEntries, opensElementMenu, type ElementEntry } from './element-menu.js';
 
 export interface ScreenplayViewProps {
   readonly session: ProjectSession;
@@ -48,6 +49,13 @@ const MODE_LABEL: Readonly<Record<Mode, string>> = {
 const MODE_NAME: Readonly<Record<Mode, string>> = { script: 'Script', source: 'Source', pages: 'Pages' };
 
 const NOOP = (): void => undefined;
+
+/** The element menu while it is open: where it sits, the text its entries were worked out on, and the entries. */
+interface OpenElementMenu {
+  readonly anchor: MenuAnchor;
+  readonly text: string;
+  readonly entries: readonly ElementEntry[];
+}
 
 export function ScreenplayView({ session, node, reveal = null, onRevealHandled = NOOP, onAgentIntent }: ScreenplayViewProps): ReactNode {
   useSession(session);
@@ -124,10 +132,16 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
   };
 
   /**
-   * The Source tab's keys (screenplay.md §3): Enter after a cue and on empty dialogue, and Tab on a half-typed cue. A key
-   * with a modifier, or one that is not one of these, keeps its meaning, and so does a key with a selection.
+   * The Source tab's keys (screenplay.md §3): Ctrl+E (Cmd+E) opens the element menu, Enter works after a cue and on empty
+   * dialogue, and Tab on a half-typed cue. Any other key with a modifier, or one that is not one of these, keeps its meaning,
+   * and so does Enter or Tab with a selection.
    */
   const onSourceKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (opensElementMenu(event)) {
+      event.preventDefault();
+      openElementMenu();
+      return;
+    }
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     const field = event.currentTarget;
     if (field.selectionStart !== field.selectionEnd) return;
@@ -145,6 +159,41 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
     pendingCaret.current = edit.caret;
     setDraft(edit.text);
     session.autosave.noteEdit(docId, edit.text);
+  };
+
+  // The element menu (screenplay.md §3, the element palette): it rewrites the caret's line as the element chosen. It opens from
+  // the Element button and from Ctrl+E (Cmd+E) in the source, below the button either way. With a selection, the line is the
+  // one where the selection starts.
+  const [elementMenu, setElementMenu] = useState<OpenElementMenu | null>(null);
+  const elementButtonRef = useRef<HTMLButtonElement>(null);
+
+  const openElementMenu = (): void => {
+    const field = sourceRef.current;
+    if (field === null) return;
+    const rect = (elementButtonRef.current ?? field).getBoundingClientRect();
+    setElementMenu({
+      anchor: { x: rect.left, y: rect.bottom + 4 },
+      text: field.value,
+      entries: elementEntries(field.value, field.selectionStart),
+    });
+  };
+
+  const chooseElement = (entry: ElementEntry): void => {
+    const field = sourceRef.current;
+    const edit = entry.edit;
+    // A text that changed under the open menu (an undo, a restore, an agent apply) is not the one the edit was worked out on.
+    if (field === null || edit === null || elementMenu === null || field.value !== elementMenu.text) return;
+    if (edit.text !== field.value) {
+      setDraft(edit.text);
+      session.autosave.noteEdit(docId, edit.text);
+    }
+    // The menu hands focus back to the control that opened it as it closes, so the caret is placed on the next frame, after it.
+    requestAnimationFrame(() => {
+      const target = sourceRef.current;
+      if (target === null) return;
+      target.focus();
+      target.setSelectionRange(edit.caret, edit.caret);
+    });
   };
 
   const jumpToScene = (index: number): void => {
@@ -234,15 +283,46 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
           ) : mode === 'pages' ? (
             <ScreenplayPreview source={deferred} title={node.title} />
           ) : (
-            <SourceField
-              label="Fountain source"
-              inputRef={sourceRef}
-              inputClassName="sp-source"
-              value={draft}
-              segments={segments}
-              onChange={onSourceChange}
-              onKeyDown={onSourceKeyDown}
-            />
+            <div className="sp-source-pane">
+              <div className="sp-source-bar">
+                <button
+                  ref={elementButtonRef}
+                  type="button"
+                  className="button is-quiet"
+                  aria-haspopup="menu"
+                  aria-expanded={elementMenu !== null}
+                  aria-keyshortcuts="Control+E Meta+E"
+                  title="Change the element of the line the caret is on (Ctrl+E)"
+                  onClick={openElementMenu}
+                >
+                  Element
+                </button>
+              </div>
+              <SourceField
+                label="Fountain source"
+                inputRef={sourceRef}
+                inputClassName="sp-source"
+                value={draft}
+                segments={segments}
+                onChange={onSourceChange}
+                onKeyDown={onSourceKeyDown}
+              />
+              {elementMenu === null ? null : (
+                <Menu
+                  label={ELEMENT_MENU_LABEL}
+                  anchor={elementMenu.anchor}
+                  items={elementMenu.entries.map((entry) => ({
+                    key: entry.type,
+                    label: entry.label,
+                    shortcut: entry.shortcut,
+                    checked: entry.checked,
+                    disabled: entry.edit === null,
+                    onSelect: () => chooseElement(entry),
+                  }))}
+                  onClose={() => setElementMenu(null)}
+                />
+              )}
+            </div>
           )}
         </div>
 
