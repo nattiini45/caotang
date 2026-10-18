@@ -518,7 +518,17 @@ describe('contact-sheet-pdf — text outside Latin script, in the Noto Sans CJK 
     expect(withFont.result.log.notes.some((note) => note.includes('Noto'))).toBe(false);
   });
 
-  it('draws a character neither font has as "?", and names it in the log', async () => {
+  it('drops a text presentation selector after a letter or digit, so the sheet stays Latin-only and prints the letter', async () => {
+    const loader = countingLoader();
+    const withSelector = await compileSheet(rig({ state: withAction('cafe\uFE0E 1\uFE0E'), loadFallbackFont: loader.load }).exporter);
+    const without = await compileSheet(rig({ state: withAction('cafe 1') }).exporter);
+    expect(loader.calls()).toBe(0);
+    expect(embeddedFontFiles(withSelector.pdf)).toHaveLength(0);
+    expect(withSelector.result.log.notes.some((note) => note.includes('drawn as "?"'))).toBe(false);
+    expect(pageContent(withSelector.pdf, 0)).toBe(pageContent(without.pdf, 0));
+  });
+
+    it('draws a character neither font has as "?", and names it in the log', async () => {
     const state = withAction('雨 ⲁ and ب');
     const { result, pdf } = await compileSheet(rig({ state, loadFallbackFont: loadCjkFontInNode }).exporter);
     expect(result.log.notes).toContain(

@@ -232,8 +232,9 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
         }
         continue;
       }
-      // A pictograph asked for in text presentation (VS15) is drawn in a text font when one has it; the selector is not drawn.
-      const textCodes = style === 'text' ? codes.filter((code) => code !== VS15) : codes;
+      // A text presentation selector (VS15) is never drawn: a pictograph asked for in text presentation is drawn in a text font
+      // when one has it, and a letter or digit followed by VS15 (`e\uFE0E`, which is no emoji) stays the letter, in Helvetica.
+      const textCodes = codes.filter((code) => code !== VS15);
       if (textCodes.length > 0 && textCodes.every((code) => builtIn.has(code))) {
         pieces.push({ text: String.fromCodePoint(...textCodes), face: 'base' });
         continue;
