@@ -34,6 +34,8 @@ export { normaliseSource, parseFountain, type ParsedScreenplay, type SceneSpan }
 
 export { serialiseFountain } from './serialise.js';
 
+export { LINE_ELEMENT_TYPES, convertLine, lineElementAt, type LineConversion, type LineElementType } from './convert.js';
+
 export {
   importFountainScript,
   type ImportedNode,

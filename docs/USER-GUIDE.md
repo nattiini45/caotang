@@ -122,6 +122,8 @@ On the Source tab:
 - Enter at the end of a character's name (a cue) moves onto the line for its dialogue.
 - Enter on an empty line after dialogue starts an action line.
 - Tab completes a half-typed character name from the names cued in the scene and the characters in the codex.
+- **Element**, above the text, or Ctrl+E, opens the element menu for the line the caret is on. It lists **Scene heading**, **Action**, **Character**, **Parenthetical**, **Dialogue**, **Transition**, **Centered**, **Note** and **Page break**, and marks the one the line is. The arrow keys move through it, and Enter chooses. The digits 1 to 9 choose an element directly.
+- Choosing an element rewrites the line in its Fountain form. Your words are kept. Caotang adds a mark such as `.`, `@`, `!` or `>` only where the line would otherwise read as another element. A heading, a character or a transition under other text gets a blank line above it. **Parenthetical** and **Dialogue** are offered only under a character. **Page break** on a line with words puts the break on its own line above it.
 
 When Caotang saves a scene, it writes Fountain in the standard layout: a run of blank lines becomes one blank line, and Windows line endings become the usual ones. Your words are kept.
 
@@ -272,6 +274,7 @@ Choose **Settings** on the projects screen or in the toolbar. It has seven secti
 | Ctrl+Shift+F | Focus mode, which hides the binder and the inspector. |
 | Ctrl+Alt+F | Move to the binder's filter. |
 | Ctrl+Enter | Open the selected item in the editor. |
+| Ctrl+E | On a screenplay's Source tab, open the element menu for the caret's line. |
 | F2 | Rename the selected item in the binder. |
 | Delete | Delete the selected item in the binder. It asks first. |
 | Arrow keys | Move the selection in the binder. |
@@ -336,6 +339,6 @@ With writes allowed, an outside tool can also compile the manuscript, one item, 
 - **Exports.** There is no PDF of a screenplay or a storyboard, and no spreadsheet export.
 - **Final Draft files.** Import and export of `.fdx` files have not been checked against files that Final Draft wrote or opened. The scene numbers and page headers that Caotang writes are not yet confirmed to show in Final Draft.
 - **Word contents.** How Word and LibreOffice handle the contents field in a `.docx` file has not been tested.
-- **The Source tab.** Only Enter and Tab have a meaning on the Source tab. There is no element menu. The Pages view is a read-only preview.
+- **The Pages view.** The Pages view of a screenplay is a read-only preview.
 - **Undo and reloads.** Undo lasts for the open tab, and text typed in the moment before a reload may not be saved yet.
 - **The desktop app.** Caotang runs in the browser. A desktop wrapper is not in this build.

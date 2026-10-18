@@ -12,8 +12,10 @@ binder makes their nodes (`media/create-menu.ts`, through `binder.create`).
 - **Write a screenplay scene.** The Script tab draws the scene as it reads; the Source tab edits the Fountain text, with
   the headings, cues, parentheticals, transitions and notes drawn in their own styles over it; the Pages tab shows the
   scene paginated, read only. Enter at the end of a cue moves onto its dialogue, and Enter on an empty line after dialogue
-  starts action. Tab completes a half-typed cue from the cues in the scene and the codex's characters. All three write
-  through the session's autosave, which is the path the prose editor uses.
+  starts action. Tab completes a half-typed cue from the cues in the scene and the codex's characters. The element menu
+  (the Element button, or Ctrl+E) rewrites the caret's line as the element chosen, through the screenplay engine's
+  `convertLine` (element-menu.ts). All of these write through the session's autosave, which is the path the prose editor
+  uses.
 - **Write a dialogue container.** The Ink text sits under the outline, with its knots, stitches, choices, diverts,
   declarations and tags drawn in their own styles. Tab after a divert arrow completes the knot or stitch name. Clicking a
   card in the graph moves the caret to that knot's header in the text. Each choice's label is drawn on its arrow, and the
@@ -131,8 +133,9 @@ One exception is open: `ScreenplayPreview.tsx` imports `paginate` and `LAYOUT` f
    export dialog's Character limit field when the dialogue table is chosen, so a `dialogue-csv` export from the app carries it.
    The engine target and the locale reach the exports (*What a writer can do*, *Container settings*). The agent's
    `dialogue.table` tool does not read them: it returns §6's columns.
-6. **Screenplay source affordances.** Enter and Tab work on a cue, and the Source tab draws the parse. The element palette
-   beyond those keys (a menu of element types, and a key for each element) is not built.
+6. **Screenplay source affordances.** The element menu offers no section or synopsis: a section is a binder folder, and a
+   scene's synopsis is the binder's (screenplay.md §2.2). Its digits work while the menu is open; there is no chord for each
+   element outside it.
 7. **Coverage in a file with carriage returns.** The text area shows the stored text with line feeds, so a selection in a
    body stored with Windows line endings is located by its words, and a passage that appears twice is refused.
 8. **Page preview.** The Pages tab is `paginate()`'s output, read only, and it is not the PDF. The PDF belongs to the

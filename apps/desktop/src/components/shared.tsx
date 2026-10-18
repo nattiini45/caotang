@@ -61,6 +61,8 @@ export interface MenuItem {
   readonly danger?: boolean;
   /** A rule above this item, for grouping. */
   readonly separatorBefore?: boolean;
+  /** One character that chooses this item while the menu is open, shown at its end. */
+  readonly shortcut?: string;
 }
 
 export interface MenuAnchor {
@@ -148,6 +150,17 @@ export function Menu({
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
+    // An item's own key chooses it, as a click does. A key with a modifier is not one.
+    const keyed =
+      event.ctrlKey || event.metaKey || event.altKey
+        ? undefined
+        : enabled.find((item) => item.shortcut !== undefined && item.shortcut.toLowerCase() === event.key.toLowerCase());
+    if (keyed !== undefined) {
+      event.preventDefault();
+      onClose();
+      keyed.onSelect();
+      return;
+    }
     if (event.key === 'Escape') {
       event.preventDefault();
       onClose();
@@ -181,6 +194,7 @@ export function Menu({
             role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
             aria-checked={item.checked}
             disabled={item.disabled}
+            aria-keyshortcuts={item.shortcut}
             className={`menu-item${item.danger ? ' is-danger' : ''}${item.checked ? ' is-checked' : ''}`}
             onClick={() => {
               onClose();
@@ -188,6 +202,11 @@ export function Menu({
             }}
           >
             {item.label}
+            {item.shortcut === undefined ? null : (
+              <span className="menu-key" aria-hidden="true">
+                {item.shortcut}
+              </span>
+            )}
           </button>
         </div>
       ))}
