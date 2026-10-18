@@ -1,8 +1,9 @@
 /**
  * The user-facing "not in this build" lists name only what is missing. Each list is prose a writer reads, and nothing
  * else checks it, so a feature that ships (visual references, the dialogue table's character limit, the demo's continuity
- * findings in the Findings tab, weekly and monthly goals) can stay on the list after it is built. These tests read the
- * three lists and fail when one of them names a built feature as missing.
+ * findings in the Findings tab, weekly and monthly goals, the engine target and locale in dialogue exports, the Source
+ * tab's element menu) can stay on the list after it is built. These tests read the three lists and fail when one of them
+ * names a built feature as missing.
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -30,6 +31,7 @@ const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp
   { name: 'the continuity check reporting outside the Findings tab', pattern: /continuity check/i },
   { name: 'weekly and monthly goals', pattern: /weekly|monthly/i },
   { name: 'goals counted in characters', pattern: /characters, are not|counted in characters/i },
+  { name: 'the engine target and locale in dialogue exports', pattern: /engine target|dialogue export settings|locale in exports/i },
   { name: 'the Source tab element menu', pattern: /element menu/i },
 ];
 
@@ -37,8 +39,6 @@ describe('the not-in-this-build lists name only what is missing', () => {
   it('the user guide’s last section names no built feature', () => {
     const section = sectionUnder(read('docs/USER-GUIDE.md'), '## What is not in this build yet');
     for (const feature of BUILT_FEATURES) expect(section, `names ${feature.name} as missing`).not.toMatch(feature.pattern);
-    // The part that is true stays: no export reads the engine target or the locale yet.
-    expect(section).toMatch(/engine target and the locale are kept with the container, but no export uses them yet/);
   });
 
   it('the changelog’s known limits name no built feature, in any of its bullets', () => {
@@ -46,7 +46,6 @@ describe('the not-in-this-build lists name only what is missing', () => {
     const limits = sectionUnder(read('CHANGELOG.md'), '### Known limits');
     expect(limits.split('\n').some((line) => line.startsWith('- **Not in this build:**')), 'the changelog has a "Not in this build" line').toBe(true);
     for (const feature of BUILT_FEATURES) expect(limits, `names ${feature.name} as missing`).not.toMatch(feature.pattern);
-    expect(limits).toMatch(/engine target and locale in exports/);
   });
 
   it('the readme’s not-yet list names no built feature', () => {

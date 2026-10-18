@@ -16,7 +16,17 @@
  */
 
 import { renderFdx, renderFountain, isScreenplayKind } from '@caotang/screenplay';
-import { exportCsv, exportInkJson, isDialogueNodeType, readDialogueMeta, toCsv, type DialogueSource, type TableRow } from '@caotang/dialogue';
+import {
+  exportCsv,
+  exportInkJson,
+  isDialogueNodeType,
+  readDialogueMeta,
+  toCsv,
+  toYarnCsv,
+  type DialogueSource,
+  type EngineTarget,
+  type TableRow,
+} from '@caotang/dialogue';
 import { countBody, getBody, nodeById, type ProjectState, type TreeNode } from '@caotang/store';
 import {
   exportNumbers,
@@ -298,10 +308,29 @@ function dialogueContainers(request: MediaRequest): TreeNode[] {
   return selectedNodes(request.state, request.includeRootIds).filter((node) => isDialogueNodeType(node.type));
 }
 
+/** An engine target in the words the compile log uses (the Inspector's labels, dialogue-narrative.md §2.1). */
+const TARGET_WORDS: Readonly<Record<EngineTarget, string>> = {
+  'ink-json': 'Ink, compiled to JSON',
+  'yarn-csv': 'the Yarn string table',
+  'generic-csv': 'a CSV table for any engine',
+};
+
 /**
- * One compiled story per container (`<title>.ink.json`). The gate is the spec's: a container whose body does
- * not compile with zero errors refuses the whole compile, and every such container is named. Warnings do not
- * block; they are carried into the log verbatim.
+ * The file name of one compiled story: `<title>.ink.json`, or `<title>.<locale>.ink.json` when the container sets its own
+ * locale (`locBaseline`), so stories written in different languages sit side by side. A container with no locale of its own
+ * keeps the plain name: the project's language names no file.
+ */
+export function inkJsonFileName(title: string, locBaseline: string | undefined): string {
+  const locale = locBaseline === undefined || locBaseline.trim() === '' ? '' : fileStem(locBaseline);
+  return locale === '' ? `${fileStem(title)}.ink.json` : `${fileStem(title)}.${locale}.ink.json`;
+}
+
+/**
+ * One compiled story per container (`<title>.ink.json`, with the container's locale in the name when it sets one). The gate
+ * is the spec's: a container whose body does not compile with zero errors refuses the whole compile, and every such
+ * container is named. Warnings do not block; they are carried into the log verbatim. The compiled JSON is inkjs's own: an
+ * engine target or a locale never changes it. A container whose engine target is a table is still compiled, because the
+ * recipe carries the truth (§2.1), and the log says so.
  */
 function inkJsonOutput(request: MediaRequest): MediaOutput {
   const containers = dialogueContainers(request);
@@ -314,12 +343,18 @@ function inkJsonOutput(request: MediaRequest): MediaOutput {
   let words = 0;
   for (const node of containers) {
     const body = getBody(request.state, node.id);
+    const read = readDialogueMeta(node.dialogue);
     const compiled = exportInkJson(node.id, body);
     if (!compiled.ok) {
       reasons.push(`"${node.title}" does not compile: ${compiled.errors.map((error) => error.text).join(' ')}`);
       continue;
     }
-    files.push({ name: `${fileStem(node.title)}.ink.json`, mimeType: JSON_MIME, text: compiled.json });
+    files.push({ name: inkJsonFileName(node.title, read.meta.locBaseline), mimeType: JSON_MIME, text: compiled.json });
+    notes.push(...read.notes.map((note) => `"${node.title}": ${note}`));
+    const target = read.meta.engineTarget;
+    if (target !== undefined && target !== 'ink-json') {
+      notes.push(`"${node.title}": its engine target is ${TARGET_WORDS[target]}; this compile writes the Ink story, as it was asked to`);
+    }
     notes.push(...compiled.notes.map((warning) => `ink warning in "${node.title}": ${warning}`));
     words += countBody(body).words;
   }
@@ -339,18 +374,49 @@ function inkJsonOutput(request: MediaRequest): MediaOutput {
  * The dialogue table's CSV: the table's own writer (`toCsv`, dialogue table.ts) over the rows, with the formula guard the
  * shot list and the prompt pack apply to their text cells. The table's writer quotes but does not guard, and its text
  * comes from manuscript and imported Ink, so the guard is applied here, to the speaker, the text and the context. The
- * line id is not guarded: the parser admits only ids of the minted `l_` form, and none of them opens with a trigger.
+ * line id is not guarded: the parser admits only ids of the minted `l_` form, and none of them opens with a trigger. The
+ * `locale` column follows §6's five: each row's locale, the container's `locBaseline` or the project's language. Both are
+ * read from the project file, where a hand edit can put any non-empty string, so the locale is guarded too.
  */
 export function dialogueCsv(rows: readonly TableRow[]): string {
   return toCsv(
-    rows.map((row) => ({ ...row, speaker: guardFormula(row.speaker), text: guardFormula(row.text), context: guardFormula(row.context) })),
+    rows.map((row) => ({
+      ...row,
+      speaker: guardFormula(row.speaker),
+      text: guardFormula(row.text),
+      context: guardFormula(row.context),
+      locale: guardFormula(row.locale),
+    })),
+    { includeLocale: true },
   );
+}
+
+/**
+ * The Yarn Spinner strings file for the rows of `yarn-csv` containers (`toYarnCsv`, dialogue table.ts), with the same formula
+ * guard on the cells that come from hand-editable strings: the language (the locale), the text, the file and the comment. The
+ * guard is for a spreadsheet that opens the file. The id and node cells are left unguarded on purpose: only minted `l_` ids and
+ * identifier-syntax knot names parse, so neither can start with a trigger character. The apostrophe is written into the cell: in the text it starts the line's
+ * content (a known limit in the changelog and the guide); in the language it changes the locale code; in the file and the
+ * comment it stays in the metadata.
+ */
+export function dialogueYarnCsv(rows: readonly TableRow[], titleOf: (containerId: string) => string): string {
+  return toYarnCsv(rows, { fileOf: titleOf, cell: guardFormula });
+}
+
+/** The project's language, the locale of a container that sets none (dialogue-narrative.md §2.1). */
+function projectLocale(state: ProjectState): string {
+  return state.manifest.project.language?.trim() ?? '';
 }
 
 /**
  * The dialogue table as RFC 4180 CSV, one row per speakable line and choice label (dialogue-narrative.md §6).
  * The gate is the spec's: every row has a line id and no id is used twice. Ids are minted in the Ink text by
  * the dialogue tools, never here, so a table with an unkeyed row is refused and the rows are named.
+ *
+ * Each container's engine target picks the file its rows go to. A `yarn-csv` container's rows go to a Yarn Spinner strings
+ * file, `<base> (dialogue, Yarn).csv`. Every other container's rows, with the `generic-csv` target, the `ink-json` target or
+ * none, go to the dialogue table, `<base> (dialogue).csv`. A selection that holds both kinds writes both files. Every row
+ * carries its locale: the container's `locBaseline`, else the project's language.
  */
 function dialogueCsvOutput(request: MediaRequest): MediaOutput {
   const containers = dialogueContainers(request);
@@ -361,8 +427,8 @@ function dialogueCsvOutput(request: MediaRequest): MediaOutput {
   if (limit !== undefined && limit !== null && (!Number.isInteger(limit) || limit < 1)) {
     throw new MediaRefusedError('dialogue-csv', [`the character limit must be a whole number above zero, got ${String(limit)}`]);
   }
-  // Each container's own settings (its default speaker) are read here, so the table names the speaker a line with no
-  // `Name:` prefix belongs to. A setting the reader cannot use is dropped by it and reported in the compile's notes.
+  // Each container's own settings (its default speaker, its locale, its engine target) are read here. A setting the reader
+  // cannot use is dropped by it and reported in the compile's notes.
   const reads = containers.map((node) => readDialogueMeta(node.dialogue));
   const sources: DialogueSource[] = containers.map((node, i) => ({
     id: node.id,
@@ -370,23 +436,50 @@ function dialogueCsvOutput(request: MediaRequest): MediaOutput {
     body: getBody(request.state, node.id),
     meta: reads[i]?.meta ?? {},
   }));
-  const table = exportCsv(sources, { entries: request.state.manifest.codex ?? [], charLimit: limit ?? null });
+  const locale = projectLocale(request.state);
+  const table = exportCsv(sources, { entries: request.state.manifest.codex ?? [], charLimit: limit ?? null, locale });
+  const titles = new Map(containers.map((node) => [node.id, node.title] as const));
   if (!table.ok) {
-    const titles = new Map(containers.map((node) => [node.id, node.title] as const));
     throw new MediaRefusedError('dialogue-csv', [
       ...table.missing.map((row) => `"${titles.get(row.container) ?? row.container}" line ${row.line} has no line id`),
       ...table.duplicates.map((id) => `line id ${id} is on more than one line`),
     ]);
   }
+  const yarnIds = new Set(containers.filter((_, i) => reads[i]?.meta.engineTarget === 'yarn-csv').map((node) => node.id));
+  const yarnRows = table.rows.filter((row) => yarnIds.has(row.container));
+  const tableRows = table.rows.filter((row) => !yarnIds.has(row.container));
+  const files: MediaFile[] = [];
+  if (yarnIds.size < containers.length) {
+    files.push({ name: `${request.base} (dialogue).csv`, mimeType: CSV_MIME, text: dialogueCsv(tableRows) });
+  }
+  if (yarnIds.size > 0) {
+    files.push({
+      name: `${request.base} (dialogue, Yarn).csv`,
+      mimeType: CSV_MIME,
+      text: dialogueYarnCsv(yarnRows, (id) => titles.get(id) ?? id),
+    });
+  }
+  const notes = reads.flatMap((read, i) => read.notes.map((note) => `"${containers[i]?.title ?? ''}": ${note}`));
+  if (yarnIds.size > 0 && limit !== undefined && limit !== null) {
+    notes.push('the Yarn strings file has no character limit column, so the limit is not in it');
+  }
+  if (table.rows.some((row) => row.locale === '')) {
+    notes.push('a container has no locale and the project has no language, so its rows have an empty locale');
+  }
+  containers.forEach((node, i) => {
+    if (reads[i]?.meta.engineTarget === 'ink-json') {
+      notes.push(`"${node.title}": its engine target is ${TARGET_WORDS['ink-json']}; its lines are in the dialogue table, as this compile asks`);
+    }
+  });
   const words = table.rows.reduce((sum, row) => sum + countBody(row.text).words, 0);
   return {
-    files: [{ name: `${request.base} (dialogue).csv`, mimeType: CSV_MIME, text: dialogueCsv(table.rows) }],
+    files,
     blockCount: table.rows.length,
     chapterCount: 0,
     sceneCount: containers.length,
     wordCount: words,
     skippedDocs: [],
-    notes: reads.flatMap((read, i) => read.notes.map((note) => `"${containers[i]?.title ?? ''}": ${note}`)),
+    notes,
   };
 }
 

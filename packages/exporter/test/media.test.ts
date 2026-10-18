@@ -244,21 +244,21 @@ describe('dialogue-csv — the dialogue table, keyed by line id', () => {
     const { text, file } = await oneFile(rig().exporter, ['manuscript'], 'dialogue-csv');
     expect(file.fileName).toBe(`${PROJECT_NAME} (dialogue).csv`);
     const lines = text.split('\r\n');
-    expect(lines[0]).toBe('lineId,speaker,text,context,charLimit');
-    expect(lines).toContain('l_0000000001,,The innkeeper looks up.,start,');
-    expect(lines).toContain('l_0000000002,Innkeeper,"Ah, a traveller. What\'ll it be?",start,');
-    expect(lines).toContain('l_0000000003_c,,Order an ale,start,');
-    expect(lines).toContain('l_0000000005,,"Ale arrives, foaming.",ale,');
+    expect(lines[0]).toBe('lineId,speaker,text,context,charLimit,locale');
+    expect(lines).toContain('l_0000000001,,The innkeeper looks up.,start,,en');
+    expect(lines).toContain('l_0000000002,Innkeeper,"Ah, a traveller. What\'ll it be?",start,,en');
+    expect(lines).toContain('l_0000000003_c,,Order an ale,start,,en');
+    expect(lines).toContain('l_0000000005,,"Ale arrives, foaming.",ale,,en');
   });
 
   it('guards a text cell that a spreadsheet would read as a formula, as the shot list and the prompt pack do', async () => {
     const r = rig({ state: makeMediaProject({ innkeeper: GUARD_INK }) });
     const { text } = await oneFile(r.exporter, ['manuscript'], 'dialogue-csv');
     const lines = text.split('\r\n');
-    expect(lines).toContain(`l_0000000101,Innkeeper,"'=HYPERLINK(example.invalid,click)",start,`);
-    expect(lines).toContain(`l_0000000102,Innkeeper,"'-5 gold, the toll.",start,`);
-    expect(lines).toContain(`l_0000000103,Innkeeper,"'@Mara, come in.",start,`);
-    expect(lines).toContain(`l_0000000104,Innkeeper,'+1 ale.,start,`);
+    expect(lines).toContain(`l_0000000101,Innkeeper,"'=HYPERLINK(example.invalid,click)",start,,en`);
+    expect(lines).toContain(`l_0000000102,Innkeeper,"'-5 gold, the toll.",start,,en`);
+    expect(lines).toContain(`l_0000000103,Innkeeper,"'@Mara, come in.",start,,en`);
+    expect(lines).toContain(`l_0000000104,Innkeeper,'+1 ale.,start,,en`);
   });
 
   it('refuses a table with an unkeyed row, and names the line', async () => {
@@ -303,8 +303,10 @@ describe('dialogueCsv — the formula guard on the table\'s text cells', () => {
       missing: false,
       kind: 'line',
       speaker: '',
+      speakerName: '',
       text: '',
       context: '',
+      locale: '',
       charLimit: null,
       condition: '',
       node: 'start',
@@ -325,22 +327,22 @@ describe('dialogueCsv — the formula guard on the table\'s text cells', () => {
       rowWith({ text: 'Plain, text' }),
     ]);
     expect(csv.split('\r\n')).toEqual([
-      'lineId,speaker,text,context,charLimit',
-      "l_0000000001,,'=1+1,,",
-      "l_0000000001,,'+1,,",
-      "l_0000000001,,'-1,,",
-      "l_0000000001,,'@Mara,,",
-      "l_0000000001,,'\tindented,,",
-      "l_0000000001,,\"'\rreturned\",,",
-      'l_0000000001,,a=b,,',
-      'l_0000000001,,"Plain, text",,',
+      'lineId,speaker,text,context,charLimit,locale',
+      "l_0000000001,,'=1+1,,,",
+      "l_0000000001,,'+1,,,",
+      "l_0000000001,,'-1,,,",
+      "l_0000000001,,'@Mara,,,",
+      "l_0000000001,,'\tindented,,,",
+      "l_0000000001,,\"'\rreturned\",,,",
+      'l_0000000001,,a=b,,,',
+      'l_0000000001,,"Plain, text",,,',
       '',
     ]);
   });
 
   it('guards the speaker and the context in the same way, since they are text too', () => {
     const csv = dialogueCsv([rowWith({ speaker: '=Narrator' }), rowWith({ context: '-start' })]);
-    expect(csv.split('\r\n').slice(1, 3)).toEqual(["l_0000000001,'=Narrator,,,", "l_0000000001,,,'-start,"]);
+    expect(csv.split('\r\n').slice(1, 3)).toEqual(["l_0000000001,'=Narrator,,,,", "l_0000000001,,,'-start,,"]);
   });
 });
 

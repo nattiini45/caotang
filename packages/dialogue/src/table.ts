@@ -14,8 +14,15 @@ import type { DialogueContainerMeta } from './kinds.js';
 import { parseInk, ROOT_NODE_ID } from './ink-parse.js';
 import { resolveSpeakerId, resolveSpeakerName } from './speakers.js';
 
-/** §6's columns, in order. `condition` is appended only when a caller asks for it. */
+/** §6's columns, in order. `locale` and `condition` are appended only when a caller asks for them. */
 export const TABLE_COLUMNS = ['lineId', 'speaker', 'text', 'context', 'charLimit'] as const;
+
+/**
+ * The columns of a Yarn Spinner strings file, in Yarn's order: the `yarn-csv` engine target's table (§2.1). Yarn reads
+ * `language` as the line's locale and `id` as its line id; `lock` is a hash Yarn computes from its own source, so Caotang
+ * leaves it empty.
+ */
+export const YARN_COLUMNS = ['language', 'id', 'text', 'file', 'node', 'lineNumber', 'lock', 'comment'] as const;
 
 /** A dialogue container as the table reads it: its id, its title, its Ink body and its metadata. */
 export interface DialogueSource {
@@ -34,8 +41,12 @@ export interface TableRow {
   /** The speaker's codex id when it resolves, else the typed name, else the container's default, else empty. */
   readonly speaker: string;
   readonly text: string;
+  /** The speaker's name as a reader sees it: the codex display name, else the typed name, else empty. */
+  readonly speakerName: string;
   /** The knot path, then the codex-resolved speaker's display name, joined by ` / `. */
   readonly context: string;
+  /** The locale the line is written in: the container's `locBaseline`, else the table's default locale, else empty. */
+  readonly locale: string;
   /** The character limit when the template sets one, else null. */
   readonly charLimit: number | null;
   /** A choice's condition, or the empty string. */
@@ -48,28 +59,35 @@ export interface TableOptions {
   readonly entries?: readonly CodexEntry[];
   /** A subtitle-style limit, applied to every row. Null or absent means unconstrained (§4). */
   readonly charLimit?: number | null;
+  /** The locale of a container that sets none (§2.1: the project's `language`). Absent leaves such rows' locale empty. */
+  readonly locale?: string;
 }
 
 /** Builds the rows for one or more containers, in the order given (binder order, by the caller). */
 export function buildRows(sources: readonly DialogueSource[], options: TableOptions = {}): TableRow[] {
   const entries = options.entries ?? [];
   const charLimit = options.charLimit ?? null;
+  const defaultLocale = options.locale?.trim() ?? '';
   const rows: TableRow[] = [];
   for (const source of sources) {
     const parsed = parseInk(source.body);
     const defaultId = source.meta?.speaker ?? '';
     const defaultEntry = defaultId === '' ? undefined : resolveSpeakerId(entries, defaultId);
+    const locale = source.meta?.locBaseline ?? defaultLocale;
     for (const line of parsed.lines) {
       let speaker = defaultId;
       let display = defaultEntry?.name ?? '';
+      let speakerName = display;
       if (line.speaker !== null) {
         const resolved = resolveSpeakerName(entries, line.speaker);
         if (resolved.kind === 'resolved') {
           speaker = resolved.entry.id;
           display = resolved.entry.name;
+          speakerName = display;
         } else {
           speaker = line.speaker;
           display = '';
+          speakerName = line.speaker;
         }
       }
       const path = line.node === ROOT_NODE_ID ? '' : line.node;
@@ -79,8 +97,10 @@ export function buildRows(sources: readonly DialogueSource[], options: TableOpti
         missing: line.lineId === null,
         kind: line.kind,
         speaker,
+        speakerName,
         text: line.text,
         context: [path, display].filter((part) => part !== '').join(' / '),
+        locale,
         charLimit,
         condition: line.condition ?? '',
         node: line.node,
@@ -96,16 +116,59 @@ export function csvField(value: string): string {
   return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
-/** The table as RFC 4180 CSV: a header row, then one CRLF-terminated record per row. */
-export function toCsv(rows: readonly TableRow[], options: { includeConditions?: boolean } = {}): string {
+/**
+ * The table as RFC 4180 CSV: a header row, then one CRLF-terminated record per row. `includeLocale` appends the `locale`
+ * column after §6's five, and `includeConditions` appends `condition` after that.
+ */
+export function toCsv(rows: readonly TableRow[], options: { includeConditions?: boolean; includeLocale?: boolean } = {}): string {
   const columns: string[] = [...TABLE_COLUMNS];
+  if (options.includeLocale === true) columns.push('locale');
   if (options.includeConditions === true) columns.push('condition');
   const records = rows.map((row) => {
     const values = [row.lineId, row.speaker, row.text, row.context, row.charLimit === null ? '' : String(row.charLimit)];
+    if (options.includeLocale === true) values.push(row.locale);
     if (options.includeConditions === true) values.push(row.condition);
     return values.map(csvField).join(',');
   });
   return [columns.join(','), ...records].map((record) => `${record}\r\n`).join('');
+}
+
+/** How {@link toYarnCsv} names a row's file, and the cell transform it applies to the `language`, `text`, `file` and `comment` cells. */
+export interface YarnCsvOptions {
+  /** The `file` column: the name of the container a row comes from. Absent writes the container id. */
+  readonly fileOf?: (containerId: string) => string;
+  /**
+   * Applied to `language`, `text`, `file` and `comment` after they are composed, such as a spreadsheet formula guard. Default:
+   * unchanged.
+   */
+  readonly cell?: (value: string) => string;
+}
+
+/**
+ * The rows as a Yarn Spinner strings file (the `yarn-csv` engine target, §2.1), RFC 4180 like the table. Each row maps so:
+ * `language` = the row's locale; `id` = `line:` + the line id, the prefix Yarn's line ids carry; `text` = `Speaker: text`
+ * for a spoken line with a speaker name (Yarn keeps the character name in the line), and the label alone for a choice;
+ * `file` = the container; `node` = the knot path, empty for text above the first knot; `lineNumber` = the Ink line;
+ * `lock` = empty; `comment` = the table's context. Yarn has no character limit column, so the limit is not written.
+ */
+export function toYarnCsv(rows: readonly TableRow[], options: YarnCsvOptions = {}): string {
+  const cell = options.cell ?? ((value: string) => value);
+  const fileOf = options.fileOf ?? ((id: string) => id);
+  const records = rows.map((row) => {
+    const text = row.kind === 'line' && row.speakerName !== '' ? `${row.speakerName}: ${row.text}` : row.text;
+    const values = [
+      cell(row.locale),
+      `line:${row.lineId}`,
+      cell(text),
+      cell(fileOf(row.container)),
+      row.node === ROOT_NODE_ID ? '' : row.node,
+      String(row.line),
+      '',
+      cell(row.context),
+    ];
+    return values.map(csvField).join(',');
+  });
+  return [YARN_COLUMNS.join(','), ...records].map((record) => `${record}\r\n`).join('');
 }
 
 /** The rows as plain objects, for the JSON form of the tool and for callers that render the table themselves. */
