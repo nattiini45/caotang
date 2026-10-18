@@ -318,7 +318,7 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - Licence MIT, "Copyright (c) 2026 The Caotang Authors". Why: the least friction for forks and contributors. [owner]
 - Caotang is completely free: no meters, gates, paid tiers or subscriptions; the writer's own provider is the only cost. Why: the free, local, agent quadrant is the product. [owner]
 - Never per-module pricing and never a commercial-use-gated free tier. Why: the two named anti-patterns. [owner]
-- The public repository is `caotang-app/caotang`, started from one clean snapshot. Why: a clean public history. [owner]
+- The public repository is `nattiini45/caotang`, started from one clean snapshot. It moved there from `caotang-app/caotang` on 2026-10-18. Why: a clean public history; the move lets the owner's personal Kilo Code reviewer cover the repo without a paid organization. [owner]
 - Development moved to this repository from a private archive; it becomes public once the build has been tested with real provider keys. Why: the public history starts clean, and the first public build is tested with real providers. [owner]
 - The first public version is 0.1.0, not 1.0, because the project file format may still change. Why: a 1.0 would promise a stable format. [owner]
 - Packages are `@caotang/*`; environment variables `CAOTANG_*`. Why: a clean break at the rename. [owner]

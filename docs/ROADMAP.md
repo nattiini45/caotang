@@ -43,4 +43,4 @@ Each of these is its own milestone, designed when its turn comes.
 
 ## Suggest something
 
-Open an issue on [github.com/caotang-app/caotang](https://github.com/caotang-app/caotang). A feature that fits the principles above (local-first, your own key, plain-text files, an agent that works through the app's own commands) has the best chance.
+Open an issue on [github.com/nattiini45/caotang](https://github.com/nattiini45/caotang). A feature that fits the principles above (local-first, your own key, plain-text files, an agent that works through the app's own commands) has the best chance.
