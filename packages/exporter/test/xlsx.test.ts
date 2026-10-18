@@ -409,7 +409,7 @@ describe('dialogue-xlsx — the dialogue table as a spreadsheet', () => {
     const fromCsv = csvRows((await csv.files[0]?.blob.text()) ?? '');
     // Cell for cell only because this fixture holds none of the text the formats treat differently by design (a cell that opens
     // with a formula character, a CR line ending, a character XML forbids, a cell past the length limit; the shot list's test
-    // pins the first). Its precondition is checked, so a fixture that gains such a cell fails here and not as a parity bug.
+    // pins the first). Its precondition catches a CR anywhere, a character XML forbids and a cell past the length limit; a cell that opens with =, +, -, @ or a tab fails instead at the parity assertion below.
     // A leading apostrophe is not listed: one the source began with is written identically by both formats, and one the guard
     // added to a formula character would sit on a cell that already starts with that character in the source, which the parity
     // assertion below catches as a difference.
