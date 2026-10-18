@@ -250,10 +250,10 @@ describe('layoutPdf — what the fonts cannot print', () => {
     expect(result.notes).toEqual([]);
   });
 
-  it('renderPdf without the fallbacks a script needs says which characters print as "?"', () => {
+  it('renderPdf without the fallbacks a script needs names the characters not printed as written', () => {
     const result = renderPdf(blocksOf(text('INT. 草堂 - DAY', '', 'She reads 草堂 aloud 👍.')), { title: 'T' });
     expect(decode(result.bytes)).not.toContain('/F2');
-    expect(result.notes).toEqual(['pdf: the fallback font that prints these 3 characters was not passed to renderPdf, or has no glyph for them, so they are not printed as written: 草 堂 👍']);
+    expect(result.notes).toEqual(['pdf: the CJK or emoji fallback font that prints these 3 characters was not passed to renderPdf, or has no glyph for them, so they are not printed as written: 草 堂 👍']);
   });
 
   it('counts the script pages apart from the title page', () => {

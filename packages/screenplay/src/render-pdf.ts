@@ -45,7 +45,7 @@ export interface PdfLayout {
   readonly scriptPageCount: number;
   readonly title: string;
   readonly author?: string;
-  /** What the Fountain step left out, and the characters neither font can print (CJK first, then emoji). */
+  /** What the Fountain step left out. */
   readonly notes: readonly string[];
   /** The characters WinAnsi cannot encode that the CJK fallback prints, in order of first use. Empty: no fallback is loaded. */
   readonly fallbackCharacters: readonly string[];
@@ -59,7 +59,7 @@ export interface PdfLayout {
 export interface PdfRenderResult {
   readonly bytes: Uint8Array<ArrayBuffer>;
   readonly pageCount: number;
-  /** What the Fountain step left out, and the characters printed as "?", in order. */
+  /** What the Fountain step left out, then one note naming the characters a missing or incomplete fallback font leaves unprinted (CJK characters first, then emoji units, each in order of first use). */
   readonly notes: readonly string[];
 }
 
@@ -193,8 +193,8 @@ function decodeBase64(text: string): Uint8Array {
 /**
  * Lays out and draws in one call, synchronously. `font` embeds it; without one the file names the base-14 Courier. The
  * fallbacks are drawn as {@link drawPdf} draws them: pass what {@link loadCjkFallback} and {@link loadEmojiFallback} give
- * for the same blocks and options. A character the layout needs a fallback for that the call does not pass prints as "?",
- * and the notes name it, as they name a character no font has.
+ * for the same blocks and options. A character whose fallback the call does not pass, or that the fallback has no glyph
+ * for, is not printed as written (a plain "?", or the base character of a keycap-style unit), and the notes name it.
  */
 export function renderPdf(
   blocks: readonly FlatBlock[],
@@ -210,7 +210,7 @@ export function renderPdf(
   const unprinted = [...cjkMissing, ...emojiMissing];
   if (unprinted.length > 0) {
     const { what, verb, shown } = counted(unprinted, 'character', 'characters');
-    notes.push(`pdf: the fallback font that prints ${what} was not passed to renderPdf, or has no glyph for ${unprinted.length === 1 ? 'it' : 'them'}, so ${verb} not printed as written: ${shown}`);
+    notes.push(`pdf: the CJK or emoji fallback font that prints ${what} was not passed to renderPdf, or has no glyph for ${unprinted.length === 1 ? 'it' : 'them'}, so ${verb} not printed as written: ${shown}`);
   }
   return { bytes: drawPdf(layout, font, fallback, emoji), pageCount: layout.pages.length, notes };
 }
