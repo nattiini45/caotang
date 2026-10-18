@@ -140,6 +140,12 @@ function expectPageBreakRules(pages: readonly LayoutPage[]): void {
 }
 
 describe('paginate — the layout constants (screenplay.md §5.3)', () => {
+  it('refuses an unknown scene-number placement instead of printing it as off', () => {
+    const elements = parseFountain('INT. ROOM - DAY #1#\n\nAction.\n').elements;
+    const bogus = { sceneNumbers: 'middle' } as unknown as Parameters<typeof paginate>[1];
+    expect(() => paginate(elements, bogus)).toThrow(/Unknown scene-number placement: middle/);
+  });
+
   it('derives the lines per page and the text width from the spec margins', () => {
     expect(LAYOUT.linesPerPage).toBe(54);
     expect(LAYOUT.columns).toBe(60);
