@@ -78,7 +78,7 @@ const STYLE = { normal: 0, header: 1, text: 2, wrap: 3, textWrap: 4 } as const;
 /**
  * The sheets {@link prepareSheet} returned. Writing one of them writes it as it is; any other sheet is prepared first, so the
  * preparation runs once for a sheet the compile prepared, and a caller that never prepared still gets a sheet a spreadsheet
- * opens without a repair prompt.
+ * opens without a repair prompt: every cell, the header labels included, is cleaned and cut to the limit.
  */
 const PREPARED = new WeakSet<XlsxSheet>();
 
@@ -91,6 +91,14 @@ const PREPARED = new WeakSet<XlsxSheet>();
 export function prepareSheet(sheet: XlsxSheet): { readonly sheet: XlsxSheet; readonly notes: readonly string[] } {
   if (PREPARED.has(sheet)) return { sheet, notes: [] };
   const notes: string[] = [];
+  const columns = sheet.columns.map((label, c) => {
+    const clean = stripXmlIllegal(label);
+    if (clean.length <= XLSX_CELL_MAX) return clean;
+    notes.push(
+      `xlsx: the header of column ${columnName(c)} is longer than the ${XLSX_CELL_MAX.toLocaleString('en-US')} characters a spreadsheet cell holds, so it was cut`,
+    );
+    return clean.slice(0, XLSX_CELL_MAX);
+  });
   const rows = sheet.rows.map((row, r) =>
     row.map((cell, c) => {
       if (typeof cell !== 'string') return cell;
@@ -102,7 +110,7 @@ export function prepareSheet(sheet: XlsxSheet): { readonly sheet: XlsxSheet; rea
       return clean.slice(0, XLSX_CELL_MAX);
     }),
   );
-  const prepared: XlsxSheet = { ...sheet, rows };
+  const prepared: XlsxSheet = { ...sheet, columns, rows };
   PREPARED.add(prepared);
   return { sheet: prepared, notes };
 }

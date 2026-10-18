@@ -35,6 +35,7 @@ import {
   type XlsxSheet,
 } from '../src/index.js';
 import { columnName } from '../src/render-xlsx.js';
+import { stripXmlIllegal } from '../src/xml-text.js';
 import { COMPILED_AT, PROJECT_NAME } from './fixture.js';
 import { ASSET_FILE, ASSETS, MEDIA_IDS, UNKEYED_INK, makeMediaProject } from './media-fixture.js';
 import { assertWellFormedXml, unzipText } from './xml.js';
@@ -208,6 +209,17 @@ describe('the cells', () => {
     expect((cells.get('B2')?.value as string).length).toBe(XLSX_CELL_MAX);
     expect(cells.get('B3')?.value).toBe('short');
     expect((cells.get('B4')?.value as string).length).toBe(XLSX_CELL_MAX);
+  });
+
+  it('cleans and cuts a header label too, so a sheet with an oversized label still opens without a repair prompt', () => {
+    const prepared = prepareSheet({ name: 'x', columns: ['n', `bell\u0007${'h'.repeat(XLSX_CELL_MAX)}`], rows: [[1, 'a']] });
+    expect(prepared.sheet.columns[1]?.length).toBe(XLSX_CELL_MAX);
+    expect(prepared.sheet.columns[1]?.startsWith('bellh')).toBe(true);
+    expect(prepared.notes).toEqual([
+      'xlsx: the header of column B is longer than the 32,767 characters a spreadsheet cell holds, so it was cut',
+    ]);
+    const cells = readCells(partsOf(prepared.sheet)['xl/worksheets/sheet1.xml'] ?? '');
+    expect((cells.get('B1')?.value as string).length).toBe(XLSX_CELL_MAX);
   });
 });
 
@@ -398,7 +410,9 @@ describe('dialogue-xlsx — the dialogue table as a spreadsheet', () => {
     // Cell for cell only because this fixture holds none of the text the formats treat differently by design (a cell that opens
     // with a formula character, a CR line ending, a character XML forbids, a cell past the length limit; the shot list's test
     // pins the first). Its precondition is checked, so a fixture that gains such a cell fails here and not as a parity bug.
-    expect(fromCsv.flat().filter((cell) => /^['=+\-@\t\r]|\r/.test(cell))).toEqual([]);
+    const divergent = (cell: string): boolean =>
+      /^['=+\-@\t\r]|\r/.test(cell) || stripXmlIllegal(cell) !== cell || cell.length > XLSX_CELL_MAX;
+    expect(fromCsv.flat().filter(divergent)).toEqual([]);
     expect(rows.map((row) => row.map(String))).toEqual(fromCsv);
     expect(rows.slice(1).map((row) => row[0])).toEqual(['l_0000000001', 'l_0000000002', 'l_0000000003_c', 'l_0000000004_c', 'l_0000000005']);
   });

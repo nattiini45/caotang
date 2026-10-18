@@ -30,8 +30,13 @@ const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp
   { name: 'the continuity check reporting outside the Findings tab', pattern: /continuity check/i },
   { name: 'weekly and monthly goals', pattern: /weekly|monthly/i },
   { name: 'goals counted in characters', pattern: /characters, are not|counted in characters/i },
-  // Anchored to a claim that the export is missing, so a true limitation sentence about the spreadsheet files still passes.
-  { name: 'spreadsheet export', pattern: /spreadsheet exports?|no spreadsheet|(?:xlsx|spreadsheet)[^.\n]*not (?:yet )?(?:built|exported|available|supported)/i },
+  // In these lists the phrase "spreadsheet export(s)" itself names the export as missing, so it is flagged wherever it stands;
+  // a true limitation sentence about the files names them as "the .xlsx files" or "the spreadsheet files" instead. The other
+  // branches catch a claim that the export is missing in other words.
+  {
+    name: 'spreadsheet export',
+    pattern: /spreadsheet exports?|no (?:spreadsheet|xlsx)\b|(?:xlsx|spreadsheet)[^.\n]*not (?:yet )?(?:built|exported|available|supported|in this build)/i,
+  },
 ];
 
 describe('the built-feature patterns flag a stale claim and nothing else', () => {
@@ -41,6 +46,13 @@ describe('the built-feature patterns flag a stale claim and nothing else', () =>
     expect('PDF exports of screenplays and storyboards, spreadsheet exports, the Source tab').toMatch(spreadsheet);
     expect('There is no spreadsheet export yet.').toMatch(spreadsheet);
     expect('XLSX is not built yet.').toMatch(spreadsheet);
+    expect('There is no XLSX export yet.').toMatch(spreadsheet);
+    expect('XLSX export is not in this build.').toMatch(spreadsheet);
+  });
+
+  it('the spreadsheet pattern treats the phrase "spreadsheet exports" as naming the export missing, wherever it stands', () => {
+    // A limitation sentence in these lists words the files another way (see the next test); this one is flagged by design.
+    expect('Spreadsheet exports have not been opened in Excel, Numbers or LibreOffice by the test suite.').toMatch(spreadsheet);
   });
 
   it('the spreadsheet pattern lets a true limitation sentence about the spreadsheet files through', () => {
