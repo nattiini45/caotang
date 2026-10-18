@@ -180,4 +180,18 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(media).toContain('{ includeLocale: true }');
     expect(read('packages/dialogue/src/table.ts')).toContain("export const YARN_COLUMNS = ['language', 'id', 'text', 'file', 'node', 'lineNumber', 'lock', 'comment'] as const;");
   });
+
+  it('says which leading characters get the Yarn guard apostrophe, that it is written into the cell, and that Yarn Spinner was not checked', () => {
+    const claim =
+      "In the Yarn strings file, a line or choice whose cell starts with `=`, `+`, `-`, `@`, a tab or a carriage return gets an apostrophe in front, as in every CSV export, so a spreadsheet does not run it as a formula.";
+    expect(guide).toContain(claim);
+    expect(guide).toContain("The apostrophe is written into the cell itself, so a tool that reads the file gets it with the line; Caotang has not checked how Yarn Spinner shows it.");
+    expect(changelog).toContain('how Yarn Spinner shows it has not been checked.');
+    // The trigger list in the guide is the guard's own list, and the Yarn writer applies that guard to its cells.
+    expect(read('packages/storyboard/src/render-csv.ts')).toContain("const FORMULA_TRIGGERS: readonly string[] = ['=', '+', '-', '@', '\\t', '\\r'];");
+    expect(read('packages/exporter/src/media.ts')).toContain('return toYarnCsv(rows, { fileOf: titleOf, cell: guardFormula });');
+    const table = read('packages/dialogue/src/table.ts');
+    expect(table).toContain('cell(row.locale),');
+    expect(table).toContain('cell(text),');
+  });
 });

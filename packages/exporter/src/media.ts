@@ -393,8 +393,10 @@ export function dialogueCsv(rows: readonly TableRow[]): string {
 
 /**
  * The Yarn Spinner strings file for the rows of `yarn-csv` containers (`toYarnCsv`, dialogue table.ts), with the same formula
- * guard on its free-text cells: the language, the text, the file and the comment. The guard is for a spreadsheet that opens
- * the file; Yarn Spinner reads the apostrophe it adds as part of the line (a known limit in the changelog and the guide).
+ * guard on the cells that come from hand-editable strings: the language (the locale), the text, the file and the comment. The
+ * guard is for a spreadsheet that opens the file. Its apostrophe is written into the cell: in the text it starts the line's
+ * content (a known limit in the changelog and the guide); in the language it changes the locale code; in the file and the
+ * comment it stays in the metadata.
  */
 export function dialogueYarnCsv(rows: readonly TableRow[], titleOf: (containerId: string) => string): string {
   return toYarnCsv(rows, { fileOf: titleOf, cell: guardFormula });

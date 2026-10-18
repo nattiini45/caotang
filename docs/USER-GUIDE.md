@@ -146,7 +146,7 @@ The container settings change these files:
 - **Engine target** picks the table. A container set to **Yarn string table (CSV)** goes into a Yarn Spinner strings file, `<name> (dialogue, Yarn).csv`, with Yarn's columns and `line:` ids. Any other target, or none, goes into the dialogue table, `<name> (dialogue).csv`. A compile that holds both kinds writes both files. The Ink story is the same for every target.
 - **Locale** is written on each line of both tables. A container with no locale uses the project's language. A container with its own locale puts it in the Ink story's file name, such as `Tavern.de.ink.json`.
 - The Yarn strings file has no character limit column. Its `lock` column is empty.
-- A Yarn line or choice that starts with `=`, `+`, `-` or `@` gets an apostrophe in front, as in every CSV export, so a spreadsheet does not run it as a formula. Yarn Spinner shows that apostrophe as part of the line.
+- In the Yarn strings file, a line or choice whose cell starts with `=`, `+`, `-`, `@`, a tab or a carriage return gets an apostrophe in front, as in every CSV export, so a spreadsheet does not run it as a formula. A spoken line's cell starts with the speaker's name when it has one. The apostrophe is written into the cell itself, so a tool that reads the file gets it with the line; Caotang has not checked how Yarn Spinner shows it. The locale, file and comment cells get the same guard.
 
 ## Planning a storyboard
 

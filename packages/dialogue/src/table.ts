@@ -133,7 +133,7 @@ export function toCsv(rows: readonly TableRow[], options: { includeConditions?: 
   return [columns.join(','), ...records].map((record) => `${record}\r\n`).join('');
 }
 
-/** How {@link toYarnCsv} names a row's file, and the cell transform it applies to the free-text cells. */
+/** How {@link toYarnCsv} names a row's file, and the cell transform it applies to the `language`, `text`, `file` and `comment` cells. */
 export interface YarnCsvOptions {
   /** The `file` column: the name of the container a row comes from. Absent writes the container id. */
   readonly fileOf?: (containerId: string) => string;
