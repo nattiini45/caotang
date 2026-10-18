@@ -263,7 +263,8 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - Shot boards use the corkboard's S, M and L sizes. Why: one card vocabulary. [delegated]
 - The prompt pack is one normalised shot schema mapped to per-vendor templates; Caotang never generates video, holds no vendor keys and uploads nothing. Why: generation happens in the writer's own tool. [delegated]
 - The shot prompt editor keeps each vendor's typed text across a vendor switch while the shot is open. Why: switching vendors loses nothing. [delegated]
-- Not yet built: PDF output for screenplays and storyboards, spreadsheet export. (specified, not built) [delegated]
+- The shot list and the dialogue table also export as `.xlsx`, one sheet each, from the same rows as the CSV. The workbook is a hand-written Office Open XML writer over `fflate`, which the EPUB already loads lazily. Why: one spreadsheet stack for both tables, no new dependency, and the file is made in the browser. [delegated]
+- Not yet built: PDF output for screenplays and storyboards. (specified, not built) [delegated]
 
 ## Coherence
 

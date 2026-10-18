@@ -130,7 +130,7 @@ One exception is open: `ScreenplayPreview.tsx` imports `paginate` and `LAYOUT` f
 4. **Prompt pack in the Compile dialog.** The Compile dialog does not offer the prompt pack: it is written for one vendor
    template, which the Prompt pack tab chooses, and the dialog does not ask for one.
 5. **Dialogue table and container settings.** The dialogue table's character limit (`charLimit`) is a recipe option, set in the
-   export dialog's Character limit field when the dialogue table is chosen, so a `dialogue-csv` export from the app carries it.
+   export dialog's Character limit field when the dialogue table is chosen, so a `dialogue-csv` or `dialogue-xlsx` export from the app carries it.
    The engine target and the locale reach the exports (*What a writer can do*, *Container settings*). The agent's
    `dialogue.table` tool does not read them: it returns §6's columns.
 6. **Screenplay source affordances.** The element menu offers no section or synopsis: a section is a binder folder, and a

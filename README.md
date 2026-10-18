@@ -26,7 +26,7 @@ Caotang is free and MIT-licensed. There are no accounts, no subscriptions, no cr
 - **MCP & tools.** Settings can connect external [Model Context Protocol](https://modelcontextprotocol.io) servers over Streamable HTTP. Each server's tool list is reviewed before its tools are used, and a tool can be switched off. The agent calls an enabled tool at once only when its server is trusted for reads and the tool is read-only. Any other call waits for your approval.
 - **Caotang as an MCP server.** Other AI tools can read a project folder. With writes allowed, they can change it, and each change that asks is confirmed in the host. See [Caotang as an MCP server](#caotang-as-an-mcp-server).
 
-Not in this build yet: PDF and spreadsheet exports; the desktop wrapper. [docs/USER-GUIDE.md](docs/USER-GUIDE.md#what-is-not-in-this-build-yet) lists them with the rest, and [docs/ROADMAP.md](docs/ROADMAP.md) has the order.
+Not in this build yet: PDF exports; the desktop wrapper. [docs/USER-GUIDE.md](docs/USER-GUIDE.md#what-is-not-in-this-build-yet) lists them with the rest, and [docs/ROADMAP.md](docs/ROADMAP.md) has the order.
 
 ## Requirements
 

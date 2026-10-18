@@ -66,7 +66,7 @@ export class ExportStore {
     writeBytesAtomic: (path, bytes) => this.bytes.writeBytes(path, bytes),
   };
 
-  /** The binary side: DOCX and EPUB, which are zip containers. */
+  /** The binary side: DOCX, EPUB and XLSX, which are zip containers. */
   readonly bytes: ByteArtifacts = {
     writeBytes: async (path, contents) => {
       // A copy, so a caller that reuses its buffer cannot change what the session holds.
@@ -185,7 +185,7 @@ async function compileRows(fs: ArtifactFs): Promise<unknown[]> {
 }
 
 function isBinaryPath(path: string): boolean {
-  return /\.(docx|epub)$/i.test(path);
+  return /\.(docx|epub|xlsx)$/i.test(path);
 }
 
 /** The basenames of the paths directly inside `dir`. */

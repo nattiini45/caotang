@@ -2,7 +2,8 @@
  * `@caotang/exporter` — the compile pipeline ([exporter.md](../../../docs/architecture/exporter.md)):
  * select → flatten → render → emit, with the Markdown, plain-text, DOCX and EPUB renderers, and the
  * media-track formats of the one-source compile (`media.ts`): screenplay Fountain and FDX, the dialogue table and
- * compiled Ink, the storyboard shot list, and the video prompt pack.
+ * compiled Ink, the storyboard shot list, and the video prompt pack. The dialogue table and the shot list are also written
+ * as spreadsheets (`render-xlsx.ts`).
  *
  * The store never imports this package. The app builds one exporter over the
  * project's artifact folder and hands its `commandPort()` to the store's registry:
@@ -68,6 +69,7 @@ export { DEFAULT_TEMPLATE, DEFAULT_TEMPLATE_ID, anchorOf, fileStem, resolveTempl
 export { DOCX_MIME, renderDocx } from './render-docx.js';
 export { EPUB_MIME, escapeXml, renderEpub, type EpubCover, type EpubInput } from './render-epub.js';
 export { renderMarkdown, renderText } from './render-text.js';
+export { XLSX_CELL_MAX, XLSX_MIME, prepareSheet, renderXlsx, sheetName, xlsxParts, xlsxText, type XlsxCell, type XlsxSheet } from './render-xlsx.js';
 export { parseProse, plainProse, safeHref, type ProseBlock, type Run } from './prose.js';
 export {
   ExportNotReadyError,

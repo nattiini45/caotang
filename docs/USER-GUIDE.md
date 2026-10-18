@@ -141,7 +141,7 @@ Choose **New dialogue here** from a folder's menu. A dialogue container holds an
 - **Container settings**, in the inspector: **Default speaker** (a codex character, who fills the speaker column of the dialogue table), **Engine target**, **Add line ids on save**, and **Locale** (the language the text is written in, such as `en` or `en-GB`).
 - If the Ink does not compile, the view says so and lists the errors. Fix them in the Ink text.
 
-Compile a dialogue container from **Compile…**, in the Media group, as an Ink story (`.ink.json`) or as a dialogue table (`.csv`): each spoken line with its id, speaker, text and locale.
+Compile a dialogue container from **Compile…**, in the Media group, as an Ink story (`.ink.json`) or as a dialogue table (`.csv` or `.xlsx`): each spoken line with its id, speaker, text and locale.
 
 The container settings change these files:
 
@@ -244,7 +244,11 @@ The formats come in three groups:
 | Media | Ink story (`.ink.json`) | The dialogue compiled for a game engine that reads Ink. |
 | Media | Dialogue table (`.csv`) | Each spoken line with its id, speaker, text and locale. A Yarn container gets a Yarn strings file. |
 | Media | Shot list (`.csv`) | Each shot in order, with its size, angle, movement and duration. |
+| Media | Dialogue table (`.xlsx`) | The dialogue table as a spreadsheet, with the same columns and rows as the `.csv`. |
+| Media | Shot list (`.xlsx`) | The shot list as a spreadsheet, with the same columns and rows as the `.csv`. |
 | Review | Coherence report (`.md` or `.json`) | The findings and the runs, for reading outside Caotang. |
+
+The spreadsheets have one sheet each, with the column names in a bold first row that stays in view as you scroll. Shot numbers, durations and character limits are numbers, so a spreadsheet can sort and add them. Text is kept as text: a cell that starts with `=`, `+`, `-` or `@` is never run as a formula. A cell longer than 32,767 characters is cut, and the compile log says which. The spreadsheets are made in the browser, and nothing is sent anywhere.
 
 The title page's date is the day you compile, in your own time zone, not the UTC day.
 
@@ -336,7 +340,7 @@ With writes allowed, an outside tool can also compile the manuscript, one item, 
 
 ## What is not in this build yet
 
-- **Exports.** There is no PDF of a screenplay or a storyboard, and no spreadsheet export.
+- **Exports.** There is no PDF of a screenplay or a storyboard.
 - **Final Draft files.** Import and export of `.fdx` files have not been checked against files that Final Draft wrote or opened. The scene numbers and page headers that Caotang writes are not yet confirmed to show in Final Draft.
 - **Word contents.** How Word and LibreOffice handle the contents field in a `.docx` file has not been tested.
 - **The Pages view.** The Pages view of a screenplay is a read-only preview.

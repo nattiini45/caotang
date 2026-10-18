@@ -33,6 +33,7 @@ import { imageSizeOf } from './image-size.js';
 import { renderMedia, type MediaFile } from './media.js';
 import { renderDocx, DOCX_MIME } from './render-docx.js';
 import { renderEpub, EPUB_MIME, type EpubInput } from './render-epub.js';
+import { XLSX_MIME } from './render-xlsx.js';
 import { renderMarkdown, renderText } from './render-text.js';
 import type { RenderInput } from './render-input.js';
 import { DEFAULT_TEMPLATE_ID, fileStem, resolveTemplate } from './template.js';
@@ -154,6 +155,8 @@ const EXTENSION: Record<ExportFormat, string> = {
   promptpack: 'json',
   'coherence-md': 'md',
   'coherence-json': 'json',
+  'dialogue-xlsx': 'xlsx',
+  'shot-list-xlsx': 'xlsx',
 };
 
 /**
@@ -173,13 +176,15 @@ export const EXPORT_MIME: Readonly<Record<ExportFormat, string>> = {
   promptpack: 'application/json',
   'coherence-md': 'text/markdown;charset=utf-8',
   'coherence-json': 'application/json',
+  'dialogue-xlsx': XLSX_MIME,
+  'shot-list-xlsx': XLSX_MIME,
 };
 
 const NO_ASSETS: ReadonlyMap<string, AssetRecord> = new Map();
 
 /** Whether a media format names the project's stored images: the shot list's image column and the prompt pack's references. */
 function readsImages(format: MediaFormat): boolean {
-  return format === 'shot-list-csv' || format === 'promptpack';
+  return format === 'shot-list-csv' || format === 'shot-list-xlsx' || format === 'promptpack';
 }
 
 const systemClock: ExporterClock = { now: () => Date.now() };
@@ -306,10 +311,10 @@ export function createExporter(options: ExporterOptions): ExporterService {
       titlePage,
       base: request.base,
       ...(request.templateId === undefined ? {} : { vendor: request.templateId }),
-      // The recipe's character limit reaches the dialogue table (dialogue-narrative.md §4). Only `dialogue-csv` reads it.
+      // The recipe's character limit reaches the dialogue table (dialogue-narrative.md §4), as CSV or as a spreadsheet.
       charLimit: request.options.charLimit ?? null,
-      // Only the shot list and the prompt pack name stored images, so only they ask for them: a folder whose images cannot be listed
-      // refuses those two, and a script or a dialogue table still compiles.
+      // Only the shot list (CSV or XLSX) and the prompt pack name stored images, so only they ask for them: a folder whose images
+      // cannot be listed refuses those three formats, and a script or a dialogue table still compiles.
       assets: readsImages(common.format) ? (options.assets?.(state) ?? NO_ASSETS) : NO_ASSETS,
     });
     const notes = [...output.notes];
@@ -480,7 +485,12 @@ export function createExporter(options: ExporterOptions): ExporterService {
     if (compiled.kind === 'prose') {
       return [{ name: proseName, mimeType: EXPORT_MIME[compiled.format], render: () => renderProse(compiled) }];
     }
-    return compiled.files.map((file) => ({ name: file.name, mimeType: file.mimeType, render: async () => file.text }));
+    // A text file is already rendered; a spreadsheet renders in the queue, where its ZIP engine is loaded.
+    return compiled.files.map((file) => ({
+      name: file.name,
+      mimeType: file.mimeType,
+      render: file.bytes !== undefined ? file.bytes : async () => file.text,
+    }));
   }
 
   return exporter;
@@ -586,7 +596,7 @@ interface BusPlan {
 interface RenderedFile {
   readonly name: string;
   readonly mimeType: string;
-  /** Rendering is async for DOCX and EPUB, so it runs inside the queue, in order. A media file is already text. */
+  /** Rendering is async for DOCX, EPUB and XLSX, so it runs inside the queue, in order. A text media file is already text. */
   readonly render: () => Promise<RenderedContents>;
 }
 

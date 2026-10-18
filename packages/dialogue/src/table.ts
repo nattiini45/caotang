@@ -5,7 +5,7 @@
  * `lineId, speaker, text, context, charLimit`. It is the one surface that localization, voice
  * recording and the engine's string tables all read (§6), so its shape is fixed here and the
  * CSV is RFC 4180: UTF-8, CRLF records, quoted fields that hold a comma, quote or line break.
- * XLSX is deferred with the spreadsheet stack (storyboard.md); CSV is the shipped form.
+ * The exporter also writes these rows as XLSX (`dialogue-xlsx`), through the spreadsheet writer it shares with the shot list.
  */
 
 import type { CodexEntry } from '@caotang/store';

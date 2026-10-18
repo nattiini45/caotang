@@ -36,6 +36,8 @@ const MEDIA_FORMAT_NAMES: Readonly<Record<string, string>> = {
   'ink-json': 'the Ink story',
   'dialogue-csv': 'the dialogue table',
   'shot-list-csv': 'the shot list',
+  'dialogue-xlsx': 'the dialogue table',
+  'shot-list-xlsx': 'the shot list',
   promptpack: 'the prompt pack',
 };
 

@@ -438,7 +438,7 @@ describe('refusals — nothing is written, logged or grouped', () => {
     // `rtf` is the probe for a format nothing ships. `pdf` is not one any more to probe with: the screenplay PDF waits on
     // the PDF-library benchmark, and a probe that a later release ships would start passing for the wrong reason.
     expect(outcome.error.message).toContain(
-      'The formats are md, txt, docx, epub, fountain, fdx, ink-json, dialogue-csv, shot-list-csv, promptpack, coherence-md, coherence-json.',
+      'The formats are md, txt, docx, epub, fountain, fdx, ink-json, dialogue-csv, shot-list-csv, promptpack, coherence-md, coherence-json, dialogue-xlsx, shot-list-xlsx.',
     );
     expect(r.bus.log.length).toBe(0);
     expect(r.undo.groups()).toHaveLength(0);

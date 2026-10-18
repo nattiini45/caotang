@@ -17,6 +17,7 @@
 
 import { renderFdx, renderFountain, isScreenplayKind } from '@caotang/screenplay';
 import {
+  TABLE_COLUMNS,
   exportCsv,
   exportInkJson,
   isDialogueNodeType,
@@ -35,8 +36,10 @@ import {
   isShotNode,
   kindOf,
   readShotMeta,
+  SHOT_LIST_COLUMNS,
   renderShotListCsv,
   shotFieldOf,
+  shotListRows,
   shotsInBinderOrder,
   walkBinder,
   type DialogueCoverage,
@@ -62,6 +65,7 @@ import {
   coherenceReportMarkdown,
 } from './coherence-report.js';
 import { flatten, type FlattenResult } from './flatten.js';
+import { XLSX_MIME, prepareSheet, renderXlsx, type XlsxCell, type XlsxSheet } from './render-xlsx.js';
 import { fileStem, suffixName } from './template.js';
 import type { FlatBlock, MediaFormat } from './types.js';
 import { stripXmlIllegal } from './xml-text.js';
@@ -90,19 +94,20 @@ export interface MediaRequest {
   readonly vendor?: string;
   /**
    * The subtitle-style character limit the dialogue table's `charLimit` column carries (dialogue-narrative.md §4). Absent or
-   * null leaves the column empty, which is unconstrained. Only `dialogue-csv` reads it.
+   * null leaves the column empty, which is unconstrained. Only the dialogue table (`dialogue-csv`, `dialogue-xlsx`) reads it.
    */
   readonly charLimit?: number | null;
   /** Stored assets by id, with their file names (storyboard.md §2.1). The exporter reads these synchronously. */
   readonly assets: ReadonlyMap<string, AssetRecord>;
 }
 
-/** One file the compile writes. `name` has no folder; the emitter places it in `exports/`. */
-export interface MediaFile {
-  readonly name: string;
-  readonly mimeType: string;
-  readonly text: string;
-}
+/**
+ * One file the compile writes. `name` has no folder; the emitter places it in `exports/`. A text file carries its text; a
+ * spreadsheet carries `bytes`, which renders it inside the emitter's queue, because the ZIP engine is loaded lazily.
+ */
+export type MediaFile =
+  | { readonly name: string; readonly mimeType: string; readonly text: string; readonly bytes?: undefined }
+  | { readonly name: string; readonly mimeType: string; readonly text?: undefined; readonly bytes: () => Promise<Uint8Array> };
 
 /** What a media compile produced, and the counts and notes its log row carries. */
 export interface MediaOutput {
@@ -131,6 +136,10 @@ export function renderMedia(request: MediaRequest): MediaOutput {
       return dialogueCsvOutput(request);
     case 'shot-list-csv':
       return shotListOutput(request);
+    case 'dialogue-xlsx':
+      return dialogueXlsxOutput(request);
+    case 'shot-list-xlsx':
+      return shotListXlsxOutput(request);
     case 'promptpack':
       return promptPackOutput(request);
     case 'coherence-md':
@@ -391,6 +400,18 @@ export function dialogueCsv(rows: readonly TableRow[]): string {
   );
 }
 
+/** The dialogue table's rows, checked against the spec's gate, with the counts and notes its log row carries. */
+interface DialogueTable {
+  readonly rows: readonly TableRow[];
+  readonly containerCount: number;
+  readonly words: number;
+  readonly notes: readonly string[];
+  readonly yarnIds: ReadonlySet<string>;
+  readonly titles: ReadonlyMap<string, string>;
+  readonly limit: number | null | undefined;
+  readonly inkTargetNotes: readonly string[];
+}
+
 /**
  * The Yarn Spinner strings file for the rows of `yarn-csv` containers (`toYarnCsv`, dialogue table.ts), with the same formula
  * guard on the cells that come from hand-editable strings: the language (the locale), the text, the file and the comment. The
@@ -418,14 +439,14 @@ function projectLocale(state: ProjectState): string {
  * none, go to the dialogue table, `<base> (dialogue).csv`. A selection that holds both kinds writes both files. Every row
  * carries its locale: the container's `locBaseline`, else the project's language.
  */
-function dialogueCsvOutput(request: MediaRequest): MediaOutput {
+function dialogueTable(request: MediaRequest, format: 'dialogue-csv' | 'dialogue-xlsx'): DialogueTable {
   const containers = dialogueContainers(request);
   if (containers.length === 0) {
-    throw new MediaRefusedError('dialogue-csv', ['the selection holds no dialogue container, so there is no table to write']);
+    throw new MediaRefusedError(format, ['the selection holds no dialogue container, so there is no table to write']);
   }
   const limit = request.charLimit;
   if (limit !== undefined && limit !== null && (!Number.isInteger(limit) || limit < 1)) {
-    throw new MediaRefusedError('dialogue-csv', [`the character limit must be a whole number above zero, got ${String(limit)}`]);
+    throw new MediaRefusedError(format, [`the character limit must be a whole number above zero, got ${String(limit)}`]);
   }
   // Each container's own settings (its default speaker, its locale, its engine target) are read here. A setting the reader
   // cannot use is dropped by it and reported in the compile's notes.
@@ -440,16 +461,45 @@ function dialogueCsvOutput(request: MediaRequest): MediaOutput {
   const table = exportCsv(sources, { entries: request.state.manifest.codex ?? [], charLimit: limit ?? null, locale });
   const titles = new Map(containers.map((node) => [node.id, node.title] as const));
   if (!table.ok) {
-    throw new MediaRefusedError('dialogue-csv', [
+    throw new MediaRefusedError(format, [
       ...table.missing.map((row) => `"${titles.get(row.container) ?? row.container}" line ${row.line} has no line id`),
       ...table.duplicates.map((id) => `line id ${id} is on more than one line`),
     ]);
   }
   const yarnIds = new Set(containers.filter((_, i) => reads[i]?.meta.engineTarget === 'yarn-csv').map((node) => node.id));
+  const notes = reads.flatMap((read, i) => read.notes.map((note) => `"${containers[i]?.title ?? ''}": ${note}`));
+  if (table.rows.some((row) => row.locale === '')) {
+    notes.push('a container has no locale and the project has no language, so its rows have an empty locale');
+  }
+  return {
+    rows: table.rows,
+    containerCount: containers.length,
+    words: table.rows.reduce((sum, row) => sum + countBody(row.text).words, 0),
+    notes,
+    yarnIds,
+    titles,
+    limit,
+    inkTargetNotes: containers.flatMap((node, i) =>
+      reads[i]?.meta.engineTarget === 'ink-json'
+        ? [`"${node.title}": its engine target is ${TARGET_WORDS['ink-json']}; its lines are in the dialogue table, as this compile asks`]
+        : [],
+    ),
+  };
+}
+
+/**
+ * The dialogue table as RFC 4180 CSV, one row per speakable line and choice label (dialogue-narrative.md §6). Each container's
+ * engine target picks the file its rows go to: a `yarn-csv` container's rows go to a Yarn Spinner strings file,
+ * `<base> (dialogue, Yarn).csv`, and every other container's rows to the dialogue table, `<base> (dialogue).csv`. A selection
+ * that holds both kinds writes both files. Every row carries its locale.
+ */
+function dialogueCsvOutput(request: MediaRequest): MediaOutput {
+  const table = dialogueTable(request, 'dialogue-csv');
+  const { yarnIds, titles, limit } = table;
   const yarnRows = table.rows.filter((row) => yarnIds.has(row.container));
   const tableRows = table.rows.filter((row) => !yarnIds.has(row.container));
   const files: MediaFile[] = [];
-  if (yarnIds.size < containers.length) {
+  if (yarnIds.size < table.containerCount) {
     files.push({ name: `${request.base} (dialogue).csv`, mimeType: CSV_MIME, text: dialogueCsv(tableRows) });
   }
   if (yarnIds.size > 0) {
@@ -459,28 +509,44 @@ function dialogueCsvOutput(request: MediaRequest): MediaOutput {
       text: dialogueYarnCsv(yarnRows, (id) => titles.get(id) ?? id),
     });
   }
-  const notes = reads.flatMap((read, i) => read.notes.map((note) => `"${containers[i]?.title ?? ''}": ${note}`));
+  const notes = [...table.notes, ...table.inkTargetNotes];
   if (yarnIds.size > 0 && limit !== undefined && limit !== null) {
     notes.push('the Yarn strings file has no character limit column, so the limit is not in it');
   }
-  if (table.rows.some((row) => row.locale === '')) {
-    notes.push('a container has no locale and the project has no language, so its rows have an empty locale');
-  }
-  containers.forEach((node, i) => {
-    if (reads[i]?.meta.engineTarget === 'ink-json') {
-      notes.push(`"${node.title}": its engine target is ${TARGET_WORDS['ink-json']}; its lines are in the dialogue table, as this compile asks`);
-    }
-  });
-  const words = table.rows.reduce((sum, row) => sum + countBody(row.text).words, 0);
   return {
     files,
     blockCount: table.rows.length,
     chapterCount: 0,
-    sceneCount: containers.length,
-    wordCount: words,
+    sceneCount: table.containerCount,
+    wordCount: table.words,
     skippedDocs: [],
     notes,
   };
+}
+
+/**
+ * The dialogue table as a spreadsheet: the CSV's columns and rows, in one sheet (dialogue-narrative.md §4, the XLSX at the
+ * spreadsheet gate). The character limit is a number cell. The text is written as typed: a spreadsheet does not evaluate a
+ * text cell, so it needs no apostrophe.
+ */
+function dialogueXlsxOutput(request: MediaRequest): MediaOutput {
+  const table = dialogueTable(request, 'dialogue-xlsx');
+  const rows: XlsxCell[][] = table.rows.map((row) => [row.lineId, row.speaker, row.text, row.context, row.charLimit, row.locale]);
+  const prepared = prepareSheet({ name: 'Dialogue', title: `${request.title} (dialogue)`, columns: [...TABLE_COLUMNS, 'locale'], rows });
+  return {
+    files: [xlsxFile(`${request.base} (dialogue).xlsx`, prepared.sheet)],
+    blockCount: table.rows.length,
+    chapterCount: 0,
+    sceneCount: table.containerCount,
+    wordCount: table.words,
+    skippedDocs: [],
+    notes: [...table.notes, ...table.inkTargetNotes, ...prepared.notes],
+  };
+}
+
+/** A spreadsheet file, rendered when the emitter's queue reaches it. */
+function xlsxFile(name: string, sheet: XlsxSheet): MediaFile {
+  return { name, mimeType: XLSX_MIME, bytes: () => renderXlsx(sheet) };
 }
 
 /* ------------------------------------------------------------------ *
@@ -506,6 +572,29 @@ function shotListOutput(request: MediaRequest): MediaOutput {
     wordCount: 0,
     skippedDocs: [],
     notes: [...listed.notes, ...bareShotNotes(request)],
+  };
+}
+
+/**
+ * The shot list as a spreadsheet: the CSV's columns and rows, in one sheet (storyboard.md §6, the XLSX variant at the
+ * spreadsheet gate, §8 A4). The shot number and the duration are number cells; the text is written as typed.
+ */
+function shotListXlsxOutput(request: MediaRequest): MediaOutput {
+  const fileNames = new Map([...request.assets].map(([id, asset]) => [id, asset.fileName] as const));
+  const listed = shotListRows(request.state, request.includeRootIds, fileNames);
+  if (listed.rows.length === 0) {
+    throw new MediaRefusedError('shot-list-xlsx', ['the selection holds no shot, so there is no shot list to write']);
+  }
+  const rows: XlsxCell[][] = listed.rows.map((row) => SHOT_LIST_COLUMNS.map((column) => row[column]));
+  const prepared = prepareSheet({ name: 'Shot list', title: `${request.title} (shot list)`, columns: [...SHOT_LIST_COLUMNS], rows });
+  return {
+    files: [xlsxFile(`${request.base} (shot list).xlsx`, prepared.sheet)],
+    blockCount: listed.rows.length,
+    chapterCount: 0,
+    sceneCount: 0,
+    wordCount: 0,
+    skippedDocs: [],
+    notes: [...listed.notes, ...prepared.notes, ...bareShotNotes(request)],
   };
 }
 

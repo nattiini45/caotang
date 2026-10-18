@@ -54,7 +54,7 @@ interface DialogueGraph {         // derived view over the Ink body (never store
 ## 4. Export (two renderers at the exporter seam)
 
 - **Ink passthrough:** the container's Ink body compiles (inkjs) → **compiled story `.ink.json`** emitted per container (engine consumption target; engines consume compiled JSON). `format: 'ink-json'` at the exporter seam; compile log includes inkjs compile warnings verbatim (the acceptance gate: **0 errors**; warnings listed).
-- **Dialogue table (`DialogueTableRenderer`, CSV/XLSX at the spreadsheet gate):** the universal engine/loc surface — columns `lineId, speaker, text, context, charLimit` (consistent with VO; Yarn/Ink-tag/Netflix all conform). `context` = knot path + codex-resolved speaker display name; `charLimit` = a **recipe option** (exporter.md §2; set in the export dialog's Character limit field, or in `recipe.save`'s options): a subtitle-style constraint when set, a whole number from 1 to 10000 (e.g. 42 chars — Netflix spec class); empty = unconstrained. Scope = selected containers; binder order.
+- **Dialogue table (`DialogueTableRenderer`, CSV and XLSX — `dialogue-csv`, `dialogue-xlsx`):** the universal engine/loc surface — columns `lineId, speaker, text, context, charLimit` (consistent with VO; Yarn/Ink-tag/Netflix all conform). `context` = knot path + codex-resolved speaker display name; `charLimit` = a **recipe option** (exporter.md §2; set in the export dialog's Character limit field, or in `recipe.save`'s options): a subtitle-style constraint when set, a whole number from 1 to 10000 (e.g. 42 chars — Netflix spec class); empty = unconstrained. Scope = selected containers; binder order.
 - **Import (v0.2-of-track):** whole-story `.ink` import → container per top-level knot-cluster (knot → section folders where depth warrants — the screenplay.md §2.2 structure-mapping discipline); Twee 3 import (v0.3 candidate): passages → knots, links → choices, **macros/logic stripped with the honest per-story report** ("N logic blocks stripped — Twine story formats are programming environments").
 - **Engine target and locale in the exports (as built).** The recipe's format carries the truth; the container's settings shape what that format writes (§4.1).
 
@@ -83,7 +83,7 @@ VO/loc completeness ("every line has an id when the table is exported") is a **v
 - **Shape:** `lineId, speaker, text, context, charLimit` (CSV; UTF-8, RFC 4180 quoting). One row per speakable line (dialogue lines + choice labels — choice labels carry their own ids, suffixed `_c`).
 - **Stability contract:** ids mint once per line, stored in the Ink tag; line text edits never change the id; deleting a line retires the id (never reused); renaming a container never touches ids. Localization = translate the CSV against stable ids → string tables (Yarn's documented loop, vendor-neutral).
 - **VO:** the same table is the VO script (speaker + text + id = the auditionable/recordable unit; per-vendor audio extensions stay vendor-side — the WTWTLW dual-use precedent).
-- **Spreadsheet stack (XLSX) decision** is shared with the storyboard shot-list (storyboard.md §8) — one decision, two consumers.
+- **Spreadsheet stack (XLSX):** shared with the storyboard shot list (storyboard.md §8 A4) — one writer, two consumers. Built as a hand-written Office Open XML writer over `fflate` (exporter.md §5). The XLSX table has the CSV's columns and rows; `charLimit` is a number cell.
 
 ## 7. Harness tools (the track's rows 22 and 23; the registry holds 26 rows, agent-harness §10)
 

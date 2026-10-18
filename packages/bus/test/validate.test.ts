@@ -834,6 +834,9 @@ describe('export.compile, export.compileSelection and project.deleteNode', () =>
       // The coherence report, as Markdown and JSON. Ten formats before it, twelve in all.
       'coherence-md',
       'coherence-json',
+      // The dialogue table and the shot list as spreadsheets. Fourteen in all.
+      'dialogue-xlsx',
+      'shot-list-xlsx',
     ]);
   });
 
