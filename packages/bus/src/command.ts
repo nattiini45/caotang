@@ -835,7 +835,19 @@ export type VocabularyUpsertParams = { kind: VocabularyKind; id?: string; name: 
 export type VocabularyRemoveParams = { kind: VocabularyKind; id: string };
 
 /** exporter.md §2 recipe options, in the shape the manifest stores them. */
-export type RecipeOptionsParams = { titlePage?: boolean; toc?: boolean; author?: string; charLimit?: number };
+export type RecipeOptionsParams = {
+  titlePage?: boolean;
+  toc?: boolean;
+  author?: string;
+  charLimit?: number;
+  /** The screenplay PDF's scene numbers (screenplay.md §5.3). */
+  sceneNumbers?: SceneNumbersOption;
+  /** `(MORE)` and `(CONT'D)` across a page break in the screenplay PDF (screenplay.md §5.3). */
+  continued?: boolean;
+};
+
+/** Where the screenplay PDF prints scene numbers (screenplay.md §5.3): off by default. */
+export type SceneNumbersOption = 'off' | 'left' | 'right' | 'both';
 
 /** `recipe.save`: a named export configuration. Saving a name that exists replaces it. */
 export type RecipeSaveParams = {

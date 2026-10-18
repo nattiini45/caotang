@@ -290,8 +290,9 @@ export function createEmitter(options: EmitterOptions): Emitter {
   }
 }
 
+/** A path whose artifact lives in the byte store: the extension of a binary format (DOCX, EPUB and the screenplay PDF). */
 function isBinaryPath(path: string): boolean {
-  return /\.(docx|epub|xlsx)$/i.test(path);
+  return /\.(docx|epub|xlsx|pdf)$/i.test(path);
 }
 
 function messageOf(error: unknown): string {

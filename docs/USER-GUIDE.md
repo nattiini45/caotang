@@ -115,7 +115,7 @@ Choose **New screenplay scene here** from a folder's menu. A screenplay scene is
 
 - **Script** draws the scene as it reads.
 - **Source** is the Fountain text. Headings, cues, parentheticals, transitions and notes are drawn in their own styles as you type.
-- **Pages** shows the scene paginated. It is read only, and it is a preview, not a PDF.
+- **Pages** shows the scene paginated. It is read only, and it is a preview. To get a PDF, compile the screenplay as **Screenplay PDF**.
 
 On the Source tab:
 
@@ -127,7 +127,32 @@ On the Source tab:
 
 When Caotang saves a scene, it writes Fountain in the standard layout: a run of blank lines becomes one blank line, and Windows line endings become the usual ones. Your words are kept.
 
-Compile a screenplay from **Compile…**, in the Media group, as Fountain or as Final Draft (`.fdx`). Final Draft files have not yet been checked against Final Draft itself; see [What is not in this build yet](#what-is-not-in-this-build-yet).
+Compile a screenplay from **Compile…**, in the Media group, as Fountain, as Final Draft (`.fdx`) or as a PDF. Final Draft files have not yet been checked against Final Draft itself; see [What is not in this build yet](#what-is-not-in-this-build-yet).
+
+### The screenplay PDF
+
+**Screenplay PDF (`.pdf`)** sets the script on US Letter pages in the standard screenplay layout:
+
+- The font is Courier Prime at 12 point. It is inside the file, so the pages look the same on every computer and printer.
+- The margins are 1.5 inches on the left and 1 inch on the other three sides.
+- Scene headings and action run the full width. Character names, parentheticals and dialogue sit at their usual indents. Transitions are set flush right.
+- The title page comes first when **Title page** is on. It shows the project's title, the author and the date. It has no page number.
+- Script pages count from 1. The number is printed at the top right from page 2.
+- A scene heading is never left alone at the foot of a page. A character name always stays with its first line of dialogue. A transition never starts a page.
+- A speech that crosses a page breaks after a sentence. **(MORE)** ends the page and the name returns with **(CONT’D)** on the next one. You can turn this off in the recipe: clear **(MORE) and (CONT’D) where a speech crosses a page**.
+- Dual dialogue (a second name marked `^`) is printed side by side, in two columns.
+- **Scene numbers** can be printed in the left margin, the right margin or both. They are off unless you choose them. A heading's own number, such as `#24A#`, is used when it has one.
+- Notes (`[[…]]`), boneyard text (`/* … */`), sections and synopses are not printed.
+
+Courier Prime covers Western European letters and the usual punctuation. Other characters, such as Chinese, Japanese and Korean, print in Noto Sans Mono CJK SC. Only the characters the script uses go into the file. A script with no such character does not load this font.
+
+A Chinese, Japanese or Korean character takes the width of two Courier letters. A line can break between Chinese or Japanese characters without a space, but not before a closing mark such as `。` or `」`. Korean breaks at spaces.
+
+Emoji print in Noto Emoji, a black-and-white emoji font. An emoji takes the width of two Courier letters, however it is built: a family such as 👨‍👩‍👧, a flag such as 🇩🇪, a keycap such as 1️⃣ or a skin tone such as 👍🏽 is one picture, and it is never split across lines. A line can break before or after an emoji without a space. The font has no colours and no skin tones, so 👍🏽 prints as 👍, but text you copy out of the PDF keeps the emoji you typed. A script with no emoji does not load this font.
+
+A character no font has prints as a question mark, and the compile log names it. That is so for an emoji newer than Unicode 15.1, such as 🫩. A few newer sequences, such as 🚶‍♀️‍➡️, print as their first emoji (🚶), and the log says so.
+
+The PDF is made in your browser. Nothing is sent anywhere.
 
 ## Writing dialogue
 
@@ -225,7 +250,7 @@ Reading the agent's work:
 
 Choose **Compile…** in the toolbar. Then choose a recipe, a format and what to export.
 
-- **Recipe** picks a saved set of export settings. The settings are **Title page**, **Contents list** and **Author on the title page**, and, for the dialogue table, **Character limit for each line**. They apply to the whole manuscript, or to the one item you choose. To keep a set of settings, name it under **Save these settings as a new recipe** and choose **Save as recipe**.
+- **Recipe** picks a saved set of export settings. The settings are **Title page**, **Contents list** and **Author on the title page**; for the dialogue table, **Character limit for each line**; and for the screenplay PDF, **Scene numbers** and **(MORE) and (CONT’D) where a speech crosses a page**. They apply to the whole manuscript, or to the one item you choose. To keep a set of settings, name it under **Save these settings as a new recipe** and choose **Save as recipe**.
 - **What to export** is **The whole manuscript**, or **Only “…”** for the item you selected in the binder.
 - Choose **Compile**. Undo removes the file the compile wrote. A compile that Caotang refuses is said inside the dialog, beside **Compile**, and no file is saved. The message clears when you choose another recipe or format.
 - Empty documents are left out, and the status line says how many were skipped.
@@ -241,6 +266,7 @@ The formats come in three groups:
 | Prose | EPUB (`.epub`) | A reading-system book, one file per chapter. |
 | Media | Fountain (`.fountain`) | The screenplay as plain Fountain text, for Beat or Highland. |
 | Media | Final Draft (`.fdx`) | The screenplay in Final Draft's XML. Not yet checked in Final Draft itself. |
+| Media | Screenplay PDF (`.pdf`) | The screenplay on US Letter pages in Courier Prime, ready to print. See [The screenplay PDF](#the-screenplay-pdf). |
 | Media | Ink story (`.ink.json`) | The dialogue compiled for a game engine that reads Ink. |
 | Media | Dialogue table (`.csv`) | Each spoken line with its id, speaker, text and locale. A Yarn container gets a Yarn strings file. |
 | Media | Shot list (`.csv`) | Each shot in order, with its size, angle, movement and duration. |
@@ -340,7 +366,7 @@ With writes allowed, an outside tool can also compile the manuscript, one item, 
 
 ## What is not in this build yet
 
-- **Exports.** There is no PDF of a screenplay or a storyboard.
+- **Exports.** There is no PDF of a storyboard. The screenplay PDF is US Letter only; there is no A4 page and no choice of font.
 - **Final Draft files.** Import and export of `.fdx` files have not been checked against files that Final Draft wrote or opened. The scene numbers and page headers that Caotang writes are not yet confirmed to show in Final Draft.
 - **Word contents.** How Word and LibreOffice handle the contents field in a `.docx` file has not been tested.
 - **The Pages view.** The Pages view of a screenplay is a read-only preview.

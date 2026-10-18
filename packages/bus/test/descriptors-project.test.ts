@@ -273,6 +273,22 @@ describe('recipe.save', () => {
       expect(save(bad), String(bad)).toMatchObject({ ok: false, target: 'options.charLimit' });
     }
   });
+
+  // screenplay.md §5.3: the screenplay PDF's scene numbers (off, left, right, both) and its (MORE)/(CONT'D) switch are recipe options.
+  it('keeps the screenplay PDF’s scene numbers and continuation switch, and refuses a placement it does not know', () => {
+    const save = (options: Record<string, unknown>) =>
+      check(projectCommands.recipeSave.validate, { name: 'Shooting script', includeRootIds: [MANUSCRIPT], format: 'pdf', options });
+    for (const sceneNumbers of ['off', 'left', 'right', 'both']) {
+      expect(save({ sceneNumbers, continued: false })).toEqual({
+        ok: true,
+        value: { name: 'Shooting script', includeRootIds: [MANUSCRIPT], format: 'pdf', options: { sceneNumbers, continued: false } },
+      });
+    }
+    for (const bad of ['center', 'LEFT', true, 1, null]) {
+      expect(save({ sceneNumbers: bad }), String(bad)).toMatchObject({ ok: false, target: 'options.sceneNumbers' });
+    }
+    expect(save({ continued: 'yes' })).toMatchObject({ ok: false, target: 'options.continued' });
+  });
 });
 
 describe('recipe.delete', () => {

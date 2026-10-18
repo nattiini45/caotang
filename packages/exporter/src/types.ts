@@ -16,7 +16,7 @@ import type { ProjectState } from '@caotang/store';
  * The formats this build compiles. The prose formats are exporter.md §2 and §3 (`epub` is §3a's). The rest
  * are the media-track formats of the one-source compile, each compiled from its own package's renderer: the
  * screenplay Fountain and FDX, the dialogue table and compiled Ink, the storyboard shot list and the video
- * prompt pack. The dialogue table and the shot list are written as CSV and as a spreadsheet (XLSX). The screenplay PDF is not here: its engine waits on the PDF-library benchmark.
+ * prompt pack. The dialogue table and the shot list are written as CSV and as a spreadsheet (XLSX). The screenplay PDF (`pdf`, screenplay.md §5.3) is the last: the paginated script, with Courier Prime embedded.
  */
 export const EXPORT_FORMATS = [
   'md',
@@ -36,6 +36,8 @@ export const EXPORT_FORMATS = [
   // order above holds.
   'dialogue-xlsx',
   'shot-list-xlsx',
+  // The screenplay PDF (screenplay.md §5.3), appended last.
+  'pdf',
 ] as const;
 
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
@@ -56,12 +58,13 @@ export const MEDIA_FORMATS = [
   'coherence-json',
   'dialogue-xlsx',
   'shot-list-xlsx',
+  'pdf',
 ] as const satisfies readonly ExportFormat[];
 
 export type MediaFormat = (typeof MEDIA_FORMATS)[number];
 
 /** Formats whose artifact is a binary container, which `ArtifactFs` (string-only) cannot hold. */
-export const BINARY_FORMATS: readonly ExportFormat[] = ['docx', 'epub', 'dialogue-xlsx', 'shot-list-xlsx'];
+export const BINARY_FORMATS: readonly ExportFormat[] = ['docx', 'epub', 'dialogue-xlsx', 'shot-list-xlsx', 'pdf'];
 
 export function isExportFormat(value: string): value is ExportFormat {
   return (EXPORT_FORMATS as readonly string[]).includes(value);
@@ -104,6 +107,13 @@ export interface ExportRecipeOptions {
    * Only the dialogue table (`dialogue-csv` and `dialogue-xlsx`) reads it, and the other formats ignore it. A whole number above zero (the bus caps it at its own maximum).
    */
   readonly charLimit?: number;
+  /**
+   * The screenplay PDF's scene numbers (screenplay.md §5.3): in the left margin, the right, both, or off. Absent means off.
+   * Only `pdf` reads it.
+   */
+  readonly sceneNumbers?: 'off' | 'left' | 'right' | 'both';
+  /** `(MORE)` and `NAME (CONT'D)` where the screenplay PDF splits a speech across a page (screenplay.md §5.3). Default on. Only `pdf` reads it. */
+  readonly continued?: boolean;
 }
 
 /**

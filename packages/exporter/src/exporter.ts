@@ -1,7 +1,7 @@
 /**
  * The exporter — [exporter.md §4](../../../docs/architecture/exporter.md), and the port the bus's `export.compile`
  * and `export.compileSelection` call. It compiles the prose formats (Markdown, plain text, DOCX, EPUB) and the
- * media-track formats (screenplay Fountain and FDX, the dialogue table and compiled Ink, the shot list and the
+ * media-track formats (screenplay Fountain, FDX and PDF, the dialogue table and compiled Ink, the shot list and the
  * video prompt pack — the one-source compile, see `media.ts`).
  *
  * Two entry points share one plan, so they cannot disagree about what a compile is:
@@ -15,11 +15,12 @@
  * Both build their plan with the same function and render through the same dispatcher inside
  * {@link createExporter}, so the blob a user downloads and the file the bus writes are produced by one code path.
  * The media renderers are synchronous, so a media compile renders inside the plan and its gates refuse before
- * anything is reserved; the DOCX and EPUB renderers are dynamically imported, so theirs render in the queue.
+ * anything is reserved; the DOCX and EPUB renderers and the PDF's font are dynamically imported, so those files render in the queue.
  */
 
 import { ApplyRefusal, DEFAULT_RECIPE_NAME, type CommandError } from '@caotang/bus';
 import { ArtifactNotFoundError, identifierUrn, type ArtifactFs, type ProjectState } from '@caotang/store';
+import { PDF_MIME } from '@caotang/screenplay';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
 import { createEmitter, splitRendered, type ByteArtifacts, type Emitter, type EmitFailure, type RenderedContents } from './emit.js';
 import {
@@ -157,6 +158,7 @@ const EXTENSION: Record<ExportFormat, string> = {
   'coherence-json': 'json',
   'dialogue-xlsx': 'xlsx',
   'shot-list-xlsx': 'xlsx',
+  pdf: 'pdf',
 };
 
 /**
@@ -178,6 +180,7 @@ export const EXPORT_MIME: Readonly<Record<ExportFormat, string>> = {
   'coherence-json': 'application/json',
   'dialogue-xlsx': XLSX_MIME,
   'shot-list-xlsx': XLSX_MIME,
+  pdf: PDF_MIME,
 };
 
 const NO_ASSETS: ReadonlyMap<string, AssetRecord> = new Map();
@@ -313,6 +316,9 @@ export function createExporter(options: ExporterOptions): ExporterService {
       ...(request.templateId === undefined ? {} : { vendor: request.templateId }),
       // The recipe's character limit reaches the dialogue table (dialogue-narrative.md §4), as CSV or as a spreadsheet.
       charLimit: request.options.charLimit ?? null,
+      // The screenplay PDF's scene numbers and continuation marks (screenplay.md §5.3). Only `pdf` reads them.
+      ...(request.options.sceneNumbers === undefined ? {} : { sceneNumbers: request.options.sceneNumbers }),
+      ...(request.options.continued === undefined ? {} : { continued: request.options.continued }),
       // Only the shot list (CSV or XLSX) and the prompt pack name stored images, so only they ask for them: a folder whose images
       // cannot be listed refuses those three formats, and a script or a dialogue table still compiles.
       assets: readsImages(common.format) ? (options.assets?.(state) ?? NO_ASSETS) : NO_ASSETS,

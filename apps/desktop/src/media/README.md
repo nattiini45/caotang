@@ -138,8 +138,9 @@ One exception is open: `ScreenplayPreview.tsx` imports `paginate` and `LAYOUT` f
    element outside it.
 7. **Coverage in a file with carriage returns.** The text area shows the stored text with line feeds, so a selection in a
    body stored with Windows line endings is located by its words, and a passage that appears twice is refused.
-8. **Page preview.** The Pages tab is `paginate()`'s output, read only, and it is not the PDF. The PDF belongs to the
-   export gate (screenplay.md §5.3), which is not built.
+8. **Page preview.** The Pages tab is `paginate()`'s output, read only, and it is not the PDF. The PDF is the `pdf` export
+   format (screenplay.md §5.3), from the Compile dialog. The preview draws a dual-dialogue pair one block after the other;
+   the PDF draws it side by side.
 9. **Ink line ids on import.** An imported container keeps the Ink as written. Line ids are minted by the Add line ids
     action or by a container whose `autoLineIds` is on, not by the import.
 10. **The agent's derive plan is not verified.** The derive offers send their request to the agent (*What a writer can do*,

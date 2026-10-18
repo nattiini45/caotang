@@ -13,9 +13,13 @@
  * Every renderer called here is pure and synchronous. So a media compile runs in the synchronous half of the
  * pipeline, and a gate that refuses throws before anything is reserved. The bus reports that refusal as the
  * port's error, with nothing written and no undo group (exporter.md §2; store/commands.ts `ExportCommandPort`).
+ *
+ * The screenplay PDF is the one file drawn later. Its pagination runs here, so its gate and its page count are
+ * known in the plan; the drawing waits for the font, which is loaded lazily (screenplay.md §5.3), so the file
+ * carries a `bytes` render that the queue runs, as it runs the DOCX and EPUB renderers.
  */
 
-import { renderFdx, renderFountain, isScreenplayKind } from '@caotang/screenplay';
+import { drawPdf, layoutPdf, loadCjkFallback, loadCourierPrime, loadEmojiFallback, renderFdx, renderFountain, isScreenplayKind, PDF_MIME } from '@caotang/screenplay';
 import {
   TABLE_COLUMNS,
   exportCsv,
@@ -88,6 +92,10 @@ export interface MediaRequest {
   readonly date: string;
   /** Whether the title page is on, from the recipe or the template. Only the screenplay formats print one. */
   readonly titlePage: boolean;
+  /** The screenplay PDF's scene numbers (screenplay.md §5.3). Absent is off. Only `pdf` reads it. */
+  readonly sceneNumbers?: 'off' | 'left' | 'right' | 'both';
+  /** `(MORE)` and `(CONT'D)` across a page break in the screenplay PDF. Absent is on. Only `pdf` reads it. */
+  readonly continued?: boolean;
   /** The stem a single-file artifact is named by: the recipe's name, or the output title. */
   readonly base: string;
   /** The vendor template a `promptpack` is written for. Every other format ignores it. */
@@ -102,12 +110,12 @@ export interface MediaRequest {
 }
 
 /**
- * One file the compile writes. `name` has no folder; the emitter places it in `exports/`. A text file carries its text; a
- * spreadsheet carries `bytes`, which renders it inside the emitter's queue, because the ZIP engine is loaded lazily.
+ * One file the compile writes. `name` has no folder; the emitter places it in `exports/`. A text file carries its text. A
+ * binary file (the screenplay PDF) carries `bytes`, which renders it in the queue, after the plan has accepted the compile.
  */
 export type MediaFile =
-  | { readonly name: string; readonly mimeType: string; readonly text: string; readonly bytes?: undefined }
-  | { readonly name: string; readonly mimeType: string; readonly text?: undefined; readonly bytes: () => Promise<Uint8Array> };
+  | { readonly name: string; readonly mimeType: string; readonly text: string; readonly bytes?: never }
+  | { readonly name: string; readonly mimeType: string; readonly text?: never; readonly bytes: () => Promise<Uint8Array> };
 
 /** What a media compile produced, and the counts and notes its log row carries. */
 export interface MediaOutput {
@@ -145,6 +153,8 @@ export function renderMedia(request: MediaRequest): MediaOutput {
     case 'coherence-md':
     case 'coherence-json':
       return coherenceReportOutput(request);
+    case 'pdf':
+      return pdfOutput(request);
   }
 }
 
@@ -269,6 +279,49 @@ function fountainOutput(request: MediaRequest): MediaOutput {
     wordCount: flat.wordCount,
     skippedDocs: flat.skippedDocs,
     notes: [...flat.notes, ...left, ...rendered.notes],
+  };
+}
+
+/**
+ * The screenplay PDF (screenplay.md §5.3). The selection, the gate and the pagination are the plan's, so a refusal writes
+ * nothing and the log row can give the page count. The file is drawn in the queue, with Courier Prime embedded, and the CJK and emoji fallbacks when the script needs them.
+ */
+function pdfOutput(request: MediaRequest): MediaOutput {
+  const { flat, left } = screenplayBlocks(request);
+  requireScenes('pdf', flat, left);
+  const layout = layoutPdf(flat.blocks, {
+    title: request.title,
+    author: request.author,
+    date: request.date,
+    synopses: synopsesOf(request.state),
+    titlePage: request.titlePage,
+    sceneNumbers: request.sceneNumbers ?? 'off',
+    continued: request.continued ?? true,
+  });
+  const pages = layout.scriptPageCount;
+  const titled = layout.pages.length > pages ? ', and a title page' : '';
+  return {
+    files: [
+      {
+        name: `${request.base}.pdf`,
+        mimeType: PDF_MIME,
+        bytes: async () => {
+          const [font, cjk, emoji] = await Promise.all([loadCourierPrime(), loadCjkFallback(layout), loadEmojiFallback(layout)]);
+          return drawPdf(layout, font, cjk, emoji);
+        },
+      },
+    ],
+    blockCount: flat.blocks.length,
+    chapterCount: flat.chapterCount,
+    sceneCount: flat.sceneCount,
+    wordCount: flat.wordCount,
+    skippedDocs: flat.skippedDocs,
+    notes: [
+      ...flat.notes,
+      ...left,
+      ...layout.notes,
+      `pdf: ${pages} script ${pages === 1 ? 'page' : 'pages'}${titled}, about ${pages} ${pages === 1 ? 'minute' : 'minutes'} of screen time at a page a minute`,
+    ],
   };
 }
 

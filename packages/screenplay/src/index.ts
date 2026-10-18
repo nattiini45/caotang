@@ -69,12 +69,36 @@ export {
   type SceneLength,
 } from './paginate.js';
 
-export { pdfString, writePdf, type PdfInfo, type PdfText } from './pdf.js';
+export {
+  isPrintable,
+  pdfString,
+  writePdf,
+  type PdfCidFont,
+  type PdfCidGlyph,
+  type PdfEmojiFont,
+  type PdfEmojiGlyph,
+  type PdfFont,
+  type PdfInfo,
+  type PdfText,
+} from './pdf.js';
+
+export { emojiKey, emojiPrint, isEmojiCluster } from './emoji.js';
+
+export { breakBetween, charColumns, textColumns, textUnits, unitColumns } from './width.js';
+
+export { COURIER_PRIME_METRICS } from './fonts/courier-prime-metrics.js';
 
 export {
   PDF_MIME,
   createPdfRenderer,
+  drawPdf,
+  fallbackCovers,
+  layoutPdf,
+  loadCjkFallback,
+  loadEmojiFallback,
+  loadCourierPrime,
   renderPdf,
+  type PdfLayout,
   type PdfRenderOptions,
   type PdfRenderResult,
   type PdfRenderer,

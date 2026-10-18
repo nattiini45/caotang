@@ -11,9 +11,9 @@ pnpm --filter @caotang/mcp-server build      # writes dist/caotang-mcp.mjs
 pnpm --filter @caotang/mcp-server run pack       # builds, then writes dist/caotang-mcp-<version>.mcpb
 ```
 
-`dist/caotang-mcp.mjs` is one file: the workspace packages and the MCP SDK are inlined, so it runs with a plain `node` (the workspace's `engines` range, Node 22.12 or a later supported release). Nothing else needs to be installed next to it.
+`dist/caotang-mcp.mjs` is one file: the workspace packages and the MCP SDK are inlined, so it runs with a plain `node` (the workspace's `engines` range, Node 22.12 or a later supported release). Nothing else needs to be installed next to it. The two files the build puts beside it are the screenplay PDF's fallback fonts: `dist/fonts/NotoSansMonoCJKsc-Regular.otf` (CJK) and `dist/fonts/NotoEmoji-Regular.ttf` (emoji). Each is read only for a screenplay PDF with characters Courier Prime cannot print, or with emoji; keep them in `fonts/` beside the bundle for those.
 
-`pack` makes the MCPB bundle a host can install. The bundle holds `server/caotang-mcp.mjs`, `manifest.json`, `THIRD-PARTY-NOTICES.md` for the bundle's dependencies, and the repository's `LICENSE`. The pack script stages those files, checks the manifest against the bundle (its version, its entry point, the arguments, and the write setting), validates it and packs it with the MCPB CLI this package pins (`@anthropic-ai/mcpb`, an exact version). It then reads the result back. The bundle is not signed.
+`pack` makes the MCPB bundle a host can install. The bundle holds `server/caotang-mcp.mjs`, `server/fonts/NotoSansMonoCJKsc-Regular.otf`, `server/fonts/NotoEmoji-Regular.ttf`, `THIRD-PARTY-NOTICES.md` for the bundle's dependencies, and the repository's `LICENSE`. The pack script stages those files, checks the manifest against the bundle (its version, its entry point, the arguments, and the write setting), validates it and packs it with the MCPB CLI this package pins (`@anthropic-ai/mcpb`, an exact version). It then reads the result back. The bundle is not signed.
 
 ## Run
 

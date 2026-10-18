@@ -170,6 +170,69 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(workspace).toContain('return siblings[at + 1]?.id ?? siblings[at - 1]?.id ?? node.parentId;');
     expect(workspace).toContain('if (place !== null) focusAfterDelete(place);');
   });
+
+  it('says the screenplay PDF prints CJK in its fallback font, two columns a character, loaded only when needed', () => {
+    const pdfSection = guide.slice(guide.indexOf('### The screenplay PDF'), guide.indexOf('## Writing dialogue'));
+    expect(pdfSection).toContain('Other characters, such as Chinese, Japanese and Korean, print in Noto Sans Mono CJK SC.');
+    expect(pdfSection).toContain('A script with no such character does not load this font.');
+    expect(pdfSection).toContain('A Chinese, Japanese or Korean character takes the width of two Courier letters.');
+    expect(pdfSection).toContain('Korean breaks at spaces.');
+    expect(pdfSection).not.toMatch(/such as Chinese or emoji, prints as a question mark/);
+    const render = read('packages/screenplay/src/render-pdf.ts');
+    expect(render).toContain('if (layout.fallbackCharacters.length === 0) return undefined;');
+    expect(render).toContain("await import('./cjk-font.js')");
+    expect(read('packages/screenplay/src/width.ts')).toContain("return inRanges(ch.codePointAt(0) ?? 0, WIDE) ? 2 : 1;");
+    expect(read('packages/screenplay/src/cjk-font.ts')).toContain("NOTO_CJK_POSTSCRIPT_NAME = 'NotoSansMonoCJKsc-Regular'");
+    expect(changelog).not.toMatch(/A character the font does not cover, such as Chinese, prints as a question mark/);
+  });
+
+  it('states the screenplay PDF’s margins, page numbering and recipe controls as the layout and the dialog have them', () => {
+    const pdfSection = guide.slice(guide.indexOf('### The screenplay PDF'), guide.indexOf('## Writing dialogue'));
+    const paginate = read('packages/screenplay/src/paginate.ts');
+    // US Letter at 72 points an inch: 1.5 inches is 108 points, 1 inch is 72.
+    expect(pdfSection).toContain('sets the script on US Letter pages');
+    expect(paginate).toContain('pageWidth: 612,');
+    expect(paginate).toContain('pageHeight: 792,');
+    expect(pdfSection).toContain('The margins are 1.5 inches on the left and 1 inch on the other three sides.');
+    for (const margin of ['marginLeft: 108,', 'marginRight: 72,', 'marginTop: 72,', 'marginBottom: 72,']) expect(paginate).toContain(margin);
+    expect(pdfSection).toContain('Script pages count from 1. The number is printed at the top right from page 2.');
+    expect(paginate).toContain('const all = number >= 2 ? [...lines, pageNumberLine(number)] : [...lines];');
+    expect(paginate).toContain('x: LAYOUT.pageWidth - LAYOUT.marginRight - text.length * LAYOUT.charWidth,');
+    expect(paginate).toContain('y: LAYOUT.pageNumberY,');
+    expect(paginate).toContain('pageNumberY: 46,');
+    // The recipe controls, in the words the export dialog shows.
+    const dialog = read('apps/desktop/src/components/ExportDialog.tsx');
+    expect(pdfSection).toContain('**Scene numbers** can be printed in the left margin, the right margin or both. They are off unless you choose them.');
+    expect(dialog).toContain('<span className="export-option-label">Scene numbers</span>');
+    expect(read('packages/screenplay/src/paginate.ts')).toContain("opts.sceneNumbers ?? 'off'");
+    expect(dialog).toContain("sceneNumbers: recipe?.options?.sceneNumbers ?? 'off',");
+    expect(read('packages/exporter/src/media.ts')).toContain("sceneNumbers: request.sceneNumbers ?? 'off',");
+    expect(dialog).toContain("left: 'Left margin',");
+    expect(dialog).toContain("right: 'Right margin',");
+    expect(dialog).toContain("both: 'Both margins',");
+    expect(dialog).toContain("...(shown.sceneNumbers === 'off' ? {} : { sceneNumbers: shown.sceneNumbers }),");
+    expect(pdfSection).toContain('You can turn this off in the recipe: clear **(MORE) and (CONT’D) where a speech crosses a page**.');
+    expect(dialog).toContain('<span className="export-option-label">(MORE) and (CONT’D) where a speech crosses a page</span>');
+  });
+
+  it('says the screenplay PDF prints emoji in Noto Emoji, two columns each, whole, loaded only when needed', () => {
+    const pdfSection = guide.slice(guide.indexOf('### The screenplay PDF'), guide.indexOf('## Writing dialogue'));
+    expect(pdfSection).toContain('Emoji print in Noto Emoji, a black-and-white emoji font.');
+    expect(pdfSection).toContain('An emoji takes the width of two Courier letters, however it is built');
+    expect(pdfSection).toContain('it is never split across lines');
+    expect(pdfSection).toContain('so 👍🏽 prints as 👍, but text you copy out of the PDF keeps the emoji you typed');
+    expect(pdfSection).toContain('A script with no emoji does not load this font.');
+    expect(pdfSection).toContain('A character no font has prints as a question mark, and the compile log names it.');
+    expect(pdfSection).not.toMatch(/such as an emoji, prints as a question mark/);
+    const render = read('packages/screenplay/src/render-pdf.ts');
+    expect(render).toContain('if (layout.emojiCharacters.length === 0) return undefined;');
+    expect(render).toContain("await import('./emoji-font.js')");
+    expect(read('packages/screenplay/src/width.ts')).toContain('if ((unit.length > 1 || unit.charCodeAt(0) >= 0x231a) && isEmojiCluster(unit)) return 2;');
+    expect(read('packages/screenplay/src/emoji-font.ts')).toContain("NOTO_EMOJI_POSTSCRIPT_NAME = 'NotoEmoji-Regular'");
+    expect(read('packages/screenplay/src/emoji-font.ts')).toContain('font.layout(text)');
+    expect(changelog).not.toMatch(/A character neither font covers, such as an emoji, prints as a question mark/);
+  });
+
   it('says how the engine target and the locale change the dialogue exports, in the names the compile writes', () => {
     expect(guide).toContain("A container set to **Yarn string table (CSV)** goes into a Yarn Spinner strings file, `<name> (dialogue, Yarn).csv`, with Yarn's columns and `line:` ids.");
     expect(guide).toContain('A container with no locale uses the project\'s language. A container with its own locale puts it in the Ink story\'s file name, such as `Tavern.de.ink.json`.');

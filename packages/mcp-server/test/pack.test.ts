@@ -8,7 +8,7 @@ import { join, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { BUNDLE_ENTRY, manifestProblems, mcpbCliPath, packBundle, runMcpb, stageBundle } from '../scripts/pack-mcpb.mjs';
+import { BUNDLE_CJK_FONT, BUNDLE_EMOJI_FONT, BUNDLE_ENTRY, manifestProblems, mcpbCliPath, packBundle, runMcpb, stageBundle } from '../scripts/pack-mcpb.mjs';
 import { removeDir, tempDir } from './support.js';
 
 const PACKAGE_DIR = resolve(__dirname, '..');
@@ -155,6 +155,57 @@ describe('staging and packing', () => {
         }),
       ).toThrow('author.name is required');
       expect(existsSync(join(outDir, 'mcpb'))).toBe(false);
+    } finally {
+      removeDir(outDir);
+    }
+  });
+
+  it('stages the CJK fallback font in server/fonts/, where the bundle reads it from', () => {
+    const outDir = tempDir('pack-font');
+    try {
+      const font = join(outDir, 'NotoSansMonoCJKsc-Regular.otf');
+      writeFileSync(font, 'OTTO fixture font');
+      const { staging, files } = stageBundle({
+        outDir,
+        serverBundle: MANIFEST_PATH,
+        manifestPath: MANIFEST_PATH,
+        version: '0.1.0',
+        notices: '# notices\n',
+        license: join(REPO_ROOT, 'LICENSE'),
+        cjkFont: font,
+      });
+      expect(BUNDLE_CJK_FONT).toBe('server/fonts/NotoSansMonoCJKsc-Regular.otf');
+      expect(files).toContain(BUNDLE_CJK_FONT);
+      expect(readFileSync(join(staging, BUNDLE_CJK_FONT), 'utf8')).toBe('OTTO fixture font');
+      // The screenplay package resolves the font as ./fonts/ beside the running module, which is server/caotang-mcp.mjs.
+      expect(BUNDLE_CJK_FONT.replace(/[^/]+$/, '')).toBe(BUNDLE_ENTRY.replace(/[^/]+$/, 'fonts/'));
+    } finally {
+      removeDir(outDir);
+    }
+  });
+
+  it('stages the emoji fallback font in server/fonts/, beside the CJK one', () => {
+    const outDir = tempDir('pack-emoji');
+    try {
+      const cjk = join(outDir, 'NotoSansMonoCJKsc-Regular.otf');
+      const emoji = join(outDir, 'NotoEmoji-Regular.ttf');
+      writeFileSync(cjk, 'OTTO fixture font');
+      writeFileSync(emoji, 'TrueType fixture font');
+      const { staging, files } = stageBundle({
+        outDir,
+        serverBundle: MANIFEST_PATH,
+        manifestPath: MANIFEST_PATH,
+        version: '0.1.0',
+        notices: '# notices\n',
+        license: join(REPO_ROOT, 'LICENSE'),
+        cjkFont: cjk,
+        emojiFont: emoji,
+      });
+      expect(BUNDLE_EMOJI_FONT).toBe('server/fonts/NotoEmoji-Regular.ttf');
+      expect(files).toEqual(expect.arrayContaining([BUNDLE_CJK_FONT, BUNDLE_EMOJI_FONT]));
+      expect(readFileSync(join(staging, BUNDLE_EMOJI_FONT), 'utf8')).toBe('TrueType fixture font');
+      // The screenplay package resolves the font as ./fonts/ beside the running module, which is server/caotang-mcp.mjs.
+      expect(BUNDLE_EMOJI_FONT.replace(/[^/]+$/, '')).toBe(BUNDLE_ENTRY.replace(/[^/]+$/, 'fonts/'));
     } finally {
       removeDir(outDir);
     }
