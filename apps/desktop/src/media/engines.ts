@@ -12,6 +12,7 @@
 export { estimatePageCount, estimateRuntimeMinutes } from '@caotang/screenplay';
 export { characterCueNames, cueSpellingGroups, type CueSpellingGroup } from '@caotang/screenplay';
 export { parseFountain, type SceneSpan } from '@caotang/screenplay';
+export { LINE_ELEMENT_TYPES, convertLine, lineElementAt, type LineConversion, type LineElementType } from '@caotang/screenplay';
 export { printedText } from '@caotang/screenplay';
 export type { LocatedElement } from '@caotang/screenplay';
 export { isScreenplayKind } from '@caotang/screenplay';

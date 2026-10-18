@@ -264,7 +264,7 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - The prompt pack is one normalised shot schema mapped to per-vendor templates; Caotang never generates video, holds no vendor keys and uploads nothing. Why: generation happens in the writer's own tool. [delegated]
 - The shot prompt editor keeps each vendor's typed text across a vendor switch while the shot is open. Why: switching vendors loses nothing. [delegated]
 - The shot list and the dialogue table also export as `.xlsx`, one sheet each, from the same rows as the CSV. The workbook is a hand-written Office Open XML writer over `fflate`, which the EPUB already loads lazily. Why: one spreadsheet stack for both tables, no new dependency, and the file is made in the browser. [delegated]
-- Not yet built: PDF output for screenplays and storyboards, the Source tab's element menu, engine target and locale in exports. (specified, not built) [delegated]
+- Not yet built: PDF output for screenplays and storyboards. (specified, not built) [delegated]
 
 ## Coherence
 

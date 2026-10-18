@@ -90,16 +90,19 @@ export {
 
 export {
   TABLE_COLUMNS,
+  YARN_COLUMNS,
   buildRows,
   csvField,
   exportCsv,
   toCsv,
   toJsonRows,
+  toYarnCsv,
   type CsvExport,
   type CsvRefusal,
   type DialogueSource,
   type TableOptions,
   type TableRow,
+  type YarnCsvOptions,
 } from './table.js';
 
 export { INK_JSON_FORMAT, INK_JSON_MIME, exportInkJson, type InkJsonArtifact, type InkJsonRefusal } from './export-ink.js';

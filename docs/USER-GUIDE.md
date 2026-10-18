@@ -122,6 +122,8 @@ On the Source tab:
 - Enter at the end of a character's name (a cue) moves onto the line for its dialogue.
 - Enter on an empty line after dialogue starts an action line.
 - Tab completes a half-typed character name from the names cued in the scene and the characters in the codex.
+- **Element**, above the text, or Ctrl+E, opens the element menu for the line the caret is on. It lists **Scene heading**, **Action**, **Character**, **Parenthetical**, **Dialogue**, **Transition**, **Centered**, **Note** and **Page break**, and marks the one the line is. The arrow keys move through it, and Enter chooses. The digits 1 to 9 choose an element directly.
+- Choosing an element rewrites the line in its Fountain form. Your words are kept. Caotang adds a mark such as `.`, `@`, `!` or `>` only where the line would otherwise read as another element. A heading, a character or a transition under other text gets a blank line above it. **Parenthetical** and **Dialogue** are offered only under a character. **Page break** on a line with words puts the break on its own line above it.
 
 When Caotang saves a scene, it writes Fountain in the standard layout: a run of blank lines becomes one blank line, and Windows line endings become the usual ones. Your words are kept.
 
@@ -136,10 +138,17 @@ Choose **New dialogue here** from a folder's menu. A dialogue container holds an
 - **Outline and findings.** The structure of the story and what the checks found. Both follow the text when you pause, about 800 ms after your last keystroke.
 - Tab after a divert arrow (`->`) completes the knot or stitch name you started.
 - **Add line ids to N lines** asks first, then writes an id into each line that has none. With **Add line ids on save** turned on, Caotang writes the missing ids each time it saves.
-- **Container settings**, in the inspector: **Default speaker** (a codex character, who fills the speaker column of the dialogue table), **Engine target** (a hint only), **Add line ids on save**, and **Locale** (recorded only).
+- **Container settings**, in the inspector: **Default speaker** (a codex character, who fills the speaker column of the dialogue table), **Engine target**, **Add line ids on save**, and **Locale** (the language the text is written in, such as `en` or `en-GB`).
 - If the Ink does not compile, the view says so and lists the errors. Fix them in the Ink text.
 
-Compile a dialogue container from **Compile…**, in the Media group, as an Ink story (`.ink.json`) or as a dialogue table (`.csv` or `.xlsx`): each spoken line with its id, speaker and text.
+Compile a dialogue container from **Compile…**, in the Media group, as an Ink story (`.ink.json`) or as a dialogue table (`.csv` or `.xlsx`): each spoken line with its id, speaker, text and locale.
+
+The container settings change these files:
+
+- **Engine target** picks the table. A container set to **Yarn string table (CSV)** goes into a Yarn Spinner strings file, `<name> (dialogue, Yarn).csv`, with Yarn's columns and `line:` ids. Any other target, or none, goes into the dialogue table, `<name> (dialogue).csv`. A compile that holds both kinds writes both files. The Ink story is the same for every target.
+- **Locale** is written on each line of both tables. A container with no locale uses the project's language. A container with its own locale puts it in the Ink story's file name, such as `Tavern.de.ink.json`.
+- The Yarn strings file has no character limit column. Its `lock` column is empty.
+- In the Yarn strings file, a line or choice whose text cell starts with `=`, `+`, `-`, `@`, a tab or a carriage return gets an apostrophe in front, as in every CSV export, so a spreadsheet does not run it as a formula. A spoken line's cell starts with the speaker's name when it has one. The apostrophe is written into the cell itself, so a tool that reads the file gets it with the line; Caotang has not checked how Yarn Spinner shows it. The language, file and comment cells get the same guard.
 
 ## Planning a storyboard
 
@@ -233,7 +242,7 @@ The formats come in three groups:
 | Media | Fountain (`.fountain`) | The screenplay as plain Fountain text, for Beat or Highland. |
 | Media | Final Draft (`.fdx`) | The screenplay in Final Draft's XML. Not yet checked in Final Draft itself. |
 | Media | Ink story (`.ink.json`) | The dialogue compiled for a game engine that reads Ink. |
-| Media | Dialogue table (`.csv`) | Each spoken line with its id, speaker and text. |
+| Media | Dialogue table (`.csv`) | Each spoken line with its id, speaker, text and locale. A Yarn container gets a Yarn strings file. |
 | Media | Shot list (`.csv`) | Each shot in order, with its size, angle, movement and duration. |
 | Media | Dialogue table (`.xlsx`) | The dialogue table as a spreadsheet, with the same columns and rows as the `.csv`. |
 | Media | Shot list (`.xlsx`) | The shot list as a spreadsheet, with the same columns and rows as the `.csv`. |
@@ -269,6 +278,7 @@ Choose **Settings** on the projects screen or in the toolbar. It has seven secti
 | Ctrl+Shift+F | Focus mode, which hides the binder and the inspector. |
 | Ctrl+Alt+F | Move to the binder's filter. |
 | Ctrl+Enter | Open the selected item in the editor. |
+| Ctrl+E | On a screenplay's Source tab, open the element menu for the caret's line. |
 | F2 | Rename the selected item in the binder. |
 | Delete | Delete the selected item in the binder. It asks first. |
 | Arrow keys | Move the selection in the binder. |
@@ -333,7 +343,6 @@ With writes allowed, an outside tool can also compile the manuscript, one item, 
 - **Exports.** There is no PDF of a screenplay or a storyboard.
 - **Final Draft files.** Import and export of `.fdx` files have not been checked against files that Final Draft wrote or opened. The scene numbers and page headers that Caotang writes are not yet confirmed to show in Final Draft.
 - **Word contents.** How Word and LibreOffice handle the contents field in a `.docx` file has not been tested.
-- **The Source tab.** Only Enter and Tab have a meaning on the Source tab. There is no element menu. The Pages view is a read-only preview.
-- **Dialogue export settings.** The engine target and the locale are kept with the container, but no export uses them yet.
+- **The Pages view.** The Pages view of a screenplay is a read-only preview.
 - **Undo and reloads.** Undo lasts for the open tab, and text typed in the moment before a reload may not be saved yet.
 - **The desktop app.** Caotang runs in the browser. A desktop wrapper is not in this build.

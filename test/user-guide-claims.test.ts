@@ -170,4 +170,48 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(workspace).toContain('return siblings[at + 1]?.id ?? siblings[at - 1]?.id ?? node.parentId;');
     expect(workspace).toContain('if (place !== null) focusAfterDelete(place);');
   });
+  it('says how the engine target and the locale change the dialogue exports, in the names the compile writes', () => {
+    expect(guide).toContain("A container set to **Yarn string table (CSV)** goes into a Yarn Spinner strings file, `<name> (dialogue, Yarn).csv`, with Yarn's columns and `line:` ids.");
+    expect(guide).toContain('A container with no locale uses the project\'s language. A container with its own locale puts it in the Ink story\'s file name, such as `Tavern.de.ink.json`.');
+    expect(read('apps/desktop/src/components/InspectorDialogue.tsx')).toContain("'yarn-csv': 'Yarn string table (CSV)'");
+    const media = read('packages/exporter/src/media.ts');
+    expect(media).toContain('name: `${request.base} (dialogue, Yarn).csv`');
+    expect(media).toContain('`${fileStem(title)}.${locale}.ink.json`');
+    expect(media).toContain('{ includeLocale: true }');
+    expect(read('packages/dialogue/src/table.ts')).toContain("export const YARN_COLUMNS = ['language', 'id', 'text', 'file', 'node', 'lineNumber', 'lock', 'comment'] as const;");
+  });
+
+  it('says which leading characters get the Yarn guard apostrophe, that it is written into the cell, and that Yarn Spinner was not checked', () => {
+    const claim =
+      "In the Yarn strings file, a line or choice whose text cell starts with `=`, `+`, `-`, `@`, a tab or a carriage return gets an apostrophe in front, as in every CSV export, so a spreadsheet does not run it as a formula.";
+    expect(guide).toContain(claim);
+    expect(guide).toContain("A spoken line's cell starts with the speaker's name when it has one.");
+    expect(guide).toContain('The language, file and comment cells get the same guard.');
+    expect(changelog).toContain("A spoken line's `text` cell starts with the speaker's name when it has one.");
+    expect(guide).toContain("The apostrophe is written into the cell itself, so a tool that reads the file gets it with the line; Caotang has not checked how Yarn Spinner shows it.");
+    expect(changelog).toContain('how Yarn Spinner shows it has not been checked.');
+    // The trigger list in the guide is the guard's own list, and the Yarn writer applies that guard to its cells.
+    expect(read('packages/storyboard/src/render-csv.ts')).toContain("const FORMULA_TRIGGERS: readonly string[] = ['=', '+', '-', '@', '\\t', '\\r'];");
+    expect(read('packages/exporter/src/media.ts')).toContain('return toYarnCsv(rows, { fileOf: titleOf, cell: guardFormula });');
+    const table = read('packages/dialogue/src/table.ts');
+    expect(table).toContain('cell(row.locale),');
+    expect(table).toContain('cell(text),');
+    expect(table).toContain('cell(fileOf(row.container)),');
+    expect(table).toContain('cell(row.context),');
+  });
+
+  it('names the Source tab’s element menu, its key and its entries in the words the view shows', () => {
+    const view = read('apps/desktop/src/media/ScreenplayView.tsx');
+    const menu = read('apps/desktop/src/media/element-menu.ts');
+    // The button's visible word, and the chord the view opens the menu on.
+    expect(view).toMatch(/>\s*Element\s*<\/button>/);
+    expect(menu).toMatch(/event\.key\.toLowerCase\(\) === 'e'/);
+    const screenplay = guide.slice(guide.indexOf('## Writing a screenplay'), guide.indexOf('## Writing dialogue'));
+    expect(screenplay).toContain('**Element**, above the text, or Ctrl+E, opens the element menu for the line the caret is on.');
+    // Each entry the guide names is a label of the menu, and the guide names every one, in the menu's order.
+    const labels = [...menu.matchAll(/^ {2}[a-z_]+: '([^']+)',$/gm)].map((match) => match[1] ?? '');
+    expect(labels).toHaveLength(9);
+    expect(screenplay).toContain(`It lists ${labels.slice(0, -1).map((label) => `**${label}**`).join(', ')} and **${labels.at(-1)}**,`);
+    expect(guide).toMatch(/\| Ctrl\+E \| On a screenplay's Source tab, open the element menu for the caret's line\. \|/);
+  });
 });

@@ -1779,6 +1779,14 @@ dialog.export-dialog::backdrop {
   left: 9px;
 }
 
+/* An item's own key, at the end of its row. */
+.menu-key {
+  float: right;
+  margin-left: 18px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .menu-item.is-danger {
   color: var(--danger);
 }

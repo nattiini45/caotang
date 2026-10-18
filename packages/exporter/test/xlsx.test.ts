@@ -403,8 +403,8 @@ describe('dialogue-xlsx — the dialogue table as a spreadsheet', () => {
   it('writes the table’s columns, one row per line and choice, in the same order as the CSV', async () => {
     const { file, sheet } = await compiled('dialogue-xlsx');
     expect(file.fileName).toBe(`${PROJECT_NAME} (dialogue).xlsx`);
-    const rows = readRows(sheet, 5);
-    expect(rows[0]).toEqual(['lineId', 'speaker', 'text', 'context', 'charLimit']);
+    const rows = readRows(sheet, 6);
+    expect(rows[0]).toEqual(['lineId', 'speaker', 'text', 'context', 'charLimit', 'locale']);
     const csv = await exporterFor().compile({ includeRootIds: ['manuscript'] }, 'dialogue-csv');
     const fromCsv = csvRows((await csv.files[0]?.blob.text()) ?? '');
     // Cell for cell only because this fixture holds none of the text the formats treat differently by design (a cell that opens
