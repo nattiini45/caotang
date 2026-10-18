@@ -6,6 +6,7 @@ import {
   paginate,
   parseFountain,
   sceneLengths,
+  textColumns,
   type LayoutLine,
   type LayoutPage,
 } from '../src/index.js';
@@ -415,15 +416,52 @@ describe('paginate — dual dialogue side by side (screenplay.md §2.2)', () => 
     expect(right?.x).toBeCloseTo(LAYOUT.marginLeft + LAYOUT.dual.right.dialogue * LAYOUT.charWidth, 5);
   });
 
-  it('wraps each column to its own width, so the columns never overlap', () => {
+  it('wraps each column to its own width, so the columns never overlap, cues and parentheticals included', () => {
     const long = 'Every word of this speech is here to make it wrap onto several rows of its column.';
-    const [page] = paginate(parseFountain(text('ANNA', long, '', 'BEN ^', long)).elements);
-    const width = LAYOUT.dual.width.dialogue;
-    const speech = (page?.lines ?? []).filter((line) => line.kind === 'dialogue');
-    expect(speech.length).toBeGreaterThan(4);
-    for (const line of speech) expect(line.text.length).toBeLessThanOrEqual(width);
-    const leftEnd = LAYOUT.marginLeft + (LAYOUT.dual.left.dialogue + width) * LAYOUT.charWidth;
-    for (const line of speech.filter((l) => l.x > leftEnd)) expect(line.x).toBeGreaterThanOrEqual(leftEnd);
+    // Cue names long enough to wrap: 26 and 25 characters, one with no space to break at.
+    const leftCue = 'ANNA-MARIA VON HOHENSTEIN';
+    const rightCue = 'BARTHOLOMEWJONATHANSMYTHE';
+    const source = text(leftCue, '(a long aside, to make it wrap)', long, '', `${rightCue} ^`, '(a long aside, to make it wrap)', long);
+    const [page] = paginate(parseFountain(source).elements);
+    const lines = (page?.lines ?? []).filter((line) => ['character', 'parenthetical', 'dialogue'].includes(line.kind));
+    const column = (line: LayoutLine): number => Math.round((line.x - LAYOUT.marginLeft) / LAYOUT.charWidth);
+    const rightStart = LAYOUT.dual.right.dialogue;
+    const left = lines.filter((line) => column(line) < rightStart);
+    const right = lines.filter((line) => column(line) >= rightStart);
+    // Control: both sides hold every kind, so the checks below cannot pass over an empty side.
+    for (const side of [left, right]) {
+      expect(side.filter((line) => line.kind === 'character').length).toBeGreaterThan(1);
+      expect(side.filter((line) => line.kind === 'parenthetical').length).toBeGreaterThan(1);
+      expect(side.filter((line) => line.kind === 'dialogue').length).toBeGreaterThan(2);
+    }
+    expect(left.filter((line) => line.kind === 'character').map((line) => line.text).join(' ')).toBe(leftCue);
+    expect(right.filter((line) => line.kind === 'character').map((line) => line.text).join('')).toBe(rightCue);
+    const gutter = LAYOUT.dual.left.dialogue + LAYOUT.dual.width.dialogue;
+    for (const line of left) {
+      const end = column(line) + textColumns(line.text);
+      // No left line reaches the right column; its dialogue and parentheticals end before the gutter.
+      expect(end, line.text).toBeLessThanOrEqual(rightStart);
+      if (line.kind !== 'character') expect(end, line.text).toBeLessThanOrEqual(gutter);
+      if (line.kind === 'dialogue') expect(column(line), line.text).toBe(LAYOUT.dual.left.dialogue);
+    }
+    for (const line of right) {
+      // Every right line starts at its own indent and ends inside the right margin.
+      expect(column(line), line.text).toBe(LAYOUT.dual.right[line.kind as 'character' | 'parenthetical' | 'dialogue']);
+      expect(column(line) + textColumns(line.text), line.text).toBeLessThanOrEqual(LAYOUT.columns);
+      expect(line.x + textColumns(line.text) * LAYOUT.charWidth).toBeLessThanOrEqual(LAYOUT.pageWidth - LAYOUT.marginRight + 1e-9);
+    }
+  });
+
+  it('rewraps a word broken at the column edge without a space inside it', () => {
+    // 40 characters with no space: wider than the 35-column dialogue, so the first wrap breaks it after 35, and the dual
+    // column rewraps the speech to 27 from the text the lines join back to.
+    const word = 'https://example.org/a-long-unbroken-path';
+    expect(word).toHaveLength(40);
+    const [page] = paginate(parseFountain(text('ANNA', 'Hi.', '', 'BEN ^', `See ${word} now.`)).elements);
+    const rightStart = LAYOUT.marginLeft + LAYOUT.dual.right.dialogue * LAYOUT.charWidth;
+    const right = (page?.lines ?? []).filter((line) => line.kind === 'dialogue' && line.x >= rightStart - 1e-9);
+    // The word is broken at 27 only; a space after its 35th character would have pushed "path" onto the third row apart.
+    expect(right.map((line) => line.text)).toEqual(['See', word.slice(0, 27), `${word.slice(27)} now.`]);
   });
 
   it('a cue marked ^ with no block before it is an ordinary cue', () => {

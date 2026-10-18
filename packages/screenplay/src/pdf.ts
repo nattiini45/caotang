@@ -271,12 +271,12 @@ function utf16Hex(text: string): string {
   return out;
 }
 
-/** The ToUnicode CMap (PDF 1.7 §9.10.3): each fallback CID back to its text, so the text extracts. */
+/**
+ * The ToUnicode CMap (PDF 1.7 §9.10.3): each fallback CID back to its text, so the text extracts. Both subsets give each
+ * character or unit its own CID, even where two share a glyph (cjk-font.ts, emoji-font.ts), so every entry is kept.
+ */
 function toUnicodeCMap(entries: Iterable<readonly [string, { readonly cid: number }]>): string {
-  const pairs = [...entries]
-    .map(([text, glyph]) => [glyph.cid, text] as const)
-    .sort((a, b) => a[0] - b[0])
-    .filter(([cid], i, all) => i === 0 || all[i - 1]?.[0] !== cid);
+  const pairs = [...entries].map(([text, glyph]) => [glyph.cid, text] as const).sort((a, b) => a[0] - b[0]);
   const blocks: string[] = [];
   for (let i = 0; i < pairs.length; i += 100) {
     const chunk = pairs.slice(i, i + 100);

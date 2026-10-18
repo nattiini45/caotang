@@ -4,6 +4,7 @@
  * check that the program in the file is the font byte for byte, and hold the lazy-load line: only a dynamic import
  * reaches the module that carries the font.
  */
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -71,6 +72,24 @@ describe('Courier Prime — the metrics the PDF states are the font’s own', ()
   });
 });
 
+describe('Courier Prime — the carrier holds the published font', () => {
+  // The size and SHA-256 of CourierPrime-Regular.ttf as google/fonts publishes it, as the carrier and fonts/README.md state them.
+  const SIZE = 71188;
+  const SHA256 = '72f793376f8e2841656bf21d77a5de010f2929bd6956a22ee848ad0c7eb978af';
+
+  it('decodes to the published file, byte for byte', async () => {
+    const { bytes } = await loadCourierPrime();
+    expect(bytes.length).toBe(SIZE);
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(SHA256);
+  });
+
+  it('is the file the carrier’s comment and fonts/README.md name', () => {
+    const src = (file: string): string => readFileSync(resolve(__dirname, '../src/fonts', file), 'utf8');
+    expect(src('courier-prime-regular.ts')).toContain(`${SIZE} bytes, SHA-256 ${SHA256}`);
+    expect(src('README.md')).toContain(`(${SIZE} bytes) | \`${SHA256}\` (the TTF)`);
+  });
+});
+
 describe('renderPdf — the embedded font program', () => {
   it('writes the whole font as FontFile2, in hexadecimal, byte for byte', async () => {
     const font = await loadCourierPrime();
@@ -87,13 +106,16 @@ describe('renderPdf — the embedded font program', () => {
   });
 
   it('keeps every byte ASCII and every xref offset exact with the font in the file', async () => {
-    const { bytes } = renderPdf(blocksOf(SCRIPT_ONE_ACT), { title: 'T', author: 'A. Writer' }, await loadCourierPrime());
+    const { bytes, pageCount } = renderPdf(blocksOf(SCRIPT_ONE_ACT), { title: 'T', author: 'A. Writer' }, await loadCourierPrime());
     expect(bytes.every((byte) => byte < 0x80)).toBe(true);
     const pdf = decode(bytes);
     expect(pdf).toContain('/Author (A. Writer)');
     const xref = Number(/startxref\n(\d+)\n/.exec(pdf)?.[1]);
     const lines = pdf.slice(xref).split('\n');
     const objects = Number(/^0 (\d+)$/m.exec(pdf.slice(xref, xref + 40))?.[1]) - 1;
+    // Control: the catalogue, the page tree, the font and the info, two objects a page, the descriptor and the program.
+    // A header the regexes miss gives NaN here, and the loop below would check nothing.
+    expect(objects).toBe(4 + 2 * pageCount + 2);
     for (let object = 1; object <= objects; object++) {
       const offset = Number(lines[2 + object]?.slice(0, 10));
       expect(pdf.slice(offset).startsWith(`${object} 0 obj\n`), `object ${object}`).toBe(true);

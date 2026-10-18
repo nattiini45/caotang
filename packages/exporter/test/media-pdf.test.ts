@@ -187,4 +187,30 @@ describe('pdf — through the bus', () => {
     expect(pdf.match(/\(1\) Tj/g)).toHaveLength(2);
     expect(pdf).not.toContain('(Ada Lovelace) Tj');
   });
+
+  it('a recipe’s continuation setting decides whether a speech that crosses a page carries (MORE) and (CONT’D)', async () => {
+    const r = rig();
+    // Some action, then a speech of 60 one-row sentences: taller than a page, so it must cross one.
+    const filler = Array.from({ length: 10 }, (_, i) => `Filler ${i}.`).join('\n\n');
+    const speech = Array.from({ length: 60 }, () => `${'w'.repeat(34)}.`).join(' ');
+    const kitchen = r.state.documents.get(MEDIA_IDS.kitchen);
+    if (kitchen === undefined) throw new Error('no kitchen scene');
+    kitchen.body = `INT. KITCHEN - DAY\n\n${filler}\n\nMARA\n${speech}`;
+    holdRecipe(r.state, { name: 'Off', includeRootIds: ['manuscript'], format: 'pdf', options: { titlePage: false, continued: false } });
+    holdRecipe(r.state, { name: 'On', includeRootIds: ['manuscript'], format: 'pdf', options: { titlePage: false } });
+    await r.exporter.ready();
+    const compiled = async (recipeName: string): Promise<string> => {
+      const digest = okValue(r.run('export.compile', { format: 'pdf', recipeName })).result as { output: string };
+      await r.exporter.idle();
+      return ascii(r.bytes.get(digest.output) ?? new Uint8Array());
+    };
+    const on = await compiled('On');
+    const off = await compiled('Off');
+    // Control: the speech crosses a page in both files, so the difference is the setting, not the layout.
+    for (const pdf of [on, off]) expect(Number(/\/Count (\d+) /.exec(pdf)?.[1])).toBeGreaterThanOrEqual(2);
+    expect(on).toContain('(\\(MORE\\)) Tj');
+    expect(on).toContain("(MARA \\(CONT'D\\)) Tj");
+    expect(off).not.toContain('MORE');
+    expect(off).not.toContain("CONT'D");
+  });
 });

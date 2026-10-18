@@ -27,7 +27,7 @@
  * both directions, and the load path is where a version changes.
  */
 
-import { CHAR_LIMIT_MAX } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, SCENE_NUMBER_OPTIONS } from '@caotang/bus';
 import type {
   CodexEntry,
   Derived,
@@ -254,7 +254,8 @@ function recipeOptions(o: NonNullable<ExportRecipe['options']>): string {
     pairs.push(['charLimit', String(limit)]);
   }
   const numbers: unknown = o.sceneNumbers;
-  if (numbers === 'off' || numbers === 'left' || numbers === 'right' || numbers === 'both') pairs.push(['sceneNumbers', str(numbers)]);
+  // The placements the bus accepts, from its own export, so a placement it gains is written, not dropped.
+  if (typeof numbers === 'string' && (SCENE_NUMBER_OPTIONS as readonly string[]).includes(numbers)) pairs.push(['sceneNumbers', str(numbers)]);
   if (typeof o.continued === 'boolean') pairs.push(['continued', String(o.continued)]);
   return pairs.length === 0 ? '{}' : oneLine(pairs);
 }

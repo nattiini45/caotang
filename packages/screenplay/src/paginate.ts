@@ -76,12 +76,15 @@ export const LAYOUT = Object.freeze({
   },
   /**
    * The two columns of a dual-dialogue pair, in characters from the left margin. Each column is 27 characters of
-   * dialogue, with a three-column gutter; the cue and the parentheticals sit inside their column.
+   * dialogue, with a three-column gutter. The dialogue and the parentheticals sit inside their column (the left
+   * parenthetical ends by column 3 + 21 = 24, the right one by 33 + 21 = 54). The cue wraps at 23, the room its indent
+   * leaves: the left cue ends by column 7 + 23 = 30, where the right column starts, and the right cue by 37 + 23 = 60, the
+   * right margin, so neither cue reaches the other column or the margin.
    */
   dual: {
     left: { character: 7, parenthetical: 3, dialogue: 0 },
     right: { character: 37, parenthetical: 33, dialogue: 30 },
-    width: { character: 27, parenthetical: 21, dialogue: 27 },
+    width: { character: 23, parenthetical: 21, dialogue: 27 },
   },
 });
 
@@ -253,8 +256,8 @@ function wrap(text: string, width: number): Wrapped {
         }
         const [head, tail] = splitColumns(rest, width);
         push(head, currentJoin);
-        // A word broken at the column edge is rejoined with a space, as it always was.
-        currentJoin = ' ';
+        // A word broken at the column edge is one word: a rewrap joins its pieces with nothing between them.
+        currentJoin = '';
         rest = tail;
       }
       if (current === '') current = rest;

@@ -137,7 +137,7 @@ Compile a screenplay from **Compile…**, in the Media group, as Fountain, as Fi
 - The title page comes first when **Title page** is on. It shows the project's title, the author and the date. It has no page number.
 - Script pages count from 1. The number is printed at the top right from page 2.
 - A scene heading is never left alone at the foot of a page. A character name always stays with its first line of dialogue. A transition never starts a page.
-- A speech that crosses a page breaks after a sentence. **(MORE)** ends the page and the name returns with **(CONT’D)** on the next one. You can turn this off in the recipe.
+- A speech that crosses a page breaks after a sentence. **(MORE)** ends the page and the name returns with **(CONT’D)** on the next one. You can turn this off in the recipe: clear **(MORE) and (CONT’D) where a speech crosses a page**.
 - Dual dialogue (a second name marked `^`) is printed side by side, in two columns.
 - **Scene numbers** can be printed in the left margin, the right margin or both. They are off unless you choose them. A heading's own number, such as `#24A#`, is used when it has one.
 - Notes (`[[…]]`), boneyard text (`/* … */`), sections and synopses are not printed.

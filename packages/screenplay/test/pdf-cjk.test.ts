@@ -221,6 +221,41 @@ describe('the CJK fallback font', () => {
   });
 });
 
+describe('characters the CJK font draws with one glyph', () => {
+  // ‧ U+2027 (one column) and ・ U+30FB (two), and ① U+2460 and ➀ U+2780: each pair is one glyph in Noto Sans Mono CJK SC.
+  const SHARED = ['‧', '・', '①', '➀'];
+
+  it('are one glyph in the font, so the test is about them', () => {
+    const font = fontkit.create(readFileSync(FONT_PATH));
+    const gid = (ch: string): number => font.glyphForCodePoint(ch.codePointAt(0) ?? 0).id;
+    expect(gid('‧')).toBe(gid('・'));
+    expect(gid('①')).toBe(gid('➀'));
+    expect(SHARED.every(fallbackCovers)).toBe(true);
+    expect([charColumns('‧'), charColumns('・')]).toEqual([1, 2]);
+  });
+
+  it('get a CID each, with each one’s own width and outline', async () => {
+    const layout = layoutPdf(blocksOf(text('INT. ROOM - DAY', '', 'Dots ‧ and ・, circled ① and ➀.')), { title: 'T' });
+    expect(layout.fallbackCharacters).toEqual(SHARED);
+    const subset = await loadCjkFallback(layout);
+    if (subset === undefined) throw new Error('no subset');
+    const cids = SHARED.map((ch) => subset.glyphs.get(ch)?.cid);
+    expect(new Set(cids).size).toBe(SHARED.length);
+    for (const ch of SHARED) expect(subset.widths[(subset.glyphs.get(ch)?.cid ?? 0) - 1], ch).toBe(charColumns(ch) * 600);
+    const font = fontkit.create(readFileSync(FONT_PATH));
+    const wrapped = fontkit.create(sfntWithCff(subset.program));
+    for (const [ch, glyph] of subset.glyphs) {
+      expect(wrapped.getGlyph(glyph.cid).path.toSVG(), ch).toBe(font.glyphForCodePoint(ch.codePointAt(0) ?? 0).path.toSVG());
+    }
+  });
+
+  it('copy out of the PDF as the characters that were typed', async () => {
+    const pdf = await cjkPdf(text('INT. ROOM - DAY', '', 'Dots ‧ and ・, circled ① and ➀.'));
+    expect(extract(pdf)).toContain('Dots ‧ and ・, circled ① and ➀.');
+    for (const ch of SHARED) expect(pdf, ch).toContain(`<${(ch.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')}>\n`);
+  });
+});
+
 describe('the PDF with CJK text', () => {
   it('prints Chinese action and dialogue as text a reader extracts', async () => {
     const pdf = await cjkPdf(CHINESE);

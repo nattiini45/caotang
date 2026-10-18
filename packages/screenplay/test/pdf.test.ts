@@ -1,9 +1,13 @@
 import type { FlatBlock } from '../src/index.js';
+import * as fontkitModule from '@pdf-lib/fontkit';
 import { describe, expect, it } from 'vitest';
 import {
   createPdfRenderer,
   importFountainScript,
+  isPrintable,
   layoutPdf,
+  loadCjkFallback,
+  loadEmojiFallback,
   loadCourierPrime,
   paginate,
   parseFountain,
@@ -12,7 +16,10 @@ import {
   renderPdf,
   writePdf,
 } from '../src/index.js';
+import { WIN_ANSI_EXTRA } from '../src/winansi.js';
 import { SCRIPT_ONE_ACT, SCRIPT_WITH_TITLE_PAGE, text } from './fixtures/corpus.js';
+
+const fontkit = ((fontkitModule as unknown as { default?: typeof fontkitModule }).default ?? fontkitModule) as typeof fontkitModule;
 
 function blocksOf(source: string): FlatBlock[] {
   return importFountainScript(source).nodes.map((node, i): FlatBlock => {
@@ -125,6 +132,45 @@ describe('pdfString — WinAnsi and the literal-string escapes', () => {
     expect(pdfString('“x”')).toBe('\\223x\\224');
     expect(pdfString('😀')).toBe('?');
   });
+
+  // PDF 1.7 Annex D.2: WinAnsiEncoding is Windows-1252, whose 0x80–0x9F block holds 27 characters and leaves five codes empty.
+  it('encodes all 27 characters Windows-1252 holds at 0x80 to 0x9F, and none of its five empty codes', () => {
+    const cp1252 = new TextDecoder('windows-1252');
+    let held = 0;
+    for (let byte = 0x80; byte <= 0x9f; byte++) {
+      const ch = cp1252.decode(new Uint8Array([byte]));
+      const code = ch.codePointAt(0) ?? 0;
+      if (code === byte) {
+        // An empty code decodes to the C1 control of the same number, which WinAnsi cannot encode.
+        expect([0x81, 0x8d, 0x8f, 0x90, 0x9d], ch).toContain(byte);
+        expect(isPrintable(ch), `U+${code.toString(16)}`).toBe(false);
+        continue;
+      }
+      held += 1;
+      expect(WIN_ANSI_EXTRA[ch], ch).toBe(byte);
+      expect(isPrintable(ch), ch).toBe(true);
+      expect(pdfString(ch), ch).toBe(`\\${byte.toString(8)}`);
+    }
+    expect(held).toBe(27);
+    expect(Object.keys(WIN_ANSI_EXTRA)).toHaveLength(27);
+  });
+
+  it('has a Courier Prime glyph for each of those characters, so the embedded font prints them', async () => {
+    const font = fontkit.create((await loadCourierPrime()).bytes);
+    for (const ch of Object.keys(WIN_ANSI_EXTRA)) expect(font.hasGlyphForCodePoint(ch.codePointAt(0) ?? 0), ch).toBe(true);
+  });
+
+  it('prints French, Czech and Slovak text in Courier Prime, with no fallback font and no note', () => {
+    const source = text('INT. ŠKOLA - DAY', '', 'Œuvre du cœur: škola, želva, Žižkov, Ÿ, ‹oui›, ˆ and ˜.');
+    const layout = layoutPdf(blocksOf(source), { title: 'T' });
+    expect(layout.fallbackCharacters).toEqual([]);
+    expect(layout.emojiCharacters).toEqual([]);
+    expect(layout.notes).toEqual([]);
+    const pdf = decode(renderPdf(blocksOf(source), { title: 'T' }).bytes);
+    expect(pdf).toContain('(INT. \\212KOLA - DAY) Tj');
+    expect(pdf).toContain('\\214uvre du c\\234ur: \\232kola, \\236elva, \\216i\\236kov, \\237, \\213oui\\233, \\210 and \\230.');
+    expect(pdf).not.toContain('/F2');
+  });
 });
 
 describe('renderPdf — annotations and the text they leave (screenplay.md §2.1, §2.3)', () => {
@@ -189,6 +235,25 @@ describe('layoutPdf — what the fonts cannot print', () => {
 
   it('says nothing when every character prints', () => {
     expect(layoutPdf(blocksOf(text('INT. CAFÉ - DAY', '', 'Crème brûlée — “twice”.')), { title: 'T' }).notes).toEqual([]);
+  });
+
+  it('renderPdf draws the fallbacks it is given, as drawPdf does', async () => {
+    const source = text('INT. 草堂 - DAY', '', 'She reads 草堂 aloud 👍.');
+    const layout = layoutPdf(blocksOf(source), { title: 'T' });
+    const cjk = await loadCjkFallback(layout);
+    const emoji = await loadEmojiFallback(layout);
+    const result = renderPdf(blocksOf(source), { title: 'T' }, await loadCourierPrime(), cjk, emoji);
+    const pdf = decode(result.bytes);
+    expect(pdf).toContain('/F2 12 Tf');
+    expect(pdf).toContain('/BaseFont /' + (cjk?.baseFont ?? 'none'));
+    expect(pdf).toContain('/BaseFont /' + (emoji?.baseFont ?? 'none'));
+    expect(result.notes).toEqual([]);
+  });
+
+  it('renderPdf without the fallbacks a script needs says which characters print as "?"', () => {
+    const result = renderPdf(blocksOf(text('INT. 草堂 - DAY', '', 'She reads 草堂 aloud 👍.')), { title: 'T' });
+    expect(decode(result.bytes)).not.toContain('/F2');
+    expect(result.notes).toEqual(['pdf: the fallback font that prints these 3 characters was not passed to renderPdf, so they are printed as "?": 草 堂 👍']);
   });
 
   it('counts the script pages apart from the title page', () => {

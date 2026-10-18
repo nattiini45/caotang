@@ -13,7 +13,8 @@ const FALLBACK_FONTS = ['fonts/NotoSansMonoCJKsc-Regular.otf', 'fonts/NotoEmoji-
  * Emits the fallback fonts as `dist/fonts/NotoSansMonoCJKsc-Regular.otf` and `dist/fonts/NotoEmoji-Regular.ttf`. A server
  * build leaves each font's `new URL('./fonts/…', import.meta.url)` as it is, so the files must sit in `fonts/` beside the
  * bundle. Each is read only when a screenplay PDF holds a character Courier Prime cannot print, or an emoji, so the bundle
- * still runs without them for everything else.
+ * still runs without them for everything else. test/binary.test.ts builds the bundle and checks both: the files in
+ * `dist/fonts/`, and the URLs left as written.
  */
 function fallbackFonts(): Plugin {
   return {

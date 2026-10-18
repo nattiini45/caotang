@@ -75,6 +75,7 @@
  * header; the assertion is on the cause.
  */
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -182,14 +183,23 @@ function offendersIn(root: string, files: readonly string[]): Array<[string, num
 /**
  * Binary files under the guarded roots, each named. A font program is binary by nature, and search tools are right to
  * call it binary: it holds no source line to find. The screenplay PDF's CJK fallback font is 16 MB, so carrying it as
- * base64 text, as Courier Prime is, would put 22 MB of text into the browser bundle. Each entry is checked below to be the
- * file it says it is, so the exemption cannot quietly cover anything else.
+ * base64 text, as Courier Prime is, would put 22 MB of text into the browser bundle. Each entry is pinned below to the
+ * whole file it names, by its size and SHA-256 (as packages/screenplay/src/fonts/README.md states them), so the exemption
+ * cannot quietly cover anything else: an edited, appended-to or substituted file fails, not only one with another header.
  */
-const BINARY_ASSETS: Readonly<Record<string, string>> = {
+const BINARY_ASSETS: Readonly<Record<string, { readonly magic: string; readonly size: number; readonly sha256: string }>> = {
   // An OpenType font with CFF outlines starts with the tag 'OTTO'.
-  'packages/screenplay/src/fonts/NotoSansMonoCJKsc-Regular.otf': 'OTTO',
+  'packages/screenplay/src/fonts/NotoSansMonoCJKsc-Regular.otf': {
+    magic: 'OTTO',
+    size: 16393784,
+    sha256: 'ec04cc376b34887cedbdf84074e2e226ed2761eeabdcb9173fc1dd7bfd153ef7',
+  },
   // A TrueType font starts with the version 1.0 tag, 00 01 00 00. Noto Emoji is 0.9 MB.
-  'packages/screenplay/src/fonts/NotoEmoji-Regular.ttf': '\u0000\u0001\u0000\u0000',
+  'packages/screenplay/src/fonts/NotoEmoji-Regular.ttf': {
+    magic: '\u0000\u0001\u0000\u0000',
+    size: 886628,
+    sha256: 'c170291ac225588dc58595df2ad1e3a91b4fddab78f3f5fcdbe0da0feb1f14d6',
+  },
 };
 
 /** The same scan over the real tree, the named binary assets left out. */
@@ -269,16 +279,23 @@ describe('no source file is invisible to search', () => {
     }
   });
 
-  // It reads every guarded file in the repository, so it gets a budget for a full suite on a loaded machine (it timed out at the
-  // 5 s default once the tree passed 250 test files).
-  it('exempts only the named binary assets, each of which is the file it is named as', () => {
+  it('exempts only the named binary assets, each of which is the whole file it is named as', () => {
     const files = guardedFiles();
-    for (const [rel, magic] of Object.entries(BINARY_ASSETS)) {
+    const readme = readFileSync(join(repoRoot, 'packages/screenplay/src/fonts/README.md'), 'utf8');
+    for (const [rel, pin] of Object.entries(BINARY_ASSETS)) {
       expect(files).toContain(rel);
-      expect(readFileSync(join(repoRoot, rel)).subarray(0, magic.length).toString('latin1'), rel).toBe(magic);
+      const bytes = readFileSync(join(repoRoot, rel));
+      expect(bytes.subarray(0, pin.magic.length).toString('latin1'), rel).toBe(pin.magic);
+      expect(bytes.length, rel).toBe(pin.size);
+      expect(createHash('sha256').update(bytes).digest('hex'), rel).toBe(pin.sha256);
+      // The pins are the ones the fonts' README publishes, so the two cannot drift apart.
+      expect(readme, rel).toContain(`\`${pin.sha256}\``);
+      expect(readme, rel).toContain(`${pin.size} bytes`);
     }
   });
 
+  // It reads every guarded file in the repository, so it gets a budget for a full suite on a loaded machine (it timed out at the
+  // 5 s default once the tree passed 250 test files).
   it('no guarded file carries a literal control byte', () => {
     expect(offenders()).toEqual([]);
   }, 30_000);

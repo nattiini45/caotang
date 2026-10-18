@@ -186,6 +186,30 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(changelog).not.toMatch(/A character the font does not cover, such as Chinese, prints as a question mark/);
   });
 
+  it('states the screenplay PDF’s margins, page numbering and recipe controls as the layout and the dialog have them', () => {
+    const pdfSection = guide.slice(guide.indexOf('### The screenplay PDF'), guide.indexOf('## Writing dialogue'));
+    const paginate = read('packages/screenplay/src/paginate.ts');
+    // US Letter at 72 points an inch: 1.5 inches is 108 points, 1 inch is 72.
+    expect(pdfSection).toContain('sets the script on US Letter pages');
+    expect(paginate).toContain('pageWidth: 612,');
+    expect(paginate).toContain('pageHeight: 792,');
+    expect(pdfSection).toContain('The margins are 1.5 inches on the left and 1 inch on the other three sides.');
+    for (const margin of ['marginLeft: 108,', 'marginRight: 72,', 'marginTop: 72,', 'marginBottom: 72,']) expect(paginate).toContain(margin);
+    expect(pdfSection).toContain('Script pages count from 1. The number is printed at the top right from page 2.');
+    expect(paginate).toContain('const all = number >= 2 ? [...lines, pageNumberLine(number)] : [...lines];');
+    expect(paginate).toContain('x: LAYOUT.pageWidth - LAYOUT.marginRight - text.length * LAYOUT.charWidth,');
+    // The recipe controls, in the words the export dialog shows.
+    const dialog = read('apps/desktop/src/components/ExportDialog.tsx');
+    expect(pdfSection).toContain('**Scene numbers** can be printed in the left margin, the right margin or both. They are off unless you choose them.');
+    expect(dialog).toContain('<span className="export-option-label">Scene numbers</span>');
+    expect(dialog).toContain("left: 'Left margin',");
+    expect(dialog).toContain("right: 'Right margin',");
+    expect(dialog).toContain("both: 'Both margins',");
+    expect(dialog).toContain("...(shown.sceneNumbers === 'off' ? {} : { sceneNumbers: shown.sceneNumbers }),");
+    expect(pdfSection).toContain('You can turn this off in the recipe: clear **(MORE) and (CONT’D) where a speech crosses a page**.');
+    expect(dialog).toContain('<span className="export-option-label">(MORE) and (CONT’D) where a speech crosses a page</span>');
+  });
+
   it('says the screenplay PDF prints emoji in Noto Emoji, two columns each, whole, loaded only when needed', () => {
     const pdfSection = guide.slice(guide.indexOf('### The screenplay PDF'), guide.indexOf('## Writing dialogue'));
     expect(pdfSection).toContain('Emoji print in Noto Emoji, a black-and-white emoji font.');

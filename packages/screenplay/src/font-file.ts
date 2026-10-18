@@ -31,21 +31,42 @@ export async function fontFileBytes(url: URL, label: string): Promise<Uint8Array
   return new Uint8Array(await response.arrayBuffer());
 }
 
+/** What `encodeSubset` reaches past fontkit's types: the stream's `error` event, and the method the stream runs. */
+interface EncodingSubset {
+  encode(stream: unknown): void;
+  encodeStream(): { on(event: 'data' | 'end' | 'error', listener: (value: never) => void): unknown };
+}
+
+/**
+ * The subset's font program. fontkit 1.1.1 encodes it on the next tick, inside `encodeStream` (Subset.encodeStream), so a
+ * failure there would be thrown outside any handler and the stream would never end. The encoding is therefore run
+ * through a wrapper that rejects with the failure, and an `error` the stream itself emits rejects too: the compile that
+ * asked for the subset fails with the error instead of hanging or crashing the process.
+ */
 export function encodeSubset(subset: ReturnType<Font['createSubset']>): Promise<Uint8Array> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    const internals = subset as unknown as EncodingSubset;
+    const encode = internals.encode.bind(subset);
+    internals.encode = (stream) => {
+      try {
+        encode(stream);
+      } catch (error) {
+        reject(error);
+      }
+    };
     const parts: Uint8Array[] = [];
-    subset
-      .encodeStream()
-      .on('data', (chunk) => parts.push(chunk))
-      .on('end', () => {
-        const out = new Uint8Array(parts.reduce((n, part) => n + part.length, 0));
-        let at = 0;
-        for (const part of parts) {
-          out.set(part, at);
-          at += part.length;
-        }
-        resolve(out);
-      });
+    const stream = internals.encodeStream();
+    stream.on('error', (error: unknown) => reject(error));
+    stream.on('data', (chunk: Uint8Array) => parts.push(chunk));
+    stream.on('end', () => {
+      const out = new Uint8Array(parts.reduce((n, part) => n + part.length, 0));
+      let at = 0;
+      for (const part of parts) {
+        out.set(part, at);
+        at += part.length;
+      }
+      resolve(out);
+    });
   });
 }
 

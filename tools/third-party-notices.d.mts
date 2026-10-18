@@ -58,5 +58,8 @@ export function renderNotices(
   options?: { readonly filters?: readonly string[]; readonly assets?: readonly (BundledAsset & { readonly text: string })[] },
 ): string;
 
+/** The bundled assets with their license texts; throws when an asset's `shippedAs` file does not exist in `root`. */
+export function bundledAssetNotices(root?: string, assets?: readonly BundledAsset[]): (BundledAsset & { readonly text: string })[];
+
 /** The notices document for the shipped packages (or the given filters) in `root`. */
 export function generateNotices(options?: { readonly root?: string; readonly filters?: readonly string[] }): string;

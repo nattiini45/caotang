@@ -10,7 +10,7 @@
  * or log a compile without loading the font. {@link drawPdf} writes the file with Courier Prime
  * embedded (A3). The font is about 70 KB, so it is loaded by a dynamic import ({@link loadCourierPrime}),
  * the lazy-import pattern the DOCX and EPUB renderers use: the editor bundle never carries it, and
- * nothing is fetched from the network.
+ * nothing is fetched from outside the app.
  *
  * A character WinAnsi cannot encode is printed in the CJK fallback, Noto Sans Mono CJK SC, when the font has it
  * (cjk-font.ts). The layout knows which characters those are without loading the font (the coverage table in
@@ -59,7 +59,7 @@ export interface PdfLayout {
 export interface PdfRenderResult {
   readonly bytes: Uint8Array<ArrayBuffer>;
   readonly pageCount: number;
-  /** What the Fountain step left out, in order. */
+  /** What the Fountain step left out, and the characters printed as "?", in order. */
   readonly notes: readonly string[];
 }
 
@@ -190,10 +190,29 @@ function decodeBase64(text: string): Uint8Array {
   return bytes;
 }
 
-/** Lays out and draws in one call. `font` embeds it; without one the file names the base-14 Courier. */
-export function renderPdf(blocks: readonly FlatBlock[], opts: PdfRenderOptions, font?: PdfFont): PdfRenderResult {
+/**
+ * Lays out and draws in one call, synchronously. `font` embeds it; without one the file names the base-14 Courier. The
+ * fallbacks are drawn as {@link drawPdf} draws them: pass what {@link loadCjkFallback} and {@link loadEmojiFallback} give
+ * for the same blocks and options. A character the layout needs a fallback for that the call does not pass prints as "?",
+ * and the notes name it, as they name a character no font has.
+ */
+export function renderPdf(
+  blocks: readonly FlatBlock[],
+  opts: PdfRenderOptions,
+  font?: PdfFont,
+  fallback?: PdfCidFont,
+  emoji?: PdfEmojiFont,
+): PdfRenderResult {
   const layout = layoutPdf(blocks, opts);
-  return { bytes: drawPdf(layout, font), pageCount: layout.pages.length, notes: layout.notes };
+  const notes = [...layout.notes];
+  const cjkMissing = layout.fallbackCharacters.filter((ch) => fallback?.glyphs.has(ch) !== true);
+  const emojiMissing = layout.emojiCharacters.filter((unit) => emoji?.glyphs.has(unit) !== true);
+  const unprinted = [...cjkMissing, ...emojiMissing];
+  if (unprinted.length > 0) {
+    const { what, verb, shown } = counted(unprinted, 'character', 'characters');
+    notes.push(`pdf: the fallback font that prints ${what} was not passed to renderPdf, so ${verb} printed as "?": ${shown}`);
+  }
+  return { bytes: drawPdf(layout, font, fallback, emoji), pageCount: layout.pages.length, notes };
 }
 
 export interface PdfRenderer {

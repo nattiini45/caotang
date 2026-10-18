@@ -31,7 +31,7 @@ import {
   type AppliedMigration,
   type FormatContext,
 } from './migrations.js';
-import { CHAR_LIMIT_MAX } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, SCENE_NUMBER_OPTIONS } from '@caotang/bus';
 import { isGeneratedId, isIdWithPrefix } from '@caotang/ids';
 import { bodyNamesOf, isBodyType } from './paths.js';
 import {
@@ -152,9 +152,12 @@ function isRecipeOptions(v: unknown): boolean {
   );
 }
 
-/** The screenplay PDF's scene-number placement (screenplay.md §5.3): one of the four the bus accepts. */
-function isSceneNumbers(v: unknown): boolean {
-  return v === 'off' || v === 'left' || v === 'right' || v === 'both';
+/**
+ * The screenplay PDF's scene-number placement (screenplay.md §5.3): one the bus accepts. The set is the bus's own export, so
+ * a placement the bus gains is kept here too, and a recipe's options are never dropped for it.
+ */
+function isSceneNumbers(v: unknown): v is (typeof SCENE_NUMBER_OPTIONS)[number] {
+  return typeof v === 'string' && (SCENE_NUMBER_OPTIONS as readonly string[]).includes(v);
 }
 
 /** exporter.md §2's recipe shape, the three fields a recipe cannot do without. */

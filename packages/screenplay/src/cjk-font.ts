@@ -55,6 +55,23 @@ function withOffSize(program: Uint8Array): Uint8Array {
   return out;
 }
 
+interface SubsetGlyphs {
+  /** The source glyph of each glyph in the subset, in order: the index is the CID (the CFF subset's charset is 0, 1, 2, …). */
+  glyphs: number[];
+}
+
+/**
+ * A new CID for one character, drawn with the given source glyph. `includeGlyph` would give a glyph already in the subset
+ * its existing CID, so two characters the font draws with one glyph (‧ U+2027 and ・ U+30FB, ① U+2460 and ➀ U+2780) would
+ * share a CID: the ToUnicode map could name only one of them, and only one width could be stated for both. The glyph's
+ * charstring is written once for each CID instead, as the emoji subset gives each unit its own CID (emoji-font.ts).
+ */
+function mintCid(subset: ReturnType<Font['createSubset']>, gid: number): number {
+  const internals = subset as unknown as SubsetGlyphs;
+  internals.glyphs.push(gid);
+  return internals.glyphs.length - 1;
+}
+
 /**
  * The fallback subset for a set of characters: the glyphs of the ones the font maps, in code point order, as a CFF
  * font program. A character the font does not map is left out; the writer prints it as "?".
@@ -75,9 +92,9 @@ export async function subsetNotoCjk(font: Font, characters: Iterable<string>): P
   const glyphs = new Map<string, PdfCidGlyph>();
   const widths: number[] = [];
   for (const { ch, glyph } of chars) {
-    const cid = subset.includeGlyph(glyph);
+    const cid = mintCid(subset, glyph.id);
     // The stated advance is the character's cell on the grid, 600 a column, whatever the glyph's own advance.
-    const width = widths[cid] ?? charColumns(ch) * 600;
+    const width = charColumns(ch) * 600;
     widths[cid] = width;
     glyphs.set(ch, { cid, width });
   }
