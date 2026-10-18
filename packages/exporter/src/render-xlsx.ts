@@ -76,10 +76,20 @@ const XML_HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
 const STYLE = { normal: 0, header: 1, text: 2, wrap: 3, textWrap: 4 } as const;
 
 /**
- * The sheet as it will be written, and what the compile log says about it: a cell cut to Excel's limit is named by its row
- * and column. The cut is made here, before anything is written, so the log and the file agree.
+ * The sheets {@link prepareSheet} returned. Writing one of them writes it as it is; any other sheet is prepared first, so the
+ * preparation runs once for a sheet the compile prepared, and a caller that never prepared still gets a sheet a spreadsheet
+ * opens without a repair prompt.
+ */
+const PREPARED = new WeakSet<XlsxSheet>();
+
+/**
+ * The sheet as it will be written, and what the compile log says about it: a cell cut to Excel's limit is named by its
+ * spreadsheet row (the header is row 1, so the first record is row 2) and its column. The cut is made here, before anything
+ * is written, and {@link xlsxParts} writes the sheet this returns without preparing it again, so the log and the file agree.
+ * A sheet this already returned comes back as it is, with no notes: its cuts were reported when it was prepared.
  */
 export function prepareSheet(sheet: XlsxSheet): { readonly sheet: XlsxSheet; readonly notes: readonly string[] } {
+  if (PREPARED.has(sheet)) return { sheet, notes: [] };
   const notes: string[] = [];
   const rows = sheet.rows.map((row, r) =>
     row.map((cell, c) => {
@@ -87,16 +97,23 @@ export function prepareSheet(sheet: XlsxSheet): { readonly sheet: XlsxSheet; rea
       const clean = stripXmlIllegal(cell);
       if (clean.length <= XLSX_CELL_MAX) return clean;
       notes.push(
-        `xlsx: row ${r + 1}, column ${sheet.columns[c] ?? String(c + 1)} is longer than the ${XLSX_CELL_MAX.toLocaleString('en-US')} characters a spreadsheet cell holds, so it was cut`,
+        `xlsx: row ${r + 2}, column ${sheet.columns[c] ?? String(c + 1)} is longer than the ${XLSX_CELL_MAX.toLocaleString('en-US')} characters a spreadsheet cell holds, so it was cut`,
       );
       return clean.slice(0, XLSX_CELL_MAX);
     }),
   );
-  return { sheet: { ...sheet, rows }, notes };
+  const prepared: XlsxSheet = { ...sheet, rows };
+  PREPARED.add(prepared);
+  return { sheet: prepared, notes };
 }
 
-/** The workbook's parts, by path, in archive order. Pure: the ZIP is the only thing {@link renderXlsx} adds. */
-export function xlsxParts(sheet: XlsxSheet): ReadonlyArray<readonly [string, string]> {
+/**
+ * The workbook's parts, by path, in archive order. Pure: the ZIP is the only thing {@link renderXlsx} adds. A sheet that
+ * {@link prepareSheet} returned is written as it is; any other is prepared here first (its notes are dropped, so a caller
+ * that wants them prepares the sheet itself and passes the result).
+ */
+export function xlsxParts(input: XlsxSheet): ReadonlyArray<readonly [string, string]> {
+  const sheet = prepareSheet(input).sheet;
   return [
     ['[Content_Types].xml', contentTypesXml()],
     ['_rels/.rels', rootRelsXml()],
@@ -108,11 +125,11 @@ export function xlsxParts(sheet: XlsxSheet): ReadonlyArray<readonly [string, str
   ];
 }
 
-/** Renders the sheet as an XLSX workbook and returns the ZIP's bytes. */
+/** Renders the sheet as an XLSX workbook and returns the ZIP's bytes. The sheet is prepared once, by {@link xlsxParts}. */
 export async function renderXlsx(sheet: XlsxSheet): Promise<Uint8Array> {
   const { zipSync, strToU8 } = await import('fflate/browser');
   const files: Record<string, [Uint8Array, ZipOptions]> = {};
-  for (const [path, xml] of xlsxParts(prepareSheet(sheet).sheet)) {
+  for (const [path, xml] of xlsxParts(sheet)) {
     files[path] = [strToU8(xml), { level: 9, mtime: ZIP_TIME }];
   }
   return zipSync(files, { level: 9, mtime: ZIP_TIME });

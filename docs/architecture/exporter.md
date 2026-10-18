@@ -106,7 +106,7 @@ interface Exporter {
 **Deferred, and not in the enum of §5:**
 
 - **A screenplay PDF.** The paginated third renderer of screenplay.md §5 is not built: `pdf` is not in `EXPORT_FORMATS`, and its emitter waits for the parser and PDF-engine benchmark (screenplay.md §5.3). The screenplay formats are `fountain` and `fdx`.
-- **A contact-sheet PDF.** The page plan of storyboard.md §6 exists in `@caotang/storyboard`, but its PDF emitter is an injected port that nothing supplies, so the renderer refuses. The storyboard's file output is `shot-list-csv`.
+- **A contact-sheet PDF.** The page plan of storyboard.md §6 exists in `@caotang/storyboard`, but its PDF emitter is an injected port that nothing supplies, so the renderer refuses. The storyboard's file output is the shot list, as `shot-list-csv` and `shot-list-xlsx`.
 
 **Not built, and not on any list yet:** print CSS, per-scene styling, custom CSS injection, endnote and footnote engines. EPUB ships, as §3a describes.
 

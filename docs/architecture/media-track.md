@@ -28,13 +28,13 @@ Each item: what it concretely means → how it attaches to existing modules → 
 - **What:** branching dialogue and cutscene authoring — nodes with speaker, lines, choices, conditions/flags, variables, jumps, plus VO/audio and camera cues; localization-ready line IDs.
 - **Also:** narrative-design scaffolding — quest/mission structure, barks, item and lore text, world books (the latter already covered by `codex`), and branch visualization (which paths exist, which are orphaned, which are unreachable).
 - **Verdict:** **Ink-first, text-native** — the dialogue container's body file *is* valid Ink (knots = beats, diverts = links); no per-beat tree nodes, no Caotang-side scripting language (articy's expresso/simulation = the rejected ceiling). Graph view = corkboard variant over a parse-derived projection (view-only; editing happens in Ink text). Validation = inkjs compile (loose ends/dead ends) mapped to deterministic findings. Line-ID discipline specced early (stable ids in `# lineId:` tags → `lineId, speaker, text, context, charLimit` table = the universal engine/loc/VO surface). Twine/Twee import strips logic with an honest report; articy JSON read-only. Two harness tools (`dialogue.draft`, `dialogue.table`).
-- **Spec:** [architecture/dialogue-narrative.md](dialogue-narrative.md) 📐. Open: Twee import and play mode (both v0.3); the XLSX stack is shared with storyboard §8.
+- **Spec:** [architecture/dialogue-narrative.md](dialogue-narrative.md) 📐. Open: Twee import and play mode (both v0.3). The dialogue table's XLSX variant is built, on the spreadsheet stack it shares with the storyboard shot list (storyboard.md §8 A4).
 
 ### Storyboard & shot planning 📐 (spec: [architecture/storyboard.md](storyboard.md))
 - **What:** turn script scenes into shot lists and storyboard panels — shot no., frame sketch or reference image, camera (angle, movement, lens), action, dialogue covered, duration, transition; sequence → scene → shot hierarchy; animatic timing.
-- **Also:** production exports (shot list CSV/PDF), and per-shot coverage checks (every script line covered by a shot; every shot has a duration).
+- **Also:** production exports (shot list CSV/XLSX/PDF), and per-shot coverage checks (every script line covered by a shot; every shot has a duration).
 - **Verdict:** **corkboard variant + additive `shot` node kind + consensus field set** (`shotNumber` derived from order, `image` = asset ref in a new `assets/` directory, fixed enums `shotSize/cameraAngle/cameraMovement/transition`, free-text `lens`, `action`, `dialogue[]` = TextAnchor coverage refs, `durationSec`, `transition`). Storyboard container = sibling folder with `kind: 'storyboard'` (three-tier invariant preserved). Script↔shot = one-way `covers` anchors + a deterministic coverage check (no live two-way sync — nobody maintains one). Animatic MP4 + NLE EDL parked; paper-photo round-trip recorded, not built. Two harness tools (`shots.derive`, `shots.annotate`); shot fields = the camera half of an AI-video prompt pack (one data model, two export recipes).
-- **Spec:** [architecture/storyboard.md](storyboard.md) 📐. Open: XLSX stack, asset-directory note joins project-format §1 layout.
+- **Spec:** [architecture/storyboard.md](storyboard.md) 📐. Open: asset-directory note joins project-format §1 layout. The shot list's XLSX variant is built (storyboard.md §8 A4).
 
 ### AI-video prompt pack — prompt-screenwriting 📐 (spec: [architecture/video-prompt-pack.md](video-prompt-pack.md))
 - **What:** author the *prompt layer* of AI video generation out of the story itself — a per-shot prompt pack: visual prompt, camera/motion direction, style/aesthetic references, character-consistency references (image/seed/identity), duration, aspect ratio, negative prompt, dialogue/VO and SFX cues.
@@ -60,7 +60,7 @@ The unifying idea behind the items above: **a single narrative source compiled t
 | Novel / prose | MD, TXT, DOCX, EPUB | existing `exporter` 📐 (EPUB = client-side, exporter.md §3a) |
 | Screenplay | Fountain, FDX, PDF | [screenplay.md](screenplay.md) §5 (`FountainRenderer` identity + `FdxRenderer` import-first + `PdfRenderer` paginated) |
 | Game narrative | Ink JSON (compiled), dialogue table CSV/XLSX | [dialogue-narrative.md](dialogue-narrative.md) §4 (`DialogueTableRenderer` + inkjs compile passthrough) |
-| Production | Shot list CSV + contact-sheet PDF | [storyboard.md](storyboard.md) §6 (`ShotListCsvRenderer` + `ContactSheetPdfRenderer`) |
+| Production | Shot list CSV/XLSX + contact-sheet PDF | [storyboard.md](storyboard.md) §6 (`ShotListCsvRenderer` and its XLSX variant + `ContactSheetPdfRenderer`) |
 | AI video | Per-vendor shot-prompt pack (JSON/MD/CSV) | [video-prompt-pack.md](video-prompt-pack.md) §5 (`PromptPackRenderer` + vendor templates) |
 | Review | Coherence report (MD/JSON) | [coherence.md](coherence.md) (findings export = the standard report path) |
 

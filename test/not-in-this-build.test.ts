@@ -30,8 +30,24 @@ const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp
   { name: 'the continuity check reporting outside the Findings tab', pattern: /continuity check/i },
   { name: 'weekly and monthly goals', pattern: /weekly|monthly/i },
   { name: 'goals counted in characters', pattern: /characters, are not|counted in characters/i },
-  { name: 'spreadsheet export', pattern: /spreadsheet/i },
+  // Anchored to a claim that the export is missing, so a true limitation sentence about the spreadsheet files still passes.
+  { name: 'spreadsheet export', pattern: /spreadsheet exports?|no spreadsheet|(?:xlsx|spreadsheet)[^.\n]*not (?:yet )?(?:built|exported|available|supported)/i },
 ];
+
+describe('the built-feature patterns flag a stale claim and nothing else', () => {
+  const spreadsheet = BUILT_FEATURES.find((feature) => feature.name === 'spreadsheet export')?.pattern ?? /$^/;
+
+  it('the spreadsheet pattern flags a claim that spreadsheet export is missing', () => {
+    expect('PDF exports of screenplays and storyboards, spreadsheet exports, the Source tab').toMatch(spreadsheet);
+    expect('There is no spreadsheet export yet.').toMatch(spreadsheet);
+    expect('XLSX is not built yet.').toMatch(spreadsheet);
+  });
+
+  it('the spreadsheet pattern lets a true limitation sentence about the spreadsheet files through', () => {
+    expect('The spreadsheet files have not been opened in Excel, Numbers or LibreOffice by the test suite.').not.toMatch(spreadsheet);
+    expect('The `.xlsx` files are checked by unit tests against the Office Open XML parts.').not.toMatch(spreadsheet);
+  });
+});
 
 describe('the not-in-this-build lists name only what is missing', () => {
   it('the user guide’s last section names no built feature', () => {

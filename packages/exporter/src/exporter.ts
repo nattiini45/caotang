@@ -313,8 +313,8 @@ export function createExporter(options: ExporterOptions): ExporterService {
       ...(request.templateId === undefined ? {} : { vendor: request.templateId }),
       // The recipe's character limit reaches the dialogue table (dialogue-narrative.md §4), as CSV or as a spreadsheet.
       charLimit: request.options.charLimit ?? null,
-      // Only the shot list and the prompt pack name stored images, so only they ask for them: a folder whose images cannot be listed
-      // refuses those two, and a script or a dialogue table still compiles.
+      // Only the shot list (CSV or XLSX) and the prompt pack name stored images, so only they ask for them: a folder whose images
+      // cannot be listed refuses those three formats, and a script or a dialogue table still compiles.
       assets: readsImages(common.format) ? (options.assets?.(state) ?? NO_ASSETS) : NO_ASSETS,
     });
     const notes = [...output.notes];

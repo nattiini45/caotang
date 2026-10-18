@@ -195,12 +195,50 @@ describe('the cells', () => {
     expect(readCells(parts['xl/worksheets/sheet1.xml'] ?? '').get('A2')?.value).toBe('bell and nul');
   });
 
-  it('cuts a cell longer than a spreadsheet holds, and says which', () => {
-    const prepared = prepareSheet({ name: 'x', columns: ['text'], rows: [['a'.repeat(XLSX_CELL_MAX + 5)]] });
-    expect((prepared.sheet.rows[0]?.[0] as string).length).toBe(XLSX_CELL_MAX);
+  it('cuts a cell longer than a spreadsheet holds, and names the spreadsheet row it is on', () => {
+    const long = 'a'.repeat(XLSX_CELL_MAX + 5);
+    const prepared = prepareSheet({ name: 'x', columns: ['n', 'text'], rows: [[1, long], [2, 'short'], [3, long]] });
+    expect((prepared.sheet.rows[0]?.[1] as string).length).toBe(XLSX_CELL_MAX);
+    // The header is row 1, so the first record is row 2: the note names the row the writer sees in the spreadsheet.
     expect(prepared.notes).toEqual([
-      'xlsx: row 1, column text is longer than the 32,767 characters a spreadsheet cell holds, so it was cut',
+      'xlsx: row 2, column text is longer than the 32,767 characters a spreadsheet cell holds, so it was cut',
+      'xlsx: row 4, column text is longer than the 32,767 characters a spreadsheet cell holds, so it was cut',
     ]);
+    const cells = readCells(partsOf(prepared.sheet)['xl/worksheets/sheet1.xml'] ?? '');
+    expect((cells.get('B2')?.value as string).length).toBe(XLSX_CELL_MAX);
+    expect(cells.get('B3')?.value).toBe('short');
+    expect((cells.get('B4')?.value as string).length).toBe(XLSX_CELL_MAX);
+  });
+});
+
+describe('preparation runs once', () => {
+  const OVERSIZED: XlsxSheet = { name: 'x', columns: ['text'], rows: [['b'.repeat(XLSX_CELL_MAX + 1)], ['bell\u0007']] };
+
+  it('a prepared sheet is written as it is, and preparing it again changes nothing and reports nothing', () => {
+    const once = prepareSheet(OVERSIZED);
+    expect(once.notes).toHaveLength(1);
+    const twice = prepareSheet(once.sheet);
+    expect(twice.sheet).toBe(once.sheet);
+    expect(twice.notes).toEqual([]);
+    // The cut itself is idempotent too: a copy of the prepared rows, which the writer has not seen, comes back unchanged.
+    const copy = prepareSheet({ ...once.sheet, rows: once.sheet.rows.map((row) => [...row]) });
+    expect(copy.sheet.rows).toEqual(once.sheet.rows);
+    expect(copy.notes).toEqual([]);
+    expect(partsOf(once.sheet)).toEqual(partsOf(copy.sheet));
+  });
+
+  it('a sheet that was never prepared is prepared by the writer, so its parts hold the cut cell', () => {
+    const cells = readCells(partsOf(OVERSIZED)['xl/worksheets/sheet1.xml'] ?? '');
+    expect((cells.get('A2')?.value as string).length).toBe(XLSX_CELL_MAX);
+    expect(cells.get('A3')?.value).toBe('bell');
+    expect(partsOf(OVERSIZED)).toEqual(partsOf(prepareSheet(OVERSIZED).sheet));
+  });
+
+  it('the archive holds the same sheet whether the caller prepared it or not', async () => {
+    const fromRaw = unzipText(await renderXlsx(OVERSIZED));
+    const fromPrepared = unzipText(await renderXlsx(prepareSheet(OVERSIZED).sheet));
+    expect(fromRaw).toEqual(fromPrepared);
+    expect(fromRaw['xl/worksheets/sheet1.xml']).toBe(partsOf(OVERSIZED)['xl/worksheets/sheet1.xml']);
   });
 });
 
@@ -311,11 +349,26 @@ describe('shot-list-xlsx — the shot list as a spreadsheet', () => {
     expect(cells.get('G3')?.kind).toBe('string');
   });
 
-  it('lists the same cells as the CSV', async () => {
-    const xlsx = await compiled('shot-list-xlsx');
-    const csv = await exporterFor().compile({ includeRootIds: ['manuscript'] }, 'shot-list-csv');
+  it('lists the CSV’s rows and cells, except where the formats differ by design', async () => {
+    // The formats agree on every cell of plain text and numbers. They differ by design where a CSV guards a text cell that
+    // opens with a formula character (an apostrophe; the spreadsheet keeps the text as typed), and where the spreadsheet
+    // alone turns CR or CRLF into LF, drops the characters XML forbids, and cuts a cell past 32,767 characters. This fixture
+    // carries the first difference on purpose, so a parity check that ignores it cannot pass.
+    const state = makeMediaProject();
+    const shot = nodeById(state, MEDIA_IDS.shotTwo) as { shot?: { action?: string } } | undefined;
+    if (shot?.shot === undefined) throw new Error('the fixture has no second shot');
+    shot.shot.action = '=1+1 the harbour';
+    const xlsx = await compiled('shot-list-xlsx', state);
+    const csv = await exporterFor(state).compile({ includeRootIds: ['manuscript'] }, 'shot-list-csv');
     const fromCsv = csvRows((await csv.files[0]?.blob.text()) ?? '');
-    expect(readRows(xlsx.sheet, 10).map((row) => row.map(String))).toEqual(fromCsv);
+    const fromXlsx = readRows(xlsx.sheet, 10).map((row) => row.map(String));
+    // The intended divergence: the CSV writes the guard, the spreadsheet writes the text as typed, kept as text.
+    expect(fromCsv[2]?.[6]).toBe("'=1+1 the harbour");
+    expect(fromXlsx[2]?.[6]).toBe('=1+1 the harbour');
+    expect(readCells(xlsx.sheet).get('G3')).toEqual({ kind: 'string', style: 2, value: '=1+1 the harbour' });
+    // Every other cell is the same.
+    const unguard = (rows: string[][]) => rows.map((row, r) => row.map((cell, c) => (r === 2 && c === 6 ? cell.replace(/^'/, '') : cell)));
+    expect(fromXlsx).toEqual(unguard(fromCsv));
   });
 
   it('writes an action that opens with a formula character as text, without the CSV’s apostrophe', async () => {
@@ -341,7 +394,12 @@ describe('dialogue-xlsx — the dialogue table as a spreadsheet', () => {
     const rows = readRows(sheet, 5);
     expect(rows[0]).toEqual(['lineId', 'speaker', 'text', 'context', 'charLimit']);
     const csv = await exporterFor().compile({ includeRootIds: ['manuscript'] }, 'dialogue-csv');
-    expect(rows.map((row) => row.map(String))).toEqual(csvRows((await csv.files[0]?.blob.text()) ?? ''));
+    const fromCsv = csvRows((await csv.files[0]?.blob.text()) ?? '');
+    // Cell for cell only because this fixture holds none of the text the formats treat differently by design (a cell that opens
+    // with a formula character, a CR line ending, a character XML forbids, a cell past the length limit; the shot list's test
+    // pins the first). Its precondition is checked, so a fixture that gains such a cell fails here and not as a parity bug.
+    expect(fromCsv.flat().filter((cell) => /^['=+\-@\t\r]|\r/.test(cell))).toEqual([]);
+    expect(rows.map((row) => row.map(String))).toEqual(fromCsv);
     expect(rows.slice(1).map((row) => row[0])).toEqual(['l_0000000001', 'l_0000000002', 'l_0000000003_c', 'l_0000000004_c', 'l_0000000005']);
   });
 
