@@ -528,7 +528,7 @@ describe('contact-sheet-pdf — text outside Latin script, in the Noto Sans CJK 
     expect(pageContent(withSelector.pdf, 0)).toBe(pageContent(without.pdf, 0));
   });
 
-    it('draws a character neither font has as "?", and names it in the log', async () => {
+  it('draws a character neither font has as "?", and names it in the log', async () => {
     const state = withAction('雨 ⲁ and ب');
     const { result, pdf } = await compileSheet(rig({ state, loadFallbackFont: loadCjkFontInNode }).exporter);
     expect(result.log.notes).toContain(
