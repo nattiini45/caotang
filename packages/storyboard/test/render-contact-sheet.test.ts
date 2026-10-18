@@ -1,7 +1,7 @@
 /**
  * The contact sheet — storyboard.md §6. The page plan is the part with structure, so most of this file checks
  * positions: what fits on a page, what sits inside the margins, what overlaps, and in what order cards read.
- * The PDF port is exercised with a stand-in emitter: the real one is the exporter's (`contact-sheet-pdf`, over pdf-lib), tested there.
+ * The PDF port is exercised with a stand-in emitter: no package wires one into `ContactSheetPdfRenderer`; the PDF the app writes is the exporter's (`contact-sheet-pdf`, which draws the plan over pdf-lib itself), tested there.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -17,7 +17,9 @@ import {
   importImage,
   emojiStyleOf,
   graphemesOf,
+  isWide,
   measureText,
+  shotsInBinderOrder,
   paginate,
   wrapText,
   type ContactSheetDocument,
@@ -227,6 +229,16 @@ describe('wrapText and measureText with CJK text', () => {
     expect(measureText('a草', 10)).toBeCloseTo(15.5, 9);
   });
 
+  it('counts every East Asian Wide character that is no emoji as one em, outside the main CJK blocks too', () => {
+    // The angle brackets, an ideographic symbol, Tangut, Khitan, kana supplement, Nüshu and the enclosed ideographic supplement.
+    for (const char of ['\u2329', '\u232A', '\u{16FE0}', '\u{17000}', '\u{18B00}', '\u{1B000}', '\u{1B170}', '\u{1F200}']) {
+      expect(isWide(char), char).toBe(true);
+      expect(measureText(char, 10), char).toBe(10);
+    }
+    // Their narrow neighbours stay narrow.
+    for (const char of ['\u2328', '\u232B', 'A', 'é']) expect(isWide(char), char).toBe(false);
+  });
+
   it('breaks between CJK characters, which have no spaces between words', () => {
     expect(wrapText('草堂的早晨很安静茶馆还没开门', 60, 10, 3)).toEqual(['草堂的早晨很', '安静茶馆还没', '开门']);
     expect(wrapText('ひらがなとカタカナです', 60, 10, 2)).toEqual(['ひらがなとカ', 'タカナです']);
@@ -271,6 +283,16 @@ describe('emoji in the plan: one unit per grapheme cluster', () => {
     for (const pictograph of ['☺', '✌', '❤', '☺︎', '🎬︎']) expect(emojiStyleOf(pictograph), pictograph).toBe('text');
     // Digits, Latin-1's © and ®, letters and CJK are no emoji.
     for (const text of ['1', '#', '©', '®', 'a', 'é', '草', '?']) expect(emojiStyleOf(text), text).toBeNull();
+  });
+
+  it('reads VS15 as text presentation only after an emoji, and as nothing after a letter, digit or Chinese character', () => {
+    // A pictograph, a keycap sequence and a flag letter with VS15 ask for text presentation.
+    for (const cluster of ['✌\uFE0E', '©\uFE0E', '1\uFE0E\u20E3', '🇩\uFE0E']) expect(emojiStyleOf(cluster), cluster).toBe('text');
+    // Anything else with VS15 is no emoji: it is measured as the text it is, and does not open a break inside a word.
+    for (const cluster of ['a\uFE0E', 'e\uFE0E', '1\uFE0E', '草\uFE0E', '\uFE0E']) expect(emojiStyleOf(cluster), cluster).toBeNull();
+    expect(measureText('cafe\uFE0E', 10)).toBeCloseTo(measureText('cafe', 10) + 5.5, 9);
+    expect(wrapText('cafe\uFE0E cafe', 1000, 10, 1)).toEqual(['cafe\uFE0E cafe']);
+    expect(wrapText('cafe\uFE0E', 28, 10, 2)).toEqual(['cafe\uFE0E']);
   });
 
   it('segments a text into grapheme clusters, so a sequence is one unit', () => {
@@ -436,6 +458,19 @@ describe('the header summary: the shot count and the animatic total', () => {
       '3 shots · 6.5 s of animatic (1 shot without a duration left out)',
     );
     expect(sheetSummaryOf(fixture.state, ['n_SUMONE0001'])).toBe('1 shot · 2.5 s of animatic');
+  });
+
+  it('counts the same shots it sums: a folder as the shots under it, each shot once, and no id that is no shot', () => {
+    const fixture = buildFixture();
+    addShotNode(fixture.state, { parentId: 'board1', title: 'a', stored: { durationSec: 2.5 }, id: 'n_SUMONE0001', now: NOW });
+    addShotNode(fixture.state, { parentId: 'board1', title: 'c', stored: {}, id: 'n_SUMTRE0001', now: NOW });
+    // A duplicate id and an id no node has: the count does not grow, as the total does not.
+    expect(sheetSummaryOf(fixture.state, ['n_SUMONE0001', 'n_SUMONE0001', 'n_NOSUCHNODE1'])).toBe('1 shot · 2.5 s of animatic');
+    // A folder stands for its shots, so its summary is the summary of those shots named one by one.
+    const inBoard = shotsInBinderOrder(fixture.state, ['board1']).map((node) => node.id);
+    expect(inBoard.length).toBeGreaterThan(1);
+    expect(sheetSummaryOf(fixture.state, ['board1'])).toBe(sheetSummaryOf(fixture.state, inBoard));
+    expect(sheetSummaryOf(fixture.state, ['board1']).startsWith(`${inBoard.length} shots · `)).toBe(true);
   });
 });
 

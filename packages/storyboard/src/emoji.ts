@@ -11,9 +11,10 @@
  * - `'emoji'`: an emoji in emoji presentation. A fully-qualified emoji (`\p{RGI_Emoji}`), a character whose default
  *   presentation is emoji (🎬), and any cluster with VS16, a keycap, a flag letter, a skin tone, a tag or a joined pictograph.
  *   The PDF sets it in the emoji font.
- * - `'text'`: a pictograph whose default presentation is text (☺ ✌ ♥), or any emoji with VS15. The PDF tries its text fonts
- *   first, and the emoji font last.
- * - `null`: not an emoji at all.
+ * - `'text'`: a pictograph whose default presentation is text (☺ ✌ ♥), or an emoji with VS15: a pictograph, a keycap or a
+ *   flag letter followed by VS15. The PDF tries its text fonts first, and the emoji font last.
+ * - `null`: not an emoji at all. VS15 after anything else (a letter, a digit, a Chinese character) asks for nothing and
+ *   leaves the cluster no emoji.
  */
 
 /** The grapheme clusters of a text: a letter with its combining marks, an emoji sequence, as a reader sees one character. */
@@ -47,7 +48,7 @@ export type EmojiStyle = 'emoji' | 'text';
 /** How a grapheme cluster wants to be shown: as an emoji, as a text pictograph, or `null` for no emoji. See the header. */
 export function emojiStyleOf(cluster: string): EmojiStyle | null {
   const codes = Array.from(cluster, (char) => char.codePointAt(0) ?? 0);
-  if (codes.includes(VS15)) return PICTOGRAPHIC.test(cluster) || codes.includes(KEYCAP) || codes.length > 1 ? 'text' : null;
+  if (codes.includes(VS15)) return PICTOGRAPHIC.test(cluster) || codes.includes(KEYCAP) || codes.some(isRegionalIndicator) ? 'text' : null;
   if (RGI_EMOJI?.test(cluster) === true) return 'emoji';
   if (codes.some((code) => code === VS16 || code === KEYCAP || isRegionalIndicator(code) || isSkinTone(code) || isTag(code))) return 'emoji';
   if (codes.includes(ZWJ) && PICTOGRAPHIC.test(cluster)) return 'emoji';

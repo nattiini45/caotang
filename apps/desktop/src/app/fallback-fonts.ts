@@ -10,12 +10,16 @@
  * fetched until a contact sheet holds text that needs it (CJK text, or an emoji) and the exporter asks for it.
  */
 
-import type { FontLoader } from '@caotang/exporter';
+import { checkFontBytes, type FontLoader } from '@caotang/exporter';
 
+/**
+ * The font file at a URL. A body that does not start as a font file does (an HTML page from a dev server's fallback, a service
+ * worker or a proxy, answered with 200) is refused here with what was served, rather than reaching fontkit as a parse error.
+ */
 async function fetchBytes(url: string): Promise<Uint8Array> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`${url} answered ${response.status}`);
-  return new Uint8Array(await response.arrayBuffer());
+  return checkFontBytes(new Uint8Array(await response.arrayBuffer()), url);
 }
 
 export const loadCjkFontOverHttp: FontLoader = async () => {

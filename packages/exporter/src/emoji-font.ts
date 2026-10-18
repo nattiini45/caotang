@@ -12,7 +12,9 @@
  * An emoji can be many code points that draw as one picture: a ZWJ sequence (👨‍👩‍👧), a skin tone (👍🏽), a flag (🇩🇪), a
  * keycap (1️⃣), a tag sequence (🏴󠁧󠁢󠁳󠁣󠁴󠁿). The font draws each through its GSUB ligatures (`ccmp`), so each grapheme cluster
  * is laid out with fontkit's `font.layout`, and the glyphs it gives are what is drawn. A ZWJ sequence the font has no ligature
- * for (Emoji 15.1's people "facing right") is drawn as its parts, as Unicode's emoji spec recommends: 🚶‍➡️ as 🚶 and ➡️.
+ * for is drawn as its parts, as Unicode's emoji spec recommends: of Emoji 15.1's people "facing right", the woman and man walking,
+ * kneeling or running and everyone with a white cane or in a wheelchair (🚶‍♀️‍➡️ as 🚶, ♀️ and ➡️); the person walking, kneeling
+ * or running facing right (🚶‍➡️) has a ligature, and is one glyph.
  *
  * ## Embedding
  *
@@ -187,8 +189,12 @@ export class EmojiEmbedding {
     return cid;
   }
 
-  /** Writes the font objects: the subset program, its widths, the CID-to-glyph map and the ToUnicode map. */
+  /**
+   * Writes the font objects: the subset program, its widths, the CID-to-glyph map and the ToUnicode map. Writes nothing when no
+   * glyph was drawn, since no page points at {@link ref} then, and a font with no glyphs is no font to embed.
+   */
   async finish(): Promise<void> {
+    if (!this.used) return;
     const { PDFString } = this.lib;
     const context = this.doc.context;
     const font = this.face.font;

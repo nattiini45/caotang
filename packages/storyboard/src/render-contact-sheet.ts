@@ -7,11 +7,14 @@
  *   chip and line of text comes out, in points with the origin at the top left. The plan has all the
  *   structure a contact sheet has (page count, capacity, reading order, what sits inside the page), and
  *   the tests check it directly.
- * - The **emitter** turns a plan into PDF bytes. It is an injected port, so this package names no PDF
- *   library: the exporter supplies the emitter (`@caotang/exporter`'s `contact-sheet-pdf` format, over
- *   `pdf-lib`, loaded lazily). {@link ContactSheetPdfRenderer.render} refuses when no emitter is supplied;
- *   {@link ContactSheetPdfRenderer.build} works without one, and returns the plan and the image bytes an
- *   emitter would be given.
+ * - The **emitter** turns a plan into PDF bytes, and this package names no PDF library. The PDF the app and the
+ *   MCP server write comes from `@caotang/exporter`'s `contact-sheet-pdf` format, which does not go through
+ *   {@link ContactSheetPdfRenderer}: it calls {@link planContactSheet} and draws that plan itself
+ *   (`drawContactSheet`, over `pdf-lib`, loaded lazily).
+ *   {@link ContactSheetPdfRenderer} takes the emitter as an injected port ({@link ContactSheetEmitter}), and no
+ *   package wires one into it today: {@link ContactSheetPdfRenderer.render} refuses without one, and
+ *   {@link ContactSheetPdfRenderer.build} works without one, returning the plan and the image bytes an emitter
+ *   would be given.
  *
  * {@link planContactSheet} is the plan from the project, with no reads: the caller says which pictures can be
  * drawn. The exporter uses it, because a compile plans synchronously and reads the image bytes later.
@@ -84,15 +87,20 @@ export const SHEET_LAYOUT = {
 export const ELLIPSIS = '…';
 
 /**
- * Whether a character is wide: drawn one em across, as East Asian scripts are. The ranges are the Wide and Fullwidth
- * blocks of Unicode's East Asian Width property, by block: Hangul Jamo, the CJK radicals to Yi (with kana, bopomofo and
- * the unified ideographs), Hangul syllables, the compatibility ideographs, the vertical and small forms, the full-width
- * forms, and the supplementary ideographic planes.
+ * Whether a character is wide: drawn one em across, as East Asian scripts are. The ranges cover every Wide and Fullwidth code
+ * point of Unicode 15.1's East Asian Width property that is not an emoji (an emoji is measured on its own, wider still), by
+ * block: Hangul Jamo, the angle brackets 〈 and 〉 (U+2329, U+232A), the CJK radicals to Yi (with kana, bopomofo and the unified
+ * ideographs), Hangul syllables, the compatibility ideographs, the vertical and small forms, the full-width forms, the
+ * ideographic symbols, Tangut, Khitan, the kana supplements and Nüshu, the enclosed ideographic supplement, and the
+ * supplementary ideographic planes. Taken by block, the ranges also hold a few unassigned or narrow code points; those count
+ * wide too, which is the safe error (see the header).
  */
 export function isWide(char: string): boolean {
   const code = char.codePointAt(0) ?? 0;
   return (
     (code >= 0x1100 && code <= 0x115f) ||
+    code === 0x2329 ||
+    code === 0x232a ||
     (code >= 0x2e80 && code <= 0xa4cf && code !== 0x303f) ||
     (code >= 0xa960 && code <= 0xa97f) ||
     (code >= 0xac00 && code <= 0xd7a3) ||
@@ -101,6 +109,11 @@ export function isWide(char: string): boolean {
     (code >= 0xfe30 && code <= 0xfe6f) ||
     (code >= 0xff00 && code <= 0xff60) ||
     (code >= 0xffe0 && code <= 0xffe6) ||
+    (code >= 0x16fe0 && code <= 0x16fff) ||
+    (code >= 0x17000 && code <= 0x18cff) ||
+    (code >= 0x18d00 && code <= 0x18d7f) ||
+    (code >= 0x1aff0 && code <= 0x1b2ff) ||
+    (code >= 0x1f200 && code <= 0x1f2ff) ||
     (code >= 0x20000 && code <= 0x3fffd)
   );
 }
@@ -161,17 +174,20 @@ function piecesOf(word: string): string[] {
     if (NO_LINE_END.has(piece)) {
       carry += piece;
     } else if ((NO_LINE_START.has(piece) || NARROW_NO_LINE_START.has([...piece][0] ?? '')) && pieces.length > 0 && carry === '') {
-      pieces[pieces.length - 1] += piece;
+      appendToLast(pieces, piece);
     } else {
       pieces.push(carry + piece);
       carry = '';
     }
   }
-  if (carry !== '') {
-    if (pieces.length > 0) pieces[pieces.length - 1] += carry;
-    else pieces.push(carry);
-  }
+  if (carry !== '') appendToLast(pieces, carry);
   return pieces;
+}
+
+/** Joins text onto the last piece, or starts the first piece with it when there is none yet. */
+function appendToLast(pieces: string[], text: string): void {
+  const last = pieces.pop();
+  pieces.push(last === undefined ? text : last + text);
 }
 
 /** The longest start of `text` that fits the width, at least one grapheme cluster, so a line always moves on. */
@@ -475,11 +491,13 @@ export function sheetSpecRowOf(stored: Readonly<Record<string, unknown>>): strin
 
 /**
  * The header's summary line: the shot count, the animatic total, and how many shots are left out of it because they
- * have no duration (§2.2). The board's header says the same three numbers.
+ * have no duration (§2.2). The board's header says the same three numbers. `selection` is read as a selection, as
+ * {@link animaticTotals} reads it: a folder stands for the shots under it, each shot counts once, and an id that is no
+ * shot counts for nothing, so the count and the total are always over the same shots.
  */
-export function sheetSummaryOf(state: ProjectState, shotIds: readonly string[]): string {
-  const totals = animaticTotals(state, shotIds);
-  const count = shotIds.length;
+export function sheetSummaryOf(state: ProjectState, selection: readonly string[]): string {
+  const totals = animaticTotals(state, selection);
+  const count = totals.timedCount + totals.untimed.length;
   const shots = `${count} ${count === 1 ? 'shot' : 'shots'}`;
   const untimed = totals.untimed.length;
   const left = untimed === 0 ? '' : ` (${untimed} ${untimed === 1 ? 'shot' : 'shots'} without a duration left out)`;
@@ -578,7 +596,7 @@ export interface ContactSheetDocument {
   readonly notes: readonly string[];
 }
 
-/** The PDF port. A later package supplies the library; nothing in this module names one. */
+/** The PDF port of {@link ContactSheetPdfRenderer}. Nothing in this module names a library, and no package wires one in today (see the header). */
 export interface ContactSheetEmitter {
   emit(document: ContactSheetDocument): Promise<Uint8Array>;
 }
@@ -629,7 +647,7 @@ export class ContactSheetPdfRenderer {
     if (this.emitter === undefined) {
       return refuse(
         'pdf-engine-not-wired',
-        'the contact sheet is laid out, but no PDF engine is wired into this renderer: compile the contact-sheet-pdf format through the exporter, which supplies one.',
+        'the contact sheet is laid out, but no PDF engine is wired into this renderer: compile the contact-sheet-pdf format through the exporter, which draws the PDF itself.',
       );
     }
     const document = await this.build(fs, state, selection, options);

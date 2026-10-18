@@ -530,7 +530,7 @@ function contactSheetOutput(request: MediaRequest): MediaOutput {
     sceneCount: 0,
     wordCount: 0,
     skippedDocs: [],
-    notes: [...notes, ...bareShotNotes(request, 'its card shows only its number')],
+    notes: [...notes, ...bareShotNotes(request, 'its card shows its number and "No image", with no camera details or action')],
   };
 }
 

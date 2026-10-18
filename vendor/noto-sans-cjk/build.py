@@ -4,8 +4,9 @@
 Run: python3 vendor/noto-sans-cjk/build.py <path to NotoSansCJKsc-Regular.otf>
 
 The source is the file README.md names, at the tag it names, and its SHA-256 is checked before anything is built. The
-output is written beside this script, and its SHA-256 is compared with SHA256SUMS. The same source and the same fontTools
-version give the same bytes.
+output is written beside this script, and its SHA-256 is compared with SHA256SUMS: the build fails when they differ, and
+fails before it starts when SHA256SUMS or its line for the output is missing. The same source and the same fontTools version
+give the same bytes.
 
 The steps:
 
@@ -21,6 +22,7 @@ The steps:
 import hashlib
 import sys
 from pathlib import Path
+from typing import Optional
 
 import fontTools
 from fontTools import subset
@@ -36,6 +38,18 @@ HERE = Path(__file__).resolve().parent
 
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def pinned_digest(name: str) -> Optional[str]:
+    """The SHA-256 SHA256SUMS pins for a file name, or None when SHA256SUMS is missing or has no line for it."""
+    sums = HERE / "SHA256SUMS"
+    if not sums.is_file():
+        return None
+    for line in sums.read_text().splitlines():
+        parts = line.split(None, 1)
+        if len(parts) == 2 and parts[1].strip() == name:
+            return parts[0]
+    return None
 
 
 def to_truetype(font: TTFont) -> None:
@@ -84,6 +98,11 @@ def main() -> int:
     if sha256(source) != SOURCE_SHA256:
         print(f"{source} is not the pinned source (SHA-256 {SOURCE_SHA256})", file=sys.stderr)
         return 1
+    # The output is always compared: a missing SHA256SUMS, or one with no line for the output, stops the build before it runs.
+    pinned = pinned_digest(OUTPUT)
+    if pinned is None:
+        print(f"{HERE / 'SHA256SUMS'} has no SHA-256 for {OUTPUT}, so the output could not be checked", file=sys.stderr)
+        return 1
 
     # The head table keeps its upstream dates, so the output does not depend on when it was built.
     font = TTFont(source, recalcTimestamp=False)
@@ -103,10 +122,8 @@ def main() -> int:
     output = HERE / OUTPUT
     subset.save_font(font, str(output), options)
     digest = sha256(output)
-    expected = (HERE / "SHA256SUMS").read_text().split()
-    pinned = expected[expected.index(OUTPUT) - 1] if OUTPUT in expected else None
     print(f"{OUTPUT}: {output.stat().st_size} bytes, SHA-256 {digest}")
-    if pinned is not None and pinned != digest:
+    if pinned != digest:
         print(f"the output differs from SHA256SUMS ({pinned})", file=sys.stderr)
         return 1
     return 0

@@ -47,7 +47,10 @@ export interface ContactSheetPdfInput {
   readonly plan: SheetPlan;
   /** Shot id to the asset id of the picture its card draws (`planContactSheet`'s `pictures`). */
   readonly pictures: ReadonlyMap<string, string>;
-  /** The bytes of one picture by asset id, or `null` when they cannot be read. */
+  /**
+   * The bytes of one picture by asset id, or `null` when they cannot be read. A rejection is read as `null` too: the card shows
+   * its caption and the log names the picture with the reason, and the rest of the sheet is drawn.
+   */
   readonly readPicture: (assetId: string) => Promise<Uint8Array | null>;
   /** The document's title, in its metadata. */
   readonly title: string;
@@ -328,9 +331,16 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
     const known = embedded.get(assetId);
     if (known !== undefined) return known;
     let image: PdfLib.PDFImage | null = null;
-    const bytes = await input.readPicture(assetId);
+    // A read that fails is a picture that cannot be drawn, like one whose bytes are gone: the card shows its caption.
+    let bytes: Uint8Array | null = null;
+    let readError = '';
+    try {
+      bytes = await input.readPicture(assetId);
+    } catch (error) {
+      readError = ` (${error instanceof Error ? error.message : String(error)})`;
+    }
     if (bytes === null) {
-      notes.push(`contact sheet: image ${assetId} could not be read, so its cards show the caption`);
+      notes.push(`contact sheet: image ${assetId} could not be read${readError}, so its cards show the caption`);
     } else {
       const format = sniffImage(bytes);
       try {
@@ -408,7 +418,8 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
     for (const card of sheet.cards) await drawCard(page, card);
   }
 
-  if (emoji) await emoji.finish();
+  // A sheet whose only emoji the font lacks loaded the font and drew nothing in it: no font is written then.
+  if (emoji?.used === true) await emoji.finish();
 
   if (fallback) notes.push(`contact sheet: text outside Latin script is set in ${CJK_FONT_NAME}, embedded with only the glyphs it uses`);
   if (emoji?.used === true) notes.push(`contact sheet: emoji are set in ${EMOJI_FONT_NAME}, in monochrome, embedded with only the glyphs they use`);

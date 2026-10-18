@@ -11,7 +11,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PDFArray, PDFDict, PDFDocument, PDFName, PDFRawStream } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import { unzlibSync } from 'fflate/browser';
+import { unzlibSync, zlibSync } from 'fflate/browser';
 import {
   createActivityLog,
   createIdempotencyCache,
@@ -25,15 +25,18 @@ import { createProjectCommandRegistry, MemoryArtifactFs, type ProjectState } fro
 import { addShotNode, emojiStyleOf, graphemesOf, planContactSheet } from '@caotang/storyboard';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
 import { cjkFontCandidates, emojiFontCandidates, loadCjkFontInNode, loadEmojiFontInNode } from '../src/fallback-fonts-node.js';
-import { EmojiFace, type FontkitFont } from '../src/emoji-font.js';
+import { EmojiEmbedding, EmojiFace, type FontkitFont } from '../src/emoji-font.js';
 import {
   CJK_FONT_FILE,
   CONTACT_SHEET_HEADER,
   EMOJI_FONT_FILE,
+  MAX_SFNT_BYTES,
+  checkFontBytes,
   containIn,
   createExporter,
   drawContactSheet,
   fitToWidth,
+  looksLikeFont,
   renderMedia,
   sfntFromWoff,
   type FontLoader,
@@ -54,6 +57,7 @@ function rig(
     files?: Record<string, Uint8Array>;
     loadFallbackFont?: FontLoader;
     loadEmojiFont?: FontLoader;
+    readAsset?: (path: string) => Promise<Uint8Array | null>;
   } = {},
 ): { exporter: ExporterService; reads: string[] } {
   const state = options.state ?? makeMediaProject();
@@ -67,7 +71,7 @@ function rig(
     assets: () => options.assets ?? ASSETS,
     readAsset: async (path) => {
       reads.push(path);
-      return files[path] ?? null;
+      return options.readAsset === undefined ? (files[path] ?? null) : options.readAsset(path);
     },
     ...(options.loadFallbackFont === undefined ? {} : { loadFallbackFont: options.loadFallbackFont }),
     ...(options.loadEmojiFont === undefined ? {} : { loadEmojiFont: options.loadEmojiFont }),
@@ -234,6 +238,39 @@ describe('contact-sheet-pdf — the storyboard as a PDF of shot cards', () => {
     expect(result.log.notes).toContain(`contact sheet: image ${ASSET_ID} could not be read, so its cards show the caption`);
   });
 
+  it('shows the caption, and says why, when reading the picture fails, and draws the rest of the sheet', async () => {
+    const readAsset = async (): Promise<Uint8Array | null> => {
+      throw new Error('the disk was unplugged');
+    };
+    const { pdf, result } = await compileSheet(rig({ readAsset }).exporter);
+    expect(pdf.getPageCount()).toBe(1);
+    expect(imageCount(pdf)).toBe(0);
+    expect(result.log.notes).toContain(`contact sheet: image ${ASSET_ID} could not be read (the disk was unplugged), so its cards show the caption`);
+    // The card whose picture failed shows its caption, and the other cards are drawn as ever.
+    const card = planContactSheet(makeMediaProject(), ['manuscript'], () => ({ drawn: true })).plan.pages[0]?.cards.find((placed) => placed.hasImage);
+    const caption = card?.placeholder?.text ?? card?.fallback.text ?? '';
+    expect(caption).not.toBe('');
+    expect(pageContent(pdf, 0)).toContain(`<${hexOf(caption)}> Tj`);
+  });
+
+  it('degrades a picture whose read rejects to its caption in the emitter too, once per picture', async () => {
+    const planned = planContactSheet(makeMediaProject(), ['manuscript'], () => ({ drawn: true }));
+    let reads = 0;
+    const drawn = await drawContactSheet({
+      plan: planned.plan,
+      pictures: planned.pictures,
+      readPicture: async () => {
+        reads += 1;
+        throw new Error('EIO');
+      },
+      title: 'T',
+      at: new Date(COMPILED_AT),
+    });
+    expect(reads).toBe(new Set(planned.pictures.values()).size);
+    expect(drawn.notes).toContain(`contact sheet: image ${ASSET_ID} could not be read (EIO), so its cards show the caption`);
+    expect((await PDFDocument.load(drawn.contents)).getPageCount()).toBe(planned.plan.pages.length);
+  });
+
   it('shows the caption when the picture is not in assets/, and says so before anything is drawn', async () => {
     const { exporter, reads } = rig({ assets: new Map() });
     const { result } = await compileSheet(exporter);
@@ -274,13 +311,21 @@ describe('contact-sheet-pdf — the storyboard as a PDF of shot cards', () => {
     expect(result.log.notes.some((note) => note.includes('built-in font'))).toBe(false);
   });
 
-  it('notes a shot with no metadata on record, whose card shows only its number', async () => {
+  it('notes a shot with no metadata on record, whose card shows its number and "No image", with no camera details or action', async () => {
     const state = makeMediaProject();
     addShotNode(state, { parentId: MEDIA_IDS.shots, title: 'Bare', id: 'n_BARE000001', now: OPENED, stored: {} });
     const shot = state.manifest.tree.find((node) => node.id === 'n_BARE000001') as { shot?: unknown } | undefined;
     if (shot !== undefined) delete shot.shot;
-    const { result } = await compileSheet(rig({ state }).exporter);
-    expect(result.log.notes).toContain('shot 3: no shot metadata is on record, so its card shows only its number');
+    const { result, pdf } = await compileSheet(rig({ state }).exporter);
+    expect(result.log.notes).toContain('shot 3: no shot metadata is on record, so its card shows its number and "No image", with no camera details or action');
+    // What the note says is what the card holds.
+    const card = planContactSheet(state, ['manuscript'], () => ({ drawn: true })).plan.pages[0]?.cards.find((placed) => placed.shotId === 'n_BARE000001');
+    expect(card?.chipText.text).toBe('3');
+    expect(card?.hasImage).toBe(false);
+    expect(card?.placeholder?.text).toBe('No image');
+    expect(card?.spec.text).toBe('');
+    expect(card?.action).toEqual([]);
+    expect(pageContent(pdf, 0)).toContain(`<${hexOf('No image')}> Tj`);
   });
 
   it('refuses a selection with no shot, and writes nothing', async () => {
@@ -542,7 +587,66 @@ describe('the fallback font file', () => {
     const bytes = new Uint8Array([0, 1, 0, 0, 9, 9]);
     expect(await sfntFromWoff(bytes)).toBe(bytes);
   });
+
+  it('unpacks a well-formed WOFF table to its stated length', async () => {
+    const table = new Uint8Array(1000).fill(7);
+    const sfnt = await sfntFromWoff(woffOf({ data: zlibSync(table), origLength: 1000 }));
+    expect(sfnt.byteLength).toBe(12 + 16 + 1000);
+    expect([...sfnt.subarray(28, 1028)]).toEqual([...table]);
+  });
+
+  it('refuses a WOFF that says it unpacks to more than a font may, before inflating anything', async () => {
+    await expect(sfntFromWoff(woffOf({ data: zlibSync(new Uint8Array(10)), origLength: 10, totalSfntSize: MAX_SFNT_BYTES + 1 }))).rejects.toThrow(
+      `the WOFF file says it unpacks to ${MAX_SFNT_BYTES + 1} bytes, more than a font may (${MAX_SFNT_BYTES})`,
+    );
+    // A table whose stated length is past the file's stated size: refused before it is inflated.
+    await expect(sfntFromWoff(woffOf({ data: zlibSync(new Uint8Array(10)), origLength: 0xffffffff, totalSfntSize: 1024 }))).rejects.toThrow(
+      'the WOFF tables unpack to more than the file says it holds',
+    );
+  });
+
+  it('stops inflating a WOFF table one byte past its stated length, and refuses it', async () => {
+    // A stream of about 1 KB that decodes to 1 MB, in a table that says it holds 2000 bytes.
+    const bomb = zlibSync(new Uint8Array(1024 * 1024));
+    expect(bomb.byteLength).toBeLessThan(2000);
+    await expect(sfntFromWoff(woffOf({ data: bomb, origLength: 2000 }))).rejects.toThrow('a WOFF table did not inflate to its stated length');
+  });
+
+  it('knows a font file by its first bytes, and names what was served in its place', async () => {
+    expect(looksLikeFont(await loadCjkFontInNode())).toBe(true);
+    expect(looksLikeFont(await loadEmojiFontInNode())).toBe(true);
+    for (const head of [[0, 1, 0, 0], [...'OTTO'], [...'true'], [...'ttcf'], [...'wOF2']]) {
+      const bytes = new Uint8Array(head.map((byte) => (typeof byte === 'number' ? byte : byte.charCodeAt(0))));
+      expect(looksLikeFont(bytes)).toBe(true);
+    }
+    const html = new TextEncoder().encode('<!doctype html><html></html>');
+    expect(looksLikeFont(html)).toBe(false);
+    expect(looksLikeFont(new Uint8Array([0x77]))).toBe(false);
+    expect(() => checkFontBytes(html, '/assets/NotoEmoji-Regular.woff')).toThrow(
+      '/assets/NotoEmoji-Regular.woff did not serve a font file (28 bytes, starting "<!doctype html><")',
+    );
+    const woff = await loadCjkFontInNode();
+    expect(checkFontBytes(woff, 'x')).toBe(woff);
+  });
 });
+
+/** A WOFF 1.0 file with one table, whose header states what the test asks, true or not. */
+function woffOf(table: { data: Uint8Array; origLength: number; totalSfntSize?: number }): Uint8Array {
+  const offset = 44 + 20;
+  const bytes = new Uint8Array(offset + table.data.byteLength);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(0, 0x774f4646);
+  view.setUint32(4, 0x00010000);
+  view.setUint32(8, bytes.byteLength);
+  view.setUint16(12, 1);
+  view.setUint32(16, table.totalSfntSize ?? 12 + 16 + table.origLength);
+  view.setUint32(44, 0x74657374); // 'test'
+  view.setUint32(48, offset);
+  view.setUint32(52, table.data.byteLength);
+  view.setUint32(56, table.origLength);
+  bytes.set(table.data, offset);
+  return bytes;
+}
 
 /** Each ToUnicode entry of the file's Type 0 fonts, decoded: the text one CID gives back when it is copied. */
 function toUnicodeEntries(pdf: PDFDocument): string[] {
@@ -654,6 +758,27 @@ describe('contact-sheet-pdf — emoji, in the Noto Emoji fallback font', () => {
     expect(toUnicodeEntries(pdf)).toContain('🎬');
   });
 
+  it('embeds no emoji font when the font was read but drew nothing, as for a sheet whose only emoji is newer than it', async () => {
+    const emojiLoader = countingLoader(loadEmojiFontInNode);
+    const { result, pdf } = await compileSheet(rig({ state: withAction('Cut 🫩 now'), loadEmojiFont: emojiLoader.load }).exporter);
+    expect(emojiLoader.calls()).toBe(1);
+    expect(result.log.notes).toContain('contact sheet: 1 character neither the PDF\'s built-in font nor Noto Emoji can show was drawn as "?": 🫩 (U+1FAE9)');
+    expect(result.log.notes.some((note) => note.includes('emoji are set in'))).toBe(false);
+    expect(embeddedFontFiles(pdf)).toHaveLength(0);
+    expect(toUnicodeEntries(pdf)).toEqual([]);
+  });
+
+  it('writes no font objects from an emoji embedding that drew no glyph', async () => {
+    const lib = await import('pdf-lib');
+    const doc = await PDFDocument.create();
+    const embedding = new EmojiEmbedding(lib, doc, await noto());
+    const before = doc.context.enumerateIndirectObjects().length;
+    await embedding.finish();
+    expect(embedding.used).toBe(false);
+    expect(doc.context.enumerateIndirectObjects().length).toBe(before);
+    expect(doc.context.lookup(embedding.ref)).toBeUndefined();
+  });
+
   it('draws emoji as "?", and says why, when the compile has no emoji font or it cannot be read', async () => {
     const none = await compileSheet(rig({ state: withAction('🎬') }).exporter);
     expect(none.result.log.notes).toContain(
@@ -728,8 +853,16 @@ describe('the emoji font file covers Unicode Emoji 15.1', () => {
       if (glyphs !== null) expect(glyphs.map((glyph) => glyph.text).join(''), name).toBe(emoji);
     }
     expect(missing).toEqual([]);
-    // Emoji 15.1's "facing right" people (with their skin tones and genders) are the only sequences the font draws in parts.
+    // Emoji 15.1's "facing right" people are the only sequences the font draws in parts, and not all of them: the person walking,
+    // kneeling or running facing right (with any skin tone) is one glyph; the woman and man forms of those, and every person with
+    // a white cane or in a wheelchair facing right, are drawn in three parts. The guide and the changelog say exactly this.
+    const facingRight = ALL.filter(({ name }) => name.includes('facing right')).map(({ name }) => name);
+    expect(facingRight).toHaveLength(108);
+    const whole = facingRight.filter((name) => !split.includes(name));
+    expect(whole).toHaveLength(18);
+    expect(whole.every((name) => / E15\.1 person (walking|kneeling|running) facing right/.test(name))).toBe(true);
     expect(split.every((name) => name.includes('facing right'))).toBe(true);
+    expect(split.every((name) => / E15\.1 (woman|man) (walking|kneeling|running) facing right| with white cane facing right| wheelchair facing right/.test(name))).toBe(true);
     expect(split).toHaveLength(90);
   });
 

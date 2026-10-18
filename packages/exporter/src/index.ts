@@ -50,7 +50,7 @@ export { CONTACT_SHEET_HEADER, renderMedia, type MediaFile, type MediaOutput, ty
 export { PDF_MIME, containIn, drawContactSheet, fitToWidth, type ContactSheetPdf, type ContactSheetPdfInput } from './render-contact-sheet.js';
 // Its fallback fonts: for text outside Latin script, and for emoji. The Node loaders are the subpath
 // `@caotang/exporter/fallback-fonts-node`.
-export { CJK_FONT_FILE, CJK_FONT_NAME, sfntFromWoff, type FontLoader } from './cjk-font.js';
+export { CJK_FONT_FILE, CJK_FONT_NAME, MAX_SFNT_BYTES, checkFontBytes, looksLikeFont, sfntFromWoff, type FontLoader } from './cjk-font.js';
 export { EMOJI_FONT_FILE, EMOJI_FONT_NAME } from './emoji-font.js';
 // The coherence report's renderers (the one-source compile's Review row). The compile reaches them through `renderMedia`.
 export {
