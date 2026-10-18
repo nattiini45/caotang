@@ -45,7 +45,7 @@ export interface PdfLayout {
   readonly scriptPageCount: number;
   readonly title: string;
   readonly author?: string;
-  /** What the Fountain step left out. */
+  /** What the Fountain step left out, and the characters neither font can print, in order. */
   readonly notes: readonly string[];
   /** The characters WinAnsi cannot encode that the CJK fallback prints, in order of first use. Empty: no fallback is loaded. */
   readonly fallbackCharacters: readonly string[];
@@ -59,7 +59,7 @@ export interface PdfLayout {
 export interface PdfRenderResult {
   readonly bytes: Uint8Array<ArrayBuffer>;
   readonly pageCount: number;
-  /** What the Fountain step left out, then one note naming the characters a missing or incomplete fallback font leaves unprinted (CJK characters first, then emoji units, each in order of first use). */
+  /** What the Fountain step left out, then any font-coverage notes from layout (neither font can print a character; an emoji sequence the emoji font lacks), then, when a fallback font is missing or incomplete, one note naming up to ten of the characters it leaves unprinted (CJK first, then emoji units, each in order of first use, with an ellipsis past ten). */
   readonly notes: readonly string[];
 }
 
@@ -194,7 +194,7 @@ function decodeBase64(text: string): Uint8Array {
  * Lays out and draws in one call, synchronously. `font` embeds it; without one the file names the base-14 Courier. The
  * fallbacks are drawn as {@link drawPdf} draws them: pass what {@link loadCjkFallback} and {@link loadEmojiFallback} give
  * for the same blocks and options. A character whose fallback the call does not pass, or that the fallback has no glyph
- * for, is not printed as written (a plain "?", or the base character of a keycap-style unit), and the notes name it.
+ * for, is not printed as written (a plain "?", or the base character of a keycap- or VS16-style unit, such as © for ©️), and the notes name it.
  */
 export function renderPdf(
   blocks: readonly FlatBlock[],

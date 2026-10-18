@@ -205,6 +205,8 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(pdfSection).toContain('**Scene numbers** can be printed in the left margin, the right margin or both. They are off unless you choose them.');
     expect(dialog).toContain('<span className="export-option-label">Scene numbers</span>');
     expect(read('packages/screenplay/src/paginate.ts')).toContain("opts.sceneNumbers ?? 'off'");
+    expect(dialog).toContain("sceneNumbers: recipe?.options?.sceneNumbers ?? 'off',");
+    expect(read('packages/exporter/src/media.ts')).toContain("sceneNumbers: request.sceneNumbers ?? 'off',");
     expect(dialog).toContain("left: 'Left margin',");
     expect(dialog).toContain("right: 'Right margin',");
     expect(dialog).toContain("both: 'Both margins',");

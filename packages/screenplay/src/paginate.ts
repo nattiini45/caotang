@@ -607,6 +607,10 @@ class Pager {
     this.current.push({ kind, text, x: LAYOUT.marginLeft + col * LAYOUT.charWidth, y, row, scene });
     if (sceneNumber !== null) {
       const width = textColumns(sceneNumber) * LAYOUT.charWidth;
+      if (!['off', 'left', 'right', 'both'].includes(this.sceneNumbers)) {
+        // A placement the bus gains must be handled here, not printed as off.
+        throw new Error(`Unknown scene-number placement: ${String(this.sceneNumbers)}`);
+      }
       if (this.sceneNumbers === 'left' || this.sceneNumbers === 'both') {
         this.current.push({ kind: 'sceneNumber', text: sceneNumber, x: LAYOUT.sceneNumberLeftX, y, row: null, scene });
       }
