@@ -269,7 +269,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     // The button's visible word, and the chord the view opens the menu on.
     expect(view).toMatch(/>\s*Element\s*<\/button>/);
     expect(menu).toMatch(/event\.key\.toLowerCase\(\) === 'e'/);
-    expect(menu).toMatch(/event\.metaKey/);
+    expect(menu).toMatch(/event\.ctrlKey \|\| event\.metaKey/);
     const screenplay = guide.slice(guide.indexOf('## Writing a screenplay'), guide.indexOf('## Writing dialogue'));
     expect(screenplay).toContain('**Element**, above the text, or Ctrl+E (Cmd+E on a Mac), opens the element menu for the line the caret is on.');
     // Each entry the guide names is a label of the menu, and the guide names every one, in the menu's order.
