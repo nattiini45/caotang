@@ -49,7 +49,7 @@ export interface ExportRecipeOptions {
   author?: string;
   /** The dialogue table's character limit (dialogue-narrative.md §4). Absent = no limit. */
   charLimit?: number;
-  /** The screenplay PDF's scene numbers: `off`, `left`, `right` or `both` (screenplay.md §5.3). Absent = off. */
+  /** The screenplay PDF's scene numbers (screenplay.md §5.3; SCENE_NUMBER_OPTIONS in @caotang/bus). Absent = off. */
   sceneNumbers?: SceneNumbersOption;
   /** `(MORE)` and `(CONT'D)` across a page break in the screenplay PDF (screenplay.md §5.3). Absent = on. */
   continued?: boolean;

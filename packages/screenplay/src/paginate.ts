@@ -616,12 +616,27 @@ class Pager {
         // A placement the bus gains must be handled here, not printed as off.
         throw new Error(`Unknown scene-number placement: ${String(this.sceneNumbers)}`);
       }
-      if (this.sceneNumbers === 'left' || this.sceneNumbers === 'both') {
-        this.current.push({ kind: 'sceneNumber', text: sceneNumber, x: LAYOUT.sceneNumberLeftX, y, row: null, scene });
-      }
-      if (this.sceneNumbers === 'right' || this.sceneNumbers === 'both') {
-        const x = LAYOUT.pageWidth - LAYOUT.sceneNumberRightInset - width;
-        this.current.push({ kind: 'sceneNumber', text: sceneNumber, x, y, row: null, scene });
+      switch (this.sceneNumbers) {
+        case 'off':
+          break;
+        case 'left':
+          this.current.push({ kind: 'sceneNumber', text: sceneNumber, x: LAYOUT.sceneNumberLeftX, y, row: null, scene });
+          break;
+        case 'right': {
+          const x = LAYOUT.pageWidth - LAYOUT.sceneNumberRightInset - width;
+          this.current.push({ kind: 'sceneNumber', text: sceneNumber, x, y, row: null, scene });
+          break;
+        }
+        case 'both': {
+          const x = LAYOUT.pageWidth - LAYOUT.sceneNumberRightInset - width;
+          this.current.push({ kind: 'sceneNumber', text: sceneNumber, x: LAYOUT.sceneNumberLeftX, y, row: null, scene });
+          this.current.push({ kind: 'sceneNumber', text: sceneNumber, x, y, row: null, scene });
+          break;
+        }
+        default: {
+          const _exhaustive: never = this.sceneNumbers;
+          throw new Error(`Unhandled scene-number placement: ${String(_exhaustive)}`);
+        }
       }
     }
   }

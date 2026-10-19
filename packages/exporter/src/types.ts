@@ -112,7 +112,7 @@ export interface ExportRecipeOptions {
    */
   readonly charLimit?: number;
   /**
-   * The screenplay PDF's scene numbers (screenplay.md §5.3): in the left margin, the right, both, or off. Absent means off.
+   * The screenplay PDF's scene numbers (screenplay.md §5.3; SCENE_NUMBER_OPTIONS in @caotang/bus). Absent means off.
    * Only `pdf` reads it.
    */
   readonly sceneNumbers?: SceneNumbersOption;
