@@ -127,6 +127,30 @@ On the Source tab:
 
 When Caotang saves a scene, it writes Fountain in the standard layout: a run of blank lines becomes one blank line, and Windows line endings become the usual ones. Your words are kept.
 
+### Screenplay keyboard shortcuts
+
+| Windows / Linux | macOS | Context / Mode | What it does |
+|---|---|---|---|
+| Ctrl+E | Cmd+E | Source tab | Open the element menu for the line the caret is on. |
+| 1 | 1 | Element menu open | Convert line to Scene heading (`.`). |
+| 2 | 2 | Element menu open | Convert line to Action (`!`). |
+| 3 | 3 | Element menu open | Convert line to Character cue (`@`). |
+| 4 | 4 | Element menu open | Convert line to Parenthetical (under character cue). |
+| 5 | 5 | Element menu open | Convert line to Dialogue (under character cue). |
+| 6 | 6 | Element menu open | Convert line to Transition (`>` or `TO:`). |
+| 7 | 7 | Element menu open | Convert line to Centered (`> <`). |
+| 8 | 8 | Element menu open | Convert line to Note (`[[…]]`). |
+| 9 | 9 | Element menu open | Convert line to Page break (`===`). |
+| Up, Down | Up, Down | Element menu open | Move highlight through element choices. |
+| Enter, Space | Return, Space | Element menu open | Apply the selected element conversion. |
+| Esc | Esc | Element menu open | Close the element menu and return to typing. |
+| Tab | Tab | Source tab | Complete a half-typed character cue from scene and codex characters. |
+| Enter | Return | Source tab (end of cue) | Move to the next line for dialogue without inserting a blank line. |
+| Enter | Return | Source tab (empty dialogue) | Exit dialogue block and start a new action paragraph. |
+| Left, Right | Left, Right | Scene view switcher | Switch between the **Script**, **Source** and **Pages** tabs. |
+| Ctrl+Z | Cmd+Z | Source tab | Undo typing in the screenplay source editor. |
+| Ctrl+Shift+F | Cmd+Shift+F | Screenplay view | Focus mode (hide the binder and inspector). |
+
 Compile a screenplay from **Compile…**, in the Media group, as Fountain, as Final Draft (`.fdx`) or as a PDF. Final Draft files have not yet been checked against Final Draft itself; see [What is not in this build yet](#what-is-not-in-this-build-yet).
 
 ### The screenplay PDF
@@ -320,6 +344,21 @@ Choose **Settings** on the projects screen or in the toolbar. It has seven secti
 | Esc | Close a menu or a dialog. A menu returns focus to the control that opened it. |
 
 The tabs on the left (**Binder**, **Codex**, **Activity** and **Findings**) and the **Editor** and **Corkboard** buttons take the arrow keys, Home and End. In a menu, the arrow keys move between items, and Enter or Space chooses one.
+
+### Screenplay shortcuts
+
+| Windows / Linux | macOS | Context | What it does |
+|---|---|---|---|
+| Ctrl+E | Cmd+E | Source tab | Open the element menu for the line the caret is on. |
+| 1–9 | 1–9 | Element menu open | Directly convert line to element (1: Scene heading, 2: Action, 3: Character, 4: Parenthetical, 5: Dialogue, 6: Transition, 7: Centered, 8: Note, 9: Page break). |
+| Up, Down | Up, Down | Element menu open | Move through the element list. |
+| Enter, Space | Return, Space | Element menu open | Apply the selected element. |
+| Esc | Esc | Element menu open | Close the menu and return to the editor. |
+| Tab | Tab | Source tab | Complete character name from scene cues and codex characters. |
+| Enter | Return | Source tab | At the end of a cue, move to dialogue; on an empty line after dialogue, start action. |
+| Left, Right | Left, Right | View switcher | Switch between **Script**, **Source** and **Pages** views. |
+| Ctrl+Z | Cmd+Z | Source tab | Undo typing in the source editor. |
+| Ctrl+Shift+F | Cmd+Shift+F | Screenplay view | Focus mode (hide the binder and inspector). |
 
 ## Bringing existing writing in through the MCP server
 
