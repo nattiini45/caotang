@@ -269,12 +269,13 @@ describe('the user guide’s reviewed claims match the code', () => {
     // The button's visible word, and the chord the view opens the menu on.
     expect(view).toMatch(/>\s*Element\s*<\/button>/);
     expect(menu).toMatch(/event\.key\.toLowerCase\(\) === 'e'/);
+    expect(menu).toMatch(/event\.metaKey/);
     const screenplay = guide.slice(guide.indexOf('## Writing a screenplay'), guide.indexOf('## Writing dialogue'));
-    expect(screenplay).toContain('**Element**, above the text, or Ctrl+E, opens the element menu for the line the caret is on.');
+    expect(screenplay).toContain('**Element**, above the text, or Ctrl+E (Cmd+E on a Mac), opens the element menu for the line the caret is on.');
     // Each entry the guide names is a label of the menu, and the guide names every one, in the menu's order.
     const labels = [...menu.matchAll(/^ {2}[a-z_]+: '([^']+)',$/gm)].map((match) => match[1] ?? '');
     expect(labels).toHaveLength(9);
     expect(screenplay).toContain(`It lists ${labels.slice(0, -1).map((label) => `**${label}**`).join(', ')} and **${labels.at(-1)}**,`);
-    expect(guide).toMatch(/\| Ctrl\+E \| On a screenplay's Source tab, open the element menu for the caret's line\. \|/);
+    expect(guide).toMatch(/\| Ctrl\+E \(Cmd\+E on a Mac\) \| On a screenplay's Source tab, open the element menu for the caret's line\. \|/);
   });
 });

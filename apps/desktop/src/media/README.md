@@ -13,7 +13,7 @@ binder makes their nodes (`media/create-menu.ts`, through `binder.create`).
   the headings, cues, parentheticals, transitions and notes drawn in their own styles over it; the Pages tab shows the
   scene paginated, read only. Enter at the end of a cue moves onto its dialogue, and Enter on an empty line after dialogue
   starts action. Tab completes a half-typed cue from the cues in the scene and the codex's characters. The element menu
-  (the Element button, or Ctrl+E) rewrites the caret's line as the element chosen, through the screenplay engine's
+  (the Element button, or Ctrl+E (Cmd+E on a Mac)) rewrites the caret's line as the element chosen, through the screenplay engine's
   `convertLine` (element-menu.ts). All of these write through the session's autosave, which is the path the prose editor
   uses.
 - **Write a dialogue container.** The Ink text sits under the outline, with its knots, stitches, choices, diverts,

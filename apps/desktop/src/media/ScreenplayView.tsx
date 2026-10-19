@@ -292,7 +292,7 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
                   aria-haspopup="menu"
                   aria-expanded={elementMenu !== null}
                   aria-keyshortcuts="Control+E Meta+E"
-                  title="Change the element of the line the caret is on (Ctrl+E)"
+                  title="Change the element of the line the caret is on (Ctrl+E or Cmd+E)"
                   onClick={openElementMenu}
                 >
                   Element
