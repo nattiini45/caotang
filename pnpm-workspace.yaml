@@ -1,6 +1,7 @@
 ﻿packages:
   - 'apps/*'
   - 'packages/*'
+  - 'vendor/*'
 
 # No `onlyBuiltDependencies`, and that is a measured state rather than an omission.
 #

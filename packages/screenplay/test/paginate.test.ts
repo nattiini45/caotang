@@ -6,6 +6,7 @@ import {
   paginate,
   parseFountain,
   sceneLengths,
+  textColumns,
   type LayoutLine,
   type LayoutPage,
 } from '../src/index.js';
@@ -139,6 +140,12 @@ function expectPageBreakRules(pages: readonly LayoutPage[]): void {
 }
 
 describe('paginate — the layout constants (screenplay.md §5.3)', () => {
+  it('refuses an unknown scene-number placement instead of printing it as off', () => {
+    const elements = parseFountain('INT. ROOM - DAY #1#\n\nAction.\n').elements;
+    const bogus = { sceneNumbers: 'middle' } as unknown as Parameters<typeof paginate>[1];
+    expect(() => paginate(elements, bogus)).toThrow(/Unknown scene-number placement: middle/);
+  });
+
   it('derives the lines per page and the text width from the spec margins', () => {
     expect(LAYOUT.linesPerPage).toBe(54);
     expect(LAYOUT.columns).toBe(60);
@@ -358,27 +365,138 @@ describe('paginate — the page-break rules (screenplay.md §5.3)', () => {
 });
 
 describe('paginate — the title page and page numbers (screenplay.md §5.3)', () => {
-  it('lays out a title page from the title_page entries, numbered as page 1, unnumbered', () => {
+  /** The title-page script with enough action after it to fill a second script page. */
+  const twoPages = `${SCRIPT_WITH_TITLE_PAGE}\n\n${Array.from({ length: 40 }, (_, i) => `More action ${i}.`).join('\n\n')}\n`;
+
+  it('lays out a title page from the title_page entries, not counted and unnumbered', () => {
     const pages = paginate(parseFountain(SCRIPT_WITH_TITLE_PAGE).elements);
     const [title, script] = pages;
-    expect(title).toMatchObject({ number: 1, kind: 'title' });
+    expect(title).toMatchObject({ number: 0, kind: 'title' });
     const titleText = (title?.lines ?? []).map((line) => line.text);
     expect(titleText).toEqual(expect.arrayContaining(['The Lighthouse Keeper', 'Written by', 'N. Attini', '2026-10-08']));
     expect(title?.lines.some((line) => line.kind === 'pageNumber')).toBe(false);
-    expect(script).toMatchObject({ number: 2, kind: 'script' });
+    // The first script page is page 1 after a title page too, as in every screenplay.
+    expect(script).toMatchObject({ number: 1, kind: 'script' });
+    expect(script?.lines.some((line) => line.kind === 'pageNumber')).toBe(false);
   });
 
   it('numbers script pages from page 2 at the top right, as "n."', () => {
-    const pages = paginate(parseFountain(SCRIPT_WITH_TITLE_PAGE).elements);
-    const number = pages[1]?.lines.find((line) => line.kind === 'pageNumber');
+    const pages = paginate(parseFountain(twoPages).elements);
+    expect(pages.map((page) => page.number)).toEqual([0, 1, 2]);
+    const number = pages[2]?.lines.find((line) => line.kind === 'pageNumber');
     expect(number).toMatchObject({ text: '2.', y: 46 });
     expect(number?.x).toBeCloseTo(LAYOUT.pageWidth - LAYOUT.marginRight - 2 * LAYOUT.charWidth, 5);
   });
 
-  it('leaves the title page out when the option is off, so the first script page is page 1', () => {
+  it('numbers the script pages the same with the title page on or off', () => {
+    const on = paginate(parseFountain(twoPages).elements).filter((page) => page.kind === 'script');
+    const off = paginate(parseFountain(twoPages).elements, { titlePage: false });
+    expect(on.map((page) => page.number)).toEqual(off.map((page) => page.number));
+  });
+
+  it('leaves the title page out when the option is off, so the first page is script page 1', () => {
     const pages = paginate(parseFountain(SCRIPT_WITH_TITLE_PAGE).elements, { titlePage: false });
     expect(pages[0]).toMatchObject({ number: 1, kind: 'script' });
     expect(pages[0]?.lines.some((line) => line.kind === 'pageNumber')).toBe(false);
+  });
+});
+
+describe('paginate — dual dialogue side by side (screenplay.md §2.2)', () => {
+  const PAIR = text('INT. HALL - DAY', '', 'ANNA', 'I go left.', '', 'BEN ^', '(quietly)', 'I go right.');
+
+  it('lays the two speakers in two columns that start on the same row', () => {
+    const [page] = paginate(parseFountain(PAIR).elements);
+    const lines = page?.lines ?? [];
+    const anna = lines.find((line) => line.text === 'ANNA');
+    const ben = lines.find((line) => line.text === 'BEN');
+    expect(anna?.row).toBe(ben?.row);
+    expect(anna?.x).toBeCloseTo(LAYOUT.marginLeft + LAYOUT.dual.left.character * LAYOUT.charWidth, 5);
+    expect(ben?.x).toBeCloseTo(LAYOUT.marginLeft + LAYOUT.dual.right.character * LAYOUT.charWidth, 5);
+    const left = lines.find((line) => line.text === 'I go left.');
+    const paren = lines.find((line) => line.text === '(quietly)');
+    const right = lines.find((line) => line.text === 'I go right.');
+    expect(left?.row).toBe((anna?.row ?? 0) + 1);
+    expect(paren?.row).toBe(left?.row);
+    expect(right?.row).toBe((paren?.row ?? 0) + 1);
+    expect(left?.x).toBeCloseTo(LAYOUT.marginLeft + LAYOUT.dual.left.dialogue * LAYOUT.charWidth, 5);
+    expect(right?.x).toBeCloseTo(LAYOUT.marginLeft + LAYOUT.dual.right.dialogue * LAYOUT.charWidth, 5);
+  });
+
+  it('wraps each column to its own width, so the columns never overlap, cues and parentheticals included', () => {
+    const long = 'Every word of this speech is here to make it wrap onto several rows of its column.';
+    // Cue names long enough to wrap: 25 characters each, one with no space to break at.
+    const leftCue = 'ANNA-MARIA VON HOHENSTEIN';
+    const rightCue = 'BARTHOLOMEWJONATHANSMYTHE';
+    const source = text(leftCue, '(a long aside, to make it wrap)', long, '', `${rightCue} ^`, '(a long aside, to make it wrap)', long);
+    const [page] = paginate(parseFountain(source).elements);
+    const lines = (page?.lines ?? []).filter((line) => ['character', 'parenthetical', 'dialogue'].includes(line.kind));
+    const column = (line: LayoutLine): number => Math.round((line.x - LAYOUT.marginLeft) / LAYOUT.charWidth);
+    const rightStart = LAYOUT.dual.right.dialogue;
+    const left = lines.filter((line) => column(line) < rightStart);
+    const right = lines.filter((line) => column(line) >= rightStart);
+    // Control: both sides hold every kind, so the checks below cannot pass over an empty side.
+    for (const side of [left, right]) {
+      expect(side.filter((line) => line.kind === 'character').length).toBeGreaterThan(1);
+      expect(side.filter((line) => line.kind === 'parenthetical').length).toBeGreaterThan(1);
+      expect(side.filter((line) => line.kind === 'dialogue').length).toBeGreaterThan(2);
+    }
+    expect(left.filter((line) => line.kind === 'character').map((line) => line.text).join(' ')).toBe(leftCue);
+    expect(right.filter((line) => line.kind === 'character').map((line) => line.text).join('')).toBe(rightCue);
+    const gutter = LAYOUT.dual.left.dialogue + LAYOUT.dual.width.dialogue;
+    for (const line of left) {
+      const end = column(line) + textColumns(line.text);
+      // No left line reaches the right column; its dialogue and parentheticals end before the gutter.
+      expect(end, line.text).toBeLessThanOrEqual(rightStart);
+      if (line.kind !== 'character') expect(end, line.text).toBeLessThanOrEqual(gutter);
+      if (line.kind === 'dialogue') expect(column(line), line.text).toBe(LAYOUT.dual.left.dialogue);
+    }
+    for (const line of right) {
+      // Every right line starts at its own indent and ends inside the right margin.
+      expect(column(line), line.text).toBe(LAYOUT.dual.right[line.kind as 'character' | 'parenthetical' | 'dialogue']);
+      expect(column(line) + textColumns(line.text), line.text).toBeLessThanOrEqual(LAYOUT.columns);
+      expect(line.x + textColumns(line.text) * LAYOUT.charWidth).toBeLessThanOrEqual(LAYOUT.pageWidth - LAYOUT.marginRight + 1e-9);
+    }
+  });
+
+  it('rewraps a word broken at the column edge without a space inside it', () => {
+    // 40 characters with no space: wider than the 35-column dialogue, so the first wrap breaks it after 35, and the dual
+    // column rewraps the speech to 27 from the text the lines join back to.
+    const word = 'https://example.org/a-long-unbroken-path';
+    expect(word).toHaveLength(40);
+    const [page] = paginate(parseFountain(text('ANNA', 'Hi.', '', 'BEN ^', `See ${word} now.`)).elements);
+    const rightStart = LAYOUT.marginLeft + LAYOUT.dual.right.dialogue * LAYOUT.charWidth;
+    const right = (page?.lines ?? []).filter((line) => line.kind === 'dialogue' && line.x >= rightStart - 1e-9);
+    // The word is broken at 27 only; a space after its 35th character would have pushed "path" onto the third row apart.
+    expect(right.map((line) => line.text)).toEqual(['See', word.slice(0, 27), `${word.slice(27)} now.`]);
+  });
+
+  it('a cue marked ^ with no block before it is an ordinary cue', () => {
+    const [page] = paginate(parseFountain(text('Action.', '', 'BEN ^', 'Alone.')).elements);
+    expect(page?.lines.find((line) => line.text === 'BEN')?.x).toBeCloseTo(LAYOUT.marginLeft + LAYOUT.indent.character * LAYOUT.charWidth, 5);
+  });
+
+  it('moves a pair that does not fit the foot of a page to the next page whole', () => {
+    const filler = Array.from({ length: 26 }, (_, i) => `Filler ${i}.`);
+    const pages = paginate(parseFountain(text(...filler.flatMap((line) => [line, '']), 'ANNA', 'One, and two, and three, and then a long while of nothing at all, before the end.', '', 'BEN ^', 'Four.')).elements);
+    expect(pages).toHaveLength(2);
+    const second = pages[1]?.lines ?? [];
+    expect(second.map((line) => line.text)).toEqual(expect.arrayContaining(['ANNA', 'BEN', 'Four.']));
+    expect(pages[0]?.lines.some((line) => line.text === 'ANNA')).toBe(false);
+  });
+
+  it('lays a pair taller than a page as two blocks in sequence, split by the dialogue rules', () => {
+    const speech = Array.from({ length: 70 }, (_, i) => `Sentence ${i} of a very long speech.`).join(' ');
+    const pages = paginate(parseFountain(text('ANNA', speech, '', 'BEN ^', 'Short.')).elements);
+    const lines = pages.flatMap((page) => page.lines);
+    expect(lines.find((line) => line.text === 'ANNA')?.x).toBeCloseTo(LAYOUT.marginLeft + LAYOUT.indent.character * LAYOUT.charWidth, 5);
+    expect(lines.some((line) => line.kind === 'more')).toBe(true);
+    expect(lines.find((line) => line.text === 'BEN')?.x).toBeCloseTo(LAYOUT.marginLeft + LAYOUT.indent.character * LAYOUT.charWidth, 5);
+  });
+
+  it('keeps a transition after a pair with the pair', () => {
+    const pages = paginate(parseFountain(text(PAIR, '', 'CUT TO:')).elements);
+    expect(pages).toHaveLength(1);
+    expect(pages[0]?.lines.at(-1)).toMatchObject({ kind: 'transition', text: 'CUT TO:' });
   });
 });
 

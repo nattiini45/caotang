@@ -13,23 +13,44 @@
  * Every renderer called here is pure and synchronous. So a media compile runs in the synchronous half of the
  * pipeline, and a gate that refuses throws before anything is reserved. The bus reports that refusal as the
  * port's error, with nothing written and no undo group (exporter.md §2; store/commands.ts `ExportCommandPort`).
+ *
+ * The screenplay PDF is drawn later. Its pagination runs here, so its gate and its page count are
+ * known in the plan; the drawing waits for the font, which is loaded lazily (screenplay.md §5.3), so the file
+ * carries a `bytes` render that the queue runs, as it runs the DOCX and EPUB renderers. The contact sheet
+ * (storyboard.md §6) is drawn the same way: its page plan runs here, and its pictures are read when it renders.
  */
 
-import { renderFdx, renderFountain, isScreenplayKind } from '@caotang/screenplay';
-import { exportCsv, exportInkJson, isDialogueNodeType, readDialogueMeta, toCsv, type DialogueSource, type TableRow } from '@caotang/dialogue';
+import { drawPdf, layoutPdf, loadCjkFallback, loadCourierPrime, loadEmojiFallback, renderFdx, renderFountain, isScreenplayKind, PDF_MIME } from '@caotang/screenplay';
+import {
+  TABLE_COLUMNS,
+  exportCsv,
+  exportInkJson,
+  isDialogueNodeType,
+  readDialogueMeta,
+  toCsv,
+  toYarnCsv,
+  type DialogueSource,
+  type EngineTarget,
+  type TableRow,
+} from '@caotang/dialogue';
 import { countBody, getBody, nodeById, type ProjectState, type TreeNode } from '@caotang/store';
 import {
   exportNumbers,
   guardFormula,
+  planContactSheet,
   isPlainObject,
   isShotNode,
   kindOf,
   readShotMeta,
+  SHOT_LIST_COLUMNS,
   renderShotListCsv,
   shotFieldOf,
+  shotListRows,
   shotsInBinderOrder,
   walkBinder,
   type DialogueCoverage,
+  type PageSize,
+  type SheetImageStatus,
 } from '@caotang/storyboard';
 import {
   VIDEO_TEMPLATE_IDS,
@@ -51,7 +72,11 @@ import {
   coherenceReportJson,
   coherenceReportMarkdown,
 } from './coherence-report.js';
+import type { RenderedContents } from './emit.js';
 import { flatten, type FlattenResult } from './flatten.js';
+import type { FontLoader } from './cjk-font.js';
+import { drawContactSheet } from './render-contact-sheet.js';
+import { XLSX_MIME, prepareSheet, renderXlsx, type XlsxCell, type XlsxSheet } from './render-xlsx.js';
 import { fileStem, suffixName } from './template.js';
 import type { FlatBlock, MediaFormat } from './types.js';
 import { stripXmlIllegal } from './xml-text.js';
@@ -74,25 +99,45 @@ export interface MediaRequest {
   readonly date: string;
   /** Whether the title page is on, from the recipe or the template. Only the screenplay formats print one. */
   readonly titlePage: boolean;
+  /** The screenplay PDF's scene numbers (screenplay.md §5.3). Absent is off. Only `pdf` reads it. */
+  readonly sceneNumbers?: 'off' | 'left' | 'right' | 'both';
+  /** `(MORE)` and `(CONT'D)` across a page break in the screenplay PDF. Absent is on. Only `pdf` reads it. */
+  readonly continued?: boolean;
   /** The stem a single-file artifact is named by: the recipe's name, or the output title. */
   readonly base: string;
   /** The vendor template a `promptpack` is written for. Every other format ignores it. */
   readonly vendor?: string;
   /**
    * The subtitle-style character limit the dialogue table's `charLimit` column carries (dialogue-narrative.md §4). Absent or
-   * null leaves the column empty, which is unconstrained. Only `dialogue-csv` reads it.
+   * null leaves the column empty, which is unconstrained. Only the dialogue table (`dialogue-csv`, `dialogue-xlsx`) reads it.
    */
   readonly charLimit?: number | null;
   /** Stored assets by id, with their file names (storyboard.md §2.1). The exporter reads these synchronously. */
   readonly assets: ReadonlyMap<string, AssetRecord>;
+  /**
+   * Reads one file of the project's `assets/` store by its path (`assets/<fileName>`), or gives `null` when the store does not hold
+   * it. Only the contact sheet reads picture bytes, and it reads them when its file renders, after the plan. Without it, every
+   * picture on the sheet shows its caption, and the log says so.
+   */
+  readonly readAsset?: (path: string) => Promise<Uint8Array | null>;
+  /** The contact sheet's paper, A4 or US Letter (storyboard.md §6). Absent is A4. Only `contact-sheet-pdf` reads it. */
+  readonly pageSize?: PageSize;
+  /** The moment the compile ran, in ms. The contact sheet's PDF dates are set from it. Absent is now. */
+  readonly at?: number;
+  /** Reads the contact sheet's fallback font for text outside Latin script (./cjk-font.ts). Only `contact-sheet-pdf` reads it. */
+  readonly loadFallbackFont?: FontLoader;
+  /** Reads the contact sheet's emoji font (./emoji-font.ts). Only `contact-sheet-pdf` reads it, and only for a sheet with emoji. */
+  readonly loadEmojiFont?: FontLoader;
 }
 
-/** One file the compile writes. `name` has no folder; the emitter places it in `exports/`. */
-export interface MediaFile {
-  readonly name: string;
-  readonly mimeType: string;
-  readonly text: string;
-}
+/**
+ * One file the compile writes. `name` has no folder; the emitter places it in `exports/`. A text file carries its text. A
+ * binary file (the screenplay PDF, a spreadsheet, the contact sheet's PDF) carries `bytes`, which renders it in the queue,
+ * after the plan has accepted the compile. A render may hand back compile-log notes with its contents (the contact sheet does).
+ */
+export type MediaFile =
+  | { readonly name: string; readonly mimeType: string; readonly text: string; readonly bytes?: never }
+  | { readonly name: string; readonly mimeType: string; readonly text?: never; readonly bytes: () => Promise<RenderedContents> };
 
 /** What a media compile produced, and the counts and notes its log row carries. */
 export interface MediaOutput {
@@ -121,11 +166,19 @@ export function renderMedia(request: MediaRequest): MediaOutput {
       return dialogueCsvOutput(request);
     case 'shot-list-csv':
       return shotListOutput(request);
+    case 'dialogue-xlsx':
+      return dialogueXlsxOutput(request);
+    case 'shot-list-xlsx':
+      return shotListXlsxOutput(request);
+    case 'contact-sheet-pdf':
+      return contactSheetOutput(request);
     case 'promptpack':
       return promptPackOutput(request);
     case 'coherence-md':
     case 'coherence-json':
       return coherenceReportOutput(request);
+    case 'pdf':
+      return pdfOutput(request);
   }
 }
 
@@ -253,6 +306,49 @@ function fountainOutput(request: MediaRequest): MediaOutput {
   };
 }
 
+/**
+ * The screenplay PDF (screenplay.md §5.3). The selection, the gate and the pagination are the plan's, so a refusal writes
+ * nothing and the log row can give the page count. The file is drawn in the queue, with Courier Prime embedded, and the CJK and emoji fallbacks when the script needs them.
+ */
+function pdfOutput(request: MediaRequest): MediaOutput {
+  const { flat, left } = screenplayBlocks(request);
+  requireScenes('pdf', flat, left);
+  const layout = layoutPdf(flat.blocks, {
+    title: request.title,
+    author: request.author,
+    date: request.date,
+    synopses: synopsesOf(request.state),
+    titlePage: request.titlePage,
+    sceneNumbers: request.sceneNumbers ?? 'off',
+    continued: request.continued ?? true,
+  });
+  const pages = layout.scriptPageCount;
+  const titled = layout.pages.length > pages ? ', and a title page' : '';
+  return {
+    files: [
+      {
+        name: `${request.base}.pdf`,
+        mimeType: PDF_MIME,
+        bytes: async () => {
+          const [font, cjk, emoji] = await Promise.all([loadCourierPrime(), loadCjkFallback(layout), loadEmojiFallback(layout)]);
+          return drawPdf(layout, font, cjk, emoji);
+        },
+      },
+    ],
+    blockCount: flat.blocks.length,
+    chapterCount: flat.chapterCount,
+    sceneCount: flat.sceneCount,
+    wordCount: flat.wordCount,
+    skippedDocs: flat.skippedDocs,
+    notes: [
+      ...flat.notes,
+      ...left,
+      ...layout.notes,
+      `pdf: ${pages} script ${pages === 1 ? 'page' : 'pages'}${titled}, about ${pages} ${pages === 1 ? 'minute' : 'minutes'} of screen time at a page a minute`,
+    ],
+  };
+}
+
 /** The flattened blocks with every code point XML 1.0 forbids removed from their text (xml-text.ts, the DOCX and EPUB rule). */
 function xmlSafeBlocks(blocks: readonly FlatBlock[]): FlatBlock[] {
   return blocks.map((block) => {
@@ -298,10 +394,29 @@ function dialogueContainers(request: MediaRequest): TreeNode[] {
   return selectedNodes(request.state, request.includeRootIds).filter((node) => isDialogueNodeType(node.type));
 }
 
+/** An engine target in the words the compile log uses (the Inspector's labels, dialogue-narrative.md §2.1). */
+const TARGET_WORDS: Readonly<Record<EngineTarget, string>> = {
+  'ink-json': 'Ink, compiled to JSON',
+  'yarn-csv': 'the Yarn string table',
+  'generic-csv': 'a CSV table for any engine',
+};
+
 /**
- * One compiled story per container (`<title>.ink.json`). The gate is the spec's: a container whose body does
- * not compile with zero errors refuses the whole compile, and every such container is named. Warnings do not
- * block; they are carried into the log verbatim.
+ * The file name of one compiled story: `<title>.ink.json`, or `<title>.<locale>.ink.json` when the container sets its own
+ * locale (`locBaseline`), so stories written in different languages sit side by side. A container with no locale of its own
+ * keeps the plain name: the project's language names no file.
+ */
+export function inkJsonFileName(title: string, locBaseline: string | undefined): string {
+  const locale = locBaseline === undefined || locBaseline.trim() === '' ? '' : fileStem(locBaseline);
+  return locale === '' ? `${fileStem(title)}.ink.json` : `${fileStem(title)}.${locale}.ink.json`;
+}
+
+/**
+ * One compiled story per container (`<title>.ink.json`, with the container's locale in the name when it sets one). The gate
+ * is the spec's: a container whose body does not compile with zero errors refuses the whole compile, and every such
+ * container is named. Warnings do not block; they are carried into the log verbatim. The compiled JSON is inkjs's own: an
+ * engine target or a locale never changes it. A container whose engine target is a table is still compiled, because the
+ * recipe carries the truth (§2.1), and the log says so.
  */
 function inkJsonOutput(request: MediaRequest): MediaOutput {
   const containers = dialogueContainers(request);
@@ -314,12 +429,18 @@ function inkJsonOutput(request: MediaRequest): MediaOutput {
   let words = 0;
   for (const node of containers) {
     const body = getBody(request.state, node.id);
+    const read = readDialogueMeta(node.dialogue);
     const compiled = exportInkJson(node.id, body);
     if (!compiled.ok) {
       reasons.push(`"${node.title}" does not compile: ${compiled.errors.map((error) => error.text).join(' ')}`);
       continue;
     }
-    files.push({ name: `${fileStem(node.title)}.ink.json`, mimeType: JSON_MIME, text: compiled.json });
+    files.push({ name: inkJsonFileName(node.title, read.meta.locBaseline), mimeType: JSON_MIME, text: compiled.json });
+    notes.push(...read.notes.map((note) => `"${node.title}": ${note}`));
+    const target = read.meta.engineTarget;
+    if (target !== undefined && target !== 'ink-json') {
+      notes.push(`"${node.title}": its engine target is ${TARGET_WORDS[target]}; this compile writes the Ink story, as it was asked to`);
+    }
     notes.push(...compiled.notes.map((warning) => `ink warning in "${node.title}": ${warning}`));
     words += countBody(body).words;
   }
@@ -339,30 +460,73 @@ function inkJsonOutput(request: MediaRequest): MediaOutput {
  * The dialogue table's CSV: the table's own writer (`toCsv`, dialogue table.ts) over the rows, with the formula guard the
  * shot list and the prompt pack apply to their text cells. The table's writer quotes but does not guard, and its text
  * comes from manuscript and imported Ink, so the guard is applied here, to the speaker, the text and the context. The
- * line id is not guarded: the parser admits only ids of the minted `l_` form, and none of them opens with a trigger.
+ * line id is not guarded: the parser admits only ids of the minted `l_` form, and none of them opens with a trigger. The
+ * `locale` column follows §6's five: each row's locale, the container's `locBaseline` or the project's language. Both are
+ * read from the project file, where a hand edit can put any non-empty string, so the locale is guarded too.
  */
 export function dialogueCsv(rows: readonly TableRow[]): string {
   return toCsv(
-    rows.map((row) => ({ ...row, speaker: guardFormula(row.speaker), text: guardFormula(row.text), context: guardFormula(row.context) })),
+    rows.map((row) => ({
+      ...row,
+      speaker: guardFormula(row.speaker),
+      text: guardFormula(row.text),
+      context: guardFormula(row.context),
+      locale: guardFormula(row.locale),
+    })),
+    { includeLocale: true },
   );
+}
+
+/** The dialogue table's rows, checked against the spec's gate, with the counts and notes its log row carries. */
+interface DialogueTable {
+  readonly rows: readonly TableRow[];
+  readonly containerCount: number;
+  readonly words: number;
+  readonly notes: readonly string[];
+  readonly yarnIds: ReadonlySet<string>;
+  readonly titles: ReadonlyMap<string, string>;
+  readonly limit: number | null | undefined;
+  readonly inkTargetNotes: readonly string[];
+}
+
+/**
+ * The Yarn Spinner strings file for the rows of `yarn-csv` containers (`toYarnCsv`, dialogue table.ts), with the same formula
+ * guard on the cells that come from hand-editable strings: the language (the locale), the text, the file and the comment. The
+ * guard is for a spreadsheet that opens the file. The id and node cells are left unguarded on purpose: only minted `l_` ids and
+ * identifier-syntax knot names parse, so neither can start with a trigger character. The apostrophe is written into the cell: in the text it starts the line's
+ * content (a known limit in the changelog and the guide); in the language it changes the locale code; in the file and the
+ * comment it stays in the metadata.
+ */
+export function dialogueYarnCsv(rows: readonly TableRow[], titleOf: (containerId: string) => string): string {
+  return toYarnCsv(rows, { fileOf: titleOf, cell: guardFormula });
+}
+
+/** The project's language, the locale of a container that sets none (dialogue-narrative.md §2.1). */
+function projectLocale(state: ProjectState): string {
+  return state.manifest.project.language?.trim() ?? '';
 }
 
 /**
  * The dialogue table as RFC 4180 CSV, one row per speakable line and choice label (dialogue-narrative.md §6).
  * The gate is the spec's: every row has a line id and no id is used twice. Ids are minted in the Ink text by
  * the dialogue tools, never here, so a table with an unkeyed row is refused and the rows are named.
+ *
+ * Each container's engine target picks the file its rows go to. A `yarn-csv` container's rows go to a Yarn Spinner strings
+ * file, `<base> (dialogue, Yarn).csv`. Every other container's rows, with the `generic-csv` target, the `ink-json` target or
+ * none, go to the dialogue table, `<base> (dialogue).csv`. A selection that holds both kinds writes both files. Every row
+ * carries its locale: the container's `locBaseline`, else the project's language.
  */
-function dialogueCsvOutput(request: MediaRequest): MediaOutput {
+function dialogueTable(request: MediaRequest, format: 'dialogue-csv' | 'dialogue-xlsx'): DialogueTable {
   const containers = dialogueContainers(request);
   if (containers.length === 0) {
-    throw new MediaRefusedError('dialogue-csv', ['the selection holds no dialogue container, so there is no table to write']);
+    throw new MediaRefusedError(format, ['the selection holds no dialogue container, so there is no table to write']);
   }
   const limit = request.charLimit;
   if (limit !== undefined && limit !== null && (!Number.isInteger(limit) || limit < 1)) {
-    throw new MediaRefusedError('dialogue-csv', [`the character limit must be a whole number above zero, got ${String(limit)}`]);
+    throw new MediaRefusedError(format, [`the character limit must be a whole number above zero, got ${String(limit)}`]);
   }
-  // Each container's own settings (its default speaker) are read here, so the table names the speaker a line with no
-  // `Name:` prefix belongs to. A setting the reader cannot use is dropped by it and reported in the compile's notes.
+  // Each container's own settings (its default speaker, its locale, its engine target) are read here. A setting the reader
+  // cannot use is dropped by it and reported in the compile's notes.
   const reads = containers.map((node) => readDialogueMeta(node.dialogue));
   const sources: DialogueSource[] = containers.map((node, i) => ({
     id: node.id,
@@ -370,24 +534,96 @@ function dialogueCsvOutput(request: MediaRequest): MediaOutput {
     body: getBody(request.state, node.id),
     meta: reads[i]?.meta ?? {},
   }));
-  const table = exportCsv(sources, { entries: request.state.manifest.codex ?? [], charLimit: limit ?? null });
+  const locale = projectLocale(request.state);
+  const table = exportCsv(sources, { entries: request.state.manifest.codex ?? [], charLimit: limit ?? null, locale });
+  const titles = new Map(containers.map((node) => [node.id, node.title] as const));
   if (!table.ok) {
-    const titles = new Map(containers.map((node) => [node.id, node.title] as const));
-    throw new MediaRefusedError('dialogue-csv', [
+    throw new MediaRefusedError(format, [
       ...table.missing.map((row) => `"${titles.get(row.container) ?? row.container}" line ${row.line} has no line id`),
       ...table.duplicates.map((id) => `line id ${id} is on more than one line`),
     ]);
   }
-  const words = table.rows.reduce((sum, row) => sum + countBody(row.text).words, 0);
+  const yarnIds = new Set(containers.filter((_, i) => reads[i]?.meta.engineTarget === 'yarn-csv').map((node) => node.id));
+  const notes = reads.flatMap((read, i) => read.notes.map((note) => `"${containers[i]?.title ?? ''}": ${note}`));
+  if (table.rows.some((row) => row.locale === '')) {
+    notes.push('a container has no locale and the project has no language, so its rows have an empty locale');
+  }
   return {
-    files: [{ name: `${request.base} (dialogue).csv`, mimeType: CSV_MIME, text: dialogueCsv(table.rows) }],
+    rows: table.rows,
+    containerCount: containers.length,
+    words: table.rows.reduce((sum, row) => sum + countBody(row.text).words, 0),
+    notes,
+    yarnIds,
+    titles,
+    limit,
+    inkTargetNotes: containers.flatMap((node, i) =>
+      reads[i]?.meta.engineTarget === 'ink-json'
+        ? [`"${node.title}": its engine target is ${TARGET_WORDS['ink-json']}; its lines are in the dialogue table, as this compile asks`]
+        : [],
+    ),
+  };
+}
+
+/**
+ * The dialogue table as RFC 4180 CSV, one row per speakable line and choice label (dialogue-narrative.md §6). Each container's
+ * engine target picks the file its rows go to: a `yarn-csv` container's rows go to a Yarn Spinner strings file,
+ * `<base> (dialogue, Yarn).csv`, and every other container's rows to the dialogue table, `<base> (dialogue).csv`. A selection
+ * that holds both kinds writes both files. Every row carries its locale.
+ */
+function dialogueCsvOutput(request: MediaRequest): MediaOutput {
+  const table = dialogueTable(request, 'dialogue-csv');
+  const { yarnIds, titles, limit } = table;
+  const yarnRows = table.rows.filter((row) => yarnIds.has(row.container));
+  const tableRows = table.rows.filter((row) => !yarnIds.has(row.container));
+  const files: MediaFile[] = [];
+  if (yarnIds.size < table.containerCount) {
+    files.push({ name: `${request.base} (dialogue).csv`, mimeType: CSV_MIME, text: dialogueCsv(tableRows) });
+  }
+  if (yarnIds.size > 0) {
+    files.push({
+      name: `${request.base} (dialogue, Yarn).csv`,
+      mimeType: CSV_MIME,
+      text: dialogueYarnCsv(yarnRows, (id) => titles.get(id) ?? id),
+    });
+  }
+  const notes = [...table.notes, ...table.inkTargetNotes];
+  if (yarnIds.size > 0 && limit !== undefined && limit !== null) {
+    notes.push('the Yarn strings file has no character limit column, so the limit is not in it');
+  }
+  return {
+    files,
     blockCount: table.rows.length,
     chapterCount: 0,
-    sceneCount: containers.length,
-    wordCount: words,
+    sceneCount: table.containerCount,
+    wordCount: table.words,
     skippedDocs: [],
-    notes: reads.flatMap((read, i) => read.notes.map((note) => `"${containers[i]?.title ?? ''}": ${note}`)),
+    notes,
   };
+}
+
+/**
+ * The dialogue table as a spreadsheet: the CSV's columns and rows, in one sheet (dialogue-narrative.md §4, the XLSX at the
+ * spreadsheet gate). The character limit is a number cell. The text is written as typed: a spreadsheet does not evaluate a
+ * text cell, so it needs no apostrophe.
+ */
+function dialogueXlsxOutput(request: MediaRequest): MediaOutput {
+  const table = dialogueTable(request, 'dialogue-xlsx');
+  const rows: XlsxCell[][] = table.rows.map((row) => [row.lineId, row.speaker, row.text, row.context, row.charLimit, row.locale]);
+  const prepared = prepareSheet({ name: 'Dialogue', title: `${request.title} (dialogue)`, columns: [...TABLE_COLUMNS, 'locale'], rows });
+  return {
+    files: [xlsxFile(`${request.base} (dialogue).xlsx`, prepared.sheet)],
+    blockCount: table.rows.length,
+    chapterCount: 0,
+    sceneCount: table.containerCount,
+    wordCount: table.words,
+    skippedDocs: [],
+    notes: [...table.notes, ...table.inkTargetNotes, ...prepared.notes],
+  };
+}
+
+/** A spreadsheet file, rendered when the emitter's queue reaches it. */
+function xlsxFile(name: string, sheet: XlsxSheet): MediaFile {
+  return { name, mimeType: XLSX_MIME, bytes: () => renderXlsx(sheet) };
 }
 
 /* ------------------------------------------------------------------ *
@@ -417,10 +653,33 @@ function shotListOutput(request: MediaRequest): MediaOutput {
 }
 
 /**
+ * The shot list as a spreadsheet: the CSV's columns and rows, in one sheet (storyboard.md §6, the XLSX variant at the
+ * spreadsheet gate, §8 A4). The shot number and the duration are number cells; the text is written as typed.
+ */
+function shotListXlsxOutput(request: MediaRequest): MediaOutput {
+  const fileNames = new Map([...request.assets].map(([id, asset]) => [id, asset.fileName] as const));
+  const listed = shotListRows(request.state, request.includeRootIds, fileNames);
+  if (listed.rows.length === 0) {
+    throw new MediaRefusedError('shot-list-xlsx', ['the selection holds no shot, so there is no shot list to write']);
+  }
+  const rows: XlsxCell[][] = listed.rows.map((row) => SHOT_LIST_COLUMNS.map((column) => row[column]));
+  const prepared = prepareSheet({ name: 'Shot list', title: `${request.title} (shot list)`, columns: [...SHOT_LIST_COLUMNS], rows });
+  return {
+    files: [xlsxFile(`${request.base} (shot list).xlsx`, prepared.sheet)],
+    blockCount: listed.rows.length,
+    chapterCount: 0,
+    sceneCount: 0,
+    wordCount: 0,
+    skippedDocs: [],
+    notes: [...listed.notes, ...prepared.notes, ...bareShotNotes(request)],
+  };
+}
+
+/**
  * A shot with no metadata on record lists with every column but its number blank, and the renderer writes it so. The
  * log says so, because a shot the writer filled in and the store did not keep looks the same as one nobody filled in.
  */
-function bareShotNotes(request: MediaRequest): string[] {
+function bareShotNotes(request: MediaRequest, consequence = 'its columns are blank'): string[] {
   const shots = shotsInBinderOrder(request.state, request.includeRootIds);
   const numbers = exportNumbers(shots);
   return shots
@@ -428,7 +687,83 @@ function bareShotNotes(request: MediaRequest): string[] {
       const raw = shotFieldOf(node);
       return raw === undefined || raw === null;
     })
-    .map((node) => `shot ${numbers.get(node.id) ?? 0}: no shot metadata is on record, so its columns are blank`);
+    .map((node) => `shot ${numbers.get(node.id) ?? 0}: no shot metadata is on record, so ${consequence}`);
+}
+
+/* ------------------------------------------------------------------ *
+ * The production format: the contact sheet (storyboard.md §6)
+ * ------------------------------------------------------------------ */
+
+/** The header the contact sheet prints on each page, filled from the template variables (storyboard.md §6). */
+export const CONTACT_SHEET_HEADER = '{project} — {storyboard} — {date}';
+
+/** Whether a stored picture can be drawn on the sheet: PNG and JPEG are embedded; a WebP file and a missing one show the caption. */
+function sheetImageStatus(assets: ReadonlyMap<string, AssetRecord>, assetId: string): SheetImageStatus {
+  const record = assets.get(assetId);
+  if (record === undefined) {
+    return { drawn: false, note: `image ${assetId} is not in assets/, so its cards show the caption` };
+  }
+  if (/\.webp$/i.test(record.fileName)) {
+    return { drawn: false, note: `image ${assetId} is a WebP file, which the PDF cannot embed, so its cards show the caption` };
+  }
+  return { drawn: true };
+}
+
+/**
+ * The contact sheet as a PDF: a grid of shot cards in binder order, each with its picture, number chip, spec row and action
+ * lines, paginated on A4 or US Letter (storyboard.md §6). The page plan is made here, synchronously, so the gate (a selection
+ * with no shot) refuses before anything is reserved; the picture bytes are read and the PDF is drawn when the file renders.
+ */
+function contactSheetOutput(request: MediaRequest): MediaOutput {
+  const shots = shotsInBinderOrder(request.state, request.includeRootIds);
+  if (shots.length === 0) {
+    throw new MediaRefusedError('contact-sheet-pdf', ['the selection holds no shot, so there is no contact sheet to draw']);
+  }
+  const pageSize = request.pageSize ?? 'A4';
+  const planned = planContactSheet(request.state, request.includeRootIds, (assetId) => sheetImageStatus(request.assets, assetId), {
+    pageSize,
+    headerTemplate: CONTACT_SHEET_HEADER,
+    project: request.title,
+    date: request.date,
+  });
+  const readAsset = request.readAsset;
+  const notes = [...planned.notes];
+  if (readAsset === undefined && planned.pictures.size > 0) {
+    notes.push('contact sheet: this compile cannot read the pictures, so every card shows its caption');
+  }
+  const pages = planned.plan.pages.length;
+  notes.push(`contact sheet: ${pages} ${pages === 1 ? 'page' : 'pages'} of ${planned.plan.cardsPerPage} shots each, ${pageSize}`);
+  const at = new Date(request.at ?? Date.now());
+  const title = planned.plan.pages[0]?.title.text ?? request.title;
+  return {
+    files: [
+      {
+        name: `${request.base} (contact sheet).pdf`,
+        mimeType: PDF_MIME,
+        bytes: () =>
+          drawContactSheet({
+            plan: planned.plan,
+            pictures: readAsset === undefined ? new Map() : planned.pictures,
+            readPicture: async (assetId) => {
+              const record = request.assets.get(assetId);
+              if (readAsset === undefined || record === undefined) return null;
+              return readAsset(`assets/${record.fileName}`);
+            },
+            title,
+            ...(request.author.trim() === '' ? {} : { author: request.author }),
+            ...(request.loadFallbackFont === undefined ? {} : { loadFallbackFont: request.loadFallbackFont }),
+            ...(request.loadEmojiFont === undefined ? {} : { loadEmojiFont: request.loadEmojiFont }),
+            at,
+          }),
+      },
+    ],
+    blockCount: shots.length,
+    chapterCount: 0,
+    sceneCount: 0,
+    wordCount: 0,
+    skippedDocs: [],
+    notes: [...notes, ...bareShotNotes(request, 'its card shows its number and "No image", with no camera details or action')],
+  };
 }
 
 /* ------------------------------------------------------------------ *

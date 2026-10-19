@@ -170,6 +170,47 @@ describe('manifest serializer', () => {
     }
   });
 
+  it('keeps the contact sheet’s paper size, A4 or Letter, through a save and a load, and drops any other value with a warning', () => {
+    for (const good of ['A4', 'Letter'] as const) {
+      const m = rich();
+      m.recipes = [{ name: 'sheets', includeRootIds: ['manuscript'], format: 'contact-sheet-pdf', options: { pageSize: good } }];
+      const reloaded = JSON.parse(serializeManifest(m)) as Manifest;
+      expect(reloaded.recipes?.[0]?.options).toEqual({ pageSize: good });
+      const r = validateManifest(reloaded, { docFiles: [] });
+      expect(r.warnings.map((w) => w.path), good).not.toContain('recipes[0].options');
+      expect((r.manifest as Manifest).recipes?.[0]?.options).toEqual({ pageSize: good });
+    }
+    const m = rich();
+    m.recipes = [{ name: 'sheets', includeRootIds: ['manuscript'], format: 'contact-sheet-pdf', options: { pageSize: 'A3' as unknown as 'A4' } }];
+    expect((JSON.parse(serializeManifest(m)) as Manifest).recipes?.[0]?.options).toEqual({});
+    const r = validateManifest(m, { docFiles: [] });
+    expect(r.warnings.map((w) => w.path)).toContain('recipes[0].options');
+  });
+
+  // screenplay.md §5.3: the screenplay PDF's options round-trip, and a placement the bus would refuse is dropped on load.
+  it('keeps the screenplay PDF’s scene numbers and continuation switch through a write and a load', () => {
+    const m = rich();
+    m.recipes = [{ name: 'shoot', includeRootIds: ['manuscript'], format: 'pdf', options: { sceneNumbers: 'both', continued: false } }];
+    const text = serializeManifest(m);
+    expect(text).toContain('"sceneNumbers": "both"');
+    expect(text).toContain('"continued": false');
+    const r = validateManifest(JSON.parse(text) as Manifest, { docFiles: [] });
+    expect(r.warnings.map((w) => w.path)).not.toContain('recipes[0].options');
+    expect((r.manifest as Manifest).recipes?.[0]?.options).toEqual({ sceneNumbers: 'both', continued: false });
+  });
+
+  it('drops recipe options with a scene-number placement the bus would refuse', () => {
+    const m = rich();
+    m.recipes = [{ name: 'shoot', includeRootIds: ['manuscript'], format: 'pdf', options: { sceneNumbers: 'middle' as unknown as 'left' } }];
+    const r = validateManifest(m, { docFiles: [] });
+    expect(r.warnings.map((w) => w.path)).toContain('recipes[0].options');
+    expect((r.manifest as Manifest).recipes?.[0]?.options).toBeUndefined();
+    // A write never puts the unknown placement in the file either.
+    const fresh = rich();
+    fresh.recipes = [{ name: 'shoot', includeRootIds: ['manuscript'], format: 'pdf', options: { sceneNumbers: 'middle' as unknown as 'left' } }];
+    expect((JSON.parse(serializeManifest(fresh)) as Manifest).recipes?.[0]?.options).toEqual({});
+  });
+
   it('writes only the recipe options a load keeps, so a value of another type cannot put unquoted text in the file', () => {
     const m = rich();
     m.recipes = [

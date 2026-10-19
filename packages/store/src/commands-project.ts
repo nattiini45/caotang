@@ -164,6 +164,9 @@ function optionsParamsOf(options: NonNullable<ExportRecipe['options']>): RecipeO
     ...(options.toc === undefined ? {} : { toc: options.toc }),
     ...(options.author === undefined ? {} : { author: options.author }),
     ...(options.charLimit === undefined ? {} : { charLimit: options.charLimit }),
+    ...(options.sceneNumbers === undefined ? {} : { sceneNumbers: options.sceneNumbers }),
+    ...(options.continued === undefined ? {} : { continued: options.continued }),
+    ...(options.pageSize === undefined ? {} : { pageSize: options.pageSize }),
   };
 }
 

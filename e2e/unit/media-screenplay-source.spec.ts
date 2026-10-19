@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { fillSegments, fountainSegments, type Segment } from '../../apps/desktop/src/media/source-decor.js';
 import { cueCompletion, cueNames, enterAfterCue, enterOnEmptyDialogue } from '../../apps/desktop/src/media/screenplay-keys.js';
+import { elementEntries, opensElementMenu } from '../../apps/desktop/src/media/element-menu.js';
 
 /** The text the segments draw, joined back together: a decoration must never change a character (screenplay.md §3). */
 function textOf(source: string, segments: readonly Segment[]): string {
@@ -155,5 +156,58 @@ test.describe('Tab completes a cue name', () => {
     const text = 'INT. HOUSE - DAY\n\n  EL';
     // The name starts after the two spaces, so the caret is two spaces and the five letters of "ELENA" past the line start.
     expect(cueCompletion(text, text.length, names)).toEqual({ text: 'INT. HOUSE - DAY\n\n  ELENA', caret: text.length + 3 });
+  });
+});
+
+test.describe('the element menu lists the elements and marks the line’s own', () => {
+  const BLOCK = ['INT. HOUSE - DAY', '', 'ANNA', 'Hello.'].join('\n');
+
+  test('lists the nine elements in order, each with its digit', () => {
+    const entries = elementEntries(BLOCK, BLOCK.indexOf('Hello'));
+    expect(entries.map((entry) => entry.label)).toEqual([
+      'Scene heading',
+      'Action',
+      'Character',
+      'Parenthetical',
+      'Dialogue',
+      'Transition',
+      'Centered',
+      'Note',
+      'Page break',
+    ]);
+    expect(entries.map((entry) => entry.shortcut)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
+  });
+
+  test('marks the element of the caret’s line, and only that one', () => {
+    const checked = (caret: number) => elementEntries(BLOCK, caret).filter((entry) => entry.checked).map((entry) => entry.type);
+    expect(checked(BLOCK.indexOf('Hello'))).toEqual(['dialogue']);
+    expect(checked(BLOCK.indexOf('ANNA'))).toEqual(['character']);
+    expect(checked(0)).toEqual(['scene_heading']);
+    // A blank line is no element yet.
+    expect(checked(BLOCK.indexOf('\n\n') + 1)).toEqual([]);
+  });
+
+  test('offers dialogue and a parenthetical only under a cue', () => {
+    const offered = (caret: number) => elementEntries(BLOCK, caret).filter((entry) => entry.edit !== null).map((entry) => entry.type);
+    expect(offered(BLOCK.indexOf('Hello'))).toContain('parenthetical');
+    expect(offered(0)).not.toContain('dialogue');
+    expect(offered(0)).not.toContain('parenthetical');
+  });
+
+  test('each entry carries the edit the engine makes', () => {
+    const paren = elementEntries(BLOCK, BLOCK.indexOf('Hello')).find((entry) => entry.type === 'parenthetical');
+    expect(paren?.edit?.text).toBe(['INT. HOUSE - DAY', '', 'ANNA', '(Hello.)'].join('\n'));
+  });
+
+  test('Ctrl+E and Cmd+E open it, and no other chord does', () => {
+    const key = (over: Partial<{ key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean }>) =>
+      opensElementMenu({ key: 'e', ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...over });
+    expect(key({ ctrlKey: true })).toBe(true);
+    expect(key({ metaKey: true })).toBe(true);
+    expect(key({ ctrlKey: true, key: 'E' })).toBe(true);
+    expect(key({})).toBe(false);
+    expect(key({ ctrlKey: true, shiftKey: true })).toBe(false);
+    expect(key({ ctrlKey: true, altKey: true })).toBe(false);
+    expect(key({ ctrlKey: true, key: 'r' })).toBe(false);
   });
 });

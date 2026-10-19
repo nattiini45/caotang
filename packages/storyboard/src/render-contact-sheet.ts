@@ -7,21 +7,44 @@
  *   chip and line of text comes out, in points with the origin at the top left. The plan has all the
  *   structure a contact sheet has (page count, capacity, reading order, what sits inside the page), and
  *   the tests check it directly.
- * - The **emitter** turns a plan into PDF bytes. It is an injected port. storyboard.md §6 gives this
- *   renderer the screenplay PDF's pattern, and screenplay.md §5.3 leaves that library's pick to the
- *   PDF-library benchmark. So no library is pinned here. {@link ContactSheetPdfRenderer.render} refuses with
- *   that reason until an emitter is supplied; {@link ContactSheetPdfRenderer.build} works without one,
- *   and returns the plan and the image bytes an emitter would be given.
+ * - The **emitter** turns a plan into PDF bytes, and this package names no PDF library. The PDF the app and the
+ *   MCP server write comes from `@caotang/exporter`'s `contact-sheet-pdf` format, which does not go through
+ *   {@link ContactSheetPdfRenderer}: it calls {@link planContactSheet} and draws that plan itself
+ *   (`drawContactSheet`, over `pdf-lib`, loaded lazily).
+ *   {@link ContactSheetPdfRenderer} takes the emitter as an injected port ({@link ContactSheetEmitter}), and no
+ *   package wires one into it today: {@link ContactSheetPdfRenderer.render} refuses without one, and
+ *   {@link ContactSheetPdfRenderer.build} works without one, returning the plan and the image bytes an emitter
+ *   would be given.
+ *
+ * {@link planContactSheet} is the plan from the project, with no reads: the caller says which pictures can be
+ * drawn. The exporter uses it, because a compile plans synchronously and reads the image bytes later.
+ *
+ * Each page's header carries the title (from the header template), the page label, and a summary line:
+ * the shot count, the animatic total and the shots left out of it for want of a duration (§2.2, the
+ * board header's three numbers).
  *
  * Text width is estimated, not measured. Helvetica averages about half an em per character, and the
- * layout uses {@link SHEET_LAYOUT}`.charWidthEm` of 0.55 so a wrapped line stays inside its card. An
- * estimate that errs wide is the safe error here: it wraps early rather than overflow.
+ * layout uses {@link SHEET_LAYOUT}`.charWidthEm` of 0.55 so a wrapped line stays inside its card. A wide
+ * character (Chinese, Japanese kana, Korean Hangul, full-width forms) counts one em
+ * ({@link SHEET_LAYOUT}`.wideCharWidthEm`), the width the PDF's CJK font gives it. An estimate that errs wide
+ * is the safe error here: it wraps early rather than overflow, and the emitter cuts with the real font.
+ *
+ * An emoji is measured, wrapped and cut as one unit however many code points it has (a ZWJ family, a flag, a keycap, a
+ * skin tone: `./emoji.ts`), and counts {@link SHEET_LAYOUT}`.emojiWidthEm`, the advance the PDF's emoji font gives it. A line
+ * may break between two emoji, as between two Chinese characters, and never inside one.
+ *
+ * Lines break at spaces, and between two Chinese or Japanese characters, since those scripts put no spaces
+ * between words. Korean is written with spaces, so a Hangul word breaks at its spaces, as Latin does. A closing
+ * mark (。、，」 and the like) stays on the line before it, and an opening mark (「（ and the like) on the line
+ * after it.
  */
 
 import { nodeById, type ArtifactFs, type ProjectState } from '@caotang/store';
 
+import { animaticTotals } from './animatic.js';
+import { graphemesOf, isEmojiCluster } from './emoji.js';
 import { readImage, type LoadedImage } from './assets.js';
-import { isStoryboardFolder, specRowOf } from './model.js';
+import { durationText, isStoryboardFolder, specRowOf } from './model.js';
 import { shotFieldOf } from './nodes.js';
 import { exportNumbers, shotsInBinderOrder } from './ordering.js';
 import { readShotMeta, storedOf } from './shot-meta.js';
@@ -51,32 +74,136 @@ export const SHEET_LAYOUT = {
   specFontSize: 8,
   actionFontSize: 8,
   headerFontSize: 11,
+  /** The header's second line: the shot count and the animatic total. */
+  summaryFontSize: 8,
   charWidthEm: 0.55,
+  /** The width of a wide (East Asian) character, in em: the advance the PDF's CJK font gives it. */
+  wideCharWidthEm: 1,
+  /** The width of an emoji, however many code points it has, in em: the PDF's emoji font (Noto Emoji) draws it 2600/2048 em across. */
+  emojiWidthEm: 1.3,
   chipHeight: 12,
 } as const;
 
 export const ELLIPSIS = '…';
 
+/**
+ * Whether a character is wide: drawn one em across, as East Asian scripts are. The ranges cover every Wide and Fullwidth code
+ * point of Unicode 15.1's East Asian Width property that is not an emoji (an emoji is measured on its own, wider still), by
+ * block: Hangul Jamo, the angle brackets 〈 and 〉 (U+2329, U+232A), the CJK radicals to Yi (with kana, bopomofo and the unified
+ * ideographs), Hangul syllables, the compatibility ideographs, the vertical and small forms, the full-width forms, the
+ * ideographic symbols, Tangut, Khitan, the kana supplements and Nüshu, the enclosed ideographic supplement, and the
+ * supplementary ideographic planes. Taken by block, the ranges also hold a few unassigned or narrow code points; those count
+ * wide too, which is the safe error (see the header).
+ */
+export function isWide(char: string): boolean {
+  const code = char.codePointAt(0) ?? 0;
+  return (
+    (code >= 0x1100 && code <= 0x115f) ||
+    code === 0x2329 ||
+    code === 0x232a ||
+    (code >= 0x2e80 && code <= 0xa4cf && code !== 0x303f) ||
+    (code >= 0xa960 && code <= 0xa97f) ||
+    (code >= 0xac00 && code <= 0xd7a3) ||
+    (code >= 0xf900 && code <= 0xfaff) ||
+    (code >= 0xfe10 && code <= 0xfe19) ||
+    (code >= 0xfe30 && code <= 0xfe6f) ||
+    (code >= 0xff00 && code <= 0xff60) ||
+    (code >= 0xffe0 && code <= 0xffe6) ||
+    (code >= 0x16fe0 && code <= 0x16fff) ||
+    (code >= 0x17000 && code <= 0x18cff) ||
+    (code >= 0x18d00 && code <= 0x18d7f) ||
+    (code >= 0x1aff0 && code <= 0x1b2ff) ||
+    (code >= 0x1f200 && code <= 0x1f2ff) ||
+    (code >= 0x20000 && code <= 0x3fffd)
+  );
+}
+
+/** Marks that must not start a line: closing brackets and quotes, and the comma, full stop and other marks after a word. */
+const NO_LINE_START = new Set([...'、。，．：；！？）」』】〕〉》〗〙〛｝］〟’”・ー々ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ…‥']);
+/** Narrow marks that must not start a line when they follow a wide character: `走进茶馆, orders` keeps the comma with 馆. */
+const NARROW_NO_LINE_START = new Set([...',.;:!?)]}%']);
+/** Marks that must not end a line: opening brackets and quotes. */
+const NO_LINE_END = new Set([...'（「『【〔〈《〖〘〚｛［〝‘“']);
+
 /** Estimated width of a run of text at a font size. See the header on why this is an estimate. */
 export function measureText(text: string, fontSize: number): number {
-  return [...text].length * fontSize * SHEET_LAYOUT.charWidthEm;
+  let ems = 0;
+  for (const cluster of graphemesOf(text)) {
+    if (isEmojiCluster(cluster)) ems += SHEET_LAYOUT.emojiWidthEm;
+    else for (const char of cluster) ems += isWide(char) ? SHEET_LAYOUT.wideCharWidthEm : SHEET_LAYOUT.charWidthEm;
+  }
+  return ems * fontSize;
 }
 
-function charsPerLine(maxWidth: number, fontSize: number): number {
-  return Math.max(1, Math.floor(maxWidth / (fontSize * SHEET_LAYOUT.charWidthEm)));
+/** A wrapped line may be this much wider than its box, for floating-point error, and still fit. */
+const FIT_EPSILON = 1e-6;
+
+function fits(text: string, maxWidth: number, fontSize: number): boolean {
+  return measureText(text, fontSize) <= maxWidth + FIT_EPSILON;
 }
 
-function cutTo(text: string, length: number): string {
-  return [...text].slice(0, length).join('');
+/** Hangul: wide, but a Korean word breaks at its spaces, not between its syllables. */
+function isHangul(char: string): boolean {
+  const code = char.codePointAt(0) ?? 0;
+  return (code >= 0x1100 && code <= 0x11ff) || (code >= 0x3130 && code <= 0x318f) || (code >= 0xa960 && code <= 0xa97f) || (code >= 0xac00 && code <= 0xd7af);
 }
 
 /**
- * Wraps text to a width in at most `maxLines` lines. Words wrap on spaces, a word longer than a line
- * is broken, and text past the last line is cut with an ellipsis on that line, so a reader sees that
- * more follows. Deterministic: the same text, width and size always give the same lines.
+ * The pieces a word may break between. A run of other characters is one piece; each Chinese or Japanese character, and each
+ * emoji, is a piece of its own, so a line may break between any two of them. A mark that must not start a line joins the
+ * piece before it, and one that must not end a line joins the piece after it. The word is read by grapheme cluster, so an
+ * emoji sequence or a letter with its marks is never split.
+ */
+function piecesOf(word: string): string[] {
+  const raw: string[] = [];
+  let narrow = '';
+  for (const char of graphemesOf(word)) {
+    if ((isWide(char) && !isHangul(char)) || isEmojiCluster(char) || NO_LINE_START.has(char) || NO_LINE_END.has(char)) {
+      if (narrow !== '') raw.push(narrow);
+      narrow = '';
+      raw.push(char);
+    } else {
+      narrow += char;
+    }
+  }
+  if (narrow !== '') raw.push(narrow);
+
+  const pieces: string[] = [];
+  let carry = '';
+  for (const piece of raw) {
+    if (NO_LINE_END.has(piece)) {
+      carry += piece;
+    } else if ((NO_LINE_START.has(piece) || NARROW_NO_LINE_START.has([...piece][0] ?? '')) && pieces.length > 0 && carry === '') {
+      appendToLast(pieces, piece);
+    } else {
+      pieces.push(carry + piece);
+      carry = '';
+    }
+  }
+  if (carry !== '') appendToLast(pieces, carry);
+  return pieces;
+}
+
+/** Joins text onto the last piece, or starts the first piece with it when there is none yet. */
+function appendToLast(pieces: string[], text: string): void {
+  const last = pieces.pop();
+  pieces.push(last === undefined ? text : last + text);
+}
+
+/** The longest start of `text` that fits the width, at least one grapheme cluster, so a line always moves on. */
+function longestFit(text: string, maxWidth: number, fontSize: number): string {
+  const chars = graphemesOf(text);
+  let keep = 1;
+  while (keep < chars.length && fits(chars.slice(0, keep + 1).join(''), maxWidth, fontSize)) keep += 1;
+  return chars.slice(0, keep).join('');
+}
+
+/**
+ * Wraps text to a width in at most `maxLines` lines. Words wrap on spaces and between wide characters (see the header), a
+ * piece longer than a line is broken, and text past the last line is cut with an ellipsis on that line, so a reader sees
+ * that more follows. Deterministic: the same text, width and size always give the same lines.
  */
 export function wrapText(text: string, maxWidth: number, fontSize: number, maxLines: number): string[] {
-  const capacity = charsPerLine(maxWidth, fontSize);
   const lines: string[] = [];
   let line = '';
   const flush = (): void => {
@@ -85,26 +212,30 @@ export function wrapText(text: string, maxWidth: number, fontSize: number, maxLi
   };
 
   for (const word of text.split(/\s+/).filter((part) => part !== '')) {
-    let rest = word;
-    while ([...rest].length > capacity) {
-      flush();
-      lines.push(cutTo(rest, capacity));
-      rest = [...rest].slice(capacity).join('');
-    }
-    const candidate = line === '' ? rest : `${line} ${rest}`;
-    if ([...candidate].length <= capacity) {
-      line = candidate;
-    } else {
-      flush();
-      line = rest;
+    let joiner = line === '' ? '' : ' ';
+    for (const piece of piecesOf(word)) {
+      let rest = piece;
+      if (fits(`${line}${joiner}${rest}`, maxWidth, fontSize)) {
+        line = `${line}${joiner}${rest}`;
+      } else {
+        flush();
+        while (!fits(rest, maxWidth, fontSize)) {
+          const head = longestFit(rest, maxWidth, fontSize);
+          lines.push(head);
+          rest = rest.slice(head.length);
+        }
+        line = rest;
+      }
+      joiner = '';
     }
   }
   flush();
 
   if (lines.length <= maxLines) return lines;
   const kept = lines.slice(0, maxLines);
-  const last = kept[maxLines - 1] ?? '';
-  kept[maxLines - 1] = `${cutTo(last, Math.max(0, capacity - 1))}${ELLIPSIS}`;
+  const chars = graphemesOf(kept[maxLines - 1] ?? '');
+  while (chars.length > 0 && !fits(`${chars.join('')}${ELLIPSIS}`, maxWidth, fontSize)) chars.pop();
+  kept[maxLines - 1] = `${chars.join('')}${ELLIPSIS}`;
   return kept;
 }
 
@@ -147,6 +278,11 @@ export interface PlacedCard {
   readonly spec: PlacedText;
   readonly action: readonly PlacedText[];
   readonly placeholder?: PlacedText;
+  /**
+   * The placeholder's text and place, present on every card. An emitter that cannot draw a planned picture (its
+   * bytes are gone, or the PDF engine cannot read them) draws this instead, so the card is never left blank.
+   */
+  readonly fallback: PlacedText;
 }
 
 export interface SheetPage {
@@ -154,6 +290,8 @@ export interface SheetPage {
   readonly index: number;
   readonly title: PlacedText;
   readonly pageLabel: PlacedText;
+  /** The header's second line, when the plan was given one: the shot count and the animatic total. */
+  readonly summary?: PlacedText;
   readonly cards: readonly PlacedCard[];
   /** Set on the single page of an empty sheet. */
   readonly emptyNote?: PlacedText;
@@ -182,6 +320,8 @@ export interface PaginateOptions {
   readonly columns?: number;
   /** The header text, already filled. Cut to one line, and to the room the page label leaves. */
   readonly headerText?: string;
+  /** The header's second line, on every page. Cut to one line of the content width. */
+  readonly summaryText?: string;
   readonly emptyText?: string;
 }
 
@@ -216,6 +356,8 @@ export function paginate(cards: readonly SheetCard[], options: PaginateOptions =
     const label = `Page ${index + 1} of ${pageCount}`;
     const labelWidth = measureText(label, SHEET_LAYOUT.headerFontSize);
     const headerLine = wrapText(options.headerText ?? '', Math.max(0, headerRoom - labelWidth), SHEET_LAYOUT.headerFontSize, 1)[0] ?? '';
+    const summaryLine =
+      options.summaryText === undefined ? undefined : (wrapText(options.summaryText, contentWidth, SHEET_LAYOUT.summaryFontSize, 1)[0] ?? '');
     const page = cards.slice(index * cardsPerPage, (index + 1) * cardsPerPage);
     const placed = page.map((card, slot) => placeCard(card, slot, columns, cardWidth, cardHeight, imageHeight));
     const emptyNote =
@@ -236,6 +378,16 @@ export function paginate(cards: readonly SheetCard[], options: PaginateOptions =
         y: margin + SHEET_LAYOUT.headerFontSize,
         fontSize: SHEET_LAYOUT.headerFontSize,
       },
+      ...(summaryLine === undefined
+        ? {}
+        : {
+            summary: {
+              text: summaryLine,
+              x: margin,
+              y: margin + SHEET_LAYOUT.headerFontSize + 4 + SHEET_LAYOUT.summaryFontSize,
+              fontSize: SHEET_LAYOUT.summaryFontSize,
+            },
+          }),
       cards: placed,
       ...(emptyNote !== undefined ? { emptyNote } : {}),
     });
@@ -263,14 +415,13 @@ function placeCard(
   const specY = y + imageHeight + gap + specFontSize;
   const specText = wrapText(card.specRow, cardWidth, specFontSize, 1)[0] ?? '';
   const actionText = wrapText(card.action, cardWidth, actionFontSize, actionLines);
-  const placeholder = card.image
-    ? undefined
-    : {
-        text: wrapText(card.placeholder, cardWidth - 2 * gap, actionFontSize, 1)[0] ?? '',
-        x: x + gap,
-        y: y + imageHeight / 2 + actionFontSize / 2,
-        fontSize: actionFontSize,
-      };
+  const fallback: PlacedText = {
+    text: wrapText(card.placeholder, cardWidth - 2 * gap, actionFontSize, 1)[0] ?? '',
+    x: x + gap,
+    y: y + imageHeight / 2 + actionFontSize / 2,
+    fontSize: actionFontSize,
+  };
+  const placeholder = card.image ? undefined : fallback;
 
   return {
     shotId: card.shotId,
@@ -288,6 +439,7 @@ function placeCard(
       fontSize: actionFontSize,
     })),
     ...(placeholder !== undefined ? { placeholder } : {}),
+    fallback,
   };
 }
 
@@ -305,8 +457,136 @@ export interface ContactSheetOptions {
   readonly headerTemplate?: string;
   readonly project?: string;
   readonly storyboard?: string;
-  /** The date `{date}` shows, as YYYY-MM-DD. Defaults to today. Pass it in tests. */
+  /** The date `{date}` shows, as YYYY-MM-DD. Wins over {@link now}; the exporter passes the writer's local day. */
+  readonly date?: string;
+  /** The moment `{date}` is taken from when no {@link date} is given (its UTC day). Defaults to now. Pass it in tests. */
   readonly now?: Date;
+}
+
+/** Whether a planned picture can be drawn, and, when it cannot, the note that says why. */
+export type SheetImageStatus = { readonly drawn: true } | { readonly drawn: false; readonly note: string };
+
+/** The plan of a contact sheet, with what it was built from: the notes, and the picture each drawn card points at. */
+export interface ContactSheetPlan {
+  readonly plan: SheetPlan;
+  readonly notes: readonly string[];
+  /** Shot id to the asset id of the picture its card draws. Only the cards whose picture {@link SheetImageStatus} said can be drawn. */
+  readonly pictures: ReadonlyMap<string, string>;
+  /** How many shots the sheet holds. */
+  readonly shotCount: number;
+}
+
+/**
+ * The spec row a contact-sheet card prints: the board's M-size row (§3.1), `shotSize · cameraAngle · cameraMovement ·
+ * durationSec s`, with `lens · transition` after it when they are set.
+ */
+export function sheetSpecRowOf(stored: Readonly<Record<string, unknown>>): string {
+  const parts = [specRowOf(stored)];
+  for (const field of ['lens', 'transition'] as const) {
+    const value = stored[field];
+    if (typeof value === 'string' && value.trim() !== '') parts.push(value.trim());
+  }
+  return parts.filter((part) => part !== '').join(' · ');
+}
+
+/**
+ * The header's summary line: the shot count, the animatic total, and how many shots are left out of it because they
+ * have no duration (§2.2). The board's header says the same three numbers. `selection` is read as a selection, as
+ * {@link animaticTotals} reads it: a folder stands for the shots under it, each shot counts once, and an id that is no
+ * shot counts for nothing, so the count and the total are always over the same shots.
+ */
+export function sheetSummaryOf(state: ProjectState, selection: readonly string[]): string {
+  const totals = animaticTotals(state, selection);
+  const count = totals.timedCount + totals.untimed.length;
+  const shots = `${count} ${count === 1 ? 'shot' : 'shots'}`;
+  const untimed = totals.untimed.length;
+  const left = untimed === 0 ? '' : ` (${untimed} ${untimed === 1 ? 'shot' : 'shots'} without a duration left out)`;
+  return `${shots} · ${durationText(totals.seconds)} s of animatic${left}`;
+}
+
+/**
+ * The plan of a contact sheet from the project, with no reads. `imageStatus` says, for each asset id a shot names,
+ * whether its picture can be drawn; a card whose picture cannot be drawn shows its caption (`imageAlt`), or "No image",
+ * and the note is kept once per asset. Cards are the shots under the selection in binder order, numbered 1 to n as the
+ * shot list numbers them.
+ */
+export function planContactSheet(
+  state: ProjectState,
+  selection: readonly string[] | undefined,
+  imageStatus: (assetId: string) => SheetImageStatus,
+  options: ContactSheetOptions = {},
+): ContactSheetPlan {
+  const notes: string[] = [];
+  for (const id of selection ?? []) {
+    if (nodeById(state, id) === undefined) notes.push(`no node "${id}" in the project, so nothing was drawn for it`);
+  }
+
+  const shots = shotsInBinderOrder(state, selection);
+  const numbers = exportNumbers(shots);
+  const pictures = new Map<string, string>();
+  const statuses = new Map<string, SheetImageStatus>();
+  const cards: SheetCard[] = [];
+
+  for (const node of shots) {
+    const read = readShotMeta(shotFieldOf(node));
+    const assetId = read.meta.image;
+    let hasImage = false;
+    if (assetId !== undefined) {
+      let status = statuses.get(assetId);
+      if (status === undefined) {
+        status = imageStatus(assetId);
+        statuses.set(assetId, status);
+        if (!status.drawn) notes.push(status.note);
+      }
+      if (status.drawn) {
+        hasImage = true;
+        pictures.set(node.id, assetId);
+      }
+    }
+    cards.push({
+      shotId: node.id,
+      shotNumber: numbers.get(node.id) ?? 0,
+      specRow: sheetSpecRowOf(storedOf(shotFieldOf(node)) ?? {}),
+      action: read.meta.action ?? '',
+      image: hasImage,
+      placeholder: read.meta.imageAlt ?? 'No image',
+    });
+  }
+
+  const storyboardName = options.storyboard ?? storyboardNameOf(state, selection, shots);
+  const date = options.date ?? (options.now ?? new Date()).toISOString().slice(0, 10);
+  const headerText = fillTemplate(options.headerTemplate ?? '{storyboard}', {
+    project: options.project ?? '',
+    storyboard: storyboardName,
+    date,
+  });
+
+  const plan = paginate(cards, {
+    ...(options.pageSize !== undefined ? { pageSize: options.pageSize } : {}),
+    ...(options.columns !== undefined ? { columns: options.columns } : {}),
+    headerText,
+    summaryText: sheetSummaryOf(
+      state,
+      shots.map((node) => node.id),
+    ),
+  });
+  return { plan, notes, pictures, shotCount: shots.length };
+}
+
+/**
+ * The name `{storyboard}` fills: the one storyboard folder the selection names, else the one storyboard every shot sits in,
+ * else "All shots".
+ */
+function storyboardNameOf(state: ProjectState, selection: readonly string[] | undefined, shots: readonly { readonly parentId: string | null }[]): string {
+  const single = selection?.length === 1 && selection[0] !== undefined ? nodeById(state, selection[0]) : undefined;
+  if (single !== undefined && isStoryboardFolder(single)) return single.title;
+  const parents = new Set(shots.map((node) => node.parentId));
+  if (parents.size === 1) {
+    const [parentId] = [...parents];
+    const parent = parentId === null || parentId === undefined ? undefined : nodeById(state, parentId);
+    if (parent !== undefined && isStoryboardFolder(parent)) return parent.title;
+  }
+  return 'All shots';
 }
 
 /** What an emitter is given: the plan, and the image bytes its cards point at. */
@@ -316,7 +596,7 @@ export interface ContactSheetDocument {
   readonly notes: readonly string[];
 }
 
-/** The PDF port. A later package supplies the library; nothing in this module names one. */
+/** The PDF port of {@link ContactSheetPdfRenderer}. Nothing in this module names a library, and no package wires one in today (see the header). */
 export interface ContactSheetEmitter {
   emit(document: ContactSheetDocument): Promise<Uint8Array>;
 }
@@ -338,57 +618,23 @@ export class ContactSheetPdfRenderer {
     selection?: readonly string[],
     options: ContactSheetOptions = {},
   ): Promise<ContactSheetDocument> {
-    const notes: string[] = [];
-    for (const id of selection ?? []) {
-      if (nodeById(state, id) === undefined) notes.push(`no node "${id}" in the project, so nothing was drawn for it`);
-    }
-
-    const shots = shotsInBinderOrder(state, selection);
-    const numbers = exportNumbers(shots);
     const images = new Map<string, LoadedImage>();
-    const missing = new Set<string>();
-    const cards: SheetCard[] = [];
-
-    for (const node of shots) {
-      const number = numbers.get(node.id) ?? 0;
-      const read = readShotMeta(shotFieldOf(node));
-      let hasImage = false;
-      const assetId = read.meta.image;
-      if (assetId !== undefined) {
-        const loaded = images.get(assetId) ?? (await readImage(fs, assetId));
-        if (loaded !== undefined) {
-          images.set(assetId, loaded);
-          hasImage = true;
-        } else if (!missing.has(assetId)) {
-          missing.add(assetId);
-          notes.push(`image ${assetId} could not be read from assets/, so its cards draw a placeholder`);
-        }
-      }
-      cards.push({
-        shotId: node.id,
-        shotNumber: number,
-        specRow: specRowOf(storedOf(shotFieldOf(node)) ?? {}),
-        action: read.meta.action ?? '',
-        image: hasImage,
-        placeholder: read.meta.imageAlt ?? 'No image',
-      });
+    for (const node of shotsInBinderOrder(state, selection)) {
+      const assetId = readShotMeta(shotFieldOf(node)).meta.image;
+      if (assetId === undefined || images.has(assetId)) continue;
+      const loaded = await readImage(fs, assetId);
+      if (loaded !== undefined) images.set(assetId, loaded);
     }
-
-    const single = selection?.length === 1 && selection[0] !== undefined ? nodeById(state, selection[0]) : undefined;
-    const storyboardName = options.storyboard ?? (single !== undefined && isStoryboardFolder(single) ? single.title : 'All shots');
-    const now = options.now ?? new Date();
-    const headerText = fillTemplate(options.headerTemplate ?? '{storyboard}', {
-      project: options.project ?? '',
-      storyboard: storyboardName,
-      date: now.toISOString().slice(0, 10),
-    });
-
-    const plan = paginate(cards, {
-      ...(options.pageSize !== undefined ? { pageSize: options.pageSize } : {}),
-      ...(options.columns !== undefined ? { columns: options.columns } : {}),
-      headerText,
-    });
-    return { plan, images, notes };
+    const planned = planContactSheet(
+      state,
+      selection,
+      (assetId) =>
+        images.has(assetId)
+          ? { drawn: true }
+          : { drawn: false, note: `image ${assetId} could not be read from assets/, so its cards draw a placeholder` },
+      options,
+    );
+    return { plan: planned.plan, images, notes: planned.notes };
   }
 
   /** The PDF bytes, when an emitter is wired. Refused with the reason otherwise, never a silent empty file. */
@@ -401,7 +647,7 @@ export class ContactSheetPdfRenderer {
     if (this.emitter === undefined) {
       return refuse(
         'pdf-engine-not-wired',
-        'the contact sheet is laid out, but no PDF engine is wired yet: the PDF library will be chosen after it is measured against real contact sheets. Use the shot list CSV for now.',
+        'the contact sheet is laid out, but no PDF engine is wired into this renderer: compile the contact-sheet-pdf format through the exporter, which draws the PDF itself.',
       );
     }
     const document = await this.build(fs, state, selection, options);

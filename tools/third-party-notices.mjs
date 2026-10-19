@@ -9,7 +9,9 @@
  * (packages/mcp-server, one file, with its dependencies inlined). Their production dependencies are read from
  * `pnpm list --prod`, which walks the same lockfile the build uses, so the list cannot name a package the build does not
  * contain. Development tools are not shipped, so they are not listed. Caotang's own packages are MIT, under LICENSE, and
- * are not repeated here.
+ * are not repeated here, except the workspace packages that hold third-party work under its own license
+ * (VENDORED_WORKSPACE_PACKAGES): the Noto Sans CJK and Noto Emoji fonts, under the SIL Open Font License, are listed like any
+ * other package.
  *
  * Why each license text is kept. MIT and Apache-2.0 both require the copyright notice and the license to travel with
  * copies of the software, and Apache-2.0 also requires a NOTICE file to be carried when the package has one. So each
@@ -20,7 +22,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -33,6 +35,39 @@ export const NOTICES_FILE = 'THIRD-PARTY-NOTICES.md';
 const LICENSE_FILE = /^(licen[cs]e|copying|notice)([.-][\w.-]*)?$/i;
 
 /**
+ * Third-party files that ship inside a Caotang package rather than as a dependency, so the lockfile does not list them. Each
+ * names the file it ships as, its license, its source, and the license text kept beside it in the repository (a path from the
+ * repository root), which is reproduced in full. The screenplay PDF embeds Courier Prime, a subset of Noto Sans Mono CJK SC
+ * for the characters Courier Prime cannot print, and a subset of Noto Emoji for emoji (docs/architecture/screenplay.md §5.3).
+ */
+export const BUNDLED_ASSETS = Object.freeze([
+  Object.freeze({
+    name: 'Courier Prime Regular (font)',
+    version: '3.018',
+    license: 'OFL-1.1',
+    repository: 'https://github.com/quoteunquoteapps/CourierPrime',
+    shippedAs: 'packages/screenplay/src/fonts/courier-prime-regular.ts',
+    licenseFile: 'packages/screenplay/src/fonts/OFL.txt',
+  }),
+  Object.freeze({
+    name: 'Noto Sans Mono CJK SC Regular (font)',
+    version: '2.004',
+    license: 'OFL-1.1',
+    repository: 'https://github.com/notofonts/noto-cjk',
+    shippedAs: 'packages/screenplay/src/fonts/NotoSansMonoCJKsc-Regular.otf',
+    licenseFile: 'packages/screenplay/src/fonts/OFL-NotoSansMonoCJK.txt',
+  }),
+  Object.freeze({
+    name: 'Noto Emoji Regular (font)',
+    version: '3.002',
+    license: 'OFL-1.1',
+    repository: 'https://github.com/google/fonts',
+    shippedAs: 'packages/screenplay/src/fonts/NotoEmoji-Regular.ttf',
+    licenseFile: 'packages/screenplay/src/fonts/OFL-NotoEmoji.txt',
+  }),
+]);
+
+/**
  * Dual-licensed packages Caotang uses under the permissive side. The notice names the license it is used under, so a
  * reader does not take the GPL side of the declared expression to be an obligation. Each entry is a decision, and it is
  * reviewed when the package changes. `jszip` (MIT OR GPL-3.0-or-later) is used under MIT, through `docx`.
@@ -40,6 +75,13 @@ const LICENSE_FILE = /^(licen[cs]e|copying|notice)([.-][\w.-]*)?$/i;
 export const ELECTED_LICENSES = Object.freeze({
   jszip: 'MIT',
 });
+
+/**
+ * Workspace packages that vendor third-party work: they are linked like Caotang's own packages, but carry their own license,
+ * so they are listed with it. `@caotang/font-noto-cjk` is Noto Sans CJK SC (OFL-1.1), in vendor/noto-sans-cjk, and
+ * `@caotang/font-noto-emoji` is Noto Emoji (OFL-1.1), in vendor/noto-emoji.
+ */
+export const VENDORED_WORKSPACE_PACKAGES = Object.freeze(['@caotang/font-noto-cjk', '@caotang/font-noto-emoji']);
 
 /** The label a notice taken from a README carries in place of a license file name. */
 export const README_NOTICE_NAME = 'README (licence section)';
@@ -119,13 +161,17 @@ export function listProductionTree(root, filters = SHIPPED_FILTERS) {
 
 /**
  * Every external package in the tree, once per name and version, sorted by name then version. Workspace links (`link:`)
- * are Caotang's own packages and are skipped. The `path` of each is the package's directory, where its license file lives.
+ * are Caotang's own packages and are skipped, except a vendored one (VENDORED_WORKSPACE_PACKAGES), which is listed at the
+ * version its package.json declares. The `path` of each is the package's directory, where its license file lives.
  */
 export function externalPackages(tree) {
   const found = new Map();
   const visit = (dependencies) => {
     for (const [name, dependency] of Object.entries(dependencies ?? {})) {
-      const version = dependency.version;
+      let version = dependency.version;
+      if (typeof version === 'string' && version.startsWith('link:') && VENDORED_WORKSPACE_PACKAGES.includes(name) && typeof dependency.path === 'string') {
+        version = JSON.parse(readFileSync(join(dependency.path, 'package.json'), 'utf8')).version;
+      }
       if (typeof version === 'string' && !version.startsWith('link:') && typeof dependency.path === 'string') {
         const key = `${name}@${version}`;
         if (!found.has(key)) found.set(key, { name, version, path: dependency.path });
@@ -178,7 +224,7 @@ function repositoryOf(manifest) {
  * The notices document for the given packages. It is deterministic: the same packages and the same license files give the
  * same bytes, on any machine, so a committed copy can be compared with a fresh one.
  */
-export function renderNotices(packages, { filters = SHIPPED_FILTERS } = {}) {
+export function renderNotices(packages, { filters = SHIPPED_FILTERS, assets = [] } = {}) {
   const lines = [];
   lines.push('# Third-party notices');
   lines.push('');
@@ -216,14 +262,44 @@ export function renderNotices(packages, { filters = SHIPPED_FILTERS } = {}) {
       lines.push(fence);
     }
   }
+  if (assets.length > 0) {
+    lines.push('');
+    lines.push(`## Bundled files (${assets.length})`);
+    lines.push('');
+    lines.push('These ship inside Caotang\'s own packages, not as dependencies, so the lockfile does not list them.');
+    for (const asset of assets) {
+      lines.push('');
+      lines.push(`### ${asset.name} ${asset.version}`);
+      lines.push('');
+      lines.push(`License: ${asset.license}. Source: ${asset.repository}. Shipped as \`${asset.shippedAs}\`.`);
+      lines.push('');
+      const fence = fenceFor(asset.text);
+      lines.push(`${fence}text`);
+      lines.push(asset.text.replace(/\n+$/, ''));
+      lines.push(fence);
+    }
+  }
   lines.push('');
   return lines.join('\n');
+}
+
+/**
+ * The bundled assets with their license texts, read from `root`. Each asset's `shippedAs` file must exist, as its license
+ * file must, so the notices never name a file that is not in the repository: a renamed or moved asset fails here.
+ */
+export function bundledAssetNotices(root = REPO_ROOT, assets = BUNDLED_ASSETS) {
+  return assets.map((asset) => {
+    if (!existsSync(join(root, asset.shippedAs))) {
+      throw new Error(`third-party notices: ${asset.name} is shipped as ${asset.shippedAs}, which does not exist`);
+    }
+    return { ...asset, text: normalizeText(readFileSync(join(root, asset.licenseFile), 'utf8')) };
+  });
 }
 
 /** Generates the document for the shipped packages in `root`. */
 export function generateNotices({ root = REPO_ROOT, filters = SHIPPED_FILTERS } = {}) {
   const packages = externalPackages(listProductionTree(root, filters)).map(describePackage);
-  return renderNotices(packages, { filters });
+  return renderNotices(packages, { filters, assets: bundledAssetNotices(root) });
 }
 
 function fenceFor(text) {

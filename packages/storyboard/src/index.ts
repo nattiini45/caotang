@@ -16,7 +16,7 @@
  *
  * What is not: the corkboard and Inspector (the app, which renders this module's views), the
  * `script.shot-coverage` check (coherence's registry), the harness registration of the `shots.*` tools
- * (the app supplies their ports), the PDF library (gated on the PDF-library benchmark), and the animatic MP4 and EDL exports
+ * (the app supplies their ports), the PDF library (the exporter's `contact-sheet-pdf` format draws the plan with it, without going through `ContactSheetPdfRenderer`), and the animatic MP4 and EDL exports
  * (parked by the spec). The store carries the `kind` and `shot` node fields, so a shot's metadata is saved
  * with the project; the image import is the store's `shot.importImage` (among the store's storyboard commands).
  */
@@ -34,6 +34,7 @@ export * from './assets.js';
 export * from './derive.js';
 export * from './annotate.js';
 export * from './render-csv.js';
+export * from './emoji.js';
 export * from './render-contact-sheet.js';
 export * from './tools.js';
 export * from './command-port.js';

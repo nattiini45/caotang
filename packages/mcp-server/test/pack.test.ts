@@ -4,11 +4,14 @@
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
+import { CJK_FONT_FILE, EMOJI_FONT_FILE } from '@caotang/exporter';
+import { cjkFontCandidates, emojiFontCandidates } from '@caotang/exporter/fallback-fonts-node';
 
-import { BUNDLE_ENTRY, manifestProblems, mcpbCliPath, packBundle, runMcpb, stageBundle } from '../scripts/pack-mcpb.mjs';
+import { BUNDLE_CJK_FONT, BUNDLE_EMOJI_FONT, BUNDLE_ENTRY, BUNDLE_FONTS, manifestProblems, mcpbCliPath, packBundle, runMcpb, stageBundle } from '../scripts/pack-mcpb.mjs';
 import { removeDir, tempDir } from './support.js';
 
 const PACKAGE_DIR = resolve(__dirname, '..');
@@ -160,13 +163,132 @@ describe('staging and packing', () => {
     }
   });
 
-  it('packs a bundle through the pinned CLI, and the archive unpacks to the same four files with the same notices', () => {
+  it('stages the CJK fallback font in server/fonts/, where the bundle reads it from', () => {
+    const outDir = tempDir('pack-font');
+    try {
+      const font = join(outDir, 'NotoSansMonoCJKsc-Regular.otf');
+      writeFileSync(font, 'OTTO fixture font');
+      const { staging, files } = stageBundle({
+        outDir,
+        serverBundle: MANIFEST_PATH,
+        manifestPath: MANIFEST_PATH,
+        version: '0.1.0',
+        notices: '# notices\n',
+        license: join(REPO_ROOT, 'LICENSE'),
+        cjkFont: font,
+      });
+      expect(BUNDLE_CJK_FONT).toBe('server/fonts/NotoSansMonoCJKsc-Regular.otf');
+      expect(files).toContain(BUNDLE_CJK_FONT);
+      expect(readFileSync(join(staging, BUNDLE_CJK_FONT), 'utf8')).toBe('OTTO fixture font');
+      // The screenplay package resolves the font as ./fonts/ beside the running module, which is server/caotang-mcp.mjs.
+      expect(BUNDLE_CJK_FONT.replace(/[^/]+$/, '')).toBe(BUNDLE_ENTRY.replace(/[^/]+$/, 'fonts/'));
+    } finally {
+      removeDir(outDir);
+    }
+  });
+
+  it('stages the emoji fallback font in server/fonts/, beside the CJK one', () => {
+    const outDir = tempDir('pack-emoji');
+    try {
+      const cjk = join(outDir, 'NotoSansMonoCJKsc-Regular.otf');
+      const emoji = join(outDir, 'NotoEmoji-Regular.ttf');
+      writeFileSync(cjk, 'OTTO fixture font');
+      writeFileSync(emoji, 'TrueType fixture font');
+      const { staging, files } = stageBundle({
+        outDir,
+        serverBundle: MANIFEST_PATH,
+        manifestPath: MANIFEST_PATH,
+        version: '0.1.0',
+        notices: '# notices\n',
+        license: join(REPO_ROOT, 'LICENSE'),
+        cjkFont: cjk,
+        emojiFont: emoji,
+      });
+      expect(BUNDLE_EMOJI_FONT).toBe('server/fonts/NotoEmoji-Regular.ttf');
+      expect(files).toEqual(expect.arrayContaining([BUNDLE_CJK_FONT, BUNDLE_EMOJI_FONT]));
+      expect(readFileSync(join(staging, BUNDLE_EMOJI_FONT), 'utf8')).toBe('TrueType fixture font');
+      // The screenplay package resolves the font as ./fonts/ beside the running module, which is server/caotang-mcp.mjs.
+      expect(BUNDLE_EMOJI_FONT.replace(/[^/]+$/, '')).toBe(BUNDLE_ENTRY.replace(/[^/]+$/, 'fonts/'));
+    } finally {
+      removeDir(outDir);
+    }
+  });
+
+  it('stages the PDF fallback fonts in server/fonts/, each under its own name', () => {
+    const outDir = tempDir('pack-fonts');
+    try {
+      const serverBundle = join(outDir, 'caotang-mcp.mjs');
+      writeFileSync(serverBundle, '#!/usr/bin/env node\n');
+      const cjk = join(outDir, 'NotoSansCJKsc-Regular.woff');
+      const emoji = join(outDir, 'NotoEmoji-Regular.woff');
+      writeFileSync(cjk, 'cjk');
+      writeFileSync(emoji, 'emoji');
+      const { staging, files } = stageBundle({
+        outDir,
+        serverBundle,
+        manifestPath: MANIFEST_PATH,
+        version: '0.1.0',
+        notices: '# notices\n',
+        license: join(REPO_ROOT, 'LICENSE'),
+        fonts: [cjk, emoji],
+      });
+      // The literal paths, not the constant: the exporter's Node loader reads `fonts/` beside the server bundle, by name.
+      expect(files).toContain('server/fonts/NotoSansCJKsc-Regular.woff');
+      expect(files).toContain('server/fonts/NotoEmoji-Regular.woff');
+      expect(readFileSync(join(staging, 'server', 'fonts', 'NotoEmoji-Regular.woff'), 'utf8')).toBe('emoji');
+    } finally {
+      removeDir(outDir);
+    }
+  });
+
+  it('stages the fonts where the exporter\'s Node loader looks first, from the server bundle it stages', () => {
+    // The two sides of the contract, each from its own package: the pack's folder and entry, and the loader's first candidate.
+    expect(BUNDLE_FONTS).toBe('server/fonts');
+    expect(BUNDLE_ENTRY).toBe('server/caotang-mcp.mjs');
+    expect(`${dirname(BUNDLE_ENTRY)}/fonts`).toBe(BUNDLE_FONTS);
+    const outDir = tempDir('pack-font-contract');
+    try {
+      const serverBundle = join(outDir, 'caotang-mcp.mjs');
+      writeFileSync(serverBundle, '#!/usr/bin/env node\n');
+      const fonts = [CJK_FONT_FILE, EMOJI_FONT_FILE].map((file) => {
+        const path = join(outDir, file);
+        writeFileSync(path, file);
+        return path;
+      });
+      const { staging } = stageBundle({
+        outDir,
+        serverBundle,
+        manifestPath: MANIFEST_PATH,
+        version: '0.1.0',
+        notices: '# notices\n',
+        license: join(REPO_ROOT, 'LICENSE'),
+        fonts,
+      });
+      const entryUrl = pathToFileURL(join(staging, BUNDLE_ENTRY)).href;
+      for (const [file, candidates] of [
+        [CJK_FONT_FILE, cjkFontCandidates(entryUrl)],
+        [EMOJI_FONT_FILE, emojiFontCandidates(entryUrl)],
+      ] as const) {
+        expect(candidates[0]).toBe(join(staging, 'server', 'fonts', file));
+        expect(readFileSync(candidates[0] ?? '', 'utf8')).toBe(file);
+      }
+    } finally {
+      removeDir(outDir);
+    }
+  });
+
+  it('packs a bundle through the pinned CLI, and the archive unpacks to the same four files and the two fonts, with the same notices', () => {
     const outDir = tempDir('pack-run');
     const unpacked = tempDir('pack-unpacked');
     try {
       const serverBundle = join(outDir, 'caotang-mcp.mjs');
       writeFileSync(serverBundle, '#!/usr/bin/env node\nconsole.log("caotang-mcp fixture");\n');
       const notices = '# Third-party notices\n\nFixture notices for the pack test.\n';
+      const fonts = [CJK_FONT_FILE, EMOJI_FONT_FILE].map((file) => {
+        const path = join(outDir, file);
+        writeFileSync(path, `fixture ${file}`);
+        return path;
+      });
       const { bundle, info } = packBundle({
         outDir,
         serverBundle,
@@ -174,6 +296,7 @@ describe('staging and packing', () => {
         version: '0.1.0',
         notices,
         license: join(REPO_ROOT, 'LICENSE'),
+        fonts,
       });
       expect(bundle).toBe(join(outDir, 'caotang-mcp-0.1.0.mcpb'));
       expect(existsSync(bundle)).toBe(true);
@@ -183,6 +306,12 @@ describe('staging and packing', () => {
       for (const file of [BUNDLE_ENTRY, 'manifest.json', 'THIRD-PARTY-NOTICES.md', 'LICENSE']) {
         expect(existsSync(join(unpacked, file)), `${file} is in the bundle`).toBe(true);
       }
+      for (const file of ['server/fonts/NotoSansCJKsc-Regular.woff', 'server/fonts/NotoEmoji-Regular.woff']) {
+        expect(existsSync(join(unpacked, file)), `${file} is in the bundle`).toBe(true);
+      }
+      // The installed server finds them where its loader looks first.
+      expect(readFileSync(cjkFontCandidates(pathToFileURL(join(unpacked, BUNDLE_ENTRY)).href)[0] ?? '', 'utf8')).toBe(`fixture ${CJK_FONT_FILE}`);
+      expect(readFileSync(emojiFontCandidates(pathToFileURL(join(unpacked, BUNDLE_ENTRY)).href)[0] ?? '', 'utf8')).toBe(`fixture ${EMOJI_FONT_FILE}`);
       expect(readFileSync(join(unpacked, 'THIRD-PARTY-NOTICES.md'), 'utf8')).toBe(notices);
       expect(readFileSync(join(unpacked, 'manifest.json'), 'utf8')).toBe(readFileSync(MANIFEST_PATH, 'utf8'));
     } finally {

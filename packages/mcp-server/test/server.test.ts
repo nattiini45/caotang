@@ -1013,6 +1013,50 @@ describe('the confirmation round trip on the wire', () => {
     }
   }, 30_000);
 
+  it('export.compile draws a contact sheet with Chinese text in the Noto Sans CJK fallback font, read from its package', async () => {
+    const fixture = await startFixture({ label: 'export-cjk', allowWrites: true, seed: true, shot: true, shotAction: '港口空无一人。' });
+    const client = await connectClient(fixture.url, fixture.token, () => ({ action: 'accept', content: { confirmed: true } }));
+    try {
+      const result = await client.callTool({
+        name: 'export.compile',
+        arguments: { selection: { root: SHOTS_FOLDER, includeSubtrees: true }, format: 'contact-sheet-pdf' },
+      });
+      expect(result.isError).not.toBe(true);
+      expect(JSON.stringify(result.content)).not.toContain('drawn as');
+      const pdf = readdirSync(join(fixture.root, 'exports')).filter((name) => name.endsWith('.pdf'));
+      expect(pdf).toHaveLength(1);
+      const bytes = readFileSync(join(fixture.root, 'exports', pdf[0] ?? ''));
+      // The subset font is embedded as a TrueType program; Helvetica alone would embed none.
+      expect(bytes.toString('latin1')).toContain('/FontFile2');
+      expect(bytes.byteLength).toBeLessThan(40_000);
+    } finally {
+      await client.close();
+      await fixture.close();
+    }
+  }, 30_000);
+
+  it('export.compile draws a contact sheet with emoji in the Noto Emoji fallback font, read from its package', async () => {
+    const fixture = await startFixture({ label: 'export-emoji', allowWrites: true, seed: true, shot: true, shotAction: 'Harbour 🌊 at dawn 👨‍👩‍👧 🇩🇪 1️⃣' });
+    const client = await connectClient(fixture.url, fixture.token, () => ({ action: 'accept', content: { confirmed: true } }));
+    try {
+      const result = await client.callTool({
+        name: 'export.compile',
+        arguments: { selection: { root: SHOTS_FOLDER, includeSubtrees: true }, format: 'contact-sheet-pdf' },
+      });
+      expect(result.isError).not.toBe(true);
+      expect(JSON.stringify(result.content)).not.toContain('drawn as');
+      const pdf = readdirSync(join(fixture.root, 'exports')).filter((name) => name.endsWith('.pdf'));
+      expect(pdf).toHaveLength(1);
+      const bytes = readFileSync(join(fixture.root, 'exports', pdf[0] ?? '')).toString('latin1');
+      // The emoji subset is embedded as a TrueType program under its own name; the CJK font is not read for emoji.
+      expect(bytes).toContain('/BaseFont /CAOTEM+NotoEmoji-Regular');
+      expect(bytes.match(/\/FontFile2/g)).toHaveLength(1);
+    } finally {
+      await client.close();
+      await fixture.close();
+    }
+  }, 30_000);
+
   it('a shot-list compile is refused before the writer is asked when the images stop being listable after the project opened', async () => {
     // The reverse: the listing read at the open, and the folder became unreadable since. The check lists again, so the dialog never
     // asks for a compile the accept would refuse.

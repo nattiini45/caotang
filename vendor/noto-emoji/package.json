@@ -1,0 +1,19 @@
+{
+  "name": "@caotang/font-noto-emoji",
+  "version": "3.2.0",
+  "license": "OFL-1.1",
+  "private": true,
+  "description": "Noto Emoji 3.002 (monochrome) Regular as a static TrueType WOFF: the fallback font the PDF exporter embeds, subset, for emoji",
+  "repository": "https://github.com/google/fonts/tree/main/ofl/notoemoji",
+  "exports": {
+    "./NotoEmoji-Regular.woff": "./NotoEmoji-Regular.woff",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "NotoEmoji-Regular.woff",
+    "LICENSE",
+    "README.md",
+    "SHA256SUMS",
+    "build.py"
+  ]
+}

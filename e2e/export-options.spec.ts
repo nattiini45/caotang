@@ -44,7 +44,7 @@ test('the dialogue table’s character limit is a recipe setting: shown for that
   let dialog = page.getByRole('dialog', { name: 'Export' });
   // The limit belongs to the dialogue table, so the field is not offered for the Markdown default.
   await expect(dialog.getByLabel('Character limit for each line')).toHaveCount(0);
-  await dialog.getByRole('radio', { name: /^Dialogue table/ }).check();
+  await dialog.getByRole('radio', { name: /^Dialogue table \(\.csv\)/ }).check();
   await dialog.getByLabel('Character limit for each line').fill('42');
   // The limit is saved when the writer leaves the field, as the author line is.
   await dialog.getByLabel('Character limit for each line').press('Tab');
@@ -53,8 +53,37 @@ test('the dialogue table’s character limit is a recipe setting: shown for that
 
   await page.getByRole('button', { name: 'Compile…' }).click();
   dialog = page.getByRole('dialog', { name: 'Export' });
-  await dialog.getByRole('radio', { name: /^Dialogue table/ }).check();
+  await dialog.getByRole('radio', { name: /^Dialogue table \(\.csv\)/ }).check();
   await expect(dialog.getByLabel('Character limit for each line')).toHaveValue('42');
+  // The spreadsheet is the same table, so it reads the same limit.
+  await dialog.getByRole('radio', { name: /^Dialogue table \(\.xlsx\)/ }).check();
+  await expect(dialog.getByLabel('Character limit for each line')).toHaveValue('42');
+});
+
+test('the screenplay PDF’s scene numbers and (MORE)/(CONT’D) are recipe settings, shown for that format and kept with the recipe', async ({
+  page,
+}) => {
+  await createProject(page, 'Screenplay PDF Settings');
+  await manuscriptWithScene(page);
+
+  await page.getByRole('button', { name: 'Compile…' }).click();
+  let dialog = page.getByRole('dialog', { name: 'Export' });
+  // Both settings belong to the screenplay PDF, so neither is offered for the Markdown default.
+  await expect(dialog.getByLabel('Scene numbers')).toHaveCount(0);
+  await dialog.getByRole('radio', { name: /^Screenplay PDF \(\.pdf\)/ }).check();
+  await expect(dialog.getByLabel('Scene numbers')).toHaveValue('off');
+  const continued = dialog.getByRole('checkbox', { name: /\(MORE\) and \(CONT’D\)/ });
+  await expect(continued).toBeChecked();
+  await dialog.getByLabel('Scene numbers').selectOption('both');
+  await continued.uncheck();
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Compile…' }).click();
+  dialog = page.getByRole('dialog', { name: 'Export' });
+  await dialog.getByRole('radio', { name: /^Screenplay PDF \(\.pdf\)/ }).check();
+  await expect(dialog.getByLabel('Scene numbers')).toHaveValue('both');
+  await expect(dialog.getByRole('checkbox', { name: /\(MORE\) and \(CONT’D\)/ })).not.toBeChecked();
 });
 
 test('a single item compiles with the recipe’s title page, as the whole manuscript does', async ({ page }) => {

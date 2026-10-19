@@ -4,6 +4,10 @@ export const BUNDLE_ENTRY: string;
 export const BUNDLE_MANIFEST: string;
 export const BUNDLE_NOTICES: string;
 export const BUNDLE_LICENSE: string;
+/** The folder of the PDF fallback fonts in the bundle, beside the server entry point. */
+export const BUNDLE_FONTS: string;
+export const BUNDLE_CJK_FONT: string;
+export const BUNDLE_EMOJI_FONT: string;
 export const WRITE_SETTING: string;
 export const WRITE_VARIABLE: string;
 
@@ -17,6 +21,12 @@ export interface StageInput {
   readonly version: string;
   readonly notices: string;
   readonly license: string;
+  /** Font files to stage in BUNDLE_FONTS, each under its own name: the PDF fallback fonts. */
+  readonly fonts?: readonly string[];
+  /** The CJK fallback font the build put beside the bundle, staged as `server/fonts/`. Absent: the bundle has no font. */
+  readonly cjkFont?: string;
+  /** The emoji fallback font the build put beside the bundle, staged as `server/fonts/`. Absent: the bundle has no emoji font. */
+  readonly emojiFont?: string;
 }
 
 /** Writes the staged bundle folder after checking the manifest. Throws, and writes nothing, for an invalid manifest. */

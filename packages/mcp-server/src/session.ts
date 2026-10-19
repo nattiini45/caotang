@@ -30,6 +30,7 @@ import { resolve } from 'node:path';
 
 import { ApplyRefusal, type CommandError } from '@caotang/bus';
 import { assetRecordsOf, createExporter, exportMetadataOf, type ExportDispatch, type ExporterService } from '@caotang/exporter';
+import { loadCjkFontInNode, loadEmojiFontInNode } from '@caotang/exporter/fallback-fonts-node';
 import { codexReadPort, createHarness, metadataFor, type Harness, type ToolOutcome } from '@caotang/harness';
 import { isIdWithPrefix } from '@caotang/ids';
 import {
@@ -422,6 +423,10 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
       metadata: (current) => exportMetadataOf(current.manifest.project),
       readAsset: (path) => readAssetOrNull(fs, path),
       assets: () => assetsOf(assetRecords),
+      // The contact sheet's font for text outside Latin script: from fonts/ beside the bundle, or from @caotang/font-noto-cjk.
+      loadFallbackFont: loadCjkFontInNode,
+      // Its emoji font (Noto Emoji, monochrome): from fonts/ beside the bundle, or from @caotang/font-noto-emoji.
+      loadEmojiFont: loadEmojiFontInNode,
     });
     await exporter.ready();
 

@@ -59,13 +59,17 @@ export function testToken(): string {
 }
 
 /** A project with one folder holding one document, written through the store. */
-export async function seedProject(root: string, name: string, options: { readonly shot?: boolean } = {}): Promise<void> {
+export async function seedProject(
+  root: string,
+  name: string,
+  options: { readonly shot?: boolean; readonly shotAction?: string } = {},
+): Promise<void> {
   mkdirSync(root, { recursive: true });
   const fs = new NodeArtifactFs(root);
   const state = createProjectState(createEmptyManifest(name, OPENED));
   addFolder(state, { parentId: 'manuscript', title: 'Chapter 1', now: OPENED, id: CHAPTER_ONE });
   addDocument(state, { parentId: CHAPTER_ONE, title: 'The Landing', body: LANDING_BODY, now: OPENED, id: LANDING, synopsis: 'Elena returns.' });
-  if (options.shot === true) addShot(state);
+  if (options.shot === true) addShot(state, options.shotAction);
   await writeProject(fs, state, { now: OPENED });
 }
 
@@ -76,7 +80,7 @@ export const SHOT_ONE = 'n_SH0T0NE001';
  * A storyboard folder holding one shot, as the storyboard package writes them (storyboard.md 2.1): a folder of kind `storyboard`, and
  * a node of type `shot` carrying its stored metadata. Written by hand here, so this package's tests do not depend on the storyboard's.
  */
-function addShot(state: ProjectState): void {
+function addShot(state: ProjectState, action = 'The harbour, empty.'): void {
   const folder = addFolder(state, { parentId: 'manuscript', title: 'Shots', now: OPENED, id: SHOTS_FOLDER });
   Object.assign(folder, { kind: 'storyboard' });
   const stamp = OPENED.toISOString();
@@ -93,7 +97,7 @@ function addShot(state: ProjectState): void {
     notes: '',
     createdAt: stamp,
     updatedAt: stamp,
-    shot: { shotSize: 'WS', action: 'The harbour, empty.', durationSec: 6 },
+    shot: { shotSize: 'WS', action, durationSec: 6 },
   };
   state.manifest.tree.push(shot as unknown as (typeof state.manifest.tree)[number]);
 }
@@ -120,10 +124,15 @@ export async function startFixture(options: {
   readonly seed?: boolean;
   /** With `seed`: the project also holds a storyboard folder with one shot. */
   readonly shot?: boolean;
+  /** With `shot`: the shot's action, in place of "The harbour, empty." */
+  readonly shotAction?: string;
 }): Promise<Fixture> {
   const root = tempDir(options.label);
   if (options.seed === true) {
-    await seedProject(root, 'The Lighthouse Keeper', { shot: options.shot === true });
+    await seedProject(root, 'The Lighthouse Keeper', {
+      shot: options.shot === true,
+      ...(options.shotAction === undefined ? {} : { shotAction: options.shotAction }),
+    });
   }
   const session = await openProject({
     root,

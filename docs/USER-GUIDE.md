@@ -115,17 +115,44 @@ Choose **New screenplay scene here** from a folder's menu. A screenplay scene is
 
 - **Script** draws the scene as it reads.
 - **Source** is the Fountain text. Headings, cues, parentheticals, transitions and notes are drawn in their own styles as you type.
-- **Pages** shows the scene paginated. It is read only, and it is a preview, not a PDF.
+- **Pages** shows the scene paginated. It is read only, and it is a preview. To get a PDF, compile the screenplay as **Screenplay PDF**.
 
 On the Source tab:
 
 - Enter at the end of a character's name (a cue) moves onto the line for its dialogue.
 - Enter on an empty line after dialogue starts an action line.
 - Tab completes a half-typed character name from the names cued in the scene and the characters in the codex.
+- **Element**, above the text, or Ctrl+E, opens the element menu for the line the caret is on. It lists **Scene heading**, **Action**, **Character**, **Parenthetical**, **Dialogue**, **Transition**, **Centered**, **Note** and **Page break**, and marks the one the line is. The arrow keys move through it, and Enter chooses. The digits 1 to 9 choose an element directly.
+- Choosing an element rewrites the line in its Fountain form. Your words are kept. Caotang adds a mark such as `.`, `@`, `!` or `>` only where the line would otherwise read as another element. A heading, a character or a transition under other text gets a blank line above it. **Parenthetical** and **Dialogue** are offered only under a character. **Page break** on a line with words puts the break on its own line above it.
 
 When Caotang saves a scene, it writes Fountain in the standard layout: a run of blank lines becomes one blank line, and Windows line endings become the usual ones. Your words are kept.
 
-Compile a screenplay from **Compile…**, in the Media group, as Fountain or as Final Draft (`.fdx`). Final Draft files have not yet been checked against Final Draft itself; see [What is not in this build yet](#what-is-not-in-this-build-yet).
+Compile a screenplay from **Compile…**, in the Media group, as Fountain, as Final Draft (`.fdx`) or as a PDF. Final Draft files have not yet been checked against Final Draft itself; see [What is not in this build yet](#what-is-not-in-this-build-yet).
+
+### The screenplay PDF
+
+**Screenplay PDF (`.pdf`)** sets the script on US Letter pages in the standard screenplay layout:
+
+- The font is Courier Prime at 12 point. It is inside the file, so the pages look the same on every computer and printer.
+- The margins are 1.5 inches on the left and 1 inch on the other three sides.
+- Scene headings and action run the full width. Character names, parentheticals and dialogue sit at their usual indents. Transitions are set flush right.
+- The title page comes first when **Title page** is on. It shows the project's title, the author and the date. It has no page number.
+- Script pages count from 1. The number is printed at the top right from page 2.
+- A scene heading is never left alone at the foot of a page. A character name always stays with its first line of dialogue. A transition never starts a page.
+- A speech that crosses a page breaks after a sentence. **(MORE)** ends the page and the name returns with **(CONT’D)** on the next one. You can turn this off in the recipe: clear **(MORE) and (CONT’D) where a speech crosses a page**.
+- Dual dialogue (a second name marked `^`) is printed side by side, in two columns.
+- **Scene numbers** can be printed in the left margin, the right margin or both. They are off unless you choose them. A heading's own number, such as `#24A#`, is used when it has one.
+- Notes (`[[…]]`), boneyard text (`/* … */`), sections and synopses are not printed.
+
+Courier Prime covers Western European letters and the usual punctuation. Other characters, such as Chinese, Japanese and Korean, print in Noto Sans Mono CJK SC. Only the characters the script uses go into the file. A script with no such character does not load this font.
+
+A Chinese, Japanese or Korean character takes the width of two Courier letters. A line can break between Chinese or Japanese characters without a space, but not before a closing mark such as `。` or `」`. Korean breaks at spaces.
+
+Emoji print in Noto Emoji, a black-and-white emoji font. An emoji takes the width of two Courier letters, however it is built: a family such as 👨‍👩‍👧, a flag such as 🇩🇪, a keycap such as 1️⃣ or a skin tone such as 👍🏽 is one picture, and it is never split across lines. A line can break before or after an emoji without a space. The font has no colours and no skin tones, so 👍🏽 prints as 👍, but text you copy out of the PDF keeps the emoji you typed. A script with no emoji does not load this font.
+
+A character no font has prints as a question mark, and the compile log names it. That is so for an emoji newer than Unicode 15.1, such as 🫩. A few newer sequences, such as 🚶‍♀️‍➡️, print as their first emoji (🚶), and the log says so.
+
+The PDF is made in your browser. Nothing is sent anywhere.
 
 ## Writing dialogue
 
@@ -136,10 +163,17 @@ Choose **New dialogue here** from a folder's menu. A dialogue container holds an
 - **Outline and findings.** The structure of the story and what the checks found. Both follow the text when you pause, about 800 ms after your last keystroke.
 - Tab after a divert arrow (`->`) completes the knot or stitch name you started.
 - **Add line ids to N lines** asks first, then writes an id into each line that has none. With **Add line ids on save** turned on, Caotang writes the missing ids each time it saves.
-- **Container settings**, in the inspector: **Default speaker** (a codex character, who fills the speaker column of the dialogue table), **Engine target** (a hint only), **Add line ids on save**, and **Locale** (recorded only).
+- **Container settings**, in the inspector: **Default speaker** (a codex character, who fills the speaker column of the dialogue table), **Engine target**, **Add line ids on save**, and **Locale** (the language the text is written in, such as `en` or `en-GB`).
 - If the Ink does not compile, the view says so and lists the errors. Fix them in the Ink text.
 
-Compile a dialogue container from **Compile…**, in the Media group, as an Ink story (`.ink.json`) or as a dialogue table (`.csv`): each spoken line with its id, speaker and text.
+Compile a dialogue container from **Compile…**, in the Media group, as an Ink story (`.ink.json`) or as a dialogue table (`.csv` or `.xlsx`): each spoken line with its id, speaker, text and locale.
+
+The container settings change these files:
+
+- **Engine target** picks the table. A container set to **Yarn string table (CSV)** goes into a Yarn Spinner strings file, `<name> (dialogue, Yarn).csv`, with Yarn's columns and `line:` ids. Any other target, or none, goes into the dialogue table, `<name> (dialogue).csv`. A compile that holds both kinds writes both files. The Ink story is the same for every target.
+- **Locale** is written on each line of both tables. A container with no locale uses the project's language. A container with its own locale puts it in the Ink story's file name, such as `Tavern.de.ink.json`.
+- The Yarn strings file has no character limit column. Its `lock` column is empty.
+- In the Yarn strings file, a line or choice whose text cell starts with `=`, `+`, `-`, `@`, a tab or a carriage return gets an apostrophe in front, as in every CSV export, so a spreadsheet does not run it as a formula. A spoken line's cell starts with the speaker's name when it has one. The apostrophe is written into the cell itself, so a tool that reads the file gets it with the line; Caotang has not checked how Yarn Spinner shows it. The language, file and comment cells get the same guard.
 
 ## Planning a storyboard
 
@@ -157,6 +191,12 @@ Choose **New storyboard here** from a folder's menu. A storyboard holds shots, a
 **Script coverage.** In a shot's **Script coverage** section, choose a scene or a document, select the words of its text that the shot covers, then choose **Cover the selected text**. **Remove** takes a coverage back. If a passage appears twice in the text, Caotang refuses it, so select more words around the one you mean.
 
 **The shot's prompt.** The **Prompt** section writes one target model's prompt for the shot: its camera, subject, action, context and style; its audio; the negative prompt; the clip length, aspect ratio, resolution and seed; and its references. Use **Vendor for this prompt** to choose the model. **Save prompt** saves that vendor's prompt, and the other vendors' prompts are kept as they were. The text you type for one vendor stays when you switch to another vendor and back. A change to the stored prompt, such as an undo or the agent's draft, can replace it, and then the section says so. **Remove this prompt** deletes it. Each check under the fields names a problem, and **Go to the field** brings that field into view. **Writer's note for this shot** is for you, and it is not sent to the model. **Add a reference** adds a codex entry or a picture the prompt sends with the shot, and **Best take** records the take you kept from your own generation.
+
+**Contact sheet.** To print a storyboard, choose **Compile…** and **Storyboard contact sheet (.pdf)**, with **Only “…”** for one storyboard or **The whole manuscript** for every shot. The PDF lays the shots out as cards in board order, 15 to an A4 page or 12 to a US Letter page. Each card shows the picture, the shot number, the camera details and duration, and the first two lines of the action. Each page's header gives the project, the storyboard, the date, the page number, the number of shots and the animatic total. A shot with no picture shows its caption. **Paper size** in the recipe's settings chooses A4 or US Letter.
+
+Chinese, Japanese and Korean text prints in the Noto Sans CJK font. Lines break between Chinese and Japanese characters, and at spaces in Korean. Caotang loads the font only when a sheet holds such text, and the PDF carries only the characters it uses. Greek and Cyrillic print in the same font.
+
+Emoji print too, in black and white, in the Noto Emoji font: every emoji up to Unicode Emoji 15.1 prints, and an emoji newer than that prints as `?` (see the limits below). A family, a profession, a skin tone, a flag or a keycap prints as one picture and wraps as one character, and copying it out of the PDF gives back what you typed. Caotang loads this font only when a sheet holds an emoji. Skin tones print as the plain figure, since the font has no colour.
 
 **The prompt pack.** The **Prompt pack** tab lists each shot's prompt for one **Target model**, the references it sends, and the codex entries those references came from. Each check links back to its field, and **Fix on the board** opens the field. Export the pack as a **JSON pack**, a **Markdown pack** (with a Consistency block for each shot that names a codex entry, listing the entries that sent references and those that sent none) or a **CSV shot list**. Export is held while a row is an error, so no file is written from a prompt the model would refuse. Caotang never sends anything to a video service. You paste the prompts into your own tool.
 
@@ -216,7 +256,7 @@ Reading the agent's work:
 
 Choose **Compile…** in the toolbar. Then choose a recipe, a format and what to export.
 
-- **Recipe** picks a saved set of export settings. The settings are **Title page**, **Contents list** and **Author on the title page**, and, for the dialogue table, **Character limit for each line**. They apply to the whole manuscript, or to the one item you choose. To keep a set of settings, name it under **Save these settings as a new recipe** and choose **Save as recipe**.
+- **Recipe** picks a saved set of export settings. The settings are **Title page**, **Contents list** and **Author on the title page**; for the dialogue table, **Character limit for each line**; for the screenplay PDF, **Scene numbers** and **(MORE) and (CONT’D) where a speech crosses a page**; and for the contact sheet, **Paper size**. They apply to the whole manuscript, or to the one item you choose. To keep a set of settings, name it under **Save these settings as a new recipe** and choose **Save as recipe**.
 - **What to export** is **The whole manuscript**, or **Only “…”** for the item you selected in the binder.
 - Choose **Compile**. Undo removes the file the compile wrote. A compile that Caotang refuses is said inside the dialog, beside **Compile**, and no file is saved. The message clears when you choose another recipe or format.
 - Empty documents are left out, and the status line says how many were skipped.
@@ -232,10 +272,16 @@ The formats come in three groups:
 | Prose | EPUB (`.epub`) | A reading-system book, one file per chapter. |
 | Media | Fountain (`.fountain`) | The screenplay as plain Fountain text, for Beat or Highland. |
 | Media | Final Draft (`.fdx`) | The screenplay in Final Draft's XML. Not yet checked in Final Draft itself. |
+| Media | Screenplay PDF (`.pdf`) | The screenplay on US Letter pages in Courier Prime, ready to print. See [The screenplay PDF](#the-screenplay-pdf). |
 | Media | Ink story (`.ink.json`) | The dialogue compiled for a game engine that reads Ink. |
-| Media | Dialogue table (`.csv`) | Each spoken line with its id, speaker and text. |
+| Media | Dialogue table (`.csv`) | Each spoken line with its id, speaker, text and locale. A Yarn container gets a Yarn strings file. |
 | Media | Shot list (`.csv`) | Each shot in order, with its size, angle, movement and duration. |
+| Media | Dialogue table (`.xlsx`) | The dialogue table as a spreadsheet, with the same columns and rows as the `.csv`. |
+| Media | Shot list (`.xlsx`) | The shot list as a spreadsheet, with the same columns and rows as the `.csv`. |
+| Media | Storyboard contact sheet (`.pdf`) | Each shot as a card with its picture, number, camera details and action, on A4 or US Letter pages. |
 | Review | Coherence report (`.md` or `.json`) | The findings and the runs, for reading outside Caotang. |
+
+The spreadsheets have one sheet each, with the column names in a bold first row that stays in view as you scroll. Shot numbers, durations and character limits are numbers, so a spreadsheet can sort and add them. Text is kept as text: a cell that starts with `=`, `+`, `-` or `@` is never run as a formula. A cell longer than 32,767 characters is cut, and the compile log says which. The spreadsheets are made in the browser, and nothing is sent anywhere.
 
 The title page's date is the day you compile, in your own time zone, not the UTC day.
 
@@ -265,6 +311,7 @@ Choose **Settings** on the projects screen or in the toolbar. It has seven secti
 | Ctrl+Shift+F | Focus mode, which hides the binder and the inspector. |
 | Ctrl+Alt+F | Move to the binder's filter. |
 | Ctrl+Enter | Open the selected item in the editor. |
+| Ctrl+E | On a screenplay's Source tab, open the element menu for the caret's line. |
 | F2 | Rename the selected item in the binder. |
 | Delete | Delete the selected item in the binder. It asks first. |
 | Arrow keys | Move the selection in the binder. |
@@ -326,10 +373,10 @@ With writes allowed, an outside tool can also compile the manuscript, one item, 
 
 ## What is not in this build yet
 
-- **Exports.** There is no PDF of a screenplay or a storyboard, and no spreadsheet export.
+- **Exports.** The screenplay PDF is US Letter only; there is no A4 page and no choice of font.
+- **Contact sheet pictures and characters.** The contact sheet does not draw WebP pictures; their cards show the caption. Characters that none of its fonts has, such as Arabic, Hindi and emoji newer than Unicode Emoji 15.1 (🫩, for one), print as `?`. The compile log names them. Emoji print in black and white, and skin tones as the plain figure. Of Emoji 15.1's people "facing right", a person walking, kneeling or running prints as one picture; a woman or a man walking, kneeling or running, and a person, woman or man with a white cane or in a wheelchair, print as their parts side by side (the figure, then any gender sign, then the cane or wheelchair where the sequence has one, then an arrow). Chinese, Japanese and Korean text has no bold, and Han characters take their Simplified Chinese forms.
 - **Final Draft files.** Import and export of `.fdx` files have not been checked against files that Final Draft wrote or opened. The scene numbers and page headers that Caotang writes are not yet confirmed to show in Final Draft.
 - **Word contents.** How Word and LibreOffice handle the contents field in a `.docx` file has not been tested.
-- **The Source tab.** Only Enter and Tab have a meaning on the Source tab. There is no element menu. The Pages view is a read-only preview.
-- **Dialogue export settings.** The engine target and the locale are kept with the container, but no export uses them yet.
+- **The Pages view.** The Pages view of a screenplay is a read-only preview.
 - **Undo and reloads.** Undo lasts for the open tab, and text typed in the moment before a reload may not be saved yet.
 - **The desktop app.** Caotang runs in the browser. A desktop wrapper is not in this build.

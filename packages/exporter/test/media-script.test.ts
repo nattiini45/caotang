@@ -60,16 +60,16 @@ function csvLines(state: ProjectState, extra: Partial<MediaRequest> = {}): strin
 describe('dialogue-csv: the character limit reaches the table', () => {
   it('fills the charLimit column of every row with the limit the request names', () => {
     const lines = csvLines(makeMediaProject(), { charLimit: 42 });
-    expect(lines[0]).toBe('lineId,speaker,text,context,charLimit');
+    expect(lines[0]).toBe('lineId,speaker,text,context,charLimit,locale');
     const rows = lines.slice(1);
     expect(rows.length).toBeGreaterThan(0);
-    expect(rows.every((row) => row.endsWith(',42'))).toBe(true);
+    expect(rows.every((row) => row.endsWith(',42,en'))).toBe(true);
   });
 
   it('leaves the column empty when no limit is named, which is unconstrained', () => {
     const rows = csvLines(makeMediaProject()).slice(1);
     expect(rows.length).toBeGreaterThan(0);
-    expect(rows.every((row) => row.endsWith(','))).toBe(true);
+    expect(rows.every((row) => row.endsWith(',,en'))).toBe(true);
   });
 
   it('refuses a limit that is not a whole number above zero, and names it', () => {
@@ -91,7 +91,7 @@ describe('dialogue-csv: a container\'s own settings', () => {
     const lines = csvLines(state);
     // The first line has no prefix, so the speaker column carries the container's default speaker (its codex id), and the
     // context names the display name the codex gives it (dialogue-narrative.md §6: context = path + speaker name).
-    expect(lines).toContain('l_0000000001,c_ANNA000001,The innkeeper looks up.,start / Anna,');
+    expect(lines).toContain('l_0000000001,c_ANNA000001,The innkeeper looks up.,start / Anna,,en');
     // A line with its own prefix keeps the speaker it names.
     expect(lines.some((row) => row.startsWith('l_0000000002,Innkeeper,'))).toBe(true);
   });

@@ -41,7 +41,7 @@ export const COMPILE_LOG_FILE = 'compile-log.json';
 export const COMPILE_LOG_PATH = `${EXPORTS_DIR}/${COMPILE_LOG_FILE}`;
 
 /**
- * Where binary artifacts go. `ArtifactFs` stores strings and a `.docx` or `.epub` is
+ * Where binary artifacts go. `ArtifactFs` stores strings and a `.docx`, `.epub` or `.xlsx` is
  * a binary container, so writing one needs a binding that can hold bytes. The
  * binding is optional: without it the binary formats are compiled for download and
  * the bus refuses them (see `ExportUnavailableError`).
@@ -290,8 +290,9 @@ export function createEmitter(options: EmitterOptions): Emitter {
   }
 }
 
+/** A path whose artifact lives in the byte store: the extension of a binary format (DOCX, EPUB and the screenplay PDF). */
 function isBinaryPath(path: string): boolean {
-  return /\.(docx|epub)$/i.test(path);
+  return /\.(docx|epub|xlsx|pdf)$/i.test(path);
 }
 
 function messageOf(error: unknown): string {

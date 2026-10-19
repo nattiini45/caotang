@@ -31,7 +31,7 @@ import {
   type AppliedMigration,
   type FormatContext,
 } from './migrations.js';
-import { CHAR_LIMIT_MAX } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, SCENE_NUMBER_OPTIONS } from '@caotang/bus';
 import { isGeneratedId, isIdWithPrefix } from '@caotang/ids';
 import { bodyNamesOf, isBodyType } from './paths.js';
 import {
@@ -146,8 +146,19 @@ function isRecipeOptions(v: unknown): boolean {
     (o['titlePage'] === undefined || typeof o['titlePage'] === 'boolean') &&
     (o['toc'] === undefined || typeof o['toc'] === 'boolean') &&
     (o['author'] === undefined || typeof o['author'] === 'string') &&
-    (o['charLimit'] === undefined || isCharLimit(o['charLimit']))
+    (o['charLimit'] === undefined || isCharLimit(o['charLimit'])) &&
+    (o['sceneNumbers'] === undefined || isSceneNumbers(o['sceneNumbers'])) &&
+    (o['continued'] === undefined || typeof o['continued'] === 'boolean') &&
+    (o['pageSize'] === undefined || o['pageSize'] === 'A4' || o['pageSize'] === 'Letter')
   );
+}
+
+/**
+ * The screenplay PDF's scene-number placement (screenplay.md §5.3): one the bus accepts. The set is the bus's own export, so
+ * a placement the bus gains is kept here too, and a recipe's options are never dropped for it.
+ */
+function isSceneNumbers(v: unknown): v is (typeof SCENE_NUMBER_OPTIONS)[number] {
+  return typeof v === 'string' && (SCENE_NUMBER_OPTIONS as readonly string[]).includes(v);
 }
 
 /** exporter.md §2's recipe shape, the three fields a recipe cannot do without. */
@@ -284,7 +295,7 @@ function validateFields(
           // a saved selection the writer chose, and the options it cannot read fall back to the template's defaults.
           const options = (recipe as Record<string, unknown>)['options'];
           if (options !== undefined && !isRecipeOptions(options)) {
-            warn(`recipes[${i}].options`, 'not a set of recipe options (titlePage, toc, author, charLimit); dropped, and the recipe uses the template defaults');
+            warn(`recipes[${i}].options`, 'not a set of recipe options (titlePage, toc, author, charLimit, sceneNumbers, continued, pageSize); dropped, and the recipe uses the template defaults');
             delete (recipe as Record<string, unknown>)['options'];
           }
           return true;

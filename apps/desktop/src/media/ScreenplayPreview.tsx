@@ -30,7 +30,7 @@ export function ScreenplayPreview({ source, title }: ScreenplayPreviewProps): Re
     <div className="sp-preview" aria-label="Paginated preview">
       <p className="field-note">Read only. The page breaks follow the screenplay page: about 55 lines a page, 12 point Courier.</p>
       {pages.map((page) => (
-        <section key={page.number} className={`sp-page-sheet is-${page.kind}`} aria-label={`Page ${page.number}`}>
+        <section key={page.number} className={`sp-page-sheet is-${page.kind}`} aria-label={page.kind === 'title' ? 'Title page' : `Page ${page.number}`}>
           {page.lines.map((line, index) => (
             <p key={index} className={`sp-line sp-line-${line.kind}`} style={indentOf(line)}>
               {line.text}

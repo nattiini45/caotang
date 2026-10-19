@@ -177,6 +177,18 @@
   max-width: none;
 }
 
+/* The Source tab: the Element button above the source field. */
+.sp-source-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sp-source-bar {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .sp-source {
   width: 100%;
   min-height: 60vh;
