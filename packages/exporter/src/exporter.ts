@@ -22,6 +22,7 @@ import { ApplyRefusal, DEFAULT_RECIPE_NAME, type CommandError } from '@caotang/b
 import { ArtifactNotFoundError, identifierUrn, type ArtifactFs, type ProjectState } from '@caotang/store';
 import { PDF_MIME } from '@caotang/screenplay';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
+import type { FontLoader } from './cjk-font.js';
 import { createEmitter, splitRendered, type ByteArtifacts, type Emitter, type EmitFailure, type RenderedContents } from './emit.js';
 import {
   ExportUnavailableError,
@@ -87,6 +88,18 @@ export interface ExporterOptions {
    * writer's import put it, the project folder or this page's memory. Without it, the cover is read from `artifacts`.
    */
   readonly readAsset?: (path: string) => Promise<Uint8Array | null>;
+  /**
+   * Reads the PDF fallback font (Noto Sans CJK SC, ./cjk-font.ts) for contact-sheet text outside Latin script. The app fetches
+   * it from its own origin; Node reads it from `@caotang/font-noto-cjk` (`@caotang/exporter/fallback-fonts-node`). It is called only
+   * when a contact sheet holds such text. Without it, that text is drawn as `?`, and the compile log says so.
+   */
+  readonly loadFallbackFont?: FontLoader;
+  /**
+   * Reads the PDF emoji font (Noto Emoji, monochrome, ./emoji-font.ts) for contact-sheet emoji, the same way: the app from its
+   * own origin, Node from `@caotang/font-noto-emoji`. It is called only when a contact sheet holds an emoji. Without it, emoji
+   * are drawn as `?`, and the compile log says so.
+   */
+  readonly loadEmojiFont?: FontLoader;
 }
 
 /** A bus export command as a caller dispatches it: its name, and the params the bus validated for it. */
@@ -159,6 +172,7 @@ const EXTENSION: Record<ExportFormat, string> = {
   'dialogue-xlsx': 'xlsx',
   'shot-list-xlsx': 'xlsx',
   pdf: 'pdf',
+  'contact-sheet-pdf': 'pdf',
 };
 
 /**
@@ -181,13 +195,17 @@ export const EXPORT_MIME: Readonly<Record<ExportFormat, string>> = {
   'dialogue-xlsx': XLSX_MIME,
   'shot-list-xlsx': XLSX_MIME,
   pdf: PDF_MIME,
+  'contact-sheet-pdf': PDF_MIME,
 };
 
 const NO_ASSETS: ReadonlyMap<string, AssetRecord> = new Map();
 
-/** Whether a media format names the project's stored images: the shot list's image column and the prompt pack's references. */
+/**
+ * Whether a media format names the project's stored images: the shot list's image column, the prompt pack's references and the
+ * contact sheet's pictures.
+ */
 function readsImages(format: MediaFormat): boolean {
-  return format === 'shot-list-csv' || format === 'shot-list-xlsx' || format === 'promptpack';
+  return format === 'shot-list-csv' || format === 'shot-list-xlsx' || format === 'promptpack' || format === 'contact-sheet-pdf';
 }
 
 const systemClock: ExporterClock = { now: () => Date.now() };
@@ -322,6 +340,12 @@ export function createExporter(options: ExporterOptions): ExporterService {
       // Only the shot list (CSV or XLSX) and the prompt pack name stored images, so only they ask for them: a folder whose images
       // cannot be listed refuses those three formats, and a script or a dialogue table still compiles.
       assets: readsImages(common.format) ? (options.assets?.(state) ?? NO_ASSETS) : NO_ASSETS,
+      // The contact sheet reads its pictures' bytes when its file renders, from the same store the cover is read from.
+      readAsset,
+      ...(request.options.pageSize === undefined ? {} : { pageSize: request.options.pageSize }),
+      ...(options.loadFallbackFont === undefined ? {} : { loadFallbackFont: options.loadFallbackFont }),
+      ...(options.loadEmojiFont === undefined ? {} : { loadEmojiFont: options.loadEmojiFont }),
+      at: request.at,
     });
     const notes = [...output.notes];
     if (resolved.note !== undefined) notes.push(resolved.note);
@@ -491,7 +515,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
     if (compiled.kind === 'prose') {
       return [{ name: proseName, mimeType: EXPORT_MIME[compiled.format], render: () => renderProse(compiled) }];
     }
-    // A text file is already rendered; a spreadsheet renders in the queue, where its ZIP engine is loaded.
+    // A text file is already rendered; a binary file (a spreadsheet, a PDF) renders in the queue, where its engine is loaded.
     return compiled.files.map((file) => ({
       name: file.name,
       mimeType: file.mimeType,
@@ -602,7 +626,7 @@ interface BusPlan {
 interface RenderedFile {
   readonly name: string;
   readonly mimeType: string;
-  /** Rendering is async for DOCX, EPUB and XLSX, so it runs inside the queue, in order. A text media file is already text. */
+  /** Rendering is async for DOCX, EPUB, XLSX and the PDFs, so it runs inside the queue, in order. A text media file is already text. */
   readonly render: () => Promise<RenderedContents>;
 }
 

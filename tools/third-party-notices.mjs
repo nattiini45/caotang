@@ -9,7 +9,9 @@
  * (packages/mcp-server, one file, with its dependencies inlined). Their production dependencies are read from
  * `pnpm list --prod`, which walks the same lockfile the build uses, so the list cannot name a package the build does not
  * contain. Development tools are not shipped, so they are not listed. Caotang's own packages are MIT, under LICENSE, and
- * are not repeated here.
+ * are not repeated here, except the workspace packages that hold third-party work under its own license
+ * (VENDORED_WORKSPACE_PACKAGES): the Noto Sans CJK and Noto Emoji fonts, under the SIL Open Font License, are listed like any
+ * other package.
  *
  * Why each license text is kept. MIT and Apache-2.0 both require the copyright notice and the license to travel with
  * copies of the software, and Apache-2.0 also requires a NOTICE file to be carried when the package has one. So each
@@ -73,6 +75,13 @@ export const BUNDLED_ASSETS = Object.freeze([
 export const ELECTED_LICENSES = Object.freeze({
   jszip: 'MIT',
 });
+
+/**
+ * Workspace packages that vendor third-party work: they are linked like Caotang's own packages, but carry their own license,
+ * so they are listed with it. `@caotang/font-noto-cjk` is Noto Sans CJK SC (OFL-1.1), in vendor/noto-sans-cjk, and
+ * `@caotang/font-noto-emoji` is Noto Emoji (OFL-1.1), in vendor/noto-emoji.
+ */
+export const VENDORED_WORKSPACE_PACKAGES = Object.freeze(['@caotang/font-noto-cjk', '@caotang/font-noto-emoji']);
 
 /** The label a notice taken from a README carries in place of a license file name. */
 export const README_NOTICE_NAME = 'README (licence section)';
@@ -152,13 +161,17 @@ export function listProductionTree(root, filters = SHIPPED_FILTERS) {
 
 /**
  * Every external package in the tree, once per name and version, sorted by name then version. Workspace links (`link:`)
- * are Caotang's own packages and are skipped. The `path` of each is the package's directory, where its license file lives.
+ * are Caotang's own packages and are skipped, except a vendored one (VENDORED_WORKSPACE_PACKAGES), which is listed at the
+ * version its package.json declares. The `path` of each is the package's directory, where its license file lives.
  */
 export function externalPackages(tree) {
   const found = new Map();
   const visit = (dependencies) => {
     for (const [name, dependency] of Object.entries(dependencies ?? {})) {
-      const version = dependency.version;
+      let version = dependency.version;
+      if (typeof version === 'string' && version.startsWith('link:') && VENDORED_WORKSPACE_PACKAGES.includes(name) && typeof dependency.path === 'string') {
+        version = JSON.parse(readFileSync(join(dependency.path, 'package.json'), 'utf8')).version;
+      }
       if (typeof version === 'string' && !version.startsWith('link:') && typeof dependency.path === 'string') {
         const key = `${name}@${version}`;
         if (!found.has(key)) found.set(key, { name, version, path: dependency.path });

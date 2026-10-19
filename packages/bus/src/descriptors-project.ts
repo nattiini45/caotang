@@ -59,12 +59,16 @@ export const METADATA_PATCH_KEYS = ['author', 'language', 'isbn', 'coverAssetId'
 
 /**
  * The keys a recipe's options carry (exporter.md §2; `charLimit` is dialogue-narrative.md §4's column, made a recipe option;
- * `sceneNumbers` and `continued` are the screenplay PDF's options, screenplay.md §5.3).
+ * `sceneNumbers` and `continued` are the screenplay PDF's options, screenplay.md §5.3; `pageSize` is the contact sheet's
+ * paper, storyboard.md §6).
  */
-const RECIPE_OPTION_KEYS = ['titlePage', 'toc', 'author', 'charLimit', 'sceneNumbers', 'continued'] as const;
+const RECIPE_OPTION_KEYS = ['titlePage', 'toc', 'author', 'charLimit', 'sceneNumbers', 'continued', 'pageSize'] as const;
 
 /** Where the screenplay PDF may print scene numbers (screenplay.md §5.3). */
 export const SCENE_NUMBER_OPTIONS = ['off', 'left', 'right', 'both'] as const;
+
+/** The papers a contact sheet is drawn on (storyboard.md §6). */
+export const RECIPE_PAGE_SIZES = ['A4', 'Letter'] as const;
 
 const VOCABULARY_KINDS: readonly VocabularyKind[] = ['status', 'label'];
 
@@ -167,6 +171,17 @@ function recipeOptionsOf(value: unknown): Result<RecipeOptionsParams | undefined
       );
     }
     typed.sceneNumbers = sceneNumbers as (typeof SCENE_NUMBER_OPTIONS)[number];
+  }
+  const pageSize = value['pageSize'];
+  if (pageSize !== undefined) {
+    if (pageSize !== 'A4' && pageSize !== 'Letter') {
+      return invalid(
+        `params.options.pageSize must be one of ${RECIPE_PAGE_SIZES.join(', ')}, got ${showValue(pageSize)}`,
+        `pass ${RECIPE_PAGE_SIZES.join(' or ')}, or leave it out for A4`,
+        'options.pageSize',
+      );
+    }
+    typed.pageSize = pageSize;
   }
   return ok(typed);
 }

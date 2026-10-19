@@ -51,6 +51,8 @@ export interface ExportRecipeOptions {
   sceneNumbers?: 'off' | 'left' | 'right' | 'both';
   /** `(MORE)` and `(CONT'D)` across a page break in the screenplay PDF (screenplay.md §5.3). Absent = on. */
   continued?: boolean;
+  /** The contact sheet's paper (storyboard.md §6). Absent = A4. */
+  pageSize?: 'A4' | 'Letter';
 }
 
 /**

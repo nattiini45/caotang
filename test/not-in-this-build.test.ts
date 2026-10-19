@@ -2,7 +2,7 @@
  * The user-facing "not in this build" lists name only what is missing. Each list is prose a writer reads, and nothing
  * else checks it, so a feature that ships (visual references, the dialogue table's character limit, the demo's continuity
  * findings in the Findings tab, weekly and monthly goals, spreadsheet export, the engine target and locale in dialogue exports, the Source
- * tab's element menu) can stay on the list after it is built. These tests read the three lists and fail when one of them
+ * tab's element menu, the storyboard contact sheet PDF) can stay on the list after it is built. These tests read the three lists and fail when one of them
  * names a built feature as missing.
  */
 import { readFileSync } from 'node:fs';
@@ -42,6 +42,7 @@ const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp
   },
   { name: 'the engine target and locale in dialogue exports', pattern: /engine target|dialogue export settings|locale in exports/i },
   { name: 'the Source tab element menu', pattern: /element menu/i },
+  { name: 'the storyboard contact sheet PDF', pattern: /storyboard PDF|PDF (?:exports? |output )?(?:of|for) (?:a )?storyboards?|PDF of a storyboard/i },
 ];
 
 describe('the built-feature patterns flag a stale claim and nothing else', () => {

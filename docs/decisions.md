@@ -269,7 +269,6 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - Emoji go to a third fallback, monochrome Noto Emoji (the static Regular instance of the google/fonts variable font, TrueType outlines), laid out by fontkit's `font.layout` per grapheme cluster and loaded only for a script with emoji. An emoji cluster is two grid columns and one CID with the whole sequence in ToUnicode. Why: "if it's typable, it's printable"; TrueType avoids fontkit's CFF subset bugs, and googlefonts/noto-emoji ships no current monochrome file. [delegated]
 - The screenplay PDF's title page is not counted; script page 1 has no number, and numbers print from page 2. Why: the screenplay convention. [delegated]
 - Dual dialogue prints side by side in the PDF, and a pair never splits across a page. Why: the Fountain `^` pair is a side-by-side block. [delegated]
-- Not yet built: PDF output for storyboards. (specified, not built) [delegated]
 
 ## Coherence
 

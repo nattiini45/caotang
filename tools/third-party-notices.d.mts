@@ -9,6 +9,9 @@ export const NOTICES_FILE: string;
 /** Dual-licensed packages and the license each is used under. */
 export const ELECTED_LICENSES: Readonly<Record<string, string>>;
 
+/** Workspace packages that vendor third-party work under its own license, listed like external packages. */
+export const VENDORED_WORKSPACE_PACKAGES: readonly string[];
+
 /** Third-party files shipped inside Caotang's own packages, with the license text kept beside each. */
 export interface BundledAsset {
   readonly name: string;

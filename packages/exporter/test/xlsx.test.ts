@@ -437,7 +437,7 @@ describe('dialogue-xlsx — the dialogue table as a spreadsheet', () => {
     expect(file?.bytes).toBeTypeOf('function');
     expect(output.blockCount).toBe(5);
     return file?.bytes?.().then((bytes) => {
-      const cells = readCells(strFromU8(unzipSync(bytes)['xl/worksheets/sheet1.xml'] ?? new Uint8Array()));
+      const cells = readCells(strFromU8(unzipSync(bytes as Uint8Array)['xl/worksheets/sheet1.xml'] ?? new Uint8Array()));
       for (const row of [2, 3, 4, 5, 6]) expect(cells.get(`E${row}`)).toEqual({ kind: 'number', style: 0, value: 42 });
     });
   });

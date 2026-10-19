@@ -844,10 +844,15 @@ export type RecipeOptionsParams = {
   sceneNumbers?: SceneNumbersOption;
   /** `(MORE)` and `(CONT'D)` across a page break in the screenplay PDF (screenplay.md §5.3). */
   continued?: boolean;
+  /** The contact sheet's paper (storyboard.md §6). */
+  pageSize?: RecipePageSize;
 };
 
 /** Where the screenplay PDF prints scene numbers (screenplay.md §5.3): off by default. */
 export type SceneNumbersOption = 'off' | 'left' | 'right' | 'both';
+
+/** The contact sheet's paper (storyboard.md §6), a recipe option. */
+export type RecipePageSize = 'A4' | 'Letter';
 
 /** `recipe.save`: a named export configuration. Saving a name that exists replaces it. */
 export type RecipeSaveParams = {

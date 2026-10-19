@@ -14,9 +14,10 @@
  * pipeline, and a gate that refuses throws before anything is reserved. The bus reports that refusal as the
  * port's error, with nothing written and no undo group (exporter.md §2; store/commands.ts `ExportCommandPort`).
  *
- * The screenplay PDF is the one file drawn later. Its pagination runs here, so its gate and its page count are
+ * The screenplay PDF is drawn later. Its pagination runs here, so its gate and its page count are
  * known in the plan; the drawing waits for the font, which is loaded lazily (screenplay.md §5.3), so the file
- * carries a `bytes` render that the queue runs, as it runs the DOCX and EPUB renderers.
+ * carries a `bytes` render that the queue runs, as it runs the DOCX and EPUB renderers. The contact sheet
+ * (storyboard.md §6) is drawn the same way: its page plan runs here, and its pictures are read when it renders.
  */
 
 import { drawPdf, layoutPdf, loadCjkFallback, loadCourierPrime, loadEmojiFallback, renderFdx, renderFountain, isScreenplayKind, PDF_MIME } from '@caotang/screenplay';
@@ -36,6 +37,7 @@ import { countBody, getBody, nodeById, type ProjectState, type TreeNode } from '
 import {
   exportNumbers,
   guardFormula,
+  planContactSheet,
   isPlainObject,
   isShotNode,
   kindOf,
@@ -47,6 +49,8 @@ import {
   shotsInBinderOrder,
   walkBinder,
   type DialogueCoverage,
+  type PageSize,
+  type SheetImageStatus,
 } from '@caotang/storyboard';
 import {
   VIDEO_TEMPLATE_IDS,
@@ -68,7 +72,10 @@ import {
   coherenceReportJson,
   coherenceReportMarkdown,
 } from './coherence-report.js';
+import type { RenderedContents } from './emit.js';
 import { flatten, type FlattenResult } from './flatten.js';
+import type { FontLoader } from './cjk-font.js';
+import { drawContactSheet } from './render-contact-sheet.js';
 import { XLSX_MIME, prepareSheet, renderXlsx, type XlsxCell, type XlsxSheet } from './render-xlsx.js';
 import { fileStem, suffixName } from './template.js';
 import type { FlatBlock, MediaFormat } from './types.js';
@@ -107,15 +114,30 @@ export interface MediaRequest {
   readonly charLimit?: number | null;
   /** Stored assets by id, with their file names (storyboard.md §2.1). The exporter reads these synchronously. */
   readonly assets: ReadonlyMap<string, AssetRecord>;
+  /**
+   * Reads one file of the project's `assets/` store by its path (`assets/<fileName>`), or gives `null` when the store does not hold
+   * it. Only the contact sheet reads picture bytes, and it reads them when its file renders, after the plan. Without it, every
+   * picture on the sheet shows its caption, and the log says so.
+   */
+  readonly readAsset?: (path: string) => Promise<Uint8Array | null>;
+  /** The contact sheet's paper, A4 or US Letter (storyboard.md §6). Absent is A4. Only `contact-sheet-pdf` reads it. */
+  readonly pageSize?: PageSize;
+  /** The moment the compile ran, in ms. The contact sheet's PDF dates are set from it. Absent is now. */
+  readonly at?: number;
+  /** Reads the contact sheet's fallback font for text outside Latin script (./cjk-font.ts). Only `contact-sheet-pdf` reads it. */
+  readonly loadFallbackFont?: FontLoader;
+  /** Reads the contact sheet's emoji font (./emoji-font.ts). Only `contact-sheet-pdf` reads it, and only for a sheet with emoji. */
+  readonly loadEmojiFont?: FontLoader;
 }
 
 /**
  * One file the compile writes. `name` has no folder; the emitter places it in `exports/`. A text file carries its text. A
- * binary file (the screenplay PDF) carries `bytes`, which renders it in the queue, after the plan has accepted the compile.
+ * binary file (the screenplay PDF, a spreadsheet, the contact sheet's PDF) carries `bytes`, which renders it in the queue,
+ * after the plan has accepted the compile. A render may hand back compile-log notes with its contents (the contact sheet does).
  */
 export type MediaFile =
   | { readonly name: string; readonly mimeType: string; readonly text: string; readonly bytes?: never }
-  | { readonly name: string; readonly mimeType: string; readonly text?: never; readonly bytes: () => Promise<Uint8Array> };
+  | { readonly name: string; readonly mimeType: string; readonly text?: never; readonly bytes: () => Promise<RenderedContents> };
 
 /** What a media compile produced, and the counts and notes its log row carries. */
 export interface MediaOutput {
@@ -148,6 +170,8 @@ export function renderMedia(request: MediaRequest): MediaOutput {
       return dialogueXlsxOutput(request);
     case 'shot-list-xlsx':
       return shotListXlsxOutput(request);
+    case 'contact-sheet-pdf':
+      return contactSheetOutput(request);
     case 'promptpack':
       return promptPackOutput(request);
     case 'coherence-md':
@@ -655,7 +679,7 @@ function shotListXlsxOutput(request: MediaRequest): MediaOutput {
  * A shot with no metadata on record lists with every column but its number blank, and the renderer writes it so. The
  * log says so, because a shot the writer filled in and the store did not keep looks the same as one nobody filled in.
  */
-function bareShotNotes(request: MediaRequest): string[] {
+function bareShotNotes(request: MediaRequest, consequence = 'its columns are blank'): string[] {
   const shots = shotsInBinderOrder(request.state, request.includeRootIds);
   const numbers = exportNumbers(shots);
   return shots
@@ -663,7 +687,83 @@ function bareShotNotes(request: MediaRequest): string[] {
       const raw = shotFieldOf(node);
       return raw === undefined || raw === null;
     })
-    .map((node) => `shot ${numbers.get(node.id) ?? 0}: no shot metadata is on record, so its columns are blank`);
+    .map((node) => `shot ${numbers.get(node.id) ?? 0}: no shot metadata is on record, so ${consequence}`);
+}
+
+/* ------------------------------------------------------------------ *
+ * The production format: the contact sheet (storyboard.md §6)
+ * ------------------------------------------------------------------ */
+
+/** The header the contact sheet prints on each page, filled from the template variables (storyboard.md §6). */
+export const CONTACT_SHEET_HEADER = '{project} — {storyboard} — {date}';
+
+/** Whether a stored picture can be drawn on the sheet: PNG and JPEG are embedded; a WebP file and a missing one show the caption. */
+function sheetImageStatus(assets: ReadonlyMap<string, AssetRecord>, assetId: string): SheetImageStatus {
+  const record = assets.get(assetId);
+  if (record === undefined) {
+    return { drawn: false, note: `image ${assetId} is not in assets/, so its cards show the caption` };
+  }
+  if (/\.webp$/i.test(record.fileName)) {
+    return { drawn: false, note: `image ${assetId} is a WebP file, which the PDF cannot embed, so its cards show the caption` };
+  }
+  return { drawn: true };
+}
+
+/**
+ * The contact sheet as a PDF: a grid of shot cards in binder order, each with its picture, number chip, spec row and action
+ * lines, paginated on A4 or US Letter (storyboard.md §6). The page plan is made here, synchronously, so the gate (a selection
+ * with no shot) refuses before anything is reserved; the picture bytes are read and the PDF is drawn when the file renders.
+ */
+function contactSheetOutput(request: MediaRequest): MediaOutput {
+  const shots = shotsInBinderOrder(request.state, request.includeRootIds);
+  if (shots.length === 0) {
+    throw new MediaRefusedError('contact-sheet-pdf', ['the selection holds no shot, so there is no contact sheet to draw']);
+  }
+  const pageSize = request.pageSize ?? 'A4';
+  const planned = planContactSheet(request.state, request.includeRootIds, (assetId) => sheetImageStatus(request.assets, assetId), {
+    pageSize,
+    headerTemplate: CONTACT_SHEET_HEADER,
+    project: request.title,
+    date: request.date,
+  });
+  const readAsset = request.readAsset;
+  const notes = [...planned.notes];
+  if (readAsset === undefined && planned.pictures.size > 0) {
+    notes.push('contact sheet: this compile cannot read the pictures, so every card shows its caption');
+  }
+  const pages = planned.plan.pages.length;
+  notes.push(`contact sheet: ${pages} ${pages === 1 ? 'page' : 'pages'} of ${planned.plan.cardsPerPage} shots each, ${pageSize}`);
+  const at = new Date(request.at ?? Date.now());
+  const title = planned.plan.pages[0]?.title.text ?? request.title;
+  return {
+    files: [
+      {
+        name: `${request.base} (contact sheet).pdf`,
+        mimeType: PDF_MIME,
+        bytes: () =>
+          drawContactSheet({
+            plan: planned.plan,
+            pictures: readAsset === undefined ? new Map() : planned.pictures,
+            readPicture: async (assetId) => {
+              const record = request.assets.get(assetId);
+              if (readAsset === undefined || record === undefined) return null;
+              return readAsset(`assets/${record.fileName}`);
+            },
+            title,
+            ...(request.author.trim() === '' ? {} : { author: request.author }),
+            ...(request.loadFallbackFont === undefined ? {} : { loadFallbackFont: request.loadFallbackFont }),
+            ...(request.loadEmojiFont === undefined ? {} : { loadEmojiFont: request.loadEmojiFont }),
+            at,
+          }),
+      },
+    ],
+    blockCount: shots.length,
+    chapterCount: 0,
+    sceneCount: 0,
+    wordCount: 0,
+    skippedDocs: [],
+    notes: [...notes, ...bareShotNotes(request, 'its card shows its number and "No image", with no camera details or action')],
+  };
 }
 
 /* ------------------------------------------------------------------ *

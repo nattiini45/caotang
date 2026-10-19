@@ -38,6 +38,7 @@ const MEDIA_FORMAT_NAMES: Readonly<Record<string, string>> = {
   'shot-list-csv': 'the shot list',
   'dialogue-xlsx': 'the dialogue table',
   'shot-list-xlsx': 'the shot list',
+  'contact-sheet-pdf': 'the contact sheet',
   promptpack: 'the prompt pack',
 };
 

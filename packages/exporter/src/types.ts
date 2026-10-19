@@ -16,7 +16,7 @@ import type { ProjectState } from '@caotang/store';
  * The formats this build compiles. The prose formats are exporter.md §2 and §3 (`epub` is §3a's). The rest
  * are the media-track formats of the one-source compile, each compiled from its own package's renderer: the
  * screenplay Fountain and FDX, the dialogue table and compiled Ink, the storyboard shot list and the video
- * prompt pack. The dialogue table and the shot list are written as CSV and as a spreadsheet (XLSX). The screenplay PDF (`pdf`, screenplay.md §5.3) is the last: the paginated script, with Courier Prime embedded.
+ * prompt pack. The dialogue table and the shot list are written as CSV and as a spreadsheet (XLSX). The screenplay PDF (`pdf`, screenplay.md §5.3) follows: the paginated script, with Courier Prime embedded. The storyboard contact sheet (`contact-sheet-pdf`, storyboard.md §6) is appended last.
  */
 export const EXPORT_FORMATS = [
   'md',
@@ -36,8 +36,10 @@ export const EXPORT_FORMATS = [
   // order above holds.
   'dialogue-xlsx',
   'shot-list-xlsx',
-  // The screenplay PDF (screenplay.md §5.3), appended last.
+  // The screenplay PDF (screenplay.md §5.3).
   'pdf',
+  // The storyboard's contact sheet (storyboard.md §6): a PDF of shot cards. Appended last, so the order above holds.
+  'contact-sheet-pdf',
 ] as const;
 
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
@@ -59,12 +61,13 @@ export const MEDIA_FORMATS = [
   'dialogue-xlsx',
   'shot-list-xlsx',
   'pdf',
+  'contact-sheet-pdf',
 ] as const satisfies readonly ExportFormat[];
 
 export type MediaFormat = (typeof MEDIA_FORMATS)[number];
 
 /** Formats whose artifact is a binary container, which `ArtifactFs` (string-only) cannot hold. */
-export const BINARY_FORMATS: readonly ExportFormat[] = ['docx', 'epub', 'dialogue-xlsx', 'shot-list-xlsx', 'pdf'];
+export const BINARY_FORMATS: readonly ExportFormat[] = ['docx', 'epub', 'dialogue-xlsx', 'shot-list-xlsx', 'pdf', 'contact-sheet-pdf'];
 
 export function isExportFormat(value: string): value is ExportFormat {
   return (EXPORT_FORMATS as readonly string[]).includes(value);
@@ -114,6 +117,8 @@ export interface ExportRecipeOptions {
   readonly sceneNumbers?: 'off' | 'left' | 'right' | 'both';
   /** `(MORE)` and `NAME (CONT'D)` where the screenplay PDF splits a speech across a page (screenplay.md §5.3). Default on. Only `pdf` reads it. */
   readonly continued?: boolean;
+  /** The contact sheet's paper (storyboard.md §6): `A4` or `Letter`. Absent is A4. Only `contact-sheet-pdf` reads it. */
+  readonly pageSize?: 'A4' | 'Letter';
 }
 
 /**

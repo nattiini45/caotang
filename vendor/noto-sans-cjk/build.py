@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Builds NotoSansCJKsc-Regular.woff from the upstream Noto Sans CJK SC Regular OTF.
+
+Run: python3 vendor/noto-sans-cjk/build.py <path to NotoSansCJKsc-Regular.otf>
+
+The source is the file README.md names, at the tag it names, and its SHA-256 is checked before anything is built. The
+output is written beside this script, and its SHA-256 is compared with SHA256SUMS: the build fails when they differ, and
+fails before it starts when SHA256SUMS or its line for the output is missing. The same source and the same fontTools version
+give the same bytes.
+
+The steps:
+
+1. The CFF outlines become TrueType (glyf) outlines, quadratic curves within 1 font unit of the cubic ones. pdf-lib's
+   fontkit subsets a TrueType font correctly; it writes a broken subset of a CID-keyed CFF font, which Noto Sans CJK is.
+   Each glyph is padded to 4 bytes, because fontkit's subsetter copies glyph data as it finds it.
+2. Every character the font maps is kept. The glyphs no character reaches (the vertical, regional and other alternates
+   that only OpenType layout reaches) are dropped, with the layout tables, the vertical metrics and the hinting. The PDF
+   exporter draws horizontal text with no layout features, so none of them is used.
+3. The result is stored as WOFF 1.0 (zlib), which the exporter unpacks before fontkit reads it.
+"""
+
+import hashlib
+import sys
+from pathlib import Path
+from typing import Optional
+
+import fontTools
+from fontTools import subset
+from fontTools.pens.cu2quPen import Cu2QuPen
+from fontTools.pens.ttGlyphPen import TTGlyphPen
+from fontTools.ttLib import TTFont, newTable
+
+FONTTOOLS_VERSION = "4.61.1"
+SOURCE_SHA256 = "2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b"
+OUTPUT = "NotoSansCJKsc-Regular.woff"
+HERE = Path(__file__).resolve().parent
+
+
+def sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def pinned_digest(name: str) -> Optional[str]:
+    """The SHA-256 SHA256SUMS pins for a file name, or None when SHA256SUMS is missing or has no line for it."""
+    sums = HERE / "SHA256SUMS"
+    if not sums.is_file():
+        return None
+    for line in sums.read_text().splitlines():
+        parts = line.split(None, 1)
+        if len(parts) == 2 and parts[1].strip() == name:
+            return parts[0]
+    return None
+
+
+def to_truetype(font: TTFont) -> None:
+    order = font.getGlyphOrder()
+    glyphs = font.getGlyphSet()
+    glyf = newTable("glyf")
+    glyf.glyphOrder = order
+    glyf.glyphs = {}
+    glyf.padding = 4
+    for name in order:
+        pen = TTGlyphPen(glyphs)
+        glyphs[name].draw(Cu2QuPen(pen, 1.0, reverse_direction=True))
+        glyf[name] = pen.glyph()
+    font["glyf"] = glyf
+    font["loca"] = newTable("loca")
+    maxp = font["maxp"]
+    maxp.tableVersion = 0x00010000
+    for field in (
+        "maxTwilightPoints",
+        "maxStorage",
+        "maxFunctionDefs",
+        "maxInstructionDefs",
+        "maxStackElements",
+        "maxSizeOfInstructions",
+        "maxComponentElements",
+        "maxComponentDepth",
+    ):
+        setattr(maxp, field, 0)
+    maxp.maxZones = 1
+    del font["CFF "]
+    if "VORG" in font:
+        del font["VORG"]
+    font["post"].formatType = 3.0
+    font["head"].glyphDataFormat = 0
+    font.sfntVersion = "\x00\x01\x00\x00"
+
+
+def main() -> int:
+    if len(sys.argv) != 2:
+        print(__doc__.splitlines()[2].strip(), file=sys.stderr)
+        return 2
+    if fontTools.version != FONTTOOLS_VERSION:
+        print(f"fontTools {FONTTOOLS_VERSION} is required (found {fontTools.version})", file=sys.stderr)
+        return 1
+    source = Path(sys.argv[1])
+    if sha256(source) != SOURCE_SHA256:
+        print(f"{source} is not the pinned source (SHA-256 {SOURCE_SHA256})", file=sys.stderr)
+        return 1
+    # The output is always compared: a missing SHA256SUMS, or one with no line for the output, stops the build before it runs.
+    pinned = pinned_digest(OUTPUT)
+    if pinned is None:
+        print(f"{HERE / 'SHA256SUMS'} has no SHA-256 for {OUTPUT}, so the output could not be checked", file=sys.stderr)
+        return 1
+
+    # The head table keeps its upstream dates, so the output does not depend on when it was built.
+    font = TTFont(source, recalcTimestamp=False)
+    to_truetype(font)
+
+    options = subset.Options()
+    options.layout_features = []
+    options.hinting = False
+    options.name_IDs = ["*"]
+    options.name_languages = ["*"]
+    options.drop_tables += ["BASE", "vhea", "vmtx", "VORG", "DSIG", "GSUB", "GPOS", "GDEF"]
+    options.flavor = "woff"
+    subsetter = subset.Subsetter(options)
+    subsetter.populate(unicodes=font.getBestCmap().keys())
+    subsetter.subset(font)
+
+    output = HERE / OUTPUT
+    subset.save_font(font, str(output), options)
+    digest = sha256(output)
+    print(f"{OUTPUT}: {output.stat().st_size} bytes, SHA-256 {digest}")
+    if pinned != digest:
+        print(f"the output differs from SHA256SUMS ({pinned})", file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

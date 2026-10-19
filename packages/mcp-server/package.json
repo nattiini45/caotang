@@ -18,6 +18,8 @@
     "@modelcontextprotocol/server": "2.3.1",
     "@caotang/bus": "workspace:*",
     "@caotang/exporter": "workspace:*",
+    "@caotang/font-noto-cjk": "workspace:*",
+    "@caotang/font-noto-emoji": "workspace:*",
     "@caotang/harness": "workspace:*",
     "@caotang/ids": "workspace:*",
     "@caotang/store": "workspace:*"

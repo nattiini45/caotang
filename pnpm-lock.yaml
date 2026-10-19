@@ -223,6 +223,12 @@ importers:
       '@caotang/exporter':
         specifier: workspace:*
         version: link:../../packages/exporter
+      '@caotang/font-noto-cjk':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-cjk
+      '@caotang/font-noto-emoji':
+        specifier: workspace:*
+        version: link:../../vendor/noto-emoji
       '@caotang/furniture':
         specifier: workspace:*
         version: link:../../packages/furniture
@@ -504,6 +510,12 @@ importers:
       '@caotang/dialogue':
         specifier: workspace:*
         version: link:../dialogue
+      '@caotang/font-noto-cjk':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-cjk
+      '@caotang/font-noto-emoji':
+        specifier: workspace:*
+        version: link:../../vendor/noto-emoji
       '@caotang/screenplay':
         specifier: workspace:*
         version: link:../screenplay
@@ -516,12 +528,18 @@ importers:
       '@caotang/video-prompt-pack':
         specifier: workspace:*
         version: link:../video-prompt-pack
+      '@pdf-lib/fontkit':
+        specifier: 1.1.1
+        version: 1.1.1
       docx:
         specifier: 9.9.0
         version: 9.9.0
       fflate:
         specifier: 0.8.3
         version: 0.8.3
+      pdf-lib:
+        specifier: 1.17.1
+        version: 1.17.1
       remark-parse:
         specifier: 11.0.0
         version: 11.0.0
@@ -626,6 +644,12 @@ importers:
       '@caotang/exporter':
         specifier: workspace:*
         version: link:../exporter
+      '@caotang/font-noto-cjk':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-cjk
+      '@caotang/font-noto-emoji':
+        specifier: workspace:*
+        version: link:../../vendor/noto-emoji
       '@caotang/harness':
         specifier: workspace:*
         version: link:../harness
@@ -690,6 +714,10 @@ importers:
       '@caotang/store':
         specifier: workspace:*
         version: link:../store
+
+  vendor/noto-emoji: {}
+
+  vendor/noto-sans-cjk: {}
 
 packages:
 
@@ -1013,6 +1041,12 @@ packages:
 
   '@pdf-lib/fontkit@1.1.1':
     resolution: {integrity: sha512-KjMd7grNapIWS/Dm0gvfHEilSyAmeLvrEGVcqLGi0VYebuqqzTbgF29efCx7tvx+IEbG3zQciRSWl3GkUSvjZg==}
+
+  '@pdf-lib/standard-fonts@1.0.0':
+    resolution: {integrity: sha512-hU30BK9IUN/su0Mn9VdlVKsWBS6GyhVfqjwl1FjZN4TxP6cCw0jP2w7V3Hf5uX7M0AZJ16vey9yE0ny7Sa59ZA==}
+
+  '@pdf-lib/upng@1.0.1':
+    resolution: {integrity: sha512-dQK2FUMQtowVP00mtIksrlZhdFXQZPC+taih1q4CvPZ5vqdxR/LKBaFg0oAfzd1GlHZXXSPdQfzQnt+ViGvEIQ==}
 
   '@playwright/test@1.63.0':
     resolution: {integrity: sha512-oxMK4vllB9RK5NQ2l1pq1IfOf2AvnEuj/vYGDj0H2nMtmtZpKtCwt/l00GEO6xjGfpBNAvjovvYdCm50dRQkpQ==}
@@ -2155,6 +2189,9 @@ packages:
     resolution: {integrity: sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q==}
     engines: {node: '>=8'}
 
+  pdf-lib@1.17.1:
+    resolution: {integrity: sha512-V/mpyJAoTsN4cnP31vc0wfNA1+p20evqqnap0KLoRUN0Yk/p3wN52DOEsL4oBFcLdb76hlpKPtzJIgo67j/XLw==}
+
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
 
@@ -2381,6 +2418,9 @@ packages:
     engines: {node: '>=18.12'}
     peerDependencies:
       typescript: '>=4.8.4'
+
+  tslib@1.14.1:
+    resolution: {integrity: sha512-Xni35NKzjgMrwevysHTCArtLDpPvye8zV/0E4EyYn43P7/7qvQwPh9BGkHewbMulVntbigmcT7rdX3BNo9wRJg==}
 
   type-check@0.4.0:
     resolution: {integrity: sha512-XleUoc9uwGXqjWwXaUTZAmzMcFZ5858QA2vvx1Ur5xIcixXIP+8LnFDgRplU30us6teqdlskFfu+ae4K79Ooew==}
@@ -3024,6 +3064,14 @@ snapshots:
   '@oxc-project/types@0.152.0': {}
 
   '@pdf-lib/fontkit@1.1.1':
+    dependencies:
+      pako: 1.0.11
+
+  '@pdf-lib/standard-fonts@1.0.0':
+    dependencies:
+      pako: 1.0.11
+
+  '@pdf-lib/upng@1.0.1':
     dependencies:
       pako: 1.0.11
 
@@ -4286,6 +4334,13 @@ snapshots:
 
   path-key@3.1.1: {}
 
+  pdf-lib@1.17.1:
+    dependencies:
+      '@pdf-lib/standard-fonts': 1.0.0
+      '@pdf-lib/upng': 1.0.1
+      pako: 1.0.11
+      tslib: 1.14.1
+
   picocolors@1.1.1: {}
 
   picomatch@4.0.7: {}
@@ -4542,6 +4597,8 @@ snapshots:
   ts-api-utils@2.5.0(typescript@6.0.3):
     dependencies:
       typescript: 6.0.3
+
+  tslib@1.14.1: {}
 
   type-check@0.4.0:
     dependencies:

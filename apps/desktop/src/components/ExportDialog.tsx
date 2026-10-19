@@ -65,6 +65,11 @@ const FORMAT_GROUPS: readonly { readonly name: string; readonly formats: readonl
       { format: 'shot-list-csv', label: 'Shot list (.csv)', help: 'Each shot in order, with its size, angle, movement and duration.' },
       { format: 'dialogue-xlsx', label: 'Dialogue table (.xlsx)', help: 'The dialogue table as a spreadsheet, for Excel, Numbers or LibreOffice.' },
       { format: 'shot-list-xlsx', label: 'Shot list (.xlsx)', help: 'The shot list as a spreadsheet, with shot numbers and durations as numbers.' },
+      {
+        format: 'contact-sheet-pdf',
+        label: 'Storyboard contact sheet (.pdf)',
+        help: 'Each shot as a card with its picture, number, camera details and action, with the animatic total on every page.',
+      },
     ],
   },
   // The coherence report (media-track.md, Review): the findings file and its run history, for reading outside Caotang.
@@ -88,6 +93,8 @@ interface ShownOptions {
   readonly sceneNumbers: SceneNumbersOption;
   /** `(MORE)` and `(CONT'D)` where the screenplay PDF splits a speech. On unless the recipe turns it off. */
   readonly continued: boolean;
+  /** The contact sheet's paper; `undefined` is A4 (storyboard.md §6). */
+  readonly pageSize: PageSize | undefined;
 }
 
 /** The scene-number choices, in the words the dialog shows. */
@@ -106,12 +113,16 @@ function pdfOptionsOf(shown: ShownOptions): { sceneNumbers?: SceneNumbersOption;
   };
 }
 
+/** The papers a contact sheet is drawn on. */
+type PageSize = 'A4' | 'Letter';
+
 function shownOptionsOf(recipe: ExportRecipe | undefined): ShownOptions {
   return {
     titlePage: recipe?.options?.titlePage ?? DEFAULT_TEMPLATE.titlePage,
     toc: recipe?.options?.toc ?? DEFAULT_TEMPLATE.toc,
     author: recipe?.options?.author ?? '',
     charLimit: recipe?.options?.charLimit,
+    pageSize: recipe?.options?.pageSize,
     sceneNumbers: recipe?.options?.sceneNumbers ?? 'off',
     continued: recipe?.options?.continued ?? true,
   };
@@ -168,6 +179,7 @@ export function ExportDialog({
         ...(author === '' ? {} : { author }),
         ...(next.charLimit === undefined ? {} : { charLimit: next.charLimit }),
         ...pdfOptionsOf(next),
+        ...(next.pageSize === undefined ? {} : { pageSize: next.pageSize }),
       },
     });
     if (outcome.ok) setNotice(null);
@@ -192,6 +204,7 @@ export function ExportDialog({
         ...(author === '' ? {} : { author }),
         ...(shown.charLimit === undefined ? {} : { charLimit: shown.charLimit }),
         ...pdfOptionsOf(shown),
+        ...(shown.pageSize === undefined ? {} : { pageSize: shown.pageSize }),
       },
     });
     if (outcome.ok) {
@@ -396,6 +409,18 @@ export function ExportDialog({
               </label>
             </>
           ) : null}
+          {format === 'contact-sheet-pdf' ? (
+            <label className="export-field">
+              <span className="export-option-label">Paper size</span>
+              <select
+                value={shown.pageSize ?? 'A4'}
+                onChange={(event) => saveOptions({ ...shown, pageSize: event.target.value === 'Letter' ? 'Letter' : 'A4' })}
+              >
+                <option value="A4">A4</option>
+                <option value="Letter">US Letter</option>
+              </select>
+            </label>
+          ) : null}
         </fieldset>
 
         <div className="export-field export-save-new">
@@ -544,6 +569,7 @@ function holdsOf(digest: ExportCommandDigest): string {
     case 'shot-list-csv':
     case 'shot-list-xlsx':
     case 'promptpack':
+    case 'contact-sheet-pdf':
       return countPhrase(digest.blockCount, 'shot');
     case 'coherence-md':
     case 'coherence-json':

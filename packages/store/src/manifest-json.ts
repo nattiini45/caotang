@@ -257,6 +257,7 @@ function recipeOptions(o: NonNullable<ExportRecipe['options']>): string {
   // The placements the bus accepts, from its own export, so a placement it gains is written, not dropped.
   if (typeof numbers === 'string' && (SCENE_NUMBER_OPTIONS as readonly string[]).includes(numbers)) pairs.push(['sceneNumbers', str(numbers)]);
   if (typeof o.continued === 'boolean') pairs.push(['continued', String(o.continued)]);
+  if (o.pageSize === 'A4' || o.pageSize === 'Letter') pairs.push(['pageSize', str(o.pageSize)]);
   return pairs.length === 0 ? '{}' : oneLine(pairs);
 }
 
