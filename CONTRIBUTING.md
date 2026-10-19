@@ -13,7 +13,7 @@ You need:
 Then:
 
 ```sh
-git clone https://github.com/caotang-app/caotang.git
+git clone https://github.com/nattiini45/caotang.git
 cd caotang
 pnpm install
 pnpm dev        # the app at http://127.0.0.1:5173
