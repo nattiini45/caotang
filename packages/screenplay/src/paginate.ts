@@ -16,7 +16,13 @@
  *   not an element, so a transition after one goes before the break.
  *
  * Annotations do not print: a boneyard or a note is removed from every line (`printedText`).
- * Dual dialogue (`NAME ^`) lays out in sequence; side-by-side columns are not drawn (a known gap).
+ * Dual dialogue (`NAME ^`, screenplay.md §2.2) prints side by side: the first speaker in the left
+ * column, the second in the right. A pair moves to the next page whole and never splits; a pair
+ * taller than a page is laid one block after the other, which splits by the dialogue rules.
+ *
+ * Widths are grid columns (width.ts): a Chinese, Japanese or Korean character takes two, every other
+ * character one, so the indents, the column widths and the 54-line page hold for CJK text. A line breaks
+ * at white space and between Chinese or Japanese characters, with the kinsoku marks kept on their side.
  *
  * Estimates (screenplay.md §2.2, §5.2): a page count is the pagination's own count, and one page is
  * about one minute of screen time. The minute figure is an estimate, never a
@@ -25,6 +31,7 @@
 
 import { printedText, sceneNumberOf, stripSceneNumber } from './classify.js';
 import type { ScreenplayElement } from './types.js';
+import { breakPieces, splitColumns, textColumns } from './width.js';
 
 /**
  * The layout constants (screenplay.md §5.3): 12pt Courier, US Letter, 1.5in left margin,
@@ -67,6 +74,18 @@ export const LAYOUT = Object.freeze({
     transition: 60,
     centered: 60,
   },
+  /**
+   * The two columns of a dual-dialogue pair, in characters from the left margin. Each column is 27 characters of
+   * dialogue, with a three-column gutter. The dialogue and the parentheticals sit inside their column (the left
+   * parenthetical ends by column 3 + 21 = 24, the right one by 33 + 21 = 54). The cue wraps at 23, the room its indent
+   * leaves: the left cue ends by column 7 + 23 = 30, where the right column starts, and the right cue by 37 + 23 = 60, the
+   * right margin, so neither cue reaches the other column or the margin.
+   */
+  dual: {
+    left: { character: 7, parenthetical: 3, dialogue: 0 },
+    right: { character: 37, parenthetical: 33, dialogue: 30 },
+    width: { character: 23, parenthetical: 21, dialogue: 27 },
+  },
 });
 
 export type LineKind =
@@ -97,7 +116,10 @@ export interface LayoutLine {
 }
 
 export interface LayoutPage {
-  /** 1-based. The title page counts when there is one. */
+  /**
+   * The page's number. Script pages count from 1, and the number is printed from page 2 (screenplay.md §5.3). The title
+   * page is not counted, as in every screenplay: it is page 0, and it carries no number.
+   */
   readonly number: number;
   readonly kind: 'title' | 'script';
   readonly lines: readonly LayoutLine[];
@@ -125,10 +147,14 @@ type ParaKind = 'scene' | 'action' | 'character' | 'parenthetical' | 'dialogue' 
 interface Para {
   readonly kind: ParaKind;
   readonly lines: readonly string[];
+  /** What joins each line to the next when a dual-dialogue column rewraps the text: a space, or nothing between CJK characters. */
+  readonly joins: readonly string[];
   /** Dialogue only: line i ends a sentence, so the text may split after it. */
   readonly ends: readonly boolean[];
   readonly blankBefore: boolean;
   readonly align: 'left' | 'center' | 'right';
+  /** The column a left-aligned line starts at, in characters from the left margin. */
+  readonly indent: number;
   /** The scene number printed in the margin, on a scene heading. */
   readonly sceneNumber: string | null;
   /** The scene index, on a scene heading. */
@@ -145,6 +171,12 @@ interface OpenCue {
   readonly parens: Para[];
   /** The dialogue and parentheticals after the leading parentheticals, in order. */
   readonly items: Para[];
+}
+
+/** One side of a dual-dialogue pair, wrapped to its column: the cue, then the parentheticals and the dialogue. */
+interface DualSide {
+  readonly cue: Para;
+  readonly body: readonly Para[];
 }
 
 /**
@@ -165,6 +197,15 @@ type Unit =
       readonly items: readonly Para[];
       readonly trailer: readonly Para[];
     }
+  | {
+      readonly kind: 'dual';
+      readonly lead: readonly Para[];
+      readonly left: DualSide;
+      readonly right: DualSide;
+      /** The two blocks as ordinary cue blocks, laid in sequence when the pair is taller than a page. */
+      readonly fallback: readonly Unit[];
+      readonly trailer: readonly Para[];
+    }
   | { readonly kind: 'break' };
 
 /** One printed row of a cue block after its head. A row can split inside, at a sentence end, when the page breaks there. */
@@ -177,47 +218,87 @@ interface BlockRow {
   readonly cuts: readonly number[];
 }
 
-const SENTENCE_END_RE = /[.!?…]["')\]”’]*$/;
+/** A sentence end: Latin `.`, `!`, `?` or `…`, or the CJK `。`, `！`, `？`, each with any closing quotes after it. */
+const SENTENCE_END_RE = /(?:[.!?…]["')\]”’]*|[。！？][」』）〉》"”’]*)$/;
 
-/** Words wrapped to a column. A word wider than the column is broken, never dropped. */
-function wrap(text: string, width: number): string[] {
+/** Wrapped lines, and what joins each line to the one before it when the text is rewrapped: a space, or nothing. */
+interface Wrapped {
+  readonly lines: string[];
+  /** `joins[i]` goes between line i and line i + 1. */
+  readonly joins: string[];
+}
+
+/**
+ * Words wrapped to a column, measured in grid columns (width.ts: a CJK character is two). A line breaks at white space,
+ * and also between Chinese or Japanese characters. A piece wider than the column is broken, never dropped.
+ */
+function wrap(text: string, width: number): Wrapped {
   const words = text.split(/\s+/).filter((word) => word !== '');
   const lines: string[] = [];
+  const joins: string[] = [];
   let current = '';
+  const push = (line: string, join: string): void => {
+    if (lines.length > 0) joins.push(join);
+    lines.push(line);
+  };
+  // What joins the line being built to the line before it.
+  let currentJoin = ' ';
   for (const word of words) {
-    let rest = word;
-    while (rest.length > width) {
-      if (current !== '') {
-        lines.push(current);
-        current = '';
+    breakPieces(word).forEach((piece, index) => {
+      // The first piece of a word follows a space; the others join the piece before them directly.
+      const joint = index === 0 ? ' ' : '';
+      let rest = piece;
+      while (textColumns(rest) > width) {
+        if (current !== '') {
+          push(current, currentJoin);
+          currentJoin = joint;
+          current = '';
+        }
+        const [head, tail] = splitColumns(rest, width);
+        push(head, currentJoin);
+        // A word broken at the column edge is one word: a rewrap joins its pieces with nothing between them.
+        currentJoin = '';
+        rest = tail;
       }
-      lines.push(rest.slice(0, width));
-      rest = rest.slice(width);
-    }
-    if (current === '') current = rest;
-    else if (current.length + 1 + rest.length <= width) current += ` ${rest}`;
-    else {
-      lines.push(current);
-      current = rest;
-    }
+      if (current === '') current = rest;
+      else if (textColumns(current) + joint.length + textColumns(rest) <= width) current += `${joint}${rest}`;
+      else {
+        push(current, currentJoin);
+        currentJoin = joint;
+        current = rest;
+      }
+    });
   }
-  if (current !== '') lines.push(current);
-  return lines;
+  if (current !== '') push(current, currentJoin);
+  return { lines, joins };
+}
+
+/** A paragraph's text as its lines join back: the text a rewrap starts from. */
+function joinLines(para: Para): string {
+  return para.lines.map((line, i) => (i === 0 ? line : `${para.joins[i - 1] ?? ' '}${line}`)).join('');
 }
 
 function makePara(
   kind: ParaKind,
   text: string,
   blankBefore: boolean,
-  extra: { readonly sceneIndex?: number; readonly sceneNumber?: string; readonly cueName?: string } = {},
+  extra: {
+    readonly sceneIndex?: number;
+    readonly sceneNumber?: string;
+    readonly cueName?: string;
+    readonly indent?: number;
+    readonly width?: number;
+  } = {},
 ): Para {
-  const lines = wrap(text, LAYOUT.width[kind]);
+  const { lines, joins } = wrap(text, extra.width ?? LAYOUT.width[kind]);
   return {
     kind,
     lines,
+    joins,
     ends: lines.map((line) => SENTENCE_END_RE.test(line)),
     blankBefore,
     align: kind === 'transition' ? 'right' : kind === 'centered' ? 'center' : 'left',
+    indent: extra.indent ?? LAYOUT.indent[kind],
     sceneNumber: extra.sceneNumber ?? null,
     sceneIndex: extra.sceneIndex ?? null,
     cueName: extra.cueName ?? '',
@@ -227,7 +308,8 @@ function makePara(
 /** The offsets in a row where a sentence ends and a space follows (screenplay.md §5.3). */
 function sentenceCuts(text: string): number[] {
   const cuts: number[] = [];
-  const pattern = /[.!?…]["')\]”’]*(?= )/g;
+  // A Latin sentence end needs a space after it. A CJK one needs only more text: CJK puts no space between sentences.
+  const pattern = /[.!?…]["')\]”’]*(?= )|[。！？][」』）〉》"”’]*(?=\S)/g;
   for (let m = pattern.exec(text); m !== null; m = pattern.exec(text)) cuts.push(m.index + m[0].length);
   return cuts;
 }
@@ -252,6 +334,30 @@ function breakIn(rows: readonly BlockRow[], at: number, room: number): { readonl
 function closeCue(open: OpenCue): Unit {
   if (open.items.length === 0) return { kind: 'paras', paras: [...open.lead, open.cue, ...open.parens] };
   return { kind: 'dialogue', lead: open.lead, cue: open.cue, parens: open.parens, items: open.items, trailer: [] };
+}
+
+/** A cue block rewrapped to one column of a dual-dialogue pair. */
+function dualSide(open: OpenCue, column: 'left' | 'right'): DualSide {
+  const at = LAYOUT.dual[column];
+  const width = LAYOUT.dual.width;
+  const rewrap = (para: Para, kind: 'parenthetical' | 'dialogue'): Para =>
+    makePara(kind, joinLines(para), false, { indent: at[kind], width: width[kind] });
+  return {
+    cue: makePara('character', open.cue.cueName, true, { cueName: open.cue.cueName, indent: at.character, width: width.character }),
+    body: [...open.parens, ...open.items].map((para) => rewrap(para, para.kind === 'parenthetical' ? 'parenthetical' : 'dialogue')),
+  };
+}
+
+/** The first speaker of a dual pair and the second, as one unit (screenplay.md §2.2: side-by-side columns at render). */
+function closeDual(left: OpenCue, right: OpenCue): Unit {
+  return {
+    kind: 'dual',
+    lead: left.lead,
+    left: dualSide(left, 'left'),
+    right: dualSide(right, 'right'),
+    fallback: [closeCue(left), closeCue(right)],
+    trailer: [],
+  };
 }
 
 /**
@@ -282,8 +388,15 @@ function glueToPrevious(units: Unit[], para: Para): void {
 function buildUnits(elements: readonly ScreenplayElement[]): Unit[] {
   const units: Unit[] = [];
   let open: OpenCue | null = null;
+  // The first speaker of a dual pair, held while the second block (the cue marked `^`) is read.
+  let dualLeft: OpenCue | null = null;
   let lead: Para[] = [];
   let sceneCount = 0;
+  const close = (block: OpenCue): void => {
+    if (dualLeft !== null) units.push(closeDual(dualLeft, block));
+    else units.push(closeCue(block));
+    dualLeft = null;
+  };
 
   for (const el of elements) {
     if (
@@ -296,9 +409,11 @@ function buildUnits(elements: readonly ScreenplayElement[]): Unit[] {
       continue;
     }
 
-    // A dual pair (`NAME ^`) is two cue blocks laid one after the other. Side-by-side columns are not drawn.
+    // A dual pair (`NAME ^`) is the block before the marked cue and the marked block, side by side. A marked cue with
+    // no block straight before it has no partner, so it is an ordinary cue.
     if (el.type === 'character') {
-      if (open !== null) units.push(closeCue(open));
+      if (open !== null && el.dual === true && dualLeft === null) dualLeft = open;
+      else if (open !== null) close(open);
       const name = printedText(el.text);
       open = { lead, cue: makePara('character', name, true, { cueName: name }), parens: [], items: [] };
       lead = [];
@@ -322,7 +437,7 @@ function buildUnits(elements: readonly ScreenplayElement[]): Unit[] {
     }
 
     if (open !== null) {
-      units.push(closeCue(open));
+      close(open);
       open = null;
     }
 
@@ -376,7 +491,7 @@ function buildUnits(elements: readonly ScreenplayElement[]): Unit[] {
       }
     }
   }
-  if (open !== null) units.push(closeCue(open));
+  if (open !== null) close(open);
   if (lead.length > 0) units.push({ kind: 'paras', paras: lead });
   return units;
 }
@@ -386,9 +501,9 @@ function rowY(row: number): number {
 }
 
 function columnOf(para: Para, text: string): number {
-  if (para.align === 'right') return LAYOUT.columns - text.length;
-  if (para.align === 'center') return Math.floor((LAYOUT.columns - text.length) / 2);
-  return LAYOUT.indent[para.kind];
+  if (para.align === 'right') return LAYOUT.columns - textColumns(text);
+  if (para.align === 'center') return Math.floor((LAYOUT.columns - textColumns(text)) / 2);
+  return para.indent;
 }
 
 function rowsOf(paras: readonly Para[]): number {
@@ -427,7 +542,45 @@ class Pager {
       case 'dialogue':
         this.placeDialogue(unit.lead, unit.cue, unit.parens, unit.items, unit.trailer);
         return;
+      case 'dual':
+        this.placeDual(unit);
+        return;
     }
+  }
+
+  /**
+   * A dual-dialogue pair: the lead, a blank row, then both columns from the same row. The pair is atomic, so it moves to
+   * the next page whole. A pair taller than a page is laid as its two blocks in sequence, and the dialogue rules split them.
+   */
+  private placeDual(unit: Extract<Unit, { kind: 'dual' }>): void {
+    const sideRows = (side: DualSide): number => side.cue.lines.length + side.body.reduce((n, p) => n + p.lines.length, 0);
+    const pairRows = Math.max(sideRows(unit.left), sideRows(unit.right));
+    const need = rowsOf(unit.lead) + 1 + pairRows + rowsOf(unit.trailer);
+    if (need > LAYOUT.linesPerPage) {
+      // The trailer stays with the second block, so a transition after the pair still never starts a page.
+      unit.fallback.forEach((block, i) => {
+        if (i < unit.fallback.length - 1 || unit.trailer.length === 0) this.placeUnit(block);
+        else if (block.kind === 'dialogue') this.placeUnit({ ...block, trailer: [...block.trailer, ...unit.trailer] });
+        else if (block.kind === 'paras') this.placeUnit({ kind: 'paras', paras: [...block.paras, ...unit.trailer] });
+        else this.placeUnit(block);
+      });
+      return;
+    }
+    if (this.used > 0 && need > this.free()) this.newPage();
+    for (const para of unit.lead) this.flow(para);
+    this.blankRow();
+    const top = this.used;
+    for (const side of [unit.left, unit.right]) {
+      let row = top;
+      for (const para of [side.cue, ...side.body]) {
+        for (const text of para.lines) {
+          this.current.push({ kind: para.kind, text, x: LAYOUT.marginLeft + columnOf(para, text) * LAYOUT.charWidth, y: rowY(row), row, scene: null });
+          row += 1;
+        }
+      }
+    }
+    this.used = top + pairRows;
+    this.placeAtomic(unit.trailer);
   }
 
   private free(): number {
@@ -453,7 +606,11 @@ class Pager {
     const y = rowY(row);
     this.current.push({ kind, text, x: LAYOUT.marginLeft + col * LAYOUT.charWidth, y, row, scene });
     if (sceneNumber !== null) {
-      const width = sceneNumber.length * LAYOUT.charWidth;
+      const width = textColumns(sceneNumber) * LAYOUT.charWidth;
+      if (!['off', 'left', 'right', 'both'].includes(this.sceneNumbers)) {
+        // A placement the bus gains must be handled here, not printed as off.
+        throw new Error(`Unknown scene-number placement: ${String(this.sceneNumbers)}`);
+      }
       if (this.sceneNumbers === 'left' || this.sceneNumbers === 'both') {
         this.current.push({ kind: 'sceneNumber', text: sceneNumber, x: LAYOUT.sceneNumberLeftX, y, row: null, scene });
       }
@@ -665,17 +822,17 @@ function titleLines(entries: Readonly<Record<string, string>>, opts: PaginateOpt
   const lines: LayoutLine[] = [];
   const title = pick(entries, ['Title'], opts.title);
   let row = 18;
-  for (const text of wrap(title, LAYOUT.columns)) {
-    lines.push(titleLine('title', text, Math.floor((LAYOUT.columns - text.length) / 2), row));
+  for (const text of wrap(title, LAYOUT.columns).lines) {
+    lines.push(titleLine('title', text, Math.floor((LAYOUT.columns - textColumns(text)) / 2), row));
     row += 1;
   }
   const author = pick(entries, ['Author', 'Authors'], opts.author);
   const credit = pick(entries, ['Credit'], 'by');
   row += 2;
   if (author !== '') {
-    lines.push(titleLine('title', credit, Math.floor((LAYOUT.columns - credit.length) / 2), row));
+    lines.push(titleLine('title', credit, Math.floor((LAYOUT.columns - textColumns(credit)) / 2), row));
     row += 2;
-    lines.push(titleLine('title', author, Math.floor((LAYOUT.columns - author.length) / 2), row));
+    lines.push(titleLine('title', author, Math.floor((LAYOUT.columns - textColumns(author)) / 2), row));
   }
   const date = pick(entries, ['Draft date', 'Date'], opts.date);
   if (date !== '') lines.push(titleLine('title', date, 0, 47));
@@ -697,8 +854,9 @@ function pageNumberLine(number: number): LayoutLine {
 /**
  * Lays out the elements on pages. Pure: the same elements and options always give the same
  * pages. The title page comes first when the source has a title page (the element the
- * Fountain renderer writes from front matter), and script pages are numbered from page 2
- * (screenplay.md §5.3). The options only fill in what the title page does not carry.
+ * Fountain renderer writes from front matter). It is not counted: script pages count from 1,
+ * and the number is printed from page 2 (screenplay.md §5.3). The options only fill in what the
+ * title page does not carry.
  */
 export function paginate(elements: readonly ScreenplayElement[], opts: PaginateOptions = {}): LayoutPage[] {
   const pager = new Pager(opts.continued !== false, opts.sceneNumbers ?? 'off');
@@ -710,8 +868,7 @@ export function paginate(elements: readonly ScreenplayElement[], opts: PaginateO
   const titleElement = elements.find((el) => el.type === 'title_page');
   const entries = titleElement !== undefined && titleElement.type === 'title_page' ? titleElement.entries : {};
   if (opts.titlePage !== false && titleElement !== undefined) {
-    pages.push({ number, kind: 'title', lines: titleLines(entries, opts) });
-    number += 1;
+    pages.push({ number: 0, kind: 'title', lines: titleLines(entries, opts) });
   }
   for (const lines of script) {
     const all = number >= 2 ? [...lines, pageNumberLine(number)] : [...lines];

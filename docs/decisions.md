@@ -263,7 +263,12 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - Shot boards use the corkboard's S, M and L sizes. Why: one card vocabulary. [delegated]
 - The prompt pack is one normalised shot schema mapped to per-vendor templates; Caotang never generates video, holds no vendor keys and uploads nothing. Why: generation happens in the writer's own tool. [delegated]
 - The shot prompt editor keeps each vendor's typed text across a vendor switch while the shot is open. Why: switching vendors loses nothing. [delegated]
-- Not yet built: PDF output for screenplays, spreadsheet export, the Source tab's element menu, engine target and locale in exports. (specified, not built) [delegated]
+- The shot list and the dialogue table also export as `.xlsx`, one sheet each, from the same rows as the CSV. The workbook is a hand-written Office Open XML writer over `fflate`, which the EPUB already loads lazily. Why: one spreadsheet stack for both tables, no new dependency, and the file is made in the browser. [delegated]
+- The screenplay PDF is Caotang's own writer over its paginator, with Courier Prime embedded and loaded lazily; no PDF library. Why: text in one monospaced font needs none, and nothing is fetched from outside the app. [delegated]
+- Characters Courier Prime cannot print go to a subset of Noto Sans Mono CJK SC, cut with `@pdf-lib/fontkit` 1.1.1 and loaded only when the script needs it; the writer stays Caotang's own rather than moving to pdf-lib. Why: the writer's tests and Latin-only files stay byte for byte as they were, and fontkit is the piece the storyboard PDF shares. A CJK character is two grid columns. [delegated]
+- Emoji go to a third fallback, monochrome Noto Emoji (the static Regular instance of the google/fonts variable font, TrueType outlines), laid out by fontkit's `font.layout` per grapheme cluster and loaded only for a script with emoji. An emoji cluster is two grid columns and one CID with the whole sequence in ToUnicode. Why: "if it's typable, it's printable"; TrueType avoids fontkit's CFF subset bugs, and googlefonts/noto-emoji ships no current monochrome file. [delegated]
+- The screenplay PDF's title page is not counted; script page 1 has no number, and numbers print from page 2. Why: the screenplay convention. [delegated]
+- Dual dialogue prints side by side in the PDF, and a pair never splits across a page. Why: the Fountain `^` pair is a side-by-side block. [delegated]
 
 ## Coherence
 

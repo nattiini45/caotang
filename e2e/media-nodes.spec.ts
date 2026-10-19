@@ -142,9 +142,12 @@ test('each media format compiles through the bus from the Compile dialog, and do
   const cases: { row: string; format: string }[] = [
     { row: 'Untitled scene', format: 'Fountain (.fountain)' },
     { row: 'Untitled scene', format: 'Final Draft (.fdx)' },
+    { row: 'Untitled scene', format: 'Screenplay PDF (.pdf)' },
     { row: 'Untitled dialogue', format: 'Ink story (.ink.json)' },
     { row: 'Untitled dialogue', format: 'Dialogue table (.csv)' },
     { row: 'Storyboard', format: 'Shot list (.csv)' },
+    { row: 'Untitled dialogue', format: 'Dialogue table (.xlsx)' },
+    { row: 'Storyboard', format: 'Shot list (.xlsx)' },
   ];
   for (const item of cases) {
     await binderTitle(page, item.row).click();
@@ -157,7 +160,7 @@ test('each media format compiles through the bus from the Compile dialog, and do
       page.waitForEvent('download'),
       dialog.getByRole('button', { name: 'Compile', exact: true }).click(),
     ]);
-    expect(download.suggestedFilename()).toMatch(/\.(fountain|fdx|json|csv)$/);
+    expect(download.suggestedFilename()).toMatch(/\.(fountain|fdx|pdf|json|csv|xlsx)$/);
     await page.keyboard.press('Escape');
   }
 

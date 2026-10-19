@@ -92,7 +92,7 @@ describe('export.compile', () => {
   });
 
   it('refuses a format this build does not ship, and names the ones it does', () => {
-    // `rtf` is the probe for a format nothing ships: `pdf` waits on a renderer benchmark, so it is not one to probe with.
+    // `rtf` is the probe for a format nothing ships.
     const error = refusalOf(run(createHarness({ state: makeState(), clock: clock.now }), 'export.compile', { selection: { root: 'manuscript' }, format: 'rtf' }, { permission: CONFIRMED }));
     expect(error.message).toContain(`must be one of ${EXPORT_FORMATS.join(', ')}`);
   });

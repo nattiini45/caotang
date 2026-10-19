@@ -58,10 +58,14 @@ export const ASSET_ID_PATTERN = /^a_[0-9A-HJKMNP-TV-Z]{10}$/;
 export const METADATA_PATCH_KEYS = ['author', 'language', 'isbn', 'coverAssetId'] as const;
 
 /**
- * The keys a recipe's options carry (exporter.md §2; `charLimit` is dialogue-narrative.md §4's column, and `pageSize` is the contact
- * sheet's paper, storyboard.md §6, each made a recipe option).
+ * The keys a recipe's options carry (exporter.md §2; `charLimit` is dialogue-narrative.md §4's column, made a recipe option;
+ * `sceneNumbers` and `continued` are the screenplay PDF's options, screenplay.md §5.3; `pageSize` is the contact sheet's
+ * paper, storyboard.md §6).
  */
-const RECIPE_OPTION_KEYS = ['titlePage', 'toc', 'author', 'charLimit', 'pageSize'] as const;
+const RECIPE_OPTION_KEYS = ['titlePage', 'toc', 'author', 'charLimit', 'sceneNumbers', 'continued', 'pageSize'] as const;
+
+/** Where the screenplay PDF may print scene numbers (screenplay.md §5.3). */
+export const SCENE_NUMBER_OPTIONS = ['off', 'left', 'right', 'both'] as const;
 
 /** The papers a contact sheet is drawn on (storyboard.md §6). */
 export const RECIPE_PAGE_SIZES = ['A4', 'Letter'] as const;
@@ -130,7 +134,7 @@ function recipeOptionsOf(value: unknown): Result<RecipeOptionsParams | undefined
     }
   }
   const typed: RecipeOptionsParams = {};
-  for (const flag of ['titlePage', 'toc'] as const) {
+  for (const flag of ['titlePage', 'toc', 'continued'] as const) {
     const v = value[flag];
     if (v === undefined) continue;
     if (typeof v !== 'boolean') return invalid(`params.options.${flag} must be true or false, got ${showValue(v)}`, undefined, `options.${flag}`);
@@ -156,6 +160,17 @@ function recipeOptionsOf(value: unknown): Result<RecipeOptionsParams | undefined
       );
     }
     typed.charLimit = charLimit as number;
+  }
+  const sceneNumbers = value['sceneNumbers'];
+  if (sceneNumbers !== undefined) {
+    if (typeof sceneNumbers !== 'string' || !(SCENE_NUMBER_OPTIONS as readonly string[]).includes(sceneNumbers)) {
+      return invalid(
+        `params.options.sceneNumbers must be one of ${SCENE_NUMBER_OPTIONS.join(', ')}, got ${showValue(sceneNumbers)}`,
+        `pass one of ${SCENE_NUMBER_OPTIONS.join(', ')}`,
+        'options.sceneNumbers',
+      );
+    }
+    typed.sceneNumbers = sceneNumbers as (typeof SCENE_NUMBER_OPTIONS)[number];
   }
   const pageSize = value['pageSize'];
   if (pageSize !== undefined) {

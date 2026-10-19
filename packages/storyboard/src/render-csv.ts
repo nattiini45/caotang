@@ -96,19 +96,37 @@ export function dialogueRefs(state: ProjectState, dialogue: readonly DialogueCov
   });
 }
 
-/** One shot's row. A value the load kept as unknown is written as typed, so the list shows what the writer wrote. */
-function rowOf(
+/**
+ * One shot's cells before they are written: the text as the writer typed it, not yet guarded, and the two numbers as
+ * numbers. The CSV guards the text cells; a spreadsheet file stores the text as text, which is never evaluated, and keeps
+ * the numbers as numbers (the XLSX variant of the same renderer, §6 and §8 A4).
+ */
+export interface ShotListCells {
+  readonly shotNumber: number;
+  readonly 'image filename': string;
+  readonly shotSize: string;
+  readonly cameraAngle: string;
+  readonly cameraMovement: string;
+  readonly lens: string;
+  readonly action: string;
+  readonly dialogue: string;
+  /** The duration rounded as the list shows it, or `null` when the shot has none. */
+  readonly durationSec: number | null;
+  readonly transition: string;
+}
+
+/** One shot's cells. A value the load kept as unknown is written as typed, so the list shows what the writer wrote. */
+function cellsOf(
   state: ProjectState,
   node: TreeNode,
   shotNumber: number,
   fileNames: ReadonlyMap<string, string>,
   notes: string[],
-): ShotListRow {
+): ShotListCells {
   const read = readShotMeta(shotFieldOf(node));
-  // Every text cell goes through the formula guard; the numbers (shotNumber, durationSec) are generated.
   const enumCell = (field: ShotEnumField): string => {
     const value = read.meta[field] ?? read.unknownValues[field];
-    return value === undefined ? '' : guardFormula(String(value));
+    return value === undefined ? '' : String(value);
   };
 
   let image = '';
@@ -116,21 +134,63 @@ function rowOf(
   if (assetId !== undefined) {
     const fileName = fileNames.get(assetId);
     if (fileName === undefined) notes.push(`shot ${shotNumber}: image ${assetId} has no file in assets/, so the image column is blank`);
-    else image = guardFormula(fileName);
+    else image = fileName;
   }
 
   return {
-    shotNumber: String(shotNumber),
+    shotNumber,
     'image filename': image,
     shotSize: enumCell('shotSize'),
     cameraAngle: enumCell('cameraAngle'),
     cameraMovement: enumCell('cameraMovement'),
-    lens: guardFormula(read.meta.lens ?? ''),
-    action: guardFormula(read.meta.action ?? ''),
-    dialogue: guardFormula(dialogueRefs(state, read.meta.dialogue ?? []).join('; ')),
-    durationSec: read.meta.durationSec === undefined ? '' : durationText(read.meta.durationSec),
+    lens: read.meta.lens ?? '',
+    action: read.meta.action ?? '',
+    dialogue: dialogueRefs(state, read.meta.dialogue ?? []).join('; '),
+    durationSec: read.meta.durationSec === undefined ? null : Number(durationText(read.meta.durationSec)),
     transition: enumCell('transition'),
   };
+}
+
+/** One shot's CSV row: every text cell through the formula guard; the numbers (shotNumber, durationSec) are generated. */
+function csvRowOf(cells: ShotListCells): ShotListRow {
+  return {
+    shotNumber: String(cells.shotNumber),
+    'image filename': guardFormula(cells['image filename']),
+    shotSize: guardFormula(cells.shotSize),
+    cameraAngle: guardFormula(cells.cameraAngle),
+    cameraMovement: guardFormula(cells.cameraMovement),
+    lens: guardFormula(cells.lens),
+    action: guardFormula(cells.action),
+    dialogue: guardFormula(cells.dialogue),
+    durationSec: cells.durationSec === null ? '' : durationText(cells.durationSec),
+    transition: guardFormula(cells.transition),
+  };
+}
+
+/** The shot list's rows before they are written, with the notes the build raised. */
+export interface ShotListRows {
+  readonly rows: readonly ShotListCells[];
+  readonly notes: readonly string[];
+}
+
+/**
+ * The shot list's rows for `selection` (node ids whose subtree is listed), or for the whole project when there is no
+ * selection, in binder order. The CSV and the spreadsheet file are both written from these, so they list the same shots
+ * with the same numbers and the same cells.
+ */
+export function shotListRows(
+  state: ProjectState,
+  selection?: readonly string[],
+  fileNames: ReadonlyMap<string, string> = new Map(),
+): ShotListRows {
+  const notes: string[] = [];
+  for (const id of selection ?? []) {
+    if (nodeById(state, id) === undefined) notes.push(`no node "${id}" in the project, so nothing was listed for it`);
+  }
+  const shots = shotsInBinderOrder(state, selection);
+  const numbers = exportNumbers(shots);
+  const rows = shots.map((node) => cellsOf(state, node, numbers.get(node.id) ?? 0, fileNames, notes));
+  return { rows, notes };
 }
 
 /** The shot list as text, with the notes the build raised. */
@@ -150,18 +210,13 @@ export function renderShotListCsv(
   selection?: readonly string[],
   fileNames: ReadonlyMap<string, string> = new Map(),
 ): ShotListCsv {
-  const notes: string[] = [];
-  for (const id of selection ?? []) {
-    if (nodeById(state, id) === undefined) notes.push(`no node "${id}" in the project, so nothing was listed for it`);
-  }
-  const shots = shotsInBinderOrder(state, selection);
-  const numbers = exportNumbers(shots);
+  const { rows, notes } = shotListRows(state, selection, fileNames);
   let csv = csvLine(SHOT_LIST_COLUMNS);
-  for (const node of shots) {
-    const row = rowOf(state, node, numbers.get(node.id) ?? 0, fileNames, notes);
+  for (const cells of rows) {
+    const row = csvRowOf(cells);
     csv += csvLine(SHOT_LIST_COLUMNS.map((column) => row[column]));
   }
-  return { csv, rowCount: shots.length, notes };
+  return { csv, rowCount: rows.length, notes };
 }
 
 /** The shot-list renderer, as the exporter's recipe names it. */

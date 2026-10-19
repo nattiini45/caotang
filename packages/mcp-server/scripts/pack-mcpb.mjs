@@ -11,9 +11,10 @@
  * tarball command, and it would never reach this script.
  *
  * The steps, each of which stops the pack when it fails:
- *  1. Stage `dist/mcpb/`: `server/caotang-mcp.mjs` (the built bundle), `manifest.json`, `THIRD-PARTY-NOTICES.md` for this
- *     bundle's production dependencies (tools/third-party-notices.mjs), and the repository's LICENSE. The PDF fallback fonts
- *     (`@caotang/font-noto-cjk` and `@caotang/font-noto-emoji`) are staged in `server/fonts/`, as
+ *  1. Stage `dist/mcpb/`: `server/caotang-mcp.mjs` (the built bundle), `server/fonts/` (the screenplay PDF's CJK and emoji
+ *     fallback fonts, which the build puts beside the bundle), `manifest.json`, `THIRD-PARTY-NOTICES.md` for this bundle's production
+ *     dependencies (tools/third-party-notices.mjs), and the repository's LICENSE. The contact sheet's PDF fallback fonts
+ *     (`@caotang/font-noto-cjk` and `@caotang/font-noto-emoji`) are staged in `server/fonts/` too, as
  *     `NotoSansCJKsc-Regular.woff` and `NotoEmoji-Regular.woff`, where the exporter's Node loaders look first
  *     (packages/exporter/src/fallback-fonts-node.ts).
  *  2. Check the manifest against what the bundle is: the version, the entry point, the settings the arguments read, and the
@@ -39,6 +40,10 @@ export const BUNDLE_NOTICES = 'THIRD-PARTY-NOTICES.md';
 export const BUNDLE_LICENSE = 'LICENSE';
 /** The folder of the PDF fallback fonts, beside the server bundle. */
 export const BUNDLE_FONTS = 'server/fonts';
+/** The screenplay PDF's CJK fallback font, read from `fonts/` beside the server bundle. */
+export const BUNDLE_CJK_FONT = 'server/fonts/NotoSansMonoCJKsc-Regular.otf';
+/** The screenplay PDF's emoji fallback font, read from `fonts/` beside the server bundle. */
+export const BUNDLE_EMOJI_FONT = 'server/fonts/NotoEmoji-Regular.ttf';
 
 /** The one switch a manifest must carry for writes: the setting it reads, and the variable it sets from it. */
 export const WRITE_SETTING = 'allow_writes';
@@ -104,7 +109,7 @@ export function manifestProblems(manifest, bundle) {
  * Writes the staged bundle folder. The bundle and the notices are copied in; the manifest is checked before it is copied,
  * so a wrong manifest never reaches the staging folder.
  *
- * @param {{ outDir: string; serverBundle: string; manifestPath: string; version: string; notices: string; license: string; fonts?: readonly string[] }} input
+ * @param {{ outDir: string; serverBundle: string; manifestPath: string; version: string; notices: string; license: string; cjkFont?: string; emojiFont?: string; fonts?: readonly string[] }} input
  * @returns {{ staging: string; files: string[] }}
  */
 export function stageBundle(input) {
@@ -120,6 +125,17 @@ export function stageBundle(input) {
   writeFileSync(join(staging, BUNDLE_NOTICES), input.notices);
   copyFileSync(input.license, join(staging, BUNDLE_LICENSE));
   const files = [BUNDLE_ENTRY, BUNDLE_MANIFEST, BUNDLE_NOTICES, BUNDLE_LICENSE];
+  if (input.cjkFont !== undefined) {
+    mkdirSync(dirname(join(staging, BUNDLE_CJK_FONT)), { recursive: true });
+    copyFileSync(input.cjkFont, join(staging, BUNDLE_CJK_FONT));
+    files.push(BUNDLE_CJK_FONT);
+  }
+  if (input.emojiFont !== undefined) {
+    mkdirSync(dirname(join(staging, BUNDLE_EMOJI_FONT)), { recursive: true });
+    copyFileSync(input.emojiFont, join(staging, BUNDLE_EMOJI_FONT));
+    files.push(BUNDLE_EMOJI_FONT);
+  }
+  // The contact sheet's fallback fonts (the exporter's), each under its own name.
   for (const font of input.fonts ?? []) {
     const staged = `${BUNDLE_FONTS}/${basename(font)}`;
     mkdirSync(join(staging, BUNDLE_FONTS), { recursive: true });
@@ -175,6 +191,10 @@ async function main() {
   if (!existsSync(serverBundle)) {
     throw new Error(`${serverBundle} is missing: run the bundle build first (pnpm --filter @caotang/mcp-server build)`);
   }
+  const cjkFont = join(outDir, 'fonts', 'NotoSansMonoCJKsc-Regular.otf');
+  if (!existsSync(cjkFont)) throw new Error(`${cjkFont} is missing: the bundle build emits it beside the bundle`);
+  const emojiFont = join(outDir, 'fonts', 'NotoEmoji-Regular.ttf');
+  if (!existsSync(emojiFont)) throw new Error(`${emojiFont} is missing: the bundle build emits it beside the bundle`);
   const { generateNotices } = await import('../../../tools/third-party-notices.mjs');
   const notices = generateNotices({ root: REPO_ROOT, filters: ['./packages/mcp-server'] });
   const result = packBundle({
@@ -184,6 +204,8 @@ async function main() {
     version,
     notices,
     license: join(REPO_ROOT, 'LICENSE'),
+    cjkFont,
+    emojiFont,
     fonts: [
       createRequire(import.meta.url).resolve('@caotang/font-noto-cjk/NotoSansCJKsc-Regular.woff'),
       createRequire(import.meta.url).resolve('@caotang/font-noto-emoji/NotoEmoji-Regular.woff'),

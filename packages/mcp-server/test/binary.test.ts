@@ -120,6 +120,18 @@ describe('the built caotang-mcp binary', () => {
     expect(stdout).toContain('usage: caotang-mcp serve');
   }, 60_000);
 
+  it('puts the screenplay PDF’s fallback fonts in dist/fonts/, where the bundle’s untouched font URLs point', () => {
+    const bundle = readFileSync(BUNDLE, 'utf8');
+    for (const name of ['NotoSansMonoCJKsc-Regular.otf', 'NotoEmoji-Regular.ttf']) {
+      // The build leaves `new URL('./fonts/…', import.meta.url)` as the screenplay package wrote it, so it resolves beside the
+      // bundle. A rebased or inlined asset URL would read a path the build did not fill.
+      expect(bundle, name).toMatch(new RegExp(`new URL\\((["'])\\./fonts/${name.replace(/[.-]/g, '\\$&')}\\1, import\\.meta\\.url\\)`));
+      const shipped = join(PACKAGE, 'dist', 'fonts', name);
+      expect(existsSync(shipped), name).toBe(true);
+      expect(readFileSync(shipped).equals(readFileSync(join(PACKAGE, '..', 'screenplay', 'src', 'fonts', name))), name).toBe(true);
+    }
+  });
+
   it('serves a project over Streamable HTTP with the token from the environment, and answers with real data', async () => {
     const token = testToken();
     const child = spawn(

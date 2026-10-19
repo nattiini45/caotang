@@ -831,10 +831,14 @@ describe('export.compile, export.compileSelection and project.deleteNode', () =>
       'dialogue-csv',
       'shot-list-csv',
       'promptpack',
-      // The coherence report, as Markdown and JSON. Ten formats before it, twelve in all.
+      // The coherence report, as Markdown and JSON. Ten formats before it.
       'coherence-md',
       'coherence-json',
-      // The storyboard contact sheet (storyboard.md §6), the thirteenth.
+      // The dialogue table and the shot list as spreadsheets. Then the screenplay PDF: fifteen.
+      'dialogue-xlsx',
+      'shot-list-xlsx',
+      'pdf',
+      // The storyboard contact sheet (storyboard.md §6), the sixteenth.
       'contact-sheet-pdf',
     ]);
   });
@@ -843,9 +847,8 @@ describe('export.compile, export.compileSelection and project.deleteNode', () =>
   // it has a renderer, so a format none of them ships is refused at validate — before an
   // apply is asked to write a file it cannot compile. The copy is checked against the
   // exporter's list in packages/exporter/test/export-formats.test.ts, which imports this
-  // one. The list is closed, and the two names share it. The screenplay PDF is the
-  // deliberate exception that proves the rule: it is not in the list until its
-  // benchmark has run, so it is refused here.
+  // one. The list is closed, and the two names share it. `rtf` is the probe for a
+  // format nothing ships, and `docx-pdf` for a name that only looks like one.
   it('accepts every format the bus lists on both names, and refuses any other', () => {
     for (const format of EXPORT_FORMATS) {
       // A prompt pack names its vendor template (the refusal without one is its own test, below).
@@ -854,7 +857,7 @@ describe('export.compile, export.compileSelection and project.deleteNode', () =>
       expect(validate('export.compileSelection', { includeRootIds: ['n1'], format, ...template }).ok, format).toBe(true);
     }
     const formats = EXPORT_FORMATS.join(', ');
-    for (const unshipped of ['pdf', 'rtf']) {
+    for (const unshipped of ['rtf', 'docx-pdf']) {
       for (const name of ['export.compile', 'export.compileSelection'] as const) {
         const params = name === 'export.compile' ? { format: unshipped } : { includeRootIds: ['n1'], format: unshipped };
         const e = refusal(validate(name, params));

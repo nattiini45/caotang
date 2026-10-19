@@ -1,7 +1,7 @@
 # Storyboard — shot node kind + corkboard variant (post-v0.1)
 
 > Status: built, except where a section says otherwise.
-> Scope: Attaches to `project-store` (a node kind + metadata), `corkboard` (a variant view, **no new commands** — ui-modules §3 doctrine), `inspector` (metadata fields), `exporter` (shot-list CSV + contact-sheet PDF), `coherence` (deterministic coverage check).
+> Scope: Attaches to `project-store` (a node kind + metadata), `corkboard` (a variant view, **no new commands** — ui-modules §3 doctrine), `inspector` (metadata fields), `exporter` (shot-list CSV and XLSX + contact-sheet PDF), `coherence` (deterministic coverage check).
 > Cross-refs: node-kind vocabulary = [project-format.md](project-format.md) §2 media note · corkboard = [ui-modules.md](ui-modules.md) §3 · shot metadata editor = [ui-modules.md](ui-modules.md) §4 (Inspector layout reserves the pattern via SceneMeta) · recipes = [exporter.md](exporter.md) §2/§3 · prompt-pack substrate = [video-prompt-pack.md](video-prompt-pack.md) §4 · findings = [coherence.md](coherence.md) §5.4.
 
 ## 1. Verdict (adopted)
@@ -85,7 +85,7 @@ Two tools, added **with the storyboard module** (same metadata discipline: `{nam
 
 ## 6. Export (two recipes at the exporter seam)
 
-- **`ShotListCsvRenderer`** (v0.1-of-track): columns = shotNumber, image filename, shotSize, cameraAngle, cameraMovement, lens, action, dialogue (rendered as `DOC:cue` refs), durationSec, transition (StudioBinder's column set is the convention). UTF-8 CSV, one row per shot in binder order; XLSX variant rides the same renderer at the spreadsheet gate (§8 A4).
+- **`ShotListCsvRenderer`** (v0.1-of-track): columns = shotNumber, image filename, shotSize, cameraAngle, cameraMovement, lens, action, dialogue (rendered as `DOC:cue` refs), durationSec, transition (StudioBinder's column set is the convention). UTF-8 CSV, one row per shot in binder order; The XLSX variant (`shot-list-xlsx`) is built: the same rows (`shotListRows`), one sheet, numbers as number cells (§8 A4).
 - **`ContactSheetPdfRenderer`** (v0.1-of-track): per-shot card grid — image, number chip, spec row, action line — paginated A4/Letter (Storyboarder/Boords precedent); title header from template variables. Same lazy-load + acceptance-gate pattern as screenplay.md §5.3's PdfRenderer (shared pagination pass where layouts permit; separate emitters).
   - **Built** as the exporter's `contact-sheet-pdf` format. The page plan is `@caotang/storyboard`'s (`planContactSheet`, `paginate`): three columns of 16:9 cards, 15 to an A4 page and 12 to a Letter page, in binder order, numbered 1 to n as the shot list numbers them. A card is the picture, the number chip on it, one spec row (the board's M row: `shotSize · cameraAngle · cameraMovement · durationSec s`, then `lens · transition` when set) and two lines of action, cut with an ellipsis. The header is `{project} — {storyboard} — {date}` with `Page n of N` on the right; `{storyboard}` is the storyboard the selection names, or the one every shot sits in, or "All shots". The paper is the recipe option `pageSize` (`A4`, the default, or `Letter`).
   - **Deviation recorded:** each page's header has a second line, the shot count, the animatic total and the shots left out of it for want of a duration (§2.2), the three numbers the board header shows. §6 names no such line; a printed sheet is read away from the board, so it carries them.
@@ -107,5 +107,5 @@ Two tools, added **with the storyboard module** (same metadata discipline: `{nam
 | A1 | Storyboard folder as shot container (not scene-document children) | Explicit — three-tier invariant preserved; revisit only if users demand shots directly under scenes. |
 | A2 | Fixed v1 enums for shotSize/angle/movement/transition | Explicit — closed enums, extendable by spec change (Principle 5 posture); free-text `lens` covers the exotic cases. |
 | A3 | Images: PNG/JPEG/WebP v1, PSD/EXR later | Explicit; Storyboarder's PSD precedent recorded for the later gate. |
-| A4 | XLSX for the shot list | Deferred with the codex line-table export decision (dialogue-narrative.md §6) — one spreadsheet-stack decision covers both. |
+| A4 | XLSX for the shot list | Built: one spreadsheet stack for the shot list and the dialogue table (dialogue-narrative.md §6), a hand-written writer over `fflate` (exporter.md §5). |
 | A5 | Animatic MP4 + NLE EDL remain parked | Explicit; revisit only after the track's first landing proves shot usage. |

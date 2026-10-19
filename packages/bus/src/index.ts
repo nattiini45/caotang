@@ -77,6 +77,7 @@ export {
   METADATA_PATCH_KEYS,
   PROJECT_TITLE_MAX,
   RECIPE_NAME_MAX,
+  SCENE_NUMBER_OPTIONS,
   VOCABULARY_NAME_MAX,
   normalizeIsbn,
 } from './descriptors-project.js';
@@ -87,6 +88,7 @@ export type {
   RecipeDeleteParams,
   RecipeOptionsParams,
   RecipeSaveParams,
+  SceneNumbersOption,
   VocabularyKind,
   VocabularyRemoveParams,
   VocabularyUpsertParams,

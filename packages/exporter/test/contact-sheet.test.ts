@@ -365,7 +365,7 @@ describe('the page size: A4 or Letter (storyboard.md §6)', () => {
       at: COMPILED_AT,
     });
     expect(output.notes).toContain('contact sheet: 2 pages of 12 shots each, Letter');
-    const render = output.files[0]?.render;
+    const render = output.files[0]?.bytes;
     if (render === undefined) throw new Error('the contact sheet has no render');
     const rendered = await render();
     const bytes = typeof rendered === 'object' && !(rendered instanceof Uint8Array) ? rendered.contents : rendered;

@@ -80,7 +80,10 @@ export function DialogueMetaSection({ session, node }: { session: ProjectSession
           ))}
         </select>
       </label>
-      <p className="field-note">A hint only: no export changes its output for it yet.</p>
+      <p className="field-note">
+        The dialogue table follows it: a Yarn target writes a Yarn strings file, and any other target writes the dialogue table. The Ink
+        story is the same for every target.
+      </p>
 
       <label className="scene-check">
         <input type="checkbox" checked={meta.autoLineIds === true} onChange={(event) => apply({ autoLineIds: event.target.checked })} />
@@ -88,7 +91,9 @@ export function DialogueMetaSection({ session, node }: { session: ProjectSession
       </label>
 
       <LocaleField key={`${node.id}:${meta.locBaseline ?? ''}`} value={meta.locBaseline ?? ''} onCommit={(locale) => apply({ locBaseline: locale === '' ? null : locale })} />
-      <p className="field-note">Recorded only: no table or export reads it yet.</p>
+      <p className="field-note">
+        The dialogue table writes it on each line. The Ink story puts it in the file name. Empty uses the project’s language in the table.
+      </p>
 
       <dl className="sp-readout dlg-counts" aria-label="Structure of the container">
         <div>

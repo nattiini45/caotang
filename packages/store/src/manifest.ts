@@ -47,6 +47,10 @@ export interface ExportRecipeOptions {
   author?: string;
   /** The dialogue table's character limit (dialogue-narrative.md §4). Absent = no limit. */
   charLimit?: number;
+  /** The screenplay PDF's scene numbers: `off`, `left`, `right` or `both` (screenplay.md §5.3). Absent = off. */
+  sceneNumbers?: 'off' | 'left' | 'right' | 'both';
+  /** `(MORE)` and `(CONT'D)` across a page break in the screenplay PDF (screenplay.md §5.3). Absent = on. */
+  continued?: boolean;
   /** The contact sheet's paper (storyboard.md §6). Absent = A4. */
   pageSize?: 'A4' | 'Letter';
 }
