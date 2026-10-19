@@ -21,6 +21,7 @@ import type {
   DialogueSetMetaParams,
   ScreenplayImportParams,
 } from './descriptors-script.js';
+import type { SCENE_NUMBER_OPTIONS } from './descriptors-project.js';
 
 /**
  * §9's closed v0.1 registry, in the order the spec tabulates it.
@@ -849,7 +850,7 @@ export type RecipeOptionsParams = {
 };
 
 /** Where the screenplay PDF prints scene numbers (screenplay.md §5.3): off by default. */
-export type SceneNumbersOption = 'off' | 'left' | 'right' | 'both';
+export type SceneNumbersOption = (typeof SCENE_NUMBER_OPTIONS)[number];
 
 /** The contact sheet's paper (storyboard.md §6), a recipe option. */
 export type RecipePageSize = 'A4' | 'Letter';

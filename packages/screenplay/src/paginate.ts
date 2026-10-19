@@ -136,10 +136,15 @@ export interface PaginateOptions {
    * Scene numbers in the margins. A heading's own `#n#` number is used when it has one,
    * otherwise a running count. Off by default (screenplay.md §5.3).
    */
-  readonly sceneNumbers?: 'off' | 'left' | 'right' | 'both';
+  readonly sceneNumbers?: SceneNumberPlacement;
   /** `(MORE)` and `NAME (CONT'D)` on split dialogue (default true). */
   readonly continued?: boolean;
 }
+
+/** Where the screenplay PDF prints scene numbers (screenplay.md §5.3). */
+export const SCENE_NUMBER_PLACEMENTS = ['off', 'left', 'right', 'both'] as const;
+
+export type SceneNumberPlacement = (typeof SCENE_NUMBER_PLACEMENTS)[number];
 
 type ParaKind = 'scene' | 'action' | 'character' | 'parenthetical' | 'dialogue' | 'transition' | 'centered';
 
@@ -518,7 +523,7 @@ class Pager {
 
   constructor(
     private readonly continued: boolean,
-    private readonly sceneNumbers: 'off' | 'left' | 'right' | 'both',
+    private readonly sceneNumbers: SceneNumberPlacement,
   ) {}
 
   finish(): LayoutLine[][] {
@@ -607,7 +612,7 @@ class Pager {
     this.current.push({ kind, text, x: LAYOUT.marginLeft + col * LAYOUT.charWidth, y, row, scene });
     if (sceneNumber !== null) {
       const width = textColumns(sceneNumber) * LAYOUT.charWidth;
-      if (!['off', 'left', 'right', 'both'].includes(this.sceneNumbers)) {
+      if (!SCENE_NUMBER_PLACEMENTS.includes(this.sceneNumbers)) {
         // A placement the bus gains must be handled here, not printed as off.
         throw new Error(`Unknown scene-number placement: ${String(this.sceneNumbers)}`);
       }

@@ -6,6 +6,8 @@
  * unknown-tolerant rules that make them safe.
  */
 
+import type { SceneNumbersOption } from '@caotang/bus';
+
 export const APP_ID = 'caotang';
 export const FORMAT_VERSION = 1;
 
@@ -48,7 +50,7 @@ export interface ExportRecipeOptions {
   /** The dialogue table's character limit (dialogue-narrative.md §4). Absent = no limit. */
   charLimit?: number;
   /** The screenplay PDF's scene numbers: `off`, `left`, `right` or `both` (screenplay.md §5.3). Absent = off. */
-  sceneNumbers?: 'off' | 'left' | 'right' | 'both';
+  sceneNumbers?: SceneNumbersOption;
   /** `(MORE)` and `(CONT'D)` across a page break in the screenplay PDF (screenplay.md §5.3). Absent = on. */
   continued?: boolean;
   /** The contact sheet's paper (storyboard.md §6). Absent = A4. */

@@ -17,6 +17,7 @@ import type {
   RecipeDeleteParams,
   RecipeOptionsParams,
   RecipeSaveParams,
+  SceneNumbersOption,
   ValidationSnapshot,
   VocabularyKind,
   VocabularyRemoveParams,
@@ -170,7 +171,7 @@ function recipeOptionsOf(value: unknown): Result<RecipeOptionsParams | undefined
         'options.sceneNumbers',
       );
     }
-    typed.sceneNumbers = sceneNumbers as (typeof SCENE_NUMBER_OPTIONS)[number];
+    typed.sceneNumbers = sceneNumbers as SceneNumbersOption;
   }
   const pageSize = value['pageSize'];
   if (pageSize !== undefined) {
