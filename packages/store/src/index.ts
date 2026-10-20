@@ -204,6 +204,7 @@ export {
 } from './folder-digests.js';
 
 export {
+  KNOWN_NODE_KEYS,
   ManifestUnreadableError,
   ProjectRefusedError,
   ProjectValidationError,

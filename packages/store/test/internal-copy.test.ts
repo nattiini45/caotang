@@ -59,37 +59,64 @@ function project(): ProjectState {
   return state;
 }
 
-/** A folder whose codex file the load cannot read, and whose document body it cannot read either. */
-async function folderWithUnreadableFiles(): Promise<MemoryArtifactFs> {
+/** A folder whose codex file the load cannot read. The documents are all readable, so a refusal this state provokes is the codex one. */
+async function folderWithUnreadableCodex(): Promise<MemoryArtifactFs> {
   const fs = new MemoryArtifactFs();
   await writeProject(fs, project(), { now: T0 });
   await fs.writeBytesAtomic(STRAY_CODEX, NOT_TEXT);
+  return fs;
+}
+
+/** A folder whose document body the load cannot read. The codex is clean, so a refusal this state provokes is the document one. */
+async function folderWithHeldDocument(): Promise<MemoryArtifactFs> {
+  const fs = new MemoryArtifactFs();
+  await writeProject(fs, project(), { now: T0 });
+  await fs.writeBytesAtomic(`docs/${HELD}.md`, NOT_TEXT);
+  return fs;
+}
+
+/**
+ * A folder with both an unreadable codex file and an unreadable document. The
+ * internal-copy tests below assert what one copy omits of *each*, so they need
+ * the combined state; the refusal tests above it do not, because a fixture
+ * that breaks both files lets the document refusal (step 1, which runs first)
+ * mask the codex refusal (step 2c) — both messages say "not UTF-8", and the
+ * codex tests would pass with the codex loop deleted.
+ */
+async function folderWithUnreadableFiles(): Promise<MemoryArtifactFs> {
+  const fs = await folderWithUnreadableCodex();
   await fs.writeBytesAtomic(`docs/${HELD}.md`, NOT_TEXT);
   return fs;
 }
 
 describe('a copy the writer takes home refuses a file it cannot hold', () => {
   it('refuses a codex file the load declined, because its bytes are not text', async () => {
-    const fs = await folderWithUnreadableFiles();
+    const fs = await folderWithUnreadableCodex();
     const loaded = await readProject(fs, { now: T1 });
     expect([...loaded.state.declinedCodexFiles]).toEqual(['c_VANSHED002.md']);
 
-    await expect(writeProject(new MemoryArtifactFs(), loaded.state, { now: T1 })).rejects.toThrow(/not UTF-8/);
+    // The codex refusal names the codex file, so this cannot be the document
+    // refusal of step 1 firing first: the folder's documents are readable.
+    await expect(writeProject(new MemoryArtifactFs(), loaded.state, { now: T1 })).rejects.toThrow(
+      /codex file .* is not UTF-8/,
+    );
   });
 
   it('refuses a document the load held, because it will not write an empty one in its place', async () => {
-    const fs = await folderWithUnreadableFiles();
+    const fs = await folderWithHeldDocument();
     const loaded = await readProject(fs, { now: T1 });
     expect(loaded.state.declinedDocFiles.has(`${HELD}.md`)).toBe(true);
 
-    await expect(writeProject(new MemoryArtifactFs(), loaded.state, { now: T1 })).rejects.toThrow(/not UTF-8/);
+    await expect(writeProject(new MemoryArtifactFs(), loaded.state, { now: T1 })).rejects.toThrow(
+      /document .* is not UTF-8/,
+    );
   });
 
   it('is what a bundle is, so a bundle of such a project refuses as well', async () => {
-    const fs = await folderWithUnreadableFiles();
+    const fs = await folderWithUnreadableCodex();
     const loaded = await readProject(fs, { now: T1 });
 
-    await expect(exportProjectZip(loaded.state, { now: T1 })).rejects.toThrow(/not UTF-8/);
+    await expect(exportProjectZip(loaded.state, { now: T1 })).rejects.toThrow(/codex file .* is not UTF-8/);
   });
 });
 
@@ -142,9 +169,11 @@ describe('an internal copy mirrors what the state holds', () => {
   });
 
   it('is the writer’s choice, not the default: a user copy of the same project still refuses', async () => {
-    const fs = await folderWithUnreadableFiles();
+    const fs = await folderWithUnreadableCodex();
     const loaded = await readProject(fs, { now: T1 });
 
-    await expect(exportProjectZip(loaded.state, { now: T1 })).rejects.toThrow(/not UTF-8/);
+    // The codex-only folder, so the refusal is provably the codex one (step 2c)
+    // and not the document refusal of step 1 firing first.
+    await expect(exportProjectZip(loaded.state, { now: T1 })).rejects.toThrow(/codex file .* is not UTF-8/);
   });
 });

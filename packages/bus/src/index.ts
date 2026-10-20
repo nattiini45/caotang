@@ -142,6 +142,9 @@ export type {
   ProjectSaveGoalParams,
   SavedFilterParams,
 } from './descriptors-furniture.js';
+// The criterion-key list the furniture commands refuse a key outside of. The store's loader reads the same list to drop an
+// unknown criterion key from a saved filter on load (binder-filters §4), so the two halves never keep two records of it.
+export { CRITERIA_KEYS } from './descriptors-furniture.js';
 // The coherence rules the bus and the store share (coherence.ts). The coherence module re-exports them.
 export type {
   CoherenceStatusName,

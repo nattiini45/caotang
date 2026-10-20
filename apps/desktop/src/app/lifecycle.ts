@@ -471,8 +471,12 @@ export async function exportBundle(store: RuntimeStore, session: ProjectSession)
  * The bundle of a project that is not open. The stored state is read, not an open
  * session's, so this works from the project list without opening the project.
  *
- * `copyFor` says who the bundle is for: the writer's own (`user`, the default) or the app's
- * (`internal`, the copy the desktop keeps in memory so that a failed adopt can put it back).
+ * `copyFor` decides what the export does with a file this load declined because
+ * its bytes are not UTF-8 (the store's `WriteOptions.copyFor`). The default is
+ * a `user` copy, which refuses: a bundle the writer takes home has to carry the
+ * whole project. The `use-folder` flow passes `internal`, because the bundle it
+ * makes is the app's own safety net — a copy that refused would make adopting
+ * the folder's version impossible for exactly the project that needs it most.
  */
 export async function exportStoredBundle(
   store: RuntimeStore,
@@ -514,8 +518,8 @@ async function bundleOf(
   const exported = await exportProjectZip(state, {
     sessions,
     assets: await assets.snapshot(),
-    copyFor,
     ...(coherence === undefined ? {} : { coherence }),
+    copyFor,
   });
   return { bytes: exported.bytes, filename: exported.filename, notices };
 }
@@ -1032,8 +1036,10 @@ export async function answerFolderDiffers(store: RuntimeStore, differs: FolderDi
   if (answer === 'use-folder') {
     const storedLog = await readSessions(store, differs.projectId);
     // This browser's copy is held in memory as a bundle before it is removed (its state, session log, pictures and findings), so an adopt
-    // that fails puts it back rather than leaving the writer with neither version in this browser. The copy is the app's own, not the
-    // writer's, so a file the load could not read is left out of it and named in the report rather than refused.
+    // that fails puts it back rather than leaving the writer with neither version in this browser. The bundle is the app's own safety
+    // net, not a copy the writer takes home, so it is made as an internal copy: a file this load declined because its bytes are not
+    // UTF-8 has no text to carry, and an internal copy omits it and says so in its report rather than refusing — a refusal here would
+    // make 'use-folder' impossible for exactly the projects that hold such a file.
     const kept = await exportStoredBundle(store, differs.projectId, 'internal');
     // So are the records folder-memory.ts keeps for it (its folder, the folder copy last seen there, and the project it was copied from), which
     // the removal forgets.
@@ -1061,8 +1067,9 @@ export async function answerFolderDiffers(store: RuntimeStore, differs: FolderDi
   // they are not said, and the folder's pictures do not replace this browser's.
   const opened = await openStored(store, differs.projectId, root, { notices: [], droppedFields: [], folderLog: differs.folderLog }, {});
   const browser = new MemoryArtifactFs();
-  // The copy in memory is the app's own, so a file the load could not read is left out of it rather than refused (write.ts
-  // `WriteOptions.copyFor`).
+  // The probe writes into a fresh in-memory folder, which holds none of the files this load declined because their bytes are not
+  // UTF-8. It is a copy the app keeps for itself — only the digests are read from it, never the text — so it is written as an
+  // internal copy, which omits what it cannot carry and says so in its report rather than refusing (the store's WriteOptions.copyFor).
   await writeProject(browser, copyState(opened.session.state), { now: new Date(), copyFor: 'internal' });
   holdFolderCopy(opened.session, root, differs.baselineText, keepBrowserDigests(await projectFileDigests(browser), differs.digests));
   return { ...opened, saveToFolder: root };
