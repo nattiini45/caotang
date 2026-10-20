@@ -67,6 +67,13 @@ const RECIPE_OPTION_KEYS = ['titlePage', 'toc', 'author', 'charLimit', 'sceneNum
 /** Where the screenplay PDF may print scene numbers (screenplay.md §5.3). */
 export const SCENE_NUMBER_OPTIONS = ['off', 'left', 'right', 'both'] as const;
 
+/**
+ * The same placements as one type, derived from the list so the two cannot drift
+ * inside the bus (issue #29: the union was a second literal copy, and a placement
+ * added to the list would not have been a compile error at the type).
+ */
+export type SceneNumbersOption = (typeof SCENE_NUMBER_OPTIONS)[number];
+
 /** The papers a contact sheet is drawn on (storyboard.md §6). */
 export const RECIPE_PAGE_SIZES = ['A4', 'Letter'] as const;
 
