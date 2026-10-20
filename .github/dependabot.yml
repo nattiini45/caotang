@@ -1,0 +1,27 @@
+version: 2
+updates:
+  # Keeps the actions used in .github/workflows current, grouped into one weekly PR.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      # Produces "ci(deps): ..." titles (Conventional Commits).
+      prefix: ci
+      include: scope
+    groups:
+      github-actions:
+        patterns:
+          - '*'
+  # pnpm workspace (read via the npm ecosystem): security updates only.
+  # A limit of 0 turns off routine version bumps; Dependabot security PRs
+  # still use this entry for their commit message.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    commit-message:
+      # Produces "build(deps): ..." / "build(deps-dev): ..." titles.
+      prefix: build
+      include: scope
