@@ -68,6 +68,7 @@ import type {
   LinkReference,
   List,
   ListItem,
+  Nodes,
   Strong,
   Table,
   TableCell,
@@ -139,6 +140,50 @@ export const DEGRADE_MDAST_TYPES = [
   'imageReference',
   'linkReference',
 ] as const;
+
+/**
+ * How many **top-level blocks** an mdast node compiles into — the one fact about
+ * this table that the dialect sniffer cannot see for itself.
+ *
+ * The sniffer compares the *parse tree*'s blocks with the *compiled document*'s
+ * blocks, and the two are not the same list: a degrade can turn one mdast block
+ * into several compiled blocks or into none. Pairing the two by index alone is
+ * what made a table shift every later block's comparison by the number of its
+ * rows — a shift that is invisible, because the notice it produced was about a
+ * block that had not changed at all.
+ *
+ * **The rule is this table's own behaviour, read back:**
+ *
+ * - `table` → §3.3's row-per-paragraph degrade. `rowAsParagraph` answers with a
+ *   single paragraph per row, so the span is the row count.
+ * - `footnoteDefinition` → §3.3's *"appended as paragraph"*. `state.all(node)`
+ *   splices the definition's children in as blocks, so the span is the sum of
+ *   *their* spans.
+ * - `definition` → the URL an `imageReference` resolves against, consumed by the
+ *   reference rather than represented in the document: no compiled block at all.
+ * - everything else → one block, which is what the exact-class handlers produce.
+ *
+ * The recursion into a definition's children is not decoration: a definition
+ * whose child is a table expands by that table's rows, and a rule that stopped
+ * at the definition would misalign everything after it by exactly that many.
+ *
+ * `test/dialect.test.ts` asserts the rule against the corpus: a document whose
+ * blocks do not add up to the compiled document's blocks is a document this
+ * table has not been taught about, and the sniffer refuses it rather than
+ * comparing misaligned pairs.
+ */
+export const compiledBlockSpan = (node: Nodes): number => {
+  switch (node.type) {
+    case 'table':
+      return node.children.length;
+    case 'footnoteDefinition':
+      return node.children.reduce((total, child) => total + compiledBlockSpan(child), 0);
+    case 'definition':
+      return 0;
+    default:
+      return 1;
+  }
+};
 
 
 /**

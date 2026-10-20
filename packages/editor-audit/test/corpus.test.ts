@@ -208,6 +208,78 @@ describe('preflight · the corpus runs, and deterministically', () => {
   });
 });
 
+describe('preflight · the outcome classifier measures the construct, not a stripped string', () => {
+  it('a lost inline structure is a degrade, not an exact round-trip', () => {
+    // **The construct the classifier used to get wrong.** `_gone and _struck_
+    // together_` round-trips to `_gone and struck together_`: the inner
+    // emphasis is gone, so a save re-parses as a *different* document — §3.3's
+    // own table calls that a degrade, and the corpus declares it one.
+    //
+    // A comparison that strips everything but `[a-z0-9]` cannot see it: both
+    // spellings reduce to the same letters, so the loss reads as an exact
+    // round-trip.
+    const result = get('strike-in-emphasis');
+    expect(result.outcome).toBe('degrade');
+    expect(result.outcome).not.toBe('exact');
+  });
+
+  it('a construct whose text is not Latin-alphabet is not called lost', async () => {
+    // The other direction, and the same stripped comparison: `[a-z0-9]` keeps
+    // only the Latin letters and the digits, so a CJK sentence reduces to the
+    // empty string — and an empty string is the classifier's "the round-trip
+    // produced no content", which is a *loss*. The round trip lost nothing
+    // here; it returned the same characters.
+    const cjk = await measure({ name: 'cjk', group: 'caotang', input: '你好，世界。' });
+    expect(cjk.threw).toBeNull();
+    expect(cjk.output).toContain('你好，世界。');
+    expect(cjk.outcome).not.toBe('lost');
+    expect(cjk.outcome).toBe('exact');
+
+    // And the case the stripping actually breaks on: the body is CJK, and the
+    // only Latin-alphabet characters in it are the ones inside an entity —
+    // which remark decodes while parsing. So the **source** strips to
+    // `amp` and the **output** strips to the empty string, and a classifier
+    // that asks "is the output empty?" answers *lost* about a round trip that
+    // changed nothing but an entity's spelling.
+    const entity = await measure({ name: 'cjk-entity', group: 'caotang', input: '你好 &amp;' });
+    expect(entity.threw).toBeNull();
+    expect(entity.output).toContain('你好 &');
+    expect(entity.outcome).not.toBe('lost');
+    expect(entity.outcome).toBe('exact');
+  });
+
+  it('every corpus entry measures the class §3.3 declares for it', () => {
+    // **The corpus's `expect` is load-bearing from here.** A declared class
+    // that nothing ever compared against is a claim no test can check, and a
+    // classifier that measures something else — a stripped string, say — can
+    // answer "exact" for a construct that lost a mark and the table would
+    // still be green.
+    //
+    // The four entries the library cannot degrade are the exception, and they
+    // are the exception *by name*: §3.3 says Caotang degrades them and
+    // remark-prosemirror 0.1.5 throws instead. That difference is §2's
+    // finding, asserted by F3 and F4, and it is pinned here so it cannot widen
+    // without this test noticing.
+    const gaps: string[] = [];
+    const mismatched: string[] = [];
+    for (const entry of CORPUS) {
+      const result = get(entry.name);
+      if (result.threw !== null) {
+        gaps.push(entry.name);
+        expect(result.outcome, entry.name).toBe('lost');
+        continue;
+      }
+      if (result.outcome !== entry.expect) {
+        mismatched.push(`${entry.name}: measured ${result.outcome}, declared ${entry.expect}`);
+      }
+    }
+    expect(gaps.sort()).toEqual(
+      ['footnote-reference', 'html-raw-block', 'image-reference', 'table-gfm'].sort(),
+    );
+    expect(mismatched).toEqual([]);
+  });
+});
+
 describe('preflight · the findings, each pinned by an assertion', () => {
   it('F1 · §5\'s rule/fence spellings are illegal; one character is what it wants', () => {
     // Proves the spec's literal text throws. The cast is needed *because* the

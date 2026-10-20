@@ -209,6 +209,7 @@ import { caotangSchema } from './schema.js';
 import {
   DEGRADE_MDAST_TYPES,
   SAVE_STRINGIFY_OPTIONS,
+  compiledBlockSpan,
   createSerializeHandlers,
 } from './handlers.js';
 import type { LossWarning } from './handlers.js';
@@ -836,31 +837,77 @@ export const sniffDialect = (
   const notices: DialectNotice[] = [];
   const blocks = tree.children;
   const boundaries = blockBoundaries(doc);
-  // A tree and a document that disagree about their block count would silently
-  // shift every later block's slice, so the short-circuit is explicit rather
-  // than an index that reads `undefined` and renders a prefix of nothing.
-  const count = Math.min(blocks.length, boundaries.length);
-  if (count === 0) return notices;
+  // **The pairing, and why it cannot be an index.**
+  //
+  // The two sides of the comparison are two different lists: `blocks` are the
+  // *parse tree*'s top-level blocks and `boundaries` are the *compiled
+  // document*'s. A degrade can turn one parse block into several compiled
+  // blocks — a table becomes a paragraph per row — or into none at all, and a
+  // pairing by index then compares every later block with the wrong bytes.
+  // The failure is invisible rather than loud: the notice it produced was about
+  // a block that had not changed, with a canonical form belonging to a
+  // different block entirely.
+  //
+  // So the two sides are walked together, and the compiled index advances by the
+  // number of blocks each parse block actually produced. The spans come from
+  // the handler table (`compiledBlockSpan`), because that is where the rule
+  // lives — a table's row-per-paragraph degrade is a fact about the handler,
+  // not about this file.
+  const spans: number[] = [];
+  let spanTotal = 0;
+  for (const node of blocks) {
+    const span = compiledBlockSpan(node);
+    spans.push(span);
+    spanTotal += span;
+  }
+  // The totals have to add up. If they do not, this document contains a
+  // construct the handler table has not been taught about, and every pairing
+  // after it would be a guess — so the channel answers "nothing to report"
+  // rather than reporting a comparison it cannot make. A wrong zero is the
+  // failure this channel cannot have (see the header), so the refusal is
+  // deliberate: a false *notice* is worse than a missing one, because a notice
+  // is a claim about a specific block and a reader acts on it.
+  if (spanTotal !== boundaries.length) return notices;
   // Two renders, and the first one is a single block. The prefix algorithm is
   // reached only if the recorder declines to prove it saw every block.
-  const { own, saved } = saveSideOwnTexts(doc, boundaries, count);
+  const { own, saved } = saveSideOwnTexts(doc, boundaries, boundaries.length);
 
   // Pass one: the comparison, which is §5's rule and nothing else.
   const reported: Array<{
     index: number;
+    compiled: number;
     node: Nodes;
     start: { line: number | undefined; column: number | undefined };
     source: string;
   }> = [];
-  for (let index = 0; index < count; index++) {
+  let compiled = 0;
+  for (let index = 0; index < blocks.length; index++) {
     const node = blocks[index] as Nodes;
+    const span = spans[index]!;
     const start = node.position?.start;
     const end = node.position?.end;
-    if (start?.offset === undefined || end?.offset === undefined) continue;
-    if (carriesLoss(node, warnings, start.line, end.line)) continue;
+    if (start?.offset === undefined || end?.offset === undefined) {
+      compiled += span;
+      continue;
+    }
+    if (carriesLoss(node, warnings, start.line, end.line)) {
+      compiled += span;
+      continue;
+    }
     const source = body.slice(start.offset, end.offset);
-    if (source === own[index]) continue;
-    reported.push({ index, node, start, source });
+    // A block that compiled into several blocks has several canonical texts,
+    // and its canonical form is all of them — the separator is the blank line
+    // the save writes between two blocks. Every construct that expands this
+    // way is a degrade and is skipped above, so this join is the shape rather
+    // than a path anything reaches today.
+    const canonical =
+      span === 1 ? own[compiled]! : own.slice(compiled, compiled + span).join('\n\n');
+    if (source === canonical) {
+      compiled += span;
+      continue;
+    }
+    reported.push({ index, compiled, node, start, source });
+    compiled += span;
   }
   if (reported.length === 0) return notices;
 
@@ -869,17 +916,20 @@ export const sniffDialect = (
   // is what normalised it. If the parse tree re-serialises back to the source
   // verbatim, the parse tree kept the writer's spelling and Caotang's own round
   // trip is what lost it.
-  const parseOwn = parseSideOwnTexts(count, blocks).own;
-  for (const { index, node, start, source } of reported) {
+  const parseOwn = parseSideOwnTexts(blocks.length, blocks).own;
+  for (const { index, compiled: compiledIndex, node, start, source } of reported) {
     const cause: DialectCause =
-      source === parseOwn[index] ? saveSideCause(node, saved[index]) : 'parse-side';
+      source === parseOwn[index] ? saveSideCause(node, saved[compiledIndex]) : 'parse-side';
     notices.push({
       mdastType: node.type,
       ...(start.line !== undefined
         ? { position: { line: start.line, column: start.column as number } }
         : {}),
       source,
-      canonical: own[index]!,
+      canonical:
+        spans[index] === 1
+          ? own[compiledIndex]!
+          : own.slice(compiledIndex, compiledIndex + spans[index]!).join('\n\n'),
       cause,
       detail: detailFor(node.type, cause),
     });

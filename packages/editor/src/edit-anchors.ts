@@ -322,19 +322,82 @@ export const contextMatches = (anchor: TextAnchor, body: string, range: AnchorRa
   return suffix;
 };
 
-/** Every case-insensitive occurrence of `needle` whose **start** lies in `[start, end]`. */
+/**
+ * A string's lower-cased copy, **with the map back to the source** that the copy
+ * does not carry.
+ *
+ * `toLowerCase()` is not length-preserving: U+0130 (İ) lower-cases to `i` plus
+ * U+0307 — two code units — so an index into the lower-cased string is not an
+ * index into the source, and an offset computed on the copy names a different
+ * piece of text than the one that was searched.
+ *
+ * **The folding is one code point at a time**, which is what makes the map
+ * exact: every code point contributes a known run of folded units, and the
+ * source offsets of that run are known too. Folding the whole string in one
+ * call folds the same characters the same way in almost every case but not in
+ * every case — Greek's final sigma is `ς` only at the end of a word — and a
+ * whole-string fold cannot say which source character produced which folded
+ * unit, which is the whole of what the map is for.
+ *
+ * `sourceStart` carries one entry more than there are code points: the string's
+ * own length, so the end of the last code point is the next entry rather than a
+ * special case.
+ */
+interface FoldedText {
+  /** The lower-cased text. */
+  readonly folded: string;
+  /** The source code point each unit of `folded` came from. */
+  readonly origin: number[];
+  /** Each source code point's offset, plus the string's length at the end. */
+  readonly sourceStart: number[];
+}
+
+const foldWithMap = (source: string): FoldedText => {
+  let folded = '';
+  const origin: number[] = [];
+  const sourceStart: number[] = [];
+  let offset = 0;
+  let index = 0;
+  for (const character of source) {
+    const lowered = character.toLowerCase();
+    sourceStart.push(offset);
+    for (let unit = 0; unit < lowered.length; unit += 1) {
+      folded += lowered[unit]!;
+      origin.push(index);
+    }
+    offset += character.length;
+    index += 1;
+  }
+  sourceStart.push(offset);
+  return { folded, origin, sourceStart };
+};
+
+/**
+ * Every case-insensitive occurrence of `needle` whose **start** lies in `[start, end]`.
+ *
+ * **The offsets are the body's own.** A lower-cased copy of the slice is what
+ * the search runs on, and the copy is not the same length as the slice — so the
+ * copy's indices are translated back through the fold's map before they are
+ * used, and the range a hit names is the range of the **source** characters the
+ * hit was made of. A range's length is therefore the matched source length and
+ * not the needle's, which are the same thing only when the needle's own fold
+ * did not change its length.
+ */
 const findOccurrences = (body: string, needle: string, start: number, end: number): AnchorRange[] => {
   if (needle.length === 0) return [];
   const from = Math.max(0, start);
   const to = Math.min(body.length, end);
   if (to < from) return [];
-  const haystack = body.slice(from, to).toLowerCase();
-  const wanted = needle.toLowerCase();
+  const { folded, origin, sourceStart } = foldWithMap(body.slice(from, to));
+  const wanted = foldWithMap(needle).folded;
+  if (wanted.length === 0) return [];
   const found: AnchorRange[] = [];
-  let at = haystack.indexOf(wanted);
+  let at = folded.indexOf(wanted);
   while (at !== -1) {
-    found.push({ from: from + at, to: from + at + needle.length });
-    at = haystack.indexOf(wanted, at + 1);
+    const first = origin[at]!;
+    const last = origin[at + wanted.length - 1]!;
+    found.push({ from: from + sourceStart[first]!, to: from + sourceStart[last + 1]! });
+    at = folded.indexOf(wanted, at + 1);
   }
   return found;
 };
@@ -513,14 +576,8 @@ export const resolveAnchor = (
     if (distinct.length === 1) return ok(distinct[0]!, 'context-fuzzy');
   }
 
-  // Step 4 — unique-global. `"exactly one hit → verify ≥ 80% of prefix/suffix"`.
-  if (global.length === 1) {
-    const only = global[0]!;
-    if (contextMatches(anchor, body, only)) return ok(only, 'unique-global');
-  }
-
-  // Step 5 — exhaustion. Never a fallback, never a guess: name the drift, rank up to
-  // three candidates, and report how far the document moved since capture.
+  // Step 5's pool, built before step 4 because the refusal below hands it to
+  // the ask-back.
   const pool: AnchorCandidate[] = [
     ...global.map((range) => candidateFor(body, range, anchor)),
     ...inWindow.map((range) => candidateFor(body, range, anchor)),
@@ -529,6 +586,23 @@ export const resolveAnchor = (
     pool.push({ from: fuzzy.range.from, to: fuzzy.range.to, similarity: fuzzy.similarity });
   }
 
+  // Step 4 — unique-global. `"exactly one hit → verify ≥ 80% of prefix/suffix"`.
+  //
+  // **Only with the library bound.** §4's lazy boundary is a boundary only if
+  // the ladder can say when it is short: the header's rule is that a ladder
+  // which reaches step 3 with nothing bound refuses and names the reason
+  // rather than skipping to step 4, because step 4 is the rung that gives up
+  // on locality — it is the one an anchor that needed the fuzzy rung most is
+  // least helped by. An `ok` from here would say `unique-global` and nothing
+  // about the rung that was skipped, so the caller could not tell a full-ladder
+  // answer from a one-rung-short one.
+  if (locator !== undefined && global.length === 1) {
+    const only = global[0]!;
+    if (contextMatches(anchor, body, only)) return ok(only, 'unique-global');
+  }
+
+  // Step 5 — exhaustion. Never a fallback, never a guess: name the drift, rank up to
+  // three candidates, and report how far the document moved since capture.
   let reason: string;
   if (global.length === 0) {
     reason =
@@ -539,12 +613,18 @@ export const resolveAnchor = (
     reason = `the anchored text now appears ${global.length} times in this document and no single occurrence matches the captured context with enough of it (${Math.round(
       CONTEXT_MATCH_FLOOR * 100,
     )}% required). Quoting the span to target it is not possible without choosing one of them, so nothing was written.`;
+  } else if (locator === undefined) {
+    // **The one occurrence is there, and nothing has said whether it is the
+    // right one.** The rung that would have checked its context is the rung
+    // that could not run, so the reason must not claim the context failed —
+    // that question was never asked.
+    reason = `the anchored text appears once in this document, but the rung that would have checked its context could not run, so nothing has confirmed that this occurrence is the one the plan meant.`;
   } else {
     reason = `the anchored text appears once, but the context around it no longer matches (${Math.round(
       CONTEXT_MATCH_FLOOR * 100,
     )}% of the captured prefix and suffix required), so this occurrence is probably not the one the plan meant.`;
   }
-  if (locator === undefined && global.length === 0) {
+  if (locator === undefined) {
     reason +=
       ' The fuzzy rung could not run because its locator is not loaded, so this answer is one rung short of the ladder; await `preloadAnchorLibraries()` before resolving to get the full ladder.';
   }
