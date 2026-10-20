@@ -331,4 +331,34 @@ describe('manifest serializer', () => {
     const twice = serializeManifest(JSON.parse(once) as Manifest);
     expect(twice).toBe(once);
   });
+
+  /**
+   * A field the writer does not have is a refusal, not a word in the file.
+   *
+   * `JSON.stringify(undefined)` is `undefined`, and the emitter pasted it into
+   * the file as the bare word `undefined` — which is not JSON, so the manifest
+   * a save had just written could not be parsed by the next open. The write
+   * fails instead, and the error names the field, so the caller can say which
+   * one is missing.
+   */
+  it('refuses to write a field it does not have, naming it', () => {
+    const withoutStamp = rich();
+    delete (withoutStamp.filters![0] as { createdAt?: string }).createdAt;
+    expect(() => serializeManifest(withoutStamp)).toThrow(/createdAt/);
+
+    const withoutMetric = rich();
+    delete (withoutMetric.goals![0] as { metric?: string }).metric;
+    expect(() => serializeManifest(withoutMetric)).toThrow(/metric/);
+
+    const withoutName = rich();
+    delete (withoutName.goals![0] as { comparator?: string }).comparator;
+    expect(() => serializeManifest(withoutName)).toThrow(/comparator/);
+  });
+
+  it('refuses a criterion value it cannot write as JSON, rather than writing it bare', () => {
+    const m = rich();
+    (m.filters![0] as { criteria: Record<string, unknown> }).criteria = { text: undefined };
+
+    expect(() => serializeManifest(m)).toThrow(/criteria/);
+  });
 });

@@ -32,6 +32,15 @@ import {
   type FormatContext,
 } from './migrations.js';
 import { CHAR_LIMIT_MAX, SCENE_NUMBER_OPTIONS } from '@caotang/bus';
+// The shapes the bus names for the furniture commands. The *values* the bus
+// refuses at the command boundary are restated below, for the load; the types
+// are the bus's own, so a value the bus does not know cannot be listed here.
+import type {
+  FurnitureRoot,
+  GoalComparatorParam,
+  GoalKindParam,
+  GoalMetricParam,
+} from '@caotang/bus';
 import { isGeneratedId, isIdWithPrefix } from '@caotang/ids';
 import { bodyNamesOf, isBodyType } from './paths.js';
 import {
@@ -174,6 +183,63 @@ function isExportRecipe(v: unknown): boolean {
     r['format'] !== '' &&
     (r['templateId'] === undefined || typeof r['templateId'] === 'string')
   );
+}
+
+// The values binder-filters §2 and goals-progress §2.2/§9.3 name, restated
+// here for the load. The bus owns the same lists at the command boundary, where
+// a value outside them is *refused*; these are the load's copy, and the load's
+// half is the tolerant one — a value the bus would refuse is a value a hand
+// edit, a sync conflict or a foreign writer put there, and the answer is to
+// drop the entry that carries it, not to refuse the project. `satisfies` ties
+// every entry to the bus's own union, so a value the bus does not know cannot
+// be listed here.
+const FILTER_ROOTS = ['manuscript', 'research'] as const satisfies readonly FurnitureRoot[];
+const GOAL_COMPARATORS = ['at-least', 'at-most', 'about'] as const satisfies readonly GoalComparatorParam[];
+const GOAL_METRICS = ['words', 'chars'] as const satisfies readonly GoalMetricParam[];
+const GOAL_KINDS = ['project', 'weekly', 'monthly'] as const satisfies readonly GoalKindParam[];
+
+/**
+ * A criterion value the writer can write back as JSON (binder-filters §2's criteria).
+ *
+ * The bus's own check is stricter about *which* keys exist and what each one
+ * means; this one is about the shape, because a criterion value the writer
+ * cannot write is a filter the writer cannot save.
+ */
+function isCriterionValue(v: unknown): boolean {
+  if (v === null) return true;
+  if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return true;
+  if (Array.isArray(v)) return v.every((item) => typeof item === 'string');
+  return false;
+}
+
+/**
+ * binder-filters §2's `SavedFilter`: the fields it cannot do without.
+ *
+ * The root is not among them, and neither are the timestamps' *values* — those
+ * are checked here because the writer writes them unconditionally, so a filter
+ * without them is a filter the writer cannot write back.
+ */
+function isSavedFilter(v: unknown): boolean {
+  if (!isRecord(v)) return false;
+  if (typeof v['id'] !== 'string' || v['id'] === '') return false;
+  if (typeof v['name'] !== 'string') return false;
+  if (!isRecord(v['criteria'])) return false;
+  if (!Object.values(v['criteria']).every(isCriterionValue)) return false;
+  return isIsoDate(v['createdAt']) && isIsoDate(v['updatedAt']);
+}
+
+/**
+ * A calendar day, `YYYY-MM-DD`, that the calendar agrees with (goals-progress §2.2's `deadline`).
+ *
+ * The shape alone is not enough: `2026-02-30` is a day-shaped string that names
+ * no day, and a goal whose deadline names none is a goal that can never be
+ * overdue.
+ */
+function isCalendarDay(v: unknown): v is string {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const [year, month, day] = v.split('-').map(Number) as [number, number, number];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 
 /** Steps 1–3: parse, version gate, field schema. */
@@ -443,6 +509,19 @@ function validateFields(
   // imports, which is the only point at which the answer is knowable. One
   // implementation, in the one place the question has an answer.
   validateCodex(source.codex, { fatal, warn });
+
+  // Step 3 — the furniture the author's own saved work lives in: `filters[]`
+  // (binder-filters §4) and `goals[]` (goals-progress §2.2/§3). Both are
+  // additive, both are the author's, and both are dropped entry by entry when
+  // they cannot be read — a broken saved query or goal must never block a
+  // project load. The goal's node ids come from the tree above, so a goal whose
+  // folder is gone can be kept and flagged rather than refused.
+  const nodeIds = new Set<string>();
+  for (const raw of source.tree as unknown[]) {
+    if (isRecord(raw) && typeof raw['id'] === 'string') nodeIds.add(raw['id']);
+  }
+  validateFilters(source, warn);
+  validateGoals(source, nodeIds, warn);
 
   // Step 3 — derived (rebuildable; absence is not an error)
   if (source.derived !== undefined && !isRecord(source.derived)) {
@@ -841,6 +920,172 @@ function validateCodex(
       }
     }
   });
+}
+
+/**
+ * Step 3's `filters[]` — [binder-filters §4](docs/architecture/binder-filters.md).
+ *
+ * ## The convention, and why it is this one
+ *
+ * A saved filter is a *view* over the tree, not the tree. binder-filters §4 says
+ * it in so many words: "malformed criterion objects → the whole filter is
+ * dropped with a load warning (a broken saved query must never block a project
+ * load)". So a malformed filter is dropped with a warning and the load goes on,
+ * which is the same convention `recipes[]` already sets in this file.
+ *
+ * ## The two halves of the rule
+ *
+ * - A **required** field the filter cannot do without (its `id`, its `name`,
+ *   its `criteria`, its two stamps) takes the filter with it: the writer writes
+ *   those unconditionally, so a filter that is missing one is a filter the
+ *   writer cannot write back without inventing a value.
+ * - An **optional** field that is malformed (the `root`) is dropped on its own
+ *   and the filter is kept, because the field has a documented meaning when it
+ *   is absent — an unscoped filter searches both roots.
+ */
+function validateFilters(source: Record<string, unknown>, warn: (path: string, message: string) => void): void {
+  const raw = source['filters'];
+  if (raw === undefined) return;
+  if (!Array.isArray(raw)) {
+    warn('filters', 'expected an array of saved filters; dropped');
+    delete source['filters'];
+    return;
+  }
+  const kept = raw.filter((filter, i) => {
+    if (!isSavedFilter(filter)) {
+      warn(`filters[${i}]`, 'not a saved filter (id, name, criteria, createdAt, updatedAt); dropped');
+      return false;
+    }
+    const root = (filter as Record<string, unknown>)['root'];
+    if (root !== undefined && !(FILTER_ROOTS as readonly unknown[]).includes(root)) {
+      warn(
+        `filters[${i}].root`,
+        `unknown root ${JSON.stringify(root)}; dropped, and the filter searches both roots`,
+      );
+      delete (filter as Record<string, unknown>)['root'];
+    }
+    return true;
+  });
+  source['filters'] = kept;
+}
+
+/**
+ * Step 3's `goals[]` — [goals-progress §2.2 and §3](docs/architecture/goals-progress.md).
+ *
+ * The convention is the one `filters[]` above uses and the one `recipes[]`
+ * already set: a goal that cannot be read is dropped with a warning, and the
+ * load goes on. goals-progress §3 names it for the two fields it cares most
+ * about — "unknown comparator/metric → goal dropped with load warning" — and
+ * §2.2 names the one case that is *not* a drop: "dangling nodeId → kept but
+ * flagged 'target missing' in the UI, matches nothing (same posture as unknown
+ * vocabulary ids; never blocks load)".
+ *
+ * The optional fields are dropped one by one rather than taking the goal with
+ * them: a deadline that names no day makes a goal open-ended, and an `archived`
+ * that is not a boolean makes it un-archived, and both are the field's
+ * documented meaning when it is absent.
+ */
+function validateGoals(
+  source: Record<string, unknown>,
+  nodeIds: ReadonlySet<string>,
+  warn: (path: string, message: string) => void,
+): void {
+  const raw = source['goals'];
+  if (raw === undefined) return;
+  if (!Array.isArray(raw)) {
+    warn('goals', 'expected an array of project goals; dropped');
+    delete source['goals'];
+    return;
+  }
+  const kept = raw.filter((candidate, i) => {
+    if (!isRecord(candidate)) {
+      warn(`goals[${i}]`, 'not a project goal; dropped');
+      return false;
+    }
+    const goal = candidate;
+
+    // --- the fields a goal cannot do without -----------------------------
+    if (typeof goal['id'] !== 'string' || goal['id'] === '') {
+      warn(`goals[${i}]`, 'expected an id; goal dropped');
+      return false;
+    }
+    if (typeof goal['nodeId'] !== 'string' || goal['nodeId'] === '') {
+      warn(`goals[${i}]`, 'expected the node id it counts; goal dropped');
+      return false;
+    }
+    const comparator = goal['comparator'];
+    if (typeof comparator !== 'string' || !(GOAL_COMPARATORS as readonly string[]).includes(comparator)) {
+      warn(`goals[${i}]`, `expected a comparator of ${GOAL_COMPARATORS.join(', ')}; goal dropped`);
+      return false;
+    }
+    const target = goal['target'];
+    if (typeof target !== 'number' || !Number.isSafeInteger(target) || target <= 0) {
+      warn(`goals[${i}]`, 'expected a target of a positive whole number; goal dropped');
+      return false;
+    }
+    if (!isIsoDate(goal['createdAt']) || !isIsoDate(goal['updatedAt'])) {
+      warn(`goals[${i}]`, 'expected ISO-8601 createdAt and updatedAt; goal dropped');
+      return false;
+    }
+
+    // --- the optional fields ---------------------------------------------
+    const metric = goal['metric'];
+    if (metric === undefined) {
+      // manifest.ts: "Absent (an older manifest) means words." Materialising it
+      // is what the writer needs — it writes the metric unconditionally — and
+      // it is the meaning the spec already gives the absence.
+      goal['metric'] = 'words';
+    } else if (typeof metric !== 'string' || !(GOAL_METRICS as readonly string[]).includes(metric)) {
+      warn(`goals[${i}]`, `expected a metric of ${GOAL_METRICS.join(', ')}; goal dropped`);
+      return false;
+    }
+    const kind = goal['kind'];
+    if (kind !== undefined && (typeof kind !== 'string' || !(GOAL_KINDS as readonly string[]).includes(kind))) {
+      warn(`goals[${i}]`, `expected a kind of ${GOAL_KINDS.join(', ')}; goal dropped`);
+      return false;
+    }
+    const resetDay = goal['resetDay'];
+    if (resetDay !== undefined) {
+      const window = typeof kind === 'string' ? kind : 'project';
+      if (window === 'project') {
+        // goals-progress §2.2: "Weekly and monthly goals only (a project goal
+        // carrying one is refused at save and dropped on load)."
+        warn(`goals[${i}]`, 'a project goal carries no reset day; goal dropped');
+        return false;
+      }
+      const weekday = typeof resetDay === 'number' && Number.isInteger(resetDay) && resetDay >= 0 && resetDay <= 6;
+      const monthDay =
+        resetDay === 'last' || (typeof resetDay === 'number' && Number.isInteger(resetDay) && resetDay >= 1 && resetDay <= 28);
+      if (!(window === 'weekly' ? weekday : monthDay)) {
+        warn(
+          `goals[${i}]`,
+          'expected a weekday (0–6) for a weekly goal, or a day of the month (1–28, or "last") for a monthly one; goal dropped',
+        );
+        return false;
+      }
+    }
+    const deadline = goal['deadline'];
+    if (deadline !== undefined && !isCalendarDay(deadline)) {
+      warn(`goals[${i}].deadline`, 'expected a calendar day (YYYY-MM-DD); dropped, and the goal is open-ended');
+      delete goal['deadline'];
+    }
+    if (goal['archived'] !== undefined && typeof goal['archived'] !== 'boolean') {
+      warn(`goals[${i}].archived`, 'expected true or false; dropped');
+      delete goal['archived'];
+    }
+
+    // --- the node it counts ----------------------------------------------
+    // §2.2: a dangling nodeId is kept and flagged, never a refusal — the goal
+    // is the author's, and the folder it named may come back.
+    if (!nodeIds.has(goal['nodeId'] as string)) {
+      warn(
+        `goals[${i}].nodeId`,
+        `the node "${String(goal['nodeId'])}" is not in this project; kept, and the goal matches nothing`,
+      );
+    }
+    return true;
+  });
+  source['goals'] = kept;
 }
 
 /** Step 4: referential integrity. */

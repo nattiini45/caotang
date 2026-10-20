@@ -159,6 +159,21 @@ const KNOWN_TOP_LEVEL = new Set([
   'recipes',
 ]);
 
+/**
+ * The node fields this build writes (project-format.md §2's field table and its
+ * media note), and so the fields a load must not call unknown.
+ *
+ * The list is the writer's, kept by hand: `kind`, `shot` and `dialogue` are the
+ * media-track fields a screenplay, a storyboard or a dialogue node carries, and
+ * they are written by the serializer like any other. A list that lacked them
+ * made every such project hear, on every open, that three of its own fields
+ * would be "dropped on next save" — which is a lie, because the writer writes
+ * them again.
+ *
+ * `test/read-refusal.test.ts` checks this list against the serializer rather
+ * than against a copy of it, so a field added to a node later fails that test
+ * until the load learns it.
+ */
 const KNOWN_NODE_KEYS = new Set([
   'id',
   'parentId',
@@ -172,6 +187,9 @@ const KNOWN_NODE_KEYS = new Set([
   'notes',
   'createdAt',
   'updatedAt',
+  'kind',
+  'shot',
+  'dialogue',
 ]);
 
 /** §2 field contracts, restated for the import path (validate.ts enforces them on the manifest). */

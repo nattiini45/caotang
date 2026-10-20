@@ -48,18 +48,79 @@ import {
 
 const INDENT = '  ';
 
-function str(value: string): string {
+/**
+ * How a value that cannot be written is named in the error that says so.
+ *
+ * A refused write has to be *actionable*: the caller has to be able to say
+ * which field was missing, and the field's name is in the message — the value
+ * is only there so a wrong *type* can be told from a missing one.
+ */
+function describeValue(value: unknown): string {
+  if (value === undefined) return 'nothing';
+  if (value === null) return 'null';
+  if (typeof value === 'string') return `the string ${JSON.stringify(value)}`;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return Array.isArray(value) ? 'a list' : 'an object';
+}
+
+/**
+ * A JSON string for a field the writer must have.
+ *
+ * `JSON.stringify(undefined)` is `undefined`, and the emitter pasted it into
+ * the file as the bare word `undefined` — which is not JSON, so the manifest a
+ * save had just written could not be parsed by the next open. A field that
+ * cannot be encoded is a **refusal**, not a warning: the write fails before
+ * anything reaches the disk, and the error names the field.
+ *
+ * `field` is the field's name in the manifest, so the error can say which one
+ * is missing rather than only that something is.
+ */
+function str(value: string, field: string): string {
+  if (typeof value !== 'string') {
+    throw new Error(`cannot write "${field}": expected a string, got ${describeValue(value)}`);
+  }
   return JSON.stringify(value);
 }
 
-function scalar(value: string | number | null): string {
-  return value === null ? 'null' : typeof value === 'number' ? String(value) : str(value);
+function scalar(value: string | number | boolean | null, field: string): string {
+  if (value === null) return 'null';
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'string') return str(value, field);
+  throw new Error(
+    `cannot write "${field}": expected a string, a number, a boolean or null, got ${describeValue(value)}`,
+  );
+}
+
+/**
+ * A JSON value for a saved-filter criterion, which may be a string, a number, a
+ * boolean, null, a list or an object (binder-filters §2's criteria).
+ *
+ * The list and object cases are why this is not {@link scalar}: the criterion
+ * `keywordsAll: ["sea"]` is written as the JSON it is, bare, so the file reads
+ * as JSON in the file rather than as a quoted list.
+ */
+function criterion(value: unknown, field: string): string {
+  if (value === undefined) {
+    throw new Error(
+      `cannot write "${field}": the value is not there, and a field that is not there cannot be written as JSON`,
+    );
+  }
+  const text = JSON.stringify(value);
+  if (text === undefined) {
+    throw new Error(`cannot write "${field}": the value cannot be written as JSON`);
+  }
+  return text;
+}
+
+/** A JSON object key. A key is always a string, so this cannot fail. */
+function key(name: string): string {
+  return JSON.stringify(name);
 }
 
 /** Scalar arrays stay inline (`"keywords": []`) — they are short by contract. */
-function inlineArray(values: readonly unknown[]): string {
+function inlineArray(values: readonly unknown[], field: string): string {
   if (values.length === 0) return '[]';
-  return `[${values.map((v) => scalar(v as string)).join(', ')}]`;
+  return `[${values.map((v) => scalar(v as string, field)).join(', ')}]`;
 }
 
 /** One object element per line. `depth` is the indent level of the key itself. */
@@ -70,41 +131,41 @@ function objectArray(items: readonly string[], depth: number): string {
 }
 
 function oneLine(pairs: readonly [string, string][]): string {
-  return `{ ${pairs.map(([k, v]) => `${str(k)}: ${v}`).join(', ')} }`;
+  return `{ ${pairs.map(([k, v]) => `${key(k)}: ${v}`).join(', ')} }`;
 }
 
 function term(t: VocabularyTerm): string {
   return oneLine([
-    ['id', str(t.id)],
-    ['name', str(t.name)],
-    ['color', str(t.color)],
+    ['id', str(t.id, 'vocabulary.id')],
+    ['name', str(t.name, 'vocabulary.name')],
+    ['color', str(t.color, 'vocabulary.color')],
   ]);
 }
 
 function node(n: TreeNode): string {
   const pairs: [string, string][] = [
-    ['id', str(n.id)],
-    ['parentId', n.parentId === null ? 'null' : str(n.parentId)],
-    ['type', str(n.type)],
-    ['title', str(n.title)],
-    ['order', String(n.order)],
-    ['status', n.status === null ? 'null' : str(n.status)],
-    ['label', n.label === null ? 'null' : str(n.label)],
-    ['keywords', inlineArray(n.keywords)],
-    ['synopsis', str(n.synopsis)],
-    ['notes', str(n.notes)],
+    ['id', str(n.id, 'node.id')],
+    ['parentId', n.parentId === null ? 'null' : str(n.parentId, 'node.parentId')],
+    ['type', str(n.type, 'node.type')],
+    ['title', str(n.title, 'node.title')],
+    ['order', scalar(n.order, 'node.order')],
+    ['status', n.status === null ? 'null' : str(n.status, 'node.status')],
+    ['label', n.label === null ? 'null' : str(n.label, 'node.label')],
+    ['keywords', inlineArray(n.keywords, 'node.keywords')],
+    ['synopsis', str(n.synopsis, 'node.synopsis')],
+    ['notes', str(n.notes, 'node.notes')],
   ];
   // The media-track fields (project-format.md §2's media note) follow the same rule: written only when present, so a
   // project with no media nodes round-trips with no new key. A shot's and a container's metadata is held as an
   // object the storyboard and dialogue engines read, so it is written as one line of JSON: one node, one line, as the
   // tree rule asks, and the key order is the one the engine gave it.
-  if (n.kind !== undefined) pairs.push(['kind', str(n.kind)]);
-  if (n.shot !== undefined) pairs.push(['shot', JSON.stringify(n.shot)]);
-  if (n.dialogue !== undefined) pairs.push(['dialogue', JSON.stringify(n.dialogue)]);
+  if (n.kind !== undefined) pairs.push(['kind', str(n.kind, 'node.kind')]);
+  if (n.shot !== undefined) pairs.push(['shot', criterion(n.shot, 'node.shot')]);
+  if (n.dialogue !== undefined) pairs.push(['dialogue', criterion(n.dialogue, 'node.dialogue')]);
   // Additive timestamps are emitted only when present, so
   // that a project which never sets them round-trips unchanged.
-  if (n.createdAt !== undefined) pairs.push(['createdAt', str(n.createdAt)]);
-  if (n.updatedAt !== undefined) pairs.push(['updatedAt', str(n.updatedAt)]);
+  if (n.createdAt !== undefined) pairs.push(['createdAt', str(n.createdAt, 'node.createdAt')]);
+  if (n.updatedAt !== undefined) pairs.push(['updatedAt', str(n.updatedAt, 'node.updatedAt')]);
   return oneLine(pairs);
 }
 
@@ -112,41 +173,43 @@ function source(source: CodexEntry['sources'][number]): string {
   // codex.md §2's EntrySource, in its own key order. The optional fields are written
   // when present and only then, so a citation with none of them is unchanged.
   const fields: [string, string][] = [
-    ['docId', str(source.docId)],
-    ['quote', str(source.quote)],
+    ['docId', str(source.docId, 'source.docId')],
+    ['quote', str(source.quote, 'source.quote')],
   ];
   // The offsets go through JSON's own number encoding, not String(): String() writes
   // a non-numeric value bare (`from: zero`), which is not JSON and fails the next
   // load. The loader drops such a citation (validate.ts), so this is the second guard,
   // and it keeps the file parseable even when a value somehow got past the first.
-  if (source.from !== undefined) fields.push(['from', JSON.stringify(source.from)]);
-  if (source.to !== undefined) fields.push(['to', JSON.stringify(source.to)]);
-  if (source.extractedAt !== undefined) fields.push(['extractedAt', str(source.extractedAt)]);
+  if (source.from !== undefined) fields.push(['from', scalar(source.from, 'source.from')]);
+  if (source.to !== undefined) fields.push(['to', scalar(source.to, 'source.to')]);
+  if (source.extractedAt !== undefined) fields.push(['extractedAt', str(source.extractedAt, 'source.extractedAt')]);
   return oneLine(fields);
 }
 
 function codexEntry(c: CodexEntry): string {
   const pairs: [string, string][] = [
-    ['id', str(c.id)],
-    ['name', str(c.name)],
-    ['aliases', inlineArray(c.aliases)],
-    ['type', str(c.type)],
-    ['description', str(c.description)],
-    ['includePolicy', str(c.includePolicy)],
-    ['caseSensitive', String(c.caseSensitive)],
-    ['exclude', inlineArray(c.exclude)],
-    ['attachments', inlineArray(c.attachments)],
-    ['keywords', inlineArray(c.keywords)],
+    ['id', str(c.id, 'codex.id')],
+    ['name', str(c.name, 'codex.name')],
+    ['aliases', inlineArray(c.aliases, 'codex.aliases')],
+    ['type', str(c.type, 'codex.type')],
+    ['description', str(c.description, 'codex.description')],
+    ['includePolicy', str(c.includePolicy, 'codex.includePolicy')],
+    ['caseSensitive', scalar(c.caseSensitive, 'codex.caseSensitive')],
+    ['exclude', inlineArray(c.exclude, 'codex.exclude')],
+    ['attachments', inlineArray(c.attachments, 'codex.attachments')],
+    ['keywords', inlineArray(c.keywords, 'codex.keywords')],
     // video-prompt-pack.md §3: written only when there are some, so an entry without them is byte-identical to before.
-    ...(c.visualRefs === undefined || c.visualRefs.length === 0 ? [] : [['visualRefs', inlineArray(c.visualRefs)] as [string, string]]),
-    ['origin', str(c.origin)],
+    ...(c.visualRefs === undefined || c.visualRefs.length === 0
+      ? []
+      : [['visualRefs', inlineArray(c.visualRefs, 'codex.visualRefs')] as [string, string]]),
+    ['origin', str(c.origin, 'codex.origin')],
     ['sources', objectArray(c.sources.map(source), 2)],
   ];
   // An entry restored by the §5.4 rebuild has no recorded timestamps, because
   // codex.md §3's redundancy file does not carry them. Omitted rather than
   // invented — same rule as the additive tree-node timestamps above.
-  if (c.createdAt !== undefined) pairs.push(['createdAt', str(c.createdAt)]);
-  if (c.updatedAt !== undefined) pairs.push(['updatedAt', str(c.updatedAt)]);
+  if (c.createdAt !== undefined) pairs.push(['createdAt', str(c.createdAt, 'codex.createdAt')]);
+  if (c.updatedAt !== undefined) pairs.push(['updatedAt', str(c.updatedAt, 'codex.updatedAt')]);
   return oneLine(pairs);
 }
 
@@ -156,11 +219,15 @@ function codexEntry(c: CodexEntry): string {
  */
 function savedFilter(f: SavedFilter): string {
   const pairs: [string, string][] = [
-    ['id', str(f.id)],
-    ['name', str(f.name)],
+    ['id', str(f.id, 'filter.id')],
+    ['name', str(f.name, 'filter.name')],
   ];
-  if (f.root !== undefined) pairs.push(['root', str(f.root)]);
-  pairs.push(['criteria', inlineObject(f.criteria)], ['createdAt', str(f.createdAt)], ['updatedAt', str(f.updatedAt)]);
+  if (f.root !== undefined) pairs.push(['root', str(f.root, 'filter.root')]);
+  pairs.push(
+    ['criteria', inlineObject(f.criteria)],
+    ['createdAt', str(f.createdAt, 'filter.createdAt')],
+    ['updatedAt', str(f.updatedAt, 'filter.updatedAt')],
+  );
   return oneLine(pairs);
 }
 
@@ -170,24 +237,29 @@ function savedFilter(f: SavedFilter): string {
  */
 function projectGoal(g: ProjectGoal): string {
   const pairs: [string, string][] = [
-    ['id', str(g.id)],
-    ['nodeId', str(g.nodeId)],
-    ['metric', str(g.metric)],
+    ['id', str(g.id, 'goal.id')],
+    ['nodeId', str(g.nodeId, 'goal.nodeId')],
+    ['metric', str(g.metric, 'goal.metric')],
   ];
   // goals-progress §9.3: a session kind is written only when there is one, so a project goal round-trips with no new key.
-  if (g.kind !== undefined && g.kind !== 'project') pairs.push(['kind', str(g.kind)]);
+  if (g.kind !== undefined && g.kind !== 'project') pairs.push(['kind', str(g.kind, 'goal.kind')]);
   // goals-progress §9.3: a reset day is written only when the writer chose one, so a goal with the default window keeps its bytes.
-  if (g.resetDay !== undefined) pairs.push(['resetDay', g.resetDay === 'last' ? str('last') : String(g.resetDay)]);
-  pairs.push(['comparator', str(g.comparator)], ['target', String(g.target)]);
-  if (g.deadline !== undefined) pairs.push(['deadline', str(g.deadline)]);
-  if (g.archived !== undefined) pairs.push(['archived', String(g.archived)]);
-  pairs.push(['createdAt', str(g.createdAt)], ['updatedAt', str(g.updatedAt)]);
+  if (g.resetDay !== undefined) {
+    pairs.push([
+      'resetDay',
+      g.resetDay === 'last' ? str('last', 'goal.resetDay') : scalar(g.resetDay, 'goal.resetDay'),
+    ]);
+  }
+  pairs.push(['comparator', str(g.comparator, 'goal.comparator')], ['target', scalar(g.target, 'goal.target')]);
+  if (g.deadline !== undefined) pairs.push(['deadline', str(g.deadline, 'goal.deadline')]);
+  if (g.archived !== undefined) pairs.push(['archived', scalar(g.archived, 'goal.archived')]);
+  pairs.push(['createdAt', str(g.createdAt, 'goal.createdAt')], ['updatedAt', str(g.updatedAt, 'goal.updatedAt')]);
   return oneLine(pairs);
 }
 
 /** Best-effort inline rendering for a free-form map (saved-filter criteria). */
 function inlineObject(value: Record<string, unknown>): string {
-  const parts = Object.entries(value).map(([k, v]) => `${str(k)}: ${scalar(v as string)}`);
+  const parts = Object.entries(value).map(([k, v]) => `${key(k)}: ${criterion(v, `filter.criteria.${k}`)}`);
   if (parts.length === 0) return '{}';
   return `{ ${parts.join(', ')} }`;
 }
@@ -197,18 +269,20 @@ function projectIdentity(p: ProjectIdentity): string {
   // is specified, so a project that never set one round-trips with no new key.
   const lines = [
     `${INDENT}"project": {`,
-    `${INDENT}${INDENT}"id": ${str(p.id)},`,
-    `${INDENT}${INDENT}"name": ${str(p.name)},`,
-    `${INDENT}${INDENT}"createdAt": ${str(p.createdAt)},`,
-    `${INDENT}${INDENT}"modifiedAt": ${str(p.modifiedAt)}`,
+    `${INDENT}${INDENT}"id": ${str(p.id, 'project.id')},`,
+    `${INDENT}${INDENT}"name": ${str(p.name, 'project.name')},`,
+    `${INDENT}${INDENT}"createdAt": ${str(p.createdAt, 'project.createdAt')},`,
+    `${INDENT}${INDENT}"modifiedAt": ${str(p.modifiedAt, 'project.modifiedAt')}`,
   ];
   const optional: string[] = [];
-  if (p.language !== undefined) optional.push(`${INDENT}${INDENT}"language": ${str(p.language)}`);
+  if (p.language !== undefined) optional.push(`${INDENT}${INDENT}"language": ${str(p.language, 'project.language')}`);
   if (p.identifier !== undefined) optional.push(`${INDENT}${INDENT}"identifier": ${projectIdentifier(p.identifier)}`);
   if (p.coverAssetId !== undefined) {
-    optional.push(`${INDENT}${INDENT}"coverAssetId": ${p.coverAssetId === null ? 'null' : str(p.coverAssetId)}`);
+    optional.push(
+      `${INDENT}${INDENT}"coverAssetId": ${p.coverAssetId === null ? 'null' : str(p.coverAssetId, 'project.coverAssetId')}`,
+    );
   }
-  if (p.author !== undefined) optional.push(`${INDENT}${INDENT}"author": ${str(p.author)}`);
+  if (p.author !== undefined) optional.push(`${INDENT}${INDENT}"author": ${str(p.author, 'project.author')}`);
   if (optional.length > 0) {
     lines[lines.length - 1] = `${lines[lines.length - 1]},`;
     optional.forEach((line, i) => lines.push(i === optional.length - 1 ? line : `${line},`));
@@ -221,19 +295,21 @@ function projectIdentity(p: ProjectIdentity): string {
 function projectIdentifier(id: NonNullable<ProjectIdentity['identifier']>): string {
   // `isbn: null` is written as null, not omitted: it is the one value a writer sets to
   // say "no ISBN yet", and dropping the key would make the save say something else.
-  const fields = [`"uuid": ${str(id.uuid)}`];
-  if (id.isbn !== undefined) fields.push(`"isbn": ${id.isbn === null ? 'null' : str(id.isbn)}`);
+  const fields = [`"uuid": ${str(id.uuid, 'project.identifier.uuid')}`];
+  if (id.isbn !== undefined) {
+    fields.push(`"isbn": ${id.isbn === null ? 'null' : str(id.isbn, 'project.identifier.isbn')}`);
+  }
   return `{ ${fields.join(', ')} }`;
 }
 
 /** exporter.md §2's recipe, in the key order it is specified in. */
 function exportRecipe(r: ExportRecipe): string {
   const fields: [string, string][] = [
-    ['name', str(r.name)],
-    ['includeRootIds', `[${r.includeRootIds.map((id) => str(id)).join(', ')}]`],
-    ['format', str(r.format)],
+    ['name', str(r.name, 'recipe.name')],
+    ['includeRootIds', `[${r.includeRootIds.map((id) => str(id, 'recipe.includeRootIds')).join(', ')}]`],
+    ['format', str(r.format, 'recipe.format')],
   ];
-  if (r.templateId !== undefined) fields.push(['templateId', str(r.templateId)]);
+  if (r.templateId !== undefined) fields.push(['templateId', str(r.templateId, 'recipe.templateId')]);
   // The options object is written only when the recipe has one, and only the keys it sets, so a recipe saved
   // without options round-trips with no new key (the same rule as the additive node timestamps above).
   if (r.options !== undefined) fields.push(['options', recipeOptions(r.options)]);
@@ -248,16 +324,20 @@ function recipeOptions(o: NonNullable<ExportRecipe['options']>): string {
   const pairs: [string, string][] = [];
   if (typeof o.titlePage === 'boolean') pairs.push(['titlePage', String(o.titlePage)]);
   if (typeof o.toc === 'boolean') pairs.push(['toc', String(o.toc)]);
-  if (typeof o.author === 'string') pairs.push(['author', str(o.author)]);
+  if (typeof o.author === 'string') pairs.push(['author', str(o.author, 'recipe.options.author')]);
   const limit: unknown = o.charLimit;
   if (typeof limit === 'number' && Number.isSafeInteger(limit) && limit >= 1 && limit <= CHAR_LIMIT_MAX) {
     pairs.push(['charLimit', String(limit)]);
   }
   const numbers: unknown = o.sceneNumbers;
   // The placements the bus accepts, from its own export, so a placement it gains is written, not dropped.
-  if (typeof numbers === 'string' && (SCENE_NUMBER_OPTIONS as readonly string[]).includes(numbers)) pairs.push(['sceneNumbers', str(numbers)]);
+  if (typeof numbers === 'string' && (SCENE_NUMBER_OPTIONS as readonly string[]).includes(numbers)) {
+    pairs.push(['sceneNumbers', str(numbers, 'recipe.options.sceneNumbers')]);
+  }
   if (typeof o.continued === 'boolean') pairs.push(['continued', String(o.continued)]);
-  if (o.pageSize === 'A4' || o.pageSize === 'Letter') pairs.push(['pageSize', str(o.pageSize)]);
+  if (o.pageSize === 'A4' || o.pageSize === 'Letter') {
+    pairs.push(['pageSize', str(o.pageSize, 'recipe.options.pageSize')]);
+  }
   return pairs.length === 0 ? '{}' : oneLine(pairs);
 }
 
@@ -271,7 +351,7 @@ function derived(d: Derived): string {
           keys
             .map(
               (k, i) =>
-                `${INDENT.repeat(3)}${str(k)}: ${String(d.wordCounts[k] ?? 0)}${
+                `${INDENT.repeat(3)}${key(k)}: ${String(d.wordCounts[k] ?? 0)}${
                   i < keys.length - 1 ? ',' : ''
                 }`,
             )
@@ -281,7 +361,7 @@ function derived(d: Derived): string {
   return [
     `${INDENT}"derived": {`,
     body,
-    `${INDENT.repeat(2)}"computedAt": ${str(d.computedAt)}`,
+    `${INDENT.repeat(2)}"computedAt": ${str(d.computedAt, 'derived.computedAt')}`,
     `${INDENT}},`,
   ].join('\n');
 }
@@ -318,7 +398,7 @@ export function serializeManifest(
     );
   }
 
-  const parts: string[] = ['{', `${INDENT}"app": ${str(manifest.app)},`];
+  const parts: string[] = ['{', `${INDENT}"app": ${str(manifest.app, 'manifest.app')},`];
   parts.push(`${INDENT}"formatVersion": ${String(format.current)},`);
   parts.push(projectIdentity(manifest.project));
   parts.push(

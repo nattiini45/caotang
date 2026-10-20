@@ -168,6 +168,26 @@ describe('artifact write path', () => {
       'The ferry was early, which was worse.',
     );
   });
+
+  // The snapshot ladder's own first step. A manifest that cannot be *read* is not
+  // the same fact as a manifest that is not there: reading it that way overwrote
+  // `caotang.json` with no snapshot of it, which is the one loss §5's recovery
+  // ladder exists to prevent, caused by the ladder itself.
+  it('refuses the save when the manifest cannot be read, rather than treating the failure as a first write', async () => {
+    const fs = new (class extends MemoryArtifactFs {
+      override async read(path: string): Promise<string> {
+        if (path === MANIFEST_FILE) throw new Error('the disk is on fire');
+        return super.read(path);
+      }
+    })();
+
+    await expect(writeProject(fs, project(), { now: T0 })).rejects.toThrow('the disk is on fire');
+
+    // Nothing was written over the manifest it could not read, and no snapshot
+    // of a manifest that was never read was invented.
+    expect(await fs.exists(MANIFEST_FILE)).toBe(false);
+    expect(await fs.exists(snapshotFile(1))).toBe(false);
+  });
 });
 
 /**

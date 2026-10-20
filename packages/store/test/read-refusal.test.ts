@@ -17,7 +17,9 @@ import {
   createEmptyManifest,
   createProjectState,
   readProject,
+  serializeManifest,
   writeProject,
+  type Manifest,
 } from '../src/index.js';
 
 const STAMP = new Date('2026-10-14T09:00:00.000Z');
@@ -119,5 +121,62 @@ describe('the load’s notices: each is a sentence, and only the fields a save d
     await fs.writeBytesAtomic(`docs/${KEPT}.md`, bytes);
     await readProject(fs);
     expect(await fs.readBytes(`docs/${KEPT}.md`)).toEqual(bytes);
+  });
+});
+
+/**
+ * The list of node fields the load knows is a hand-written one (read.ts
+ * `KNOWN_NODE_KEYS`), and it drifted from the writer: `kind`, `shot` and
+ * `dialogue` are written by the serializer (project-format.md §2's media note)
+ * and are not in it. A screenplay, a storyboard or a dialogue project was
+ * therefore told on **every** open that three of its own fields would be
+ * "dropped on next save" — and they were not; they were written again.
+ *
+ * The list is checked against the *writer* rather than against a copy of it,
+ * so a field added to a node later fails this test until the load learns it.
+ */
+describe('the node fields the writer persists are the ones the load knows', () => {
+  /** A manifest whose node carries every field the serializer can write. */
+  function withEveryNodeField(): Manifest {
+    const m = createEmptyManifest('Keys', STAMP);
+    const node = m.tree[1]!;
+    node.kind = 'screenplay';
+    node.shot = { duration: 3 };
+    node.dialogue = { speaker: 'Elena' };
+    node.createdAt = STAMP.toISOString();
+    node.updatedAt = STAMP.toISOString();
+    return m;
+  }
+
+  it('raises no unknown-node-field notice for any key the serializer writes', async () => {
+    // The keys, taken from the writer itself.
+    const written = Object.keys((JSON.parse(serializeManifest(withEveryNodeField())) as Manifest).tree[1]!);
+    expect(written).toEqual(expect.arrayContaining(['kind', 'shot', 'dialogue']));
+
+    const fs = await folderWithDocument();
+    await editManifest(fs, (manifest) => {
+      const tree = manifest['tree'] as Record<string, unknown>[];
+      const node = tree.find((entry) => entry['id'] === KEPT)!;
+      Object.assign(node, { kind: 'screenplay', shot: { duration: 3 }, dialogue: { speaker: 'Elena' } });
+    });
+
+    const loaded = await readProject(fs);
+
+    expect(loaded.notices.filter((notice) => notice.droppedField !== undefined)).toEqual([]);
+  });
+
+  it('still reports a node field the writer never writes, so the check above is not vacuous', async () => {
+    const fs = await folderWithDocument();
+    await editManifest(fs, (manifest) => {
+      const tree = manifest['tree'] as Record<string, unknown>[];
+      const node = tree.find((entry) => entry['id'] === KEPT)!;
+      node['colour'] = 'teal';
+    });
+
+    const loaded = await readProject(fs);
+
+    expect(loaded.notices.filter((notice) => notice.droppedField !== undefined).map((n) => n.droppedField)).toEqual([
+      'colour',
+    ]);
   });
 });
