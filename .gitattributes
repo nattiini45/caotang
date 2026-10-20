@@ -26,5 +26,5 @@ pnpm-lock.yaml binary
 # Byte-exact test fixtures: read (and one hashed) as bytes by the tests, so a
 # per-platform EOL conversion would turn the suite red on Windows and change the
 # pinned SHA-256. Checked in as LF, restored as LF on every platform.
-packages/screenplay/test/fixtures/emoji-test-15.1.txt -text
-packages/exporter/test/fixtures/emoji-15.1-fully-qualified.txt -text
+packages/screenplay/test/fixtures/emoji-test-15.1.txt text eol=lf
+packages/exporter/test/fixtures/emoji-15.1-fully-qualified.txt text eol=lf

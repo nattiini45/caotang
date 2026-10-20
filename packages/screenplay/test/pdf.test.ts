@@ -30,6 +30,19 @@ function blocksOf(source: string): FlatBlock[] {
 
 const decode = (bytes: Uint8Array): string => new TextDecoder().decode(bytes);
 
+/** Walks the cross-reference table strictly: every entry's offset must point at that object's header, so no hole and no collision passes. */
+function expectXrefWalk(pdf: string): number {
+  const xref = Number(/startxref\n(\d+)\n/.exec(pdf)?.[1]);
+  expect(pdf.slice(xref, xref + 5)).toBe('xref\n');
+  const lines = pdf.slice(xref).split('\n');
+  const objects = Number(/^0 (\d+)$/m.exec(pdf.slice(xref, xref + 40))?.[1]) - 1;
+  for (let object = 1; object <= objects; object++) {
+    const offset = Number(lines[2 + object]?.slice(0, 10));
+    expect(pdf.slice(offset).startsWith(`${object} 0 obj\n`), `object ${object}`).toBe(true);
+  }
+  return objects;
+}
+
 /** A long dialogue after a page of action: the speech must split after a sentence end (screenplay.md §5.3). */
 const SPLITTING_SCRIPT = (() => {
   const filler = Array.from({ length: 25 }, (_, i) => `Filler ${i}.`).join('\n\n');
@@ -44,16 +57,7 @@ describe('renderPdf — the file structure', () => {
     expect(pdf.startsWith('%PDF-1.4\n')).toBe(true);
     expect(pdf.endsWith('%%EOF\n')).toBe(true);
     expect(pdf).toContain(`/Count ${pageCount} `);
-
-    const xref = Number(/startxref\n(\d+)\n/.exec(pdf)?.[1]);
-    expect(pdf.slice(xref, xref + 5)).toBe('xref\n');
-    const lines = pdf.slice(xref).split('\n');
-    const objects = Number(/^0 (\d+)$/m.exec(pdf.slice(xref, xref + 40))?.[1]) - 1;
-    expect(objects).toBe(4 + 2 * pageCount);
-    for (let object = 1; object <= objects; object++) {
-      const offset = Number(lines[2 + object]?.slice(0, 10));
-      expect(pdf.slice(offset).startsWith(`${object} 0 obj\n`), `object ${object}`).toBe(true);
-    }
+    expect(expectXrefWalk(pdf)).toBe(4 + 2 * pageCount);
   });
 
   it('writes the scene heading, the cue and the dialogue into the page content as text operators', () => {
@@ -70,6 +74,23 @@ describe('renderPdf — the file structure', () => {
     expect(pdf).toContain('/Count 1 ');
     expect(pdf).toContain('/Type /Page ');
     expect(pdf.endsWith('%%EOF\n')).toBe(true);
+  });
+
+  it('writes an empty document with an embedded font whose xref points at every object', async () => {
+    const pdf = decode(writePdf([], { title: 'Empty' }, await loadCourierPrime()));
+    expect(pdf).toContain('/Count 1 ');
+    expect(pdf).toContain('/Type /Page ');
+    expect(pdf.endsWith('%%EOF\n')).toBe(true);
+    // The catalogue, the page tree, the font, the info dictionary, the blank page and its content stream, then the
+    // font descriptor and the font program the embedded font adds after the pages.
+    expect(expectXrefWalk(pdf)).toBe(8);
+  });
+
+  it('reports one page for a script that prints nothing, the page the file itself carries', () => {
+    const blocks: FlatBlock[] = [{ kind: 'scene', docId: 'd0', body: '[[production note]]', title: 'INT. A - DAY', number: 1 }];
+    const { bytes, pageCount } = renderPdf(blocks, { title: 'T', titlePage: false });
+    expect(pageCount).toBe(1);
+    expect(decode(bytes)).toContain(`/Count ${pageCount} `);
   });
 
   it('writes one blank page when the script prints nothing, so the page tree is never empty', () => {

@@ -24,7 +24,7 @@ vi.mock('@caotang/screenplay', async (importOriginal) => {
 import { assembleInput, cueFactsOf, emptyCoherenceFile, runChecks } from '../src/index.js';
 import type { ProjectState } from '@caotang/store';
 
-import { buildState, detect, entry } from './fixtures.js';
+import { buildState, addShot, detect, entry } from './fixtures.js';
 
 const SCRIPT_IDS = ['script.cue-collision', 'script.cue-consistency', 'script.shot-coverage'] as const;
 
@@ -48,7 +48,10 @@ const TWO_SCENES = [
 
 describe('the cue facts a run shares', () => {
   it('parses each screenplay body once for the three script checks', () => {
-    const { input } = assembleInput(screenplayState(TWO_SCENES), emptyCoherenceFile(), { detector: detect });
+    // A shot in the tree makes script.shot-coverage read the scenes' cues too, so all three checks draw on the shared map.
+    const state = screenplayState(TWO_SCENES);
+    addShot(state, 'shotA', {});
+    const { input } = assembleInput(state, emptyCoherenceFile(), { detector: detect });
     counted.parses = 0;
     runChecks(input, [...SCRIPT_IDS]);
     expect(counted.parses).toBe(TWO_SCENES.length);
