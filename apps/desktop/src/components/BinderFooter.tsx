@@ -23,7 +23,7 @@ import { SPRINT_CHOICES, formatRemaining, goalSentence, goalStateWords, unitOf }
 import type { RuntimeStore, SessionRecord } from '@caotang/store';
 
 import { filterResultFor, furnitureFor, goalProbeOf, unknownTermsOf } from '../app/furniture-store.js';
-import { sessionsEverywhere, todayLine, type TargetProgress } from '../app/session-progress.js';
+import { nextReadDelay, sessionsEverywhere, todayLine, type TargetProgress } from '../app/session-progress.js';
 import type { ProjectSession } from '../app/session.js';
 import { selectNode } from './actions.js';
 import { formatCount, useSession } from './shared.js';
@@ -52,7 +52,10 @@ export function BinderFooter({
   useEffect(() => {
     if (!hasWindowGoal) return;
     let alive = true;
+    let lastReadAt: number | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     const load = (): void => {
+      lastReadAt = Date.now();
       void sessionsEverywhere(runtime).then(
         (records) => {
           if (alive) store.setSessions(records);
@@ -60,10 +63,24 @@ export function BinderFooter({
         () => {},
       );
     };
+    // The log only moves when a sitting is recorded, so a change of the session does not need its own reading of it: the reading
+    // waits for the window, and the last change of a burst still gets one. Reading every project's log on every keystroke is what
+    // this waits out.
+    const schedule = (): void => {
+      if (timer !== null) return;
+      timer = setTimeout(
+        () => {
+          timer = null;
+          load();
+        },
+        nextReadDelay(lastReadAt, Date.now()),
+      );
+    };
     load();
-    const unsubscribe = session.subscribe(load);
+    const unsubscribe = session.subscribe(schedule);
     return () => {
       alive = false;
+      if (timer !== null) clearTimeout(timer);
       unsubscribe();
     };
   }, [hasWindowGoal, runtime, session, store]);

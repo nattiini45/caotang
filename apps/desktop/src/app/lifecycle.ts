@@ -470,27 +470,38 @@ export async function exportBundle(store: RuntimeStore, session: ProjectSession)
 /**
  * The bundle of a project that is not open. The stored state is read, not an open
  * session's, so this works from the project list without opening the project.
+ *
+ * `copyFor` says who the bundle is for: the writer's own (`user`, the default) or the app's
+ * (`internal`, the copy the desktop keeps in memory so that a failed adopt can put it back).
  */
-export async function exportStoredBundle(store: RuntimeStore, projectId: string): Promise<ExportedBundle> {
+export async function exportStoredBundle(
+  store: RuntimeStore,
+  projectId: string,
+  copyFor: 'user' | 'internal' = 'user',
+): Promise<ExportedBundle> {
   const state = await readProjectState(store, projectId);
   const sessions = await readSessions(store, projectId);
   const coherence = (await readCoherenceFiles(store, projectId))[COHERENCE_FILE];
   const assets = assetsFor(projectId);
   // The browser's copy is listed before the bundle reads the pictures, so a reloaded page's pictures are in the bundle.
   await assets.ready();
-  return bundleOf(state, sessions, assets, coherence);
+  return bundleOf(state, sessions, assets, coherence, copyFor);
 }
 
 /**
  * The bundle of a state, its session log and its images (zip.ts carries `assets/` byte-for-byte). A cover that neither the browser's
  * copy nor an attached folder holds is bundled without its image, and the copy says so: one missing picture is not a reason to refuse
  * a whole backup.
+ *
+ * `copyFor` says who the bundle is for (zip.ts `ExportZipOptions.copyFor`): the writer's own copy
+ * refuses a file it cannot hold, and the app's own copy leaves that file out and says so.
  */
 async function bundleOf(
   state: ProjectState,
   sessions: readonly SessionRecord[],
   assets: ProjectAssets,
   coherence: string | undefined,
+  copyFor: 'user' | 'internal' = 'user',
 ): Promise<ExportedBundle> {
   const notices: string[] = [];
   const cover = state.manifest.project.coverAssetId;
@@ -503,6 +514,7 @@ async function bundleOf(
   const exported = await exportProjectZip(state, {
     sessions,
     assets: await assets.snapshot(),
+    copyFor,
     ...(coherence === undefined ? {} : { coherence }),
   });
   return { bytes: exported.bytes, filename: exported.filename, notices };
@@ -1020,8 +1032,9 @@ export async function answerFolderDiffers(store: RuntimeStore, differs: FolderDi
   if (answer === 'use-folder') {
     const storedLog = await readSessions(store, differs.projectId);
     // This browser's copy is held in memory as a bundle before it is removed (its state, session log, pictures and findings), so an adopt
-    // that fails puts it back rather than leaving the writer with neither version in this browser.
-    const kept = await exportStoredBundle(store, differs.projectId);
+    // that fails puts it back rather than leaving the writer with neither version in this browser. The copy is the app's own, not the
+    // writer's, so a file the load could not read is left out of it and named in the report rather than refused.
+    const kept = await exportStoredBundle(store, differs.projectId, 'internal');
     // So are the records folder-memory.ts keeps for it (its folder, the folder copy last seen there, and the project it was copied from), which
     // the removal forgets.
     const keptRecords: KeptFolderRecords = {
@@ -1048,7 +1061,9 @@ export async function answerFolderDiffers(store: RuntimeStore, differs: FolderDi
   // they are not said, and the folder's pictures do not replace this browser's.
   const opened = await openStored(store, differs.projectId, root, { notices: [], droppedFields: [], folderLog: differs.folderLog }, {});
   const browser = new MemoryArtifactFs();
-  await writeProject(browser, copyState(opened.session.state), { now: new Date() });
+  // The copy in memory is the app's own, so a file the load could not read is left out of it rather than refused (write.ts
+  // `WriteOptions.copyFor`).
+  await writeProject(browser, copyState(opened.session.state), { now: new Date(), copyFor: 'internal' });
   holdFolderCopy(opened.session, root, differs.baselineText, keepBrowserDigests(await projectFileDigests(browser), differs.digests));
   return { ...opened, saveToFolder: root };
 }

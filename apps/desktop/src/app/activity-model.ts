@@ -94,13 +94,22 @@ export interface ActivityRow {
 /**
  * The rows to show, newest first. `groupOf` answers from the undo store, so a group that has been
  * undone (and so is gone from it) loses its affordance without any bookkeeping here.
+ *
+ * `limit` keeps the newest rows only, and builds no row for the ones behind them: the log holds a row
+ * for every command of the sitting, and the panel renders on every change of the session
+ * (activity-window.ts).
  */
 export function activityRows(
   entries: readonly ActivityEntry[],
-  options: { readonly showViews: boolean; readonly groupOf: (id: string) => UndoGroup | undefined },
+  options: {
+    readonly showViews: boolean;
+    readonly groupOf: (id: string) => UndoGroup | undefined;
+    readonly limit?: number;
+  },
 ): ActivityRow[] {
   const claimed = new Set<string>();
   const rows: ActivityRow[] = [];
+  const limit = options.limit ?? Number.POSITIVE_INFINITY;
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index];
     if (entry === undefined || (!options.showViews && isViewEvent(entry.command))) continue;
@@ -111,8 +120,22 @@ export function activityRows(
       undo = options.groupOf(groupId) ?? null;
     }
     rows.push({ index, entry, title: titleOf(entry.command), undo });
+    if (rows.length >= limit) break;
   }
   return rows;
+}
+
+/**
+ * How many rows the panel shows: the log's rows, without the view events unless the writer asks for
+ * them. The count is a walk over the log and builds nothing, so the panel knows how many rows it
+ * keeps back without building the rows behind its window (activity-window.ts).
+ */
+export function visibleActivityCount(entries: readonly ActivityEntry[], showViews: boolean): number {
+  let count = 0;
+  for (const entry of entries) {
+    if (showViews || !isViewEvent(entry.command)) count += 1;
+  }
+  return count;
 }
 
 export interface ActivityMarkdownInput {
@@ -124,7 +147,8 @@ export interface ActivityMarkdownInput {
 }
 
 /**
- * The activity log and the agent's turns as one Markdown file (agent-harness §5: "exportable as markdown"). Every executed
+ * The activity log and the agent's turns as one Markdown file (agent-harness §5: the Markdown export carries the whole
+ * log). Every executed
  * command is a row, in the order it ran, with who issued it and where it came from. Each agent turn is a section: its intent,
  * how it ended, what it wrote, and the checkpoint that takes it back. View events are left out, as the panel leaves them out
  * unless asked for.

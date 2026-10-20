@@ -1,0 +1,153 @@
+/**
+ * The activity log and the panel's window (command-bus.md §8).
+ *
+ * The log holds a row for every command the session has run, for the life of the tab, and the undo
+ * groups name their rows (session.ts): the log keeps every row, and the panel shows a window of them.
+ */
+
+import { expect, test } from '@playwright/test';
+
+import type { ActivityEntry } from '../../packages/bus/src/index.js';
+import { MemoryIndexedDb, openRuntimeStore } from '../../packages/store/src/index.js';
+
+import { activityMarkdown } from '../../apps/desktop/src/app/activity-model.js';
+import { ProjectSession } from '../../apps/desktop/src/app/session.js';
+import { activityWindow, ACTIVITY_PANEL_WINDOW, showOlderWindow } from '../../apps/desktop/src/components/activity-window.js';
+
+import { IDS, project } from './fixtures.js';
+
+/**
+ * The session is the app's own, and it reads the window and the document to know when the tab is
+ * hidden; Node has none, so they are stood in for (the agent's session spec does the same).
+ */
+const globals = globalThis as unknown as Record<string, unknown>;
+let previous: { document: unknown; window: unknown } | null = null;
+
+test.beforeAll(() => {
+  previous = { document: globals['document'], window: globals['window'] };
+  globals['document'] = new EventTarget();
+  globals['window'] = new EventTarget();
+});
+
+test.afterAll(() => {
+  if (previous === null) return;
+  globals['document'] = previous.document;
+  globals['window'] = previous.window;
+});
+
+async function sessionFor(): Promise<ProjectSession> {
+  const state = project();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  return new ProjectSession({ store, projectId: state.manifest.project.id, state, shadow: null });
+}
+
+/** One row of the log, as the bus writes it. */
+function aRow(command: string): ActivityEntry {
+  return {
+    at: 1_700_000_000_000,
+    command,
+    issuedBy: 'user',
+    source: 'native',
+    affected: [],
+    summary: `ran ${command}`,
+  };
+}
+
+/** A log of `count` rows, as a sitting of writing leaves behind. */
+function aLongLog(session: ProjectSession, count: number): void {
+  for (let index = 0; index < count; index += 1) session.log.append(aRow(`command.${index}`));
+}
+
+test('an undo group still names its own row after the log has grown behind it', async () => {
+  const session = await sessionFor();
+  try {
+    session.dispatch('doc.write', { docId: IDS.sceneA, body: 'one' });
+    session.dispatch('doc.write', { docId: IDS.sceneB, body: 'two' });
+    const [older, newer] = session.undo.groups().map((group) => group.id);
+    // The writer's own typing is named by the scene it is in, in the writer's words.
+    expect(session.undoLabel()).toBe('your typing in “Scene B”');
+    const summary = session.log.entriesForGroup(newer!).at(-1)?.summary;
+
+    // A long sitting puts thousands of rows in the log, and the undo groups stay on the stack.
+    aLongLog(session, 600);
+    expect(session.undo.groups()).toHaveLength(2);
+
+    // The groups still name their own rows: the log keeps every row of the tab.
+    expect(session.undoLabel()).toBe('your typing in “Scene B”');
+    expect(session.laterChangesAfter(older!)).toEqual([summary]);
+  } finally {
+    await session.close();
+  }
+});
+
+test('the log the session hands out keeps every row of the sitting', async () => {
+  const session = await sessionFor();
+  try {
+    aLongLog(session, 600);
+    // The undo groups are deliberately unbounded (command-bus A3), and the rows that name them are
+    // the log's, so the log is not trimmed either.
+    expect(session.log.entries()).toHaveLength(600);
+    expect(session.log.entries()[0]?.command).toBe('command.0');
+    expect(session.log.entries()[599]?.command).toBe('command.599');
+  } finally {
+    await session.close();
+  }
+});
+
+test('the panel shows a window of the log, and the button opens the rows behind it', async () => {
+  const session = await sessionFor();
+  try {
+    aLongLog(session, 600);
+    const entries = session.log.entries();
+    const none = (): undefined => undefined;
+
+    // The window holds the newest rows, and the button names the ones behind it.
+    const first = activityWindow(entries, { showViews: false, groupOf: none, limit: ACTIVITY_PANEL_WINDOW });
+    expect(first.rows).toHaveLength(ACTIVITY_PANEL_WINDOW);
+    expect(first.hidden).toBe(600 - ACTIVITY_PANEL_WINDOW);
+    expect(first.showOlder).toBe('Show older (400 more)');
+    expect(first.rows[0]?.entry.command).toBe('command.599');
+
+    // The button opens one more window, and the rows behind it are the ones the log holds.
+    const second = activityWindow(entries, {
+      showViews: false,
+      groupOf: none,
+      limit: showOlderWindow(ACTIVITY_PANEL_WINDOW),
+    });
+    expect(second.rows).toHaveLength(600 - ACTIVITY_PANEL_WINDOW);
+    expect(second.hidden).toBe(600 - 2 * ACTIVITY_PANEL_WINDOW);
+    expect(second.showOlder).toBe('Show older (200 more)');
+
+    // Two windows cover the sitting, and then there is nothing older to show.
+    const third = activityWindow(entries, {
+      showViews: false,
+      groupOf: none,
+      limit: showOlderWindow(showOlderWindow(ACTIVITY_PANEL_WINDOW)),
+    });
+    expect(third.rows).toHaveLength(600);
+    expect(third.hidden).toBe(0);
+    expect(third.showOlder).toBeNull();
+  } finally {
+    await session.close();
+  }
+});
+
+test('the Markdown export carries every row of the log, not only the panel’s window', async () => {
+  const session = await sessionFor();
+  try {
+    aLongLog(session, 600);
+    const markdown = activityMarkdown({
+      title: 'Fixture Book',
+      entries: session.log.entries(),
+      turns: [],
+    });
+
+    // Every row of the log is a row of the table: the export is not the panel's window.
+    const tableRows = markdown.split('\n').filter((line) => /^\| \d+ \|/.test(line));
+    expect(tableRows).toHaveLength(600);
+    expect(markdown).toContain('ran command.0');
+    expect(markdown).toContain('ran command.599');
+  } finally {
+    await session.close();
+  }
+});
