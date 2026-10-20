@@ -871,6 +871,90 @@ describe('autosave (§9): the store’s clock, and the editor forwards to it', (
     expect(write).not.toHaveBeenCalled();
   });
 
+  it('an agent apply inside the window does not become the user’s write', async () => {
+    // The measured failure: the body belongs to the *write*, so the editor's text is
+    // read when the window flushes — and an agent apply that landed inside that window
+    // was read as if the user had typed it, and written under the user's revision.
+    // The user's text is taken before the agent's change lands, so the write carries
+    // the user's text and the revision it was typed against.
+    const { autosave, write } = scheduler();
+    const { instance } = await mountInto('Hello.\n', { revision: 4, autosave });
+    instance.revealRange({ from: 0, to: 0 });
+    instance.insertAtSelection('Mine ');
+    // The agent's text lands in the editor while the user's keystroke is still waiting
+    // for its window.
+    instance.insertAtSelection('Agent ', { historyExcluded: true });
+    expect(instance.getContent()).toBe('Mine Agent Hello.\n');
+
+    vi.advanceTimersByTime(800);
+
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(write).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      docId: 'doc-under-test',
+      body: 'Mine Hello.\n',
+      expectedRevision: 4,
+    });
+  });
+
+  it('an undo inside the window is the user’s edit, and it is what the write sends', async () => {
+    // The body taken for the agent's apply is the body of *that* edit: an undo is a
+    // new edit, and it is what the write sends. The agent's text is not in the user's
+    // undo stack (§7 rule 1), so it stays in the document.
+    const { autosave, write } = scheduler();
+    const { instance } = await mountInto('Hello.\n', { revision: 4, autosave });
+    instance.revealRange({ from: 0, to: 0 });
+    instance.insertAtSelection('Mine ');
+    instance.insertAtSelection('Agent ', { historyExcluded: true });
+    instance.undo();
+    expect(instance.getContent()).toBe('Agent Hello.\n');
+
+    vi.advanceTimersByTime(800);
+
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(write).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      docId: 'doc-under-test',
+      body: 'Agent Hello.\n',
+      expectedRevision: 4,
+    });
+  });
+
+  it('a burst of keystrokes is one body, produced once', async () => {
+    // The body belongs to the write, so the editor's text is rendered when the write
+    // needs it: twelve keystrokes, one rendering. The window is where the work is
+    // amortized.
+    const { autosave, write } = scheduler();
+    let produced = 0;
+    const counted: Autosave = {
+      ...autosave,
+      noteEdit: (docId, body) =>
+        autosave.noteEdit(
+          docId,
+          typeof body === 'function'
+            ? () => {
+                produced += 1;
+                return body();
+              }
+            : body,
+        ),
+    };
+    const { instance } = await mountInto('Hello.\n', { revision: 4, autosave: counted });
+    instance.revealRange({ from: 0, to: 0 });
+    for (let i = 0; i < 12; i += 1) {
+      instance.insertAtSelection('x');
+      vi.advanceTimersByTime(50);
+    }
+
+    vi.advanceTimersByTime(800);
+
+    expect(produced).toBe(1);
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(write).toHaveBeenLastCalledWith(
+      expect.objectContaining({ body: 'xxxxxxxxxxxxHello.\n', expectedRevision: 4 }),
+    );
+  });
+
   it('a user undo is the user’s edit, and is written as one', async () => {
     const { write, autosave } = scheduler();
     const { instance } = await mountInto('Hello.\n', { revision: 4, autosave });

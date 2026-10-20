@@ -9,6 +9,11 @@
  * the host element, the load banner (editor-engine §3.3 and §5, once per load), the status line, the word count, the session
  * target, and the ghost bar that answers an agent draft (editor-engine §8).
  *
+ * The note the editor makes carries the body as a **producer** (editor-engine §9): §9's pipeline puts the
+ * body in the write, not in the keystroke, so the editor's text is read when the window flushes rather than
+ * on every keystroke. The editor offers that producer itself, so the pane hands it the session's autosave
+ * as it is.
+ *
  * ## Store to editor
  *
  * The store moves a document in two ways. A write from this session moves it to the revision the editor already holds, so

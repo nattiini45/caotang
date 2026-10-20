@@ -474,6 +474,29 @@ const createInstance = (
   };
 
   /**
+   * The user's unsaved text, taken now, while the document still holds it.
+   *
+   * §9's window holds the body of the user's last edit, and the body belongs to the
+   * **write**, not to the keystroke that armed the window: the editor offers a
+   * producer, and the scheduler reads the text when the body is needed. So a change
+   * that is not the user's — an agent apply, a restore, a body that arrived from
+   * elsewhere — must not be read by that producer as if the user had typed it, and
+   * must not be written under the user's revision.
+   *
+   * Asking the store for the pending body takes the text as it is now and keeps it:
+   * the write that follows sends what the user typed, and the agent's change is the
+   * agent's own write to make. This is asked for *before* the change lands, which is
+   * the only moment the user's text is still the document's text.
+   *
+   * The store's `pendingBodyOf` is the ask: it produces a producer's body once and
+   * keeps it, so the flush that follows writes that same text without asking again.
+   */
+  const capturePending = (): void => {
+    if (autosave === undefined) return;
+    autosave.pendingBodyOf(docId);
+  };
+
+  /**
    * Every transaction the adapter makes goes through here, after its lane is marked. An
    * agent apply that reaches the user's undo scope empties that undo after it lands, so
    * the user's Ctrl+Z cannot rebase its inverse over the agent's text (§7 rule 1).
@@ -481,6 +504,10 @@ const createInstance = (
   const commit = (tr: Transaction): void => {
     if (destroyed) return;
     const agent = tr.getMeta('addToHistory') === false;
+    // A change that is not the user's, landing on a document with an unsaved edit of
+    // the user's, must not become part of that edit's body. The body is taken first,
+    // while the document still holds the user's text (§9).
+    if (agent && tr.docChanged) capturePending();
     const collide = agent && tr.docChanged && reachesScope(replacedSpans(tr), scope);
     editor.view.dispatch(tr);
     if (collide) resetUndoHistory();
@@ -534,13 +561,19 @@ const createInstance = (
   };
 
   // --- §9: the dirty pipeline is the store's (decision 4) -----------------------
-  /** A user edit: forwarded to the store's clock, or counted locally when there is no store. */
+  /**
+   * A user edit: forwarded to the store's clock, or counted locally when there is no store.
+   *
+   * The body is offered as a **producer** (§9): the body belongs to the write, not to
+   * the keystroke, so the text is read when the write needs it — once per window —
+   * rather than rendered on the leading edge of every keystroke and thrown away.
+   */
   const noteUserEdit = (): void => {
     if (autosave === undefined) {
       setLocallyEdited(true);
       return;
     }
-    autosave.noteEdit(docId, body());
+    autosave.noteEdit(docId, () => body());
   };
 
   // --- The view's events -------------------------------------------------------
