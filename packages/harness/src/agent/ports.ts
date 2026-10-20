@@ -43,6 +43,20 @@ function nothingStaged(tool: string, what: string): CommandError {
   });
 }
 
+/**
+ * The refusal for a proposal the provider cut at its output limit (agent-harness §8). Cut text reaches
+ * a port only through a plan-card apply the writer accepted with `acceptTruncated`, which strips `cut`
+ * from the proposal before the step runs (loop.ts); a call that still carries `cut: true` is a direct
+ * call without that acceptance — refuse it, name the cut, and write nothing. One rule for every
+ * model-backed write port, so none of them can apply a truncated proposal.
+ */
+function cutRefusal(tool: string, what: string): CommandError {
+  return refusal('invalid-params', `this ${what} was cut off at the model’s output limit, so it cannot be applied as-is`, {
+    correctiveHint: `retry the ${what}, or apply through the plan card with acceptTruncated to keep the cut text`,
+    target: tool,
+  });
+}
+
 /** `codex.read` — codex.md §7, over the manifest's codex. Read-only; an empty result is a result, not a refusal. */
 export const codexReadPort: ToolPort = (params, context) => {
   const entries = (context.state.manifest.codex ?? []) as readonly CodexEntry[];
@@ -197,16 +211,8 @@ export const sceneDraftPort: ToolPort = (params, context: PortContext) => {
   // A draft the provider cut at its output limit (agent-harness §8) is incomplete: the card shows it
   // and the writer either retries or accepts with `acceptTruncated`. The acceptance flows through the
   // plan-step apply, which strips `cut` from the proposal before it reaches the port (loop.ts), so a
-  // port call that still carries `cut: true` is the writer's direct call without that acceptance —
-  // refuse it, name the cut, and write nothing.
-  if (proposal.cut === true) {
-    return failure(
-      refusal('invalid-params', 'this draft was cut off at the model’s output limit, so it cannot be applied as-is', {
-        correctiveHint: 'retry the draft, or apply through the plan card with acceptTruncated to keep the cut text',
-        target: 'scene.draft',
-      }),
-    );
-  }
+  // port call that still carries `cut: true` is the writer's direct call without that acceptance.
+  if (proposal.cut === true) return failure(cutRefusal('scene.draft', 'draft'));
   const { state } = context;
   const node = resolveNode(state, String(params['doc']), DOCUMENT, 'document', 'params.doc');
   if (!node.ok) return failure(node.error);
@@ -264,6 +270,9 @@ export const synopsisFillPort: ToolPort = (params, context) => {
 
   const proposal = asSynopsisProposal(context.proposal);
   if (proposal === undefined) return failure(nothingStaged('synopsis.fill', 'synopses'));
+  // The cut rule of a scene draft holds here too: a batch the provider cut at its output limit is
+  // incomplete, and only the plan-card apply the writer accepted strips `cut` before the port runs.
+  if (proposal.cut === true) return failure(cutRefusal('synopsis.fill', 'synopsis batch'));
   const byId = new Map(proposal.items.map((item) => [item.docId, item.synopsis]));
   const missing = nodes.filter((node) => !byId.has(node.id));
   if (missing.length > 0) {
@@ -389,8 +398,11 @@ export const promptDraftPort: ToolPort = (_params, context) => {
  * changed meanwhile is a conflict and the draft is kept for a retry, as a scene draft is.
  */
 export const dialogueDraftPort: ToolPort = (params, context) => {
-  const proposal = context.proposal as { readonly ink?: unknown; readonly revision?: unknown } | undefined;
+  const proposal = context.proposal as { readonly ink?: unknown; readonly revision?: unknown; readonly cut?: unknown } | undefined;
   if (typeof proposal?.ink !== 'string' || typeof proposal.revision !== 'number') return failure(nothingStaged('dialogue.draft', 'Ink'));
+  // The cut rule of a scene draft holds here too: Ink the provider cut at its output limit is
+  // incomplete, and only the plan-card apply the writer accepted strips `cut` before the port runs.
+  if (proposal.cut === true) return failure(cutRefusal('dialogue.draft', 'Ink draft'));
   const checked = dialogueDraftTool(params, { state: context.state, proposal: { ink: proposal.ink } });
   if (!checked.ok) return failure(checked.error);
   const docId = String(checked.value.data['containerId']);

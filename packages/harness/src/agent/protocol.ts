@@ -19,10 +19,10 @@
 
 import { err, ok, type CommandError, type Result } from '@caotang/bus';
 import type { ToolDef } from '@caotang/gateway';
-import { EXCERPT_CHARS, type ExternalToolDescriptor } from '@caotang/mcp-client';
+import { clipChars, EXCERPT_CHARS, type ExternalToolDescriptor } from '@caotang/mcp-client';
 
 import { checkParams } from '../validate.js';
-import { planParams, type AskBack, type Plan, type PlanPreflight } from '../plan.js';
+import { PLAN_STEPS_MAX, planParams, type AskBack, type Plan, type PlanPreflight } from '../plan.js';
 import type { ToolListing } from '../runtime.js';
 import { isRecord } from '../util.js';
 
@@ -43,6 +43,7 @@ export const REPLY_SCHEMA_HINT = {
         steps: {
           type: 'array',
           minItems: 1,
+          maxItems: PLAN_STEPS_MAX,
           items: {
             type: 'object',
             required: ['tool', 'params', 'expect'],
@@ -76,6 +77,16 @@ const SHAPE_HINT =
   'Reply with exactly one JSON object and nothing else: {"steps": [{"tool": "<name>", "params": {...}, "expect": "<effect>"}]} to call tools, or {"reply": "<text>"} to answer.';
 
 /**
+ * A reply whose steps the plan schema refused, as the words the model reads next. Both wires send this
+ * same text — the JSON wire as its parse error, the native wire after the calls' tool results — so a
+ * refusal reads the same however the model spoke.
+ */
+export function stepsRefusalMessage(error: CommandError): string {
+  const hint = error.correctiveHint === undefined ? '' : ` ${error.correctiveHint}`;
+  return `Your steps were refused: ${error.message}.${hint}`;
+}
+
+/**
  * A reply, parsed and checked against the plan schema. A malformed reply comes back as the words the
  * model should read next, because the loop sends them back as a message rather than failing the turn.
  */
@@ -90,10 +101,7 @@ export function parseReply(content: string): Result<Reply, string> {
 
   if (value['steps'] !== undefined) {
     const checked = checkParams('agent.plan', planParams, { steps: value['steps'] });
-    if (!checked.ok) {
-      const hint = checked.error.correctiveHint === undefined ? '' : ` ${checked.error.correctiveHint}`;
-      return err(`Your steps were refused: ${checked.error.message}.${hint}`);
-    }
+    if (!checked.ok) return err(stepsRefusalMessage(checked.error));
     return ok({ kind: 'steps', plan: checked.value as unknown as Plan });
   }
   if (typeof value['reply'] === 'string') {
@@ -123,16 +131,10 @@ export function plannerTools(tools: readonly ToolListing[]): readonly ToolListin
  * (extensibility §4 rule 4).
  */
 function clipExternalDescription(description: string): string {
-  // The same rule as `tool.search`'s excerpt (mcp-client `clipChars`): at most EXCERPT_CHARS UTF-16
-  // units including the ellipsis, cut on a code-point boundary, so the model reads the same excerpt
-  // before and after a tool is loaded and never a lone surrogate.
-  if (description.length <= EXCERPT_CHARS) return description;
-  let out = '';
-  for (const point of description) {
-    if (out.length + point.length > EXCERPT_CHARS - 1) break;
-    out += point;
-  }
-  return `${out}…`;
+  // The one clipping rule, shared with `tool.search`'s excerpt (mcp-client `clipChars`): at most
+  // EXCERPT_CHARS UTF-16 units including the ellipsis, cut on a code-point boundary, so the model
+  // reads the same excerpt before and after a tool is loaded and never a lone surrogate.
+  return clipChars(description, EXCERPT_CHARS);
 }
 
 /**

@@ -244,6 +244,19 @@ describe('synopsis.fill', () => {
     if (!outcome.ok) expect(outcome.error.code).toBe('limit-exceeded');
     expect(snapshotOf(state)).toBe(before);
   });
+
+  it('refuses a batch the provider cut at its output limit, unless the call carries the acceptance', () => {
+    const state = makeState();
+    const harness = harnessFor(state);
+    const before = snapshotOf(state);
+    const cut = harness.call(
+      writeCall('synopsis.fill', { docs: [LANDING] }, { items: [{ docId: LANDING, synopsis: 'Elena returns.' }], cut: true }),
+      { turnId: 'syn-cut', permission: { confirmed: true } },
+    );
+    expect(cut.ok).toBe(false);
+    if (!cut.ok) expect(cut.error.message).toContain('cut off');
+    expect(snapshotOf(state)).toBe(before);
+  });
 });
 
 describe('continuity.scan', () => {
@@ -315,5 +328,46 @@ describe('a plan step that targets a node deleted between planning and apply (bu
     const steps = checked.value.steps;
     expect(steps[0]?.status).toBe('ready');
     expect(steps[1]?.status).toBe('deferred');
+  });
+
+  it('defers an ambiguous name the same way when an earlier step may create, and refuses it when none does', () => {
+    const harness = harnessFor();
+    // "The" prefix-matches every fixture document, so the lookup is refused as ambiguous — a lookup
+    // failure like a not-found, which a creating step earlier in the plan defers (plan §2).
+    const ambiguous = { tool: 'scene.draft', params: { doc: 'The', mode: 'draft', instruction: 'Open.' }, expect: 'drafted' };
+    const withCreator = harness.previewPlan({
+      steps: [
+        { tool: 'doc.import', params: { parent: 'Chapter 2', title: 'The Ghost Chapter', body: 'A new scene.' }, expect: 'imported' },
+        ambiguous,
+      ],
+    });
+    expect(withCreator.ok).toBe(true);
+    if (!withCreator.ok) return;
+    expect(withCreator.value.ok).toBe(true);
+    expect(withCreator.value.steps[1]?.status).toBe('deferred');
+    expect(withCreator.value.steps[1]?.error?.code).toBe('invalid-params');
+
+    const withoutCreator = harness.previewPlan({ steps: [ambiguous] });
+    expect(withoutCreator.ok).toBe(true);
+    if (!withoutCreator.ok) return;
+    expect(withoutCreator.value.ok).toBe(false);
+    expect(withoutCreator.value.steps[0]?.status).toBe('refused');
+    expect(withoutCreator.value.steps[0]?.error?.code).toBe('invalid-params');
+  });
+});
+
+describe('the cut rule of the model-backed write ports (agent-harness §8)', () => {
+  it('refuses Ink the provider cut at its output limit on a direct dialogue.draft call, and writes nothing', () => {
+    const state = makeState();
+    const harness = harnessFor(state);
+    const before = snapshotOf(state);
+    const ink = ['=== reply ===', 'Thanks for the drink.', '-> END'].join('\n');
+    const outcome = harness.call(writeCall('dialogue.draft', { doc: STORM, instruction: 'A thank-you.' }, { ink, revision: 0, cut: true }), {
+      turnId: 'dialogue-cut',
+      permission: { approvedPlan: true },
+    });
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(outcome.error.message).toContain('cut off');
+    expect(snapshotOf(state)).toBe(before);
   });
 });

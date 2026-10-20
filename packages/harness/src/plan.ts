@@ -166,10 +166,14 @@ function mayCreate(step: PlanStep): boolean {
 /**
  * Whether a refusal is a name that did not resolve. A batch tool wraps its per-op
  * failures in `invalid-params`, so the lookup failure sits in `details.failures`,
- * and both shapes count.
+ * and both shapes count. An ambiguous name counts too: `resolveNode` refuses it as
+ * `invalid-params` carrying the `candidates` it matched, and a step earlier in the
+ * plan may still create the document that makes the name exact by the time this
+ * step runs.
  */
 function isLookupFailure(error: CommandError): boolean {
   if (error.code === 'not-found') return true;
+  if (error.code === 'invalid-params' && Array.isArray(error.details?.['candidates'])) return true;
   const failures = error.details?.['failures'];
   return Array.isArray(failures) && failures.some((failure) => (failure as { code?: unknown }).code === 'not-found');
 }

@@ -325,6 +325,33 @@ describe('the planner on the native tool-call wire', () => {
     expect(fixture.state.manifest.tree.find((node) => node.id === FRIEND)?.label).toBeNull();
   });
 
+  it('refuses a reply with more calls than the plan bound allows, answering every call, and runs none of them', async () => {
+    const intent = 'Read The Friend many times over.';
+    // One call over the plan schema's bound (plan.ts PLAN_STEPS_MAX): the native reply must be held to
+    // the same number the JSON reply is, and the refusal must go back to the model, not fail the turn.
+    const calls = Array.from({ length: 31 }, (_unused, index) => ({ id: `r${index}`, name: 'doc.read', args: { doc: FRIEND } }));
+    const fixture = await nativeFixture(
+      nativeTranscript(intent, [{ calls }, { content: 'Understood — that was too many calls for one reply.' }]),
+    );
+    const report = await fixture.session.submit(intent);
+    expect(report.status).toBe('replied');
+
+    const second = plannerRequests(fixture.seen)[1];
+    // Every call is answered by its id with the refusal, as a malformed call's is.
+    const first = resultFor(second as ChatRequest, 'r0');
+    expect(first?.message.isError).toBe(true);
+    expect(first?.body).toEqual({ ok: false, error: expect.stringContaining('at most 30') });
+    const last = resultFor(second as ChatRequest, 'r30');
+    expect(last?.message.isError).toBe(true);
+    // The refusal reads as the JSON wire's would, as a user message after the results.
+    const told = second?.messages.at(-1);
+    expect(told?.role).toBe('user');
+    expect(told?.content).toContain('Your steps were refused');
+    expect(told?.content).toContain('at most 30');
+    // None of the calls ran.
+    expect(report.trace).toHaveLength(0);
+  });
+
   it('answers a call its preflight refused with an error result, then the refusal in words', async () => {
     const intent = 'Label The Friend as act-9.';
     const fixture = await nativeFixture(

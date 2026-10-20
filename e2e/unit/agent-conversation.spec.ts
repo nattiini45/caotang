@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { addDocument, MemoryIndexedDb, openRuntimeStore, type ProjectState, type RuntimeStore } from '../../packages/store/src/index.js';
+import { addDocument, getBody, MemoryIndexedDb, openRuntimeStore, type ProjectState, type RuntimeStore } from '../../packages/store/src/index.js';
 import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore } from '../../packages/gateway/src/index.js';
 import { createMockProvider, isDraftCall, isPlannerCall, userTextOf, type MockScript } from '../../packages/gateway/src/mock/index.js';
 
@@ -13,9 +13,9 @@ import { sampleProjectState } from '../../apps/desktop/src/app/demo.js';
  * The conversation the agent panel keeps across turns (context-assembly §2, L6). Two turns in the same
  * open project share one agent session, so the second turn's scene.draft call carries the first turn's
  * intent and outcome as L6 (the planner's `meta` tool is L0+L1+L7 only, so the L6 surface that matters
- * for "what did I just do" is the draft call's prompt). The conversation lives in memory only: it resets
- * when the project changes, when the writer starts a new conversation, and on reload (which is issue
- * #66, not this).
+ * for "what did I just do" is the draft call's prompt). The conversation lives in memory only: it ends
+ * with the controller — a project switch or a reload — and the app has no affordance that clears it
+ * within a visit.
  */
 
 const globals = globalThis as unknown as Record<string, unknown>;
@@ -55,10 +55,14 @@ async function scriptedProviders(scripts: readonly MockScript[]): Promise<Provid
   return { gateway, active: () => profile, demoProfile: async () => profile, persist: async () => undefined } as unknown as ProviderService;
 }
 
-/** A planner script that proposes one `scene.draft` step against `doc`. */
-function plansASceneDraft(doc: string): MockScript {
+/**
+ * A planner script that proposes one `scene.draft` step against `doc`. The match is guarded on the
+ * turn's own request text, because the mock gateway picks the first matching script and never consumes
+ * it: an unguarded planner match would answer every turn from the first script alone.
+ */
+function plansASceneDraft(doc: string, intent: string): MockScript {
   return {
-    match: (req) => isPlannerCall(req),
+    match: (req) => isPlannerCall(req) && userTextOf(req).includes(`Request: ${intent}`),
     respond: () => ({
       content: JSON.stringify({
         steps: [{ tool: 'scene.draft', params: { doc, instruction: 'Continue the chapter.', mode: 'continue' }, expect: 'drafted' }],
@@ -99,16 +103,25 @@ function autoApprover(controller: AgentController, approvals: { count: number })
 test('the second turn in an open panel carries the first turn as L6, so the model reads what it just did', async () => {
   const state = sampleProjectState();
   withScreenplayScene(state, 'The Ferry');
-  withScreenplayScene(state, 'The Storm');
+  // A title of its own: the sample already holds a prose document called "The Storm", and a second
+  // document with that exact title would make the draft step's lookup ambiguous.
+  withScreenplayScene(state, 'The Gale');
   const store = await openRuntimeStore(new MemoryIndexedDb());
   const session = await sessionOver(state, store);
   const seen: string[] = [];
-  const controller = new AgentController(session, await scriptedProviders([plansASceneDraft('The Ferry'), plansASceneDraft('The Storm'), draftsAScene(seen)]));
+  const controller = new AgentController(
+    session,
+    await scriptedProviders([
+      plansASceneDraft('The Ferry', 'Name the ferryman.'),
+      plansASceneDraft('The Gale', 'Name the gale.'),
+      draftsAScene(seen),
+    ]),
+  );
   const approvals = { count: 0 };
   const unsubscribe = autoApprover(controller, approvals);
 
   const first = await controller.submit('Name the ferryman.');
-  const second = await controller.submit('Name the storm.');
+  const second = await controller.submit('Name the gale.');
 
   unsubscribe();
   await session.close();
@@ -116,6 +129,15 @@ test('the second turn in an open panel carries the first turn as L6, so the mode
   expect(first?.status).toBe('applied');
   expect(second?.status).toBe('applied');
   expect(approvals.count).toBe(2);
+
+  // Each turn drafted its own scene, so the two planner scripts both ran: had one of them never
+  // matched, its scene would still be empty.
+  const bodyOf = (title: string): string => {
+    const node = state.manifest.tree.find((candidate) => candidate.title === title);
+    return node === undefined ? '' : getBody(state, node.id);
+  };
+  expect(bodyOf('The Ferry')).toContain('The ferry rowed on.');
+  expect(bodyOf('The Gale')).toContain('The ferry rowed on.');
 
   // The second turn's draft call carries the first turn's intent as L6, because the two turns share
   // one agent session (context-assembly §2). The draft tool's prompt assembles every layer, including L6.

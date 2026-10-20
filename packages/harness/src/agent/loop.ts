@@ -130,6 +130,7 @@ import {
   REPLY_SCHEMA_HINT,
   resultsMessage,
   retryMessage,
+  stepsRefusalMessage,
   type Reply,
 } from './protocol.js';
 import { previewFor, sceneDraftPreflight, shotsDeriveScenePreflight } from './ports.js';
@@ -1795,6 +1796,18 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
             role: 'user',
             content: malformed.map((refused) => `Step ${refused.index + 1} (${refused.tool}) was refused: ${refused.message}`).join('\n'),
           });
+          continue;
+        }
+        // The native reply is bound by the same plan schema as the JSON reply (plan.ts `PLAN_STEPS_MAX`):
+        // an over-bound reply is refused back to the model, answered by every call's id, and none of it
+        // runs — the JSON wire's own feedback, instead of a turn that fails at the card or runs unbounded
+        // reads. The validated copy is only the check; the steps below stay the objects `wireSteps` keys on.
+        const bounded = parsePlan({ steps });
+        if (!bounded.ok) {
+          const words = stepsRefusalMessage(bounded.error);
+          for (const call of calls) pending.results.set(call.id, { ok: false, body: words });
+          flushWire(turn);
+          turn.messages.push({ role: 'user', content: words });
           continue;
         }
         plan = { steps };
