@@ -16,9 +16,10 @@
  *
  * A chapter heading is emitted **lazily**, when its first scene survives: a
  * chapter whose documents are all empty produces no heading, and the empty
- * documents are reported instead. A separator goes between two scenes in the same
- * chapter and never before a chapter's first scene, so the output has no stray
- * rule at a chapter boundary.
+ * documents are reported instead. A separator goes between two consecutive scenes of
+ * the same chapter, or of the same loose run filed directly under the manuscript, and
+ * never before a chapter's first scene, so the output has no stray rule at a chapter
+ * boundary.
  */
 
 import { FIXED_ROOT_IDS, countBody, type ProjectState, type TreeNode } from '@caotang/store';
@@ -121,8 +122,10 @@ export function flatten(state: ProjectState, selection: ExportSelection, options
         ...(synopsis.trim() === '' ? {} : { synopsis }),
       });
     }
-    // A separator is for a scene that follows another scene **in the same chapter**.
-    if (chapter !== undefined && previousEmitted && previousChapter === chapter) {
+    // A separator is for a scene that follows another scene **in the same chapter**. Two loose scenes filed directly
+    // under the manuscript share no chapter folder, so both carry `chapter === undefined`; the comparison alone still
+    // separates them, and still excludes a chapter boundary, where the two chapters differ.
+    if (previousEmitted && previousChapter === chapter) {
       blocks.push({ kind: 'separator' });
     }
 

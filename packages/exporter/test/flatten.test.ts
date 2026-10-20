@@ -10,8 +10,8 @@
 import { describe, expect, it } from 'vitest';
 import { flatten } from '../src/flatten.js';
 import type { FlatBlock } from '../src/types.js';
-import { BODIES, IDS, makeProject } from './fixture.js';
-import { countBody } from '@caotang/store';
+import { BODIES, IDS, makeProject, OPENED } from './fixture.js';
+import { addDocument, countBody } from '@caotang/store';
 
 const TITLE_PAGE: FlatBlock = { kind: 'frontmatter', fmKind: 'titlepage' };
 
@@ -140,5 +140,21 @@ describe('flatten — the separator rule', () => {
     const after = result.blocks[separators[0]! + 1];
     expect(before?.kind === 'scene' && before.title).toBe('The Landing');
     expect(after?.kind === 'scene' && after.title).toBe('The Storm');
+  });
+
+  it('separates two scenes filed directly under Manuscript, which share no chapter', () => {
+    // A loose scene has `chapter === undefined`, so two of them in a row share the same (absent) chapter. The
+    // separator is the only boundary signal between them — the prose renderers emit no per-scene heading — so
+    // dropping it would merge the two scenes into one in the compiled book.
+    const state = makeProject();
+    const epilogue = addDocument(state, { parentId: 'manuscript', title: 'Epilogue', body: BODIES.morning, now: OPENED, id: 'n_EPILOGUE1' });
+    const prologue = state.manifest.tree.find((node) => node.id === IDS.prologue);
+    // Place the epilogue directly after the prologue in the binder order, so the two loose scenes are adjacent.
+    if (prologue !== undefined) epilogue.order = prologue.order + 1;
+    const result = flatten(state, { includeRootIds: ['manuscript'] }, { titlePage: false });
+    const first = result.blocks.findIndex((block) => block.kind === 'scene' && block.docId === IDS.prologue);
+    const second = result.blocks.findIndex((block) => block.kind === 'scene' && block.docId === 'n_EPILOGUE1');
+    expect(second).toBe(first + 2);
+    expect(result.blocks[first + 1]?.kind).toBe('separator');
   });
 });

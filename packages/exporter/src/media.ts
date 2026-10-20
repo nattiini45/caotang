@@ -20,6 +20,7 @@
  * (storyboard.md §6) is drawn the same way: its page plan runs here, and its pictures are read when it renders.
  */
 
+import type { SceneNumbersOption } from '@caotang/bus';
 import { drawPdf, layoutPdf, loadCjkFallback, loadCourierPrime, loadEmojiFallback, renderFdx, renderFountain, isScreenplayKind, PDF_MIME } from '@caotang/screenplay';
 import {
   TABLE_COLUMNS,
@@ -100,7 +101,7 @@ export interface MediaRequest {
   /** Whether the title page is on, from the recipe or the template. Only the screenplay formats print one. */
   readonly titlePage: boolean;
   /** The screenplay PDF's scene numbers (screenplay.md §5.3). Absent is off. Only `pdf` reads it. */
-  readonly sceneNumbers?: 'off' | 'left' | 'right' | 'both';
+  readonly sceneNumbers?: SceneNumbersOption;
   /** `(MORE)` and `(CONT'D)` across a page break in the screenplay PDF. Absent is on. Only `pdf` reads it. */
   readonly continued?: boolean;
   /** The stem a single-file artifact is named by: the recipe's name, or the output title. */
@@ -322,6 +323,16 @@ function pdfOutput(request: MediaRequest): MediaOutput {
     sceneNumbers: request.sceneNumbers ?? 'off',
     continued: request.continued ?? true,
   });
+  // A scene that survives the gate can still print nothing: a body of only notes, boneyard or blank scenes yields no
+  // script page, and the paginator writes one blank page so the PDF is valid — a blank book that reports success. The
+  // gate refuses it as it refuses a selection with no scene, before anything is reserved or written.
+  if (layout.scriptPageCount === 0) {
+    throw new MediaRefusedError('pdf', [
+      'the selection holds no screenplay text that prints, so there is nothing to print',
+      ...left,
+      ...flat.skippedDocs.map((label) => `"${label}" is empty`),
+    ]);
+  }
   const pages = layout.scriptPageCount;
   const titled = layout.pages.length > pages ? ', and a title page' : '';
   return {
