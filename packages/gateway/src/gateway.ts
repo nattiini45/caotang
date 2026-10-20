@@ -69,16 +69,19 @@ export interface Gateway extends ProviderGateway {
   /**
    * The capability row for a model on a profile's route: whether it takes native
    * tools, images, a JSON-schema response format, and which thinking levels the UI
-   * may offer (provider-gateway §5). Absent fields mean "not supported". The preset
-   * registry answers; with no preset it is the generic profile's conservative empty row.
+   * may offer (provider-gateway §5). Absent fields mean "not supported". An endpoint
+   * profile answers from the preset registry, or from the generic route's conservative
+   * empty row when it has no preset; a mock profile answers with the mock's own row.
    */
   modelCaps(profileId?: string, model?: string): ModelCaps;
   /**
    * §5: asks the endpoint once whether it accepts `response_format: json_object`, and
    * caches the answer on the profile. The settings screen calls this at save time. Until
    * it has run, structured requests carry the schema in a system message and no
-   * `response_format`. Returns the answer. The call goes to the profile it is pointed at,
-   * on that profile's own origin and key, whether or not it is the active one (§4).
+   * `response_format`. Returns the answer. A mock profile answers `true` locally, and a
+   * route that cannot carry the field answers `false` without a request; when a request
+   * is made, it goes to the profile it is pointed at, on that profile's own origin and
+   * key, whether or not it is the active one (§4).
    */
   probeResponseFormat(profileId?: string): Promise<boolean>;
 }

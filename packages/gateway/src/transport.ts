@@ -404,13 +404,22 @@ async function* readStream(
   const { clock } = deps;
   if (response.body === null) throw protocolError(spec, 'the response had no body');
 
+  // The adapter's parser for this attempt. It is built here, not once per call, because a
+  // parser carries the stream's own state: a retried attempt must not inherit the tool call
+  // the dropped attempt had already started. It is built before a reader locks the body,
+  // and a factory that throws releases the body and fails as a protocol error, so it can
+  // neither strand the response nor escape the ProviderError contract.
+  let parser: StreamParser | undefined;
+  try {
+    parser = spec.createParser?.();
+  } catch (err) {
+    void response.body.cancel().catch(() => undefined);
+    throw protocolError(spec, describe(err));
+  }
+
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   const sse = createSseParser();
-  // The adapter's parser for this attempt. It is built here, not once per call, because a
-  // parser carries the stream's own state: a retried attempt must not inherit the tool call
-  // the dropped attempt had already started.
-  const parser = spec.createParser?.();
   const acc: WireAccumulator = { done: false, alive: false, finish: undefined, usage: undefined };
   // The start of what the body said, kept for the excerpt if no event ever parses.
   let head = '';

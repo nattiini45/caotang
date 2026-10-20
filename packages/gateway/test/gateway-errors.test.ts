@@ -4,7 +4,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ProviderError } from '../src/index.js';
+import { createManualClock, DEFAULT_RETRY, DEFAULT_TIMEOUTS, ProviderError, RequestLog } from '../src/index.js';
+import { streamChat, type CallSpec, type TransportDeps } from '../src/transport.js';
 import {
   addEndpoint,
   collect,
@@ -16,6 +17,7 @@ import {
   openSse,
   ScriptedFetch,
   sseResponse,
+  START,
   userMessage,
   type Harness,
 } from './helpers.js';
@@ -424,11 +426,16 @@ describe('timeouts (§4): connect 10s, first token 30s, idle 60s, total 5 min', 
 
     const run = track(h.gateway.listModels(profile.id).catch((e: unknown) => e));
     await flush();
+    // Nothing may cancel while the deadline has not fired: this is what separates the
+    // deadline's cancel from the unconditional cleanup cancel on the way out.
+    expect(cancelled).toBe(false);
     await step(h, 1_000);
     const error = await run.result;
 
     expect((error as ProviderError).kind).toBe('network');
     expect(cancelled).toBe(true);
+    // The failure is final at the deadline — no retry was scheduled on the frozen clock.
+    expect(net.calls).toHaveLength(1);
   });
 
   it('fails the first token at 30 seconds from the start of the attempt, not 30 after headers', async () => {
@@ -538,5 +545,56 @@ describe('the key never reaches the caller through an error (§4 key-leak)', () 
     expect(err.message).not.toContain(KEY);
     expect(err.detail).not.toContain(KEY);
     expect(err.message).toContain('[redacted]');
+  });
+});
+
+describe('a stream parser factory that throws (§4: every failure is a ProviderError)', () => {
+  it('releases the body and surfaces a protocol error, not a locked reader and a raw throw', async () => {
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      start() {
+        // a body that never ends
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const net = new ScriptedFetch().push(() => new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } }));
+    const deps: TransportDeps = {
+      fetch: net.fn,
+      clock: createManualClock(START),
+      random: () => 0.5,
+      timeouts: DEFAULT_TIMEOUTS,
+      retry: DEFAULT_RETRY,
+      log: new RequestLog(),
+      profileOrigin: () => 'https://a.example',
+    };
+    const spec: CallSpec = {
+      profileId: 'prv_FACTORY',
+      model: 'model-x',
+      host: 'a.example',
+      baseUrl: 'https://a.example/v1',
+      path: '/chat/completions',
+      url: 'https://a.example/v1/chat/completions',
+      method: 'POST',
+      accept: 'text/event-stream',
+      body: '{}',
+      headers: {},
+      secrets: [],
+      createParser: () => {
+        throw new Error('parser factory exploded');
+      },
+      promptTokens: 1,
+    };
+
+    const { error } = await collect(streamChat(deps, spec, { attempts: 0, usage: undefined }));
+
+    expect(error).toBeInstanceOf(ProviderError);
+    expect((error as ProviderError).kind).toBe('protocol');
+    expect((error as ProviderError).detail).toContain('parser factory exploded');
+    await flush();
+    expect(cancelled).toBe(true);
+    // The factory is deterministic, so the attempt must fail once, with no retry scheduled.
+    expect(net.calls).toHaveLength(1);
   });
 });

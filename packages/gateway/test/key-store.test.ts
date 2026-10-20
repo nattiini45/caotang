@@ -147,8 +147,11 @@ describe('AES-GCM key store on WebCrypto', () => {
 
     await expect(store.put('prv_RRRRRRRRRR', KEY)).rejects.toThrow('the vault is briefly unavailable');
     await expect(store.put('prv_RRRRRRRRRR', KEY)).resolves.toBeUndefined();
-    expect(lookups).toBe(2);
     expect(await store.reveal('prv_RRRRRRRRRR')).toBe(KEY);
+    // One lookup per failed-or-fresh access, none cached across the failure: the two saves
+    // (first throws, second succeeds) plus the reveal — which opens the entry through
+    // `getWrappingKey` a third time — make three in total.
+    expect(lookups).toBe(3);
   });
 
   it('lets two tabs sharing one vault converge on one wrapping key, so neither strands the other’s entries', async () => {

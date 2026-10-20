@@ -91,6 +91,22 @@ describe('the registry', () => {
       if (preset.cors === 'blocked') expect(preset.corsNote, preset.id).toBeTruthy();
     }
   });
+
+  it('opts into the browser-access header on every anthropic-messages preset pointed at an Anthropic host', () => {
+    // api.anthropic.com rejects browser calls that lack anthropic-dangerous-direct-browser-access,
+    // and the adapter sends that header only where the preset declares `browserAccess: true`. A
+    // preset that routes the Messages adapter at Anthropic without the flag would break browser
+    // calls, so the flag is pinned here rather than left to the preset author's memory.
+    for (const preset of PRESETS) {
+      const routesMessages =
+        preset.adapter === 'anthropic-messages' ||
+        Object.values(preset.quirks.modelRoutes ?? {}).includes('anthropic-messages');
+      if (!routesMessages) continue;
+      const host = new URL(preset.baseUrl).host;
+      if (!/(^|\.)anthropic\.com$/.test(host)) continue;
+      expect(preset.quirks.browserAccess, `${preset.id} → ${host}`).toBe(true);
+    }
+  });
 });
 
 describe('resolveRoute', () => {
