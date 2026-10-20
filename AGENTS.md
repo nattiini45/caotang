@@ -10,7 +10,7 @@ There is **no backend server, no account, no telemetry**. The app is static file
 |---|---|
 | Workspace | pnpm monorepo (`pnpm@12.9.1` pinned in the root `packageManager` field), `corepack enable` |
 | Node | `^22.12.0 \|\| ^24.0.0 \|\| >=26.0.0` — **CI tests Node 24 only** |
-| Language | TypeScript `~6.0.3` (strict) |
+| Language | TypeScript `^6.0.3` (strict) |
 | App | React `19.3`, Vite `8.3.2` (rolldown/oxc, not esbuild) |
 | Unit tests | Vitest `5.0.3` (node environment) |
 | E2E | Playwright `1.63` (Chromium only) |
@@ -53,8 +53,8 @@ Gotchas that bite:
 
 - `pnpm verify` does **not** run the pure model specs in `e2e/unit/` — they are Playwright specs, so they run under `pnpm test:e2e`.
 - `pnpm test:e2e` starts its own dev server, and a second preview server on **dev port + 1000**. Set `CAOTANG_E2E_PORT` (and `CAOTANG_E2E_PREVIEW_PORT`) when running a second checkout beside another.
-- **Do not add `onlyBuiltDependencies` to `pnpm-workspace.yaml`** naming a package that is not installed. `test/toolchain-floor.test.ts` asserts every allowlist entry is actually present, and pnpm 12 fails the install with `ERR_PNPM_IGNORED_BUILDS` if the allowlist is wrong. Vite 8 bundles with rolldown/oxc, so `esbuild` no longer resolves anywhere in the tree — that is why the allowlist is empty.
-- `pnpm build` writes `THIRD-PARTY-NOTICES.md` next to `apps/desktop/dist/`. A test fails when the committed copy drifts from the lockfile — regenerate it with the tool above whenever a dependency changes.
+- **Do not add `onlyBuiltDependencies` to `pnpm-workspace.yaml`** naming a package that is not installed. `test/toolchain-floor.test.ts` asserts every allowlist entry is actually present, so an orphan entry fails that test. The allowlist belongs in `pnpm-workspace.yaml` — pnpm 12 reads it from there, not from the `pnpm` block in `package.json`, and an entry left in `package.json` makes pnpm 12 fail the install with `ERR_PNPM_IGNORED_BUILDS`. Vite 8 bundles with rolldown/oxc, so `esbuild` no longer resolves anywhere in the tree — that is why the allowlist is empty.
+- `pnpm build` writes `THIRD-PARTY-NOTICES.md` into `apps/desktop/dist/`. A test fails when the committed copy drifts from the lockfile — regenerate it with the tool above whenever a dependency changes.
 
 ## Layout
 
@@ -114,7 +114,7 @@ These are the project's own rules (see `CONTRIBUTING.md` and `docs/decisions.md`
 
 **Don't**
 
-- Don't add `onlyBuiltDependencies` to `pnpm-workspace.yaml` (see the gotcha above).
+- Don't add `onlyBuiltDependencies` to `pnpm-workspace.yaml` naming a package that is not installed (see the gotcha above).
 - Don't hand-edit `apps/desktop/dist/` — it is build output.
 - Don't write a test that needs a provider API key, and don't let one reach a real provider endpoint.
 - Don't put a token, a key or a session secret into a project folder, an export or a log line.
@@ -133,4 +133,4 @@ These are the project's own rules (see `CONTRIBUTING.md` and `docs/decisions.md`
 
 ## Deploy
 
-`.github/workflows/pages.yml` publishes [caotang.app](https://caotang.app/): the landing page in `site/` at the origin root, and the app built with `CAOTANG_BASE=/app/` at `/app/`. The build must be served from the **root of its origin** unless `CAOTANG_BASE` is used, and over **HTTPS** (WebCrypto key sealing and folder access need a secure origin). The CSP is already in `index.html` as a `<meta>` tag — `apps/desktop/public/_headers` carries the same policy for hosts that can send headers.
+`.github/workflows/pages.yml` publishes [caotang.app](https://caotang.app/): the landing page in `site/` at the origin root, and the app built with `CAOTANG_BASE=/app/` at `/app/`. The build must be served from the **root of its origin** unless `CAOTANG_BASE` is used, and over **HTTPS** (WebCrypto key sealing and folder access need a secure origin). The CSP travels in the built `index.html` as a `<meta>` tag; no `_headers` file ships in the tree. For hosts that can send headers (Netlify, Cloudflare Pages), the deployer creates one — `README.md` shows the file to write.
