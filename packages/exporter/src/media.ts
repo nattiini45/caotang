@@ -20,8 +20,7 @@
  * (storyboard.md §6) is drawn the same way: its page plan runs here, and its pictures are read when it renders.
  */
 
-import type { SceneNumbersOption } from '@caotang/bus';
-import { drawPdf, layoutPdf, loadCjkFallback, loadCourierPrime, loadEmojiFallback, renderFdx, renderFountain, isScreenplayKind, PDF_MIME } from '@caotang/screenplay';
+import { drawPdf, layoutPdf, loadCjkFallback, loadCourierPrime, loadEmojiFallback, renderFdx, renderFountain, isScreenplayKind, PDF_MIME, type SceneNumberPlacement } from '@caotang/screenplay';
 import {
   TABLE_COLUMNS,
   exportCsv,
@@ -101,7 +100,7 @@ export interface MediaRequest {
   /** Whether the title page is on, from the recipe or the template. Only the screenplay formats print one. */
   readonly titlePage: boolean;
   /** The screenplay PDF's scene numbers (screenplay.md §5.3). Absent is off. Only `pdf` reads it. */
-  readonly sceneNumbers?: SceneNumbersOption;
+  readonly sceneNumbers?: SceneNumberPlacement;
   /** `(MORE)` and `(CONT'D)` across a page break in the screenplay PDF. Absent is on. Only `pdf` reads it. */
   readonly continued?: boolean;
   /** The stem a single-file artifact is named by: the recipe's name, or the output title. */

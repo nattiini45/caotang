@@ -304,6 +304,8 @@ Choose **Settings** on the projects screen or in the toolbar. It has seven secti
 
 ## Keyboard
 
+On a Mac, Cmd takes the place of Ctrl.
+
 | Key | What it does |
 |---|---|
 | Ctrl+N | New document. |
@@ -311,7 +313,7 @@ Choose **Settings** on the projects screen or in the toolbar. It has seven secti
 | Ctrl+Shift+F | Focus mode, which hides the binder and the inspector. |
 | Ctrl+Alt+F | Move to the binder's filter. |
 | Ctrl+Enter | Open the selected item in the editor. |
-| Ctrl+E / Cmd+E | On a screenplay's Source tab, open the element menu for the caret's line. |
+| Ctrl+E | On a screenplay's Source tab, open the element menu for the caret's line. |
 | F2 | Rename the selected item in the binder. |
 | Delete | Delete the selected item in the binder. It asks first. |
 | Arrow keys | Move the selection in the binder. |

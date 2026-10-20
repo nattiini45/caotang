@@ -10,7 +10,7 @@
  * the call site in `test/exporter.test.ts`.
  */
 
-import type { SceneNumbersOption } from '@caotang/bus';
+import type { SceneNumberPlacement } from '@caotang/screenplay';
 import type { ProjectState } from '@caotang/store';
 
 /**
@@ -112,10 +112,10 @@ export interface ExportRecipeOptions {
    */
   readonly charLimit?: number;
   /**
-   * The screenplay PDF's scene numbers (screenplay.md §5.3): in the left margin, the right, both, or off. Absent means off.
-   * Only `pdf` reads it.
+   * The screenplay PDF's scene numbers (screenplay.md §5.3), in the paginator's shared type: in the left margin, the
+   * right, both, or off. Absent means off. Only `pdf` reads it.
    */
-  readonly sceneNumbers?: SceneNumbersOption;
+  readonly sceneNumbers?: SceneNumberPlacement;
   /** `(MORE)` and `NAME (CONT'D)` where the screenplay PDF splits a speech across a page (screenplay.md §5.3). Default on. Only `pdf` reads it. */
   readonly continued?: boolean;
   /** The contact sheet's paper (storyboard.md §6): `A4` or `Letter`. Absent is A4. Only `contact-sheet-pdf` reads it. */

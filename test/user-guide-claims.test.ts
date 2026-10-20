@@ -277,6 +277,12 @@ describe('the user guide’s reviewed claims match the code', () => {
     const labels = [...menu.matchAll(/^ {2}[a-z_]+: '([^']+)',$/gm)].map((match) => match[1] ?? '');
     expect(labels).toHaveLength(9);
     expect(screenplay).toContain(`It lists ${labels.slice(0, -1).map((label) => `**${label}**`).join(', ')} and **${labels.at(-1)}**,`);
-    expect(guide).toMatch(/\| Ctrl\+E \/ Cmd\+E \| On a screenplay's Source tab, open the element menu for the caret's line\. \|/);
+    // The keyboard table's one Mac note covers every Ctrl row, because the keymap's command() reads Ctrl or Cmd
+    // for all of them; no row may single itself out as the only shortcut with a Mac equivalent.
+    const keyboard = guide.slice(guide.indexOf('## Keyboard'));
+    expect(keyboard).toContain('On a Mac, Cmd takes the place of Ctrl.');
+    expect(read('apps/desktop/src/app/keymap.ts')).toMatch(/return facts\.ctrl \|\| facts\.meta;/);
+    expect(keyboard).toMatch(/\| Ctrl\+E \| On a screenplay's Source tab, open the element menu for the caret's line\. \|/);
+    expect(keyboard).not.toContain('Cmd+E');
   });
 });
