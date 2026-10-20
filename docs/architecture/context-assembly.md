@@ -51,7 +51,7 @@ Assembly renders layers in this order into the message list; truncation happens 
 - Total default prompt budget: **12k tokens** (config `contextBudget` in settings; provider-gateway may override per call via `maxOutputTokens` complement — the gateway's `context_length` error names the lever, never silent truncation).
 - Layer budgets as above are the default split; unused budget flows **up** (L5 tail may grow into L4's unused space, then L4 into L3) — nearest context wins, per the Sudowrite calibration (D3). Flow-up is deterministic (fixed precedence), keeping evals stable.
 - Character→token estimate: `ceil(chars/4)` (the mock-provider accounting convention, provider-gateway §8) — budgets are enforced on estimates pre-flight, real usage lands in the ledger after.
-- Per-tool defaults: `scene.draft` = full stack; `continuity.scan` = L2 expanded (2.5k) + L4 expanded (6k) + scope-doc tails (1k each, ≤20 docs); `synopsis.fill` = L5 full doc (cap 25k) + L3, no L2; metadata/meta tools = L0+L1+L7 only.
+- Per-tool defaults: `scene.draft` = full stack; `continuity.scan` = L2 expanded (2.5k) + L4 expanded (6k) + scope-doc tails (1k each, ≤20 docs); `synopsis.fill` = L5 full doc (cap 25k) + L3, no L2; metadata/meta tools = L0+L1+L7 only. L6 (the prior turns) rides the draft calls — `scene.draft` and `dialogue.draft` — and not the planner: the planner's `meta` call is L0+L1+L7, so the planner sees the prior turns only through the draft call's context.
 
 ## 4. The assembly algorithm (implementer-grade)
 

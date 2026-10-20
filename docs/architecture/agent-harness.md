@@ -17,6 +17,10 @@
 4. **Verify** — post-conditions checked per tool (target exists, word counts moved, artifact non-empty). Failure → self-correction ladder: retry with adjusted params (max 2) → structured report with options. **Never silent success; never a bare error string** (errors are written for the model, naming the next corrective tool).
 5. **Report** — compact turn summary: what changed, diffs where relevant, undo group id, tokens spent.
 
+**The plan preflight.** Every step of a plan is checked before the card is shown, so the card never promises a step the apply would refuse: a `scene.draft` or `shots.derive` step that names a document or scene the project no longer holds is refused there, before its model call is spent, and the refusal goes back to the planner and onto the card. The deferral rule is unchanged — a step that targets a scene an earlier step of the same plan may create is not refused for that.
+
+**The conversation memory.** One agent session per open panel: the turns before this one are the L6 of the next turn (context-assembly §2). The session is rebuilt when the resolved profile, the model or the thinking level changes, and the per-turn state is cleared on every settlement, so a cancelled, refused or failed turn leaves nothing behind. There is no "new conversation" control in v0.1, and a reload starts the list again, because the conversation memory is in memory only.
+
 **Structured ask-back envelope** (shared by verify failures and anchor non-resolution — one shape everywhere):
 
 ```ts
@@ -74,7 +78,7 @@ The ask-back renders as a **card in the agent panel** (buttons for the options, 
 - `scene.draft` / any body-text mutation snapshots the prior body first (project-format §8 write-ahead) — the safety net writers want before mass edits, made automatic.
 - **Checkpoints, framed for users:** each turn renders in the activity log as a checkpoint row — **"restore to before this turn"** — a restore affordance rather than an abstract "undo", which is what makes agent edits trustworthy. Snapshot retention budgets are in [command-bus.md](command-bus.md) §5.1. **Two-lane undo ([editor-engine.md](editor-engine.md) §7):** agent turn applications run as one transaction batch tagged `addToHistory: false` — the user's Ctrl+Z never replays agent edits; restore = snapshot-based, immune to in-editor undo position drift. Restore confirmation states scope explicitly (user edits made after the turn are included in the restore).
 - Call-id dedupe: replays of the same `callId` within a turn return the cached result (idempotency).
-- Activity log (per turn): timestamped tool calls, params digest, affected node ids+titles, token usage, undo group id. Rendered in the agent panel; exportable as markdown.
+- Activity log (per turn): timestamped tool calls, params digest, affected node ids+titles, token usage, undo group id. The log keeps every row it is given; the agent panel shows a 200-row window of it, and the Markdown export carries the whole log.
 
 ## 6. Context assembly (per model call)
 
