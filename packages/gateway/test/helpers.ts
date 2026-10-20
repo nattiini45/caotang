@@ -8,6 +8,7 @@
  */
 
 import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore, type FetchLike, type ManualClock } from '../src/index.js';
+import type { MockProvider } from '../src/mock/index.js';
 import type { ChatChunk, NewProfile } from '../src/types.js';
 
 /** A key with the shape of a real one, so the `sk-` pattern scrubber has something to catch. */
@@ -149,6 +150,8 @@ export interface HarnessOptions {
   timeouts?: Parameters<typeof createGateway>[0]['timeouts'];
   retry?: Parameters<typeof createGateway>[0]['retry'];
   random?: () => number;
+  /** the mock provider that answers mock profiles; defaults to the shipped script library */
+  mock?: MockProvider;
 }
 
 /**
@@ -169,6 +172,7 @@ export function harness(options: HarnessOptions = {}): Harness {
     random: options.random ?? (() => 0.5),
     timeouts: options.timeouts,
     retry: options.retry,
+    ...(options.mock === undefined ? {} : { mock: options.mock }),
   });
   return { clock, keys, profiles, net, gateway };
 }

@@ -181,8 +181,15 @@ describe('anthropic-messages buildBody', () => {
 describe('anthropic-messages headers', () => {
   const secrets = { apiKey: 'sk-ant-abc' };
 
-  it('sends anthropic-version, the browser-access flag, and x-api-key by default', () => {
+  it('sends anthropic-version and x-api-key, and no browser-access flag unless the route asks for it', () => {
     expect(anthropicMessagesAdapter.headers(CTX, secrets, 'complete')).toEqual({
+      'anthropic-version': '2023-06-01',
+      'x-api-key': 'sk-ant-abc',
+    });
+  });
+
+  it('sends the browser-access flag when the route asks for it', () => {
+    expect(anthropicMessagesAdapter.headers(ctx({ browserAccess: true }), secrets, 'complete')).toEqual({
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true',
       'x-api-key': 'sk-ant-abc',
@@ -210,7 +217,6 @@ describe('anthropic-messages headers', () => {
       'anthropic-version': '2024-06-01',
       'anthropic-beta': 'tools-2024-04-04',
       'x-custom': 'v1',
-      'anthropic-dangerous-direct-browser-access': 'true',
     });
   });
 });

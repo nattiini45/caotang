@@ -132,6 +132,25 @@ describe('AES-GCM key store on WebCrypto', () => {
     expect(await store.reveal('prv_KKKKKKKKKK')).toBe('sk-second-key-22222');
   });
 
+  it('does not keep a failed wrapping-key lookup, so the next save tries the vault again', async () => {
+    const inner = createMemoryVaultPort();
+    let lookups = 0;
+    const port: KeyVaultPort = {
+      ...inner,
+      async getWrappingKey() {
+        lookups += 1;
+        if (lookups === 1) throw new Error('the vault is briefly unavailable');
+        return inner.getWrappingKey();
+      },
+    };
+    const store = createKeyStore(port);
+
+    await expect(store.put('prv_RRRRRRRRRR', KEY)).rejects.toThrow('the vault is briefly unavailable');
+    await expect(store.put('prv_RRRRRRRRRR', KEY)).resolves.toBeUndefined();
+    expect(lookups).toBe(2);
+    expect(await store.reveal('prv_RRRRRRRRRR')).toBe(KEY);
+  });
+
   it('lets two tabs sharing one vault converge on one wrapping key, so neither strands the other’s entries', async () => {
     const port = createMemoryVaultPort();
     const tabA = createKeyStore(port);

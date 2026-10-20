@@ -77,8 +77,8 @@ export interface Gateway extends ProviderGateway {
    * §5: asks the endpoint once whether it accepts `response_format: json_object`, and
    * caches the answer on the profile. The settings screen calls this at save time. Until
    * it has run, structured requests carry the schema in a system message and no
-   * `response_format`. Returns the answer. Calls for a non-active endpoint profile are
-   * refused by the egress guard, which is the intent: activate first, then probe.
+   * `response_format`. Returns the answer. The call goes to the profile it is pointed at,
+   * on that profile's own origin and key, whether or not it is the active one (§4).
    */
   probeResponseFormat(profileId?: string): Promise<boolean>;
 }
@@ -207,7 +207,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       body: JSON.stringify(body),
       headers: adapter.headers(ctx, revealed.secrets, 'complete'),
       secrets: revealed.redact,
-      parser: adapter.createStreamParser(ctx),
+      createParser: () => adapter.createStreamParser(ctx),
       promptTokens: usageFor(req.messages, '').promptTokens,
     };
   };
@@ -382,7 +382,9 @@ export function createGateway(options: GatewayOptions): Gateway {
 
   function modelCaps(profileId?: string, model?: string): ModelCaps {
     const profile = profileId === undefined ? profiles.active() : profiles.get(profileId);
-    if (profile === undefined || profile.kind === 'mock') return {};
+    if (profile === undefined) return {};
+    // A mock profile has no route of its own: its row is the mock's, as the mock says it.
+    if (profile.kind === 'mock') return mock.modelCaps(profile.id, model);
     return routeOf(profile, model ?? profile.defaultModel).ctx.caps;
   }
 
