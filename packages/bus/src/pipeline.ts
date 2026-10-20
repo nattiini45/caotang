@@ -423,7 +423,7 @@ function dispatch<K extends CommandName>(
   const { descriptor } = resolved;
 
   // Step 3 — apply.
-  const scope = createUndoScope(descriptor.undo);
+  const scope = createUndoScope(descriptor.undo, command.name);
   const activity = createActivityScope(command.name);
   const undoTarget: UndoTarget = bus.undo.targetFor(command, command.createdAt);
 
@@ -480,7 +480,7 @@ async function dispatchAsync<K extends CommandName>(
 ): Promise<Result<ExecutionOutcome, CommandError>> {
   const { descriptor } = resolved;
 
-  const scope = createUndoScope(descriptor.undo);
+  const scope = createUndoScope(descriptor.undo, command.name);
   const activity = createActivityScope(command.name);
   const undoTarget: UndoTarget = bus.undo.targetFor(command, command.createdAt);
 

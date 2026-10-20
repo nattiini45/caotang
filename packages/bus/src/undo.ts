@@ -239,6 +239,12 @@ export function createUndoStore(options: UndoStoreOptions = {}): UndoStore {
     try {
       const result = options.dispatch(entry.inverse);
       if (result.ok) return undefined;
+      // An inverse that changes nothing has nothing to undo. The apply that
+      // registered it wrote no field, so the inverse it holds has nothing to put
+      // back, and dispatching it can only refuse — a refusal that says the work
+      // is already done. That is a no-op, not a failure of the undo, so the
+      // group keeps its other entries and reports nothing for this one.
+      if (result.error.details?.changesNothing === true) return undefined;
       return {
         target: entry.name,
         code: result.error.code,
@@ -329,16 +335,38 @@ export function createUndoStore(options: UndoStoreOptions = {}): UndoStore {
  * would let one command's compensation land in another's group, so this is
  * created fresh per `execute()` and the pipeline holds the only reference to the
  * captured payload.
+ *
+ * **One capture per dispatch, and the second one throws** rather than overwriting
+ * the first. §5 registers one entry per command, so a second capture is an apply
+ * that disagrees with the spec about its own dispatch — and the overwrite was
+ * silent: the pipeline saw a capture of the right kind and registered a group
+ * that reversed only the last effect. `createActivityScope` refuses its second
+ * report the same way, and the throw lands in the pipeline's apply-threw path,
+ * which registers whatever was captured first and names the group.
  */
-export function createUndoScope(kind: ApplyContext['undo']['kind']): UndoScope {
+export function createUndoScope(
+  kind: ApplyContext['undo']['kind'],
+  name?: CommandName,
+): UndoScope {
   let payload: UndoPayload | undefined;
+
+  const capture = (next: UndoPayload): void => {
+    if (payload !== undefined) {
+      const whose = name === undefined ? 'the apply' : `the apply for "${name}"`;
+      throw new Error(
+        `${whose} captured a second undo payload, and §5 registers one entry per command. The first capture is kept; the second is refused.`,
+      );
+    }
+    payload = next;
+  };
+
   return {
     kind,
     inverse(command) {
-      payload = { kind: 'inverse', inverse: command };
+      capture({ kind: 'inverse', inverse: command });
     },
     compensate(label, restore) {
-      payload = { kind: 'compensable', label, restore };
+      capture({ kind: 'compensable', label, restore });
     },
     captured: () => payload,
   };

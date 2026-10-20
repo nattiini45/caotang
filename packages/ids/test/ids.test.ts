@@ -21,6 +21,26 @@ describe('ids', () => {
     expect(second).not.toBe(first);
   });
 
+  // The exhaustion path is the one that is supposed to keep the uniqueness
+  // guarantee airtight, so it has to keep the *shape* too: every consumer in the
+  // system checks ten Crockford chars after the prefix, and an id of another
+  // length is an id no consumer accepts.
+  it('re-rolls at the same length when every candidate is taken, and still mints a usable id', () => {
+    let draw = 0;
+    const source = (n: number): Uint8Array => new Uint8Array(n).fill(draw++ < 8 ? 0 : 1);
+    const id = newId('n', { randomBytes: source, taken: new Set(['n_0000000000']) });
+    expect(id).toMatch(/^n_[0-9ABCDEFGHJKMNPQRSTVWXYZ]{10}$/);
+    expect(isGeneratedId(id)).toBe(true);
+    expect(id).not.toBe('n_0000000000');
+  });
+
+  it('fails loudly when every draw is taken, rather than handing back a duplicate or a malformed id', () => {
+    const source = (n: number): Uint8Array => new Uint8Array(n).fill(0);
+    expect(() => newId('n', { randomBytes: source, taken: new Set(['n_0000000000']) })).toThrow(
+      /could not mint a unique n_ id/,
+    );
+  });
+
   it('is deterministic under a seeded generator', () => {
     expect(seededId('c', 42)).toBe(seededId('c', 42));
     expect(seededId('c', 42)).not.toBe(seededId('c', 43));

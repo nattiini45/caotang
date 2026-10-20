@@ -66,6 +66,7 @@ import type {
 import {
   HINT_READ_TREE,
   batchRefusal,
+  changesNothing,
   cycleError,
   describe,
   documentLength,
@@ -156,6 +157,11 @@ export const CODEX_VISUAL_REFS_MAX = 10;
  * rather than imported: descriptors-project.ts imports this module, so the import would be a cycle.
  */
 const VISUAL_REF_PATTERN = /^a_[0-9A-HJKMNP-TV-Z]{10}$/;
+/**
+ * The shape of a node id (project-format §2: `n_` and ten Crockford base32 chars). A node id is also a
+ * filename, so the shape is a load-time contract: the store refuses a manifest that carries another shape.
+ */
+const NODE_ID_PATTERN = /^n_[0-9A-HJKMNP-TV-Z]{10}$/;
 const CODEX_TYPES = ['character', 'location', 'object', 'lore', 'subplot', 'other'];
 const CODEX_POLICIES = ['always', 'detected', 'manual', 'never'];
 
@@ -477,8 +483,18 @@ export const binderMove: CommandDescriptor<BinderMoveParams> = {
         'newParentId',
       );
     }
+    // The index counts the new parent's children *without* the moved node, the
+    // count the store's `siblingOrderAt` takes. A position past the last sibling
+    // is not refused: the store appends there (§2's gap encoding), so the
+    // position is resolved here against the same sibling count and the apply is
+    // handed the position the node will land at. The result and the digest then
+    // name where the node went, instead of the position that was asked for.
+    const siblings = snapshot.manifest.tree.filter(
+      (sibling) => sibling.parentId === parent.value.id && sibling.id !== node.value.id,
+    );
     const index = requireInteger(p.value, 'index', { min: 0 });
     if (!index.ok) return index;
+    const position = Math.min(index.value, siblings.length);
     // §9: "Cycle check ... in validate". A move into the node itself or into any
     // of its own descendants would detach the subtree from the tree.
     if (isDescendantOf(snapshot, parent.value.id, node.value.id)) {
@@ -488,7 +504,7 @@ export const binderMove: CommandDescriptor<BinderMoveParams> = {
         'newParentId',
       );
     }
-    return ok({ nodeId: node.value.id, newParentId: parent.value.id, index: index.value });
+    return ok({ nodeId: node.value.id, newParentId: parent.value.id, index: position });
   },
 };
 
@@ -577,6 +593,13 @@ export const binderSetMeta: CommandDescriptor<BinderSetMetaParams> = {
     }
     const keywords = checkKeywordPatch(node.value, typed);
     if (!keywords.ok) return keywords;
+    // An empty patch is not an idempotent no-op — it asks for nothing at all, and
+    // the two sibling patch commands refuse exactly that shape. Accepted here it
+    // would stamp the node modified and write an audit row for a change that did
+    // not happen.
+    if (Object.keys(typed).length === 0) {
+      return changesNothing('the patch changes nothing', `name at least one of: ${PATCH_KEYS.join(', ')}`, 'patch');
+    }
     return ok({ nodeId: node.value.id, patch: typed });
   },
 };
@@ -668,15 +691,23 @@ function requireDocumentNode(
   return node;
 }
 
-/** The loaded body length an offset must fall inside, or a refusal. */
+/**
+ * The loaded body length an offset must fall inside, or a refusal.
+ *
+ * `because` names what the caller needed the body for: the editor commands need
+ * it to bound their offsets, and `doc.write` needs it to know that the document
+ * it is about to replace is one the loader could read at all — so the refusal
+ * says the write, not offsets it never had.
+ */
 function requireLoadedBody(
   snapshot: ValidationSnapshot,
   docId: string,
+  because = 'so its offsets cannot be validated',
 ): Result<number, CommandError> {
   const length = documentLength(snapshot, docId);
   if (length === undefined) {
     return notFound(
-      `document "${docId}" has no body loaded, so its offsets cannot be validated`,
+      `document "${docId}" has no body loaded, ${because}`,
       HINT_READ_TREE,
       docId,
     );
@@ -713,6 +744,12 @@ export const docWrite: CommandDescriptor<DocWriteParams> = {
     if (!p.ok) return p;
     const doc = requireDocumentNode(snapshot, p.value, 'docId');
     if (!doc.ok) return doc;
+    // The same check the two editor commands make: a document whose file is not
+    // UTF-8 opens with no body record while its node stays in the tree, and a
+    // write to it would reach the apply and fail there as a defect rather than
+    // as the refusal the loader already promised.
+    const loaded = requireLoadedBody(snapshot, doc.value.id, 'so it cannot be written to');
+    if (!loaded.ok) return loaded;
     const body = requireString(p.value, 'body');
     if (!body.ok) return body;
     const revision = expectedRevision(p.value);
@@ -1454,7 +1491,12 @@ export const viewSetScroll: CommandDescriptor<ViewSetScrollParams> = {
   validate: (params) => {
     const p = requireDeclaredParams('view.setScroll', params);
     if (!p.ok) return p;
-    const nodeId = requireString(p.value, 'nodeId');
+    // A blank id is refused, as `view.setActiveDoc` and `view.setExpanded` refuse
+    // one: a scroll that names no node writes a junk key into the scroll map and
+    // an audit row that reads "scrolled to offset 0" for nothing.
+    const nodeId = requireNonBlankString(p.value, 'nodeId', {
+      blankHint: 'pass the id of the node being scrolled',
+    });
     if (!nodeId.ok) return nodeId;
     const offset = requireInteger(p.value, 'offset', { min: 0 });
     if (!offset.ok) return offset;
@@ -1646,20 +1688,96 @@ export const coherenceSetFindingStatus: CommandDescriptor<CoherenceSetFindingSta
  */
 /**
  * `storyboard.create`, `shot.create` and `shot.setMeta` (storyboard.md §3.1). Each validates its closed key set and
- * its shape. The guards that depend on the stored project (a scene that moved, a shot whose metadata changed) run
- * in the apply, which the store registry supplies, because they read the storyboard module's own fields.
+ * its shape, and reads the snapshot for the state the command depends on: the folder the storyboard lands in, the
+ * storyboard folder a shot lands in, the shot a metadata change names, and the id each create mints. The guards that
+ * depend on what changed since the plan was made (a scene that moved, a shot whose metadata changed) run in the
+ * apply, which the store registry supplies, because they read the storyboard module's own fields.
  */
+
+/**
+ * The tree a snapshot carries, or `undefined` when it carries none.
+ *
+ * A validate reads the state it is handed and does not assume a shape the caller
+ * did not supply: a caller that hands over no project state at all leaves these
+ * checks with nothing to look up, and they stand down rather than refuse against
+ * a state that was never there.
+ *
+ * The manifest is a required field of the snapshot, so every path that dispatches
+ * these commands carries one: the app's session and the harness's runtime both
+ * read the live project state, and the store's registry runs the applies against
+ * that same state. Only a caller that supplies no state at all — a unit test that
+ * hands the bus a bare snapshot — sees the checks stand down, and the apply's own
+ * guards (the storyboard module's) still refuse what the project does not hold.
+ */
+function treeOf(snapshot: ValidationSnapshot): readonly ValidationNode[] | undefined {
+  return snapshot.manifest?.tree;
+}
+
+/**
+ * The id a create mints, checked against the project the command is about: the
+ * shape the loader accepts, and an id no node holds already.
+ *
+ * The shape is project-format §2's (`n_` and ten Crockford base32 chars), and a
+ * node id is also a filename — so an id of another shape is a project that will
+ * not load again. The taken check is against the tree itself: an id the tree
+ * already holds is a node the create cannot take, and the plan can refuse it
+ * before the apply does.
+ *
+ * A caller that supplies no project state supplies nothing to check the id
+ * against, so both halves stand down with the rest of the block.
+ */
+function requireNewNodeId(
+  tree: readonly ValidationNode[] | undefined,
+  params: Record<string, unknown>,
+): Result<string, CommandError> {
+  const id = requireNonBlankString(params, 'id');
+  if (!id.ok) return id;
+  if (tree === undefined) return ok(id.value);
+  if (!NODE_ID_PATTERN.test(id.value)) {
+    return invalid(
+      `"${id.value}" is not a node id`,
+      'a node id is "n_" and ten Crockford base32 characters',
+      'id',
+    );
+  }
+  if (tree.some((node) => node.id === id.value)) {
+    return invalid(
+      `the tree already holds a node with id "${id.value}"`,
+      'mint a fresh id for the node being created',
+      'id',
+    );
+  }
+  return ok(id.value);
+}
+
+/**
+ * The node the id names, or a refusal naming the id that is not there — and
+ * nothing at all when there is no tree to look in.
+ */
+function requireNodeIn(
+  tree: readonly ValidationNode[] | undefined,
+  id: string,
+): Result<ValidationNode | undefined, CommandError> {
+  if (tree === undefined) return ok(undefined);
+  const node = tree.find((candidate) => candidate.id === id);
+  if (node === undefined) return notFound(`no node with id "${id}"`, HINT_READ_TREE, id);
+  return ok(node);
+}
+
 export const storyboardCreate: CommandDescriptor<StoryboardCreateCommandParams> = {
   mutates: 'project',
   agentRisk: 'write-auto',
   undo: 'inverse',
-  validate: (params) => {
+  validate: (params, snapshot) => {
     const p = requireDeclaredParams('storyboard.create', params);
     if (!p.ok) return p;
-    const id = requireNonBlankString(p.value, 'id');
+    const tree = treeOf(snapshot);
+    const id = requireNewNodeId(tree, p.value);
     if (!id.ok) return id;
     const parentId = requireNonBlankString(p.value, 'parentId');
     if (!parentId.ok) return parentId;
+    const parent = requireNodeIn(tree, parentId.value);
+    if (!parent.ok) return parent;
     const title = requireNonBlankString(p.value, 'title');
     if (!title.ok) return title;
     const scene = isRecord(p.value['scene']) ? p.value['scene'] : undefined;
@@ -1685,13 +1803,25 @@ export const shotCreate: CommandDescriptor<ShotCreateCommandParams> = {
   mutates: 'project',
   agentRisk: 'write-auto',
   undo: 'inverse',
-  validate: (params) => {
+  validate: (params, snapshot) => {
     const p = requireDeclaredParams('shot.create', params);
     if (!p.ok) return p;
-    const id = requireNonBlankString(p.value, 'id');
+    const tree = treeOf(snapshot);
+    const id = requireNewNodeId(tree, p.value);
     if (!id.ok) return id;
     const parentId = requireNonBlankString(p.value, 'parentId');
     if (!parentId.ok) return parentId;
+    const parent = requireNodeIn(tree, parentId.value);
+    if (!parent.ok) return parent;
+    // The placement rule of storyboard.md §2.1, as `binder.move` states it: a shot
+    // sits in a storyboard folder.
+    if (parent.value !== undefined && !isStoryboardFolder(parent.value)) {
+      return invalid(
+        `"${parent.value.id}" is not a storyboard folder, and a shot lives in one`,
+        'name the storyboard folder the shot belongs to',
+        'parentId',
+      );
+    }
     const title = requireNonBlankString(p.value, 'title');
     if (!title.ok) return title;
     if (!isRecord(p.value['stored'])) return invalid('stored must be the shot’s metadata object', undefined, 'stored');
@@ -1703,11 +1833,20 @@ export const shotSetMeta: CommandDescriptor<ShotSetMetaCommandParams> = {
   mutates: 'project',
   agentRisk: 'write-auto',
   undo: 'inverse',
-  validate: (params) => {
+  validate: (params, snapshot) => {
     const p = requireDeclaredParams('shot.setMeta', params);
     if (!p.ok) return p;
     const nodeId = requireNonBlankString(p.value, 'nodeId');
     if (!nodeId.ok) return nodeId;
+    const node = requireNodeIn(treeOf(snapshot), nodeId.value);
+    if (!node.ok) return node;
+    if (node.value !== undefined && node.value.type !== 'shot') {
+      return invalid(
+        `"${node.value.id}" is a ${node.value.type}, and only a shot holds these settings`,
+        'choose the shot whose details to change',
+        'nodeId',
+      );
+    }
     const stored = p.value['stored'];
     if (stored !== null && !isRecord(stored)) return invalid('stored must be the whole shot metadata object, or null to remove it', undefined, 'stored');
     if (!Object.prototype.hasOwnProperty.call(p.value, 'expect')) {

@@ -22,6 +22,7 @@ import {
   type CommandError,
   type CommandName,
   type Result,
+  type ValidationSnapshot,
 } from '../src/index.js';
 import {
   BODY,
@@ -43,7 +44,7 @@ const snapshot = makeSnapshot();
 function validate(
   name: CommandName,
   params: unknown,
-  against: ReturnType<typeof makeSnapshot> = snapshot,
+  against: ValidationSnapshot = snapshot,
 ): Result<never, CommandError> {
   return COMMAND_REGISTRY[name].descriptor.validate(params, against) as Result<never, CommandError>;
 }
@@ -51,6 +52,12 @@ function validate(
 function refusal(result: Result<never, CommandError>): CommandError {
   if (result.ok) throw new Error('expected a refusal, got an acceptance');
   return result.error;
+}
+
+/** The position a validated `binder.move` carries — the helper's type is the refusal half. */
+function indexOf(result: Result<never, CommandError>): number {
+  if (!result.ok) throw new Error(`expected an acceptance, got a refusal: ${result.error.message}`);
+  return (result.value as { readonly index: number }).index;
 }
 
 const repeat = (char: string, n: number): string => char.repeat(n);
@@ -182,6 +189,26 @@ describe('binder.move — §9: "Cycle check + manuscript-root invariant in valid
     expect(refusal(validate('binder.move', { nodeId: CHAPTER_ONE, newParentId: MANUSCRIPT, index: -1 })).message)
       .toContain('must be ≥ 0');
   });
+
+  // The index counts the siblings of the new parent *without* the moved node, the
+  // count the store's `siblingOrderAt` takes. A position past the last sibling is
+  // not refused — the store appends there — so the bus resolves the position
+  // against the same count and hands the apply the position the node lands at.
+  it('resolves an index past the last sibling to the position the node lands at', () => {
+    // Chapter one holds one child, so the positions among its children are 0 and 1.
+    expect(indexOf(validate('binder.move', { nodeId: CHAPTER_TWO, newParentId: CHAPTER_ONE, index: 9 }))).toBe(1);
+  });
+
+  it('keeps an index that names a position, and accepts the append the binder sends', () => {
+    expect(indexOf(validate('binder.move', { nodeId: CHAPTER_TWO, newParentId: CHAPTER_ONE, index: 0 }))).toBe(0);
+    expect(indexOf(validate('binder.move', { nodeId: CHAPTER_TWO, newParentId: CHAPTER_ONE, index: 1 }))).toBe(1);
+  });
+
+  it('counts the moved node out of the siblings it is placed among', () => {
+    // The Landing is the only child of chapter one, so the only position among
+    // its siblings is 0: the count is the siblings without the moved node.
+    expect(indexOf(validate('binder.move', { nodeId: THE_LANDING, newParentId: CHAPTER_ONE, index: 4 }))).toBe(0);
+  });
 });
 
 describe('the placement rule for shots and storyboards (storyboard.md §2.1)', () => {
@@ -282,8 +309,15 @@ describe('binder.setMeta — §9: "Vocabulary-validated"', () => {
     expect(typo.correctiveHint).toContain('keywords_add');
   });
 
-  it('accepts an empty patch — meta.set is "idempotent by design"', () => {
-    expect(validate('binder.setMeta', { nodeId: THE_LANDING, patch: {} }).ok).toBe(true);
+  it('refuses an empty patch — it changes nothing, and the two sibling patch commands refuse one too', () => {
+    // `dialogue.setMeta` and `project.setMetadata` both refuse a patch that
+    // carries no field. An empty patch here would stamp the node modified and
+    // write an audit row for a change that did not happen.
+    const e = refusal(validate('binder.setMeta', { nodeId: THE_LANDING, patch: {} }));
+    expect(e.code).toBe('invalid-params');
+    expect(e.message).toContain('the patch changes nothing');
+    expect(e.correctiveHint).toContain('status');
+    expect(e.target).toBe('patch');
   });
 
   it('refuses a keyword over 64 chars, and a node that would exceed 32', () => {
@@ -457,6 +491,16 @@ describe('doc.write and the editor primitives', () => {
   it('refuses an insert whose document has no loaded body, rather than guessing the bound', () => {
     const unloaded = makeSnapshot({ bodies: {} });
     const e = refusal(validate('editor.insert', { docId: THE_LANDING, offset: 0, text: 'A' }, unloaded));
+    expect(e.code).toBe('not-found');
+    expect(e.message).toContain('no body loaded');
+  });
+
+  it('refuses a write to a document whose body is not loaded, as the editor commands do', () => {
+    // A document file that is not UTF-8 opens with no body record while its node
+    // stays in the tree: the write would reach the apply and fail there as an
+    // internal defect instead of as the refusal the loader had already promised.
+    const unloaded = makeSnapshot({ bodies: {} });
+    const e = refusal(validate('doc.write', { docId: THE_LANDING, body: 'new text' }, unloaded));
     expect(e.code).toBe('not-found');
     expect(e.message).toContain('no body loaded');
   });
@@ -1020,6 +1064,85 @@ describe('the three view commands validate shape only', () => {
   });
 });
 
+describe('the three storyboard commands read the snapshot, so a plan cannot promise a step that will refuse', () => {
+  const BOARD = 'n_BD00000001';
+  const SHOT = 'n_SH00000001';
+  const NEW_BOARD = 'n_NB00000001';
+  const NEW_SHOT = 'n_NS00000001';
+  // A storyboard folder with one shot in it: the two ends of every placement
+  // these three commands check.
+  const withBoard = makeSnapshot({
+    extraNodes: [
+      { id: BOARD, parentId: CHAPTER_ONE, type: 'folder', kind: 'storyboard', title: 'The Landing — Shots' },
+      { id: SHOT, parentId: BOARD, type: 'shot', title: 'Shot 1' },
+    ],
+  });
+  const scene = { id: THE_LANDING, parentId: CHAPTER_ONE, revision: REVISION };
+
+  it('refuses a storyboard whose parent is gone, before the plan can promise it', () => {
+    const e = refusal(validate('storyboard.create', { id: NEW_BOARD, parentId: UNKNOWN_ID, title: 'Shots', scene }));
+    expect(e.code).toBe('not-found');
+    // The bus names the node that is missing, not the key it was named by.
+    expect(e.target).toBe(UNKNOWN_ID);
+    expect(e.message).toContain('no node with id');
+  });
+
+  it('refuses a storyboard whose id is already in the tree', () => {
+    const e = refusal(validate('storyboard.create', { id: THE_LANDING, parentId: CHAPTER_ONE, title: 'Shots', scene }));
+    expect(e.code).toBe('invalid-params');
+    expect(e.target).toBe('id');
+  });
+
+  it('refuses a minted id that is not a node id, because the project would not load again', () => {
+    // A node id is also a filename (project-format §2), so the shape is a
+    // load-time contract and the store refuses such a manifest on the next open.
+    const e = refusal(validate('storyboard.create', { id: 'board-1', parentId: CHAPTER_ONE, title: 'Shots', scene }));
+    expect(e.code).toBe('invalid-params');
+    expect(e.target).toBe('id');
+  });
+
+  it('refuses a shot whose parent is gone, and one whose parent is not a storyboard folder', () => {
+    const gone = refusal(validate('shot.create', { id: NEW_SHOT, parentId: UNKNOWN_ID, title: 'Shot 2', stored: {} }, withBoard));
+    expect(gone.code).toBe('not-found');
+    expect(gone.target).toBe(UNKNOWN_ID);
+    const notABoard = refusal(validate('shot.create', { id: NEW_SHOT, parentId: CHAPTER_ONE, title: 'Shot 2', stored: {} }, withBoard));
+    expect(notABoard.code).toBe('invalid-params');
+    expect(notABoard.target).toBe('parentId');
+  });
+
+  it('refuses a shot whose id is already in the tree', () => {
+    const e = refusal(validate('shot.create', { id: SHOT, parentId: BOARD, title: 'Shot 2', stored: {} }, withBoard));
+    expect(e.code).toBe('invalid-params');
+    expect(e.target).toBe('id');
+  });
+
+  it('refuses a shot.setMeta for a shot that is gone, and for a node that is not a shot', () => {
+    const gone = refusal(validate('shot.setMeta', { nodeId: UNKNOWN_ID, stored: { shotSize: 'CU' }, expect: null }, withBoard));
+    expect(gone.code).toBe('not-found');
+    const notAShot = refusal(validate('shot.setMeta', { nodeId: THE_LANDING, stored: { shotSize: 'CU' }, expect: null }, withBoard));
+    expect(notAShot.code).toBe('invalid-params');
+    expect(notAShot.target).toBe('nodeId');
+  });
+
+  it('still accepts the three commands with a live parent and a fresh id', () => {
+    expect(validate('storyboard.create', { id: NEW_BOARD, parentId: CHAPTER_ONE, title: 'Shots', scene }).ok).toBe(true);
+    expect(validate('shot.create', { id: NEW_SHOT, parentId: BOARD, title: 'Shot 2', stored: {} }, withBoard).ok).toBe(true);
+    expect(validate('shot.setMeta', { nodeId: SHOT, stored: { shotSize: 'CU' }, expect: null }, withBoard).ok).toBe(true);
+  });
+
+  it('stands down only for a caller that supplies no project state at all', () => {
+    // The manifest is a required field of the snapshot, so every path that dispatches
+    // these commands has a tree to look in — the app's session and the harness's runtime
+    // both read the live project state. A caller that hands the bus a bare snapshot has
+    // no project to refuse against, so the checks stand down and the module's own apply
+    // guards do the refusing.
+    const none = {} as unknown as ValidationSnapshot;
+    expect(validate('storyboard.create', { id: NEW_BOARD, parentId: UNKNOWN_ID, title: 'Shots', scene }, none).ok).toBe(true);
+    expect(validate('shot.create', { id: NEW_SHOT, parentId: UNKNOWN_ID, title: 'Shot 2', stored: {} }, none).ok).toBe(true);
+    expect(validate('shot.setMeta', { nodeId: UNKNOWN_ID, stored: { shotSize: 'CU' }, expect: null }, none).ok).toBe(true);
+  });
+});
+
 describe('§2: validate is pure', () => {
   it('leaves the snapshot byte-identical after a full pass over every command', () => {
     const live = makeSnapshot();
@@ -1161,6 +1284,19 @@ describe('a blank string names nothing, so it is a refusal', () => {
     }
     // A real id is untouched — view state is shape-only by §9 and stays so.
     expect(validate('view.setActiveDoc', { docId: UNKNOWN_ID }).ok).toBe(true);
+  });
+
+  it('view.setScroll refused a blank node id, as its two sibling view commands do', () => {
+    // A scroll that names no node writes a junk key into the scroll map and an
+    // audit row that reads "scrolled to offset 0" for nothing.
+    for (const blank of ['', '   ']) {
+      const e = refusal(validate('view.setScroll', { nodeId: blank, offset: 0 }));
+      expect(e.code, JSON.stringify(blank)).toBe('invalid-params');
+      expect(e.target, JSON.stringify(blank)).toBe('nodeId');
+      expect(e.correctiveHint, JSON.stringify(blank)).toContain('the id of the node');
+    }
+    // A real id is untouched — view state is shape-only by §9 and stays so.
+    expect(validate('view.setScroll', { nodeId: UNKNOWN_ID, offset: 900 }).ok).toBe(true);
   });
 
   it("codex.upsert's name is refused blank, because codex.md §2 states it", () => {

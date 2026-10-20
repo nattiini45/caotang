@@ -336,8 +336,18 @@ describe('§6 — a stale expectedRevision is refused before any effect', () => 
   it('refuses loudly when the snapshot holds no revision to compare, rather than passing', () => {
     // Comparing against `undefined` would pass every time and turn the backstop
     // into a no-op that looks like a working guard.
+    //
+    // The descriptor is a custom one rather than `doc.write`'s: a guarded command
+    // whose validate reads the document refuses a document the snapshot does not
+    // carry before the guard ever runs — `doc.write` refuses it as not-found
+    // (the check its editor siblings make), and the editor commands always have.
+    // So the guard's own backstop is reached through a descriptor that hands the
+    // guard a document the snapshot does not carry.
     const h = harness({
-      descriptor: COMMAND_REGISTRY['doc.write'].descriptor,
+      descriptor: descriptorWith({
+        guardsRevision: true,
+        validate: (params) => ok(params as Record<string, unknown>),
+      }),
       permission: AGENT_PLAN,
       snapshot: () => makeSnapshot({ bodies: {} }),
     });

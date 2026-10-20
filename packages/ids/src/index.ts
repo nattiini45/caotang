@@ -106,14 +106,24 @@ export function newId(
 ): string {
   const randomBytes = opts.randomBytes ?? defaultRandomBytes;
   const maxAttempts = opts.maxAttempts ?? 8;
+  const taken = opts.taken;
   // 8 bytes -> 12.8 base32 chars; 10 are needed. 7 bytes would truncate entropy
   // below 32^10, so request 8 and let `encode` slice.
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const candidate = `${prefix}_${encode(randomBytes(8), ID_LENGTH)}`;
-    if (!opts.taken || !opts.taken.has(candidate)) return candidate;
+    if (!taken || !taken.has(candidate)) return candidate;
   }
-  // Exhausted: fall back to a longer id rather than return a duplicate.
-  return `${prefix}_${encode(randomBytes(16), ID_LENGTH * 2)}`;
+  // Every candidate so far was taken. The second round draws again, at the same
+  // length and against the same `taken` set: an id of another length is not an
+  // id of this family, so every consumer's shape check would refuse it, and an
+  // id that is not checked against `taken` is not unique. A source that keeps
+  // drawing the same bytes never gets past this, so the mint fails loudly rather
+  // than handing back a duplicate or a shape no consumer accepts.
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const candidate = `${prefix}_${encode(randomBytes(8), ID_LENGTH)}`;
+    if (!taken || !taken.has(candidate)) return candidate;
+  }
+  throw new Error(`could not mint a unique ${prefix}_ id after ${maxAttempts * 2} attempts`);
 }
 
 /** Deterministic id for fixtures and tests — same seed, same id, every run. */

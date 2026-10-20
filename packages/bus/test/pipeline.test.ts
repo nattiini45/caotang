@@ -579,6 +579,52 @@ describe('§5 — one gesture is one group, one agent turn is one group', () => 
     expect(executed).toEqual([]);
   });
 
+  it('treats an inverse that changes nothing as a no-op, not as a failed undo', () => {
+    // The store's `binder.setMeta` inverse is the same command with the previous
+    // values, and a change that wrote no field has no previous values to write
+    // back — so its inverse carries an empty patch, which the bus refuses as a
+    // request that changes nothing. The undo of a change that changed nothing
+    // has nothing to undo, so the group reports no failure for it.
+    const registry = {
+      ...COMMAND_REGISTRY,
+      'doc.write': fake(
+        { agentRisk: 'write-auto', undo: 'inverse' },
+        ((_s: unknown, _p: unknown, context: { undo: ReturnType<typeof createUndoScope> }) => {
+          context.undo.inverse(
+            cmd({ name: 'binder.setMeta', params: { nodeId: THE_LANDING, patch: {} } }),
+          );
+          return null;
+        })
+      ),
+      'binder.setMeta': {
+        descriptor: COMMAND_REGISTRY['binder.setMeta'].descriptor,
+        apply: (() => null) as CommandApply<never, unknown>,
+      },
+    } as CommandRegistry;
+    const undo = createUndoStore({ dispatch: (command) => execute(command, h.bus, registry) });
+    const h = harness({ undo });
+
+    execute(cmd({ name: 'doc.write', params: { docId: THE_LANDING, body: 'Elena returns.' } }), h.bus, registry);
+    const id = undo.groups()[0]!.id;
+
+    const outcome = undo.undo(id);
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.value.failures).toEqual([]);
+    expect(outcome.value.undone).toHaveLength(1);
+    // The refusal was the bus's own, and it is the one that says "nothing changed".
+    const refused = execute(
+      cmd({ name: 'binder.setMeta', params: { nodeId: THE_LANDING, patch: {} } }),
+      h.bus,
+      registry,
+    );
+    expect(refused.ok).toBe(false);
+    if (refused.ok) return;
+    expect(refused.error.code).toBe('invalid-params');
+    expect(refused.error.details?.changesNothing).toBe(true);
+  });
+
   it('does not register the inverse it just dispatched, so an undo is not a toggle', () => {
     // Redo is v0.2, so the inverse is dispatched through `execute()` — and if that
     // dispatch registered an entry of its own, the group would grow a second entry
@@ -735,6 +781,36 @@ describe('§5 — registration is a pipeline step, not an apply courtesy', () =>
     if (result.ok) return;
     expect(result.error.message).toContain("declares undo: 'compensable'");
     expect(result.error.message).toContain("captured a 'inverse' compensation");
+  });
+
+  it('throws when an apply captures a second undo payload, instead of keeping only the last one', () => {
+    // The trap this closes: a batch apply that captures per-op compensations the
+    // obvious way handed the pipeline one payload, so the group it registered
+    // reversed only the last effect — and the pipeline could not tell, because it
+    // saw a capture of the right kind. The activity log's own scope refuses a
+    // second report the same way.
+    const { bus, undo } = harness();
+    const registry = registryWith(
+      fake(
+        { agentRisk: 'write-auto', undo: 'compensable' },
+        ((_s: unknown, _p: unknown, context: { undo: ReturnType<typeof createUndoScope> }) => {
+          context.undo.compensate('restore the first', () => {});
+          context.undo.compensate('restore the second', () => {});
+          return null;
+        })
+      ),
+    );
+
+    const result = execute(cmd({ name: 'doc.write' }), bus, registry);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe('internal');
+    expect(result.error.message).toContain('doc.write');
+    expect(result.error.message).toContain('captured a second undo payload');
+    // The first capture is kept, so what the apply already changed is still
+    // reversible: the group holds the first compensation, not the second.
+    expect(undo.groups()).toHaveLength(1);
   });
 
   it("skips registration for a view command even when its descriptor claims undo: 'inverse'", () => {

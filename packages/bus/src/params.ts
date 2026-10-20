@@ -150,6 +150,20 @@ export function limitExceeded(message: string, correctiveHint?: string, target?:
   return err(limitExceededError(message, correctiveHint, target));
 }
 
+/**
+ * A refusal that says the request asks for no change at all.
+ *
+ * `details.changesNothing` is the machine-readable half of it, and the undo
+ * path reads that half: an inverse that changes nothing has nothing to undo.
+ * The apply that registered such an inverse wrote no field, so dispatching it
+ * can only refuse — and that refusal says the work is already done, not that
+ * the undo failed. A group with such an entry in it is therefore not a group
+ * with a failure in it.
+ */
+export function changesNothing(message: string, correctiveHint: string, target: string): Result<never, CommandError> {
+  return err({ code: 'invalid-params', message, correctiveHint, target, details: { changesNothing: true } });
+}
+
 export function cycleError(message: string, correctiveHint?: string, target?: string): Result<never, CommandError> {
   return err({ code: 'cycle', message, ...(target === undefined ? {} : { target }), ...(correctiveHint === undefined ? {} : { correctiveHint }) });
 }
