@@ -99,6 +99,20 @@ function encode(bytes: Uint8Array, length: number): string {
  *
  * Callers that need a hard uniqueness guarantee pass `taken`; the generator then
  * re-rolls on collision (project-format.md §2: collision-checked at generation).
+ *
+ * `maxAttempts` bounds **one round of draws, and there are two rounds**: when
+ * every candidate of the first round was taken, the generator draws up to
+ * `maxAttempts` more times against the same `taken` set before giving up, so
+ * the total is `maxAttempts * 2` draws — the number the throw reports. The
+ * second round is more of the same, not a different strategy: there is no
+ * fallback shape to fall back to (see the loop's own comment).
+ *
+ * @throws {Error} when every candidate of both rounds was taken — a randomness
+ * source that keeps drawing taken bytes, or a `taken` set covering (nearly) the
+ * whole space. Failing loudly is the guarantee: the alternatives are a
+ * duplicate id or a shape no consumer accepts. Callers outside a command apply
+ * (the store's `read.ts` recovery paths) surface the throw as a failure of the
+ * operation they are in; nothing here downgrades it to a returned id.
  */
 export function newId(
   prefix: IdPrefix,
@@ -113,12 +127,15 @@ export function newId(
     const candidate = `${prefix}_${encode(randomBytes(8), ID_LENGTH)}`;
     if (!taken || !taken.has(candidate)) return candidate;
   }
-  // Every candidate so far was taken. The second round draws again, at the same
-  // length and against the same `taken` set: an id of another length is not an
-  // id of this family, so every consumer's shape check would refuse it, and an
-  // id that is not checked against `taken` is not unique. A source that keeps
-  // drawing the same bytes never gets past this, so the mint fails loudly rather
-  // than handing back a duplicate or a shape no consumer accepts.
+  // Every candidate so far was taken. Draw again — up to `maxAttempts` more
+  // times, at the same length and against the same `taken` set, because there
+  // is no second strategy: an id of another length is not an id of this family,
+  // so every consumer's shape check would refuse it, and an id that is not
+  // checked against `taken` is not unique. This loop is therefore deliberately
+  // identical to the one above; the two together are `maxAttempts * 2` draws. A
+  // source that keeps drawing the same bytes never gets past them, so the mint
+  // fails loudly rather than handing back a duplicate or a shape no consumer
+  // accepts.
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const candidate = `${prefix}_${encode(randomBytes(8), ID_LENGTH)}`;
     if (!taken || !taken.has(candidate)) return candidate;

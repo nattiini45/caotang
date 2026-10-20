@@ -137,14 +137,17 @@ describe('the derive still runs, because the bus reads the live tree', () => {
       bus,
       registry,
     );
-    expect(board.ok).toBe(true);
+    // Thrown rather than expected: the shot dispatch below depends on the board
+    // having landed, and a bare `ok: false` assertion would discard the refusal's
+    // code and message — the only diagnostics that say why the derive broke.
+    if (!board.ok) throw new Error(`storyboard.create was refused: ${board.error.code}: ${board.error.message}`);
 
     const shot = execute(
       agent('shot.create', { id: 'n_SHT0000003', parentId: 'n_BRD0000002', title: 'Elena', stored: { action: 'a' } }, 'shot-1'),
       bus,
       registry,
     );
-    expect(shot.ok).toBe(true);
+    if (!shot.ok) throw new Error(`shot.create was refused: ${shot.error.code}: ${shot.error.message}`);
 
     expect(state.manifest.tree.find((node) => node.id === 'n_SHT0000003')?.parentId).toBe('n_BRD0000002');
   });

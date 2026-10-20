@@ -309,15 +309,17 @@ describe('binder.setMeta — §9: "Vocabulary-validated"', () => {
     expect(typo.correctiveHint).toContain('keywords_add');
   });
 
-  it('refuses an empty patch — it changes nothing, and the two sibling patch commands refuse one too', () => {
+  it('refuses an empty patch — it names no field, and the two sibling patch commands refuse one too', () => {
     // `dialogue.setMeta` and `project.setMetadata` both refuse a patch that
-    // carries no field. An empty patch here would stamp the node modified and
-    // write an audit row for a change that did not happen.
+    // carries no field. The refusal is the shape's: a patch with a field that
+    // matches what the node holds is the documented idempotent path below, and
+    // the store stamps nothing for a dispatch that writes no value.
     const e = refusal(validate('binder.setMeta', { nodeId: THE_LANDING, patch: {} }));
     expect(e.code).toBe('invalid-params');
-    expect(e.message).toContain('the patch changes nothing');
+    expect(e.message).toContain('names no field');
     expect(e.correctiveHint).toContain('status');
     expect(e.target).toBe('patch');
+    expect(e.details?.changesNothing).toBe(true);
   });
 
   it('refuses a keyword over 64 chars, and a node that would exceed 32', () => {
@@ -331,8 +333,14 @@ describe('binder.setMeta — §9: "Vocabulary-validated"', () => {
   });
 
   it('keeps idempotence: removing an absent keyword is accepted, adding a present one does not duplicate', () => {
+    // agent-harness §3 makes meta.set "idempotent by design", and params.ts keeps
+    // `keywords_add: []` a legitimate "nothing to do" payload: a patch whose
+    // fields all match what the node holds is accepted, and the store's apply
+    // stamps nothing and reports "left ... unchanged" for it.
     expect(validate('binder.setMeta', { nodeId: THE_LANDING, patch: { keywords_remove: ['not-there'] } }).ok).toBe(true);
     expect(validate('binder.setMeta', { nodeId: THE_LANDING, patch: { keywords_add: ['SEA'] } }).ok).toBe(true);
+    expect(validate('binder.setMeta', { nodeId: THE_LANDING, patch: { keywords_add: [] } }).ok).toBe(true);
+    expect(validate('binder.setMeta', { nodeId: THE_LANDING, patch: { status: 'draft' } }).ok).toBe(true);
   });
 
   // The case-insensitive dedupe is what makes the 32-keyword
@@ -493,6 +501,10 @@ describe('doc.write and the editor primitives', () => {
     const e = refusal(validate('editor.insert', { docId: THE_LANDING, offset: 0, text: 'A' }, unloaded));
     expect(e.code).toBe('not-found');
     expect(e.message).toContain('no body loaded');
+    // The id already resolved in requireDocumentNode, so "list valid ids" would
+    // send the caller in circles: the hint names the file, the surface that fixes it.
+    expect(e.correctiveHint).toContain('file');
+    expect(e.correctiveHint).not.toContain('binder.read_tree to list');
   });
 
   it('refuses a write to a document whose body is not loaded, as the editor commands do', () => {
@@ -503,6 +515,19 @@ describe('doc.write and the editor primitives', () => {
     const e = refusal(validate('doc.write', { docId: THE_LANDING, body: 'new text' }, unloaded));
     expect(e.code).toBe('not-found');
     expect(e.message).toContain('no body loaded');
+    expect(e.correctiveHint).toContain('file');
+    expect(e.correctiveHint).not.toContain('binder.read_tree to list');
+  });
+
+  it('reports the param defect of a malformed write even when the document has no loaded body', () => {
+    // The loaded-body refusal is a state refusal; a body of the wrong type is a
+    // defect in the params the caller must fix. The param check runs first, so a
+    // write that is both malformed and to an unloaded document is not reduced to
+    // the state half alone.
+    const unloaded = makeSnapshot({ bodies: {} });
+    const e = refusal(validate('doc.write', { docId: THE_LANDING, body: 42 }, unloaded));
+    expect(e.code).toBe('invalid-params');
+    expect(e.target).toBe('body');
   });
 
   it('requires a forward range inside the body', () => {
@@ -1064,7 +1089,11 @@ describe('the three view commands validate shape only', () => {
   });
 });
 
-describe('the three storyboard commands read the snapshot, so a plan cannot promise a step that will refuse', () => {
+// The title is scoped to what this block demonstrates: the parent, id and shot
+// state a plan names. `storyboard.create`'s scene anchor is only shape-checked
+// here — a scene that changed or moved since the plan is refused by the apply
+// (`scene-changed`/`scene-moved`, storyboard's commands.ts), not at validate.
+describe('the three storyboard commands read the snapshot, so a plan whose target is gone cannot pass validate', () => {
   const BOARD = 'n_BD00000001';
   const SHOT = 'n_SH00000001';
   const NEW_BOARD = 'n_NB00000001';
@@ -1091,6 +1120,24 @@ describe('the three storyboard commands read the snapshot, so a plan cannot prom
     const e = refusal(validate('storyboard.create', { id: THE_LANDING, parentId: CHAPTER_ONE, title: 'Shots', scene }));
     expect(e.code).toBe('invalid-params');
     expect(e.target).toBe('id');
+  });
+
+  it('refuses a storyboard parent the binder could never show or that cannot hold one', () => {
+    // The placement rules binder.create enforces, enforced here too: a board
+    // under the project root is a node the binder never shows, a document
+    // cannot hold children, and a storyboard folder holds only shots.
+    const root = refusal(validate('storyboard.create', { id: NEW_BOARD, parentId: ROOT, title: 'Shots', scene }));
+    expect(root.code).toBe('invalid-params');
+    expect(root.target).toBe('parentId');
+    expect(root.message).toContain('never appear');
+    const doc = refusal(validate('storyboard.create', { id: NEW_BOARD, parentId: THE_LANDING, title: 'Shots', scene }));
+    expect(doc.code).toBe('invalid-params');
+    expect(doc.target).toBe('parentId');
+    expect(doc.message).toContain('cannot hold children');
+    const inBoard = refusal(validate('storyboard.create', { id: NEW_BOARD, parentId: BOARD, title: 'Shots', scene }, withBoard));
+    expect(inBoard.code).toBe('invalid-params');
+    expect(inBoard.target).toBe('parentId');
+    expect(inBoard.message).toContain('holds only shots');
   });
 
   it('refuses a minted id that is not a node id, because the project would not load again', () => {
@@ -1130,16 +1177,18 @@ describe('the three storyboard commands read the snapshot, so a plan cannot prom
     expect(validate('shot.setMeta', { nodeId: SHOT, stored: { shotSize: 'CU' }, expect: null }, withBoard).ok).toBe(true);
   });
 
-  it('stands down only for a caller that supplies no project state at all', () => {
-    // The manifest is a required field of the snapshot, so every path that dispatches
-    // these commands has a tree to look in — the app's session and the harness's runtime
-    // both read the live project state. A caller that hands the bus a bare snapshot has
-    // no project to refuse against, so the checks stand down and the module's own apply
-    // guards do the refusing.
+  it('fails closed on a malformed snapshot, exactly like the rest of the module', () => {
+    // The manifest is a required field of the snapshot, so a snapshot without one
+    // is a broken read seam — a partial projection or an adapter defect — and not
+    // "no project state". These three commands dereference `manifest.tree` the way
+    // `binder.move` and `doc.write` do, so the defect surfaces loudly instead of
+    // silently standing every existence check down and letting a validated command
+    // fail mid-apply — the §2 hole these checks exist to close.
     const none = {} as unknown as ValidationSnapshot;
-    expect(validate('storyboard.create', { id: NEW_BOARD, parentId: UNKNOWN_ID, title: 'Shots', scene }, none).ok).toBe(true);
-    expect(validate('shot.create', { id: NEW_SHOT, parentId: UNKNOWN_ID, title: 'Shot 2', stored: {} }, none).ok).toBe(true);
-    expect(validate('shot.setMeta', { nodeId: UNKNOWN_ID, stored: { shotSize: 'CU' }, expect: null }, none).ok).toBe(true);
+    expect(() => validate('storyboard.create', { id: NEW_BOARD, parentId: UNKNOWN_ID, title: 'Shots', scene }, none)).toThrow();
+    expect(() => validate('shot.create', { id: NEW_SHOT, parentId: UNKNOWN_ID, title: 'Shot 2', stored: {} }, none)).toThrow();
+    expect(() => validate('shot.setMeta', { nodeId: UNKNOWN_ID, stored: { shotSize: 'CU' }, expect: null }, none)).toThrow();
+    expect(() => validate('binder.move', { nodeId: THE_LANDING, newParentId: CHAPTER_ONE, index: 0 }, none)).toThrow();
   });
 });
 

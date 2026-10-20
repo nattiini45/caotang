@@ -239,11 +239,16 @@ export function createUndoStore(options: UndoStoreOptions = {}): UndoStore {
     try {
       const result = options.dispatch(entry.inverse);
       if (result.ok) return undefined;
-      // An inverse that changes nothing has nothing to undo. The apply that
-      // registered it wrote no field, so the inverse it holds has nothing to put
-      // back, and dispatching it can only refuse — a refusal that says the work
-      // is already done. That is a no-op, not a failure of the undo, so the
-      // group keeps its other entries and reports nothing for this one.
+      // An inverse that changes nothing has nothing to undo, and that is a
+      // guarantee on the registering side rather than a hope: an apply that
+      // wrote a field mints an inverse carrying that field's previous value,
+      // and an apply that wrote none stamps nothing and remembers no restore
+      // entry (the store's `binderSetMeta` writes `updatedAt` only for a value
+      // it actually changed), so the field-less inverse it registers has
+      // nothing to put back — not even the node's stamp. Dispatching it can
+      // only refuse, with a refusal that says the work is already done. That
+      // is a no-op, not a failure of the undo, so the group keeps its other
+      // entries and reports nothing for this one.
       if (result.error.details?.changesNothing === true) return undefined;
       return {
         target: entry.name,
@@ -342,19 +347,46 @@ export function createUndoStore(options: UndoStoreOptions = {}): UndoStore {
  * silent: the pipeline saw a capture of the right kind and registered a group
  * that reversed only the last effect. `createActivityScope` refuses its second
  * report the same way, and the throw lands in the pipeline's apply-threw path,
- * which registers whatever was captured first and names the group.
+ * which registers whatever was captured first and names the group. The message
+ * does not name the command: the pipeline's refusal already prefixes it with
+ * `the apply for "<name>" threw: `, so a second naming would only make the
+ * surfaced error stutter.
+ *
+ * **The throw guards the apply window, and only the apply window.** The pipeline
+ * calls {@link SettledUndoScope.settle} once it has read the payload, and a
+ * capture that arrives after that — from an apply that stashed the scope and
+ * captured from a timer, an event or a floating continuation — cannot join any
+ * group: the dispatch's registration is closed. Throwing there would reach no
+ * caller either; it would escape as an uncaught exception, or an unhandled
+ * rejection on the async path. So a late capture is handed to `onLateCapture`
+ * instead — the pipeline wires it to an activity-log row — and dropped: a
+ * defect in the apply stays visible without detonating outside the bus.
  */
+export interface SettledUndoScope extends UndoScope {
+  /**
+   * Ends the apply window. Captures after this are late: they are reported to
+   * the scope's `onLateCapture` and dropped, never registered and never thrown.
+   * Called by the pipeline when it reads the payload back; an apply has no
+   * reason to call it and no way to undo it.
+   */
+  settle(): void;
+}
+
 export function createUndoScope(
   kind: ApplyContext['undo']['kind'],
-  name?: CommandName,
-): UndoScope {
+  onLateCapture?: (payload: UndoPayload) => void,
+): SettledUndoScope {
   let payload: UndoPayload | undefined;
+  let settled = false;
 
   const capture = (next: UndoPayload): void => {
+    if (settled) {
+      onLateCapture?.(next);
+      return;
+    }
     if (payload !== undefined) {
-      const whose = name === undefined ? 'the apply' : `the apply for "${name}"`;
       throw new Error(
-        `${whose} captured a second undo payload, and §5 registers one entry per command. The first capture is kept; the second is refused.`,
+        'a second undo payload was captured, and §5 registers one entry per command. The first capture is kept; the second is refused.',
       );
     }
     payload = next;
@@ -369,6 +401,9 @@ export function createUndoScope(
       capture({ kind: 'compensable', label, restore });
     },
     captured: () => payload,
+    settle: () => {
+      settled = true;
+    },
   };
 }
 

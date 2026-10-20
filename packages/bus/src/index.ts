@@ -115,7 +115,7 @@ export type { BusContext, ExecutionOutcome } from './pipeline.js';
 export { ApplyRefusal, execute, executeAsync } from './pipeline.js';
 export type { IdempotencyCache } from './idempotency.js';
 export { createIdempotencyCache } from './idempotency.js';
-export type { UndoDispatch, UndoEntry, UndoGroup, UndoGroupKind, UndoOutcome, UndoStore, UndoStoreOptions, UndoTarget } from './undo.js';
+export type { SettledUndoScope, UndoDispatch, UndoEntry, UndoGroup, UndoGroupKind, UndoOutcome, UndoStore, UndoStoreOptions, UndoTarget } from './undo.js';
 export { applyContext, createUndoScope, createUndoStore } from './undo.js';
 export {
   createViewState,

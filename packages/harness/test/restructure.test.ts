@@ -48,6 +48,21 @@ describe('binder.restructure', () => {
     expect(outcome.undoGroupId).toBeDefined();
   });
 
+  it('previews the position the move lands at, and dispatches the validated command', () => {
+    const state = makeState();
+    const harness = makeHarness({}, state);
+    // Chapter 2 holds one scene, so a move asking for position 99 lands at 1:
+    // binder.move's validate clamps the index against the sibling count, and the
+    // card the user approves has to promise where the node lands, not the raw
+    // index — the dispatch re-validates, so preview and result cannot disagree.
+    const outcome = valueOf(
+      run(harness, 'binder.restructure', { ops: [{ action: 'move', node: STORM, newParent: CHAPTER_TWO, index: 99 }] }, CONFIRMED),
+    );
+    const operations = outcome.data['operations'] as string[];
+    expect(operations[0]).toContain('at position 1');
+    expect(childrenOf(state, CHAPTER_TWO)).toEqual([FRIEND, STORM]);
+  });
+
   it('is undone, as one group, back to the byte-identical prior tree', () => {
     const state = makeState();
     const harness = makeHarness({}, state);

@@ -28,7 +28,9 @@ describe('ids', () => {
   it('re-rolls at the same length when every candidate is taken, and still mints a usable id', () => {
     let draw = 0;
     const source = (n: number): Uint8Array => new Uint8Array(n).fill(draw++ < 8 ? 0 : 1);
-    const id = newId('n', { randomBytes: source, taken: new Set(['n_0000000000']) });
+    // maxAttempts is pinned rather than defaulted: the source switches at draw 8,
+    // so the test exercises the second round of draws only while maxAttempts is 8.
+    const id = newId('n', { randomBytes: source, taken: new Set(['n_0000000000']), maxAttempts: 8 });
     expect(id).toMatch(/^n_[0-9ABCDEFGHJKMNPQRSTVWXYZ]{10}$/);
     expect(isGeneratedId(id)).toBe(true);
     expect(id).not.toBe('n_0000000000');
@@ -36,7 +38,9 @@ describe('ids', () => {
 
   it('fails loudly when every draw is taken, rather than handing back a duplicate or a malformed id', () => {
     const source = (n: number): Uint8Array => new Uint8Array(n).fill(0);
-    expect(() => newId('n', { randomBytes: source, taken: new Set(['n_0000000000']) })).toThrow(
+    // Pinned for the same reason: both rounds (maxAttempts * 2 draws) have to be
+    // exhausted for the throw, whatever the default becomes.
+    expect(() => newId('n', { randomBytes: source, taken: new Set(['n_0000000000']), maxAttempts: 8 })).toThrow(
       /could not mint a unique n_ id/,
     );
   });

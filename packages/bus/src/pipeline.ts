@@ -256,6 +256,35 @@ function effectRow<S>(
 }
 
 /**
+ * A capture that arrived after its dispatch settled: an apply that stashed the
+ * undo scope and captured from a timer, an event or a floating continuation.
+ * The registration for this dispatch is closed, so the payload cannot join any
+ * group — and a raw throw from the capturing callback would escape as an
+ * uncaught exception nobody routes back to the caller. The activity log is the
+ * surface where the pipeline reports an apply's defects after the fact (§8), so
+ * that is where the late capture is reported: one row per capture, dropped and
+ * named.
+ */
+function lateCaptureRow<S>(
+  bus: BusContext<S>,
+  command: Command,
+  source: ActivitySource,
+  payload: UndoPayload,
+): void {
+  bus.log.append({
+    at: command.createdAt,
+    command: command.name,
+    issuedBy: command.issuedBy,
+    turnId: command.turnId,
+    callId: command.callId,
+    undoGroupId: undefined,
+    source,
+    affected: [],
+    summary: `the apply for "${command.name}" captured a ${payload.kind} undo payload after its dispatch settled; it was dropped, because this dispatch's undo registration is closed`,
+  });
+}
+
+/**
  * The one cast in this file, and it is TypeScript's limitation rather than the
  * design's: `CommandRegistry[K]` for an unresolved `K` is a union of eighteen
  * registrations, and **a union of call signatures is not callable**. The state
@@ -423,7 +452,7 @@ function dispatch<K extends CommandName>(
   const { descriptor } = resolved;
 
   // Step 3 — apply.
-  const scope = createUndoScope(descriptor.undo, command.name);
+  const scope = createUndoScope(descriptor.undo, (late) => lateCaptureRow(bus, command, source, late));
   const activity = createActivityScope(command.name);
   const undoTarget: UndoTarget = bus.undo.targetFor(command, command.createdAt);
 
@@ -480,7 +509,7 @@ async function dispatchAsync<K extends CommandName>(
 ): Promise<Result<ExecutionOutcome, CommandError>> {
   const { descriptor } = resolved;
 
-  const scope = createUndoScope(descriptor.undo, command.name);
+  const scope = createUndoScope(descriptor.undo, (late) => lateCaptureRow(bus, command, source, late));
   const activity = createActivityScope(command.name);
   const undoTarget: UndoTarget = bus.undo.targetFor(command, command.createdAt);
 
@@ -511,6 +540,9 @@ function applyRefused<S>(
   refusal: ApplyRefusal,
 ): Result<ExecutionOutcome, CommandError> {
   const groupId = registerIfCaptured(command, descriptor, scope.captured(), undoTarget, bus.undo);
+  // The apply window is closed: whatever the apply stashed and captures later is
+  // late, and the scope reports it instead of throwing into a timer.
+  scope.settle();
   const report = activity.reported();
   if (groupId !== undefined || report !== undefined) {
     effectRow(bus, command, source, groupId, report, `${command.name} was refused after it reported an attempt`);
@@ -537,6 +569,7 @@ function applyThrew<S>(
   // refusal also writes the row its success would have written (command-bus §8):
   // a change the log does not show is the one the user cannot find.
   const groupId = registerIfCaptured(command, descriptor, scope.captured(), undoTarget, bus.undo);
+  scope.settle();
   if (groupId !== undefined) {
     effectRow(bus, command, source, groupId, activity.reported(), `${command.name} threw after changing the project`);
   }
@@ -561,6 +594,7 @@ function applyReturnedPromise<S>(
   source: ActivitySource,
 ): Result<ExecutionOutcome, CommandError> {
   const groupId = registerIfCaptured(command, descriptor, scope.captured(), undoTarget, bus.undo);
+  scope.settle();
   if (groupId !== undefined) {
     effectRow(bus, command, source, groupId, activity.reported(), `${command.name} returned a promise after changing the project`);
   }
@@ -592,6 +626,9 @@ function finish<S>(
   source: ActivitySource,
 ): Result<ExecutionOutcome, CommandError> {
   const payload = scope.captured();
+  // The payload is read, so the apply window is closed: a capture arriving after
+  // this point belongs to no dispatch and is reported rather than registered.
+  scope.settle();
 
   // Step 4 — postconditions (§2), where §3 puts them: straight after apply.
   const postconditions = descriptor.postconditions ?? [];

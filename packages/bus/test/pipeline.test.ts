@@ -465,7 +465,7 @@ describe('§5 — one gesture is one group, one agent turn is one group', () => 
     const registry = registryWith(
       fake(
         { agentRisk: 'write-auto', undo: 'compensable' },
-        ((_s: unknown, params: unknown, context: { undo: ReturnType<typeof createUndoScope> }) => {
+        ((_s: unknown, params: unknown, context: ApplyContext) => {
           const tag = (params as { tag: string }).tag;
           order.push(`apply:${tag}`);
           context.undo.compensate(tag, () => order.push(`restore:${tag}`));
@@ -501,7 +501,7 @@ describe('§5 — one gesture is one group, one agent turn is one group', () => 
     const registry = registryWith(
       fake(
         { agentRisk: 'write-auto', undo: 'compensable' },
-        ((_s: unknown, params: unknown, context: { undo: ReturnType<typeof createUndoScope> }) => {
+        ((_s: unknown, params: unknown, context: ApplyContext) => {
           const tag = (params as { tag: string }).tag;
           context.undo.compensate(tag, () => {
             if (tag === 'b') throw new Error('the snapshot is gone');
@@ -552,7 +552,7 @@ describe('§5 — one gesture is one group, one agent turn is one group', () => 
     const registry = registryWith(
       fake(
         { agentRisk: 'write-auto', undo: 'inverse' },
-        ((_s: unknown, _p: unknown, context: { undo: ReturnType<typeof createUndoScope> }) => {
+        ((_s: unknown, _p: unknown, context: ApplyContext) => {
           context.undo.inverse(inverseCommand);
           return null;
         })
@@ -589,7 +589,7 @@ describe('§5 — one gesture is one group, one agent turn is one group', () => 
       ...COMMAND_REGISTRY,
       'doc.write': fake(
         { agentRisk: 'write-auto', undo: 'inverse' },
-        ((_s: unknown, _p: unknown, context: { undo: ReturnType<typeof createUndoScope> }) => {
+        ((_s: unknown, _p: unknown, context: ApplyContext) => {
           context.undo.inverse(
             cmd({ name: 'binder.setMeta', params: { nodeId: THE_LANDING, patch: {} } }),
           );
@@ -768,7 +768,7 @@ describe('§5 — registration is a pipeline step, not an apply courtesy', () =>
     const registry = registryWith(
       fake(
         { agentRisk: 'write-auto', undo: 'compensable' },
-        ((_s: unknown, _p: unknown, context: { undo: ReturnType<typeof createUndoScope> }) => {
+        ((_s: unknown, _p: unknown, context: ApplyContext) => {
           context.undo.inverse(cmd({ name: 'view.setActiveDoc', params: { docId: THE_LANDING } }));
           return null;
         })
@@ -793,7 +793,7 @@ describe('§5 — registration is a pipeline step, not an apply courtesy', () =>
     const registry = registryWith(
       fake(
         { agentRisk: 'write-auto', undo: 'compensable' },
-        ((_s: unknown, _p: unknown, context: { undo: ReturnType<typeof createUndoScope> }) => {
+        ((_s: unknown, _p: unknown, context: ApplyContext) => {
           context.undo.compensate('restore the first', () => {});
           context.undo.compensate('restore the second', () => {});
           return null;
@@ -807,10 +807,53 @@ describe('§5 — registration is a pipeline step, not an apply courtesy', () =>
     if (result.ok) return;
     expect(result.error.code).toBe('internal');
     expect(result.error.message).toContain('doc.write');
-    expect(result.error.message).toContain('captured a second undo payload');
+    // The scope's own message does not repeat the command name: the pipeline's
+    // apply-threw prefix already names it, and a second naming would stutter.
+    expect(result.error.message).toContain('a second undo payload was captured');
     // The first capture is kept, so what the apply already changed is still
-    // reversible: the group holds the first compensation, not the second.
+    // reversible: the group holds the first compensation, not the second. The
+    // entry itself is asserted, because a count would also pass an
+    // implementation that overwrote the first capture with the second.
     expect(undo.groups()).toHaveLength(1);
+    expect(undo.groups()[0]!.entries[0]).toMatchObject({ kind: 'compensable', label: 'restore the first' });
+  });
+
+  it('reports a capture that arrives after the dispatch settled, instead of throwing where nobody catches it', () => {
+    // An apply that stashed the scope and captures from a timer, an event or a
+    // floating continuation fires after the pipeline read the payload and
+    // returned the outcome. A throw there escapes as an uncaught exception (or an
+    // unhandled rejection on the async path) — a defect that reaches no caller and
+    // no log. So a late capture is dropped, and the activity row reports it: the
+    // group the dispatch registered is already closed and cannot take the payload.
+    const { bus, log, undo } = harness();
+    let stashed: ApplyContext['undo'] | undefined;
+    const registry = registryWith(
+      fake(
+        { agentRisk: 'write-auto', undo: 'compensable' },
+        ((_s: unknown, _p: unknown, context: ApplyContext) => {
+          stashed = context.undo;
+          context.undo.compensate('the one that counts', () => {});
+          return null;
+        }),
+      ),
+    );
+
+    const result = execute(cmd({ name: 'doc.write' }), bus, registry);
+    expect(result.ok).toBe(true);
+    expect(undo.groups()).toHaveLength(1);
+
+    expect(() => stashed!.compensate('too late', () => {})).not.toThrow();
+    expect(() => stashed!.inverse(cmd({ name: 'view.setActiveDoc' }))).not.toThrow();
+    // The registered group is untouched by the late captures…
+    expect(undo.groups()).toHaveLength(1);
+    expect(undo.groups()[0]!.entries[0]).toMatchObject({ kind: 'compensable', label: 'the one that counts' });
+    // …and the log says the late ones arrived and were dropped: the row for the
+    // dispatch, then one row per late capture.
+    const rows = log.entries();
+    expect(rows).toHaveLength(3);
+    expect(rows[1]?.summary).toContain('after its dispatch settled');
+    expect(rows[1]?.command).toBe('doc.write');
+    expect(rows[2]?.summary).toContain('after its dispatch settled');
   });
 
   it("skips registration for a view command even when its descriptor claims undo: 'inverse'", () => {
@@ -839,7 +882,7 @@ describe('§5 — registration is a pipeline step, not an apply courtesy', () =>
     const registry = registryWith(
       fake(
         { agentRisk: 'write-auto', undo: 'none' },
-        ((_s: unknown, _p: unknown, context: { undo: ReturnType<typeof createUndoScope> }) => {
+        ((_s: unknown, _p: unknown, context: ApplyContext) => {
           // Capturing anyway must not create a group: the descriptor's `undo` is
           // the contract, and a capture the bus did not ask for is not registered.
           context.undo.compensate('ignored', () => undefined);

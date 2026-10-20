@@ -671,6 +671,8 @@ export function createProjectCommandRegistry(
   const binderSetMeta: ProjectApply<BinderSetMetaParams> = (state, params, context: ApplyContext) => {
     const node = requireNode(state, params.nodeId);
     const previousStamp = node.updatedAt;
+    const previousStatus = node.status;
+    const previousLabel = node.label;
     const patch = params.patch;
     const inverse: MetaPatch = {};
 
@@ -713,12 +715,29 @@ export function createProjectCommandRegistry(
       node.keywords = kept;
     }
 
-    stampFor(node, context.commandId, clock, restore);
-    context.undo.inverse(
-      inverseWith('binder.setMeta', { nodeId: params.nodeId, patch: inverse }, clock, restore, {
-        updatedAt: previousStamp,
-      }),
-    );
+    // The fields this dispatch **wrote**, as opposed to the keys it was handed:
+    // a status equal to the one the node holds, a label equal to the current
+    // one and a keyword re-added in another spelling each write no value
+    // (agent-harness §3 keeps meta.set idempotent by design, and the bus's
+    // validate accepts such a patch). project-format §2 bumps `updatedAt` for
+    // content-touching mutations, and a dispatch that wrote no value touched no
+    // content — so it stamps nothing, and it mints no restore-table entry:
+    // there is nothing for the inverse to recall. The field-less inverse is
+    // still registered, because §5 makes registration a pipeline step; the bus
+    // refuses to dispatch it as a changes-nothing request, and its undo reports
+    // that as the honest no-op it now is.
+    const wroteStatus = patch.status !== undefined && patch.status !== previousStatus;
+    const wroteLabel = patch.label !== undefined && patch.label !== previousLabel;
+    if (wroteStatus || wroteLabel || added.length > 0 || dropped.length > 0) {
+      stampFor(node, context.commandId, clock, restore);
+      context.undo.inverse(
+        inverseWith('binder.setMeta', { nodeId: params.nodeId, patch: inverse }, clock, restore, {
+          updatedAt: previousStamp,
+        }),
+      );
+    } else {
+      context.undo.inverse(inverseCommand('binder.setMeta', { nodeId: params.nodeId, patch: inverse }, clock));
+    }
 
     // §8's digest, built from the fields this dispatch **wrote** rather than the
     // keys it was handed — the two differ, and the difference is the interesting
@@ -727,8 +746,8 @@ export function createProjectCommandRegistry(
     // about a change that did not happen. The empty branch is therefore reachable
     // on a valid command, not only a defective one.
     const written: string[] = [];
-    if (patch.status !== undefined) written.push('status');
-    if (patch.label !== undefined) written.push('label');
+    if (wroteStatus) written.push('status');
+    if (wroteLabel) written.push('label');
     if (added.length > 0) written.push(countOf(added.length, 'keyword') + ' added');
     if (dropped.length > 0) written.push(countOf(dropped.length, 'keyword') + ' removed');
     context.report({

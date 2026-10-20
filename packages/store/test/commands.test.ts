@@ -469,6 +469,22 @@ describe('binder.setMeta — the inverse of a field the request could not expres
     expect(node(h.state, LANDING).keywords).toEqual(['sea', 'grief']);
   });
 
+  it('stamps nothing on a dispatch that wrote no field, so its undo has nothing left unrestored', () => {
+    // project-format §2: "content-touching mutations bump `updatedAt`". Re-adding
+    // a keyword the node already holds writes no value, so the node keeps the
+    // stamp it had. The forward apply used to stamp unconditionally and mint a
+    // restore entry for its empty inverse, and the undo — which rightly treats a
+    // changes-nothing inverse as a no-op — then reported full success while
+    // leaving that stamp unrestored and the entry unreclaimed.
+    const h = harness();
+    const before = node(h.state, LANDING).updatedAt;
+    const outcome = h.run(cmd({ name: 'binder.setMeta', params: { nodeId: LANDING, patch: { keywords_add: ['SEA'] } } }));
+    expect(node(h.state, LANDING).updatedAt).toBe(before);
+    const undone = h.undoGroup(outcome.undoGroupId!);
+    expect(undone.failures).toEqual([]);
+    expect(node(h.state, LANDING).updatedAt).toBe(before);
+  });
+
   it('adds a new keyword and removes exactly that one on undo', () => {
     const h = harness();
     const outcome = h.run(cmd({ name: 'binder.setMeta', params: { nodeId: LANDING, patch: { keywords_add: ['salt'] } } }));

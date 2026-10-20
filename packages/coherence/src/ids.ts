@@ -22,18 +22,20 @@ export function isCoherenceId(prefix: CoherenceIdPrefix, value: unknown): value 
 }
 
 /**
- * Mint an id not already in `taken`. `newId` re-rolls on collision itself; it falls
- * back to a longer id only when every attempt collided, and a coherence id has to
- * be the ten-character shape the spec fixes, so that fallback is refused here
- * rather than stored. Exhausting the attempts is a bug in the randomness source,
- * so it throws rather than returning a duplicate.
+ * Mint an id not already in `taken`. `newId` re-rolls on collision itself — up
+ * to twice `maxAttempts` draws — and **throws** once the draws are exhausted:
+ * an exhausted mint is a bug in the randomness source, and it surfaces as that
+ * throw rather than as a duplicate or a fallback of another shape. The id that
+ * comes back is therefore always taken-free and always the ten-character shape
+ * the spec fixes, so there is nothing left to re-check here.
+ *
+ * @throws {Error} when `newId`'s draws are exhausted (its message, naming the
+ * prefix and the attempt count).
  */
 export function mintCoherenceId(
   prefix: CoherenceIdPrefix,
   taken: ReadonlySet<string>,
   randomBytes?: RandomBytes,
 ): string {
-  const candidate = newId(prefix, { taken, ...(randomBytes ? { randomBytes } : {}), maxAttempts: 8 });
-  if (!taken.has(candidate) && isCoherenceId(prefix, candidate)) return candidate;
-  throw new Error(`could not mint a unique ${prefix}_ id after 8 attempts`);
+  return newId(prefix, { taken, ...(randomBytes ? { randomBytes } : {}), maxAttempts: 8 });
 }

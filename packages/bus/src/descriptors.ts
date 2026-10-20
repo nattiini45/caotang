@@ -593,12 +593,19 @@ export const binderSetMeta: CommandDescriptor<BinderSetMetaParams> = {
     }
     const keywords = checkKeywordPatch(node.value, typed);
     if (!keywords.ok) return keywords;
-    // An empty patch is not an idempotent no-op — it asks for nothing at all, and
-    // the two sibling patch commands refuse exactly that shape. Accepted here it
-    // would stamp the node modified and write an audit row for a change that did
-    // not happen.
+    // A patch with no field in it is not an idempotent no-op — it asks for
+    // nothing at all, and the two sibling patch commands refuse exactly that
+    // shape. What the refusal enforces is the shape, not the effect: a patch
+    // whose fields all match what the node already holds stays accepted,
+    // because agent-harness §3 makes meta.set "idempotent by design" and
+    // `requireStringArray` keeps `keywords_add: []` a legitimate "nothing to
+    // do" payload. Such a dispatch stamps nothing and mints no restore entry
+    // (the store's `binderSetMeta` writes `updatedAt` only for a field it
+    // actually changed), so neither the node's stamp nor the audit row claims a
+    // change that did not happen — the row's own digest says "left ...
+    // unchanged".
     if (Object.keys(typed).length === 0) {
-      return changesNothing('the patch changes nothing', `name at least one of: ${PATCH_KEYS.join(', ')}`, 'patch');
+      return changesNothing('the patch names no field, so it asks for nothing to change', `name at least one of: ${PATCH_KEYS.join(', ')}`, 'patch');
     }
     return ok({ nodeId: node.value.id, patch: typed });
   },
@@ -698,6 +705,13 @@ function requireDocumentNode(
  * it to bound their offsets, and `doc.write` needs it to know that the document
  * it is about to replace is one the loader could read at all — so the refusal
  * says the write, not offsets it never had.
+ *
+ * **The hint names the file, because the file is the surface that fixes this.**
+ * The id already resolved in `requireDocumentNode` by the time this runs, so
+ * §7's own rule — a `correctiveHint` names the surface that fixes the refusal —
+ * cannot be satisfied by "list valid ids": a body is missing when the
+ * document's file is not UTF-8 text the loader could read, and no id the caller
+ * passes changes that.
  */
 function requireLoadedBody(
   snapshot: ValidationSnapshot,
@@ -707,8 +721,8 @@ function requireLoadedBody(
   const length = documentLength(snapshot, docId);
   if (length === undefined) {
     return notFound(
-      `document "${docId}" has no body loaded, ${because}`,
-      HINT_READ_TREE,
+      `document "${docId}" has no body loaded — its file is not text the loader could read — ${because}`,
+      `the surface to fix is the document's own file, not this command's params: "${docId}.md" is not UTF-8 text the loader could read, so repair or re-save that file and reload the project. The id itself resolved, so binder.read_tree cannot help here`,
       docId,
     );
   }
@@ -744,16 +758,19 @@ export const docWrite: CommandDescriptor<DocWriteParams> = {
     if (!p.ok) return p;
     const doc = requireDocumentNode(snapshot, p.value, 'docId');
     if (!doc.ok) return doc;
+    // The params are checked before the state: a write that is both malformed
+    // and to an unloaded document reports the defect its caller must fix in
+    // params, rather than a state refusal that hides it.
+    const body = requireString(p.value, 'body');
+    if (!body.ok) return body;
+    const revision = expectedRevision(p.value);
+    if (!revision.ok) return revision;
     // The same check the two editor commands make: a document whose file is not
     // UTF-8 opens with no body record while its node stays in the tree, and a
     // write to it would reach the apply and fail there as a defect rather than
     // as the refusal the loader already promised.
     const loaded = requireLoadedBody(snapshot, doc.value.id, 'so it cannot be written to');
     if (!loaded.ok) return loaded;
-    const body = requireString(p.value, 'body');
-    if (!body.ok) return body;
-    const revision = expectedRevision(p.value);
-    if (!revision.ok) return revision;
     return ok({
       docId: doc.value.id,
       body: body.value,
@@ -1692,26 +1709,13 @@ export const coherenceSetFindingStatus: CommandDescriptor<CoherenceSetFindingSta
  * storyboard folder a shot lands in, the shot a metadata change names, and the id each create mints. The guards that
  * depend on what changed since the plan was made (a scene that moved, a shot whose metadata changed) run in the
  * apply, which the store registry supplies, because they read the storyboard module's own fields.
- */
-
-/**
- * The tree a snapshot carries, or `undefined` when it carries none.
  *
- * A validate reads the state it is handed and does not assume a shape the caller
- * did not supply: a caller that hands over no project state at all leaves these
- * checks with nothing to look up, and they stand down rather than refuse against
- * a state that was never there.
- *
- * The manifest is a required field of the snapshot, so every path that dispatches
- * these commands carries one: the app's session and the harness's runtime both
- * read the live project state, and the store's registry runs the applies against
- * that same state. Only a caller that supplies no state at all — a unit test that
- * hands the bus a bare snapshot — sees the checks stand down, and the apply's own
- * guards (the storyboard module's) still refuse what the project does not hold.
+ * These read `snapshot.manifest.tree` directly, like every other descriptor in this module. The manifest is a
+ * required field of the snapshot, so a snapshot without one is a broken read seam — a partial projection, an adapter
+ * defect — and not "no project state": it fails loudly here, the way `binder.move`'s sibling dereference does,
+ * rather than silently standing every existence check down and letting a validated command fail mid-apply, which is
+ * the §2 hole these checks exist to close.
  */
-function treeOf(snapshot: ValidationSnapshot): readonly ValidationNode[] | undefined {
-  return snapshot.manifest?.tree;
-}
 
 /**
  * The id a create mints, checked against the project the command is about: the
@@ -1719,20 +1723,19 @@ function treeOf(snapshot: ValidationSnapshot): readonly ValidationNode[] | undef
  *
  * The shape is project-format §2's (`n_` and ten Crockford base32 chars), and a
  * node id is also a filename — so an id of another shape is a project that will
- * not load again. The taken check is against the tree itself: an id the tree
- * already holds is a node the create cannot take, and the plan can refuse it
- * before the apply does.
- *
- * A caller that supplies no project state supplies nothing to check the id
- * against, so both halves stand down with the rest of the block.
+ * not load again. **The shape test is stateless input validation**: it describes
+ * what the caller supplied, not what the project holds, so it runs
+ * unconditionally — an id the loader would refuse on the next open is refused
+ * here whatever the tree looks like. Only the taken check reads the tree: an id
+ * the tree already holds is a node the create cannot take, and the plan can
+ * refuse it before the apply does.
  */
 function requireNewNodeId(
-  tree: readonly ValidationNode[] | undefined,
+  snapshot: ValidationSnapshot,
   params: Record<string, unknown>,
 ): Result<string, CommandError> {
   const id = requireNonBlankString(params, 'id');
   if (!id.ok) return id;
-  if (tree === undefined) return ok(id.value);
   if (!NODE_ID_PATTERN.test(id.value)) {
     return invalid(
       `"${id.value}" is not a node id`,
@@ -1740,7 +1743,7 @@ function requireNewNodeId(
       'id',
     );
   }
-  if (tree.some((node) => node.id === id.value)) {
+  if (snapshot.manifest.tree.some((node) => node.id === id.value)) {
     return invalid(
       `the tree already holds a node with id "${id.value}"`,
       'mint a fresh id for the node being created',
@@ -1751,15 +1754,13 @@ function requireNewNodeId(
 }
 
 /**
- * The node the id names, or a refusal naming the id that is not there — and
- * nothing at all when there is no tree to look in.
+ * The node the id names, or a refusal naming the id that is not there.
  */
-function requireNodeIn(
-  tree: readonly ValidationNode[] | undefined,
+function requireNodeInTree(
+  snapshot: ValidationSnapshot,
   id: string,
-): Result<ValidationNode | undefined, CommandError> {
-  if (tree === undefined) return ok(undefined);
-  const node = tree.find((candidate) => candidate.id === id);
+): Result<ValidationNode, CommandError> {
+  const node = findNode(snapshot, id);
   if (node === undefined) return notFound(`no node with id "${id}"`, HINT_READ_TREE, id);
   return ok(node);
 }
@@ -1771,13 +1772,39 @@ export const storyboardCreate: CommandDescriptor<StoryboardCreateCommandParams> 
   validate: (params, snapshot) => {
     const p = requireDeclaredParams('storyboard.create', params);
     if (!p.ok) return p;
-    const tree = treeOf(snapshot);
-    const id = requireNewNodeId(tree, p.value);
+    const id = requireNewNodeId(snapshot, p.value);
     if (!id.ok) return id;
     const parentId = requireNonBlankString(p.value, 'parentId');
     if (!parentId.ok) return parentId;
-    const parent = requireNodeIn(tree, parentId.value);
+    const parent = requireNodeInTree(snapshot, parentId.value);
     if (!parent.ok) return parent;
+    // The placement rules binder.create enforces, enforced here too (gap
+    // root-parent-invisible-nodes): a board under the project root is a node the
+    // binder can never show, a non-container cannot hold one, and a storyboard
+    // folder holds only shots. Existence alone would let a write-auto agent
+    // command create an invisible or malformed board that apply — which checks
+    // existence too, and nothing else — would happily land.
+    if (parent.value.id === 'root') {
+      return invalid(
+        'the project root is not a place for a node: the binder shows only the manuscript and research, so a storyboard made here would never appear',
+        'create the storyboard under "manuscript" or "research", or under a folder inside one of them',
+        'parentId',
+      );
+    }
+    if (!isContainer(parent.value)) {
+      return invalid(
+        `parent "${parent.value.id}" is a ${parent.value.type} and cannot hold children`,
+        'only folders hold children — name a folder, or create one with binder.create first',
+        'parentId',
+      );
+    }
+    if (isStoryboardFolder(parent.value)) {
+      return invalid(
+        `"${parent.value.id}" is a storyboard, and a storyboard holds only shots, so another storyboard cannot be made in it`,
+        'make the new board beside the other one, under the same parent',
+        'parentId',
+      );
+    }
     const title = requireNonBlankString(p.value, 'title');
     if (!title.ok) return title;
     const scene = isRecord(p.value['scene']) ? p.value['scene'] : undefined;
@@ -1806,16 +1833,15 @@ export const shotCreate: CommandDescriptor<ShotCreateCommandParams> = {
   validate: (params, snapshot) => {
     const p = requireDeclaredParams('shot.create', params);
     if (!p.ok) return p;
-    const tree = treeOf(snapshot);
-    const id = requireNewNodeId(tree, p.value);
+    const id = requireNewNodeId(snapshot, p.value);
     if (!id.ok) return id;
     const parentId = requireNonBlankString(p.value, 'parentId');
     if (!parentId.ok) return parentId;
-    const parent = requireNodeIn(tree, parentId.value);
+    const parent = requireNodeInTree(snapshot, parentId.value);
     if (!parent.ok) return parent;
     // The placement rule of storyboard.md §2.1, as `binder.move` states it: a shot
     // sits in a storyboard folder.
-    if (parent.value !== undefined && !isStoryboardFolder(parent.value)) {
+    if (!isStoryboardFolder(parent.value)) {
       return invalid(
         `"${parent.value.id}" is not a storyboard folder, and a shot lives in one`,
         'name the storyboard folder the shot belongs to',
@@ -1838,9 +1864,9 @@ export const shotSetMeta: CommandDescriptor<ShotSetMetaCommandParams> = {
     if (!p.ok) return p;
     const nodeId = requireNonBlankString(p.value, 'nodeId');
     if (!nodeId.ok) return nodeId;
-    const node = requireNodeIn(treeOf(snapshot), nodeId.value);
+    const node = requireNodeInTree(snapshot, nodeId.value);
     if (!node.ok) return node;
-    if (node.value !== undefined && node.value.type !== 'shot') {
+    if (node.value.type !== 'shot') {
       return invalid(
         `"${node.value.id}" is a ${node.value.type}, and only a shot holds these settings`,
         'choose the shot whose details to change',
