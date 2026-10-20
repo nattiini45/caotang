@@ -520,8 +520,11 @@ export async function writeProject(
  * it is decided by the write path itself (`writeProject`, steps 2b and 2c): a
  * file whose text the load could read travels with the state and is carried
  * into the bundle, and a file whose bytes are not UTF-8 — the one case with no
- * text to carry — makes the export **refuse** rather than ship a bundle that
- * quietly left the file out.
+ * text to carry — is where the copy's reader decides (`WriteOptions.copyFor`).
+ * A copy the writer takes home **refuses** rather than shipping a bundle that
+ * quietly left the file out; a copy the app keeps for itself records the
+ * omission in its report and goes on, because it mirrors what the state holds
+ * rather than backing the writer up.
  */
 async function pruneCodexFiles(
   fs: ArtifactFs,

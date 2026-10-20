@@ -84,7 +84,17 @@ function str(value: string, field: string): string {
 
 function scalar(value: string | number | boolean | null, field: string): string {
   if (value === null) return 'null';
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'number') {
+    // `String()` writes a non-finite number bare (`from: NaN`), which is not
+    // JSON and fails the next load, so the write is refused and the field is
+    // named. The load drops the values that could get here (validate.ts), and
+    // this is the second guard.
+    if (!Number.isFinite(value)) {
+      throw new Error(`cannot write "${field}": ${String(value)} is not a JSON number`);
+    }
+    return String(value);
+  }
+  if (typeof value === 'boolean') return String(value);
   if (typeof value === 'string') return str(value, field);
   throw new Error(
     `cannot write "${field}": expected a string, a number, a boolean or null, got ${describeValue(value)}`,
@@ -92,18 +102,31 @@ function scalar(value: string | number | boolean | null, field: string): string 
 }
 
 /**
- * A JSON value for a saved-filter criterion, which may be a string, a number, a
- * boolean, null, a list or an object (binder-filters §2's criteria).
+ * A JSON value for a saved-filter criterion or a node's media metadata.
  *
- * The list and object cases are why this is not {@link scalar}: the criterion
- * `keywordsAll: ["sea"]` is written as the JSON it is, bare, so the file reads
- * as JSON in the file rather than as a quoted list.
+ * A filter criterion's value is a string, a number, a boolean, null or a list
+ * of strings (binder-filters §2's criteria, and validate.ts `isCriterionValue`
+ * — the load drops a filter whose criterion the writer could not write back);
+ * a node's `shot`/`dialogue` metadata goes through here as the object it is
+ * (project-format.md §2's media note). Either way the value is written as the
+ * JSON it is, bare, so the file reads as JSON rather than as a quoted list.
+ *
+ * A number has to be finite and a BigInt cannot appear at all: `JSON.stringify`
+ * writes NaN and Infinity as `null` — a save that silently changes the value —
+ * and throws an unnamed `TypeError` for a BigInt. Both are refusals here,
+ * naming the field, so the write either tells the truth or does not happen.
  */
 function criterion(value: unknown, field: string): string {
   if (value === undefined) {
     throw new Error(
       `cannot write "${field}": the value is not there, and a field that is not there cannot be written as JSON`,
     );
+  }
+  if (typeof value === 'bigint') {
+    throw new Error(`cannot write "${field}": a BigInt is not JSON`);
+  }
+  if (typeof value === 'number' && !Number.isFinite(value)) {
+    throw new Error(`cannot write "${field}": ${String(value)} is not a JSON number`);
   }
   const text = JSON.stringify(value);
   if (text === undefined) {
@@ -176,10 +199,12 @@ function source(source: CodexEntry['sources'][number]): string {
     ['docId', str(source.docId, 'source.docId')],
     ['quote', str(source.quote, 'source.quote')],
   ];
-  // The offsets go through JSON's own number encoding, not String(): String() writes
-  // a non-numeric value bare (`from: zero`), which is not JSON and fails the next
-  // load. The loader drops such a citation (validate.ts), so this is the second guard,
-  // and it keeps the file parseable even when a value somehow got past the first.
+  // The offsets go through `scalar`, whose number branch refuses a non-finite
+  // value rather than writing it bare (`from: NaN` is not JSON and fails the
+  // next load). The loader drops a citation with such an offset (validate.ts),
+  // so this is the second guard: a value that somehow got past the first
+  // refuses the save, and a refused save writes nothing, so the file stays
+  // parseable either way.
   if (source.from !== undefined) fields.push(['from', scalar(source.from, 'source.from')]);
   if (source.to !== undefined) fields.push(['to', scalar(source.to, 'source.to')]);
   if (source.extractedAt !== undefined) fields.push(['extractedAt', str(source.extractedAt, 'source.extractedAt')]);

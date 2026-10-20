@@ -10,19 +10,24 @@
  * without anyone being told. The load's tolerance is therefore only safe while
  * the drop list is empty for everything the app itself writes.
  *
- * So this test holds a project state with **every filter and goal variant the
- * app can write**, writes it with the store's own serializer, reads it back
- * through the store's own load and validation, and says two things: nothing was
- * dropped, and what comes back is what went out.
+ * So this test holds a project state with **every criterion key and value
+ * shape the loader must tolerate, and every goal variant the app can write**,
+ * writes it with the store's own serializer, reads it back through the store's
+ * own load and validation, and says two things: nothing was dropped, and what
+ * comes back is what went out. The filter half is load-side shape tolerance,
+ * not save-side acceptance: most key/value pairs (a `statusId` of `42`, a
+ * `minWords` of `'probe-…'`) are refused by the bus at save time — what the
+ * round trip proves is that a value the load kept is a value the writer can
+ * write back and the next load keeps again.
  *
  * ## Why the fixture is derived rather than written out
  *
  * A fixture that lists the variants by hand goes stale the moment the bus
  * gains one, and a stale fixture is a green test that proves nothing. So:
  *
- * - the criterion keys are read from the bus that owns them — the bus publishes
- *   the list in the refusal it makes for a criterion it does not know — so a
- *   criterion the bus gains is in the next run's fixture;
+ * - the criterion keys are the bus's own exported `CRITERIA_KEYS` — the one
+ *   record of the list, which the bus's command checks and the store's loader
+ *   both read — so a criterion the bus gains is in the next run's fixture;
  * - the goal enums are the bus's own exported unions, covered exhaustively
  *   (`Record<Union, true>`), so a variant the bus gains breaks this file's
  *   typecheck rather than passing silently.
@@ -34,12 +39,11 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  COMMAND_REGISTRY,
+  CRITERIA_KEYS,
   type FurnitureRoot,
   type GoalComparatorParam,
   type GoalKindParam,
   type GoalMetricParam,
-  type ValidationSnapshot,
 } from '@caotang/bus';
 import {
   MemoryArtifactFs,
@@ -67,40 +71,15 @@ const GOAL_METRICS: Record<GoalMetricParam, true> = { words: true, chars: true }
 const GOAL_COMPARATORS: Record<GoalComparatorParam, true> = { 'at-least': true, 'at-most': true, about: true };
 const FILTER_ROOTS: Record<FurnitureRoot, true> = { manuscript: true, research: true };
 
-/** The vocabulary the bus's criterion checks read: one status to name, no tree. */
-const SNAPSHOT: ValidationSnapshot = {
-  manifest: {
-    tree: [],
-    vocabulary: { statuses: [{ id: 'draft' }], labels: [] },
-  },
-  documents: new Map(),
-};
-
 /**
- * The criterion keys this build accepts, taken from the bus that owns the list.
+ * The criterion keys this build accepts, from the bus that owns the list.
  *
- * The bus's own `CRITERIA_KEYS` is private to its module and the store must
- * not restate it — two records of one fact is how a list drifts. The bus
- * *publishes* the list in the refusal it makes for a criterion it does not
- * know, so that refusal is where the list is read from. A bus that changes the
- * refusal's wording breaks this test loudly, which is the right outcome: the
- * list has to come from somewhere, and it must come from the bus.
+ * The bus publishes `CRITERIA_KEYS` and its command checks read it, so the
+ * fixture below and the loader's unknown-key drop (validate.ts) are derived
+ * from the same record: a criterion the bus gains is in the next run's
+ * fixture, and nothing here restates the list.
  */
-function criterionKeys(): string[] {
-  const probe = COMMAND_REGISTRY['binder.saveFilter'].descriptor.validate(
-    { filter: { name: 'probe', criteria: { __not_a_criterion__: true } } },
-    SNAPSHOT,
-  );
-  if (probe.ok) throw new Error('the bus accepted a criterion it does not know, so it publishes no list to read');
-  const hint = probe.error.correctiveHint ?? '';
-  const listed = /^a criterion is one of: (.+)$/.exec(hint);
-  if (listed === null) {
-    throw new Error(`the bus no longer publishes its criterion list in a refusal: "${hint}"`);
-  }
-  return (listed[1] as string)
-    .split(',')
-    .map((key) => key.trim());
-}
+const KEYS: readonly string[] = CRITERIA_KEYS;
 
 /**
  * The five shapes a criterion value can hold (binder-filters §2's criteria, and
@@ -165,8 +144,6 @@ function projectGoal(
   };
 }
 
-const KEYS = criterionKeys();
-
 /** One filter per value kind, each carrying every criterion key the bus accepts. */
 function criteriaOfKind(kind: ValueKind): Record<string, unknown> {
   return Object.fromEntries(KEYS.map((key) => [key, criterionValue(kind, key)]));
@@ -186,17 +163,18 @@ const GOALS: ProjectGoal[] = [
   projectGoal('g_01H2K3M4N5', 'words', 'at-least', 80_000),
   projectGoal('g_02H2K3M4N5', 'chars', 'at-most', 400_000, { deadline: '2026-12-31' }),
   projectGoal('g_03H2K3M4N5', 'words', 'about', 75_000, { archived: false }),
-  // A weekly goal: the reset day is a weekday.
+  // A weekly goal: the reset day is a weekday. A session goal keeps §9.3's
+  // invariants — manuscript root, words, at-least, no deadline — because the
+  // loader drops one that breaks them, exactly as the bus refuses it at save.
   projectGoal('g_04H2K3M4N5', 'words', 'at-least', 2_000, { kind: 'weekly', resetDay: 0 }),
-  projectGoal('g_05H2K3M4N5', 'chars', 'at-most', 12_000, { kind: 'weekly', resetDay: 6, deadline: '2027-01-01' }),
-  projectGoal('g_06H2K3M4N5', 'chars', 'about', 9_000, { kind: 'weekly', resetDay: 3, archived: true }),
+  projectGoal('g_05H2K3M4N5', 'words', 'at-least', 12_000, { kind: 'weekly', resetDay: 6 }),
+  projectGoal('g_06H2K3M4N5', 'words', 'at-least', 9_000, { kind: 'weekly', resetDay: 3, archived: true }),
   // A monthly goal: the reset day is a day of the month, or `last`.
   projectGoal('g_07H2K3M4N5', 'words', 'at-least', 8_000, { kind: 'monthly', resetDay: 1 }),
-  projectGoal('g_08H2K3M4N5', 'chars', 'at-most', 48_000, { kind: 'monthly', resetDay: 28 }),
-  projectGoal('g_09H2K3M4N5', 'words', 'about', 7_500, {
+  projectGoal('g_08H2K3M4N5', 'words', 'at-least', 48_000, { kind: 'monthly', resetDay: 28 }),
+  projectGoal('g_09H2K3M4N5', 'words', 'at-least', 7_500, {
     kind: 'monthly',
     resetDay: 'last',
-    deadline: '2027-03-31',
     archived: false,
   }),
 ];
@@ -212,7 +190,7 @@ async function writeAndRead(filters: SavedFilter[], goals: ProjectGoal[]): Promi
   return readProject(fs);
 }
 
-describe('every filter and goal the app can write, through the writer and the loader', () => {
+describe('every filter shape the loader tolerates and every goal the app can write, through the writer and the loader', () => {
   it('comes back with nothing dropped and nothing changed', async () => {
     const loaded = await writeAndRead(FILTERS, GOALS);
 
@@ -238,7 +216,7 @@ describe('every filter and goal the app can write, through the writer and the lo
 
 describe('the fixture covers the whole vocabulary', () => {
   it('covers every criterion key the bus accepts, with every value kind', () => {
-    const keys = criterionKeys();
+    const keys = CRITERIA_KEYS;
     expect(keys.length).toBeGreaterThan(0);
 
     const kindFilters = FILTERS.slice(0, VALUE_KINDS.length);

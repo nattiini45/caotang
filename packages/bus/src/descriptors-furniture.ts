@@ -100,8 +100,12 @@ export const SAVED_FILTERS_MAX = 50;
 /** goals-progress §2.2: ≤ 20 goals per project (the store checks the count). */
 export const GOALS_MAX = 20;
 
-/** The criteria keys this build knows (binder-filters §2, §2.1). A key outside the list is refused here. */
-const CRITERIA_KEYS: readonly string[] = [
+/**
+ * The criteria keys this build knows (binder-filters §2, §2.1). A key outside the list is refused here, and the store's loader
+ * (validate.ts) reads this same list to drop an unknown key from a saved filter on load — one record of the list, so the
+ * command boundary and the load cannot drift apart.
+ */
+export const CRITERIA_KEYS: readonly string[] = [
   'text',
   'textIn',
   'statusId',

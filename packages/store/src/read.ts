@@ -172,9 +172,11 @@ const KNOWN_TOP_LEVEL = new Set([
  *
  * `test/read-refusal.test.ts` checks this list against the serializer rather
  * than against a copy of it, so a field added to a node later fails that test
- * until the load learns it.
+ * until the load learns it. The set is exported for that comparison: the gate
+ * has to diff the reader's own list against the writer's output, and a second
+ * copy of the list in the test is exactly the drift the gate exists to catch.
  */
-const KNOWN_NODE_KEYS = new Set([
+export const KNOWN_NODE_KEYS = new Set([
   'id',
   'parentId',
   'type',

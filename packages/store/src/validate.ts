@@ -31,7 +31,7 @@ import {
   type AppliedMigration,
   type FormatContext,
 } from './migrations.js';
-import { CHAR_LIMIT_MAX, SCENE_NUMBER_OPTIONS } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, CRITERIA_KEYS, SCENE_NUMBER_OPTIONS } from '@caotang/bus';
 // The shapes the bus names for the furniture commands. The *values* the bus
 // refuses at the command boundary are restated below, for the load; the types
 // are the bus's own, so a value the bus does not know cannot be listed here.
@@ -203,13 +203,28 @@ const GOAL_KINDS = ['project', 'weekly', 'monthly'] as const satisfies readonly 
  *
  * The bus's own check is stricter about *which* keys exist and what each one
  * means; this one is about the shape, because a criterion value the writer
- * cannot write is a filter the writer cannot save.
+ * cannot write is a filter the writer cannot save. A number has to be finite:
+ * `JSON.stringify` writes NaN and Infinity as `null`, so keeping one would let
+ * the next save silently change the value — and JSON itself parses `1e400` to
+ * Infinity, which is how a file can carry one.
  */
 function isCriterionValue(v: unknown): boolean {
   if (v === null) return true;
-  if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return true;
+  if (typeof v === 'number') return Number.isFinite(v);
+  if (typeof v === 'string' || typeof v === 'boolean') return true;
   if (Array.isArray(v)) return v.every((item) => typeof item === 'string');
   return false;
+}
+
+/**
+ * A saved-filter or goal id of the shape the bus enforces at every command
+ * boundary (`q_`/`g_` + 10 Crockford chars, binder-filters §2, goals-progress
+ * §2.2). An id of another shape loads as a record no command can update, delete
+ * or undo — the author could never edit it again — so the load drops it, the
+ * same way it drops a codex id of the wrong shape.
+ */
+function isFurnitureId(prefix: 'q' | 'g', v: unknown): v is string {
+  return typeof v === 'string' && v.startsWith(`${prefix}_`) && isGeneratedId(v);
 }
 
 /**
@@ -217,12 +232,14 @@ function isCriterionValue(v: unknown): boolean {
  *
  * The root is not among them, and neither are the timestamps' *values* — those
  * are checked here because the writer writes them unconditionally, so a filter
- * without them is a filter the writer cannot write back.
+ * without them is a filter the writer cannot write back. The name has to be one
+ * the writer could show: the bus refuses a blank one at save, so a blank name
+ * can only arrive from a hand edit or a foreign writer.
  */
 function isSavedFilter(v: unknown): boolean {
   if (!isRecord(v)) return false;
-  if (typeof v['id'] !== 'string' || v['id'] === '') return false;
-  if (typeof v['name'] !== 'string') return false;
+  if (!isFurnitureId('q', v['id'])) return false;
+  if (typeof v['name'] !== 'string' || v['name'].trim() === '') return false;
   if (!isRecord(v['criteria'])) return false;
   if (!Object.values(v['criteria']).every(isCriterionValue)) return false;
   return isIsoDate(v['createdAt']) && isIsoDate(v['updatedAt']);
@@ -386,16 +403,52 @@ function validateFields(
   // status term leaves the nodes pointing at an id the vocabulary no longer
   // defines, and reading `input` would silence the "unknown vocabulary id"
   // warning that manifest must raise.
-  const vocabulary = isRecord(source.vocabulary) ? source.vocabulary : {};
+  //
+  // The terms are normalized here as well, because the writer writes each one's
+  // `id`, `name` and `color` unconditionally (manifest-json.ts `term`): a term
+  // whose name or color is not a string used to load silently and then make
+  // every save throw. A term the writer cannot write is dropped with a warning,
+  // and the nodes that named it keep their value as an unknown chip — the same
+  // posture §2 gives an unknown vocabulary id on a node.
+  let vocabulary: Record<string, unknown>;
+  if (isRecord(source.vocabulary)) {
+    vocabulary = source.vocabulary;
+  } else {
+    if (source.vocabulary !== undefined) {
+      warn('vocabulary', 'expected an object of statuses and labels; replaced with an empty one, and the project opens with no terms');
+    }
+    vocabulary = { statuses: [], labels: [] };
+    source.vocabulary = vocabulary;
+  }
+  for (const kind of ['statuses', 'labels'] as const) {
+    const terms: unknown = vocabulary[kind];
+    if (terms === undefined) {
+      vocabulary[kind] = [];
+      continue;
+    }
+    if (!Array.isArray(terms)) {
+      warn(`vocabulary.${kind}`, 'expected an array of terms; replaced with an empty one');
+      vocabulary[kind] = [];
+      continue;
+    }
+    vocabulary[kind] = terms.filter((term, i) => {
+      if (
+        isRecord(term) &&
+        typeof term['id'] === 'string' &&
+        typeof term['name'] === 'string' &&
+        typeof term['color'] === 'string'
+      ) {
+        return true;
+      }
+      warn(`vocabulary.${kind}[${i}]`, 'expected { id, name, color } of strings; dropped, and the nodes that named it show an unknown chip');
+      return false;
+    });
+  }
   const statusIds = new Set(
-    Array.isArray(vocabulary.statuses)
-      ? vocabulary.statuses.filter(isRecord).map((s) => String(s.id))
-      : [],
+    (vocabulary.statuses as unknown[]).filter(isRecord).map((s) => String(s.id)),
   );
   const labelIds = new Set(
-    Array.isArray(vocabulary.labels)
-      ? vocabulary.labels.filter(isRecord).map((s) => String(s.id))
-      : [],
+    (vocabulary.labels as unknown[]).filter(isRecord).map((s) => String(s.id)),
   );
 
   source.tree.forEach((raw, i) => {
@@ -438,7 +491,13 @@ function validateFields(
 
     for (const key of ['status', 'label'] as const) {
       const v = node[key];
-      if (v === null || v === undefined) continue;
+      // An absent one gets the null the field table gives it: the writer writes
+      // both unconditionally, and `null` is the documented "no status/label".
+      if (v === undefined) {
+        node[key] = null;
+        continue;
+      }
+      if (v === null) continue;
       if (typeof v !== 'string') {
         fatal(`${at}.${key}`, 'expected vocabulary id or null');
         continue;
@@ -470,11 +529,17 @@ function validateFields(
     if (typeof node.notes !== 'string' || node.notes.length > MAX_NOTES) {
       fatal(`${at}.notes`, `expected string ≤ ${MAX_NOTES} chars`);
     }
+    // The stamps are deleted rather than only reported: the writer writes a
+    // present stamp unconditionally and refuses one that is not a string, so a
+    // value kept here would make every save of this project throw. "Ignoring
+    // field" has to mean the field is gone, the same way `kind` below is.
     if (node.createdAt !== undefined && !isIsoDate(node.createdAt)) {
       warn(`${at}.createdAt`, 'expected ISO-8601 date string; ignoring field');
+      delete node.createdAt;
     }
     if (node.updatedAt !== undefined && !isIsoDate(node.updatedAt)) {
       warn(`${at}.updatedAt`, 'expected ISO-8601 date string; ignoring field');
+      delete node.updatedAt;
     }
     // The media-track fields (project-format.md §2's media note). A kind is kept as the string it is, even an unknown
     // one, because the next version may add a kind this build does not know. A shot or container metadata value that
@@ -614,6 +679,19 @@ function validateCodex(
       origin?: unknown;
       type?: unknown;
     };
+
+    // The writer writes the entry's lists, its description and its case flag
+    // unconditionally (manifest-json.ts `codexEntry`), and refuses a value it
+    // cannot encode. The spec gives each an absent meaning — no aliases, no
+    // exclusions, no attachments, no keywords, no citations, an empty
+    // description (which is dropped from assembly), detection case-insensitive —
+    // so the load gives an absent field that meaning rather than keeping a
+    // value every save would die on.
+    for (const key of ['aliases', 'exclude', 'attachments', 'keywords', 'sources'] as const) {
+      if (entryNode[key] === undefined) entryNode[key] = [];
+    }
+    if (entryNode.description === undefined) entryNode.description = '';
+    if (entryNode.caseSensitive === undefined) entryNode.caseSensitive = false;
 
     // --- id ---------------------------------------------------------------
     const id = entryNode.id;
@@ -911,12 +989,16 @@ function validateCodex(
     // --- timestamps -------------------------------------------------------
     for (const key of ['createdAt', 'updatedAt'] as const) {
       const stamp = entryNode[key];
-      if (stamp !== undefined && stamp !== null && !isIsoDate(stamp)) {
+      if (stamp !== undefined && !isIsoDate(stamp)) {
         // Warning, not fatal, and the same choice `tree[]` makes: a §5.4-rebuilt
         // entry genuinely has no known creation time and codex.md §3's file has
         // no key for it, so absence is normal and a malformed stamp is a
-        // foreign writer rather than a broken project.
+        // foreign writer rather than a broken project. `null` is malformed here
+        // too — the writer refuses a stamp that is not a string — and the field
+        // is deleted, not merely reported, so "ignoring field" leaves nothing
+        // behind that the next save would die on.
         warn(`${at}.${key}`, 'expected ISO-8601 date string; ignoring field');
+        delete entryNode[key];
       }
     }
   });
@@ -939,9 +1021,17 @@ function validateCodex(
  *   its `criteria`, its two stamps) takes the filter with it: the writer writes
  *   those unconditionally, so a filter that is missing one is a filter the
  *   writer cannot write back without inventing a value.
- * - An **optional** field that is malformed (the `root`) is dropped on its own
- *   and the filter is kept, because the field has a documented meaning when it
- *   is absent — an unscoped filter searches both roots.
+ * - An **optional** field that is malformed (the `root`, a criterion key this
+ *   build does not know) is dropped on its own and the filter is kept, because
+ *   the field has a documented meaning when it is absent — an unscoped filter
+ *   searches both roots, and a filter without one criterion searches on the
+ *   rest. binder-filters §4: "unknown criteria keys are dropped with the
+ *   one-time unknown-field notice". The key list is the bus's own export, so
+ *   the load and the command boundary read one record of it.
+ *
+ * The id is checked as the bus checks it and must be unique in the array: an
+ * id no command accepts makes the filter uneditable and undeletable, and a
+ * repeated id makes every update-by-id target the first match only.
  */
 function validateFilters(source: Record<string, unknown>, warn: (path: string, message: string) => void): void {
   const raw = source['filters'];
@@ -951,18 +1041,35 @@ function validateFilters(source: Record<string, unknown>, warn: (path: string, m
     delete source['filters'];
     return;
   }
+  const seenIds = new Set<string>();
   const kept = raw.filter((filter, i) => {
     if (!isSavedFilter(filter)) {
-      warn(`filters[${i}]`, 'not a saved filter (id, name, criteria, createdAt, updatedAt); dropped');
+      warn(
+        `filters[${i}]`,
+        'not a saved filter (an id "q_" + 10 base32 chars, a name, criteria, createdAt, updatedAt); dropped',
+      );
       return false;
     }
-    const root = (filter as Record<string, unknown>)['root'];
+    const record = filter as Record<string, unknown>;
+    const id = record['id'] as string;
+    if (seenIds.has(id)) {
+      warn(`filters[${i}].id`, `duplicate id "${id}"; dropped, and the first filter keeps it`);
+      return false;
+    }
+    seenIds.add(id);
+    const criteria = record['criteria'] as Record<string, unknown>;
+    for (const key of Object.keys(criteria)) {
+      if ((CRITERIA_KEYS as readonly string[]).includes(key)) continue;
+      warn(`filters[${i}].criteria.${key}`, `unknown criterion "${key}"; dropped, and the filter searches on the rest`);
+      delete criteria[key];
+    }
+    const root = record['root'];
     if (root !== undefined && !(FILTER_ROOTS as readonly unknown[]).includes(root)) {
       warn(
         `filters[${i}].root`,
         `unknown root ${JSON.stringify(root)}; dropped, and the filter searches both roots`,
       );
-      delete (filter as Record<string, unknown>)['root'];
+      delete record['root'];
     }
     return true;
   });
@@ -981,9 +1088,18 @@ function validateFilters(source: Record<string, unknown>, warn: (path: string, m
  * vocabulary ids; never blocks load)".
  *
  * The optional fields are dropped one by one rather than taking the goal with
- * them: a deadline that names no day makes a goal open-ended, and an `archived`
- * that is not a boolean makes it un-archived, and both are the field's
- * documented meaning when it is absent.
+ * them: a deadline that names no day makes a goal open-ended, an `archived`
+ * that is not a boolean makes it un-archived, and a `resetDay` that names no
+ * day in the goal's window makes it reset on the window's default day — each
+ * is the field's documented meaning when it is absent.
+ *
+ * The id is checked as the bus checks it (`g_` + 10 Crockford chars) and must
+ * be unique in the array, and a weekly or monthly goal must keep §9.3's
+ * invariants — manuscript root, `words`, `at-least`, no deadline — because
+ * every `project.saveGoal` and its undo inverse refuse one that does not: a
+ * loaded goal the bus refuses is a goal the author can never edit, or undo the
+ * deletion of, again. The deadline is the one invariant an optional field can
+ * repair, so it is dropped on its own and the goal is kept.
  */
 function validateGoals(
   source: Record<string, unknown>,
@@ -997,6 +1113,7 @@ function validateGoals(
     delete source['goals'];
     return;
   }
+  const seenIds = new Set<string>();
   const kept = raw.filter((candidate, i) => {
     if (!isRecord(candidate)) {
       warn(`goals[${i}]`, 'not a project goal; dropped');
@@ -1005,10 +1122,16 @@ function validateGoals(
     const goal = candidate;
 
     // --- the fields a goal cannot do without -----------------------------
-    if (typeof goal['id'] !== 'string' || goal['id'] === '') {
-      warn(`goals[${i}]`, 'expected an id; goal dropped');
+    if (!isFurnitureId('g', goal['id'])) {
+      warn(`goals[${i}]`, 'expected an id "g_" + 10 base32 chars; goal dropped');
       return false;
     }
+    const id = goal['id'];
+    if (seenIds.has(id)) {
+      warn(`goals[${i}].id`, `duplicate id "${id}"; dropped, and the first goal keeps it`);
+      return false;
+    }
+    seenIds.add(id);
     if (typeof goal['nodeId'] !== 'string' || goal['nodeId'] === '') {
       warn(`goals[${i}]`, 'expected the node id it counts; goal dropped');
       return false;
@@ -1047,21 +1170,55 @@ function validateGoals(
     const resetDay = goal['resetDay'];
     if (resetDay !== undefined) {
       const window = typeof kind === 'string' ? kind : 'project';
-      if (window === 'project') {
+      if (resetDay === null) {
+        // The bus reads `null` as absent (goals-progress §4: "null reads as
+        // absent"), and absent means the window's default day — so the field
+        // goes quietly and the goal keeps its window.
+        delete goal['resetDay'];
+      } else if (window === 'project') {
         // goals-progress §2.2: "Weekly and monthly goals only (a project goal
         // carrying one is refused at save and dropped on load)."
         warn(`goals[${i}]`, 'a project goal carries no reset day; goal dropped');
         return false;
+      } else {
+        const weekday = typeof resetDay === 'number' && Number.isInteger(resetDay) && resetDay >= 0 && resetDay <= 6;
+        const monthDay =
+          resetDay === 'last' || (typeof resetDay === 'number' && Number.isInteger(resetDay) && resetDay >= 1 && resetDay <= 28);
+        if (!(window === 'weekly' ? weekday : monthDay)) {
+          // The field goes, the goal stays: an absent reset day is the spec's
+          // default (the locale's first weekday, or the 1st), and dropping the
+          // whole goal would lose id, target, comparator and stamps over an
+          // optional field.
+          warn(
+            `goals[${i}].resetDay`,
+            'expected a weekday (0–6) for a weekly goal, or a day of the month (1–28, or "last") for a monthly one; dropped, and the goal resets on its window’s default day',
+          );
+          delete goal['resetDay'];
+        }
       }
-      const weekday = typeof resetDay === 'number' && Number.isInteger(resetDay) && resetDay >= 0 && resetDay <= 6;
-      const monthDay =
-        resetDay === 'last' || (typeof resetDay === 'number' && Number.isInteger(resetDay) && resetDay >= 1 && resetDay <= 28);
-      if (!(window === 'weekly' ? weekday : monthDay)) {
-        warn(
-          `goals[${i}]`,
-          'expected a weekday (0–6) for a weekly goal, or a day of the month (1–28, or "last") for a monthly one; goal dropped',
-        );
+    }
+    // goals-progress §9.3: a weekly or monthly goal attaches to the manuscript
+    // root, counts words, is `at-least` and takes no deadline. The bus enforces
+    // all four on every save and every undo, so a goal that breaks one of the
+    // first three is a goal no command can ever touch again — dropped. The
+    // deadline is repaired instead: "no deadline" is the field's documented
+    // meaning when absent, so the field goes and the goal stays.
+    if (kind === 'weekly' || kind === 'monthly') {
+      const broken =
+        goal['nodeId'] !== 'manuscript'
+          ? 'attaches to the manuscript root'
+          : goal['metric'] !== 'words'
+            ? 'counts words'
+            : comparator !== 'at-least'
+              ? 'is at-least'
+              : undefined;
+      if (broken !== undefined) {
+        warn(`goals[${i}]`, `a ${kind} goal ${broken} (goals-progress §9.3), and the bus refuses one that does not; goal dropped`);
         return false;
+      }
+      if (goal['deadline'] !== undefined) {
+        warn(`goals[${i}].deadline`, `a ${kind} goal recurs, so it takes no deadline; dropped, and the goal is kept`);
+        delete goal['deadline'];
       }
     }
     const deadline = goal['deadline'];

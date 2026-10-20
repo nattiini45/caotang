@@ -1,5 +1,5 @@
 /**
- * `filters[]` and `goals[]` on load — binder-filters §4, goals-progress §2.2/§3.
+ * `filters[]` and `goals[]` on load — binder-filters §4, goals-progress §2.2/§3/§9.3.
  *
  * Both arrays hold the author's own saved work, and neither was checked when a
  * `caotang.json` was opened. A manifest carrying `"filters": {}` reached the
@@ -20,8 +20,16 @@
  * cost different things: a **required** field the entry cannot do without (a
  * filter's `id`, a goal's `comparator`) takes the entry with it, because the
  * serializer writes those unconditionally; an **optional** field that is
- * malformed (a filter's `root`, a goal's `deadline`) is dropped on its own and
- * the entry is kept, because the field has a documented meaning when absent.
+ * malformed (a filter's unknown criterion key, a goal's `deadline` or
+ * `resetDay`) is dropped on its own and the entry is kept, because the field
+ * has a documented meaning when absent.
+ *
+ * The ids are checked as the bus checks them (`q_`/`g_` + 10 Crockford chars)
+ * and must be unique in their array, because an entry the bus would refuse to
+ * update or undo is one the author can never edit or delete again. A weekly or
+ * monthly goal also has to keep goals-progress §9.3's invariants — it attaches
+ * to the manuscript root, counts words, is `at-least` and takes no deadline —
+ * for the same reason: every `project.saveGoal` refuses one that does not.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -62,20 +70,32 @@ const GOOD_GOAL: ProjectGoal = {
   updatedAt: ISO,
 };
 
+/**
+ * A fresh copy, so an expectation is never the object under test: the validator
+ * returns the manifest it was given and edits entries in place, so comparing an
+ * entry against the very object that was put in compares a thing against itself
+ * and can never fail.
+ */
+function copyOf<T>(value: T): T {
+  return structuredClone(value);
+}
+
 function base(): Manifest {
   return createEmptyManifest('The Lighthouse Keeper', T);
 }
 
 describe('filters[] on load (binder-filters §4)', () => {
-  it('keeps a saved filter as it is, with no warning', () => {
+  it('keeps a saved filter as it is, with no warning, and leaves the input untouched', () => {
+    const input = copyOf(GOOD_FILTER);
     const m = base();
-    m.filters = [GOOD_FILTER];
+    m.filters = [input];
 
     const r = validateManifest(m, { docFiles: [] });
 
     expect(r.ok).toBe(true);
     expect(r.warnings).toEqual([]);
-    expect(r.manifest?.filters).toEqual([GOOD_FILTER]);
+    expect(r.manifest?.filters).toEqual([copyOf(GOOD_FILTER)]);
+    expect(input).toEqual(GOOD_FILTER);
   });
 
   it('drops a filters value that is not an array, with a warning, and the project still opens', () => {
@@ -91,18 +111,18 @@ describe('filters[] on load (binder-filters §4)', () => {
 
   it('drops a filter that is not a saved filter, and keeps the ones that are', () => {
     const m = base();
-    m.filters = [GOOD_FILTER, { id: 'q_02H2K3M4N5' } as never, 'not a filter' as never];
+    m.filters = [copyOf(GOOD_FILTER), { id: 'q_02H2K3M4N5' } as never, 'not a filter' as never];
 
     const r = validateManifest(m, { docFiles: [] });
 
     expect(r.ok).toBe(true);
     expect(r.warnings.map((w) => w.path)).toEqual(expect.arrayContaining(['filters[1]', 'filters[2]']));
-    expect(r.manifest?.filters).toEqual([GOOD_FILTER]);
+    expect(r.manifest?.filters).toEqual([copyOf(GOOD_FILTER)]);
   });
 
   it('drops a filter whose criteria are not an object — a broken saved query must never block a load', () => {
     const m = base();
-    m.filters = [{ ...GOOD_FILTER, criteria: 'the sea' } as never];
+    m.filters = [{ ...copyOf(GOOD_FILTER), criteria: 'the sea' } as never];
 
     const r = validateManifest(m, { docFiles: [] });
 
@@ -122,33 +142,92 @@ describe('filters[] on load (binder-filters §4)', () => {
     expect(r.manifest?.filters).toEqual([]);
   });
 
-  it('drops a root it does not know and keeps the filter, which then searches both roots', () => {
+  // The bus refuses an id that is not `q_` + 10 Crockford chars at every command
+  // boundary, so a filter carrying one could never be renamed, re-criteria'd or
+  // undone — it loads as a record nothing can touch. Same posture as codex ids.
+  it('drops a filter whose id is not the shape the bus enforces', () => {
     const m = base();
-    m.filters = [{ ...GOOD_FILTER, root: 'somewhere-else' } as never];
+    m.filters = [{ ...copyOf(GOOD_FILTER), id: 'banana' } as never, { ...copyOf(GOOD_FILTER), id: 'q_NOTANID01' } as never];
 
     const r = validateManifest(m, { docFiles: [] });
 
     expect(r.ok).toBe(true);
-    expect(r.manifest?.filters).toEqual([{ ...GOOD_FILTER, root: undefined }]);
+    expect(r.warnings.map((w) => w.path)).toEqual(['filters[0]', 'filters[1]']);
+    expect(r.manifest?.filters).toEqual([]);
+  });
+
+  it('drops a filter with no name the writer could show, and a second filter that repeats an id', () => {
+    const m = base();
+    m.filters = [
+      { ...copyOf(GOOD_FILTER), name: '   ' } as never,
+      copyOf(GOOD_FILTER),
+      { ...copyOf(GOOD_FILTER), name: 'The second one' } as never,
+    ];
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings.map((w) => w.path)).toEqual(expect.arrayContaining(['filters[0]', 'filters[2].id']));
+    expect(r.manifest?.filters).toEqual([copyOf(GOOD_FILTER)]);
+  });
+
+  // binder-filters §4: "unknown criteria keys are dropped with the one-time
+  // unknown-field notice (project-format §6 rule)". Kept, a typo like `minWordz`
+  // round-trips for ever and every bus command that replays the filter refuses
+  // with no hint that the saved filter itself is at fault.
+  it('drops a criterion key this build does not know, with a notice, and keeps the filter', () => {
+    const m = base();
+    m.filters = [{ ...copyOf(GOOD_FILTER), criteria: { statusId: 'draft', minWordz: 100 } } as never];
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings.map((w) => w.path)).toContain('filters[0].criteria.minWordz');
+    expect(r.manifest?.filters).toEqual([{ ...copyOf(GOOD_FILTER), criteria: { statusId: 'draft' } }]);
+  });
+
+  // The writer cannot write a non-finite number as JSON (`JSON.stringify` maps it
+  // to `null`, silently changing the value), so the load does not keep one.
+  it('drops a filter whose criterion is a number JSON cannot hold', () => {
+    const m = base();
+    m.filters = [{ ...copyOf(GOOD_FILTER), criteria: { minWords: Number.POSITIVE_INFINITY } } as never];
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings.map((w) => w.path)).toContain('filters[0]');
+    expect(r.manifest?.filters).toEqual([]);
+  });
+
+  it('drops a root it does not know and keeps the filter, which then searches both roots', () => {
+    const m = base();
+    m.filters = [{ ...copyOf(GOOD_FILTER), root: 'somewhere-else' } as never];
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.manifest?.filters).toEqual([{ ...copyOf(GOOD_FILTER), root: undefined }]);
     expect(r.manifest?.filters?.[0]).not.toHaveProperty('root');
   });
 });
 
 describe('goals[] on load (goals-progress §2.2 and §3)', () => {
-  it('keeps a goal as it is, with no warning', () => {
+  it('keeps a goal as it is, with no warning, and leaves the input untouched', () => {
+    const input = copyOf(GOOD_GOAL);
     const m = base();
-    m.goals = [GOOD_GOAL];
+    m.goals = [input];
 
     const r = validateManifest(m, { docFiles: [] });
 
     expect(r.ok).toBe(true);
     expect(r.warnings).toEqual([]);
-    expect(r.manifest?.goals).toEqual([GOOD_GOAL]);
+    expect(r.manifest?.goals).toEqual([copyOf(GOOD_GOAL)]);
+    expect(input).toEqual(GOOD_GOAL);
   });
 
   it('drops a goals value that is not an array, with a warning, and the project still opens', () => {
     const m = base();
-    (m as unknown as Record<string, unknown>)['goals'] = { 'g_1': GOOD_GOAL };
+    (m as unknown as Record<string, unknown>)['goals'] = { g_1: copyOf(GOOD_GOAL) };
 
     const r = validateManifest(m, { docFiles: [] });
 
@@ -160,9 +239,9 @@ describe('goals[] on load (goals-progress §2.2 and §3)', () => {
   it('drops a goal whose comparator or metric this build does not know (goals-progress §3)', () => {
     const m = base();
     m.goals = [
-      { ...GOOD_GOAL, comparator: 'roughly' } as never,
-      { ...GOOD_GOAL, metric: 'pages' } as never,
-      { ...GOOD_GOAL, kind: 'yearly' } as never,
+      { ...copyOf(GOOD_GOAL), id: 'g_01H2K3M4N5', comparator: 'roughly' } as never,
+      { ...copyOf(GOOD_GOAL), id: 'g_02H2K3M4N5', metric: 'pages' } as never,
+      { ...copyOf(GOOD_GOAL), id: 'g_03H2K3M4N5', kind: 'yearly' } as never,
     ];
 
     const r = validateManifest(m, { docFiles: [] });
@@ -174,7 +253,7 @@ describe('goals[] on load (goals-progress §2.2 and §3)', () => {
 
   it('drops a goal missing a field it cannot do without — its comparator', () => {
     const m = base();
-    const { comparator: _comparator, ...withoutComparator } = GOOD_GOAL;
+    const { comparator: _comparator, ...withoutComparator } = copyOf(GOOD_GOAL);
     m.goals = [withoutComparator as never];
 
     const r = validateManifest(m, { docFiles: [] });
@@ -184,9 +263,27 @@ describe('goals[] on load (goals-progress §2.2 and §3)', () => {
     expect(r.manifest?.goals).toEqual([]);
   });
 
+  it('drops a goal whose id is not the shape the bus enforces, and a second goal that repeats an id', () => {
+    const m = base();
+    m.goals = [
+      { ...copyOf(GOOD_GOAL), id: 'banana' } as never,
+      copyOf(GOOD_GOAL),
+      { ...copyOf(GOOD_GOAL), target: 40_000 } as never,
+    ];
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings.map((w) => w.path)).toEqual(expect.arrayContaining(['goals[0]', 'goals[2].id']));
+    expect(r.manifest?.goals).toEqual([copyOf(GOOD_GOAL)]);
+  });
+
   it('drops a goal whose target is not a positive whole number', () => {
     const m = base();
-    m.goals = [{ ...GOOD_GOAL, target: 0 } as never, { ...GOOD_GOAL, target: 'lots' } as never];
+    m.goals = [
+      { ...copyOf(GOOD_GOAL), id: 'g_01H2K3M4N5', target: 0 } as never,
+      { ...copyOf(GOOD_GOAL), id: 'g_02H2K3M4N5', target: 'lots' } as never,
+    ];
 
     const r = validateManifest(m, { docFiles: [] });
 
@@ -196,16 +293,16 @@ describe('goals[] on load (goals-progress §2.2 and §3)', () => {
   });
 
   // goals-progress §2.2: "Dangling on load (folder deleted) → goal kept but
-  // flagged 'target missing' in the UI, matches nothing (same posture as
-  // unknown vocabulary ids; never blocks load)."
+  // flagged 'target missing' in the UI, matches nothing (same posture as unknown
+  // vocabulary ids; never blocks load)."
   it('keeps a goal whose node is gone, and says so, because a missing target is not a broken goal', () => {
     const m = base();
-    m.goals = [{ ...GOOD_GOAL, nodeId: 'n_GONE000001' }];
+    m.goals = [{ ...copyOf(GOOD_GOAL), nodeId: 'n_GONE000001' }];
 
     const r = validateManifest(m, { docFiles: [] });
 
     expect(r.ok).toBe(true);
-    expect(r.manifest?.goals).toEqual([{ ...GOOD_GOAL, nodeId: 'n_GONE000001' }]);
+    expect(r.manifest?.goals).toEqual([{ ...copyOf(GOOD_GOAL), nodeId: 'n_GONE000001' }]);
     expect(r.warnings.map((w) => w.path)).toContain('goals[0].nodeId');
   });
 
@@ -213,7 +310,7 @@ describe('goals[] on load (goals-progress §2.2 and §3)', () => {
   // carrying one is refused at save and dropped on load)."
   it('drops a project goal that carries a reset day', () => {
     const m = base();
-    m.goals = [{ ...GOOD_GOAL, resetDay: 3 } as never];
+    m.goals = [{ ...copyOf(GOOD_GOAL), resetDay: 3 } as never];
 
     const r = validateManifest(m, { docFiles: [] });
 
@@ -222,46 +319,107 @@ describe('goals[] on load (goals-progress §2.2 and §3)', () => {
     expect(r.manifest?.goals).toEqual([]);
   });
 
-  it('keeps a weekly goal with a reset day, and drops one whose reset day is not a weekday', () => {
-    const weekly: ProjectGoal = { ...GOOD_GOAL, kind: 'weekly', resetDay: 0 };
-    const monthly: ProjectGoal = { ...GOOD_GOAL, kind: 'monthly', resetDay: 'last' };
+  // An optional field is dropped on its own, not with the goal: a malformed
+  // `resetDay` leaves the goal on its window's default day (goals-progress §2.2),
+  // exactly as a malformed `deadline` leaves it open-ended. Dropping the whole
+  // goal would lose id, target, comparator and stamps over a field with a
+  // spec-given default.
+  it('keeps a weekly goal with a reset day, and drops a malformed one without dropping the goal', () => {
+    const weekly: ProjectGoal = { ...copyOf(GOOD_GOAL), id: 'g_01H2K3M4N5', kind: 'weekly', resetDay: 0 };
+    const monthly: ProjectGoal = { ...copyOf(GOOD_GOAL), id: 'g_03H2K3M4N5', kind: 'monthly', resetDay: 'last' };
     const m = base();
     m.goals = [
-      weekly,
-      { ...GOOD_GOAL, kind: 'weekly', resetDay: 9 } as never,
-      monthly,
-      { ...GOOD_GOAL, kind: 'monthly', resetDay: 31 } as never,
+      copyOf(weekly),
+      { ...copyOf(GOOD_GOAL), id: 'g_02H2K3M4N5', kind: 'weekly', resetDay: 9 } as never,
+      copyOf(monthly),
+      { ...copyOf(GOOD_GOAL), id: 'g_04H2K3M4N5', kind: 'monthly', resetDay: 31 } as never,
     ];
 
     const r = validateManifest(m, { docFiles: [] });
 
     expect(r.ok).toBe(true);
-    expect(r.manifest?.goals).toEqual([weekly, monthly]);
-    expect(r.warnings.map((w) => w.path)).toEqual(expect.arrayContaining(['goals[1]', 'goals[3]']));
+    expect(r.manifest?.goals).toEqual([
+      copyOf(weekly),
+      { ...copyOf(GOOD_GOAL), id: 'g_02H2K3M4N5', kind: 'weekly' },
+      copyOf(monthly),
+      { ...copyOf(GOOD_GOAL), id: 'g_04H2K3M4N5', kind: 'monthly' },
+    ]);
+    expect(r.manifest?.goals?.[1]).not.toHaveProperty('resetDay');
+    expect(r.manifest?.goals?.[3]).not.toHaveProperty('resetDay');
+    expect(r.warnings.map((w) => w.path)).toEqual(
+      expect.arrayContaining(['goals[1].resetDay', 'goals[3].resetDay']),
+    );
+  });
+
+  // The bus reads `resetDay: null` as absent (goals-progress §4's table note),
+  // so the load does the same rather than treating it as a malformed value.
+  it('reads a null reset day as the absent one the bus reads it as', () => {
+    const m = base();
+    m.goals = [{ ...copyOf(GOOD_GOAL), kind: 'weekly', resetDay: null } as never];
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.manifest?.goals).toEqual([{ ...copyOf(GOOD_GOAL), kind: 'weekly' }]);
+    expect(r.manifest?.goals?.[0]).not.toHaveProperty('resetDay');
+    expect(r.warnings).toEqual([]);
+  });
+
+  // goals-progress §9.3: a weekly or monthly goal attaches to the manuscript
+  // root, counts words, is `at-least` and takes no deadline. The bus refuses one
+  // that breaks any of the four on every save and every undo, so a loaded one
+  // would be a goal the author can never edit again — it is dropped instead.
+  it('drops a session goal that breaks a §9.3 invariant the bus enforces on every save', () => {
+    const m = base();
+    m.goals = [
+      { ...copyOf(GOOD_GOAL), id: 'g_01H2K3M4N5', kind: 'weekly', nodeId: 'n_GONE000001', resetDay: 1 } as never,
+      { ...copyOf(GOOD_GOAL), id: 'g_02H2K3M4N5', kind: 'weekly', metric: 'chars', resetDay: 1 } as never,
+      { ...copyOf(GOOD_GOAL), id: 'g_03H2K3M4N5', kind: 'monthly', comparator: 'at-most', resetDay: 1 } as never,
+    ];
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings.map((w) => w.path)).toEqual(['goals[0]', 'goals[1]', 'goals[2]']);
+    expect(r.manifest?.goals).toEqual([]);
+  });
+
+  // The deadline is the one invariant an optional field can repair: a session
+  // goal takes no deadline, and "no deadline" is the field's documented meaning
+  // when absent — so the field goes and the goal stays.
+  it('drops the deadline a session goal cannot carry, and keeps the goal', () => {
+    const m = base();
+    m.goals = [{ ...copyOf(GOOD_GOAL), kind: 'weekly', resetDay: 1, deadline: '2027-01-01' } as never];
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings.map((w) => w.path)).toContain('goals[0].deadline');
+    expect(r.manifest?.goals).toEqual([{ ...copyOf(GOOD_GOAL), kind: 'weekly', resetDay: 1 }]);
   });
 
   // manifest.ts: "Absent (an older manifest) means words."
   it('gives an absent metric the meaning the spec gives it — words', () => {
     const m = base();
-    const { metric: _metric, ...withoutMetric } = GOOD_GOAL;
+    const { metric: _metric, ...withoutMetric } = copyOf(GOOD_GOAL);
     m.goals = [withoutMetric as never];
 
     const r = validateManifest(m, { docFiles: [] });
 
     expect(r.ok).toBe(true);
     expect(r.warnings).toEqual([]);
-    expect(r.manifest?.goals).toEqual([{ ...GOOD_GOAL, metric: 'words' }]);
+    expect(r.manifest?.goals).toEqual([copyOf(GOOD_GOAL)]);
   });
 
   it('drops a deadline that is not a day, and keeps the goal it was on', () => {
     const m = base();
-    m.goals = [{ ...GOOD_GOAL, deadline: '2026-02-30' } as never];
+    m.goals = [{ ...copyOf(GOOD_GOAL), deadline: '2026-02-30' } as never];
 
     const r = validateManifest(m, { docFiles: [] });
 
     expect(r.ok).toBe(true);
     expect(r.warnings.map((w) => w.path)).toContain('goals[0].deadline');
-    expect(r.manifest?.goals).toEqual([GOOD_GOAL]);
+    expect(r.manifest?.goals).toEqual([copyOf(GOOD_GOAL)]);
   });
 });
 
