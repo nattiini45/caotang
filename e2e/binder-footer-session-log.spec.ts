@@ -16,6 +16,7 @@ async function countSessionReads(page: Page): Promise<void> {
     const counter = window as unknown as { sessionReads: number };
     counter.sessionReads = 0;
     IDBIndex.prototype.getAll = function patched(this: IDBIndex, ...args: Parameters<IDBIndex['getAll']>) {
+      // In a browser `objectStore` is the index's store itself (an IDBObjectStore property), so its name is the store's.
       if (this.objectStore.name === 'sessions') counter.sessionReads += 1;
       return original.apply(this, args);
     };
@@ -43,6 +44,10 @@ test('the footer does not read every project’s session log on every keystroke'
   await goals.getByRole('button', { name: 'Add goal' }).click();
   await expect(goals.locator('.goal-sentence')).toContainText('at least 500 words this week');
 
+  // The goal made the footer read the log, so the counter is known to move: a count that never counted would fail
+  // here instead of hiding behind the bound below.
+  await expect.poll(() => sessionReads(page)).toBeGreaterThan(0);
+
   // The scene is written in, and the writes are counted from here on.
   await binderRow(page, 'The Lamp').click();
   await page.evaluate(() => {
@@ -52,7 +57,12 @@ test('the footer does not read every project’s session log on every keystroke'
   await surface.click();
   await page.keyboard.type('The lamp was lit.');
 
-  // The keystrokes are no reason to read every project's log: the reading waits for its window, so
-  // a burst of them costs one reading and not one each.
-  expect(await sessionReads(page)).toBeLessThanOrEqual(2);
+  // The keystrokes are no reason to read every project's log: the reading waits for its window, so a burst of the 17
+  // of them costs one reading and not one each. The count is the page's, so it also carries the readings of the
+  // today's-words poll and of the sitting's own append — a couple, against the 17 a reading per keystroke would be.
+  const duringBurst = await sessionReads(page);
+  expect(duringBurst).toBeLessThanOrEqual(3);
+
+  // And the reading is not silent: once its window has waited out, the burst does get its one reading.
+  await expect.poll(() => sessionReads(page), { timeout: 5_000 }).toBeGreaterThan(duringBurst);
 });

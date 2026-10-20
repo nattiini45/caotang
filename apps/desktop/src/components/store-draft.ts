@@ -7,7 +7,17 @@
  *
  * So when the store's value moves — an undo, a change made elsewhere — the draft follows it,
  * unless the writer has typed something of their own that the store does not hold yet. That text
- * is theirs, and it is kept until it is committed or the field is left.
+ * is theirs, and it is kept until the consumer commits it. This hook has no blur of its own: what
+ * "commits" means is the consumer's (the number field commits when it is left, a vocabulary row
+ * when its Save is pressed), and a consumer that never commits keeps the writer's text until the
+ * store moves onto it or the field is reset.
+ *
+ * Ownership is read off the text, not tracked: a draft is the writer's while it differs from the
+ * store's value, and becomes the store's the moment the store holds it. A field's own commit and a
+ * change elsewhere that happens to land on the same text are therefore indistinguishable here, and
+ * both make the draft the store's. That is what lets an undone commit follow the project back down
+ * instead of sticking on the field, and it is why a value the store reaches on its own is not kept
+ * as the writer's against a later move.
  *
  * Without this a field keeps the text it was given: a number field that committed a value and was
  * then undone still showed the committed number, and leaving the field wrote that number back —
@@ -33,8 +43,6 @@ export function syncDraft(draft: string | null, base: string, storeValue: string
 export interface StoreDraft {
   /** The text the field shows: the writer's own text, or the store's value. */
   readonly value: string;
-  /** The writer has typed something the store does not hold. */
-  readonly dirty: boolean;
   /** The writer typed this. */
   readonly change: (text: string) => void;
   /** The field goes back to the store's value. */
@@ -59,7 +67,6 @@ export function useStoreDraft(storeValue: string): StoreDraft {
   }
   return {
     value: current.draft ?? storeValue,
-    dirty: current.draft !== null && current.draft !== storeValue,
     change: (text: string) => setHeld((now) => ({ key: now.key, draft: text })),
     reset: () => setHeld((now) => ({ key: now.key, draft: null })),
   };

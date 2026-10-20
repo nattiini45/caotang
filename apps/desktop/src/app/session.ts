@@ -630,14 +630,20 @@ export class ProjectSession {
     // Listings can overlap (the constructor's and a later import's): only the newest one started is kept, so a slow early listing
     // taken before a bundle's images loaded never replaces a newer one.
     const generation = ++this.imageListings;
-    await this.assets.ready();
     let held: HeldImages;
     try {
+      // The binding is awaited inside the try, so a store that will not open is this listing's failure, held the way a listing
+      // that cannot read is. The callers that fire this without awaiting it (the constructor, the tab's focus) then never face an
+      // unhandled rejection, and a compile refuses with the reason instead of waiting on a listing that never lands.
+      await this.assets.ready();
       held = { records: await assetRecordsOf(this.assets.artifactFs()) };
     } catch (failure) {
       held = { failure };
     }
-    if (generation === this.imageListings) this.heldImages = held;
+    // A superseded listing neither replaces the images nor moves the version: only the listing this session kept says the images
+    // have been listed again, so a slow early listing that lands late does not make every view re-list what a newer one read.
+    if (generation !== this.imageListings) return;
+    this.heldImages = held;
     // The images have been listed again, so they can have changed: the views that show them read the
     // version this moves and list them again (media/hooks.ts). A keystroke does not list them.
     this.assetVersion += 1;
@@ -648,8 +654,10 @@ export class ProjectSession {
    * The version of the project's images.
    *
    * It moves when the images have been listed again, which is when they can have changed: the open,
-   * an import, a folder attached, a settle. A view that shows the images lists them again when this
-   * moves, so it does not list them on every change of the session (media/hooks.ts).
+   * an import, a folder attached, a settle, an export asked for (`exportsReady`, which lists before
+   * each compile), and the tab coming back to the front (`watchForAssetChanges`). A view that shows
+   * the images lists them again when this moves, so it does not list them on every change of the
+   * session (media/hooks.ts).
    */
   assetsVersion(): number {
     return this.assetVersion;
@@ -659,17 +667,28 @@ export class ProjectSession {
    * Lists the project's images again when the tab comes back to the front.
    *
    * The images are listed when they can have changed — the open, an import, a folder attached, a
-   * settle — and a picture put into the project's folder from outside the app is one more way they
-   * can have changed: the writer drops the file into the folder with another program and comes back.
-   * The tab's focus is that moment, so the listing is then, and nowhere else: a keystroke does not
-   * list the folder.
+   * settle, an export asked for — and a picture put into the project's folder from outside the app is
+   * one more way they can have changed: the writer drops the file into the folder with another
+   * program and comes back. The tab's focus is that moment, so the listing is then, and nowhere else:
+   * a keystroke does not list the folder.
    *
-   * A project without a folder has no images to pick up from outside the app, so the signals are
-   * left alone there. The listener is one for the session, and the returned function lets go of it.
+   * The listeners are installed for every session, whatever its folder, so a folder attached later is
+   * refreshable from the moment it exists; until then the handler returns without listing, because a
+   * project without a folder has no images to pick up from outside the app. The listener is one for
+   * the session, and the returned function lets go of it.
    */
   private watchForAssetChanges(): () => void {
+    // A hidden tab coming to the front fires the window's focus and the document's visibilitychange for the same moment. One
+    // moment asks for one listing, so the first signal of it is taken and the ones that follow in the same turn of the event
+    // loop are let through to nothing: the latch clears on the next macrotask, after both of a moment's signals have arrived.
+    let listing = false;
     const listAgain = (): void => {
       if (!this.assets.hasFolder()) return;
+      if (listing) return;
+      listing = true;
+      setTimeout(() => {
+        listing = false;
+      }, 0);
       void this.refreshAssetRecords();
     };
     const whenVisible = (): void => {

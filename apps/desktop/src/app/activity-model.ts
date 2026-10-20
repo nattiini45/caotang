@@ -109,8 +109,11 @@ export function activityRows(
 ): ActivityRow[] {
   const claimed = new Set<string>();
   const rows: ActivityRow[] = [];
-  const limit = options.limit ?? Number.POSITIVE_INFINITY;
+  // A whole, non-negative count of rows: the check below runs before each push, so `0` builds nothing and a fractional limit is
+  // floored rather than rounded up. Without this the signature would promise "the newest `limit` rows" and hand back one more.
+  const limit = Math.max(0, Math.floor(options.limit ?? Number.POSITIVE_INFINITY));
   for (let index = entries.length - 1; index >= 0; index -= 1) {
+    if (rows.length >= limit) break;
     const entry = entries[index];
     if (entry === undefined || (!options.showViews && isViewEvent(entry.command))) continue;
     let undo: UndoGroup | null = null;
@@ -120,7 +123,6 @@ export function activityRows(
       undo = options.groupOf(groupId) ?? null;
     }
     rows.push({ index, entry, title: titleOf(entry.command), undo });
-    if (rows.length >= limit) break;
   }
   return rows;
 }
@@ -132,7 +134,11 @@ export function activityRows(
  */
 export function visibleActivityCount(entries: readonly ActivityEntry[], showViews: boolean): number {
   let count = 0;
-  for (const entry of entries) {
+  // The same walk `activityRows` makes, guarding a hole the same way, so the count and the rows the panel builds agree: a row
+  // `activityRows` refuses to build is a row this does not count, and "Show older" can always reach zero.
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    if (entry === undefined) continue;
     if (showViews || !isViewEvent(entry.command)) count += 1;
   }
   return count;

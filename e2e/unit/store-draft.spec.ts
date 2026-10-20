@@ -35,8 +35,8 @@ test.describe('the draft of a field that edits a value the store holds', () => {
   });
 
   test('a draft the writer typed against the value it replaced is kept when the store comes back', () => {
-    // The writer typed "8" against "7"; the store came back to "7" on its own. The text the writer
-    // typed is not in the store, so it is kept.
-    expect(syncDraft('8', '7', '7')).toBe('8');
+    // The writer typed "8" against "7"; the store moved away to "9" on its own, which rebound the draft against "9", and
+    // then came back to "7". The writer's text is not the store's at either step, so the away-and-back keeps it.
+    expect(syncDraft('8', '9', '7')).toBe('8');
   });
 });

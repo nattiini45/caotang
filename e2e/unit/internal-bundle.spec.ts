@@ -10,14 +10,17 @@ import { exportStoredBundle } from '../../apps/desktop/src/app/lifecycle.js';
  *
  * The folder-adopt flow keeps this browser's copy in memory as a bundle before it removes the copy
  * (lifecycle.ts `answerFolderDiffers`), and that bundle is the app's own, not the writer's: a file
- * the load could not read is left out of it and named in the report, where the writer's own copy
- * refuses it (write.ts `WriteOptions.copyFor`).
+ * the load could not read is left out of it and named in the bundle's notices, which an adopt
+ * failure carries out with its report, where the writer's own copy refuses it (write.ts
+ * `WriteOptions.copyFor`).
  */
 
 test('the app’s own copy leaves a file it cannot hold out of it, where the writer’s copy refuses', async () => {
   const state = sampleProjectState();
-  // A codex file the load could not read: its bytes are not UTF-8 text, so the state holds no text for it.
-  state.declinedCodexFiles.add('elena.md');
+  // A codex file the load could not read: its bytes are not UTF-8 text, so the state holds no text for it. A real load
+  // declines only entry files, and codex.md §3 names those `<entry-id>.md` (read.ts), so the fixture is shaped like one —
+  // which also says the behavior below does not depend on the id's shape.
+  state.declinedCodexFiles.add('c_7K2QX9M4A1.md');
   const store = await openRuntimeStore(new MemoryIndexedDb());
   await writeProjectState(store, state);
   const projectId = state.manifest.project.id;
@@ -29,6 +32,8 @@ test('the app’s own copy leaves a file it cannot hold out of it, where the wri
   const bundle = await exportStoredBundle(store, projectId, 'internal');
   const { unzipSync } = await ZIP_ENGINE.load();
   const files = unzipSync(bundle.bytes);
-  expect(files['codex/elena.md']).toBeUndefined();
+  expect(files['codex/c_7K2QX9M4A1.md']).toBeUndefined();
   expect(files['caotang.json']).toBeDefined();
+  // The omission is not silent: the bundle's notices name the file it leaves out.
+  expect(bundle.notices.join(' ')).toContain('codex/c_7K2QX9M4A1.md');
 });

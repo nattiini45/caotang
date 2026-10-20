@@ -521,6 +521,12 @@ async function bundleOf(
     ...(coherence === undefined ? {} : { coherence }),
     copyFor,
   });
+  // A file the load declined because its bytes are not UTF-8 has no text to carry: an internal copy leaves it out, and the
+  // notices name what is missing, so a copy that does not hold every file of the project says so instead of losing one
+  // silently. The writer's own copy refuses rather than getting here (write.ts `WriteOptions.copyFor`).
+  for (const path of exported.omitted) {
+    notices.push(`“${path}” is not UTF-8 text, so this copy leaves it out; the file it was opened from still holds its text`);
+  }
   return { bytes: exported.bytes, filename: exported.filename, notices };
 }
 
@@ -1038,7 +1044,7 @@ export async function answerFolderDiffers(store: RuntimeStore, differs: FolderDi
     // This browser's copy is held in memory as a bundle before it is removed (its state, session log, pictures and findings), so an adopt
     // that fails puts it back rather than leaving the writer with neither version in this browser. The bundle is the app's own safety
     // net, not a copy the writer takes home, so it is made as an internal copy: a file this load declined because its bytes are not
-    // UTF-8 has no text to carry, and an internal copy omits it and says so in its report rather than refusing — a refusal here would
+    // UTF-8 has no text to carry, and an internal copy omits it and names it in its notices rather than refusing — a refusal here would
     // make 'use-folder' impossible for exactly the projects that hold such a file.
     const kept = await exportStoredBundle(store, differs.projectId, 'internal');
     // So are the records folder-memory.ts keeps for it (its folder, the folder copy last seen there, and the project it was copied from), which
@@ -1056,7 +1062,14 @@ export async function answerFolderDiffers(store: RuntimeStore, differs: FolderDi
       opened = await adopt(store, differs.state, log, differs.notices, differs.droppedFields, root, differs.pictures);
     } catch (error) {
       await restoreBrowserCopy(store, differs.projectId, kept.bytes, keptRecords);
-      throw error;
+      // The failure is the only moment anyone learns what the safety copy does not hold: a file it omitted is a file the
+      // restored copy lacks, so its notice rides out with the failure. The folder the writer chose still holds the text.
+      if (kept.notices.length === 0) throw error;
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `${reason} The copy of the project this browser kept, and that was put back, does not hold every file: ${kept.notices.join(' ')}`,
+        { cause: error },
+      );
     }
     holdFolderCopy(opened.session, root, differs.baselineText, differs.digests);
     await rememberFolder(opened.session.projectId, root);

@@ -132,6 +132,35 @@ test('the panel shows a window of the log, and the button opens the rows behind 
   }
 });
 
+test('a window full of view changes still shows the newest undo', async () => {
+  const session = await sessionFor();
+  try {
+    session.dispatch('doc.write', { docId: IDS.sceneA, body: 'one' });
+    const group = session.newestUndoGroupId();
+    // A sitting of scrolling and selecting: more view events than the window holds, all of them newer than the
+    // undoable change, and the panel's own "Show view changes" toggle counts them toward the window.
+    for (let index = 0; index < ACTIVITY_PANEL_WINDOW + 100; index += 1) session.log.append(aRow('view.setScroll'));
+    const entries = session.log.entries();
+
+    const panel = activityWindow(entries, {
+      showViews: true,
+      groupOf: (id) => session.undo.group(id),
+      limit: ACTIVITY_PANEL_WINDOW,
+    });
+    // The window is the newest rows — all view events — plus the pinned row of the newest undoable group, so the
+    // panel's one command is never hidden by the panel's own toggle.
+    const undoRows = panel.rows.filter((row) => row.undo !== null);
+    expect(undoRows).toHaveLength(1);
+    expect(undoRows[0]?.undo?.id).toBe(group);
+    expect(panel.rows).toHaveLength(ACTIVITY_PANEL_WINDOW + 1);
+    expect(panel.rows[ACTIVITY_PANEL_WINDOW]?.entry.command).toBe('doc.write');
+    // One doc.write plus 300 view events, less the 201 shown: the pinned row is shown, so it is not counted hidden.
+    expect(panel.hidden).toBe(100);
+  } finally {
+    await session.close();
+  }
+});
+
 test('the Markdown export carries every row of the log, not only the panel’s window', async () => {
   const session = await sessionFor();
   try {

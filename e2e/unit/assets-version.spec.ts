@@ -39,8 +39,10 @@ test('the assets version moves when the images are listed again, and not when th
     state,
     shadow: null,
   });
+  // The constructor lists the images without being awaited, and the listing below supersedes that one; waiting for the
+  // versions to settle takes the baseline no straggler can still move.
   await session.refreshAssetRecords();
-  const listed = session.assetsVersion();
+  const listed = await settled(session);
 
   // A change of the session that leaves the images alone does not move the version, so the views
   // that show them do not list them again.
@@ -107,6 +109,35 @@ test('the images are listed again when the tab comes back to the front', async (
   fakeWindow.dispatchEvent(new Event('focus'));
   await new Promise((resolve) => setTimeout(resolve, 50));
   expect(session.assetsVersion()).toBe(closed);
+});
+
+test('one moment at the front asks for one listing, not one per signal', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const session = new ProjectSession({
+    store,
+    projectId: state.manifest.project.id,
+    state,
+    shadow: null,
+  });
+  await session.assets.attach(memoryFolder().handle);
+  await session.refreshAssetRecords();
+  const before = await settled(session);
+
+  // A hidden tab coming to the front fires the window's focus and the document's visibilitychange for the same moment.
+  // Both arrive in this turn of the event loop, and the moment costs one listing, not two.
+  fakeWindow.dispatchEvent(new Event('focus'));
+  fakeDocument.dispatchEvent(new Event('visibilitychange'));
+  await moved(session, before);
+  expect(await settled(session)).toBe(before + 1);
+
+  // A later moment is its own listing: the latch of the first has let go.
+  const after = session.assetsVersion();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  fakeWindow.dispatchEvent(new Event('focus'));
+  await moved(session, after);
+  expect(await settled(session)).toBe(after + 1);
+  await session.close();
 });
 
 test('a project without a folder lists nothing when the tab comes back', async () => {
