@@ -596,6 +596,32 @@ describe('§4’s lazy boundary — measured, and with a control', () => {
       expect(resolution.reason).toMatch(/locator is not loaded/);
     }
   });
+
+  it('when step 2 already checked the single occurrence, the refusal says the context failed', () => {
+    // The honest-reason rule in the other direction. The fixture above puts the
+    // only occurrence **outside** the ±2000 window, so step 2 never saw it and
+    // the missing-rung wording is the true one. Here the only occurrence is
+    // **inside** the window: step 2 ran the context check on this exact hit and
+    // it failed. The context was asked and answered "no", so the refusal must
+    // report the context failure — claiming the check "could not run" would
+    // name a rung that is not the one whose answer decided the outcome.
+    bindAnchorLibraries();
+    expect(anchorLibrariesLoaded()).toBe(false);
+
+    const original = baseBody();
+    const anchor = capture(original, SENTENCE);
+    // Both captured context sides are replaced wholesale, the sentence itself
+    // stays unique and moves by only a few characters — well inside the window.
+    const body = `${filler(40, 'a')} ${SENTENCE} ${filler(40, 'b')}`;
+    expect(Math.abs(body.indexOf(SENTENCE) - anchor.from)).toBeLessThan(NEAR_OFFSET_WINDOW);
+
+    const resolution = expectUnresolvable(resolveAnchor(anchor, body, TICK_REVISION + 5));
+    expect(resolution.reason).toMatch(/context around it no longer matches/);
+    expect(resolution.reason).not.toMatch(/the rung that would have checked its context could not run/);
+    // The missing locator is still disclosed — the ladder really is one rung
+    // short — but as the addition to the honest primary reason, not as it.
+    expect(resolution.reason).toMatch(/locator is not loaded/);
+  });
 });
 
 describe('§3’s case-insensitive search — offsets in the body’s own coordinates', () => {
@@ -655,6 +681,33 @@ describe('§3’s case-insensitive search — offsets in the body’s own coordi
     expect(resolution.method).toBe('unique-global');
     expect(resolution.range).toEqual({ from: 3004, to: 3014 });
     expect(body.slice(resolution.range.from, resolution.range.to).toLowerCase()).toBe('the target');
+  });
+
+  it('matches Greek across a case-only edit, where the fold must unify final sigma with medial sigma', () => {
+    // Unicode's Final_Sigma rule is **contextual**: `Σ` lower-cases to `ς` only
+    // at the end of a word, and a per-character fold cannot see the context —
+    // it always answers `σ`. So `ΛΟΓΟΣ` folds to `λογοσ` while the same word
+    // already spelled lowercase carries `ς`, and a search that folds both sides
+    // per character without normalizing the two sigmas never matches: a
+    // case-only edit of a Greek word would fall through to the step-5 refusal.
+    // The fold normalizes `ς` → `σ` on both sides, which is length-preserving,
+    // so the offsets below are still the body's own.
+    const upper = 'Η πρόταση ΛΟΓΟΣ περιέχει τελικό σίγμα.';
+    const lower = upper.toLowerCase();
+    expect(lower).toContain('λογος');
+    expect(lower.indexOf('λογος')).toBe(upper.indexOf('ΛΟΓΟΣ'));
+
+    // Upper-cased capture, lower-cased body: the whole-string fold of the body
+    // produced the final sigma, the per-character fold of the needle did not.
+    const down = expectOk(resolveAnchor(capture(upper, 'ΛΟΓΟΣ'), lower, TICK_REVISION + 1));
+    expect(down.method).toBe('near-offset');
+    expect(lower.slice(down.range.from, down.range.to)).toBe('λογος');
+
+    // And the mirror: a lower-cased capture resolved against the upper-cased
+    // body, the direction a shouty rewrite of the same sentence produces.
+    const up = expectOk(resolveAnchor(capture(lower, 'λογος'), upper, TICK_REVISION + 1));
+    expect(up.method).toBe('near-offset');
+    expect(upper.slice(up.range.from, up.range.to)).toBe('ΛΟΓΟΣ');
   });
 });
 

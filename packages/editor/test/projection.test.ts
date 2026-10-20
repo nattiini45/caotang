@@ -146,7 +146,13 @@ describe('a backslash inside a fenced code block', () => {
     const map = buildProjectionMap(doc);
     expect(map.body).toContain('a\\b c');
     for (const run of map.runs) {
-      expect(run.bodyEnd - run.bodyStart, 'run lengths agree').toBe(run.pmTo - run.pmFrom);
+      // Both sides read independently: a length equality would hold by
+      // construction, since the builder derives `bodyEnd` and `pmTo` from the
+      // same segment length. The characters themselves are the property — what
+      // the run names in the body must be what it names in the document.
+      expect(map.body.slice(run.bodyStart, run.bodyEnd), 'run body text').toBe(
+        doc.textBetween(run.pmFrom, run.pmTo),
+      );
     }
     const start = map.body.indexOf('a\\b');
     for (let offset = start; offset < start + 'a\\b c'.length; offset++) {
@@ -183,9 +189,27 @@ describe('a backslash inside a fenced code block', () => {
     // holds four characters for three text characters and the runs must skip it.
     const doc = await parse('a\\*b\n');
     const map = buildProjectionMap(doc);
-    expect(map.body).toContain('a\\*b');
-    const runs = map.runs.filter((run) => run.bodyStart >= map.body.indexOf('a\\*b'));
-    expect(runs.length).toBeGreaterThan(1);
-    for (const run of runs) expect(run.bodyEnd - run.bodyStart).toBe(run.pmTo - run.pmFrom);
+    const at = map.body.indexOf('a\\*b');
+    expect(at, 'the body lost the escaped leaf').toBeGreaterThan(-1);
+    // The leaf is cut at the escape, so it contributes more than one run.
+    expect(map.runs.length).toBeGreaterThan(1);
+    // **The gap the comment above claims, asserted rather than narrated**: the
+    // backslash is syntax and no text character corresponds to it, so no run
+    // may cover its body offset. A filter on `bodyStart` cannot express this —
+    // the offset the runs must *skip* is inside the span they start from.
+    const backslash = at + 1;
+    for (const run of map.runs) {
+      const coversEscape = run.bodyStart <= backslash && backslash < run.bodyEnd;
+      expect(coversEscape, `run ${run.bodyStart}..${run.bodyEnd} covers the backslash`).toBe(false);
+      // And what the runs do cover is the leaf's own text, read from both sides.
+      expect(map.body.slice(run.bodyStart, run.bodyEnd), 'run body text').toBe(
+        doc.textBetween(run.pmFrom, run.pmTo),
+      );
+    }
+    // Skipping the backslash drops no text: the runs' body characters, joined,
+    // are exactly the document's text.
+    expect(map.runs.map((run) => map.body.slice(run.bodyStart, run.bodyEnd)).join('')).toBe(
+      doc.textContent,
+    );
   });
 });

@@ -248,6 +248,26 @@ describe('preflight · the outcome classifier measures the construct, not a stri
     expect(entity.outcome).toBe('exact');
   });
 
+  it('a round trip that deletes fence info-string characters is not exact', async () => {
+    // remark parses `js title=x` as `lang: 'js', meta: 'title=x'`, and the
+    // loader keeps only the language — so a save writes the fence back without
+    // `title=x`: source characters deleted, with no loss warning. A shape that
+    // folds only `lang` reads `code:js` on both sides and the code value is
+    // unchanged, so the classifier would call that round trip exact. It is the
+    // same dropped-attribute class as a link that loses its title, and it must
+    // measure the same way.
+    const fenced = await measure({
+      name: 'fence-meta',
+      group: 'caotang',
+      input: '```js title=x\nconst a = 1;\n```\n',
+    });
+    expect(fenced.threw).toBeNull();
+    expect(fenced.output).toContain('```js');
+    expect(fenced.output).not.toContain('title=x');
+    expect(fenced.outcome).not.toBe('exact');
+    expect(fenced.outcome).toBe('degrade');
+  });
+
   it('every corpus entry measures the class §3.3 declares for it', () => {
     // **The corpus's `expect` is load-bearing from here.** A declared class
     // that nothing ever compared against is a claim no test can check, and a

@@ -855,19 +855,38 @@ export const sniffDialect = (
   // not about this file.
   const spans: number[] = [];
   let spanTotal = 0;
+  let untaughtZeroSpan: string | null = null;
   for (const node of blocks) {
     const span = compiledBlockSpan(node);
+    // The per-block half of the rule: a zero span is only safe for a type the
+    // comparison below skips as a degrade. A zero-span block of any other type
+    // would leave the compiled index standing still while the walk moved on,
+    // and every later pairing would compare a block with a neighbour's bytes.
+    if (span === 0 && !(DEGRADE_MDAST_TYPES as readonly string[]).includes(node.type)) {
+      untaughtZeroSpan ??= node.type;
+    }
     spans.push(span);
     spanTotal += span;
   }
-  // The totals have to add up. If they do not, this document contains a
-  // construct the handler table has not been taught about, and every pairing
-  // after it would be a guess — so the channel answers "nothing to report"
-  // rather than reporting a comparison it cannot make. A wrong zero is the
-  // failure this channel cannot have (see the header), so the refusal is
-  // deliberate: a false *notice* is worse than a missing one, because a notice
-  // is a claim about a specific block and a reader acts on it.
-  if (spanTotal !== boundaries.length) return notices;
+  // The totals have to add up, **and** every per-block span has to be one the
+  // comparison can walk: two offsetting per-block errors satisfy the sum while
+  // mispairing every block after them, so the sum alone is not the rule. If
+  // either half fails, this document contains a construct the handler table has
+  // not been taught about, and every pairing after it would be a guess — so the
+  // channel answers "nothing to report" rather than reporting a comparison it
+  // cannot make. A wrong zero is the failure this channel cannot have (see the
+  // header), so the refusal is deliberate: a false *notice* is worse than a
+  // missing one, because a notice is a claim about a specific block and a
+  // reader acts on it. And the refusal is **warned**, because a refusal nobody
+  // sees is a channel that has stopped working.
+  if (spanTotal !== boundaries.length || untaughtZeroSpan !== null) {
+    console.warn(
+      untaughtZeroSpan !== null
+        ? `dialect sniffer refused the document: ${untaughtZeroSpan} compiles to zero blocks but is not a degrade type the comparison skips`
+        : `dialect sniffer refused the document: the parse blocks claim ${spanTotal} compiled blocks and the document has ${boundaries.length}, so the handler table has not been taught a construct this document contains`,
+    );
+    return notices;
+  }
   // Two renders, and the first one is a single block. The prefix algorithm is
   // reached only if the recorder declines to prove it saw every block.
   const { own, saved } = saveSideOwnTexts(doc, boundaries, boundaries.length);

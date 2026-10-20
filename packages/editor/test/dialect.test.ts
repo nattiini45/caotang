@@ -42,7 +42,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { unified } from 'unified';
 import remarkGfm from 'remark-gfm';
 import remarkStringify from 'remark-stringify';
@@ -75,6 +75,7 @@ import {
   saveSideOwnTexts,
 } from '../src/dialect.js';
 import { compiledBlockSpan } from '../src/handlers.js';
+import type * as EditorHandlers from '../src/handlers.js';
 import type { OwnTexts, Rendered } from '../src/dialect.js';
 import type { DialectNotice, LossWarning } from '../src/index.js';
 
@@ -412,6 +413,63 @@ describe('§5 dialect contract — the parse blocks and the compiled blocks are 
       }
     }
     expect(mismatched).toEqual([]);
+  });
+
+  it('every block that compiles to zero blocks is a block the comparison skips', () => {
+    // The pairing's per-block invariant, pinned over the corpus. A zero span is
+    // only safe for a type the comparison skips as a degrade — a zero-span
+    // block of any other type would leave the compiled index standing still
+    // while the walk moved on, and every later block would be compared with a
+    // neighbour's bytes. Today both zero-span types (`definition` and
+    // `footnoteDefinition`) are in the skip set, and the sniffer enforces the
+    // rule per block rather than resting on that coincidence.
+    const offenders: string[] = [];
+    for (const entry of CORPUS) {
+      const tree = unified().use(remarkParse).use(remarkGfm).parse(entry.input) as MdastRoot;
+      for (const child of tree.children) {
+        if (
+          compiledBlockSpan(child) === 0 &&
+          !(DEGRADE_MDAST_TYPES as readonly string[]).includes(child.type)
+        ) {
+          offenders.push(`${entry.name}: ${child.type}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('refuses a document whose per-block spans mispair, even when the totals add up — and says so', async () => {
+    // Two offsetting span errors: the heading over-claims and the paragraph
+    // under-claims, so `spanTotal === boundaries.length` still holds while the
+    // pairing is exactly the misalignment the walk exists to prevent — the
+    // heading would be compared with the paragraph's canonical text and the
+    // paragraph would emit an empty canonical form. The aggregate check cannot
+    // see this; the per-block rule can, because a paragraph that compiles to
+    // zero blocks is not a type the comparison skips. And the refusal is
+    // **warned**: a refusal nobody sees is a channel that has stopped working.
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      vi.resetModules();
+      vi.doMock('../src/handlers.js', async (importOriginal) => {
+        const actual = await importOriginal<typeof EditorHandlers>();
+        const mispaired = (node: { type: string }): number => {
+          if (node.type === 'paragraph') return 0;
+          if (node.type === 'heading') return 2;
+          return actual.compiledBlockSpan(node as never);
+        };
+        return { ...actual, compiledBlockSpan: mispaired };
+      });
+      const { sniffDialect } = await import('../src/dialect.js');
+      const body = ['# T', '', '&amp; stays literal', ''].join('\n');
+      const tree = unified().use(remarkParse).use(remarkGfm).parse(body) as MdastRoot;
+      const doc = await parse(body);
+      expect(sniffDialect(body, tree, doc, [])).toEqual([]);
+      expect(warned, 'the refusal is silent').toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('../src/handlers.js');
+      vi.resetModules();
+      warned.mockRestore();
+    }
   });
 });
 
@@ -754,7 +812,18 @@ describe('§5 dialect contract — the rule is a comparison, not a list', () => 
     const source = readFileSync(resolve(__dirname, '../src', 'pipeline.ts'), 'utf8');
     const start = source.indexOf('export const serialize');
     expect(start, 'pipeline.ts has no serialize').toBeGreaterThan(-1);
-    const body = source.slice(start, source.indexOf('\n};', start));
+    // The end of the slice is guarded explicitly: an `indexOf` that answered -1
+    // would slice to *almost the whole file* — which does contain `unified(`,
+    // in the module-level chain — and fail pointing at code that is not
+    // `serialize` at all.
+    const end = source.indexOf('\n};', start);
+    expect(end, 'serialize has no column-0 closer — the slice bound moved').toBeGreaterThan(start);
+    const body = source.slice(start, end);
+    // And the slice really is the whole of `serialize`: a `\n};` appearing
+    // early inside the body would truncate it and let both `not.toMatch`
+    // assertions below pass vacuously. The shared chain is what `serialize`
+    // stringifies through, so a body that reaches it was not cut short.
+    expect(body, 'the slice is not the whole serialize body').toContain('SAVE_CHAIN.stringify');
     // The two things `serialize` used to build per call.
     expect(body, 'serialize builds a chain per call').not.toMatch(/unified\(/);
     expect(body, 'serialize builds a handler table per call').not.toMatch(/createSerializeHandlers\(/);

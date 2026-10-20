@@ -190,7 +190,7 @@ export const bindAnchorLibraries = (locator?: BitapLocator): void => {
   pendingLoad = undefined;
 };
 
-/** Whether a locator is bound. `false` means step 3 cannot run and will say so. */
+/** Whether a locator is bound. `false` means steps 3 and 4 cannot run and will say so. */
 export const anchorLibrariesLoaded = (): boolean => boundLocator !== undefined;
 
 /** The bound locator, or `undefined`. For tests that assert *which* one ran. */
@@ -232,7 +232,7 @@ export const preloadAnchorLibraries = async (): Promise<BitapLocator> => {
       const ctor = namespace.diff_match_patch ?? namespace.default?.diff_match_patch ?? namespace.default;
       if (typeof ctor !== 'function') {
         throw new Error(
-          'diff-match-patch@1.0.5 exported none of diff_match_patch, default.diff_match_patch, or a default constructor, so the anchor ladder cannot bind its Bitap locate. Steps 1, 2 and 4 still work; step 3 will refuse with that reason.',
+          'diff-match-patch@1.0.5 exported none of diff_match_patch, default.diff_match_patch, or a default constructor, so the anchor ladder cannot bind its Bitap locate. Steps 1 and 2 still work; steps 3 and 4 will refuse with that reason.',
         );
       }
       const engine = new ctor();
@@ -339,6 +339,14 @@ export const contextMatches = (anchor: TextAnchor, body: string, range: AnchorRa
  * whole-string fold cannot say which source character produced which folded
  * unit, which is the whole of what the map is for.
  *
+ * **The context the per-code-point fold cannot see is normalized instead.**
+ * Unicode's Final_Sigma rule makes a whole-string fold of `ΛΟΓΟΣ` end in `ς`
+ * while `Σ` folded in isolation is always `σ`, so the two spellings of the same
+ * word would never meet in a search. Both are replaced on the way in —
+ * `ς` → `σ`, and the long s `ſ` → `s`, the same 1:1 normalization the repo's
+ * matching fold applies — which unifies the spellings without changing any
+ * code-unit count, so `origin` and `sourceStart` stay exact.
+ *
  * `sourceStart` carries one entry more than there are code points: the string's
  * own length, so the end of the last code point is the next entry rather than a
  * special case.
@@ -359,7 +367,9 @@ const foldWithMap = (source: string): FoldedText => {
   let offset = 0;
   let index = 0;
   for (const character of source) {
-    const lowered = character.toLowerCase();
+    // Length-preserving: both replacements map one code unit to one code unit,
+    // so the fold's map back to the source is untouched by them.
+    const lowered = character.toLowerCase().replace(/ς/g, 'σ').replace(/ſ/g, 's');
     sourceStart.push(offset);
     for (let unit = 0; unit < lowered.length; unit += 1) {
       folded += lowered[unit]!;
@@ -613,11 +623,13 @@ export const resolveAnchor = (
     reason = `the anchored text now appears ${global.length} times in this document and no single occurrence matches the captured context with enough of it (${Math.round(
       CONTEXT_MATCH_FLOOR * 100,
     )}% required). Quoting the span to target it is not possible without choosing one of them, so nothing was written.`;
-  } else if (locator === undefined) {
+  } else if (locator === undefined && inWindow.length !== 1) {
     // **The one occurrence is there, and nothing has said whether it is the
-    // right one.** The rung that would have checked its context is the rung
-    // that could not run, so the reason must not claim the context failed —
-    // that question was never asked.
+    // right one.** It lies outside step 2's window — an in-window occurrence
+    // was context-checked by step 2, and a failure there is the honest
+    // "the context no longer matches" below — and the rung that would have
+    // checked it globally is the rung that could not run, so the reason must
+    // not claim the context failed; that question was never asked.
     reason = `the anchored text appears once in this document, but the rung that would have checked its context could not run, so nothing has confirmed that this occurrence is the one the plan meant.`;
   } else {
     reason = `the anchored text appears once, but the context around it no longer matches (${Math.round(

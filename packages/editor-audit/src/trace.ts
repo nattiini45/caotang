@@ -145,13 +145,19 @@ const newlineTerminated = (s: string): string => (s.endsWith('\n') ? s : `${s}\n
 
 /**
  * One mdast node's entry in a tree's **shape**: its type, with the attributes
- * §3.1 declares folded into it.
+ * §3.1 declares folded into it — plus, for a fence, the info-string `meta`.
  *
  * The attributes are the point of the fold. A task list item that comes back
  * without its `checked` is the same *kind* of node as the one that went in, so
  * a shape that counted node types alone would call that round trip exact when
  * §3.3's own table calls it a degrade. The same is true of a heading that
  * changed depth and of a link that changed its URL.
+ *
+ * `meta` is folded in for the same reason even though §3.1 declares no
+ * attribute for it: the loader keeps only `lang` and the serializer writes
+ * only `lang`, so a round trip of `` ```js title=x `` deletes `title=x` from
+ * the document. A shape that did not carry `meta` would measure that deletion
+ * exact — the false-exact class this comparison exists to catch.
  */
 const shapeEntry = (node: Nodes): string => {
   switch (node.type) {
@@ -166,7 +172,7 @@ const shapeEntry = (node: Nodes): string => {
     case 'image':
       return `image:${node.url}:${node.alt ?? ''}:${node.title ?? ''}`;
     case 'code':
-      return `code:${node.lang ?? ''}`;
+      return `code:${node.lang ?? ''}:${node.meta ?? ''}`;
     case 'inlineCode':
       return 'inlineCode';
     case 'text':
@@ -269,9 +275,22 @@ export const measure = async (entry: {
   let pm: PmNode | null = null;
   let threw: string | null = null;
   let output = '';
+  let deterministic = false;
+  let outputShape: TreeShape | null = null;
+  // Everything the round trip touches lives in this try, including the re-parse
+  // of the **output**: those are bytes nothing has validated yet, and the
+  // contract of the table is that a library deviation surfaces as a result —
+  // a `threw`/`lost` row — rather than as a rejection that kills the batch.
   try {
     pm = await parse(entry.input);
     output = serialize(pm);
+    deterministic = output === serialize(await parse(entry.input));
+    // The output's shape, read back from the bytes a save would write. This is
+    // the comparison that matters: the question is not what the serializer wrote
+    // but what a reader — or the next parse — gets back.
+    outputShape = treeShape(
+      unified().use(remarkParse).use(remarkGfm).parse(output) as MdastRoot,
+    );
   } catch (error) {
     threw = error instanceof Error ? error.message : String(error);
   }
@@ -279,15 +298,6 @@ export const measure = async (entry: {
   const shape = pm ? pmShapeOf(pm) : { nodes: [], marks: [] };
   const byteIdenticalRaw = threw === null && output === entry.input;
   const byteIdentical = threw === null && output === newlineTerminated(entry.input);
-  const deterministic = threw === null && output === serialize(await parse(entry.input));
-
-  // The output's shape, read back from the bytes a save would write. This is
-  // the comparison that matters: the question is not what the serializer wrote
-  // but what a reader — or the next parse — gets back.
-  const outputShape =
-    threw === null
-      ? treeShape(unified().use(remarkParse).use(remarkGfm).parse(output) as MdastRoot)
-      : null;
 
   let outcome: Class;
   let note: string;

@@ -684,7 +684,7 @@ const blockSpans = (doc: PmNode, nodes: readonly { node: PmNode; from: number }[
  * this).
  *
  * The three locators, in order, because the first two are exact and the third is
- * a measured fallback rather than a guess — over the §13 corpus: 72 leaves
+ * a measured fallback rather than a guess — over the §13 corpus: 77 leaves
  * located by their own serialization, 4 by raw text, 0 by the escape-tolerant
  * search, 0 blocks degraded.
  */
@@ -702,7 +702,7 @@ export const buildProjectionMap = (doc: PmNode): ProjectionMap => {
     // The initial `fenced` stays `false`: `walkTextLeaves` only *or*s the flag in
     // as it descends, so a fence nested in another block is marked, while the
     // arm-1 wrapper for a top-level fence stays the paragraph — the wrapper that
-    // the corpus's measured 72/4/0 split was pinned against.
+    // the corpus's measured 77/4/0 split was pinned against.
     walkTextLeaves(node, from, false, (leaf, pos, fenced) => {
       const text = leaf.text ?? '';
       if (text.length === 0) return;
