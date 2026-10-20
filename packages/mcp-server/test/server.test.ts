@@ -739,6 +739,45 @@ describe('the registry seam', () => {
     expect(exposed).not.toContain('agent.plan');
     expect(metadataFor('doc.import')?.surface).toBe('extension');
   });
+
+  it('lists exactly the read tools on a read-only server, and the write tools only with --allow-writes', async () => {
+    // The tool list is the server's whole outward contract, and a statement of what a read-only
+    // server exposes. It is pinned here so a new row cannot change `tools/list` without the
+    // README's tables (and extensibility §9) being updated with it.
+    const fixture = await startFixture({ label: 'listed', allowWrites: true, seed: true });
+    try {
+      const listed = (allowWrites: boolean): string[] =>
+        fixture.session.harness
+          .tools()
+          .filter(
+            (tool) =>
+              mcpExposure(tool).exposed && tool.name !== 'tool.search' && tool.wired && !tool.async && (tool.risk === 'read' || allowWrites),
+          )
+          .map((tool) => tool.name)
+          .sort();
+      expect(listed(false)).toEqual(['binder.read_tree', 'codex.read', 'coherence.scan', 'dialogue.table', 'doc.read', 'notes.read', 'project.overview']);
+      expect(listed(true)).toEqual([
+        'binder.read_tree',
+        'binder.restructure',
+        'codex.import',
+        'codex.read',
+        'codex.write',
+        'coherence.scan',
+        'coherence.setFindingStatus',
+        'dialogue.table',
+        'doc.import',
+        'doc.read',
+        'export.compile',
+        'meta.set',
+        'notes.append',
+        'notes.read',
+        'project.overview',
+        'shots.annotate',
+      ]);
+    } finally {
+      await fixture.close();
+    }
+  }, 30_000);
 });
 
 describe('the confirmation round trip on the wire', () => {

@@ -514,6 +514,16 @@ describe('what is never contacted', () => {
     expect(current?.trustReads).toBe(false);
     expect(client.healthOf(KEY)).toMatchObject({ state: 'configured' });
   });
+
+  it('does not carry the bearer token to an address it was never issued for', async () => {
+    const server = fixture();
+    const { client, saved } = makeClient(server, { servers: [serverFor(KEY, 'Authed', { auth: { kind: 'bearer', tokenRef: 'v_AAAAAAAAAA' } })] });
+    const moved = await client.updateServer(KEY, { url: 'https://elsewhere.fixture.test/mcp' });
+    expect(moved.ok).toBe(true);
+    // The token was issued for the old host. Sending it to the new one hands a live credential
+    // to a host it was never meant for, so the address change drops it and the person is asked again.
+    expect(saved.at(-1)?.servers[0]?.auth).toEqual({ kind: 'none' });
+  });
 });
 
 describe('a disconnected server shows nothing it cannot call', () => {

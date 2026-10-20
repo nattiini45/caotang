@@ -47,6 +47,18 @@ export const CLIENT_VERSION = '0.1.0';
 /** How long the probe that tells CORS from a dead host may take. */
 const PROBE_MS = 5_000;
 
+/**
+ * The most bytes one answer from a server may carry before it is refused. A server the writer
+ * connected is untrusted for its output (§4 rule 6), and the 8k answer cap is applied to the
+ * parsed result, which is after the memory is already spent. This is the bound that stops a
+ * 300 MB `tools/list` or `tools/call` body ever being materialised. It is well over any real
+ * listing or answer, and well under what the tab can hold.
+ *
+ * An event stream is bounded event by event rather than as a whole, because it is a sequence of
+ * answers rather than one: see `eventStreamResponse`.
+ */
+export const MAX_ANSWER_BYTES = 16 * 1024 * 1024;
+
 /** The start of the SDK's message when the server's `initialize` answer names a revision the client does not offer. */
 const UNSUPPORTED_SERVER_REVISION = "Server's protocol version is not supported";
 
@@ -142,6 +154,8 @@ class StreamableHttpWire implements McpWire {
   private client: Client | undefined;
   /** Set by the fetch wrapper just before a network failure surfaces, so the classifier can tell CORS from a dead host. */
   private networkFailure: 'network' | 'cors' | undefined;
+  /** Set when an answer was refused for its size, so the refusal is told even when the SDK reported it as a broken connection. */
+  private sizeRefusal: WireError | undefined;
 
   constructor(server: McpServerConfig, deps: WireDeps) {
     this.server = server;
@@ -150,6 +164,7 @@ class StreamableHttpWire implements McpWire {
 
   async listTools(options: WireOptions): Promise<readonly WireTool[]> {
     this.networkFailure = undefined;
+    this.sizeRefusal = undefined;
     try {
       const client = await this.open(options.timeoutMs, options.signal);
       const listed = await client.listTools(undefined, { cacheMode: 'refresh', timeout: options.timeoutMs, signal: options.signal });
@@ -171,6 +186,7 @@ class StreamableHttpWire implements McpWire {
 
   async callTool(name: string, args: Record<string, unknown>, options: WireOptions): Promise<WireCallResult> {
     this.networkFailure = undefined;
+    this.sizeRefusal = undefined;
     try {
       const client = await this.open(options.timeoutMs, options.signal);
       const result = await client.callTool({ name, arguments: args }, { timeout: options.timeoutMs, signal: options.signal });
@@ -215,8 +231,13 @@ class StreamableHttpWire implements McpWire {
         throw new TypeError(`request to ${target} is outside the connected server`);
       }
       try {
-        return await this.deps.fetch(input, init);
+        return boundedResponse(await this.deps.fetch(input, init), MAX_ANSWER_BYTES, (error) => {
+          this.sizeRefusal = error;
+        });
       } catch (error) {
+        // A refused answer is not a network failure: the server answered, and the answer was over
+        // the budget. It stands as it is, and is never probed.
+        if (error instanceof WireError) throw error;
         if (isAbort(error)) throw error;
         const reachable = await this.deps.probe(target).catch(() => false);
         this.networkFailure = reachable ? 'cors' : 'network';
@@ -227,6 +248,12 @@ class StreamableHttpWire implements McpWire {
 
   private classify(error: unknown, signal: AbortSignal | undefined): WireError {
     if (error instanceof WireError) return error;
+    // An answer refused for its size is this module's own refusal, and it is the kind the person
+    // is told, however deeply the SDK wrapped it on the way out. A refusal inside an event stream
+    // reaches the SDK as a broken connection, so the refusal that was recorded when it happened is
+    // the one that is told.
+    if (this.sizeRefusal !== undefined) return this.sizeRefusal;
+    if (isSizeRefusal(error)) return new WireError('result', errorMessage(error));
     if (isAbort(error) || signal?.aborted === true) return new WireError('abort', 'the call was aborted');
     // The SDK wraps a failed request in its own error (the version probe reports "Failed to fetch" as a
     // ProtocolError, for one). The fetch wrapper saw the real failure and recorded it, so that record wins.
@@ -270,6 +297,208 @@ class StreamableHttpWire implements McpWire {
 
 function isAbort(error: unknown): boolean {
   return error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError');
+}
+
+/**
+ * An answer whose body is kept under `max` bytes, whichever way the server framed its length. A
+ * declared `Content-Length` over the budget is refused before a byte is read, and a body the
+ * server left unbounded is read through a counting stream that stops at the same limit, so a
+ * chunked answer is cut where a declared one is refused. The whole body is refused, never cut
+ * down: the SDK's own parse of a truncated message would be a worse failure than no answer at all.
+ *
+ * An event stream is the one answer that is not one answer. The SDK reads it event by event, and
+ * a server that keeps a connection open carries every notification for the life of that
+ * connection in one body, so the bytes of the body add up past the budget while every event in it
+ * stays small. The bound there is on one event, not on the stream, and `onRefusal` is told when
+ * an event is refused, because a refusal inside a stream reaches the SDK as a broken connection
+ * rather than as an answer that was too big.
+ */
+function boundedResponse(response: Response, max: number, onRefusal: (error: WireError) => void): Response {
+  if (isEventStream(response)) return eventStreamResponse(response, max, onRefusal);
+  const declared = Number(response.headers.get('content-length') ?? '');
+  if (Number.isFinite(declared) && declared > max) throw tooLarge(declared, max);
+  if (response.body === null) return response;
+  const reader = response.body.getReader();
+  let seen = 0;
+  const counted = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, value } = await reader.read();
+      if (done) {
+        controller.close();
+        return;
+      }
+      seen += value?.byteLength ?? 0;
+      if (seen > max) {
+        await reader.cancel().catch(() => undefined);
+        const error = tooLarge(seen, max);
+        onRefusal(error);
+        controller.error(error);
+        return;
+      }
+      controller.enqueue(value);
+    },
+    cancel(reason) {
+      return reader.cancel(reason);
+    },
+  });
+  return new Response(counted, { status: response.status, statusText: response.statusText, headers: response.headers });
+}
+
+/** Whether the answer is an event stream: a sequence of events, not one body. */
+function isEventStream(response: Response): boolean {
+  const type = response.headers.get('content-type') ?? '';
+  return type.split(';')[0]?.trim().toLowerCase() === 'text/event-stream';
+}
+
+/** One byte of a line terminator. */
+const LF = 10;
+const CR = 13;
+
+/**
+ * The size of the events in one event stream, counted between the blank lines that end them.
+ *
+ * The framing is the one the SDK's parser uses: a line ends at LF, CR or CRLF, and an event ends
+ * at a blank line. The size of an event is the bytes it occupies in the stream — its lines and
+ * their terminators, without the blank line that ends it.
+ */
+class EventSize {
+  /** The bytes of the lines of the event being read. */
+  private event = 0;
+  /** The bytes of the line being read. */
+  private line = 0;
+  /** The last byte was a CR, which may still be the first half of a CRLF. */
+  private pendingCr = false;
+  /** The size of the event that was over the budget, once one of them has been. */
+  private refused: number | undefined;
+
+  constructor(private readonly budget: number) {}
+
+  /** Whether an event of this stream has been over the budget. */
+  get over(): boolean {
+    return this.refused !== undefined;
+  }
+
+  /** The size of the event that was over the budget. */
+  get size(): number {
+    return this.refused ?? this.event + this.line;
+  }
+
+  /** Adds the bytes of a line's content. */
+  addContent(count: number): void {
+    this.line += count;
+    this.check(this.event + this.line);
+  }
+
+  /** Adds one line terminator. */
+  addTerminator(byte: number): void {
+    if (this.pendingCr) {
+      this.pendingCr = false;
+      if (byte === LF) {
+        this.endLine(2);
+        return;
+      }
+      this.endLine(1);
+    }
+    if (byte === CR) {
+      this.pendingCr = true;
+      return;
+    }
+    this.endLine(1);
+  }
+
+  /** The stream ended: an event that never got its blank line is measured all the same. */
+  end(): void {
+    this.check(this.event + this.line);
+  }
+
+  /** One line ended: either a line of the event, or the blank line that ends the event. */
+  private endLine(terminatorBytes: number): void {
+    if (this.line === 0) {
+      // A blank line ends the event. The blank line is the boundary, not part of the event.
+      this.check(this.event);
+      this.event = 0;
+      return;
+    }
+    this.event += this.line + terminatorBytes;
+    this.line = 0;
+    this.check(this.event);
+  }
+
+  private check(size: number): void {
+    if (this.refused === undefined && size > this.budget) this.refused = size;
+  }
+}
+
+/**
+ * An event stream whose events are kept under `max` bytes each. The stream itself is not bounded:
+ * a server that keeps a connection open carries every notification for the life of it in one
+ * body, and a healthy server that streams more than the budget over that life is not cut off for
+ * it. One event over the budget is refused, whole.
+ */
+function eventStreamResponse(response: Response, max: number, onRefusal: (error: WireError) => void): Response {
+  if (response.body === null) return response;
+  const reader = response.body.getReader();
+  const size = new EventSize(max);
+  const counted = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, value } = await reader.read();
+      if (done) {
+        size.end();
+        if (size.over) {
+          const error = tooLarge(size.size, max);
+          onRefusal(error);
+          controller.error(error);
+          return;
+        }
+        controller.close();
+        return;
+      }
+      if (value !== undefined) {
+        let start = 0;
+        while (start < value.length) {
+          const cr = value.indexOf(CR, start);
+          const lf = value.indexOf(LF, start);
+          const next = cr === -1 ? lf : lf === -1 ? cr : Math.min(cr, lf);
+          if (next === -1) {
+            size.addContent(value.length - start);
+            break;
+          }
+          if (next > start) size.addContent(next - start);
+          const terminator = value[next];
+          if (terminator === undefined) break;
+          size.addTerminator(terminator);
+          start = next + 1;
+          if (size.over) break;
+        }
+        if (size.over) {
+          await reader.cancel().catch(() => undefined);
+          const error = tooLarge(size.size, max);
+          onRefusal(error);
+          controller.error(error);
+          return;
+        }
+        controller.enqueue(value);
+        return;
+      }
+      controller.enqueue(value);
+    },
+    cancel(reason) {
+      return reader.cancel(reason);
+    },
+  });
+  return new Response(counted, { status: response.status, statusText: response.statusText, headers: response.headers });
+}
+
+function tooLarge(seen: number, max: number): WireError {
+  return new WireError('result', `the server's answer is over the ${max}-byte budget (about ${seen} bytes), so it was refused and not read`);
+}
+
+/** Whether a failure is this module's own refusal of an oversized answer, at whatever depth the SDK wrapped it. */
+function isSizeRefusal(error: unknown, seen = 0): boolean {
+  if (error instanceof WireError) return true;
+  if (seen > 5 || typeof error !== 'object' || error === null) return false;
+  if ('cause' in error && isSizeRefusal((error as { cause: unknown }).cause, seen + 1)) return true;
+  return 'message' in error && /over the \d+-byte budget/.test(String((error as { message: unknown }).message));
 }
 
 function errorMessage(error: unknown): string {

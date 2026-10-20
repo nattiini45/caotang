@@ -21,6 +21,9 @@ import { join } from 'node:path';
 
 export const LOCK_FILE = '.caotang-mcp.lock';
 
+/** The marker a takeover of a stale lock writes beside the lock, in the same folder. */
+export const LOCK_TAKEOVER_FILE = `${LOCK_FILE}.takeover`;
+
 /** A lock younger than this, with no readable holder, is a write in progress and not a stale lock. */
 const FRESH_MS = 5_000;
 
@@ -28,9 +31,21 @@ export class ProjectLockedError extends Error {
   constructor(
     readonly root: string,
     readonly holderPid: number | undefined,
+    /**
+     * The marker of a takeover that is still marked, when the refusal is because of one, and
+     * the pid that marked it when it can be read. They are named in the message, because a
+     * folder refused for a marker left by a writer that died is otherwise a folder nobody can
+     * open, and the marker is the one thing in it that says why.
+     */
+    readonly takeoverMarker: string | undefined = undefined,
+    readonly takeoverPid: number | undefined = undefined,
   ) {
     const holder = holderPid === undefined ? '' : ` (pid ${holderPid})`;
-    super(`the project folder ${root} is in use by another writer${holder}; one writer at a time, so this process did not open it`);
+    const recovery =
+      takeoverMarker === undefined
+        ? ''
+        : `; a takeover of the lock is marked by ${takeoverMarker}${takeoverPid === undefined ? '' : ` (pid ${takeoverPid})`} in that folder: if no other Caotang or MCP process is using the folder, delete that file and the next writer takes the lock over`;
+    super(`the project folder ${root} is in use by another writer${holder}; one writer at a time, so this process did not open it${recovery}`);
     this.name = 'ProjectLockedError';
   }
 }
@@ -89,8 +104,54 @@ async function createExclusive(path: string, body: string): Promise<boolean> {
 }
 
 /**
+ * What a takeover of a stale lock came to: the lock was removed, a takeover of it is still marked
+ * and must not be started over, or another writer replaced the lock first.
+ */
+type Takeover = 'taken' | 'marker-busy' | 'replaced';
+
+/**
+ * Takes a stale lock out of the way of the writer allowed to replace it. Two writers can
+ * read the same lock and both judge it stale, and both would then remove it and each
+ * create a lock of its own. The removal therefore elects one of them first: a marker file
+ * beside the lock is created exclusively (`wx`), which no two writers can do, and only
+ * its creator removes the lock. The body is read again first, so a lock another writer
+ * already replaced is never removed — that is what the marker cannot prove on its own.
+ *
+ * The marker is a takeover in progress, not a project artifact, so it lives beside the
+ * lock only for the length of that one removal and is never left behind. A writer that
+ * finds one takes it as a lock that is in use, and does not start a takeover of its own:
+ * the marker is the record of a writer whose own lock is on its way, and it must not be
+ * turned into a lock that a second writer can take over. The marker names the writer that
+ * made it, so that a writer refused because of one can say which file is in the way.
+ */
+async function removeStale(path: string, staleToken: string): Promise<Takeover> {
+  const marker = `${path}.takeover`;
+  const body = `${JSON.stringify({ pid: process.pid, token: randomUUID(), startedAt: new Date().toISOString() }, null, 2)}\n`;
+  if (!(await createExclusive(marker, body))) return 'marker-busy';
+  try {
+    // The body is read again first: the lock removed is the one judged stale, and a lock
+    // another writer already replaced in the meantime is left to that writer.
+    const text = await readFile(path, 'utf8').catch(() => '');
+    const current = parseBody(text);
+    if (current !== undefined) {
+      if (current.token !== staleToken) return 'replaced';
+    } else if (text === '' && !(await stat(path).then(() => true, () => false))) {
+      // The lock is gone: another writer took it over already. There is nothing of the stale
+      // lock left to remove, and removing whatever is at the path now would remove the lock
+      // of the writer that took it over.
+      return 'taken';
+    }
+    await unlink(path).catch(() => undefined);
+    return 'taken';
+  } finally {
+    await unlink(marker).catch(() => undefined);
+  }
+}
+
+/**
  * Takes the project's lock. Throws {@link ProjectLockedError} when a live process
- * holds it. A lock whose holder is gone is removed and the lock is taken once more.
+ * holds it. A lock whose holder is gone is taken over by one writer: the stale lock is
+ * removed under an exclusive marker and that writer's own lock is created in its place.
  */
 export async function acquireProjectLock(root: string, now: Date = new Date()): Promise<ProjectLock> {
   const path = join(root, LOCK_FILE);
@@ -112,7 +173,17 @@ export async function acquireProjectLock(root: string, now: Date = new Date()): 
       // Unreadable and recent: another writer is between creating the file and writing it.
       throw new ProjectLockedError(root, undefined);
     }
-    await unlink(path).catch(() => undefined);
+    const outcome = await removeStale(path, holder?.token ?? '');
+    if (outcome !== 'taken') {
+      // Another writer took the stale lock over, or a takeover of it is still marked. A marked
+      // takeover names its marker, so the person can see what is in the way and how to clear it.
+      if (outcome === 'marker-busy') {
+        const marker = join(root, LOCK_TAKEOVER_FILE);
+        const markerPid = parseBody(await readFile(marker, 'utf8').catch(() => ''))?.pid;
+        throw new ProjectLockedError(root, undefined, marker, markerPid);
+      }
+      throw new ProjectLockedError(root, undefined);
+    }
   }
   throw new ProjectLockedError(root, undefined);
 }

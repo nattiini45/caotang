@@ -552,11 +552,14 @@ class McpClientImpl implements McpClient {
     let reason: string | undefined;
     if (name !== undefined) server.name = name;
     if (address !== undefined) {
-      // A new address is a new server to the pins: whatever was reviewed belonged to the old one.
+      // A new address is a new server to the pins: whatever was reviewed belonged to the old one,
+      // and so did the bearer token. It is dropped with them, so a credential is never sent to a
+      // host it was not issued for; the person is asked for one for the new address.
       server.url = address;
       server.pinnedTools = {};
       server.trustReads = false;
       delete server.enabledTools;
+      server.auth = { kind: 'none' };
       reason = 'the address changed — connect to review its tool list';
     }
     if (patch.auth !== undefined) {
