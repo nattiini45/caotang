@@ -16,6 +16,8 @@ import type { SceneNumbersOption } from '@caotang/bus';
 import { SCENE_NUMBER_PLACEMENTS as SCREENPLAY_PLACEMENTS } from '@caotang/screenplay';
 import type { SceneNumberPlacement } from '@caotang/screenplay';
 
+import type { ExportRecipeOptions, MediaRequest } from '../src/index.js';
+
 /**
  * Whether two types are the same one. The identity test for a conditional type:
  * it holds only when the two types are the same, so a union that gains or loses a
@@ -33,6 +35,15 @@ const _sameType: Equal<SceneNumberPlacement, SceneNumbersOption> = true;
 const _busFitsPlacement: SceneNumbersOption extends SceneNumberPlacement ? true : false = true;
 const _placementFitsBus: SceneNumberPlacement extends SceneNumbersOption ? true : false = true;
 
+/*
+ * The exporter's own two scene-number fields — the recipe option it reads and the
+ * media request it renders from — are typed with the paginator's shared type, not
+ * with a local copy of the union. The identities below fail the typecheck here, in
+ * the file that owns the contract, if either field ever drifts from it.
+ */
+const _recipeOptionIsPlacement: Equal<NonNullable<ExportRecipeOptions['sceneNumbers']>, SceneNumberPlacement> = true;
+const _mediaRequestIsPlacement: Equal<NonNullable<MediaRequest['sceneNumbers']>, SceneNumberPlacement> = true;
+
 describe('the scene-number placements', () => {
   it('are the same list in the bus and in the paginator', () => {
     expect(SCREENPLAY_PLACEMENTS).toEqual(BUS_OPTIONS);
@@ -43,6 +54,11 @@ describe('the scene-number placements', () => {
     expect(_sameType).toBe(true);
     expect(_busFitsPlacement).toBe(true);
     expect(_placementFitsBus).toBe(true);
+  });
+
+  it('are the type the exporter’s own recipe-option and media-request fields carry', () => {
+    expect(_recipeOptionIsPlacement).toBe(true);
+    expect(_mediaRequestIsPlacement).toBe(true);
   });
 
   it('are the four screenplay.md §5.3 names the recipe option offers', () => {
