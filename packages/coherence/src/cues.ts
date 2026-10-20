@@ -8,10 +8,11 @@
  * the entry a cue names, and the document kind. Nothing here calls a model or writes anything.
  */
 
-import { characterCueNames, cueKey, cueSpellingGroups, normaliseSource, parseFountain, isScreenplayKind, type CueSpellingGroup, type LocatedElement } from '@caotang/screenplay';
+import { characterCueNames, cueKey, normaliseSource, parseFountain, isScreenplayKind, type LocatedElement } from '@caotang/screenplay';
 import type { CodexEntry } from '@caotang/store';
 
 import { resolveEntry, termsOf } from './checks/common.js';
+import type { ScannedScene } from './scope.js';
 
 /** What the screenplay parse reads from one document body, in the normalised source's offsets. */
 export interface CueFacts {
@@ -21,8 +22,6 @@ export interface CueFacts {
   readonly text: string;
   /** Character names, deduplicated, in first-seen order (screenplay.md §4 cue names). */
   readonly names: readonly string[];
-  /** Spellings of one character that differ (script.cue-consistency). */
-  readonly spellingGroups: readonly CueSpellingGroup[];
 }
 
 /** The screenplay read of one body. A body that is not a screenplay is never passed here. */
@@ -33,8 +32,20 @@ export function cueFactsOf(body: string): CueFacts {
     elements: parsed.elements,
     text,
     names: characterCueNames(parsed.elements),
-    spellingGroups: cueSpellingGroups(parsed.elements),
   };
+}
+
+/**
+ * The screenplay read of every scene in a run, by document id. The three script checks read the same bodies, so a run
+ * parses each screenplay body once and shares the read.
+ */
+export function cueFactsOfScenes(scenes: readonly ScannedScene[]): Map<string, CueFacts> {
+  const facts = new Map<string, CueFacts>();
+  for (const scene of scenes) {
+    if (!isScreenplayDocument(scene.kind)) continue;
+    facts.set(scene.docId, cueFactsOf(scene.body));
+  }
+  return facts;
 }
 
 /**

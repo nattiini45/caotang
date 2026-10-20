@@ -9,6 +9,7 @@
 
 import type { CodexEntry } from '@caotang/store';
 
+import type { CueFacts } from '../cues.js';
 import { effectiveMode } from '../scene-meta.js';
 import type { DeterministicCheckId, Evidence, FindingSeverity, TimelineMode } from '../model.js';
 import type { ManuscriptFolder, ScannedScene, ShotFact } from '../scope.js';
@@ -51,6 +52,8 @@ export interface CheckInput {
   readonly shots?: readonly ShotFact[];
   /** The dialogue module's validation, when the app supplied it. Absent means the branch checks are not evaluated. */
   readonly dialogue?: DialogueFacts;
+  /** The screenplay read of each scene body, when the run computed it: the three script checks share one parse per scene. */
+  readonly cueFacts?: ReadonlyMap<string, CueFacts>;
 }
 
 export interface CheckOutput {

@@ -40,6 +40,49 @@ describe('parseFdxParagraphs — the typed paragraphs of an FDX file', () => {
     expect(paragraphs[0]).toMatchObject({ lengthEighths: 8, container: null });
     expect(paragraphs[10]).toMatchObject({ container: 0 });
   });
+
+  it('drops a paragraph whose closing tag is missing, as it always has', () => {
+    const xml = [
+      '<Paragraph Type="Scene Heading"><Text>INT. A - DAY</Text></Paragraph>',
+      '<Paragraph Type="Action"><Text>Never closed',
+    ].join('');
+    expect(parseFdxParagraphs(xml).map((p) => p.type)).toEqual(['Scene Heading']);
+  });
+
+  it('reads a file whose closing tags are missing in linear time', () => {
+    const truncated = (count: number): string => '<Paragraph Type="Action">'.repeat(count);
+    const timed = (count: number): number => {
+      const source = truncated(count);
+      const started = performance.now();
+      expect(parseFdxParagraphs(source)).toEqual([]);
+      return performance.now() - started;
+    };
+    parseFdxParagraphs(truncated(1000));
+    const small = timed(20_000);
+    const large = timed(40_000);
+    expect(large).toBeLessThan(1000);
+    expect(large).toBeLessThan(3 * small + 100);
+  });
+});
+
+describe('importFdx — the characters a numeric reference may name', () => {
+  it('reads a reference to a character XML allows', () => {
+    const xml = '<Paragraph Type="Action"><Text>a&#x41;b&#9;c</Text></Paragraph>';
+    expect(parseFdxParagraphs(xml)[0]?.text).toBe('aAb\tc');
+  });
+
+  it('keeps a reference to a surrogate or a control character as it was written', () => {
+    const xml = '<Paragraph Type="Action"><Text>a&#xD800;b&#x0;c</Text></Paragraph>';
+    expect(parseFdxParagraphs(xml)[0]?.text).toBe('a&#xD800;b&#x0;c');
+  });
+
+  it('imports no lone surrogate and no control character into a scene body', () => {
+    const xml = '<Paragraph Type="Scene Heading"><Text>INT. A - DAY</Text></Paragraph><Paragraph Type="Action"><Text>a&#xD800;b&#x0;c</Text></Paragraph>';
+    const body = importFdx(xml).nodes.map((node) => (node.kind === 'scene' ? node.body : '')).join('\n');
+    const codes = [...body].map((ch) => ch.codePointAt(0) ?? 0);
+    expect(codes.filter((code) => code >= 0xd800 && code <= 0xdfff)).toEqual([]);
+    expect(codes.filter((code) => code < 0x20 && code !== 0x9 && code !== 0xa && code !== 0xd)).toEqual([]);
+  });
 });
 
 describe('importFdx — FDX to scenes (screenplay.md §5.2)', () => {

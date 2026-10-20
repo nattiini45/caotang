@@ -22,11 +22,10 @@ export function isCoherenceId(prefix: CoherenceIdPrefix, value: unknown): value 
 }
 
 /**
- * Mint an id not already in `taken`. `newId` re-rolls on collision itself; it falls
- * back to a longer id only when every attempt collided, and a coherence id has to
- * be the ten-character shape the spec fixes, so that fallback is refused here
- * rather than stored. Exhausting the attempts is a bug in the randomness source,
- * so it throws rather than returning a duplicate.
+ * Mint an id not already in `taken`. `newId` re-rolls on collision itself, and it
+ * draws again at the same length rather than at a longer one, because a coherence
+ * id has to be the ten-character shape the spec fixes. Exhausting the attempts is
+ * a bug in the randomness source, so it throws rather than returning a duplicate.
  */
 export function mintCoherenceId(
   prefix: CoherenceIdPrefix,

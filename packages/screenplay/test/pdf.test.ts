@@ -65,10 +65,19 @@ describe('renderPdf — the file structure', () => {
     expect(pdf).toContain('/BaseFont /Courier');
   });
 
-  it('writes an empty document as a valid PDF with no pages', () => {
+  it('writes an empty document as a valid PDF with one blank page', () => {
     const pdf = decode(writePdf([], { title: 'Empty' }));
-    expect(pdf).toContain('/Count 0 ');
+    expect(pdf).toContain('/Count 1 ');
+    expect(pdf).toContain('/Type /Page ');
     expect(pdf.endsWith('%%EOF\n')).toBe(true);
+  });
+
+  it('writes one blank page when the script prints nothing, so the page tree is never empty', () => {
+    const blocks: FlatBlock[] = [{ kind: 'scene', docId: 'd0', body: '[[production note]]', title: 'INT. A - DAY', number: 1 }];
+    const pdf = decode(renderPdf(blocks, { title: 'T', titlePage: false }).bytes);
+    expect(pdf).not.toContain('/Kids []');
+    expect(pdf).toContain('/Count 1 ');
+    expect(pdf).toContain('/Type /Page ');
   });
 });
 
