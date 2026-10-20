@@ -19,7 +19,7 @@
 
 import { err, ok, type CommandError, type Result } from '@caotang/bus';
 import type { ToolDef } from '@caotang/gateway';
-import type { ExternalToolDescriptor } from '@caotang/mcp-client';
+import { EXCERPT_CHARS, type ExternalToolDescriptor } from '@caotang/mcp-client';
 
 import { checkParams } from '../validate.js';
 import { planParams, type AskBack, type Plan, type PlanPreflight } from '../plan.js';
@@ -117,15 +117,36 @@ export function plannerTools(tools: readonly ToolListing[]): readonly ToolListin
 }
 
 /**
+ * An external tool's description as it reaches the model in the planner prompt or the native tools
+ * declaration. The full text remains in the approval card (extensibility §4 rule 5); the excerpt
+ * shrinks the ambient poisoning surface to the budget the spec sets for the model-facing side
+ * (extensibility §4 rule 4).
+ */
+function clipExternalDescription(description: string): string {
+  // The same rule as `tool.search`'s excerpt (mcp-client `clipChars`): at most EXCERPT_CHARS UTF-16
+  // units including the ellipsis, cut on a code-point boundary, so the model reads the same excerpt
+  // before and after a tool is loaded and never a lone surrogate.
+  if (description.length <= EXCERPT_CHARS) return description;
+  let out = '';
+  for (const point of description) {
+    if (out.length + point.length > EXCERPT_CHARS - 1) break;
+    out += point;
+  }
+  return `${out}…`;
+}
+
+/**
  * The tools a native-mode request declares: the planner's callable set, then the external tools the
  * turn has loaded. A native tool goes by its registry name, an external one by the qualified name
- * `tool.search` returned; each carries its description and its JSON Schema verbatim. The list is
- * built fresh for each request, so a tool a mid-turn search loaded joins the next request.
+ * `tool.search` returned; a native tool's description is Caotang's own text (in full) and an
+ * external tool's is clipped to the spec's excerpt budget so the model's ambient context stays
+ * bounded. The list is built fresh for each request, so a tool a mid-turn search loaded joins the
+ * next request.
  */
 export function plannerToolDefs(tools: readonly ToolListing[], externals: readonly ExternalToolDescriptor[]): ToolDef[] {
   return [
     ...plannerTools(tools).map((tool) => ({ name: tool.name, description: tool.description, parameters: tool.schema })),
-    ...externals.map((tool) => ({ name: tool.qualifiedName, description: tool.description, parameters: tool.inputSchema })),
+    ...externals.map((tool) => ({ name: tool.qualifiedName, description: clipExternalDescription(tool.description), parameters: tool.inputSchema })),
   ];
 }
 
@@ -183,13 +204,14 @@ export function plannerSystemNative(tools: readonly ToolListing[], loaded?: stri
 
 /**
  * The external tools a search loaded this turn, as the model reads them (extensibility §5): each tool's qualified name,
- * its risk, its description verbatim and its input schema. A read runs at once; a write asks the writer on a
- * one-step confirm card of its own, per call. A description is the server's own text, and the model reads it as data.
+ * its risk, its description as the spec's model-facing excerpt (rule 4), and its input schema. The full description still
+ * reaches the writer on the approval card (rule 5); here the model only sees the excerpt so the ambient poisoning surface
+ * stays bounded. A read runs at once; a write asks the writer on a one-step confirm card of its own, per call.
  */
 export function loadedToolsMessage(tools: readonly ExternalToolDescriptor[]): string {
   return [
     'External tools loaded for this turn. Call a read by its qualified name, with params that match its schema. A write asks the writer to confirm each call before it runs.',
-    ...tools.map((tool) => `- ${tool.qualifiedName} [${tool.effectiveRisk === 'read-auto' ? 'read' : 'write'}] — ${tool.description}\n  params: ${JSON.stringify(tool.inputSchema)}`),
+    ...tools.map((tool) => `- ${tool.qualifiedName} [${tool.effectiveRisk === 'read-auto' ? 'read' : 'write'}] — ${clipExternalDescription(tool.description)}\n  params: ${JSON.stringify(tool.inputSchema)}`),
   ].join('\n');
 }
 

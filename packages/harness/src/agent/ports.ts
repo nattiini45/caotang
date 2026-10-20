@@ -84,34 +84,40 @@ export function draftModeRefusal(mode: string, body: string): CommandError | und
 /**
  * The state check of a `scene.draft` step: the mode rule against the document the step names. The rule depends on the body,
  * so a card made from the step's params alone would approve a step the apply refuses. A document that does not resolve is
- * left to the port, which refuses it by name.
+ * named here, at preflight, so a plan card cannot promise a step the apply would refuse on its way out (bus-05-agent).
  */
 export function sceneDraftPreflight(params: CallParams, state: ProjectState): CommandError | undefined {
   const node = resolveNode(state, String(params['doc']), DOCUMENT, 'document', 'params.doc');
-  if (!node.ok) return undefined;
+  if (!node.ok) return node.error;
   const mode = typeof params['mode'] === 'string' ? params['mode'] : 'draft';
   return draftModeRefusal(mode, getBody(state, node.value.id));
 }
 
 /**
  * The derive a `shots.derive` step makes from its params and the proposal staged for it (storyboard.md §4): planned against the scene
- * as it stands, and changing nothing. Undefined while nothing is staged, or when the scene does not resolve, which the port then refuses
- * by name. Shared by the preflight and the card's preview, so a card shows the plan the apply would make, and no other.
+ * as it stands, and changing nothing. Undefined while nothing is staged — that is "no proposal yet", not "the scene is gone";
+ * a scene that does not resolve returns the not-found error here, at preflight, so a plan card never promises a derive the apply
+ * would refuse on its way out (bus-05-agent). Shared by the preflight and the card's preview, so a card shows the plan the apply
+ * would make, and no other.
  */
 function shotsPlanOf(params: CallParams, state: ProjectState, proposal: unknown): Result<DerivePlan, CommandError> | undefined {
   if (proposal === undefined) return undefined;
   const node = resolveNode(state, String(params['doc']), DOCUMENT, 'document', 'params.doc');
-  if (!node.ok) return undefined;
+  if (!node.ok) return err(node.error);
   const planned = deriveShotsTool({ ...params, doc: node.value.id }, { state, presentAssets: new Set(), proposal });
   return planned.ok ? ok(planned.value.plan) : err(planned.error);
 }
 
 /**
  * The state check of a `shots.derive` step: the proposal, planned against the scene it names. A proposal the storyboard module
- * refuses (a malformed shot, too many, a prose scene, an empty one) is refused here, so the card cannot approve a derive its apply
- * would refuse (agent-harness §2). The check is pure, so the port runs it again without a second write.
+ * refuses (a malformed shot, too many, a prose scene, an empty one, or a scene that is no longer there) is refused here, so the
+ * card cannot approve a derive its apply would refuse (agent-harness §2, bus-05-agent). The check is pure, so the port runs it
+ * again without a second write. The scene check (`shotsDeriveScenePreflight`) runs first, so a deleted scene is refused even
+ * before the model has staged a proposal for it.
  */
 function shotsDerivePreflight(params: CallParams, state: ProjectState, proposal?: unknown): CommandError | undefined {
+  const sceneRefusal = shotsDeriveScenePreflight(params, state);
+  if (sceneRefusal !== undefined) return sceneRefusal;
   const planned = shotsPlanOf(params, state, proposal);
   return planned === undefined || planned.ok ? undefined : planned.error;
 }
@@ -122,11 +128,12 @@ const SCENE_REFUSALS: ReadonlySet<string> = new Set(['not-screenplay', 'doc-orph
 /**
  * The checks of a `shots.derive` step that need no proposal: the scene it names, planned against with nothing proposed, so the
  * storyboard module's own words refuse a prose scene or an empty one. The loop runs it before the derive's model call (loop.ts
- * `draftStep`), so no call is spent on shots the card's preflight would refuse. A scene that does not resolve is left to the port.
+ * `draftStep`), so no call is spent on shots the card's preflight would refuse. A scene that does not resolve is named here, at
+ * preflight, so a plan card cannot promise a derive the apply would refuse on its way out (bus-05-agent).
  */
 export function shotsDeriveScenePreflight(params: CallParams, state: ProjectState): CommandError | undefined {
   const node = resolveNode(state, String(params['doc']), DOCUMENT, 'document', 'params.doc');
-  if (!node.ok) return undefined;
+  if (!node.ok) return node.error;
   const planned = deriveShotsTool({ ...params, doc: node.value.id }, { state, presentAssets: new Set(), proposal: undefined });
   if (planned.ok) return undefined;
   const code = planned.error.details?.['storyboardCode'];
@@ -186,6 +193,19 @@ export const sceneDraftPort: ToolPort = (params, context: PortContext) => {
   if (proposal === undefined) return failure(nothingStaged('scene.draft', 'drafted text'));
   if (proposal.text.trim() === '') {
     return failure(refusal('invalid-params', 'the draft is empty, so nothing was written', { correctiveHint: 'draft again with a brief that asks for prose', target: 'scene.draft' }));
+  }
+  // A draft the provider cut at its output limit (agent-harness §8) is incomplete: the card shows it
+  // and the writer either retries or accepts with `acceptTruncated`. The acceptance flows through the
+  // plan-step apply, which strips `cut` from the proposal before it reaches the port (loop.ts), so a
+  // port call that still carries `cut: true` is the writer's direct call without that acceptance —
+  // refuse it, name the cut, and write nothing.
+  if (proposal.cut === true) {
+    return failure(
+      refusal('invalid-params', 'this draft was cut off at the model’s output limit, so it cannot be applied as-is', {
+        correctiveHint: 'retry the draft, or apply through the plan card with acceptTruncated to keep the cut text',
+        target: 'scene.draft',
+      }),
+    );
   }
   const { state } = context;
   const node = resolveNode(state, String(params['doc']), DOCUMENT, 'document', 'params.doc');

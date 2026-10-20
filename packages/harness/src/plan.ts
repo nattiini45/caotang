@@ -33,6 +33,9 @@ import { param, type ObjectSpec } from './schema.js';
 import { checkParams } from './validate.js';
 import type { CallParams, ToolCall, ToolOutcome, ToolValue, TurnContext } from './types.js';
 
+/** The plan step bound, one number for every batch surface the planner can carry. `OPS_MAX` is the structural batch limit. */
+export const PLAN_STEPS_MAX = 30;
+
 /** The plan's own schema. A step's params are checked by the step's tool, so the plan says only "an object". */
 export const planParams: ObjectSpec = param.object(
   'A plan: an ordered list of tool calls, each with the effect it expects.',
@@ -48,7 +51,7 @@ export const planParams: ObjectSpec = param.object(
         },
         ['tool', 'params', 'expect'],
       ),
-      { minItems: 1 },
+      { minItems: 1, maxItems: PLAN_STEPS_MAX },
     ),
   },
   ['steps'],

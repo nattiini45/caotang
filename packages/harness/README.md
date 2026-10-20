@@ -62,8 +62,7 @@ The two system prefixes (`PLANNER_SYSTEM_PREFIX`, `DRAFT_SYSTEM_PREFIX`) are dup
 | `src/runtime.ts` | `createHarness`: the call path, the tool gate, the port path, plan execution, external callers |
 | `src/plan.ts` | Plans: preflight, execution from a step (`from`), the shared `AskBack` envelope (four codes) |
 | `src/agent/protocol.ts` | The two wire protocols, the reply shapes, the tool declarations, the planner's system messages, the model-facing messages |
-| `src/agent/context.ts` | `ContextPort` and a minimal assembler (L1, L2, L5), with drop reasons, layer budgets and the prompt preview (`previewOf`) |
-| `src/agent/inputs.ts` | The budgeted inputs of `synopsis.fill` (25,000 characters a document) and `continuity.scan` (the last 1,000 characters) |
+| `src/agent/context.ts` | `ContextPort` and the product's port over `@caotang/context`: the layers it assembles (L1–L7), the harness's own L0 role text, the turns before this one as L6, the drop reasons, the layer budgets and the prompt preview (`buildPreview`) |
 | `src/agent/drafting.ts` | Generation for the three model-backed tools, streamed through the gateway, with each finish reason read |
 | `src/agent/ports.ts` | `codex.read` (via `@caotang/codex`), `scene.draft`, `synopsis.fill`, `continuity.scan`, and previews |
 | `src/agent/cards.ts` | Status cards (their lifecycle), grouping, plan cards, edits, the dependency badge, the steps that have run |
@@ -73,9 +72,9 @@ The two system prefixes (`PLANNER_SYSTEM_PREFIX`, `DRAFT_SYSTEM_PREFIX`) are dup
 
 ## How a turn runs
 
-1. **Context.** The `ContextPort` assembles the layers for the intent. The product's assembler is
-   `@caotang/context`, built in parallel; this package does not depend on it. The minimal assembler here
-   produces L1 (summary), L2 (codex by mention and policy, budgeted by whole entries) and L5 (focus tail).
+1. **Context.** The `ContextPort` assembles the layers for the intent. The assembler is `@caotang/context`,
+   which this package depends on. The port replaces the system message with the harness's own L0 text, and
+   the turns before this one reach the call as L6.
 2. **Reply.** The planner is called with the reply schema. Reads run at once and their results go back to
    the model. Anything else is a write.
 3. **Staging.** Model-backed steps are drafted before anything is shown. A refusal here (no such document,
@@ -202,15 +201,10 @@ is typed there, and the harness program has to see it.
 
 ## Open items and known gaps
 
-- **Context.** Only L1, L2 and L5 are produced. L3 (structural synopses) and L4 (prior-scene synopses) belong to
-  `@caotang/context`. The codex layer's budget is a single pool, not the reserved two-phase budgeting
-  context-assembly §8 lists for v0.2.
-- **`continuity.scan` context.** Its per-tool expansion (context-assembly §3: the codex layer at 2.5k and the
-  story-so-far at 6k) is not built. It sends the scope's document tails and nothing else, so its preview has no
-  codex or story-so-far section.
-- **`synopsis.fill` context.** Its spec layers are L5 (the document, capped as above) and L3 (structural synopses,
-  context-assembly §2). L3 is not built, since it needs the product assembler. The card shows each document's
-  layer and any cut, but no codex section, since the synopsis prompt carries none.
+- **Context.** The layers come from `@caotang/context`: L3 (structural synopses) and L4 (prior-scene synopses)
+  are built, and so are the per-tool expansions of `continuity.scan` (the codex layer at 2.5k and the
+  story-so-far at 6k) and `synopsis.fill` (the document capped at 25k, with L3). The gap that is left is the
+  codex layer's budget: a single pool, not the reserved two-phase budgeting context-assembly A3 lists for v0.2.
 - **The planner's reply.** A planner reply the provider cut at its output limit is not special-cased. It fails to
   parse, and the model is asked again, which is the existing behaviour of a malformed reply.
 - **Ghost preview.** The ghost is a `ghost` event with Apply (approve), Retry (`retry`) and Discard (cancel).

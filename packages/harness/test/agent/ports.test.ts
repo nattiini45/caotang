@@ -145,6 +145,19 @@ describe('scene.draft', () => {
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) expect(outcome.error.code).toBe('permission-denied');
   });
+
+  it('refuses a draft the provider cut at its output limit, unless the call carries the acceptance', () => {
+    const state = makeState();
+    const harness = harnessFor(state);
+    const before = snapshotOf(state);
+    const cut = harness.call(writeCall('scene.draft', { doc: FRIEND, mode: 'draft', instruction: 'Open.' }, { text: 'The ferry came in', words: 3, revision: 0, cut: true }), {
+      turnId: 'draft-cut',
+      permission: { confirmed: true },
+    });
+    expect(cut.ok).toBe(false);
+    if (!cut.ok) expect(cut.error.message).toContain('cut off');
+    expect(snapshotOf(state)).toBe(before);
+  });
 });
 
 describe('the mode rule at a plan preflight (agent-harness §2, §3)', () => {
@@ -249,5 +262,58 @@ describe('continuity.scan', () => {
     const harness = harnessFor();
     const outcome = harness.call(writeCall('continuity.scan', {}, { findings: [{ aspect: 'weather' }] }), { turnId: 'scan-2' });
     expect(outcome.ok).toBe(false);
+  });
+});
+
+describe('a plan step that targets a node deleted between planning and apply (bus-05-agent)', () => {
+  it('refuses a `scene.draft` step on a removed document at preflight, so the plan card never promises a step that cannot run', () => {
+    const harness = harnessFor();
+    const checked = harness.previewPlan({
+      steps: [{ tool: 'scene.draft', params: { doc: 'The Ghost Chapter', mode: 'draft', instruction: 'Open.' }, expect: 'drafted' }],
+    });
+    expect(checked.ok).toBe(true);
+    if (!checked.ok) return;
+    expect(checked.value.ok).toBe(false);
+    const step = checked.value.steps[0];
+    expect(step?.status).toBe('refused');
+    expect(step?.error?.code).toBe('not-found');
+    expect(step?.error?.message).toContain('The Ghost Chapter');
+  });
+
+  it('refuses a `shots.derive` step on a removed scene at preflight, so the scene card never promises a step that cannot run', () => {
+    const harness = harnessFor();
+    const checked = harness.previewPlan({
+      steps: [{ tool: 'shots.derive', params: { doc: 'The Ghost Chapter', granularity: 'key-shots' }, expect: 'derived' }],
+    });
+    expect(checked.ok).toBe(true);
+    if (!checked.ok) return;
+    expect(checked.value.ok).toBe(false);
+    const step = checked.value.steps[0];
+    expect(step?.status).toBe('refused');
+    expect(step?.error?.code).toBe('not-found');
+    expect(step?.error?.message).toContain('The Ghost Chapter');
+  });
+
+  it('still defers a step that targets a scene an earlier step of the same plan may create, so the card may be approved', () => {
+    const harness = harnessFor();
+    const checked = harness.previewPlan({
+      steps: [
+        // The first step is the creator (doc.import): it always creates a node and resolves the second step's name.
+        {
+          tool: 'doc.import',
+          params: { parent: 'Chapter 2', title: 'The Ghost Chapter', body: 'A new scene.' },
+          expect: 'imported',
+        },
+        // The second step targets the new chapter; its preflight fails because the scene is gone at preflight time,
+        // but `mayCreate` finds the doc.import step that names it, so the step is deferred (plan §2).
+        { tool: 'scene.draft', params: { doc: 'The Ghost Chapter', mode: 'draft', instruction: 'Open.' }, expect: 'drafted' },
+      ],
+    });
+    expect(checked.ok).toBe(true);
+    if (!checked.ok) return;
+    expect(checked.value.ok).toBe(true);
+    const steps = checked.value.steps;
+    expect(steps[0]?.status).toBe('ready');
+    expect(steps[1]?.status).toBe('deferred');
   });
 });

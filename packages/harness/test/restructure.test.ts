@@ -99,7 +99,7 @@ describe('binder.restructure', () => {
     const ops = Array.from({ length: 31 }, (_, index) => ({ action: 'rename', node: LANDING, title: `T${index}` }));
     const error = refusalOf(run(makeHarness(), 'binder.restructure', { ops }, CONFIRMED));
     expect(error.code).toBe('limit-exceeded');
-    expect(error.message).toBe('params.ops has 31 entries, limit 30');
+    expect(error.message).toBe('params.ops has 31 entries, at most 30 allowed');
   });
 
   it('lists the failing op before anything runs, and writes none of the good ones', () => {
