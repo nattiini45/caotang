@@ -151,9 +151,10 @@ export interface McpClientOptions {
   readonly onChange?: (settings: McpSettings) => void;
   /**
    * Called with the reference of a bearer token that a change dropped, so the vault can take it
-   * out. A token that nothing names any more is a token that is kept for ever. The client awaits
-   * it: a vault that cannot be written is then the caller's to see, and not a rejection that
-   * vanishes.
+   * out. A token that nothing names any more is a token that is kept for ever, so the reference
+   * is named twice over: when a change drops it, and when the server that named it is removed.
+   * The client awaits it: a vault that cannot be written is then the caller's to see, and not a
+   * rejection that vanishes.
    */
   readonly onTokenDropped?: (tokenRef: string) => void | Promise<void>;
 }
@@ -599,10 +600,19 @@ class McpClientImpl implements McpClient {
 
   async removeServer(key: string): Promise<void> {
     const closed = this.dropConnection(key);
-    this.config = { ...this.config, servers: this.config.servers.filter((server) => server.key !== key) };
+    const server = this.config.servers.find((candidate) => candidate.key === key);
+    this.config = { ...this.config, servers: this.config.servers.filter((candidate) => candidate.key !== key) };
     this.runtimes.delete(key);
+    // The record is written before the credential is handed back, so a record that still named
+    // a token that is gone is never left behind.
     this.persist();
     await closed;
+    // The server is gone, so nothing names its token any more: the reference is handed back, so
+    // the vault does not keep a sealed token for ever. A reference another server still names is
+    // not handed back.
+    if (server?.auth.kind === 'bearer' && !this.tokenRefNamed(server.auth.tokenRef, key)) {
+      await this.onTokenDropped(server.auth.tokenRef);
+    }
   }
 
   /**

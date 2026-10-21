@@ -574,6 +574,34 @@ describe('what is never contacted', () => {
     await expect(client.updateServer(KEY, { url: 'https://elsewhere.fixture.test/mcp' })).rejects.toThrow('the vault is full');
   });
 
+  it('hands the reference back when a server is removed, so the vault does not keep its token', async () => {
+    const server = fixture();
+    const dropped: string[] = [];
+    const { client } = makeClient(server, {
+      servers: [serverFor(KEY, 'Authed', { auth: { kind: 'bearer', tokenRef: 'v_AAAAAAAAAA' } })],
+      onTokenDropped: (ref) => { dropped.push(ref); },
+    });
+    await client.removeServer(KEY);
+    // Nothing names the token any more, so its reference is handed back: a sealed token that no
+    // settings record names is a token that the vault keeps for ever.
+    expect(dropped).toEqual(['v_AAAAAAAAAA']);
+  });
+
+  it('keeps a token that another server still names when one of the two is removed', async () => {
+    const server = fixture();
+    const dropped: string[] = [];
+    const { client } = makeClient(server, {
+      servers: [
+        serverFor(KEY, 'Authed', { auth: { kind: 'bearer', tokenRef: 'v_SHARED000' } }),
+        serverFor('s_BCDEFGHJKM', 'Other', { auth: { kind: 'bearer', tokenRef: 'v_SHARED000' } }),
+      ],
+      onTokenDropped: (ref) => { dropped.push(ref); },
+    });
+    await client.removeServer(KEY);
+    // The other server still names the token, so it stays in the vault.
+    expect(dropped).toEqual([]);
+  });
+
   it('does not hand back a reference that another server still names', async () => {
     const server = fixture();
     const dropped: string[] = [];

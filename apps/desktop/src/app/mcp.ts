@@ -127,11 +127,9 @@ export class McpApp {
     return updated.ok ? { ok: true } : { ok: false, message: updated.error };
   }
 
-  /** Removes a server, its tools and its token. */
+  /** Removes a server, its tools and its token. The client hands the token back when the server is gone. */
   async removeServer(key: string): Promise<void> {
-    const server = this.client.serverFor(key);
     await this.client.removeServer(key);
-    if (server !== undefined && server.auth.kind === 'bearer') await this.keys.remove(server.auth.tokenRef);
   }
 
   /** Whether a server's bearer token is in the vault. A server with no bearer auth never needs one, so it reports true. */

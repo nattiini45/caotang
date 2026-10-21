@@ -87,6 +87,20 @@ test.describe('the MCP app: tokens, imports and the enabled tools (extensibility
     expect(keys.map.size).toBe(0);
   });
 
+  test('a removed server takes its token out of the vault, so nothing is left behind', async () => {
+    const keys = memoryKeys();
+    const app = new McpApp({ settings: memorySettings(EMPTY_MCP_SETTINGS), keys });
+    const added = await app.addServer({ name: 'Story bible', url: 'https://tools.example.com/mcp', token: 'secret-token-123' });
+    expect(added.ok).toBe(true);
+    if (!added.ok) return;
+    expect(keys.map.size).toBe(1);
+
+    await app.removeServer(added.server.key);
+    // The client hands the token back when the server is gone: a sealed token that nothing names
+    // is a token that is kept for ever.
+    expect(keys.map.size).toBe(0);
+  });
+
   test('a vault that cannot take the token back is reported to the caller, and not swallowed', async () => {
     const app = new McpApp({ settings: memorySettings(EMPTY_MCP_SETTINGS), keys: failingKeys() });
     const added = await app.addServer({ name: 'Story bible', url: 'https://tools.example.com/mcp', token: 'secret-token-123' });
