@@ -582,9 +582,11 @@ class McpClientImpl implements McpClient {
     // A selection narrows what is searched and called; it never changes a pin or a trust grant, so it demotes nothing.
     if (selection !== undefined) server.enabledTools = selection;
     // A credential the change dropped is handed back, so the vault does not keep a sealed token
-    // that nothing names any more.
+    // that nothing names any more. A reference another server still names is not handed back:
+    // the settings do not make a reference unique, and that server would lose a credential its
+    // own settings name.
     if (before.kind === 'bearer' && (server.auth.kind !== 'bearer' || server.auth.tokenRef !== before.tokenRef)) {
-      this.onTokenDropped(before.tokenRef);
+      if (!this.tokenRefNamed(before.tokenRef, key)) this.onTokenDropped(before.tokenRef);
     }
     if (reason !== undefined) await this.demote(key, reason);
     this.persist();
@@ -824,6 +826,18 @@ class McpClientImpl implements McpClient {
 
   private persist(): void {
     this.onChange?.(this.settings());
+  }
+
+  /**
+   * Whether a server other than this one still names the reference. The settings do not make a
+   * reference unique: the loader checks the keys and the addresses, and hand-edited or synced
+   * settings can put one reference on two servers. A token that is handed back while another
+   * server names it is a credential that server loses.
+   */
+  private tokenRefNamed(ref: string, exceptKey: string): boolean {
+    return this.config.servers.some(
+      (other) => other.key !== exceptKey && other.auth.kind === 'bearer' && other.auth.tokenRef === ref,
+    );
   }
 }
 

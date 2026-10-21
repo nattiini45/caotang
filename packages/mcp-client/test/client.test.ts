@@ -537,12 +537,32 @@ describe('what is never contacted', () => {
     const dropped: string[] = [];
     const { client } = makeClient(server, {
       servers: [serverFor(KEY, 'Authed', { auth: { kind: 'bearer', tokenRef: 'v_AAAAAAAAAA' } })],
-      onTokenDropped: (ref) => dropped.push(ref),
+      onTokenDropped: (ref) => { dropped.push(ref); },
     });
     const changed = await client.updateServer(KEY, { auth: { kind: 'bearer', tokenRef: 'v_AAAAAAAAAA' } });
     expect(changed.ok).toBe(true);
     // The same reference is the same token: there is nothing to let go of.
     expect(dropped).toEqual([]);
+  });
+
+  it('does not hand back a reference that another server still names', async () => {
+    const server = fixture();
+    const dropped: string[] = [];
+    const { client } = makeClient(server, {
+      // Two servers naming one reference: the settings do not make a reference unique, and
+      // hand-edited or synced settings can put one on two servers.
+      servers: [
+        serverFor(KEY, 'Authed', { auth: { kind: 'bearer', tokenRef: 'v_SHARED000' } }),
+        serverFor('s_BCDEFGHJKM', 'Other', { auth: { kind: 'bearer', tokenRef: 'v_SHARED000' } }),
+      ],
+      onTokenDropped: (ref) => { dropped.push(ref); },
+    });
+    const moved = await client.updateServer(KEY, { url: 'https://elsewhere.fixture.test/mcp' });
+    expect(moved.ok).toBe(true);
+    // The other server still names the token, so handing it back would leave that server
+    // without a credential its own settings name.
+    expect(dropped).toEqual([]);
+    expect(client.serverFor('s_BCDEFGHJKM')?.auth).toEqual({ kind: 'bearer', tokenRef: 'v_SHARED000' });
   });
 });
 
