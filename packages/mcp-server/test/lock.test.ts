@@ -104,16 +104,38 @@ describe('the project lock', () => {
     writeFileSync(join(root, LOCK_FILE), '');
   });
 
-  it('treats an unreadable lock that was just written as a write in progress, and an old one as stale', async () => {
-    const recent = join(root, LOCK_FILE);
-    writeFileSync(recent, '{"pid":');
-    await expect(acquireProjectLock(root)).rejects.toBeInstanceOf(ProjectLockedError);
+  it('refuses a lock it cannot read, and says how to clear it, because nothing proves whose it is', async () => {
+    const path = join(root, LOCK_FILE);
+    writeFileSync(path, '{"pid":');
+    const error = await acquireProjectLock(root).then(
+      () => undefined,
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(ProjectLockedError);
+    expect((error as ProjectLockedError).unreadableLock).toBe(path);
+    expect((error as ProjectLockedError).message).toContain(path);
+    expect((error as ProjectLockedError).message).toMatch(/delete that file/);
+    expect((error as ProjectLockedError).message).toMatch(/no other Caotang or MCP process is using the folder/);
+    // The lock is left alone: a writer that is writing it right now would lose it.
+    expect(existsSync(path)).toBe(true);
+  });
 
+  it('refuses a lock it cannot read whatever its age is, so no clock decides it', async () => {
+    const path = join(root, LOCK_FILE);
+    writeFileSync(path, '{"pid":');
+    // An old lock whose body is lost, and a lock whose time is in the future because the clock
+    // was stepped back. Neither is proof of a dead holder, and neither is taken over.
     const old = new Date(Date.now() - 60_000);
-    utimesSync(recent, old, old);
-    const lock = await acquireProjectLock(root);
-    await lock.release();
-    expect(existsSync(recent)).toBe(false);
+    utimesSync(path, old, old);
+    const future = new Date(Date.now() + 60_000);
+    utimesSync(path, future, future);
+    const error = await acquireProjectLock(root).then(
+      () => undefined,
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(ProjectLockedError);
+    expect((error as ProjectLockedError).unreadableLock).toBe(path);
+    expect(existsSync(path)).toBe(true);
   });
 
   it('gives a stale lock to exactly one of the writers that race for it', async () => {
