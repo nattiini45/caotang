@@ -594,7 +594,7 @@ describe('a stream parser factory that throws (§4: every failure is a ProviderE
     expect((error as ProviderError).detail).toContain('parser factory exploded');
     await flush();
     expect(cancelled).toBe(true);
-    // The factory is deterministic, so the attempt must fail once, with no retry scheduled.
+    // A protocol error is not retryable, so the attempt fails once, with no retry scheduled.
     expect(net.calls).toHaveLength(1);
   });
 });

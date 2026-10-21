@@ -97,15 +97,22 @@ describe('the registry', () => {
     // and the adapter sends that header only where the preset declares `browserAccess: true`. A
     // preset that routes the Messages adapter at Anthropic without the flag would break browser
     // calls, so the flag is pinned here rather than left to the preset author's memory.
+    const guarded: string[] = [];
     for (const preset of PRESETS) {
       const routesMessages =
         preset.adapter === 'anthropic-messages' ||
         Object.values(preset.quirks.modelRoutes ?? {}).includes('anthropic-messages');
       if (!routesMessages) continue;
-      const host = new URL(preset.baseUrl).host;
+      // `.hostname`, not `.host`: a port is not part of the host name, and a preset that
+      // carries one still routes at Anthropic.
+      const host = new URL(preset.baseUrl).hostname;
       if (!/(^|\.)anthropic\.com$/.test(host)) continue;
+      guarded.push(`${preset.id} → ${host}`);
       expect(preset.quirks.browserAccess, `${preset.id} → ${host}`).toBe(true);
     }
+    // The loop must reach an assertion: a registry edit that moved every Anthropic route
+    // away would otherwise leave this test green with nothing guarded.
+    expect(guarded.length).toBeGreaterThan(0);
   });
 });
 
