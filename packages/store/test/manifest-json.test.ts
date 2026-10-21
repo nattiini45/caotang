@@ -485,8 +485,9 @@ describe('what the loader accepts, the writer can write back', () => {
   });
 
   // The counts are a cache the writer writes as JSON numbers, so a count that
-  // is not a number would be written bare (`n_x: lots`), and the file would
-  // stop parsing.
+  // is not a number is dropped on load: the writer would write it as a quoted
+  // string (`n_x: "abc"`, through `scalar`), which is valid JSON and a count
+  // the next load drops again.
   it('drops a word count that is not a number, and the writer refuses one by name', () => {
     const m = rich();
     (m.derived as unknown as Record<string, unknown>)['wordCounts'] = { n_3W8RN2TQ6C: 'lots' };
@@ -496,11 +497,35 @@ describe('what the loader accepts, the writer can write back', () => {
     expect(r.ok).toBe(true);
     expect(r.warnings.map((w) => w.path)).toContain('derived.wordCounts.n_3W8RN2TQ6C');
     expect(r.manifest?.derived.wordCounts).toEqual({});
+    // `toEqual` cannot tell a deleted count from one set to `undefined`, and
+    // the writer maps `undefined ?? 0` to `0` — so a count left in place would
+    // be written back as a different number. The key has to be gone.
+    expect(r.manifest?.derived.wordCounts).not.toHaveProperty('n_3W8RN2TQ6C');
     const text = serializeManifest(r.manifest as Manifest);
     expect(() => JSON.parse(text)).not.toThrow();
 
     // The writer is the second guard: a count that is not finite refuses the
     // save, naming the field.
+    const hand = rich();
+    (hand.derived as unknown as Record<string, unknown>)['wordCounts'] = { n_3W8RN2TQ6C: Number.POSITIVE_INFINITY };
+    expect(() => serializeManifest(hand)).toThrow(/derived\.wordCounts/);
+  });
+
+  // The case the finite-number guard is there for: JSON parses `1e400` to
+  // Infinity, so a file can carry a count that is not finite. The load drops
+  // it, and the writer refuses one by name.
+  it('drops a word count that is not finite, and the writer refuses one by name', () => {
+    const m = rich();
+    (m.derived as unknown as Record<string, unknown>)['wordCounts'] = { n_3W8RN2TQ6C: Number.POSITIVE_INFINITY };
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings.map((w) => w.path)).toContain('derived.wordCounts.n_3W8RN2TQ6C');
+    expect(r.manifest?.derived.wordCounts).not.toHaveProperty('n_3W8RN2TQ6C');
+    // And a count that JSON itself parsed to Infinity is the same count.
+    expect(JSON.parse('{"n_x": 1e400}')['n_x']).toBe(Number.POSITIVE_INFINITY);
+
     const hand = rich();
     (hand.derived as unknown as Record<string, unknown>)['wordCounts'] = { n_3W8RN2TQ6C: Number.POSITIVE_INFINITY };
     expect(() => serializeManifest(hand)).toThrow(/derived\.wordCounts/);
