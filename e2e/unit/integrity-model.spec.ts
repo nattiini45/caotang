@@ -1591,6 +1591,59 @@ test.describe('a folder whose version differs from this browser\'s asks which to
     await again.close();
   });
 
+  /**
+   * A browser's copy whose Scene A the load held: the file's bytes are not UTF-8, so the
+   * state has no text for it and names the file in `declinedDocFiles`.
+   *
+   * The row is written the way the load's own write writes it (`writeProjectState`),
+   * because a session's later writes keep the row's record rather than restating it: the
+   * record belongs to the load, not to an edit.
+   */
+  async function heldCopy(
+    name: string,
+  ): Promise<{ store: RuntimeStore; root: ReturnType<typeof memoryFolder>; id: string; held: string }> {
+    const state = project();
+    const root = memoryFolder(name);
+    await writeProject(folderArtifactFs(root), state);
+    const store = await openRuntimeStore(new MemoryIndexedDb());
+    const first = await openFolder(store, root);
+    if (first.kind !== 'opened') throw new Error('the folder should open');
+    await first.opened.session.close();
+    const held = `${IDS.sceneA}.md`;
+    const heldState = await readProjectState(store, state.manifest.project.id);
+    heldState.declinedDocFiles.add(held);
+    heldState.documents.delete(IDS.sceneA);
+    await writeProjectState(store, heldState, { now: new Date() });
+    return { store, root, id: state.manifest.project.id, held };
+  }
+
+  // A file the load held is named on the state, and the state holds no text for it. The
+  // internal bundle the 'use-folder' answer holds before it removes this browser's copy
+  // cannot carry either: it writes an empty document in place of the held one. So the
+  // copy that is put back after a failed adopt has to be given the held files again, or
+  // the next save to the folder writes that empty document over the author's file.
+  test('"Use the folder\'s version" that fails to open puts back the copy with the files the load held', async () => {
+    setActiveAppDb(handleDb());
+    try {
+      const { store, root, id, held } = await heldCopy('Held Book');
+      const asked = await openFolder(store, root);
+      if (asked.kind !== 'differs') throw new Error('the open should ask');
+      const broken = { ...asked.differs, folderLog: [{ startedAt: 'not a time' } as unknown as SessionRecord] };
+      await expect(answerFolderDiffers(store, broken, 'use-folder')).rejects.toThrow();
+
+      const restored = await openProject(store, id);
+      // The file is named again, and the state holds no text for it.
+      expect(restored.state.declinedDocFiles.has(held)).toBe(true);
+      expect(restored.state.documents.has(IDS.sceneA)).toBe(false);
+      // And a save to the folder leaves the author's file as it is.
+      expect(await saveFolder(restored, root)).toEqual({ kind: 'saved' });
+      expect(await folderArtifactFs(root).read(`docs/${held}`)).toContain('Four little words here');
+      await restored.close();
+    } finally {
+      setActiveAppDb(null);
+    }
+  });
+
   test('"Use the folder\'s version" that fails to open puts back the copy\'s folder records: still refused in its original\'s folder, saved straight into its own', async () => {
     setActiveAppDb(handleDb());
     try {

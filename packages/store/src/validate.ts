@@ -31,7 +31,7 @@ import {
   type AppliedMigration,
   type FormatContext,
 } from './migrations.js';
-import { CHAR_LIMIT_MAX, CRITERIA_KEYS, SCENE_NUMBER_OPTIONS } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, CRITERIA_KEYS, FILTER_NAME_MAX, SCENE_NUMBER_OPTIONS } from '@caotang/bus';
 // The shapes the bus names for the furniture commands. The *values* the bus
 // refuses at the command boundary are restated below, for the load; the types
 // are the bus's own, so a value the bus does not know cannot be listed here.
@@ -43,6 +43,7 @@ import type {
 } from '@caotang/bus';
 import { isGeneratedId, isIdWithPrefix } from '@caotang/ids';
 import { bodyNamesOf, isBodyType } from './paths.js';
+import { jsonValueProblem } from './json-value.js';
 import {
   CODEX_INCLUDE_POLICIES,
   CODEX_ORIGINS,
@@ -219,9 +220,13 @@ function isCriterionValue(v: unknown): boolean {
 /**
  * A saved-filter or goal id of the shape the bus enforces at every command
  * boundary (`q_`/`g_` + 10 Crockford chars, binder-filters §2, goals-progress
- * §2.2). An id of another shape loads as a record no command can update, delete
- * or undo — the author could never edit it again — so the load drops it, the
- * same way it drops a codex id of the wrong shape.
+ * §2.2). An id of another shape loads as a record no command can update, and
+ * the undo of a delete of it refuses (the inverse replays the draft through the
+ * same checks) — so the author could never edit it again, and could not take
+ * back the deletion either. The load drops the entry with a warning. A codex id
+ * of the wrong shape is refused more loudly — it fails the whole load — because
+ * a codex entry has no half-measures: the manifest names it, so the load cannot
+ * carry on without it.
  */
 function isFurnitureId(prefix: 'q' | 'g', v: unknown): v is string {
   return typeof v === 'string' && v.startsWith(`${prefix}_`) && isGeneratedId(v);
@@ -233,16 +238,28 @@ function isFurnitureId(prefix: 'q' | 'g', v: unknown): v is string {
  * The root is not among them, and neither are the timestamps' *values* — those
  * are checked here because the writer writes them unconditionally, so a filter
  * without them is a filter the writer cannot write back. The name has to be one
- * the writer could show: the bus refuses a blank one at save, so a blank name
- * can only arrive from a hand edit or a foreign writer.
+ * the writer could show: the bus refuses a blank one at save, and a name longer
+ * than its limit, so neither can arrive from the writer — only from a hand edit
+ * or a foreign writer.
  */
 function isSavedFilter(v: unknown): boolean {
   if (!isRecord(v)) return false;
   if (!isFurnitureId('q', v['id'])) return false;
   if (typeof v['name'] !== 'string' || v['name'].trim() === '') return false;
+  if (codePoints(v['name'].trim()) > FILTER_NAME_MAX) return false;
   if (!isRecord(v['criteria'])) return false;
   if (!Object.values(v['criteria']).every(isCriterionValue)) return false;
   return isIsoDate(v['createdAt']) && isIsoDate(v['updatedAt']);
+}
+
+/**
+ * The length of a string in code points, the way the bus counts a filter name
+ * (binder-filters §2: a name of at most 60 characters). Not `.length`: that
+ * counts UTF-16 units, so a name of 30 emoji would read as 60 and a name of 31
+ * as 62 — the bus would refuse the second and the load would keep it.
+ */
+function codePoints(text: string): number {
+  return [...text].length;
 }
 
 /**
@@ -431,17 +448,32 @@ function validateFields(
       vocabulary[kind] = [];
       continue;
     }
+    // The terms are filtered one by one, and an id the bus could not use is a
+    // term the load drops: an empty id makes `''` a 'known' status id the bus
+    // refuses, and a repeated id makes `vocabulary.upsert` edit only the first
+    // match (the same posture the codex ids get).
+    const seenTermIds = new Set<string>();
     vocabulary[kind] = terms.filter((term, i) => {
       if (
-        isRecord(term) &&
-        typeof term['id'] === 'string' &&
-        typeof term['name'] === 'string' &&
-        typeof term['color'] === 'string'
+        !isRecord(term) ||
+        typeof term['id'] !== 'string' ||
+        typeof term['name'] !== 'string' ||
+        typeof term['color'] !== 'string'
       ) {
-        return true;
+        warn(`vocabulary.${kind}[${i}]`, 'expected { id, name, color } of strings; dropped, and the nodes that named it show an unknown chip');
+        return false;
       }
-      warn(`vocabulary.${kind}[${i}]`, 'expected { id, name, color } of strings; dropped, and the nodes that named it show an unknown chip');
-      return false;
+      const id = term['id'];
+      if (id === '') {
+        warn(`vocabulary.${kind}[${i}].id`, 'expected a non-empty id; dropped, and the nodes that named it show an unknown chip');
+        return false;
+      }
+      if (seenTermIds.has(id)) {
+        warn(`vocabulary.${kind}[${i}].id`, `duplicate id "${id}"; dropped, and the first term keeps it`);
+        return false;
+      }
+      seenTermIds.add(id);
+      return true;
     });
   }
   const statusIds = new Set(
@@ -551,8 +583,19 @@ function validateFields(
     }
     for (const key of ['shot', 'dialogue'] as const) {
       const value = node[key];
-      if (value !== undefined && !isRecord(value)) {
+      if (value === undefined) continue;
+      if (!isRecord(value)) {
         warn(`${at}.${key}`, 'expected an object; ignoring field');
+        delete node[key];
+        continue;
+      }
+      // The writer writes this value as the JSON it is, so a value JSON cannot
+      // hold — a number that is not finite, a BigInt, a value that is not there
+      // — would make every save of this project refuse. The field goes instead,
+      // the same way a malformed timestamp goes.
+      const problem = jsonValueProblem(value);
+      if (problem !== undefined) {
+        warn(`${at}.${key}${problem.path}`, `expected a value JSON can hold (${problem.reason}); ignoring field`);
         delete node[key];
       }
     }
@@ -591,6 +634,22 @@ function validateFields(
   // Step 3 — derived (rebuildable; absence is not an error)
   if (source.derived !== undefined && !isRecord(source.derived)) {
     warn('derived', 'expected object; will be recomputed on open');
+  } else if (isRecord(source.derived)) {
+    // The counts are a cache the writer writes as JSON numbers, so a count that
+    // is not a number is dropped here rather than written bare (`n_x: abc` is
+    // not JSON, and the file would stop parsing). An empty map is recomputed
+    // on open.
+    const counts = source.derived['wordCounts'];
+    if (counts !== undefined && !isRecord(counts)) {
+      warn('derived.wordCounts', 'expected an object of counts; replaced with an empty one, and the counts are recomputed on open');
+      source.derived['wordCounts'] = {};
+    } else if (isRecord(counts)) {
+      for (const [id, count] of Object.entries(counts)) {
+        if (typeof count === 'number' && Number.isFinite(count)) continue;
+        warn(`derived.wordCounts.${id}`, 'expected a number; dropped, and the count is recomputed on open');
+        delete counts[id];
+      }
+    }
   }
 
   return { manifest: source as unknown as Manifest, errors, migrations };
@@ -1030,8 +1089,9 @@ function validateCodex(
  *   the load and the command boundary read one record of it.
  *
  * The id is checked as the bus checks it and must be unique in the array: an
- * id no command accepts makes the filter uneditable and undeletable, and a
- * repeated id makes every update-by-id target the first match only.
+ * id no command accepts makes the filter uneditable, and the undo of a delete
+ * of it refuses, and a repeated id makes every update-by-id target the first
+ * match only.
  */
 function validateFilters(source: Record<string, unknown>, warn: (path: string, message: string) => void): void {
   const raw = source['filters'];
@@ -1046,7 +1106,7 @@ function validateFilters(source: Record<string, unknown>, warn: (path: string, m
     if (!isSavedFilter(filter)) {
       warn(
         `filters[${i}]`,
-        'not a saved filter (an id "q_" + 10 base32 chars, a name, criteria, createdAt, updatedAt); dropped',
+        'not a saved filter (an id "q_" + 10 base32 chars, a name the bus accepts, criteria, createdAt, updatedAt); dropped',
       );
       return false;
     }
@@ -1100,6 +1160,10 @@ function validateFilters(source: Record<string, unknown>, warn: (path: string, m
  * loaded goal the bus refuses is a goal the author can never edit, or undo the
  * deletion of, again. The deadline is the one invariant an optional field can
  * repair, so it is dropped on its own and the goal is kept.
+ *
+ * An id is registered as taken only by a goal that is kept, so a goal dropped
+ * over another field does not make a later, well-formed goal with the same id
+ * a duplicate of a goal that is not there.
  */
 function validateGoals(
   source: Record<string, unknown>,
@@ -1131,7 +1195,6 @@ function validateGoals(
       warn(`goals[${i}].id`, `duplicate id "${id}"; dropped, and the first goal keeps it`);
       return false;
     }
-    seenIds.add(id);
     if (typeof goal['nodeId'] !== 'string' || goal['nodeId'] === '') {
       warn(`goals[${i}]`, 'expected the node id it counts; goal dropped');
       return false;
@@ -1200,9 +1263,10 @@ function validateGoals(
     // goals-progress §9.3: a weekly or monthly goal attaches to the manuscript
     // root, counts words, is `at-least` and takes no deadline. The bus enforces
     // all four on every save and every undo, so a goal that breaks one of the
-    // first three is a goal no command can ever touch again — dropped. The
-    // deadline is repaired instead: "no deadline" is the field's documented
-    // meaning when absent, so the field goes and the goal stays.
+    // first three is a goal no command can update, and the undo of a delete of
+    // it refuses — dropped. The deadline is repaired instead: "no deadline" is
+    // the field's documented meaning when absent, so the field goes and the
+    // goal stays.
     if (kind === 'weekly' || kind === 'monthly') {
       const broken =
         goal['nodeId'] !== 'manuscript'
@@ -1216,13 +1280,19 @@ function validateGoals(
         warn(`goals[${i}]`, `a ${kind} goal ${broken} (goals-progress §9.3), and the bus refuses one that does not; goal dropped`);
         return false;
       }
-      if (goal['deadline'] !== undefined) {
+      if (goal['deadline'] !== undefined && goal['deadline'] !== null) {
         warn(`goals[${i}].deadline`, `a ${kind} goal recurs, so it takes no deadline; dropped, and the goal is kept`);
         delete goal['deadline'];
       }
     }
     const deadline = goal['deadline'];
-    if (deadline !== undefined && !isCalendarDay(deadline)) {
+    // `null` is the bus's "no deadline" (goals-progress §4: "null reads as
+    // absent"), so it goes quietly, the way a `resetDay` of null goes: the file
+    // says the same thing as an absent field, and there is nothing to warn
+    // about.
+    if (deadline === null) {
+      delete goal['deadline'];
+    } else if (deadline !== undefined && !isCalendarDay(deadline)) {
       warn(`goals[${i}].deadline`, 'expected a calendar day (YYYY-MM-DD); dropped, and the goal is open-ended');
       delete goal['deadline'];
     }
@@ -1240,6 +1310,11 @@ function validateGoals(
         `the node "${String(goal['nodeId'])}" is not in this project; kept, and the goal matches nothing`,
       );
     }
+    // The id is registered only here, and not one check earlier: a goal dropped
+    // above never kept its id, so a later well-formed goal with the same id is
+    // not a duplicate of a goal that is not there. The message above then tells
+    // the truth — the first goal really does keep the id.
+    seenIds.add(id);
     return true;
   });
   source['goals'] = kept;

@@ -104,7 +104,7 @@ export {
   type ParsedCodexFile,
   type SerializeCodexOptions,
 } from './codex-file.js';
-export { serializeManifest } from './manifest-json.js';
+export { OPTIONAL_NODE_FIELDS, serializeManifest } from './manifest-json.js';
 
 export {
   SessionsShrinkError,

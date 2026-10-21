@@ -184,6 +184,25 @@ describe('filters[] on load (binder-filters §4)', () => {
     expect(r.ok).toBe(true);
     expect(r.warnings.map((w) => w.path)).toContain('filters[0].criteria.minWordz');
     expect(r.manifest?.filters).toEqual([{ ...copyOf(GOOD_FILTER), criteria: { statusId: 'draft' } }]);
+    // `toEqual` cannot tell a deleted key from one set to `undefined`, and an
+    // undefined value is one the writer refuses (`cannot write ...: the value is
+    // not there`), so the key has to be gone, not empty.
+    expect(r.manifest?.filters?.[0]?.criteria).not.toHaveProperty('minWordz');
+  });
+
+  // binder-filters §2: "name ≤ 60 characters". The bus refuses a longer one at
+  // every command boundary, so a loaded filter carrying one could never be
+  // renamed — and the undo of a delete of it refuses, which leaves the deletion
+  // permanent from the writer's side.
+  it('drops a filter whose name is longer than the bus accepts', () => {
+    const m = base();
+    m.filters = [{ ...copyOf(GOOD_FILTER), name: 'x'.repeat(61) } as never];
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings.map((w) => w.path)).toEqual(['filters[0]']);
+    expect(r.manifest?.filters).toEqual([]);
   });
 
   // The writer cannot write a non-finite number as JSON (`JSON.stringify` maps it
@@ -290,6 +309,24 @@ describe('goals[] on load (goals-progress §2.2 and §3)', () => {
     expect(r.ok).toBe(true);
     expect(r.warnings.map((w) => w.path)).toEqual(expect.arrayContaining(['goals[0]', 'goals[1]']));
     expect(r.manifest?.goals).toEqual([]);
+  });
+
+  // An id is registered as taken only by a goal that is kept. A goal dropped
+  // over another field never kept its id, so the later goal carrying the same
+  // one is not a duplicate of a goal that is not there — and the message above
+  // ("the first goal keeps it") stays true.
+  it('keeps a well-formed goal whose id a dropped goal had carried', () => {
+    const m = base();
+    m.goals = [
+      { ...copyOf(GOOD_GOAL), id: 'g_01H2K3M4N5', target: 0 } as never,
+      { ...copyOf(GOOD_GOAL), id: 'g_01H2K3M4N5' } as never,
+    ];
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings.map((w) => w.path)).toEqual(['goals[0]']);
+    expect(r.manifest?.goals).toEqual([copyOf(GOOD_GOAL)]);
   });
 
   // goals-progress §2.2: "Dangling on load (folder deleted) → goal kept but
@@ -420,6 +457,34 @@ describe('goals[] on load (goals-progress §2.2 and §3)', () => {
     expect(r.ok).toBe(true);
     expect(r.warnings.map((w) => w.path)).toContain('goals[0].deadline');
     expect(r.manifest?.goals).toEqual([copyOf(GOOD_GOAL)]);
+  });
+
+  // The bus reads `deadline: null` as absent (goals-progress §4), the same way
+  // it reads a null reset day, so the load does the same and says nothing: the
+  // file said the goal has no deadline, and there is nothing to warn about.
+  it('reads a null deadline as the absent one the bus reads it as', () => {
+    const m = base();
+    m.goals = [{ ...copyOf(GOOD_GOAL), deadline: null } as never];
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings).toEqual([]);
+    expect(r.manifest?.goals).toEqual([copyOf(GOOD_GOAL)]);
+    expect(r.manifest?.goals?.[0]).not.toHaveProperty('deadline');
+  });
+
+  // A session goal takes no deadline, and `null` is the way a file says it has
+  // none — so the session goal's own warning is not for it either.
+  it('reads a null deadline on a session goal as the absent one too', () => {
+    const m = base();
+    m.goals = [{ ...copyOf(GOOD_GOAL), kind: 'weekly', resetDay: 1, deadline: null } as never];
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings).toEqual([]);
+    expect(r.manifest?.goals).toEqual([{ ...copyOf(GOOD_GOAL), kind: 'weekly', resetDay: 1 }]);
   });
 });
 
