@@ -75,9 +75,10 @@ describe('parseFdxParagraphs — the typed paragraphs of an FDX file', () => {
     const small = timed(20_000);
     const large = timed(40_000);
     const ratio = large / small;
-    expect(large, `40 000 paragraphs took ${Math.round(large)} ms`).toBeLessThan(1000);
     expect(ratio, `${Math.round(large)} ms for 40 000 paragraphs against ${Math.round(small)} ms for 20 000`).toBeLessThan(3);
-    // The timeout is generous, so a scan that turned quadratic again reports the ratio above instead of timing out.
+    expect(large, `40 000 paragraphs took ${Math.round(large)} ms`).toBeLessThan(1000);
+    // The ratio is asserted first, so a scan that turned quadratic again reports the ratio above instead of the
+    // absolute bound. The timeout is generous, so it fails an assertion instead of timing out.
   }, 30_000);
 });
 
