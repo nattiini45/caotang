@@ -273,9 +273,18 @@ export const similarity = (left: string, right: string): number => {
 /**
  * The one normalization **both** folds apply: `ς` → `σ` and `ſ` → `s`.
  *
- * **It is 1:1, so it is safe for a fold that carries a map back to the source.**
- * A code unit in, a code unit out — so no offset moves, and `origin` and
- * `sourceStart` stay exact.
+ * **The two replacements are 1:1; the lower-casing beside them is not.** A code
+ * unit in, a code unit out holds for `ς` and `ſ`, but `toLowerCase()` can
+ * change the length: U+0130 (İ) lower-cases to `i` plus U+0307 — two code
+ * units from one. The repo's own matching fold keeps U+0130 unfolded for
+ * exactly that reason (`packages/codex/src/text.ts`), so this helper is **not**
+ * length-preserving and is not 1:1 in general.
+ *
+ * **What keeps the offsets exact is the map, not the fold.** `foldWithMap`
+ * pushes `sourceStart` per source code point and `origin` per folded unit, so a
+ * code point that folds to several units still names its own code point for
+ * every one of those units — and `origin` and `sourceStart` stay exact whatever
+ * the fold does to the length.
  *
  * **Both folds need it, and the two folds are two halves of the same rung.** The
  * search folds the body and the needle; the context check folds the captured
@@ -285,8 +294,8 @@ export const similarity = (left: string, right: string): number => {
  * had already folded away — which is how a case-only edit of a Greek word ends up
  * in step 5's refusal instead of on a rung.
  *
- * The two replacements are the ones the repo's own matching fold applies
- * (`packages/codex/src/text.ts`), and they exist for Unicode's reason:
+ * The two replacements are the ones the repo's own matching fold applies, and
+ * they exist for Unicode's reason:
  * Final_Sigma is **contextual**, so `Σ` lower-cases to `ς` only at the end of a
  * word, and a per-character fold cannot see the context.
  */
@@ -373,9 +382,12 @@ export const contextMatches = (anchor: TextAnchor, body: string, range: AnchorRa
  * Unicode's Final_Sigma rule makes a whole-string fold of `ΛΟΓΟΣ` end in `ς`
  * while `Σ` folded in isolation is always `σ`, so the two spellings of the same
  * word would never meet in a search. Both are replaced on the way in — by
- * {@link foldUnit}, the same 1:1 normalization the repo's matching fold applies
- * — which unifies the spellings without changing any code-unit count, so
- * `origin` and `sourceStart` stay exact.
+ * {@link foldUnit}, the same normalization the repo's matching fold applies —
+ * and the two replacements are the length-preserving half of it: `ς` → `σ` and
+ * `ſ` → `s` map one code unit to one code unit. The lower-casing beside them
+ * is not length-preserving, and it does not have to be: `origin` and
+ * `sourceStart` stay exact because the map is built per source code point and
+ * per folded unit, not because the fold is 1:1.
  *
  * `sourceStart` carries one entry more than there are code points: the string's
  * own length, so the end of the last code point is the next entry rather than a
@@ -397,8 +409,11 @@ const foldWithMap = (source: string): FoldedText => {
   let offset = 0;
   let index = 0;
   for (const character of source) {
-    // Length-preserving: both replacements map one code unit to one code unit,
-    // so the fold's map back to the source is untouched by them.
+    // The two replacements are length-preserving — one code unit in, one code
+    // unit out — so they cannot disturb the map. The lower-casing beside them
+    // can: a code point that folds to several units contributes several
+    // entries to `origin`, and every one of them names the same source code
+    // point.
     const lowered = foldUnit(character);
     sourceStart.push(offset);
     for (let unit = 0; unit < lowered.length; unit += 1) {
