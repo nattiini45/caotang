@@ -111,7 +111,7 @@ export function activityRows(
   const rows: ActivityRow[] = [];
   // A whole, non-negative count of rows: the check below runs before each push, so `0` builds nothing and a fractional limit is
   // floored rather than rounded up. Without this the signature would promise "the newest `limit` rows" and hand back one more.
-  const limit = Math.max(0, Math.floor(options.limit ?? Number.POSITIVE_INFINITY));
+  const limit = limitOf(options.limit);
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     if (rows.length >= limit) break;
     const entry = entries[index];
@@ -125,6 +125,20 @@ export function activityRows(
     rows.push({ index, entry, title: titleOf(entry.command), undo });
   }
   return rows;
+}
+
+/**
+ * The number of rows a window holds.
+ *
+ * A whole, non-negative count: `0` holds none, and a fractional count is floored rather than rounded
+ * up. A count that is not a number is not a count at all, and a check against one never ends — so the
+ * window would hold every row of the log, which is the cost it exists to prevent. It holds none
+ * instead. A count of infinity is the one that says "all of them", and it is kept.
+ */
+function limitOf(requested: number | undefined): number {
+  if (requested === undefined) return Number.POSITIVE_INFINITY;
+  if (Number.isNaN(requested)) return 0;
+  return Math.max(0, Math.floor(requested));
 }
 
 /**

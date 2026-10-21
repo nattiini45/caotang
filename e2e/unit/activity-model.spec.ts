@@ -77,6 +77,17 @@ test('the limit keeps exactly the newest rows: zero keeps none, and a fraction i
   expect(activityRows(log, { showViews: false, groupOf: none, limit: 3 })).toHaveLength(3);
 });
 
+test('a limit that is not a number holds none, so the window keeps the cost it exists to prevent', () => {
+  const log = [row('binder.create', 'one'), row('binder.rename', 'two'), row('notes.set', 'three')];
+  const none = () => undefined;
+
+  // `Math.floor(NaN)` is `NaN`, and a check against `NaN` never ends: the window would hold every row of the log.
+  expect(activityRows(log, { showViews: false, groupOf: none, limit: Number.NaN })).toEqual([]);
+  // A limit of infinity is the one that says "all of them", and it is kept.
+  expect(activityRows(log, { showViews: false, groupOf: none, limit: Number.POSITIVE_INFINITY })).toHaveLength(3);
+  expect(activityRows(log, { showViews: false, groupOf: none })).toHaveLength(3);
+});
+
 test('the count and the rows agree, even over a log with a hole in it', () => {
   const log: (ActivityEntry | undefined)[] = [row('binder.create', 'one'), row('binder.rename', 'two'), row('notes.set', 'three')];
   // A hole the log's own append never makes. The rows refuse to build it; a count that saw it would leave "Show older"
