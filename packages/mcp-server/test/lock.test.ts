@@ -270,6 +270,42 @@ describe('a takeover marker left behind by a writer that died', () => {
     }
   });
 
+  it('takes the lock in a folder that holds only a marker, and leaves the marker where it is', async () => {
+    const pid = await deadPid();
+    const marker = join(root, LOCK_TAKEOVER_FILE);
+    // A folder with a marker of a takeover that died, and no lock: there is nothing to take over,
+    // so the lock is taken and the marker is left where it is.
+    writeFileSync(marker, JSON.stringify({ pid, token: 'marker', startedAt: new Date().toISOString() }));
+    const lock = await acquireProjectLock(root);
+    const holder = JSON.parse(readFileSync(join(root, LOCK_FILE), 'utf8')) as { pid: number };
+    expect(holder.pid).toBe(process.pid);
+    // The marker is left where it is: it is not the writer's to remove.
+    expect(existsSync(marker)).toBe(true);
+    await lock.release();
+  });
+
+  it('names a marker left beside the lock of a live holder, because a later writer would be refused for it', async () => {
+    const pid = await deadPid();
+    const marker = join(root, LOCK_TAKEOVER_FILE);
+    writeFileSync(marker, JSON.stringify({ pid, token: 'marker', startedAt: new Date().toISOString() }));
+    const lock = await acquireProjectLock(root);
+    try {
+      const error = await acquireProjectLock(root).then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+      expect(error).toBeInstanceOf(ProjectLockedError);
+      expect((error as ProjectLockedError).holderPid).toBe(process.pid);
+      // The refusal names the marker as well: it is in the folder, and it is what the person has
+      // to clear once the holder is gone.
+      expect((error as ProjectLockedError).refusal.takeoverMarker).toBe(marker);
+      expect((error as ProjectLockedError).message).toContain(marker);
+      expect((error as ProjectLockedError).message).toMatch(/no other Caotang or MCP process is using the folder/);
+    } finally {
+      await lock.release();
+      clearLock(root);
+    }
+  });
   it('names a marker it could not read, because a read that failed is not a marker that is gone', async () => {
     const pid = await deadPid();
     writeFileSync(join(root, LOCK_FILE), JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() }));

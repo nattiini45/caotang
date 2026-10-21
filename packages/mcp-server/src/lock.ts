@@ -59,7 +59,7 @@ export class ProjectLockedError extends Error {
   ) {
     const holder = holderPid === undefined ? '' : ` (pid ${holderPid})`;
     super(
-      `the project folder ${root} is in use by another writer${holder}; one writer at a time, so this process did not open it${markerRecovery(refusal)}${unreadableRecovery(refusal)}`,
+      `the project folder ${root} is in use by another writer${holder}; one writer at a time, so this process did not open it${markerRecovery(refusal, holderPid !== undefined)}${unreadableRecovery(refusal)}`,
     );
     this.name = 'ProjectLockedError';
   }
@@ -76,7 +76,7 @@ export class ProjectLockedError extends Error {
  * that has it now may never have made the marker. So the branch that waits also names the way
  * out, guarded by the folder being free of other writers.
  */
-function markerRecovery(refusal: LockRefusal): string {
+function markerRecovery(refusal: LockRefusal, holderAlive: boolean): string {
   const marker = refusal.takeoverMarker;
   if (marker === undefined) return '';
   const pid = refusal.takeoverPid;
@@ -87,7 +87,10 @@ function markerRecovery(refusal: LockRefusal): string {
   if (refusal.takeoverFresh === true) {
     return `; a takeover of the lock is marked by ${marker} in that folder, and it is being marked right now: wait a moment for it to finish`;
   }
-  return `; a takeover of the lock is marked by ${named} in that folder: if no other Caotang or MCP process is using the folder, delete that file and the next writer takes the lock over`;
+  // The marker is an orphan. Deleting it is what lets a writer take the lock over, but only
+  // once no other writer holds it.
+  const taken = holderAlive ? '' : ', and the next writer takes the lock over';
+  return `; a takeover of the lock is marked by ${named} in that folder: if no other Caotang or MCP process is using the folder, delete that file${taken}`;
 }
 
 /**
@@ -288,7 +291,17 @@ export async function acquireProjectLock(root: string, now: Date = new Date()): 
       if (!(await exists(path))) continue;
       throw new ProjectLockedError(root, undefined, { unreadableLock: path });
     }
-    if (processAlive(holder.pid)) throw new ProjectLockedError(root, holder.pid);
+    if (processAlive(holder.pid)) {
+      // The holder is alive, so the folder is refused for it. A marker of a takeover left beside
+      // its lock is named as well: it is a file in the folder that a later writer would be
+      // refused for, and the person has to clear it.
+      const marked = await readMarker(join(root, LOCK_TAKEOVER_FILE));
+      throw new ProjectLockedError(root, holder.pid, marked === undefined ? {} : {
+        takeoverMarker: marked.path,
+        takeoverPid: marked.pid,
+        takeoverFresh: marked.fresh,
+      });
+    }
     const outcome = await removeStale(path, holder.token);
     if (outcome !== 'taken') {
       // Another writer took the stale lock over, or a takeover of it is still marked. A marked
