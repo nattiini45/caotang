@@ -101,11 +101,12 @@ export class AgentController {
    * The agent session one open panel keeps across turns (context-assembly §2, L6): the loop's
    * `started` RecentTurn array lives in this session's closure, so two turns through one controller
    * share the prior turns and the next turn's assembled prompt carries them as L6. The session is
-   * rebuilt only when the resolved profile, model or thinking changes (a provider switch), and the
-   * conversation ends with the controller itself — a project switch or a reload; the app has no
-   * affordance that clears it within a visit. Per-turn state is cleared by `harness.endTurn` on
-   * every settlement, so a cancelled/refused/failed turn never leaves its per-turn state behind.
-   * The conversation is in memory only: a reload starts it over.
+   * rebuilt when the resolved profile, model or thinking changes (a provider switch), and that
+   * rebuild ends the conversation too — the fresh session starts with an empty turn list. Otherwise
+   * the conversation ends with the controller itself, a project switch or a reload, and the app has
+   * no other affordance that clears it within a visit. Per-turn state is cleared by
+   * `harness.endTurn` on every settlement, so a cancelled/refused/failed turn never leaves its
+   * per-turn state behind. The conversation is in memory only: a reload starts it over.
    */
   private session_:
     | {

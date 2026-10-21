@@ -26,7 +26,7 @@
  * replay cache (`runtime.ts`) keys on the plan's canonical form.
  */
 
-import { ok, type CommandError, type Result } from '@caotang/bus';
+import { ok, type CommandError, type CommandErrorCode, type CommandErrorDetails, type Result } from '@caotang/bus';
 
 import { invalidParams, refusal } from './errors.js';
 import { param, type ObjectSpec } from './schema.js';
@@ -164,6 +164,14 @@ function mayCreate(step: PlanStep): boolean {
 }
 
 /**
+ * An ambiguous name: `resolveNode` refuses it as `invalid-params` carrying the
+ * `candidates` it matched, so a caller can pick one without reading the prose.
+ */
+function isAmbiguousName(error: { readonly code?: CommandErrorCode; readonly details?: CommandErrorDetails }): boolean {
+  return error.code === 'invalid-params' && Array.isArray(error.details?.['candidates']);
+}
+
+/**
  * Whether a refusal is a name that did not resolve. A batch tool wraps its per-op
  * failures in `invalid-params`, so the lookup failure sits in `details.failures`,
  * and both shapes count. An ambiguous name counts too: `resolveNode` refuses it as
@@ -173,9 +181,10 @@ function mayCreate(step: PlanStep): boolean {
  */
 function isLookupFailure(error: CommandError): boolean {
   if (error.code === 'not-found') return true;
-  if (error.code === 'invalid-params' && Array.isArray(error.details?.['candidates'])) return true;
+  if (isAmbiguousName(error)) return true;
   const failures = error.details?.['failures'];
-  return Array.isArray(failures) && failures.some((failure) => (failure as { code?: unknown }).code === 'not-found');
+  if (!Array.isArray(failures)) return false;
+  return failures.some((failure) => failure.code === 'not-found' || isAmbiguousName(failure));
 }
 
 /** Checks every step from the plan's start, in order, with no effect. */

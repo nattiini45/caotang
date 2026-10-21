@@ -491,6 +491,7 @@ export function toPerOpFailure(target: string, error: CommandError): PerOpFailur
     code: error.code,
     message: error.message,
     ...(error.correctiveHint === undefined ? {} : { correctiveHint: error.correctiveHint }),
+    ...(error.details === undefined ? {} : { details: error.details }),
   };
 }
 

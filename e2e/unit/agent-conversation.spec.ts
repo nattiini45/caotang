@@ -14,8 +14,8 @@ import { sampleProjectState } from '../../apps/desktop/src/app/demo.js';
  * open project share one agent session, so the second turn's scene.draft call carries the first turn's
  * intent and outcome as L6 (the planner's `meta` tool is L0+L1+L7 only, so the L6 surface that matters
  * for "what did I just do" is the draft call's prompt). The conversation lives in memory only: it ends
- * with the controller — a project switch or a reload — and the app has no affordance that clears it
- * within a visit.
+ * with the controller — a project switch or a reload — or with the session rebuild a profile, model
+ * or thinking change makes, and the app has no other affordance that clears it within a visit.
  */
 
 const globals = globalThis as unknown as Record<string, unknown>;

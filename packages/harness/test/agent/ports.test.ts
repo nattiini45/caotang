@@ -354,6 +354,31 @@ describe('a plan step that targets a node deleted between planning and apply (bu
     expect(withoutCreator.value.steps[0]?.status).toBe('refused');
     expect(withoutCreator.value.steps[0]?.error?.code).toBe('invalid-params');
   });
+
+  it('defers an ambiguous name a batch tool names too, and refuses it when none does', () => {
+    const harness = harnessFor();
+    // `meta.set` is a batch, so its refusal wraps the per-op failure in `invalid-params`.
+    // The ambiguity has to survive that wrapping, or the deferral cannot reach it and
+    // the step is refused where the same name on a flat tool is deferred (plan §2).
+    const ambiguous = { tool: 'meta.set', params: { targets: ['The'], keywords_add: ['night'] }, expect: 'marked' };
+    const withCreator = harness.previewPlan({
+      steps: [
+        { tool: 'doc.import', params: { parent: 'Chapter 2', title: 'The Ghost Chapter', body: 'A new scene.' }, expect: 'imported' },
+        ambiguous,
+      ],
+    });
+    expect(withCreator.ok).toBe(true);
+    if (!withCreator.ok) return;
+    expect(withCreator.value.ok).toBe(true);
+    expect(withCreator.value.steps[1]?.status).toBe('deferred');
+
+    const withoutCreator = harness.previewPlan({ steps: [ambiguous] });
+    expect(withoutCreator.ok).toBe(true);
+    if (!withoutCreator.ok) return;
+    expect(withoutCreator.value.ok).toBe(false);
+    expect(withoutCreator.value.steps[0]?.status).toBe('refused');
+    expect(withoutCreator.value.steps[0]?.error?.code).toBe('invalid-params');
+  });
 });
 
 describe('the cut rule of the model-backed write ports (agent-harness §8)', () => {
