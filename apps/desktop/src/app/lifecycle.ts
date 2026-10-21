@@ -1040,10 +1040,10 @@ export async function answerFolderDiffers(store: RuntimeStore, differs: FolderDi
     // UTF-8 has no text to carry, and an internal copy omits it and says so in its report rather than refusing — a refusal here would
     // make 'use-folder' impossible for exactly the projects that hold such a file.
     const kept = await exportStoredBundle(store, differs.projectId, 'internal');
-    // The files this load declined are held beside the bundle, because they live on the state and not in `caotang.json`: a bundle
-    // cannot carry them, and the internal copy writes an empty document in place of a held one and leaves a held codex file out.
-    // Without them the copy that is put back would write that empty document over the author's file, and the next save to the folder
-    // would prune the codex file it does not own.
+    // The files this load declined are held beside the bundle, because their record lives on the state and not in `caotang.json`: a
+    // file whose bytes are not UTF-8 has no text to write, so the internal copy writes an empty document in place of a held one and
+    // leaves a held codex file out, and the record of both is lost. Without them the copy that is put back would write that empty
+    // document over the author's file, and the next save to the folder would prune the codex file it does not own.
     const keptHeld = await heldFilesOf(store, differs.projectId);
     // So are the records folder-memory.ts keeps for it (its folder, the folder copy last seen there, and the project it was copied from), which
     // the removal forgets.
@@ -1074,8 +1074,9 @@ export async function answerFolderDiffers(store: RuntimeStore, differs: FolderDi
   // The probe writes into a fresh in-memory folder, which holds none of the files this load declined because their bytes are not
   // UTF-8. It is a copy the app keeps for itself — only the digests are read from it, never the text — so it is written as an
   // internal copy, which carries what it can and leaves what it cannot out of the copy rather than refusing (the store's
-  // WriteOptions.copyFor). A document the load held is the one thing the copy cannot carry: it is written as the empty document
-  // the browser's own copy shows, because the copy has no text for it, and the file it was read from is left where it is.
+  // WriteOptions.copyFor). A codex file the load held is one of those: it is left out of the copy, and the report says so. A
+  // document the load held is the other way round: the copy has no text for it, so it writes the empty document the browser's own
+  // copy shows, and the file it was read from is left where it is.
   await writeProject(browser, copyState(opened.session.state), { now: new Date(), copyFor: 'internal' });
   // The digest of a held document is the digest of that empty document, not of the file in the folder, so it is left out of the
   // probe: the save is checked against the folder's own digest for it, and does not ask the writer about a file that never changed.
@@ -1088,10 +1089,11 @@ export async function answerFolderDiffers(store: RuntimeStore, differs: FolderDi
 /**
  * Puts this browser's copy of a project back from the bundle `answerFolderDiffers` held before it removed the copy, after the folder's
  * version failed to take its place. Whatever the failed adopt left under the id is removed first, so the copy comes back under its own id
- * (an import into a taken id would make a second copy). The files the load declined are put back with it, because a bundle carries
- * neither the record of them nor the text a held document had: the copy that comes back is the copy that was held. The restored session
- * is closed at once: the caller reports the adopt's failure, and the project is in the projects list as it was. Only the version history of
- * earlier bodies (the store's snapshots) is not in a bundle.
+ * (an import into a taken id would make a second copy). The files the load declined are put back with it: a bundle carries the files it
+ * declined *with* their text, and the load reads their record back from them, but a file whose bytes are not UTF-8 has no text to write,
+ * so the copy leaves it out (a codex file) or writes an empty document in its place (a document) and the record of it is lost. The copy
+ * that comes back is the copy that was held. The restored session is closed at once: the caller reports the adopt's failure, and the
+ * project is in the projects list as it was. Only the version history of earlier bodies (the store's snapshots) is not in a bundle.
  */
 async function restoreBrowserCopy(
   store: RuntimeStore,
@@ -1124,9 +1126,10 @@ async function restoreBrowserCopy(
  * The files a load held: the documents and codex files whose bytes are not UTF-8, and the text the load kept for the files it declined
  * for another reason.
  *
- * They live on the state and not in `caotang.json`, so a bundle cannot carry them: an internal copy writes an empty document in place of
- * a held one and leaves a held codex file out (the store's `WriteOptions.copyFor`). They are held in memory beside the bundle instead,
- * so the copy that is put back is the copy that was held.
+ * Their record lives on the state and not in `caotang.json`, so a bundle cannot carry all of it: a file whose bytes are not UTF-8 has
+ * no text to write, and the internal copy writes an empty document in place of a held one and leaves a held codex file out (the
+ * store's `WriteOptions.copyFor`). They are held in memory beside the bundle instead, so the copy that is put back is the copy that
+ * was held.
  */
 interface HeldFiles {
   readonly declinedDocFiles: readonly string[];
