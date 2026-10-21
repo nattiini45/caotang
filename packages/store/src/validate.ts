@@ -43,7 +43,7 @@ import type {
 } from '@caotang/bus';
 import { isGeneratedId, isIdWithPrefix } from '@caotang/ids';
 import { bodyNamesOf, isBodyType } from './paths.js';
-import { jsonValueProblem } from './json-value.js';
+import { isJsonNumber, jsonValueProblem } from './json-value.js';
 import {
   CODEX_INCLUDE_POLICIES,
   CODEX_ORIGINS,
@@ -211,7 +211,7 @@ const GOAL_KINDS = ['project', 'weekly', 'monthly'] as const satisfies readonly 
  */
 function isCriterionValue(v: unknown): boolean {
   if (v === null) return true;
-  if (typeof v === 'number') return Number.isFinite(v);
+  if (isJsonNumber(v)) return true;
   if (typeof v === 'string' || typeof v === 'boolean') return true;
   if (Array.isArray(v)) return v.every((item) => typeof item === 'string');
   return false;
@@ -637,7 +637,7 @@ function validateFields(
       source.derived['wordCounts'] = {};
     } else if (isRecord(counts)) {
       for (const [id, count] of Object.entries(counts)) {
-        if (typeof count === 'number' && Number.isFinite(count)) continue;
+        if (isJsonNumber(count)) continue;
         // The counts are recomputed on open only when the map ends up empty: a
         // map with a count left in it is left as it is (§2's "allowed stale"),
         // so this id's count stays missing until the document is written again.

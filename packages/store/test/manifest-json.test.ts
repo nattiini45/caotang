@@ -484,6 +484,27 @@ describe('what the loader accepts, the writer can write back', () => {
     expect(() => serializeManifest(hand)).toThrow(/shot\.duration/);
   });
 
+  // A Map or a Set is the value JSON hides rather than refuses: it writes them
+  // as `{}`, and their contents are dropped without a word. The load drops the
+  // field and the writer refuses it by name, so nothing is written as `{}`.
+  it('drops media metadata a Map would be written as {}, and the writer refuses it by name', () => {
+    const m = rich();
+    (m.tree[1] as unknown as Record<string, unknown>)['shot'] = { tags: new Map([['wide', 1]]) };
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings.map((w) => w.path)).toContain('tree[1].shot.tags');
+    expect(r.manifest?.tree[1]).not.toHaveProperty('shot');
+    expect(() => serializeManifest(r.manifest as Manifest)).not.toThrow();
+
+    // The writer is the second guard: a value it cannot write refuses the
+    // save, naming the field.
+    const hand = rich();
+    (hand.tree[1] as unknown as Record<string, unknown>)['shot'] = { tags: new Map([['wide', 1]]) };
+    expect(() => serializeManifest(hand)).toThrow(/node\.shot\.tags/);
+  });
+
   // The counts are a cache the writer writes as JSON numbers, so a count that
   // is not a number is dropped on load: the writer would write it as a quoted
   // string (`n_x: "abc"`, through `scalar`), which is valid JSON and a count
