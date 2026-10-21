@@ -56,10 +56,15 @@ describe('binder.restructure', () => {
     // card the user approves has to promise where the node lands, not the raw
     // index — the dispatch re-validates, so preview and result cannot disagree.
     //
-    // **The preview is what this pins.** The pipeline re-validates every command
-    // it dispatches, so a raw index of 99 and a validated index of 1 land the
-    // node in the same place: the landing cannot tell the two apart, and a test
-    // that claimed it did would be asserting a difference that is not there.
+    // **The preview is what this pins.** The card quotes the position the
+    // dispatch will use, because the harness dispatches the *validated* index
+    // — the clamp binder.move's validate resolves against the sibling count
+    // (`restructure.ts`: the validated command is what gets dispatched). A raw
+    // index of 99 would not land here in general: with more than one sibling
+    // the clamp resolves it to the sibling count, and the node lands
+    // elsewhere. So the equivalence this one sibling holds — a raw 99 and a
+    // validated 1 land in the same place — is a fact about this fixture, not
+    // about the pipeline, and re-validation is not what makes it hold.
     const outcome = valueOf(
       run(harness, 'binder.restructure', { ops: [{ action: 'move', node: STORM, newParent: CHAPTER_TWO, index: 99 }] }, CONFIRMED),
     );
