@@ -323,6 +323,61 @@ describe('preflight · the outcome classifier measures the construct, not a stri
     }
   });
 
+  it('an output that cannot be read back is a loss, and not the library throwing', async () => {
+    // **The branch that had no pin.** The output re-parse is the instrument
+    // reading back the bytes a save would write. When that reading fails the
+    // round trip has already succeeded, so the row must not say the library
+    // threw — and the loss is the row's own class, not a note on it.
+    //
+    // The mock makes the **read-back** fail and nothing else: the parser is
+    // wrapped so that a parse of anything but the input throws, and the
+    // read-back is the one place in the measurement that parses the *output*
+    // rather than the input. The input is the fence-with-meta one, so the
+    // output differs from it and the read-back is reached at all.
+    //
+    // **The row cannot be a byte-identical one.** `byteIdentical` says the
+    // output is the input plus the trailing newline, and remark has already
+    // parsed the input by then — so an output that remark cannot read back
+    // is never a byte-identical output. That is why the loss below does not
+    // contradict the bytes.
+    vi.resetModules();
+    const input = '```js title=x\nconst a = 1;\n```\n';
+    vi.doMock('unified', async (importOriginal) => {
+      const actual = await importOriginal<{ unified: typeof unified }>();
+      return {
+        ...actual,
+        unified: () => {
+          const processor = actual.unified();
+          const parseBody = processor.parse.bind(processor);
+          processor.parse = (body: string) => {
+            if (body !== input) throw new Error('the output cannot be read back');
+            return parseBody(body);
+          };
+          return processor;
+        },
+      };
+    });
+    try {
+      const { measure: measuredAlone } = await import('../src/trace.js');
+      const result = await measuredAlone({
+        name: 'unreadable',
+        group: 'caotang',
+        input,
+      });
+      // The round trip worked, so the row does not say the library threw.
+      expect(result.threw).toBeNull();
+      // The bytes a save would write cannot be read back: that is the class.
+      expect(result.outcome).toBe('lost');
+      expect(result.note).toMatch(/could not be read back/);
+      // And the stability claim was measured on the first reading, so it
+      // stands: the unreadable output is a loss, not an instability.
+      expect(result.deterministic).toBe(true);
+    } finally {
+      vi.doUnmock('unified');
+      vi.resetModules();
+    }
+  });
+
   it('every corpus entry measures the class §3.3 declares for it', () => {
     // **The corpus's `expect` is load-bearing from here.** A declared class
     // that nothing ever compared against is a claim no test can check, and a
