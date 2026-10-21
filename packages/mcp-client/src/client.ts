@@ -151,9 +151,11 @@ export interface McpClientOptions {
   readonly onChange?: (settings: McpSettings) => void;
   /**
    * Called with the reference of a bearer token that a change dropped, so the vault can take it
-   * out. A token that nothing names any more is a token that is kept for ever.
+   * out. A token that nothing names any more is a token that is kept for ever. The client awaits
+   * it: a vault that cannot be written is then the caller's to see, and not a rejection that
+   * vanishes.
    */
-  readonly onTokenDropped?: (tokenRef: string) => void;
+  readonly onTokenDropped?: (tokenRef: string) => void | Promise<void>;
 }
 
 export interface McpClient {
@@ -272,7 +274,7 @@ class McpClientImpl implements McpClient {
   private readonly listTimeoutMs: number;
   private readonly callTimeoutMs: number;
   private readonly onChange: ((settings: McpSettings) => void) | undefined;
-  private readonly onTokenDropped: (tokenRef: string) => void;
+  private readonly onTokenDropped: (tokenRef: string) => void | Promise<void>;
 
   constructor(options: McpClientOptions) {
     this.config = { enabled: options.settings.enabled, servers: options.settings.servers.map(cloneServer) };
@@ -590,7 +592,7 @@ class McpClientImpl implements McpClient {
     // the settings do not make a reference unique, and that server would lose a credential its
     // own settings name.
     if (before.kind === 'bearer' && (server.auth.kind !== 'bearer' || server.auth.tokenRef !== before.tokenRef)) {
-      if (!this.tokenRefNamed(before.tokenRef, key)) this.onTokenDropped(before.tokenRef);
+      if (!this.tokenRefNamed(before.tokenRef, key)) await this.onTokenDropped(before.tokenRef);
     }
     return ok(cloneServer(server));
   }

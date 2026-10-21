@@ -520,7 +520,7 @@ describe('what is never contacted', () => {
     const dropped: string[] = [];
     const { client, saved } = makeClient(server, {
       servers: [serverFor(KEY, 'Authed', { auth: { kind: 'bearer', tokenRef: 'v_AAAAAAAAAA' } })],
-      onTokenDropped: (ref) => dropped.push(ref),
+      onTokenDropped: (ref) => { dropped.push(ref); },
     });
     const moved = await client.updateServer(KEY, { url: 'https://elsewhere.fixture.test/mcp' });
     expect(moved.ok).toBe(true);
@@ -561,6 +561,17 @@ describe('what is never contacted', () => {
     // server without the credential its own settings name.
     expect(savedAtDrop).toHaveLength(1);
     expect(savedAtDrop[0]?.servers[0]?.auth).toEqual({ kind: 'none' });
+  });
+
+  it('reports a vault that cannot take the token back, instead of swallowing the failure', async () => {
+    const server = fixture();
+    const { client } = makeClient(server, {
+      servers: [serverFor(KEY, 'Authed', { auth: { kind: 'bearer', tokenRef: 'v_AAAAAAAAAA' } })],
+      onTokenDropped: () => Promise.reject(new Error('the vault is full')),
+    });
+    // The removal is awaited, so the failure reaches the caller: a token that stays sealed in the
+    // vault for ever is not a thing that happens quietly.
+    await expect(client.updateServer(KEY, { url: 'https://elsewhere.fixture.test/mcp' })).rejects.toThrow('the vault is full');
   });
 
   it('does not hand back a reference that another server still names', async () => {

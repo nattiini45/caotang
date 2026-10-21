@@ -36,6 +36,21 @@ function memoryKeys(): McpKeyPort & { map: Map<string, string> } {
   };
 }
 
+/** An in-memory key port whose removal fails, as a vault that cannot be written does. */
+function failingKeys(): McpKeyPort {
+  const map = new Map<string, string>();
+  return {
+    put: async (ref, token) => {
+      map.set(ref, token);
+    },
+    reveal: async (ref) => map.get(ref),
+    has: async (ref) => map.has(ref),
+    remove: async () => {
+      throw new Error('the vault cannot be written');
+    },
+  };
+}
+
 /** A scripted server that lists the given tool names, whatever address it is asked for. */
 function scriptedServer(names: readonly string[]): WireFactory {
   return () =>
@@ -70,6 +85,20 @@ test.describe('the MCP app: tokens, imports and the enabled tools (extensibility
     if (second.ok) return;
     expect(second.message).toContain('already connected');
     expect(keys.map.size).toBe(0);
+  });
+
+  test('a vault that cannot take the token back is reported to the caller, and not swallowed', async () => {
+    const app = new McpApp({ settings: memorySettings(EMPTY_MCP_SETTINGS), keys: failingKeys() });
+    const added = await app.addServer({ name: 'Story bible', url: 'https://tools.example.com/mcp', token: 'secret-token-123' });
+    expect(added.ok).toBe(true);
+    if (!added.ok) return;
+
+    // The change of address drops the credential, and the vault refuses to let it go. The
+    // failure is the caller's to see: a sealed token that stays in the vault for ever is not a
+    // thing that happens quietly.
+    await expect(app.client.updateServer(added.server.key, { url: 'https://elsewhere.example.com/mcp' })).rejects.toThrow(
+      'the vault cannot be written',
+    );
   });
 
   test('an import names each refused entry and keeps the rest, and it never carries a trust grant', async () => {

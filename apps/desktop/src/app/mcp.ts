@@ -81,10 +81,10 @@ export class McpApp {
         void this.settings.update({ mcp });
       },
       // A credential that a change dropped is taken out of the vault: the settings no longer name
-      // it, and a token that nothing names is a token that is kept for ever.
-      onTokenDropped: (ref) => {
-        void options.keys.remove(ref);
-      },
+      // it, and a token that nothing names is a token that is kept for ever. The removal is
+      // awaited, like the removals below it: a vault that cannot be written is then the caller's
+      // to see, and not a rejection that vanishes and leaves the sealed token behind.
+      onTokenDropped: (ref) => options.keys.remove(ref),
     });
   }
 
