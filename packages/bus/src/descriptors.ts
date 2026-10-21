@@ -702,19 +702,29 @@ function requireDocumentNode(
 }
 
 /**
- * The project-relative path of a body node's file, for its kind.
+ * The project-relative paths of a body node's file, for its kind: **the names the
+ * loader tries, in the order it tries them.**
  *
  * **The store's rule, restated**: `.ink` for a dialogue container, `.fountain`
  * for a screenplay document, `.md` for a prose document, all under `docs/`
- * (`@caotang/store`'s `bodyExtensionOf` and `bodyFile`). The bus cannot import
+ * (`@caotang/store`'s `bodyExtensionOf` and `bodyNamesOf`). The bus cannot import
  * the store — the dependency runs store → bus — so the rule is copied here, and
  * `packages/store/test/bus-body-file.test.ts` pins the two together: a hint that
- * names a file the loader never writes sends an agent to repair a file that does
+ * names a file the loader never reads sends an agent to repair a file that does
  * not exist.
+ *
+ * **Both names, because the loader reads both.** A kind's own file is what a save
+ * writes, but a project written before the kind had one of its own still carries
+ * the `.md` — and the loader reads that one when the kind's file is not there
+ * (`bodyNamesOf`, project-format.md §3). A hint that named only the kind's file
+ * would send an agent to repair a file that does not hold the body, which is the
+ * failure the pin above exists to prevent. A prose document has one name: its own.
  */
-function bodyFilePath(node: ValidationNode): string {
+function bodyFilePaths(node: ValidationNode): string[] {
   const extension = node.type === 'dialogue' ? 'ink' : node.kind === 'screenplay' ? 'fountain' : 'md';
-  return `docs/${node.id}.${extension}`;
+  const own = `docs/${node.id}.${extension}`;
+  const legacy = `docs/${node.id}.md`;
+  return own === legacy ? [own] : [own, legacy];
 }
 
 /**
@@ -732,13 +742,18 @@ function bodyFilePath(node: ValidationNode): string {
  * file is not text the loader could read, and no id the caller passes changes
  * that.
  *
- * **The file is the node's own, for its kind.** A prose document's body is
- * `docs/<id>.md`, a screenplay's is `docs/<id>.fountain` and a dialogue
- * container's is `docs/<id>.ink` — so a hint that named `<id>.md` for all three
- * would send an agent to a file that does not hold the body. The message does
- * not name a *cause*: a body can be missing because the file is not UTF-8 text,
- * and because the runtime rehydrator had no body row for an id that resolved,
- * and the bus cannot tell the two apart.
+ * **The files are the ones the loader reads, for the node's kind.** A prose
+ * document's body is `docs/<id>.md`, a screenplay's is `docs/<id>.fountain` and a
+ * dialogue container's is `docs/<id>.ink` — so a hint that named `<id>.md` for
+ * all three would send an agent to a file that does not hold the body — and the
+ * `.md` a save wrote before the kind had a file of its own is a second name the
+ * loader reads, so it is named too.
+ *
+ * **The message does not name a *cause*.** A body can be missing because the file
+ * is not UTF-8 text, and because the runtime rehydrator had no body row for an id
+ * that resolved, and the bus cannot tell the two apart — so the hint says what it
+ * can act on (the file, and that it has to hold UTF-8 text) without claiming which
+ * of the two it is.
  */
 function requireLoadedBody(
   snapshot: ValidationSnapshot,
@@ -747,9 +762,11 @@ function requireLoadedBody(
 ): Result<number, CommandError> {
   const length = documentLength(snapshot, node.id);
   if (length === undefined) {
+    const paths = bodyFilePaths(node);
+    const names = paths.map((path) => `"${path}"`).join(' or ');
     return notFound(
       `document "${node.id}" has no body loaded — ${because}`,
-      `the surface to fix is the document's own file, not this command's params: the body of "${node.id}" lives in "${bodyFilePath(node)}", and the loader could not read it as text; make sure that file holds UTF-8 text, then reload the project. The id itself resolved, so binder.read_tree cannot help here`,
+      `the surface to fix is the document's own file, not this command's params: the body of "${node.id}" lives in ${names}, and the loader could not read it as text — a file that is not UTF-8 text is one reason, and the bus cannot tell that apart from a body the runtime had no row for; make sure the file holds UTF-8 text, then reload the project. The id itself resolved, so binder.read_tree cannot help here`,
       node.id,
     );
   }
