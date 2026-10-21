@@ -868,17 +868,24 @@ export const sniffDialect = (
     spans.push(span);
     spanTotal += span;
   }
-  // The totals have to add up, **and** every per-block span has to be one the
-  // comparison can walk: two offsetting per-block errors satisfy the sum while
-  // mispairing every block after them, so the sum alone is not the rule. If
-  // either half fails, this document contains a construct the handler table has
-  // not been taught about, and every pairing after it would be a guess — so the
-  // channel answers "nothing to report" rather than reporting a comparison it
-  // cannot make. A wrong zero is the failure this channel cannot have (see the
-  // header), so the refusal is deliberate: a false *notice* is worse than a
-  // missing one, because a notice is a claim about a specific block and a
-  // reader acts on it. And the refusal is **warned**, because a refusal nobody
-  // sees is a channel that has stopped working.
+  // The totals have to add up, **and** no per-block span may stall the walk at
+  // zero. The zero half is the one that closes a hole the sum cannot see: a
+  // block that compiles to zero blocks leaves the compiled index standing still
+  // while the walk moves on, and every later pairing would compare a block with
+  // a neighbour's bytes.
+  //
+  // **What the rule does not catch is stated rather than claimed.** Two
+  // *offsetting non-zero* span errors satisfy the sum and neither lands on
+  // zero, so the pairing still drifts — this rule refuses the zero-stall case,
+  // not every possible drift. If either half fails, this document contains a
+  // construct the handler table has not been taught about, and every pairing
+  // after it would be a guess — so the channel answers "nothing to report"
+  // rather than reporting a comparison it cannot make. A wrong zero is the
+  // failure this channel cannot have (see the header), so the refusal is
+  // deliberate: a false *notice* is worse than a missing one, because a notice
+  // is a claim about a specific block and a reader acts on it. And the refusal
+  // is **warned**, because a refusal nobody sees is a channel that has stopped
+  // working.
   if (spanTotal !== boundaries.length || untaughtZeroSpan !== null) {
     console.warn(
       untaughtZeroSpan !== null

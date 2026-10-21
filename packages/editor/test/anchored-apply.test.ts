@@ -353,10 +353,10 @@ describe('edit-anchors §4 — the apply path, over the real bus and store', () 
 
   it('the path awaits the fuzzy library itself, so §3 step 3 is available without a caller', async () => {
     // `applyAnchoredEdit` is the only production caller of `resolveAnchor`, and it
-    // preloads first — which is what makes the ladder's "one rung short" refusal a
-    // caller error rather than a product defect. Measured by asking for a case that
-    // needs step 3 and getting an `applied` outcome, with no locator bound by the
-    // test itself.
+    // preloads first — which is what makes the ladder's "short of the full ladder"
+    // refusal a caller error rather than a product defect. Measured by asking for a
+    // case that needs step 3 and getting an `applied` outcome, with no locator bound
+    // by the test itself.
     const test = harness(BODY);
     const drifted = BODY.replace(SENTENCE, 'The ferry ran late, as always.');
     const anchor = capture(BODY, test.revision());

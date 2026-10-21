@@ -274,25 +274,46 @@ export const measure = async (entry: {
 
   let pm: PmNode | null = null;
   let threw: string | null = null;
+  let determinismFailed: string | null = null;
+  let outputUnreadable: string | null = null;
   let output = '';
   let deterministic = false;
   let outputShape: TreeShape | null = null;
-  // Everything the round trip touches lives in this try, including the re-parse
-  // of the **output**: those are bytes nothing has validated yet, and the
-  // contract of the table is that a library deviation surfaces as a result —
-  // a `threw`/`lost` row — rather than as a rejection that kills the batch.
+  // The round trip itself, in a try of its own: a failure here is **the
+  // library throwing**, and it is the only thing that is.
   try {
     pm = await parse(entry.input);
     output = serialize(pm);
-    deterministic = output === serialize(await parse(entry.input));
-    // The output's shape, read back from the bytes a save would write. This is
-    // the comparison that matters: the question is not what the serializer wrote
-    // but what a reader — or the next parse — gets back.
-    outputShape = treeShape(
-      unified().use(remarkParse).use(remarkGfm).parse(output) as MdastRoot,
-    );
   } catch (error) {
     threw = error instanceof Error ? error.message : String(error);
+  }
+  // **The two re-checks get their own tries, because their failures are
+  // different facts.** Neither of them is the library throwing: the round trip
+  // has already succeeded by the time they run, and what failed is the
+  // instrument's second reading of it. A `threw` on either would put a
+  // self-contradictory row on the table — a row that says the library threw
+  // *and* that the round trip was deterministic — and would force
+  // `byteIdentical` to false on bytes that are identical.
+  //
+  // **The contract of the table is unchanged by the split**: a failure in any
+  // of the three surfaces as a result — a row that says what happened — rather
+  // than as a rejection that kills the batch.
+  if (threw === null) {
+    try {
+      deterministic = output === serialize(await parse(entry.input));
+    } catch (error) {
+      determinismFailed = error instanceof Error ? error.message : String(error);
+    }
+    try {
+      // The output's shape, read back from the bytes a save would write. This is
+      // the comparison that matters: the question is not what the serializer wrote
+      // but what a reader — or the next parse — gets back.
+      outputShape = treeShape(
+        unified().use(remarkParse).use(remarkGfm).parse(output) as MdastRoot,
+      );
+    } catch (error) {
+      outputUnreadable = error instanceof Error ? error.message : String(error);
+    }
   }
 
   const shape = pm ? pmShapeOf(pm) : { nodes: [], marks: [] };
@@ -304,6 +325,13 @@ export const measure = async (entry: {
   if (threw !== null) {
     outcome = 'lost';
     note = 'library threw instead of degrading';
+  } else if (outputUnreadable !== null) {
+    // The bytes a save would write cannot be read back, so there is no shape to
+    // compare and nothing a reader would get. That is a loss, and it is **not**
+    // the library throwing — the round trip itself succeeded, and what failed
+    // is the reading of its own output.
+    outcome = 'lost';
+    note = `the round-trip output could not be read back: ${outputUnreadable}`;
   } else if (
     outputShape !== null &&
     outputShape.text.trim() === '' &&
@@ -331,6 +359,15 @@ export const measure = async (entry: {
       outputShape !== null && !sameStructure(inputShape, outputShape)
         ? 'the round-trip changed the construct’s structure'
         : 'content changed across the round-trip';
+  }
+  // The determinism re-check is the instrument's own second reading, so its
+  // failure is a **note** and not a class: the round trip's own result stands,
+  // and the row says that the stability claim could not be checked.
+  if (determinismFailed !== null) {
+    note =
+      note === ''
+        ? `the determinism re-check could not be completed: ${determinismFailed}`
+        : `${note}; the determinism re-check could not be completed: ${determinismFailed}`;
   }
 
   return {

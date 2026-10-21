@@ -7,7 +7,7 @@
  * `unknown types throw` is asserted because it is a hazard the editor must handle, not
  * because the library should keep throwing.
  */
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { unified } from 'unified';
 import remarkStringify from 'remark-stringify';
 import remarkGfm from 'remark-gfm';
@@ -20,6 +20,7 @@ import {
   SPEC_STRINGIFY_OPTIONS,
   createParseHandlers,
 } from '../src/handlers.js';
+import type * as AuditHandlers from '../src/handlers.js';
 import { caotangSchema } from '../src/schema.js';
 
 /** One measurement per entry, shared by the tests that need it. */
@@ -266,6 +267,53 @@ describe('preflight · the outcome classifier measures the construct, not a stri
     expect(fenced.output).not.toContain('title=x');
     expect(fenced.outcome).not.toBe('exact');
     expect(fenced.outcome).toBe('degrade');
+  });
+
+  it('a failure in the determinism re-check is not the library throwing', async () => {
+    // **The row that could contradict itself.** The re-checks run *after* the
+    // round trip has already succeeded, so a failure in one of them is the
+    // instrument's second reading failing — not the library throwing. While the
+    // two shared one try, such a failure set `threw` on a row whose first pass
+    // had parsed fine: the row said the library threw *and* that the round trip
+    // was deterministic, and it forced `byteIdentical` to false on bytes that
+    // were identical.
+    //
+    // The mock makes the **second** parse throw, so the first pass succeeds and
+    // the determinism re-check's parse does not — which is the narrowest way to
+    // reach the branch without breaking the first pass as well.
+    vi.resetModules();
+    let parses = 0;
+    vi.doMock('../src/handlers.js', async (importOriginal) => {
+      const actual = await importOriginal<typeof AuditHandlers>();
+      return {
+        ...actual,
+        createParseHandlers: (schema: Parameters<typeof actual.createParseHandlers>[0]) => {
+          parses += 1;
+          if (parses > 1) throw new Error('the second parse fails');
+          return actual.createParseHandlers(schema);
+        },
+      };
+    });
+    try {
+      const { measure: measuredAlone } = await import('../src/trace.js');
+      const result = await measuredAlone({
+        name: 'recheck',
+        group: 'caotang',
+        input: 'One paragraph\n',
+      });
+      // The library did not throw, so the row must not say it did.
+      expect(result.threw).toBeNull();
+      // And the row does not contradict itself: the stability claim could not
+      // be checked, which is not the same as the library throwing.
+      expect(result.deterministic).toBe(false);
+      expect(result.note).toMatch(/determinism re-check could not be completed/);
+      // The round trip's own result stands, and the bytes are what they were.
+      expect(result.outcome).toBe('exact');
+      expect(result.byteIdentical).toBe(true);
+    } finally {
+      vi.doUnmock('../src/handlers.js');
+      vi.resetModules();
+    }
   });
 
   it('every corpus entry measures the class §3.3 declares for it', () => {

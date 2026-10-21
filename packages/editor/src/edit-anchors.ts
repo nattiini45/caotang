@@ -271,6 +271,29 @@ export const similarity = (left: string, right: string): number => {
 };
 
 /**
+ * The one normalization **both** folds apply: `ς` → `σ` and `ſ` → `s`.
+ *
+ * **It is 1:1, so it is safe for a fold that carries a map back to the source.**
+ * A code unit in, a code unit out — so no offset moves, and `origin` and
+ * `sourceStart` stay exact.
+ *
+ * **Both folds need it, and the two folds are two halves of the same rung.** The
+ * search folds the body and the needle; the context check folds the captured
+ * prefix and suffix against the body's own characters. A normalization that only
+ * one of them applies is undone by the other: the search finds the occurrence,
+ * and the context check then refuses it over a spelling difference the search
+ * had already folded away — which is how a case-only edit of a Greek word ends up
+ * in step 5's refusal instead of on a rung.
+ *
+ * The two replacements are the ones the repo's own matching fold applies
+ * (`packages/codex/src/text.ts`), and they exist for Unicode's reason:
+ * Final_Sigma is **contextual**, so `Σ` lower-cases to `ς` only at the end of a
+ * word, and a per-character fold cannot see the context.
+ */
+const foldUnit = (character: string): string =>
+  character.toLowerCase().replace(/ς/g, 'σ').replace(/ſ/g, 's');
+
+/**
  * §3's context check, as a ratio over the characters available on one side.
  *
  * `"≥ 80% of prefix and suffix characters match at the corresponding positions,
@@ -291,6 +314,13 @@ export const similarity = (left: string, right: string): number => {
  * lengths), because the missing ones are not mismatches — they are characters that
  * are not there to compare.
  *
+ * **Both sides are folded the way {@link foldUnit} folds them**, so a difference
+ * that is only a spelling — a word-final `Σ` against a `ς` — is not counted as a
+ * mismatch. The floor is a floor on *drift*, and a spelling is not drift: the
+ * search treats the two spellings as the same word, and a context check that
+ * disagreed with the search would refuse an occurrence the rung it belongs to
+ * has just found.
+ *
  * Exported because it is a rule with two sides and §3 states one threshold: a check
  * that can only be observed passing is not a check.
  */
@@ -301,7 +331,7 @@ const contextSidePasses = (expected: string, available: string): boolean => {
   let compared = 0;
   for (let i = Math.max(0, skipped); i < expected.length; i += 1) {
     compared += 1;
-    if (expected.charAt(i).toLowerCase() === available.charAt(i - skipped).toLowerCase()) matched += 1;
+    if (foldUnit(expected.charAt(i)) === foldUnit(available.charAt(i - skipped))) matched += 1;
   }
   return compared > 0 && matched / compared >= CONTEXT_MATCH_FLOOR;
 };
@@ -342,10 +372,10 @@ export const contextMatches = (anchor: TextAnchor, body: string, range: AnchorRa
  * **The context the per-code-point fold cannot see is normalized instead.**
  * Unicode's Final_Sigma rule makes a whole-string fold of `ΛΟΓΟΣ` end in `ς`
  * while `Σ` folded in isolation is always `σ`, so the two spellings of the same
- * word would never meet in a search. Both are replaced on the way in —
- * `ς` → `σ`, and the long s `ſ` → `s`, the same 1:1 normalization the repo's
- * matching fold applies — which unifies the spellings without changing any
- * code-unit count, so `origin` and `sourceStart` stay exact.
+ * word would never meet in a search. Both are replaced on the way in — by
+ * {@link foldUnit}, the same 1:1 normalization the repo's matching fold applies
+ * — which unifies the spellings without changing any code-unit count, so
+ * `origin` and `sourceStart` stay exact.
  *
  * `sourceStart` carries one entry more than there are code points: the string's
  * own length, so the end of the last code point is the next entry rather than a
@@ -369,7 +399,7 @@ const foldWithMap = (source: string): FoldedText => {
   for (const character of source) {
     // Length-preserving: both replacements map one code unit to one code unit,
     // so the fold's map back to the source is untouched by them.
-    const lowered = character.toLowerCase().replace(/ς/g, 'σ').replace(/ſ/g, 's');
+    const lowered = foldUnit(character);
     sourceStart.push(offset);
     for (let unit = 0; unit < lowered.length; unit += 1) {
       folded += lowered[unit]!;
@@ -638,7 +668,7 @@ export const resolveAnchor = (
   }
   if (locator === undefined) {
     reason +=
-      ' The fuzzy rung could not run because its locator is not loaded, so this answer is one rung short of the ladder; await `preloadAnchorLibraries()` before resolving to get the full ladder.';
+      ' The fuzzy rung and the unique-global rung could not run because the locator is not loaded, so this answer is two rungs short of the ladder; await `preloadAnchorLibraries()` before resolving to get the full ladder.';
   }
   return refuse(reason, pool);
 };

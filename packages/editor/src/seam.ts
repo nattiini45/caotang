@@ -684,7 +684,7 @@ const blockSpans = (doc: PmNode, nodes: readonly { node: PmNode; from: number }[
  * this).
  *
  * The three locators, in order, because the first two are exact and the third is
- * a measured fallback rather than a guess — over the §13 corpus: 77 leaves
+ * a measured fallback rather than a guess — over the §13 corpus: 77 runs
  * located by their own serialization, 4 by raw text, 0 by the escape-tolerant
  * search, 0 blocks degraded.
  */

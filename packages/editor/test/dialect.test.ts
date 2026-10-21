@@ -471,6 +471,44 @@ describe('§5 dialect contract — the parse blocks and the compiled blocks are 
       warned.mockRestore();
     }
   });
+
+  it('refuses a document whose span total does not add up, and names the disagreement rather than a zero', async () => {
+    // **The other half of the same refusal**, and the one the fixture above
+    // cannot reach: that one forces the zero-span half with the totals equal,
+    // so the aggregate message — the branch a handler table that over-claims a
+    // block takes — was never asserted by anything.
+    //
+    // The fixture mocks **one** block's span and leaves no zero anywhere: the
+    // paragraph claims two compiled blocks and the document has one, so the
+    // totals disagree and the per-block half has nothing to say. The refusal
+    // has to name the disagreement it found, and must not blame a zero that is
+    // not there.
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      vi.resetModules();
+      vi.doMock('../src/handlers.js', async (importOriginal) => {
+        const actual = await importOriginal<typeof EditorHandlers>();
+        const overclaimed = (node: { type: string }): number => {
+          if (node.type === 'paragraph') return 2;
+          return actual.compiledBlockSpan(node as never);
+        };
+        return { ...actual, compiledBlockSpan: overclaimed };
+      });
+      const { sniffDialect } = await import('../src/dialect.js');
+      const body = 'A single paragraph.\n';
+      const tree = unified().use(remarkParse).use(remarkGfm).parse(body) as MdastRoot;
+      const doc = await parse(body);
+      expect(sniffDialect(body, tree, doc, [])).toEqual([]);
+      expect(warned, 'the refusal is silent').toHaveBeenCalled();
+      const message = warned.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(message).toMatch(/the parse blocks claim 2 compiled blocks and the document has 1/);
+      expect(message).not.toMatch(/compiles to zero blocks/);
+    } finally {
+      vi.doUnmock('../src/handlers.js');
+      vi.resetModules();
+      warned.mockRestore();
+    }
+  });
 });
 
 describe('§5 dialect contract — what a save writes, and who writes it', () => {
@@ -814,7 +852,7 @@ describe('§5 dialect contract — the rule is a comparison, not a list', () => 
     expect(start, 'pipeline.ts has no serialize').toBeGreaterThan(-1);
     // The end of the slice is guarded explicitly: an `indexOf` that answered -1
     // would slice to *almost the whole file* — which does contain `unified(`,
-    // in the module-level chain — and fail pointing at code that is not
+    // in `parseWithDiagnostics` — and fail pointing at code that is not
     // `serialize` at all.
     const end = source.indexOf('\n};', start);
     expect(end, 'serialize has no column-0 closer — the slice bound moved').toBeGreaterThan(start);

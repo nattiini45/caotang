@@ -893,11 +893,28 @@ export const createParseHandlers = (schema: Schema, sink: LossWarning[]): ParseH
   // `inlineCode` is a text node carrying the `code` MARK (§3.2 makes inline
   // code a mark, not a node).
   inlineCode: (node: InlineCode) => [schema.text(node.value, [schema.marks.code!.create()])],
-  code: (node: Code) =>
-    schema.nodes.code_block!.create(
+  // A fence's info string is `language meta` — remark parses `js title=x` as
+  // `lang: 'js', meta: 'title=x'` — and §3.1's `code_block` has a slot for the
+  // language and **none** for the rest, so the loader keeps the language and
+  // drops `title=x`. That is the same shape as a task item's `checked`: the
+  // *type* is exact-content and the *attribute* is lost, so §3.3 carries its
+  // own row for it and the loss is **warned** rather than silent. A fence with
+  // only a language warns nothing — the warning is about the part that is
+  // dropped, not about fences.
+  code: (node: Code) => {
+    if (node.meta) {
+      warn(
+        sink,
+        node,
+        'lossy-attribute',
+        "A fenced code block's info string carried more than its language; v0.1 stores no info-string meta, so that part of the fence is lost.",
+      );
+    }
+    return schema.nodes.code_block!.create(
       { language: node.lang ?? null },
       node.value ? schema.text(node.value) : undefined,
-    ),
+    );
+  },
 
   // --- the degrade class, spread last so every name above is still §3.3's ----
   ...createDegradeHandlers(schema, sink),

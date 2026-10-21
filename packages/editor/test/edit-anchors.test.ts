@@ -618,8 +618,9 @@ describe('§4’s lazy boundary — measured, and with a control', () => {
     const resolution = expectUnresolvable(resolveAnchor(anchor, body, TICK_REVISION + 5));
     expect(resolution.reason).toMatch(/context around it no longer matches/);
     expect(resolution.reason).not.toMatch(/the rung that would have checked its context could not run/);
-    // The missing locator is still disclosed — the ladder really is one rung
-    // short — but as the addition to the honest primary reason, not as it.
+    // The missing locator is still disclosed — the ladder is **two** rungs short
+    // without it (the fuzzy rung and the unique-global rung, both of which are
+    // gated on it) — but as the addition to the honest primary reason, not as it.
     expect(resolution.reason).toMatch(/locator is not loaded/);
   });
 });
@@ -708,6 +709,40 @@ describe('§3’s case-insensitive search — offsets in the body’s own coordi
     const up = expectOk(resolveAnchor(capture(lower, 'λογος'), upper, TICK_REVISION + 1));
     expect(up.method).toBe('near-offset');
     expect(upper.slice(up.range.from, up.range.to)).toBe('ΛΟΓΟΣ');
+  });
+
+  it('folds the captured context the same way the search does, so a sigma spelling cannot refuse the rung', () => {
+    // **The other fold, and the one the search's fix left behind.** The search
+    // folds `ς` → `σ` so that `ΛΟΓΟΣ` and `λογος` meet; the context check
+    // compares the captured prefix and suffix against the body's own
+    // characters, and a check that does not apply the same normalization counts
+    // a spelling difference as a mismatch. So an occurrence the unified search
+    // finds is refused by the context check that is supposed to confirm it —
+    // and with the locator unbound nothing after it rescues the answer.
+    //
+    // The fixture is built so the difference **decides** the rung rather than
+    // being absorbed by the floor: the captured context is four characters
+    // long and one of them is the word-final `Σ`, so a single mismatch is a
+    // quarter of the side — and three of four is below §3's 80%. A longer
+    // context would hide the bug behind the floor, which is why the heading is
+    // short.
+    const upper = 'ΕΙΣ ΤΗΝ ΑΓΟΡΑΝ';
+    const lower = 'εις την αγοραν';
+    const anchor = capture(upper, 'ΤΗΝ');
+    expect(anchor.prefix).toBe('ΕΙΣ ');
+    expect(CONTEXT_MATCH_FLOOR * anchor.prefix.length).toBeGreaterThan(3);
+    // The two spellings really are the two spellings: the capture carries the
+    // capital sigma, the body the final one.
+    expect(anchor.prefix).toContain('Σ');
+    expect(lower.slice(0, 4)).toContain('ς');
+    // The locator is unbound, so a refusal would be the end of the ladder and
+    // not a rung that rescues it.
+    bindAnchorLibraries();
+    expect(anchorLibrariesLoaded()).toBe(false);
+
+    const resolution = expectOk(resolveAnchor(anchor, lower, TICK_REVISION + 1));
+    expect(resolution.method).toBe('near-offset');
+    expect(lower.slice(resolution.range.from, resolution.range.to)).toBe('την');
   });
 });
 
