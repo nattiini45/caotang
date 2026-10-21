@@ -53,6 +53,14 @@
  * A command refused at the name, at `validate` or at §4's gate was never
  * executed, so it leaves **no row**. That is the log's whole value as an audit
  * (*§1: "auditable (activity log)"*): a row means the bus did something.
+ *
+ * **And a defect row is not an execution.** One dispatch can leave two rows:
+ * the effect it made, and — after the fact — a defect the bus found in the
+ * apply. The defect row is marked (`defect`), reports nothing that ran, and
+ * carries no undo group, so the rule this section states is the rule for the
+ * **rows that report an effect**. A reader of the entries can tell the two
+ * apart by the marker; a reader of a rendered surface cannot, until that
+ * surface renders it (command-bus §8 says which do not yet).
  */
 
 import type { CommandName } from './command.js';

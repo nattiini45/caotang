@@ -122,7 +122,9 @@ interface ActivityEntry {
 }
 ```
 
-**A defect row is not a second execution.** One entry per executed command is the rule for the *rows that report an effect*, and a defect is not an effect: it is the bus reporting that an apply did something the spec does not allow. The one defect row in v0.1 is the late undo capture — an apply that stashed its undo scope and captured from a timer, an event or a floating continuation, after the dispatch settled. Its row carries the `defect` marker, so a reader that counts command rows can tell it from an execution, and it carries **no undo group**: the dispatch's registration is closed, so the payload was dropped.
+**A defect row is not a second execution.** One entry per executed command is the rule for the *rows that report an effect*, and a defect is not an effect: it is the bus reporting that an apply did something the spec does not allow. The one defect row in v0.1 is the late undo capture — an apply that stashed its undo scope and captured from a timer, an event or a floating continuation, after the dispatch settled. Its row carries the `defect` marker and **no undo group**: the dispatch's registration is closed, so the payload was dropped.
+
+**The marker is in the data; the rendered surfaces do not show it yet.** A reader of the log's *entries* — the bus's own `ActivityEntry`, and anything built from them — can tell a defect row from an execution by the marker, and the row belongs to no group. The activity panel and the Markdown export below do not render the marker: a defect row appears there as an ordinary change row, so a reader counting rows in the *rendered* output still counts an execution. That gap is in the renderers, not in the log.
 
 **One defect row per dispatch, and the first late capture is the one reported.** The defect is the capture, not how many there were, and a scope stashed on a high-frequency timer would otherwise write a row per capture into a session-lifetime log.
 
