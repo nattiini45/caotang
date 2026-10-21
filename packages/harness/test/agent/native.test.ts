@@ -344,7 +344,8 @@ describe('the planner on the native tool-call wire', () => {
     const last = resultFor(second as ChatRequest, 'r30');
     expect(last?.message.isError).toBe(true);
     // Every one of the 31 calls is answered, so a reply that answered only a prefix or a suffix of
-    // them would not pass this test either.
+    // them would not pass this test either — and the last one carries the refusal, not a not-run.
+    expect(last?.body).toEqual({ ok: false, error: expect.stringContaining('at most 30') });
     expect(second?.messages.filter((m) => m.role === 'tool')).toHaveLength(31);
     // The refusal reads as the JSON wire's would, as a user message after the results.
     const told = second?.messages.at(-1);
