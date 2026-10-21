@@ -739,8 +739,8 @@ function bodyFilePaths(node: ValidationNode): string[] {
  * The id already resolved in `requireDocumentNode` by the time this runs, so
  * §7's own rule — a `correctiveHint` names the surface that fixes the refusal —
  * cannot be satisfied by "list valid ids": a body is missing when the document's
- * file is not text the loader could read, and no id the caller passes changes
- * that.
+ * file is not text the loader could read, or when the runtime rehydrator had no
+ * row for it, and no id the caller passes changes that.
  *
  * **The files are the ones the loader reads, for the node's kind.** A prose
  * document's body is `docs/<id>.md`, a screenplay's is `docs/<id>.fountain` and a
@@ -766,7 +766,7 @@ function requireLoadedBody(
     const names = paths.map((path) => `"${path}"`).join(' or ');
     return notFound(
       `document "${node.id}" has no body loaded — ${because}`,
-      `the surface to fix is the document's own file, not this command's params: the body of "${node.id}" lives in ${names}, and the loader could not read it as text — a file that is not UTF-8 text is one reason, and the bus cannot tell that apart from a body the runtime had no row for; make sure the file holds UTF-8 text, then reload the project. The id itself resolved, so binder.read_tree cannot help here`,
+      `the surface to fix is the document's own file, not this command's params: the body of "${node.id}" lives in ${names}, and the loader gave the document no body to read. A file that is not UTF-8 text is one reason, and a body the runtime had no row for is the other, and the bus cannot tell the two apart — so make sure the file holds UTF-8 text, then reload the project. The id itself resolved, so binder.read_tree cannot help here`,
       node.id,
     );
   }
