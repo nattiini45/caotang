@@ -54,7 +54,7 @@ export type {
   ViewSetSelectionParams,
   ViewState,
 } from './command.js';
-export type { ActivityEntry, ActivityLog, ActivitySource } from './activity-log.js';
+export type { ActivityDefect, ActivityEntry, ActivityLog, ActivitySource } from './activity-log.js';
 export { createActivityLog } from './activity-log.js';
 export type { CommandError, CommandErrorCode, CommandErrorDetails, PerOpFailure, Result } from './result.js';
 export { ok, err } from './result.js';
