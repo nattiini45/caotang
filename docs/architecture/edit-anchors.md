@@ -47,7 +47,7 @@ Steps in order; first match wins:
 
 Context check (used by methods 2–4): ≥ 80% of prefix and suffix characters match at the corresponding positions, case-insensitive.
 
-**Case-insensitive** means `toLowerCase` one code point at a time, applied to both sides of a comparison so that the needle and the text it is searched in are folded the same way — not a full casefold: `ß` does not match `ss`, and a final sigma (`ς`) does not match a sigma (`σ`).
+**Case-insensitive** is two folds, and they are not the same fold. The **search** fold (the occurrence search, used by methods 2 and 4) lowers the text and the needle **one code point at a time**, so the needle and the text it is searched in are folded the same way, and it normalizes the two spellings a per-code-point fold cannot see — a final sigma (`ς`) → `σ` and the long s (`ſ`) → `s` — so a final sigma **does** match a sigma there. The **context check** folds per UTF-16 code unit instead, so it keeps them apart. Neither is a full casefold: `ß` does not match `ss` in either.
 
 **A caller that resolves an anchor directly awaits `preloadAnchorLibraries()` first.** Step 3 needs the fuzzy locator, and a ladder that reaches it with the locator unbound refuses and names the reason rather than skipping to step 4, so an unprepared caller gets one rung short of the ladder. The apply path awaits the preload, so in the product step 3 is always available.
 

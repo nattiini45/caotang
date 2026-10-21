@@ -73,7 +73,7 @@ matchNode(
 
 - Saved filters change only through `binder.saveFilter` and `binder.deleteFilter` (§5). **A saved filter found in the app database is moved once into the project, through those commands, and marked as moved; the app-database copy is not deleted**.
 - Top-level `filters[]` array in `caotang.json`, same fixed-key-order discipline as `tree`/`codex[]`. **Additive in format v1** — no `formatVersion` bump (same argument as `codex[]`/`recipes[]`/`coherence.json`: no wild artifacts exist before implementation). Loaders tolerate absence; absent = no saved filters.
-- Load-time tolerance: unknown criteria keys are kept — the store holds the criteria as the writer saved them, so a project written back unchanged keeps them, and the load notice says they are dropped on the next save of that filter; dangling `root` values impossible (enum); malformed criterion objects → the whole filter is dropped with a load warning (a broken saved query must never block a project load).
+- Load-time tolerance: unknown criteria keys are dropped with the one-time unknown-field notice (project-format §6 rule); dangling `root` values impossible (enum); malformed criterion objects → the whole filter is dropped with a load warning (a broken saved query must never block a project load).
 
 ## 5. Commands & UI
 
@@ -99,7 +99,7 @@ The active filter is **not a bus command**. The draft a writer types, and the sa
 ## 6. Evals (headless)
 
 - **Matching fixtures** per criterion and in conjunction: text-in-title vs text-in-body (body projection — front matter never matches); status/label unknown-id behavior; keywordsAll/Any; min/maxWords on documents vs folders (subtree sums); empty criteria = match-all.
-- **Persistence fixtures:** save → manifest `filters[]` shape; load without the array → none; unknown criteria key → kept and written back unchanged; malformed filter → dropped, load proceeds.
+- **Persistence fixtures:** save → manifest `filters[]` shape; load without the array → none; unknown criteria key → dropped with notice; malformed filter → dropped, load proceeds.
 - **Trace fixtures:** the Playwright sequence above; the filter draft never appears in undo-all assertions, because it is view state and is never undo-registered.
 
 ## 7. Rejected alternatives
