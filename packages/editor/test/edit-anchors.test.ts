@@ -388,6 +388,28 @@ describe('§3’s context check — 80%, from both sides', () => {
     expect(contextMatches(truncated, 'ab', { from: 2, to: 6 })).toBe(true);
   });
 
+  it('folds the BMP case pair and not the astral one, and the limit is measured', () => {
+    // **The scope of the shared fold, measured rather than claimed.** The
+    // search folds per code point and this check folds per UTF-16 code unit,
+    // so the two agree for the BMP and do not agree for a cased astral script.
+    // Deseret is the smallest example: U+10400 and U+10428 are the two cases
+    // of the same letter, and their UTF-16 forms share a high surrogate and
+    // differ in the low one.
+    //
+    // The control is the pair the shared fold *does* close: a word-final sigma
+    // against a medial one is the same word on both sides, and the check
+    // passes.
+    const bmp = { ...base(), prefix: 'xς' };
+    expect(contextMatches(bmp, 'xσzz', { from: 2, to: 4 })).toBe(true);
+    // The astral pair: a lone surrogate half lower-cases to itself, so the
+    // low surrogates differ and the check counts the difference as drift. The
+    // search folds the two letters together — this is the disagreement the
+    // shared fold closes for Greek and leaves open for the astral planes, and
+    // the comment in `edit-anchors.ts` says so rather than claiming it fixed.
+    const astral = { ...base(), prefix: 'x\u{10428}' };
+    expect(contextMatches(astral, 'x\u{10400}zz', { from: 3, to: 5 })).toBe(false);
+  });
+
   it('counts only the characters available, right-aligned to the range edge', () => {
     // A 32-character prefix, of which the body now offers only the last 17: text
     // above the target was deleted, so the target moved *up*. The characters that

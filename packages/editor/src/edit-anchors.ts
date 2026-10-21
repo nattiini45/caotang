@@ -292,7 +292,9 @@ export const similarity = (left: string, right: string): number => {
  * one of them applies is undone by the other: the search finds the occurrence,
  * and the context check then refuses it over a spelling difference the search
  * had already folded away — which is how a case-only edit of a Greek word ends up
- * in step 5's refusal instead of on a rung.
+ * in step 5's refusal instead of on a rung. (The two folds also differ in
+ * granularity, and the context check's own comment says where that leaves the
+ * astral planes.)
  *
  * The two replacements are the ones the repo's own matching fold applies, and
  * they exist for Unicode's reason:
@@ -329,6 +331,20 @@ const foldUnit = (character: string): string =>
  * search treats the two spellings as the same word, and a context check that
  * disagreed with the search would refuse an occurrence the rung it belongs to
  * has just found.
+ *
+ * **What the shared fold closes is the BMP, and the scope is stated rather than
+ * assumed.** The two folds do not fold the same granularity: the search folds
+ * per code point (`for (const character of source)`) while this check folds per
+ * UTF-16 code unit (`charAt`). For a character whose case fold stays inside one
+ * code unit — Latin, Greek, Cyrillic — the two agree, and the spelling
+ * difference above is folded away on both sides. For a **cased astral**
+ * character (the Deseret letters in U+10400–U+1043F and the other cased
+ * astral planes) a lone surrogate half lower-cases to itself, so the two
+ * spellings of an astral letter do not meet here: the search folds them
+ * together and this check compares the surrogate halves and finds them
+ * different. The disagreement the paragraph above describes is closed for the
+ * BMP and **still open** for the astral planes, and this file does not claim
+ * otherwise.
  *
  * Exported because it is a rule with two sides and §3 states one threshold: a check
  * that can only be observed passing is not a check.
