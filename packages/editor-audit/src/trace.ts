@@ -43,8 +43,17 @@ export interface ConstructResult {
   byteIdentical: boolean;
   /** The same comparison without the trailing-newline allowance. */
   byteIdenticalRaw: boolean;
-  /** §3.3's real bar: same input → same bytes, always. */
-  deterministic: boolean;
+  /**
+   * §3.3's real bar: same input → same bytes, always.
+   *
+   * **Three states, not two.** `true` is a measured stable round trip, `false`
+   * is a measured *unstable* one, and `null` is **no measurement at all** — the
+   * round trip threw, or the determinism re-check itself could not be
+   * completed. The last state is a different fact from an unstable construct,
+   * so the field keeps them apart: a row that says `false` says the bytes
+   * changed, and only that.
+   */
+  deterministic: boolean | null;
   /** The construct's fate, derived from the round-trip — not declared. */
   outcome: Class;
   /** A human-readable note for §2's table. Empty when nothing is notable. */
@@ -277,7 +286,9 @@ export const measure = async (entry: {
   let determinismFailed: string | null = null;
   let outputUnreadable: string | null = null;
   let output = '';
-  let deterministic = false;
+  // `null` until the determinism re-check measures it: a claim that could not
+  // be checked is not a claim that failed, and the row says which it has.
+  let deterministic: boolean | null = null;
   let outputShape: TreeShape | null = null;
   // The round trip itself, in a try of its own: a failure here is **the
   // library throwing**, and it is the only thing that is.

@@ -116,13 +116,32 @@ describe('preflight · the corpus runs, and deterministically', () => {
   it('every construct that round-trips is deterministic — §3.3\'s real invariant', () => {
     // This is the invariant that actually governs, asserted across the whole
     // corpus: same input → same bytes, so a no-op edit cycle never dirties a
-    // git diff. The four that throw are excluded here and asserted separately
-    // below — a throw is not instability, it is a stronger failure, and
-    // counting it as "unstable" would have hidden the difference.
+    // git diff.
+    //
+    // **The filter reads the tri-state, and that is the point of it.** `false`
+    // is a *measured* instability — the bytes changed — and only that. `null`
+    // is no measurement at all: the round trip threw, or the determinism
+    // re-check could not be completed. The four that throw are excluded here
+    // and asserted separately below — a throw is not instability, it is a
+    // stronger failure, and counting it as "unstable" would have hidden the
+    // difference. The same goes for an unchecked row: a claim that could not
+    // be checked is not a claim that failed, and the old `false` said so
+    // nowhere.
     const unstable = [...results.entries()]
-      .filter(([, result]) => !result.deterministic && result.threw === null)
+      .filter(([, result]) => result.deterministic === false)
       .map(([name]) => name);
     expect(unstable).toEqual([]);
+
+    // And the rows with **no measurement** are named, so an unchecked row
+    // cannot hide inside the unstable bucket: the four constructs the library
+    // cannot round-trip at all are the only ones whose stability was never
+    // checked — and that is a measurement of its own.
+    const unchecked = [...results.entries()]
+      .filter(([, result]) => result.deterministic === null)
+      .map(([name]) => name);
+    expect(unchecked.sort()).toEqual(
+      ['footnote-reference', 'html-raw-block', 'image-reference', 'table-gfm'].sort(),
+    );
   });
 
   it('no exact-class construct is lost — content survives the round-trip', () => {
@@ -311,8 +330,10 @@ describe('preflight · the outcome classifier measures the construct, not a stri
       // The library did not throw, so the row must not say it did.
       expect(result.threw).toBeNull();
       // And the row does not contradict itself: the stability claim could not
-      // be checked, which is not the same as the library throwing.
-      expect(result.deterministic).toBe(false);
+      // be checked, which is not the same as the library throwing — and not
+      // the same as a measured instability either, which is what the
+      // tri-state is for.
+      expect(result.deterministic).toBeNull();
       expect(result.note).toMatch(/determinism re-check could not be completed/);
       // The round trip's own result stands, and the bytes are what they were.
       expect(result.outcome).toBe('exact');
