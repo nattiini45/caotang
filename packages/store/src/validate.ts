@@ -626,10 +626,11 @@ function validateFields(
   if (source.derived !== undefined && !isRecord(source.derived)) {
     warn('derived', 'expected object; will be recomputed on open');
   } else if (isRecord(source.derived)) {
-    // The counts are a cache the writer writes as JSON numbers, so a count that
-    // is not a number is dropped here rather than written bare (`n_x: abc` is
-    // not JSON, and the file would stop parsing). An empty map is recomputed
-    // on open.
+    // The counts are a cache, and a cache holds JSON numbers: a count that is
+    // not one is dropped here. The writer would write it as a quoted string
+    // (`n_x: "abc"`, through `scalar`), which is valid JSON and a count the
+    // next load drops again — so the load drops it now, and says so. An empty
+    // map is recomputed on open.
     const counts = source.derived['wordCounts'];
     if (counts !== undefined && !isRecord(counts)) {
       warn('derived.wordCounts', 'expected an object of counts; replaced with an empty one, and the counts are recomputed on open');
@@ -637,7 +638,10 @@ function validateFields(
     } else if (isRecord(counts)) {
       for (const [id, count] of Object.entries(counts)) {
         if (typeof count === 'number' && Number.isFinite(count)) continue;
-        warn(`derived.wordCounts.${id}`, 'expected a number; dropped, and the count is recomputed on open');
+        // The counts are recomputed on open only when the map ends up empty: a
+        // map with a count left in it is left as it is (§2's "allowed stale"),
+        // so this id's count stays missing until the document is written again.
+        warn(`derived.wordCounts.${id}`, 'expected a number; dropped, and the counts are recomputed on open only when the map ends up empty');
         delete counts[id];
       }
     }
