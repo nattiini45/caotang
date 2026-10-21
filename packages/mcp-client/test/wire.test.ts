@@ -30,13 +30,47 @@ const SERVER: McpServerConfig = {
 /** The protocol revision the SDK's client and this test's server speak. */
 const REVISION = '2026-07-28';
 
+/** The server's own metadata, as the SDK reads it out of an answer. */
+const META = { 'io.modelcontextprotocol/serverInfo': { name: 'caotang-mcp-client-fixture', version: '0.0.0' } };
+
+/** The answer the version probe gets: what the server says it speaks. */
+function discoverAnswer(id: unknown): Response {
+  const result = { supportedVersions: [REVISION], capabilities: { tools: {} }, resultType: 'complete', ttlMs: 0, cacheScope: 'private', _meta: META };
+  return new Response(JSON.stringify({ result, jsonrpc: '2.0', id }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+/** The answer a listing gets: the one tool this test's server advertises. */
+function listAnswer(id: unknown): Response {
+  const result = { tools: [{ name: 'search_lore', description: 'Find a lore entry.', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }], resultType: 'complete', ttlMs: 0, cacheScope: 'private', _meta: META };
+  return new Response(JSON.stringify({ result, jsonrpc: '2.0', id }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+/**
+ * A fetch that answers the version probe with a JSON body, and every request after it with the
+ * listing the test names. The probe is answered small on purpose: a refusal the test wants to see
+ * is about the listing, and not about the probe that opens the connection.
+ */
+function listingFetch(listing: (id: unknown) => Response): WireDeps['fetch'] {
+  return async (_input, init) => {
+    const request = JSON.parse(String(init?.body ?? '{}')) as { id?: string | number; method?: string };
+    if (request.method === 'server/discover') return discoverAnswer(request.id);
+    return listing(request.id);
+  };
+}
+
 /**
  * A fetch that answers with a body of `bytes`, in many chunks. A server streams its answer, so
  * the bound has to hold across the stream and not just across one already-materialised buffer.
  */
 function hugeFetch(bytes: number): WireDeps['fetch'] {
   const chunk = new TextEncoder().encode('x'.repeat(64 * 1024));
-  return async () =>
+  return listingFetch(() =>
     new Response(
       new ReadableStream<Uint8Array>({
         pull(controller) {
@@ -49,7 +83,8 @@ function hugeFetch(bytes: number): WireDeps['fetch'] {
         },
       }),
       { status: 200, headers: { 'content-type': 'application/json' } },
-    );
+    ),
+  );
 }
 
 function depsOf(fetchImpl: WireDeps['fetch']): WireDeps {
@@ -63,10 +98,11 @@ function depsOf(fetchImpl: WireDeps['fetch']): WireDeps {
 /**
  * The bytes of a run of notifications, each of them its own event. A server that keeps a
  * connection open streams notifications for the life of it, so one stream carries far more than
- * one answer's worth of bytes while every event in it is small.
+ * one answer's worth of bytes while every event in it is small. The events are framed with the
+ * line ending the server uses: LF, CRLF or a lone CR are all a line ending.
  */
-function notifications(bytes: number): Uint8Array {
-  const event = `event: notification\ndata: ${'x'.repeat(64 * 1024)}\n\n`;
+function notifications(bytes: number, eol = '\n'): Uint8Array {
+  const event = `event: notification${eol}data: ${'x'.repeat(64 * 1024)}${eol}${eol}`;
   return new TextEncoder().encode(event.repeat(Math.ceil(bytes / event.length)));
 }
 
@@ -83,20 +119,15 @@ function oneEvent(bytes: number): Uint8Array {
  * The version probe is answered with one JSON body, the way a server of this revision answers it;
  * every request after it is answered with a stream, the way a server of the 2025 era answers one.
  */
-function streamingServer(ahead: Uint8Array): WireDeps['fetch'] {
+function streamingServer(ahead: Uint8Array, eol = '\n', trailing?: Uint8Array): WireDeps['fetch'] {
   return async (_input, init) => {
     const request = JSON.parse(String(init?.body ?? '{}')) as { id?: string | number; method?: string };
-    const meta = { 'io.modelcontextprotocol/serverInfo': { name: 'caotang-mcp-client-fixture', version: '0.0.0' } };
-    if (request.method === 'server/discover') {
-      const result = { supportedVersions: [REVISION], capabilities: { tools: {} }, resultType: 'complete', ttlMs: 0, cacheScope: 'private', _meta: meta };
-      return new Response(JSON.stringify({ result, jsonrpc: '2.0', id: request.id }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
-    }
-    const result = { tools: [{ name: 'search_lore', description: 'Find a lore entry.', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }], resultType: 'complete', ttlMs: 0, cacheScope: 'private', _meta: meta };
-    const answer = new TextEncoder().encode(`event: message\ndata: ${JSON.stringify({ result, jsonrpc: '2.0', id: request.id })}\n\n`);
+    if (request.method === 'server/discover') return discoverAnswer(request.id);
+    const result = { tools: [{ name: 'search_lore', description: 'Find a lore entry.', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }], resultType: 'complete', ttlMs: 0, cacheScope: 'private', _meta: META };
+    const answer = new TextEncoder().encode(`event: message${eol}data: ${JSON.stringify({ result, jsonrpc: '2.0', id: request.id })}${eol}${eol}`);
     let sent = false;
+    let answered = false;
+    let rest = trailing;
     const stream = new ReadableStream<Uint8Array>({
       pull(controller) {
         if (!sent) {
@@ -104,7 +135,17 @@ function streamingServer(ahead: Uint8Array): WireDeps['fetch'] {
           controller.enqueue(ahead);
           return;
         }
-        controller.enqueue(answer);
+        if (!answered) {
+          answered = true;
+          controller.enqueue(answer);
+          return;
+        }
+        if (rest !== undefined) {
+          const next = rest;
+          rest = undefined;
+          controller.enqueue(next);
+          return;
+        }
         controller.close();
       },
     });
@@ -122,6 +163,39 @@ describe('a server answer is bounded before it is read', () => {
     expect(error).toBeInstanceOf(WireError);
     expect((error as WireError).kind).toBe('result');
     expect((error as WireError).message).toMatch(/over the .* budget/);
+    // The size it refused is named, so a big answer is told apart from a broken one.
+    expect((error as WireError).message).toMatch(/about \d+ bytes/);
+  });
+
+  it('refuses a body whose declared length is over the budget, before a byte of it is read', async () => {
+    const declared = 300 * 1024 * 1024;
+    let cancelled = false;
+    const wire = createStreamableHttpWire(
+      SERVER,
+      depsOf(
+        listingFetch(() =>
+          new Response(
+            new ReadableStream<Uint8Array>({
+              cancel() {
+                cancelled = true;
+              },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json', 'content-length': String(declared) } },
+          ),
+        ),
+      ),
+    );
+    const error = await wire.listTools({ timeoutMs: 5_000 }).then(
+      () => undefined,
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(WireError);
+    expect((error as WireError).kind).toBe('result');
+    // The length the server declared is the size that is named.
+    expect((error as WireError).message).toContain(String(declared));
+    // The body is not read, and it is not left open: a server that answers every request this
+    // way would otherwise hold one undrained connection behind every attempt.
+    expect(cancelled).toBe(true);
   });
 
   it('refuses a call result whose body is over the budget, and never parses it', async () => {
@@ -135,13 +209,29 @@ describe('a server answer is bounded before it is read', () => {
   });
 
   it('lets a small answer through unchanged', async () => {
-    const wire = createStreamableHttpWire(SERVER, depsOf(hugeFetch(64 * 1024)));
+    const wire = createStreamableHttpWire(SERVER, depsOf(listingFetch((id) => listAnswer(id))));
     // A body well under the budget reaches the SDK to be read; the bound refuses only what is over it.
-    const error = await wire.listTools({ timeoutMs: 5_000 }).then(
+    const tools = await wire.listTools({ timeoutMs: 5_000 });
+    expect(tools.map((tool) => tool.name)).toEqual(['search_lore']);
+  });
+});
+
+describe('a failure the server answers with a status', () => {
+  it('names an HTTP 401 as a failure to authenticate, and an HTTP 500 as a failure of the server', async () => {
+    const unauthorized = createStreamableHttpWire(SERVER, depsOf(async () => new Response('no', { status: 401 })));
+    const failed = createStreamableHttpWire(SERVER, depsOf(async () => new Response('no', { status: 500 })));
+    const auth = await unauthorized.listTools({ timeoutMs: 5_000 }).then(
       () => undefined,
       (caught: unknown) => caught,
     );
-    expect(error === undefined || (error as WireError).kind !== 'result').toBe(true);
+    const server = await failed.listTools({ timeoutMs: 5_000 }).then(
+      () => undefined,
+      (caught: unknown) => caught,
+    );
+    expect(auth).toBeInstanceOf(WireError);
+    expect((auth as WireError).kind).toBe('auth');
+    expect(server).toBeInstanceOf(WireError);
+    expect((server as WireError).kind).toBe('http');
   });
 });
 
@@ -155,7 +245,23 @@ describe('an event stream is bounded event by event, not as a whole', () => {
     } finally {
       await wire.close();
     }
-  });
+  }, 30_000);
+
+  it('is not cut when the events are framed with a lone CR', async () => {
+    // A line ends at CR as well as at LF, and the events of such a stream are counted one by one
+    // like the events of any other. The stream carries a byte past its last event: the SDK's
+    // parser holds a CR that ends a line until the byte after it comes, and a server that keeps
+    // a connection open sends one.
+    const wire = createStreamableHttpWire(
+      SERVER,
+      depsOf(streamingServer(notifications(17 * 1024 * 1024, '\r'), '\r', new TextEncoder().encode(': ping\r'))),
+    );    try {
+      const tools = await wire.listTools({ timeoutMs: 30_000 });
+      expect(tools.map((tool) => tool.name)).toEqual(['search_lore']);
+    } finally {
+      await wire.close();
+    }
+  }, 30_000);
 
   it('is refused when one event of it is over the budget, and the refusal names the size', async () => {
     // One event of seventeen mebibytes: the whole answer is inside the budget, and the event is not.

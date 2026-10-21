@@ -310,7 +310,8 @@ describe('the built caotang-mcp binary', () => {
     await seedProject(folder, 'Contended');
     // A lock whose holder has exited: the case every writer is entitled to take over.
     const gone = spawn(process.execPath, ['-e', '']);
-    const pid = gone.pid ?? 0;
+    const pid = gone.pid;
+    if (pid === undefined) throw new Error('could not start a child process');
     await new Promise<void>((done) => gone.once('exit', () => done()));
     writeFileSync(join(folder, LOCK_FILE), JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() }));
 
@@ -322,13 +323,25 @@ describe('the built caotang-mcp binary', () => {
     );
     // The line a server writes once it holds the folder and has its endpoint. A server
     // the lock refuses says so and exits 3, and never writes one.
-    const holders = await Promise.all(
-      running.map((child) => waitForStderr(child, /MCP endpoint http:\/\/127\.0\.0\.1:\d+/, 60_000).then(() => 1, () => 0)),
+    const outcomes = await Promise.all(
+      running.map(async (child) => {
+        try {
+          await waitForStderr(child, /MCP endpoint http:\/\/127\.0\.0\.1:\d+/, 60_000);
+          return { held: true, reason: 'it took the folder' };
+        } catch (error) {
+          return { held: false, reason: error instanceof Error ? error.message : String(error) };
+        }
+      }),
     );
     for (const child of running) {
       child.kill();
       await exited(child);
     }
-    expect(holders.reduce((sum, held) => sum + held, 0), 'every server that took the folder is a writer of it').toBe(1);
+    // The count is what this test is about. The reasons say which of the eight servers took the
+    // folder and which refused it, and why, when the count is not one.
+    expect(
+      outcomes.filter((outcome) => outcome.held).length,
+      `every server that took the folder is a writer of it: ${outcomes.map((outcome) => outcome.reason).join('; ')}`,
+    ).toBe(1);
   }, 180_000);
 });

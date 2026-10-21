@@ -515,14 +515,34 @@ describe('what is never contacted', () => {
     expect(client.healthOf(KEY)).toMatchObject({ state: 'configured' });
   });
 
-  it('does not carry the bearer token to an address it was never issued for', async () => {
+  it('does not carry the bearer token to an address it was never issued for, and hands its reference back', async () => {
     const server = fixture();
-    const { client, saved } = makeClient(server, { servers: [serverFor(KEY, 'Authed', { auth: { kind: 'bearer', tokenRef: 'v_AAAAAAAAAA' } })] });
+    const dropped: string[] = [];
+    const { client, saved } = makeClient(server, {
+      servers: [serverFor(KEY, 'Authed', { auth: { kind: 'bearer', tokenRef: 'v_AAAAAAAAAA' } })],
+      onTokenDropped: (ref) => dropped.push(ref),
+    });
     const moved = await client.updateServer(KEY, { url: 'https://elsewhere.fixture.test/mcp' });
     expect(moved.ok).toBe(true);
     // The token was issued for the old host. Sending it to the new one hands a live credential
-    // to a host it was never meant for, so the address change drops it and the person is asked again.
+    // to a host it was never meant for, so the address change drops it.
     expect(saved.at(-1)?.servers[0]?.auth).toEqual({ kind: 'none' });
+    // Nothing names the token any more, so its reference is handed back: a sealed token that no
+    // settings record names is a token that the vault keeps for ever.
+    expect(dropped).toEqual(['v_AAAAAAAAAA']);
+  });
+
+  it('keeps a credential that still names the same reference', async () => {
+    const server = fixture();
+    const dropped: string[] = [];
+    const { client } = makeClient(server, {
+      servers: [serverFor(KEY, 'Authed', { auth: { kind: 'bearer', tokenRef: 'v_AAAAAAAAAA' } })],
+      onTokenDropped: (ref) => dropped.push(ref),
+    });
+    const changed = await client.updateServer(KEY, { auth: { kind: 'bearer', tokenRef: 'v_AAAAAAAAAA' } });
+    expect(changed.ok).toBe(true);
+    // The same reference is the same token: there is nothing to let go of.
+    expect(dropped).toEqual([]);
   });
 });
 

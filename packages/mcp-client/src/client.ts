@@ -149,6 +149,11 @@ export interface McpClientOptions {
   readonly callTimeoutMs?: number;
   /** Called with the whole slice after every change to it, so the app can persist it. */
   readonly onChange?: (settings: McpSettings) => void;
+  /**
+   * Called with the reference of a bearer token that a change dropped, so the vault can take it
+   * out. A token that nothing names any more is a token that is kept for ever.
+   */
+  readonly onTokenDropped?: (tokenRef: string) => void;
 }
 
 export interface McpClient {
@@ -267,6 +272,7 @@ class McpClientImpl implements McpClient {
   private readonly listTimeoutMs: number;
   private readonly callTimeoutMs: number;
   private readonly onChange: ((settings: McpSettings) => void) | undefined;
+  private readonly onTokenDropped: (tokenRef: string) => void;
 
   constructor(options: McpClientOptions) {
     this.config = { enabled: options.settings.enabled, servers: options.settings.servers.map(cloneServer) };
@@ -279,6 +285,7 @@ class McpClientImpl implements McpClient {
     this.listTimeoutMs = options.listTimeoutMs ?? LIST_TIMEOUT_MS;
     this.callTimeoutMs = options.callTimeoutMs ?? CALL_TIMEOUT_MS;
     this.onChange = options.onChange;
+    this.onTokenDropped = options.onTokenDropped ?? (() => undefined);
     for (const server of this.config.servers) {
       this.runtimes.set(server.key, freshRuntime(server.key, 'not connected this session'));
     }
@@ -550,17 +557,19 @@ class McpClientImpl implements McpClient {
 
     // The change that applies last names the reason, as it always has: address, then credentials, then the switch.
     let reason: string | undefined;
+    const before = server.auth;
     if (name !== undefined) server.name = name;
     if (address !== undefined) {
       // A new address is a new server to the pins: whatever was reviewed belonged to the old one,
       // and so did the bearer token. It is dropped with them, so a credential is never sent to a
-      // host it was not issued for; the person is asked for one for the new address.
+      // host it was not issued for. The token was issued for the old host too, so the person is
+      // told that it is gone rather than asked for one: nothing asks them for it.
       server.url = address;
       server.pinnedTools = {};
       server.trustReads = false;
       delete server.enabledTools;
       server.auth = { kind: 'none' };
-      reason = 'the address changed — connect to review its tool list';
+      reason = 'the address changed — its credential was dropped with it; connect to review its tool list';
     }
     if (patch.auth !== undefined) {
       server.auth = { ...patch.auth };
@@ -572,6 +581,11 @@ class McpClientImpl implements McpClient {
     }
     // A selection narrows what is searched and called; it never changes a pin or a trust grant, so it demotes nothing.
     if (selection !== undefined) server.enabledTools = selection;
+    // A credential the change dropped is handed back, so the vault does not keep a sealed token
+    // that nothing names any more.
+    if (before.kind === 'bearer' && (server.auth.kind !== 'bearer' || server.auth.tokenRef !== before.tokenRef)) {
+      this.onTokenDropped(before.tokenRef);
+    }
     if (reason !== undefined) await this.demote(key, reason);
     this.persist();
     return ok(cloneServer(server));

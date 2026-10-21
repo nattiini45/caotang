@@ -173,9 +173,11 @@ describe('a save that fails part way does not stop the server', () => {
         // carries the machine's path to the file it hit, and that is an identifier the
         // refusal must not give away: §4 rule 5 names a file by its title and name.
         expect(message).not.toContain(fixture.root);
-        expect(message).toContain('EISDIR');
+        // The class of the failure, and not one machine's name of it: reading a directory is
+        // EISDIR on Linux, and EACCES or EPERM on Windows.
+        expect(message).toMatch(/\bE[A-Z]+\b/);
         // No raw error text comes along: it would carry the machine's own path to the file.
-        expect(message).not.toContain('illegal operation');
+        expect(message).not.toMatch(/illegal operation|operation not permitted/);
       } finally {
         await client.close();
       }

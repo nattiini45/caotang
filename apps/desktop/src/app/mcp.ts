@@ -80,6 +80,11 @@ export class McpApp {
       onChange: (mcp) => {
         void this.settings.update({ mcp });
       },
+      // A credential that a change dropped is taken out of the vault: the settings no longer name
+      // it, and a token that nothing names is a token that is kept for ever.
+      onTokenDropped: (ref) => {
+        void options.keys.remove(ref);
+      },
     });
   }
 

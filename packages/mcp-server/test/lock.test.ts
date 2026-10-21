@@ -5,12 +5,34 @@
 
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import * as realFs from 'node:fs/promises';
+import type { FileHandle } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { acquireProjectLock, LOCK_FILE, LOCK_TAKEOVER_FILE, ProjectLockedError } from '../src/index.js';
+import type * as lockModule from '../src/lock.js';
 import { removeDir, tempDir } from './support.js';
+
+/**
+ * The lock module with a scripted `node:fs/promises` in it. The two reads of the lock in one
+ * takeover are the width of one write apart, and a write that fails is a fault of the disk, so
+ * neither can be reached from outside the module: the test has to speak for the filesystem.
+ */
+async function withFs(overrides: Partial<typeof realFs>, run: (lock: typeof lockModule) => Promise<void>): Promise<void> {
+  vi.resetModules();
+  vi.doMock('node:fs/promises', async (importOriginal) => {
+    const actual = await importOriginal<typeof realFs>();
+    return { ...actual, ...overrides };
+  });
+  try {
+    await run(await import('../src/lock.js'));
+  } finally {
+    vi.doUnmock('node:fs/promises');
+    vi.resetModules();
+  }
+}
 
 /** A pid that belonged to a process which has exited. */
 async function deadPid(): Promise<number> {
@@ -104,13 +126,17 @@ describe('the project lock', () => {
       const outcomes = await Promise.all(
         Array.from({ length: 8 }, () =>
           acquireProjectLock(root).then(
-            (lock) => lock,
-            () => undefined,
+            (lock) => ({ held: lock, refused: undefined }),
+            (error: unknown) => ({ held: undefined, refused: error }),
           ),
         ),
       );
-      const held = outcomes.filter((lock) => lock !== undefined);
+      const held = outcomes.flatMap((outcome) => (outcome.held === undefined ? [] : [outcome.held]));
+      const refused = outcomes.flatMap((outcome) => (outcome.refused === undefined ? [] : [outcome.refused]));
       expect(held, `round ${round} left ${held.length} writers holding one folder`).toHaveLength(1);
+      // Every other writer was refused for the lock, and not for some other failure of the takeover.
+      expect(refused).toHaveLength(7);
+      expect(refused.every((error) => error instanceof ProjectLockedError)).toBe(true);
       await held[0]?.release();
     }
   });
@@ -163,8 +189,92 @@ describe('a takeover marker left behind by a writer that died', () => {
       expect(error).toBeInstanceOf(ProjectLockedError);
       expect((error as ProjectLockedError).takeoverPid).toBe(process.pid);
       expect((error as ProjectLockedError).message).toContain(`pid ${process.pid}`);
+      // The writer that marked it is still running, so the refusal does not tell the person to
+      // delete a file that a live takeover is using.
+      expect((error as ProjectLockedError).message).not.toMatch(/delete that file/);
+      expect((error as ProjectLockedError).message).toMatch(/still running/);
     } finally {
       clearLock(root);
     }
+  });
+});
+
+describe('a takeover that finds a lock another writer is writing', () => {
+  let root: string;
+
+  beforeAll(() => {
+    root = tempDir('lock-winner');
+  });
+
+  afterAll(() => {
+    removeDir(root);
+  });
+
+  it('leaves the lock of the writer that won alone, and refuses the folder instead', async () => {
+    const pid = await deadPid();
+    const path = join(root, LOCK_FILE);
+    const stale = JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() });
+    writeFileSync(path, stale);
+    let reads = 0;
+    await withFs(
+      {
+        readFile: (async (target: string, options?: unknown) => {
+          if (String(target) !== path) return realFs.readFile(target, options as never);
+          reads += 1;
+          // The first read is the judgment, and sees the stale lock. The second is the
+          // takeover's re-read, and sees the winner's lock: created, and not yet written.
+          return reads === 1 ? stale : '';
+        }) as unknown as typeof realFs.readFile,
+      },
+      async (lock) => {
+        const error = await lock.acquireProjectLock(root).then(
+          () => undefined,
+          (caught: unknown) => caught,
+        );
+        expect(error).toBeInstanceOf(lock.ProjectLockedError);
+        // The winner's lock is still there: the loser refused the folder rather than take it.
+        expect(existsSync(path)).toBe(true);
+      },
+    );
+  });
+
+  it('leaves no marker behind when the marker cannot be written, so the folder is not refused for good', async () => {
+    const pid = await deadPid();
+    const path = join(root, LOCK_FILE);
+    const marker = join(root, LOCK_TAKEOVER_FILE);
+    writeFileSync(path, JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() }));
+    const full = async (target: string, flags: string): Promise<FileHandle> => realFs.open(target, flags as never);
+    let failed = false;
+    await withFs(
+      {
+        open: (async (target: string, flags: string) => {
+          const handle = await full(target, flags);
+          if (failed || !String(target).endsWith(LOCK_TAKEOVER_FILE)) return handle;
+          failed = true;
+          // The marker is created and then filled: a write that fails leaves the file behind.
+          return {
+            writeFile: async () => {
+              throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' });
+            },
+            close: () => handle.close(),
+          } as unknown as FileHandle;
+        }) as unknown as typeof realFs.open,
+      },
+      async (lock) => {
+        const error = await lock.acquireProjectLock(root).then(
+          () => undefined,
+          (caught: unknown) => caught,
+        );
+        expect((error as Error).message).toContain('ENOSPC');
+        // The marker that could not be written is gone: it refuses every later writer.
+        expect(existsSync(marker)).toBe(false);
+        // The stale lock is still there: the takeover never happened.
+        expect(existsSync(path)).toBe(true);
+        // And the next writer takes the folder over, because nothing is in the way.
+        const taken = await lock.acquireProjectLock(root);
+        await taken.release();
+        expect(existsSync(path)).toBe(false);
+      },
+    );
   });
 });

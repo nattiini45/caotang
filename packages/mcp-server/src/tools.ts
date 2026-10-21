@@ -1,4 +1,4 @@
-﻿/**
+/**
  * The harness registry, as MCP tools — extensibility.md §7 (outward) and §9.
  *
  * Every tool the harness declares is registered under its own name, with the
@@ -155,7 +155,10 @@ function reason(error: unknown, session: ProjectSession): string {
 
 /** The class of a failure, as the operating system reports it: `EISDIR`, `EACCES`, or the error's own name. */
 function errorCodeOf(error: unknown): string {
-  if (typeof error === 'object' && error !== null && 'code' in error) return String((error as { code: unknown }).code);
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const code = (error as { code: unknown }).code;
+    if (typeof code === 'string') return code;
+  }
   return error instanceof Error ? error.name : 'Error';
 }
 
@@ -166,7 +169,7 @@ function errorCodeOf(error: unknown): string {
  */
 function fileLabelOf(error: unknown, session: ProjectSession): string | undefined {
   const text = error instanceof Error ? `${error.message} ${error.stack ?? ''}` : String(error);
-  const match = text.match(/(?:^|[\s"'(])((?:docs|codex)[\\/][^\\s"':,)]+)\.[A-Za-z0-9]+/);
+  const match = text.match(/(?:^|[\s"'(])((?:docs|codex)[\\/][^\s"':,)]+)\.[A-Za-z0-9]+/);
   const found = match?.[1];
   if (found === undefined) return undefined;
   const titles = projectFileTitles(session.state);

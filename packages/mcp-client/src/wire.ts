@@ -253,7 +253,6 @@ class StreamableHttpWire implements McpWire {
     // reaches the SDK as a broken connection, so the refusal that was recorded when it happened is
     // the one that is told.
     if (this.sizeRefusal !== undefined) return this.sizeRefusal;
-    if (isSizeRefusal(error)) return new WireError('result', errorMessage(error));
     if (isAbort(error) || signal?.aborted === true) return new WireError('abort', 'the call was aborted');
     // The SDK wraps a failed request in its own error (the version probe reports "Failed to fetch" as a
     // ProtocolError, for one). The fetch wrapper saw the real failure and recorded it, so that record wins.
@@ -264,6 +263,11 @@ class StreamableHttpWire implements McpWire {
       return new WireError('http', `the server answered HTTP ${status}`, status);
     }
     if (error instanceof UnauthorizedError) return new WireError('auth', 'the server answered HTTP 401');
+    // A refusal the SDK wrapped is recognised by what it says, and told in its own words. It comes
+    // after the status a server answered with: a status says why the call failed, and a sentence
+    // in a message does not.
+    const refusal = sizeRefusalOf(error);
+    if (refusal !== undefined) return refusal;
     if (error instanceof SdkError) {
       switch (error.code) {
         case SdkErrorCode.RequestTimeout:
@@ -316,7 +320,15 @@ function isAbort(error: unknown): boolean {
 function boundedResponse(response: Response, max: number, onRefusal: (error: WireError) => void): Response {
   if (isEventStream(response)) return eventStreamResponse(response, max, onRefusal);
   const declared = Number(response.headers.get('content-length') ?? '');
-  if (Number.isFinite(declared) && declared > max) throw tooLarge(declared, max);
+  if (Number.isFinite(declared) && declared > max) {
+    const error = tooLarge(declared, max);
+    // The refusal is told before it is thrown, so it is told as a refusal and not as whatever
+    // the SDK makes of it. The body is cancelled, so a server that answers every request with
+    // an oversized length does not leave a connection open behind every one of them.
+    onRefusal(error);
+    void response.body?.cancel().catch(() => undefined);
+    throw error;
+  }
   if (response.body === null) return response;
   const reader = response.body.getReader();
   let seen = 0;
@@ -385,6 +397,14 @@ class EventSize {
 
   /** Adds the bytes of a line's content. */
   addContent(count: number): void {
+    // A CR that ended the line before this content was deferred, because it may have been the
+    // first half of a CRLF. It is resolved here: that CR ended the line it came after, and these
+    // bytes are the next one's. Without this, a line framed with a CR alone is counted without
+    // its terminator, and an event of it is counted one byte short.
+    if (this.pendingCr) {
+      this.pendingCr = false;
+      this.endLine(1);
+    }
     this.line += count;
     this.check(this.event + this.line);
   }
@@ -493,12 +513,22 @@ function tooLarge(seen: number, max: number): WireError {
   return new WireError('result', `the server's answer is over the ${max}-byte budget (about ${seen} bytes), so it was refused and not read`);
 }
 
-/** Whether a failure is this module's own refusal of an oversized answer, at whatever depth the SDK wrapped it. */
-function isSizeRefusal(error: unknown, seen = 0): boolean {
-  if (error instanceof WireError) return true;
-  if (seen > 5 || typeof error !== 'object' || error === null) return false;
-  if ('cause' in error && isSizeRefusal((error as { cause: unknown }).cause, seen + 1)) return true;
-  return 'message' in error && /over the \d+-byte budget/.test(String((error as { message: unknown }).message));
+/**
+ * This module's own refusal of an oversized answer, at whatever depth the SDK wrapped it, and the
+ * refusal's own words: a wrapper's message says nothing of the budget or of the size that was
+ * refused.
+ */
+function sizeRefusalOf(error: unknown, seen = 0): WireError | undefined {
+  if (error instanceof WireError) return error;
+  if (seen > 5 || typeof error !== 'object' || error === null) return undefined;
+  if ('cause' in error) {
+    const found = sizeRefusalOf((error as { cause: unknown }).cause, seen + 1);
+    if (found !== undefined) return found;
+  }
+  if ('message' in error && /over the \d+-byte budget/.test(String((error as { message: unknown }).message))) {
+    return new WireError('result', String((error as { message: unknown }).message));
+  }
+  return undefined;
 }
 
 function errorMessage(error: unknown): string {
