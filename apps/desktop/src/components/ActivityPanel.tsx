@@ -35,6 +35,7 @@ export function ActivityPanel({ session, onExport }: { session: ProjectSession; 
   const panel = activityWindow(session.log.entries(), {
     showViews,
     groupOf: (id) => session.undo.group(id),
+    newestUndoGroupId: session.newestUndoGroupId(),
     limit,
   });
   const rows = panel.rows;

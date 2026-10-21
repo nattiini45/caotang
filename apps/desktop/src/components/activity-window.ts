@@ -53,6 +53,11 @@ export function activityWindow(
   options: {
     readonly showViews: boolean;
     readonly groupOf: (id: string) => UndoGroup | undefined;
+    /**
+     * The group the panel can undo: the newest one the undo store holds. Its row is the row that
+     * carries the Undo the panel offers, and so the one the window has to hold.
+     */
+    readonly newestUndoGroupId: string | null;
     readonly limit: number;
   },
 ): ActivityWindow {
@@ -61,7 +66,7 @@ export function activityWindow(
     groupOf: options.groupOf,
     limit: options.limit,
   });
-  const pinned = pinNewestUndoable(entries, rows, options.groupOf);
+  const pinned = pinNewestUndoable(entries, rows, options.groupOf, options.newestUndoGroupId);
   const shown = pinned === null ? rows : [...rows, pinned];
   const hidden = Math.max(0, visibleActivityCount(entries, options.showViews) - shown.length);
   return { rows: shown, hidden, showOlder: hidden > 0 ? `Show older (${hidden} more)` : null };
@@ -74,28 +79,32 @@ export function showOlderWindow(limit: number): number {
 
 /**
  * The newest row of the log that can still be undone, when the window left it out, or `null` when the
- * window already carries an Undo (or nothing is left to undo).
+ * window already carries that row (or nothing is left to undo).
  *
- * The undo affordance rides on each group's newest row. Because the window keeps the newest rows and
- * the newest undoable group's row is the newest of the undoable ones, either it is in the window or
- * every undoable row is behind it — so a scan from the newest for the first group the undo store
- * still holds finds exactly the row to pin, and it is older than every row the window kept.
+ * The undo affordance rides on each group's newest row, and only the newest group the undo store holds
+ * can be undone: the panel's other Undo buttons are disabled (ActivityPanel.tsx). So the row the window
+ * has to carry is the newest row of *that* group, and the scan looks for it by its group rather than for
+ * the first live group it meets on the way from the newest. The two are not the same: a gesture made in
+ * the middle of an agent's turn mints a newer group whose rows are older in the log than the turn's
+ * later rows, so a scan from the newest finds the turn's group — whose Undo is disabled — and pins
+ * that, and the one Undo the panel offers stays behind the window.
  */
 function pinNewestUndoable(
   entries: readonly ActivityEntry[],
   rows: readonly ActivityRow[],
   groupOf: (id: string) => UndoGroup | undefined,
+  newestUndoGroupId: string | null,
 ): ActivityRow | null {
-  if (rows.some((row) => row.undo !== null)) return null;
-  const seen = new Set<string>();
+  if (newestUndoGroupId === null) return null;
+  // The window already carries the row that offers the Undo: there is nothing to pin.
+  if (rows.some((row) => row.undo?.id === newestUndoGroupId)) return null;
+  const undo = groupOf(newestUndoGroupId);
+  if (undo === undefined) return null;
+  // The newest row of that group: the row that carries its claim in the whole log.
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index];
     if (entry === undefined) continue;
-    const groupId = entry.undoGroupId;
-    if (groupId === undefined || seen.has(groupId)) continue;
-    seen.add(groupId);
-    const undo = groupOf(groupId);
-    if (undo === undefined) continue;
+    if (entry.undoGroupId !== newestUndoGroupId) continue;
     return { index, entry, title: titleOf(entry.command), undo };
   }
   return null;

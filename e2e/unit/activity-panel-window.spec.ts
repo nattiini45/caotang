@@ -42,7 +42,7 @@ async function sessionFor(): Promise<ProjectSession> {
 }
 
 /** One row of the log, as the bus writes it. */
-function aRow(command: string): ActivityEntry {
+function aRow(command: string, undoGroupId?: string): ActivityEntry {
   return {
     at: 1_700_000_000_000,
     command,
@@ -50,7 +50,33 @@ function aRow(command: string): ActivityEntry {
     source: 'native',
     affected: [],
     summary: `ran ${command}`,
+    ...(undoGroupId === undefined ? {} : { undoGroupId }),
   };
+}
+
+/**
+ * The agent's turn opens its own undo group, the way the bus opens it: the turn's first command decides
+ * the group, and the turn's later commands share it.
+ */
+function anAgentTurn(session: ProjectSession, turnId: string): string {
+  const target = session.undo.targetFor(
+    {
+      id: `cmd_${turnId}`,
+      name: 'doc.write',
+      params: { docId: IDS.sceneA, body: 'one' },
+      issuedBy: 'agent',
+      turnId,
+      createdAt: 1_700_000_000_000,
+    },
+    1_700_000_000_000,
+  );
+  return session.undo.register(target, {
+    kind: 'compensable',
+    commandId: `cmd_${turnId}`,
+    name: 'doc.write',
+    label: 'restore to before this turn',
+    restore: () => {},
+  });
 }
 
 /** A log of `count` rows, as a sitting of writing leaves behind. */
@@ -102,7 +128,12 @@ test('the panel shows a window of the log, and the button opens the rows behind 
     const none = (): undefined => undefined;
 
     // The window holds the newest rows, and the button names the ones behind it.
-    const first = activityWindow(entries, { showViews: false, groupOf: none, limit: ACTIVITY_PANEL_WINDOW });
+    const first = activityWindow(entries, {
+      showViews: false,
+      groupOf: none,
+      newestUndoGroupId: session.newestUndoGroupId(),
+      limit: ACTIVITY_PANEL_WINDOW,
+    });
     expect(first.rows).toHaveLength(ACTIVITY_PANEL_WINDOW);
     expect(first.hidden).toBe(600 - ACTIVITY_PANEL_WINDOW);
     expect(first.showOlder).toBe('Show older (400 more)');
@@ -112,6 +143,7 @@ test('the panel shows a window of the log, and the button opens the rows behind 
     const second = activityWindow(entries, {
       showViews: false,
       groupOf: none,
+      newestUndoGroupId: session.newestUndoGroupId(),
       limit: showOlderWindow(ACTIVITY_PANEL_WINDOW),
     });
     expect(second.rows).toHaveLength(600 - ACTIVITY_PANEL_WINDOW);
@@ -122,6 +154,7 @@ test('the panel shows a window of the log, and the button opens the rows behind 
     const third = activityWindow(entries, {
       showViews: false,
       groupOf: none,
+      newestUndoGroupId: session.newestUndoGroupId(),
       limit: showOlderWindow(showOlderWindow(ACTIVITY_PANEL_WINDOW)),
     });
     expect(third.rows).toHaveLength(600);
@@ -145,6 +178,7 @@ test('a window full of view changes still shows the newest undo', async () => {
     const panel = activityWindow(entries, {
       showViews: true,
       groupOf: (id) => session.undo.group(id),
+      newestUndoGroupId: session.newestUndoGroupId(),
       limit: ACTIVITY_PANEL_WINDOW,
     });
     // The window is the newest rows — all view events — plus the pinned row of the newest undoable group, so the
@@ -156,6 +190,38 @@ test('a window full of view changes still shows the newest undo', async () => {
     expect(panel.rows[ACTIVITY_PANEL_WINDOW]?.entry.command).toBe('doc.write');
     // One doc.write plus 300 view events, less the 201 shown: the pinned row is shown, so it is not counted hidden.
     expect(panel.hidden).toBe(100);
+  } finally {
+    await session.close();
+  }
+});
+
+test('the window keeps the row of the Undo the panel offers, even when an older turn has the newest rows', async () => {
+  const session = await sessionFor();
+  try {
+    // The agent's turn opens its group, and the writer types in the middle of it: the gesture opens a newer group,
+    // so it is the newest one the undo store holds — and its row is older in the log than the turn's later rows.
+    const turn = anAgentTurn(session, 'turn_1');
+    session.log.append(aRow('doc.write', turn));
+    session.dispatch('doc.write', { docId: IDS.sceneB, body: 'two' });
+    const gesture = session.newestUndoGroupId();
+    // The turn keeps working after the gesture, and puts more rows in the log than the window holds.
+    for (let index = 0; index < ACTIVITY_PANEL_WINDOW + 100; index += 1) session.log.append(aRow('doc.write', turn));
+
+    const panel = activityWindow(session.log.entries(), {
+      showViews: false,
+      groupOf: (id) => session.undo.group(id),
+      newestUndoGroupId: session.newestUndoGroupId(),
+      limit: ACTIVITY_PANEL_WINDOW,
+    });
+
+    // The one Undo the panel offers is the gesture's, and its row is in the window: the panel never hides it.
+    const offered = panel.rows.filter((row) => row.undo?.id === gesture);
+    expect(gesture).not.toBeNull();
+    expect(offered).toHaveLength(1);
+    expect(offered[0]?.entry.undoGroupId).toBe(gesture);
+    // The turn's own row is in the window too, with its Undo — the panel shows that one disabled, and only the
+    // newest group's is live (ActivityPanel.tsx).
+    expect(panel.rows.filter((row) => row.undo !== null)).toHaveLength(2);
   } finally {
     await session.close();
   }
