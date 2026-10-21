@@ -205,6 +205,22 @@ describe('filters[] on load (binder-filters §4)', () => {
     expect(r.manifest?.filters).toEqual([]);
   });
 
+  // The bus counts a name in code points, and the load counts it the same way:
+  // a name of 31 emoji is 31 characters and not 62 UTF-16 units, so the bus
+  // accepts it and the load keeps it. Counting it in `.length` here would drop
+  // a name the bus accepts — a filter the author could never rename again.
+  it('keeps a filter whose name is 31 emoji, which is 31 characters and not 62', () => {
+    const m = base();
+    const name = '🌊'.repeat(31);
+    m.filters = [{ ...copyOf(GOOD_FILTER), name } as never];
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings).toEqual([]);
+    expect(r.manifest?.filters?.[0]?.name).toBe(name);
+  });
+
   // The writer cannot write a non-finite number as JSON (`JSON.stringify` maps it
   // to `null`, silently changing the value), so the load does not keep one.
   it('drops a filter whose criterion is a number JSON cannot hold', () => {

@@ -31,7 +31,7 @@ import {
   type AppliedMigration,
   type FormatContext,
 } from './migrations.js';
-import { CHAR_LIMIT_MAX, CRITERIA_KEYS, FILTER_NAME_MAX, SCENE_NUMBER_OPTIONS } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, CRITERIA_KEYS, SCENE_NUMBER_OPTIONS, filterNameFits } from '@caotang/bus';
 // The shapes the bus names for the furniture commands. The *values* the bus
 // refuses at the command boundary are restated below, for the load; the types
 // are the bus's own, so a value the bus does not know cannot be listed here.
@@ -240,26 +240,17 @@ function isFurnitureId(prefix: 'q' | 'g', v: unknown): v is string {
  * without them is a filter the writer cannot write back. The name has to be one
  * the writer could show: the bus refuses a blank one at save, and a name longer
  * than its limit, so neither can arrive from the writer — only from a hand edit
- * or a foreign writer.
+ * or a foreign writer. The length is the bus's own rule (`filterNameFits`), so
+ * the load counts a name exactly as the bus counts it.
  */
 function isSavedFilter(v: unknown): boolean {
   if (!isRecord(v)) return false;
   if (!isFurnitureId('q', v['id'])) return false;
   if (typeof v['name'] !== 'string' || v['name'].trim() === '') return false;
-  if (codePoints(v['name'].trim()) > FILTER_NAME_MAX) return false;
+  if (!filterNameFits(v['name'])) return false;
   if (!isRecord(v['criteria'])) return false;
   if (!Object.values(v['criteria']).every(isCriterionValue)) return false;
   return isIsoDate(v['createdAt']) && isIsoDate(v['updatedAt']);
-}
-
-/**
- * The length of a string in code points, the way the bus counts a filter name
- * (binder-filters §2: a name of at most 60 characters). Not `.length`: that
- * counts UTF-16 units, so a name of 30 emoji would read as 60 and a name of 31
- * as 62 — the bus would refuse the second and the load would keep it.
- */
-function codePoints(text: string): number {
-  return [...text].length;
 }
 
 /**
