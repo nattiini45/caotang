@@ -112,7 +112,7 @@ describe('the project lock', () => {
       (caught: unknown) => caught,
     );
     expect(error).toBeInstanceOf(ProjectLockedError);
-    expect((error as ProjectLockedError).unreadableLock).toBe(path);
+    expect((error as ProjectLockedError).refusal.unreadableLock).toBe(path);
     expect((error as ProjectLockedError).message).toContain(path);
     expect((error as ProjectLockedError).message).toMatch(/delete that file/);
     expect((error as ProjectLockedError).message).toMatch(/no other Caotang or MCP process is using the folder/);
@@ -134,7 +134,7 @@ describe('the project lock', () => {
       (caught: unknown) => caught,
     );
     expect(error).toBeInstanceOf(ProjectLockedError);
-    expect((error as ProjectLockedError).unreadableLock).toBe(path);
+    expect((error as ProjectLockedError).refusal.unreadableLock).toBe(path);
     expect(existsSync(path)).toBe(true);
   });
 
@@ -187,7 +187,7 @@ describe('a takeover marker left behind by a writer that died', () => {
         (caught: unknown) => caught,
       );
       expect(error).toBeInstanceOf(ProjectLockedError);
-      expect((error as ProjectLockedError).takeoverMarker).toBe(marker);
+      expect((error as ProjectLockedError).refusal.takeoverMarker).toBe(marker);
       expect((error as ProjectLockedError).message).toContain(marker);
       expect((error as ProjectLockedError).message).toMatch(/delete that file/);
       expect((error as ProjectLockedError).message).toMatch(/no other Caotang or MCP process is using the folder/);
@@ -209,12 +209,91 @@ describe('a takeover marker left behind by a writer that died', () => {
         (caught: unknown) => caught,
       );
       expect(error).toBeInstanceOf(ProjectLockedError);
-      expect((error as ProjectLockedError).takeoverPid).toBe(process.pid);
+      expect((error as ProjectLockedError).refusal.takeoverPid).toBe(process.pid);
       expect((error as ProjectLockedError).message).toContain(`pid ${process.pid}`);
       // The writer that marked it is still running, so the refusal does not tell the person to
       // delete a file that a live takeover is using.
       expect((error as ProjectLockedError).message).not.toMatch(/delete that file/);
       expect((error as ProjectLockedError).message).toMatch(/still running/);
+    } finally {
+      clearLock(root);
+    }
+  });
+
+  it('waits for a takeover whose marker is still being written, and does not tell the person to delete it', async () => {
+    const pid = await deadPid();
+    writeFileSync(join(root, LOCK_FILE), JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() }));
+    const marker = join(root, LOCK_TAKEOVER_FILE);
+    // The marker of a takeover that has created the file and not written its body yet.
+    writeFileSync(marker, '');
+    try {
+      const error = await acquireProjectLock(root).then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+      expect(error).toBeInstanceOf(ProjectLockedError);
+      expect((error as ProjectLockedError).refusal.takeoverMarker).toBe(marker);
+      expect((error as ProjectLockedError).refusal.takeoverPid).toBeUndefined();
+      // The takeover may be running right now, so the refusal does not hand out the advice to
+      // delete the file it is using.
+      expect((error as ProjectLockedError).message).toMatch(/being marked right now/);
+      expect((error as ProjectLockedError).message).not.toMatch(/delete that file/);
+    } finally {
+      clearLock(root);
+    }
+  });
+
+  it('names a marker whose body says nothing and that has been there for a while, and says how to clear it', async () => {
+    const pid = await deadPid();
+    writeFileSync(join(root, LOCK_FILE), JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() }));
+    const marker = join(root, LOCK_TAKEOVER_FILE);
+    writeFileSync(marker, '{"pid":');
+    const old = new Date(Date.now() - 60_000);
+    utimesSync(marker, old, old);
+    try {
+      const error = await acquireProjectLock(root).then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+      expect(error).toBeInstanceOf(ProjectLockedError);
+      expect((error as ProjectLockedError).refusal.takeoverMarker).toBe(marker);
+      expect((error as ProjectLockedError).refusal.takeoverPid).toBeUndefined();
+      // The marker has been there for a while, so it is an orphan, and the way out is named.
+      expect((error as ProjectLockedError).message).not.toMatch(/being marked right now/);
+      expect((error as ProjectLockedError).message).toMatch(/delete that file/);
+      expect((error as ProjectLockedError).message).toMatch(/no other Caotang or MCP process is using the folder/);
+    } finally {
+      clearLock(root);
+    }
+  });
+
+  it('names a marker it could not read, because a read that failed is not a marker that is gone', async () => {
+    const pid = await deadPid();
+    writeFileSync(join(root, LOCK_FILE), JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() }));
+    const marker = join(root, LOCK_TAKEOVER_FILE);
+    writeFileSync(marker, JSON.stringify({ pid: process.pid, token: 'marker', startedAt: new Date().toISOString() }));
+    try {
+      await withFs(
+        {
+          readFile: (async (target: string, options?: unknown) => {
+            if (String(target).endsWith(LOCK_TAKEOVER_FILE)) {
+              throw Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' });
+            }
+            return realFs.readFile(target, options as never);
+          }) as unknown as typeof realFs.readFile,
+        },
+        async (lock) => {
+          const error = await lock.acquireProjectLock(root).then(
+            () => undefined,
+            (caught: unknown) => caught,
+          );
+          expect(error).toBeInstanceOf(lock.ProjectLockedError);
+          // The marker is still in the folder, and the refusal names it: a read that failed is
+          // not a marker that is gone.
+          expect((error as ProjectLockedError).refusal.takeoverMarker).toBe(marker);
+          expect((error as ProjectLockedError).message).toContain(marker);
+        },
+      );
     } finally {
       clearLock(root);
     }
