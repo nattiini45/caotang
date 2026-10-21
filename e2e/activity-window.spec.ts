@@ -38,14 +38,23 @@ test('the activity panel shows a window of a long sitting, and the button opens 
   const rows = page.getByRole('list', { name: 'Activity' }).getByRole('listitem');
   const button = page.getByRole('button', { name: /^Show older \(\d+ more\)$/ });
 
-  // The window is 200 rows, and the button names the rows behind it.
-  await expect(rows).toHaveCount(200);
   await expect(button).toBeVisible();
   const total = (await trace(page)).length;
   expect(total).toBeGreaterThan(200);
-  await expect(button).toHaveText(`Show older (${total - 200} more)`);
 
-  // The button opens one more window of rows.
+  // The window is the newest 200 rows. Every view event of this sitting is newer than the rename, so
+  // the newest row that can still be undone fell out of the window — and the panel pins that row in
+  // rather than hide the one command it dispatches (activity-window.ts). The panel shows the
+  // window's 200 rows and the pinned one.
+  await expect(rows).toHaveCount(201);
+  await expect(rows.last().getByRole('button', { name: /^Undo:/ })).toBeVisible();
+
+  // The button names the rows behind them.
+  await expect(button).toHaveText(`Show older (${total - 201} more)`);
+
+  // The button opens one more window of rows. This sitting's log is smaller than that window, so the
+  // undo row is one of the window's own rows now, and nothing is pinned to it.
+  expect(total).toBeLessThanOrEqual(400);
   await button.click();
   await expect(rows).toHaveCount(Math.min(total, 400));
 });
