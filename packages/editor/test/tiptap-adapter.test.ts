@@ -895,12 +895,21 @@ describe('autosave (§9): the store’s clock, and the editor forwards to it', (
       body: 'Mine Hello.\n',
       expectedRevision: 4,
     });
+    // The write settled and nothing was left waiting, so no second write follows.
+    await settle();
+    vi.advanceTimersByTime(10_000);
+    expect(write).toHaveBeenCalledTimes(1);
   });
 
   it('an undo inside the window is the user’s edit, and it is what the write sends', async () => {
-    // The body taken for the agent's apply is the body of *that* edit: an undo is a
-    // new edit, and it is what the write sends. The agent's text is not in the user's
-    // undo stack (§7 rule 1), so it stays in the document.
+    // What this proves: an undo inside the first window coalesces into one write of
+    // the text the undo left behind, at the revision the edit was typed against, and
+    // the agent's text survives the undo (§7 rule 1 — the agent's text is not in the
+    // user's undo stack, so it stays in the document).
+    //
+    // It does not prove the capture: the undo is itself a user edit, and its own
+    // `noteEdit` replaces the pending source before the flush. The capture is what
+    // the previous test covers.
     const { autosave, write } = scheduler();
     const { instance } = await mountInto('Hello.\n', { revision: 4, autosave });
     instance.revealRange({ from: 0, to: 0 });
@@ -918,6 +927,10 @@ describe('autosave (§9): the store’s clock, and the editor forwards to it', (
       body: 'Agent Hello.\n',
       expectedRevision: 4,
     });
+    // The write settled and nothing was left waiting, so no second write follows.
+    await settle();
+    vi.advanceTimersByTime(10_000);
+    expect(write).toHaveBeenCalledTimes(1);
   });
 
   it('a burst of keystrokes is one body, produced once', async () => {

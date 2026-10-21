@@ -276,6 +276,7 @@ export {
   type AutosaveOptions,
   type AutosaveState,
   type AutosaveStatus,
+  type BodySource,
   type DocumentWriteRequest,
   type DocumentWriter,
   type FlushOutcome,

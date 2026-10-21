@@ -30,8 +30,9 @@
  * body, expectedRevision}`", so the body belongs to the **write**, not to the
  * keystroke that armed the window. A note may therefore carry the body itself or a
  * **producer** — a thunk that yields the text when the body is needed — and the
- * scheduler calls the producer once, when the body is needed: at the flush, or
- * earlier if a caller asks for the pending body.
+ * scheduler calls the producer when the body is needed: at the flush, or earlier
+ * if a caller asks for the pending body. What it produced is kept, so the write
+ * that follows does not ask again.
  *
  * The reason is cost. An editor that renders its text on demand (the Markdown
  * projection of a whole scene) would otherwise render it on the leading edge of
@@ -85,6 +86,13 @@
  * stands like any other — the next edit, the next lifecycle flush, or an
  * explicit `flush()` retries it — and the pending source is kept either way, so
  * the text is never the thing that is lost.
+ *
+ * **A failed producer is `pending` while its retry is armed.** `error` means
+ * "the last flush failed and nothing is scheduled to retry it", and that is
+ * exactly what a failed write is. A failed producer is not that: its one retry
+ * *is* scheduled, so the slot says `pending` — unsaved work, a flush scheduled
+ * — and `lastError` is where the failure is visible. The state is `error` once
+ * that retry is spent and the failure stands.
  *
  * A **conflict** is a different failure and must not be retried at all: the
  * stored revision has moved to somebody else's write, so re-sending the same
@@ -258,15 +266,19 @@ export type DocumentWriter = (request: DocumentWriteRequest) => Promise<WriteDoc
  * - `clean` — nothing outstanding.
  * - `pending` — unsaved work, a flush is scheduled.
  * - `saving` — a write is in flight; still dirty, because it is not stored yet.
- * - `error` — the last flush failed; dirty, and no retry is armed. A failed
- *   *producer* is the one case that arms one: see "A failure is a state, not a
- *   loop" in this file's header.
+ * - `error` — the last flush failed; dirty, and no retry is armed.
  *
  * **`error` is one-way, and it is the weaker half of an implication.**
  * `state === 'error'` means the last flush failed, but the converse does not
  * hold: a failure that a newer edit answered arrives as `'pending'`, because
  * `noteEdit` armed a window. `AutosaveStatus.lastError` — not this field — is
  * where a failure is visible, and it is non-null under both states.
+ *
+ * **A failed producer whose one retry is armed is `pending`, not `error`.** Its
+ * retry *is* a scheduled flush, so the slot says `pending` — unsaved work, a
+ * flush scheduled — and `lastError` names the failure. The state is `error`
+ * once that retry is spent and the failure stands; see "A failure is a state,
+ * not a loop" in this file's header.
  *
  * `clean` with a non-null `lastError` is reachable too: a body edited back to
  * what is stored takes `runFlush`'s `unchanged` path, which opens no
@@ -291,15 +303,20 @@ export interface AutosaveEvent {
   readonly docId: string;
   readonly status: AutosaveStatus;
   /**
-   * The body the scheduler now holds for the document: the unsaved one while an
-   * edit waits, otherwise the newest body it has taken for a write or been
-   * reseated to. An editor that re-renders from a store change compares this with
-   * its own body, so a notice about its own keystroke carries the body it already
-   * shows and changes nothing. Carried by reference, so it costs no copy.
+   * The body the scheduler now holds for the document.
    *
-   * A body that was offered as a producer is not in here until it has been
-   * produced: the notice carries the last body the scheduler knows, and the
-   * pending one arrives with the write it belongs to.
+   * An edit that carries its text has that text here at once. An edit that
+   * carries a **producer** does not: the text is read when the body is needed,
+   * so until then a notice carries the last body the scheduler knows — the seed,
+   * or the body of the last write — and the pending one arrives with the write
+   * it belongs to.
+   *
+   * So this is **"the last body the scheduler knows", not "the unsaved body"**:
+   * an editor that offers a producer sees the notice of its own keystroke carry
+   * the *previous* body. An editor that re-renders from a store change compares
+   * this with its own body to tell its own edit from a foreign one, so it must
+   * read a difference as "the scheduler has not caught up" rather than as a
+   * foreign change. Carried by reference, so it costs no copy.
    */
   readonly body: string;
 }
@@ -311,7 +328,12 @@ export type FlushOutcome =
   | 'unchanged'
   /** A write for this document is already in flight; the caller joined it. */
   | 'skipped'
-  /** The write failed for a reason other than a revision conflict. */
+  /**
+   * The flush failed for a reason other than a revision conflict: the write
+   * failed, or the producer that yields the body failed to yield it, so no write
+   * was attempted. Both leave the body unsaved, and both carry the cause in
+   * {@link FlushReport.error}.
+   */
   | 'failed'
   /** [command-bus.md §6](docs/architecture/command-bus.md)'s optimistic-concurrency mismatch. */
   | 'conflict';
@@ -387,6 +409,12 @@ export type AutosaveOptions = AutosaveCommonOptions &
  * produce on demand — the editor's own text, rendered when the write needs it —
  * and the scheduler calls it once per pending edit, when the body is needed. See
  * "When the body is captured" in this file's header.
+ *
+ * A producer runs **inside** the scheduler, so it must not wait for the write it
+ * is part of. A `flush()` it calls joins the flush that is running — that call
+ * reports `skipped`, and no second write starts — and a `noteEdit()` it makes is
+ * a newer edit: it keeps its place in the slot, and the write that follows
+ * stores the text as it was read.
  */
 export type BodySource = string | (() => string);
 
@@ -404,11 +432,11 @@ export interface Autosave {
    * The editor's `onChange`: record the newest body and re-arm the window.
    *
    * The body may be the text itself or a **producer** that yields it when the
-   * body is needed (see {@link BodySource}). A producer is called once, when the
-   * window flushes — or when a caller asks for the pending body — so an editor
-   * that renders its text on demand renders it once per window rather than once
-   * per keystroke. The body a producer yields is the text as it is when it is
-   * called, so the newest edit is what the write stores.
+   * body is needed (see {@link BodySource}). The producer is called when the body
+   * is needed — when the window flushes, or when a caller asks for the pending
+   * body — so an editor that renders its text on demand renders it once per window
+   * rather than once per keystroke. The body a producer yields is the text as it
+   * is when it is called, so the newest edit is what the write stores.
    */
   noteEdit(docId: string, body: BodySource): void;
   /** Flush now, bypassing the debounce. One document, or every dirty one. */
@@ -422,7 +450,17 @@ export interface Autosave {
    * {@link AutosaveEvent.body} is where its text is reported.
    *
    * A body that was offered as a producer is produced when it is asked for, and
-   * the flush that follows writes that same text without asking again.
+   * the flush that follows writes that same text without asking again. **That is
+   * this read's one side effect**: producing the body caches it, so the flush
+   * does not ask the producer a second time.
+   *
+   * `null` means "there is no body to name", and that is two things: nothing is
+   * waiting, or the waiting body is a producer that failed and could not be read.
+   * A producer that fails is **recorded**: the failure goes on `lastError` and the
+   * subscribers are told, because the editor's own text is what could not be read
+   * and the writer has to know that. The *state* is the flush's, and a read does
+   * not touch it — a read that forced `error` would say "no retry is armed" over
+   * a write that is still running.
    */
   pendingBodyOf(docId: string): string | null;
   /**
@@ -443,6 +481,12 @@ export interface Autosave {
   subscribe(listener: (event: AutosaveEvent) => void): () => void;
   dispose(): void;
 }
+
+/**
+ * What asking a slot for its pending body produced: the text, or the failure that
+ * stopped it from being read.
+ */
+type Production = { readonly ok: true; readonly body: string } | { readonly ok: false; readonly error: unknown };
 
 interface DocumentSlot {
   readonly id: string;
@@ -480,11 +524,26 @@ interface DocumentSlot {
    */
   reseating: number;
   /**
-   * Whether this pending edit has already had its one retry after a producer failed.
-   * The retry is armed once per edit, so a producer that fails every time is not
-   * retried forever; a new edit starts the count over.
+   * How many times a flush has asked the producer for this edit. The budget is
+   * two: the attempt, and the one retry a failed producer is given. A producer
+   * that fails every time is not asked forever, and a new edit starts the count
+   * over.
    */
-  producerRetried: boolean;
+  producerAttempts: number;
+  /**
+   * The failure the producer reported for this edit, or `null` when it has not
+   * failed. It is kept so that a read does not ask a producer that has already
+   * failed: the failure is the producer's answer, and asking again is how a
+   * failure becomes a loop.
+   */
+  producerFailure: unknown | null;
+  /**
+   * Whether a producer is running right now. A producer is caller-supplied code
+   * that runs inside the scheduler, so it may call back into it; this is what
+   * tells the scheduler that such a call belongs to a flush that is already
+   * running.
+   */
+  producing: boolean;
   state: AutosaveState;
   lastError: unknown | null;
 }
@@ -533,36 +592,75 @@ export function createAutosave(options: AutosaveOptions): Autosave {
     cancelTimer(slot);
     slot.pendingSource = null;
     slot.pendingBody = null;
-    slot.producerRetried = false;
+    slot.producerAttempts = 0;
+    slot.producerFailure = null;
   }
 
   /**
    * The body the pending source produces, produced once and kept.
    *
    * A producer runs when the body is needed — at the flush, or when a caller asks
-   * for the pending body — and never twice for the same edit: what it produced is
-   * kept, and the next edit replaces it. So an editor that renders its text on
-   * demand renders it once per window, not once per keystroke.
+   * for the pending body — and what it produced is kept, so the flush that follows
+   * writes that same text without asking again. So an editor that renders its text
+   * on demand renders it once per window, not once per keystroke.
    *
-   * A producer that throws is a failure like any other: the body stays where it
-   * is, the error is recorded, and the state says so.
+   * `forWrite` says what the body is needed for. A **write** may ask a producer
+   * that has failed again — that is the one retry — and does so within the
+   * budget of two attempts per edit. A **read** asks once: a producer that has
+   * already failed for this edit is not asked again, so a caller that reads on
+   * every keystroke cannot turn the failure into a loop.
+   *
+   * A producer that throws is a failure like any other, and the caller decides
+   * what it means: a flush arms the one retry and reports it, a read records it
+   * and leaves the state alone.
    */
-  function materialize(slot: DocumentSlot): string | null {
+  function materialize(slot: DocumentSlot, forWrite: boolean): Production | null {
     if (slot.pendingSource === null) return null;
-    if (slot.pendingBody !== null) return slot.pendingBody;
-    let produced: string;
-    try {
-      produced =
-        typeof slot.pendingSource === 'string' ? slot.pendingSource : slot.pendingSource();
-    } catch (error) {
-      slot.lastError = error;
-      slot.state = 'error';
-      emit(slot);
-      return null;
+    if (slot.pendingBody !== null) return { ok: true, body: slot.pendingBody };
+    // A producer that has already failed for this edit is not asked again by a
+    // read, and a write asks again only while the budget lasts.
+    if (slot.producerFailure !== null && !forWrite) {
+      return { ok: false, error: slot.producerFailure };
     }
-    slot.pendingBody = produced;
-    slot.latestBody = produced;
-    return produced;
+    if (forWrite && slot.producerAttempts >= 2) {
+      // The budget is spent: this edit's producer is not asked again.
+      return { ok: false, error: producerFailureOf(slot.producerFailure) };
+    }
+    const source = slot.pendingSource;
+    let produced: string;
+    // The attempt is counted before the producer runs: a producer that throws has
+    // been asked, and asking it again is what the budget is there to prevent.
+    if (forWrite) slot.producerAttempts += 1;
+    slot.producing = true;
+    try {
+      produced = typeof source === 'string' ? source : source();
+    } catch (error) {
+      slot.producing = false;
+      slot.producerFailure = producerFailureOf(error);
+      return { ok: false, error: slot.producerFailure };
+    }
+    slot.producing = false;
+    // The producer may have called back into the scheduler while it ran — a
+    // `noteEdit()` of its own, say — so what it produced belongs to the source it
+    // was made for: it is kept only while that source is still the pending one,
+    // and a newer edit is the pending body now.
+    if (slot.pendingSource === source) {
+      slot.pendingBody = produced;
+      slot.latestBody = produced;
+      slot.producerFailure = null;
+    }
+    return { ok: true, body: produced };
+  }
+
+  /**
+   * The failure a producer reported, as something diagnosable.
+   *
+   * A producer is caller-supplied code, so what it throws is not necessarily an
+   * `Error` — and `undefined` is not a cause anyone can act on. A nullish throw
+   * becomes an error that says so.
+   */
+  function producerFailureOf(error: unknown): unknown {
+    return error ?? new Error('the producer failed without a reason');
   }
 
   function cancelTimer(slot: DocumentSlot): void {
@@ -597,6 +695,12 @@ export function createAutosave(options: AutosaveOptions): Autosave {
   async function runFlush(docId: string): Promise<FlushReport> {
     const slot = slots.get(docId);
     if (!slot) return { docId, outcome: 'skipped' };
+    if (slot.producing) {
+      // A producer is running for this document and called back into the
+      // scheduler. The flush that is running owns the write; this one joins it,
+      // and it must not cancel the window the producer's own edit armed.
+      return { docId, outcome: 'skipped' };
+    }
     cancelTimer(slot);
     if (slot.pendingSource === null) return { docId, outcome: 'skipped' };
     if (slot.reseating > 0) {
@@ -611,10 +715,14 @@ export function createAutosave(options: AutosaveOptions): Autosave {
       // this file's header describes.
       return { docId, outcome: 'skipped' };
     }
-    const body = materialize(slot);
-    if (body === null) {
+    // The edit this flush is about. A producer may call back into the scheduler
+    // while it runs, and the edit it makes is newer than this one.
+    const source = slot.pendingSource;
+    const production = materialize(slot, true);
+    if (production === null) return { docId, outcome: 'skipped' };
+    if (!production.ok) {
       // The producer failed: the body could not be read, so nothing is written and
-      // the edit stays where it is. `materialize` recorded the error and the state.
+      // the edit stays where it is.
       //
       // **One retry is armed.** A failed write is the store failing, and it keeps
       // failing; a failed producer is the editor's text failing to be read, and the
@@ -623,24 +731,40 @@ export function createAutosave(options: AutosaveOptions): Autosave {
       // loop is what this file's header refuses. After that one retry the failure
       // stands like any other, and the next edit, the next lifecycle flush or an
       // explicit `flush()` retries it.
-      if (!slot.producerRetried) {
-        slot.producerRetried = true;
+      //
+      // **The state follows the retry.** While the retry is armed a flush *is*
+      // scheduled, so the slot says `pending` and `lastError` names the failure;
+      // once the retry is spent, the state is `error` and the failure stands.
+      // The notice is emitted after the window is armed, so what a subscriber sees
+      // is the state the slot is actually in.
+      const failure = production.error;
+      slot.lastError = failure;
+      if (slot.producerAttempts < 2) {
         armTimer(slot);
+        slot.state = 'pending';
+      } else {
+        slot.state = 'error';
       }
-      return { docId, outcome: 'failed', error: slot.lastError ?? undefined };
+      emit(slot);
+      return { docId, outcome: 'failed', error: failure };
+    }
+    const body = production.body;
+    // A producer that called back into the scheduler replaced the pending edit
+    // while it ran. That edit is newer, and it keeps its place in the slot: this
+    // flush is about the edit it started with.
+    const replaced = slot.pendingSource !== source;
+    if (!replaced) {
+      slot.pendingSource = null;
+      slot.pendingBody = null;
     }
     if (body === slot.persistedBody) {
       // Not a mutation, so not a transaction: §4 scopes the one-transaction
       // guarantee to mutations, and the store's own no-op path agrees.
-      slot.pendingSource = null;
-      slot.pendingBody = null;
-      slot.state = 'clean';
+      slot.state = replaced ? 'pending' : 'clean';
       emit(slot);
       return { docId, outcome: 'unchanged', revision: slot.baseRevision };
     }
 
-    slot.pendingSource = null;
-    slot.pendingBody = null;
     slot.state = 'saving';
     emit(slot);
 
@@ -717,9 +841,12 @@ export function createAutosave(options: AutosaveOptions): Autosave {
       // one was stored differently.
       if (slot.pendingSource === null) {
         // The body that failed is kept as it is: a producer has already said what
-        // it says, and the retry writes the same text.
+        // it says, and the retry writes the same text. It is kept as a string, so
+        // the retry does not ask the producer a second time.
         slot.pendingSource = body;
         slot.pendingBody = body;
+        slot.producerAttempts = 0;
+        slot.producerFailure = null;
         // 'error' is the state that means "no retry is armed", and nothing is:
         // this failure arms none, and a conflict may never succeed at all.
         slot.state = 'error';
@@ -789,7 +916,8 @@ export function createAutosave(options: AutosaveOptions): Autosave {
       existing.persistedBody = seed.body;
       existing.latestBody = seed.body;
       existing.lastError = null;
-      existing.producerRetried = false;
+      existing.producerAttempts = 0;
+      existing.producerFailure = null;
       existing.state = 'clean';
       emit(existing);
       return;
@@ -804,7 +932,9 @@ export function createAutosave(options: AutosaveOptions): Autosave {
       timer: null,
       inFlight: null,
       reseating: 0,
-      producerRetried: false,
+      producerAttempts: 0,
+      producerFailure: null,
+      producing: false,
       state: 'clean',
       lastError: null,
     };
@@ -832,7 +962,8 @@ export function createAutosave(options: AutosaveOptions): Autosave {
     if (typeof body === 'string') slot.latestBody = body;
     // A new edit is a new chance: the one retry a failed producer was given belongs
     // to the edit that failed, not to this one.
-    slot.producerRetried = false;
+    slot.producerAttempts = 0;
+    slot.producerFailure = null;
     if (slot.state !== 'saving') slot.state = 'pending';
     // Always re-armed, including for a body identical to the pending one. A
     // "same body, skip" optimisation here would silently disable §9's "next
@@ -905,7 +1036,25 @@ export function createAutosave(options: AutosaveOptions): Autosave {
       // The pending body is produced here if it has not been produced yet: a
       // caller that asks what is waiting gets the text, and the flush that follows
       // writes the same text without asking the producer again.
-      return materialize(slot);
+      const production = materialize(slot, false);
+      if (production === null) return null;
+      if (!production.ok) {
+        // The producer failed, so there is no body to name. The failure is
+        // recorded and told to the subscribers, because the editor's own text is
+        // what could not be read and the writer has to know that.
+        //
+        // **The state is the flush's, and a read does not touch it.** A read that
+        // forced `error` would say "no retry is armed" over a write that is still
+        // running, and the write's own settle would wipe the failure while the
+        // edit it belongs to is still outstanding. The flush that needs the body
+        // is what arms the retry and reports the failure.
+        if (slot.lastError !== production.error) {
+          slot.lastError = production.error;
+          emit(slot);
+        }
+        return null;
+      }
+      return production.body;
     },
     reseat,
     subscribe(listener) {

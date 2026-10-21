@@ -1372,7 +1372,7 @@ describe('§9 — the body is produced when the write needs it, not when the key
     expect(renders).toBe(1);
   });
 
-  it('a producer that fails is a failed write, and the edit stays where it is', async () => {
+  it('a producer that fails writes nothing, and the edit stays where it is', async () => {
     const { autosave, clock, writer } = harness();
     autosave.open(DOC, { body: 'a', revision: 0 });
     autosave.noteEdit(DOC, () => {
@@ -1382,16 +1382,22 @@ describe('§9 — the body is produced when the write needs it, not when the key
     await clock.advance(AUTOSAVE_DEBOUNCE_MS);
 
     expect(writer.calls).toHaveLength(0);
-    expect(autosave.status(DOC).state).toBe('error');
-    expect(autosave.status(DOC).dirty).toBe(true);
+    // The state says what is true: the one retry is armed, so a flush *is*
+    // scheduled, and the failure is on `lastError`.
+    expect(autosave.status(DOC)).toMatchObject({ state: 'pending', dirty: true });
+    expect(autosave.status(DOC).lastError).toBeInstanceOf(Error);
   });
 
-  it('a body asked for before the document moves is the body the write sends', async () => {
+  it('a body asked for before the text moves is the body the write sends', async () => {
     // The editor's text, as the producer the scheduler asks when the body is needed.
     // A change that is not the user's lands on the document while the user's edit is
     // still waiting for its window, so the editor asks for the pending body *before*
     // that change lands: what the user typed is what the write sends, and the
     // change is the agent's own write to make.
+    //
+    // There is no revision to assert here, and the reason is the scheduler's: a
+    // document with an edit outstanding keeps its revision, so the write goes out
+    // against the one the document was opened at.
     const { autosave, clock, writer } = harness();
     autosave.open(DOC, { body: 'a', revision: 0 });
 
@@ -1406,7 +1412,6 @@ describe('§9 — the body is produced when the write needs it, not when the key
 
     expect(writer.calls).toHaveLength(1);
     expect(writer.calls[0]?.body).toBe('the user’s text');
-    expect(writer.calls[0]?.expectedRevision).toBe(0);
   });
 
   it('a producer that fails is retried once, and the retry sends the text', async () => {
@@ -1426,7 +1431,11 @@ describe('§9 — the body is produced when the write needs it, not when the key
     await clock.advance(AUTOSAVE_DEBOUNCE_MS);
 
     expect(writer.calls).toHaveLength(0);
-    expect(autosave.status(DOC)).toMatchObject({ state: 'error', dirty: true });
+    // The retry is armed, so the state is `pending` — a flush *is* scheduled — and
+    // the failure is on `lastError`. `error` would say that nothing is scheduled,
+    // and something is.
+    expect(autosave.status(DOC)).toMatchObject({ state: 'pending', dirty: true });
+    expect(autosave.status(DOC).lastError).toBeInstanceOf(Error);
 
     await clock.advance(AUTOSAVE_DEBOUNCE_MS);
 
@@ -1453,6 +1462,7 @@ describe('§9 — the body is produced when the write needs it, not when the key
     expect(attempts).toBe(2);
     expect(writer.calls).toHaveLength(0);
     expect(clock.armed).toBe(0);
+    // The retry is spent, so nothing is scheduled and the failure stands.
     expect(autosave.status(DOC)).toMatchObject({ state: 'error', dirty: true });
   });
 
@@ -1469,15 +1479,141 @@ describe('§9 — the body is produced when the write needs it, not when the key
     expect(attempts).toBe(2);
 
     // The writer types again: a new edit is a new chance, and the retry is armed
-    // once more for it.
+    // once more for it. This producer fails once as well, so what writes the text
+    // is the retry — the new edit's own budget, not the old edit's.
     autosave.noteEdit(DOC, () => {
       attempts += 1;
+      if (attempts === 3) throw new Error('the editor is gone');
       return 'typed text';
     });
     await clock.advance(AUTOSAVE_DEBOUNCE_MS);
 
+    expect(writer.calls).toHaveLength(0);
+    expect(attempts).toBe(3);
+
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS);
+
     expect(writer.calls).toHaveLength(1);
     expect(writer.calls[0]?.body).toBe('typed text');
+  });
+
+  it('a read of a producer that fails records the failure, and does not ask again', async () => {
+    const { autosave, clock, writer } = harness();
+    autosave.open(DOC, { body: 'a', revision: 0 });
+
+    let attempts = 0;
+    autosave.noteEdit(DOC, () => {
+      attempts += 1;
+      throw new Error('the editor is gone');
+    });
+
+    const noticed: AutosaveState[] = [];
+    autosave.subscribe((event) => noticed.push(event.status.state));
+
+    // A read is not a flush: it produces the body or it answers null. A producer
+    // that fails is recorded — the editor's own text is what could not be read, and
+    // the writer has to know that — but the *state* is the flush's, and a read
+    // does not touch it.
+    expect(autosave.pendingBodyOf(DOC)).toBeNull();
+    expect(attempts).toBe(1);
+    expect(autosave.status(DOC).lastError).toBeInstanceOf(Error);
+    expect(autosave.status(DOC).state).toBe('pending');
+    expect(autosave.status(DOC).dirty).toBe(true);
+    expect(noticed).toEqual(['pending']);
+
+    // A producer that has failed for this edit is not asked again by a read, so a
+    // caller that reads on every keystroke cannot turn the failure into a loop.
+    expect(autosave.pendingBodyOf(DOC)).toBeNull();
+    expect(attempts).toBe(1);
+
+    // The flush is what reports the failure in its own report, and what arms the
+    // one retry.
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS);
+    expect(writer.calls).toHaveLength(0);
+    expect(autosave.status(DOC).lastError).toBeInstanceOf(Error);
+  });
+
+  it('a read during a write in flight does not say error over saving', async () => {
+    const { autosave, clock, writer } = harness([{ kind: 'hold' }]);
+    autosave.open(DOC, { body: 'a', revision: 0 });
+    autosave.noteEdit(DOC, 'b');
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS);
+    expect(writer.calls).toHaveLength(1);
+
+    // A producer edit arrives while the write is running, and its producer fails.
+    autosave.noteEdit(DOC, () => {
+      throw new Error('the editor is gone');
+    });
+    expect(autosave.pendingBodyOf(DOC)).toBeNull();
+
+    // The state is still the write's: `saving`, not `error`. `error` would say
+    // that no retry is armed, and it would say it over a write that is running.
+    expect(autosave.status(DOC).state).toBe('saving');
+    expect(autosave.status(DOC).lastError).toBeInstanceOf(Error);
+  });
+
+  it('the notice of a failed producer is emitted with its retry already armed', async () => {
+    const { autosave, clock } = harness();
+    autosave.open(DOC, { body: 'a', revision: 0 });
+    autosave.noteEdit(DOC, () => {
+      throw new Error('the editor is gone');
+    });
+
+    const noticed: { state: AutosaveState; armed: number }[] = [];
+    autosave.subscribe((event) => noticed.push({ state: event.status.state, armed: clock.armed }));
+
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS);
+
+    // The window is armed *before* the notice, so what a subscriber reads is the
+    // state the slot is actually in: a flush is scheduled, so the state is
+    // `pending` and the failure is on `lastError`.
+    expect(noticed.at(-1)).toEqual({ state: 'pending', armed: 1 });
+  });
+
+  it('a producer that edits the document again does not lose that edit', async () => {
+    const { autosave, clock, writer } = harness();
+    autosave.open(DOC, { body: 'a', revision: 0 });
+
+    autosave.noteEdit(DOC, () => {
+      // The producer calls back into the scheduler: a newer edit, made while the
+      // producer was running.
+      autosave.noteEdit(DOC, 'the newer edit');
+      return 'the first edit';
+    });
+
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS);
+
+    // The write is about the edit the flush started with, and the newer edit is
+    // still waiting: it is not lost, and it is written after this one.
+    expect(writer.calls).toHaveLength(1);
+    expect(writer.calls[0]?.body).toBe('the first edit');
+    expect(autosave.pendingBodyOf(DOC)).toBe('the newer edit');
+
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS);
+
+    expect(writer.calls).toHaveLength(2);
+    expect(writer.calls[1]?.body).toBe('the newer edit');
+  });
+
+  it('a producer that flushes joins the flush that is running', async () => {
+    const { autosave, clock, writer } = harness();
+    autosave.open(DOC, { body: 'a', revision: 0 });
+
+    let asked = 0;
+    autosave.noteEdit(DOC, () => {
+      asked += 1;
+      // The producer calls back into the scheduler. The flush that is running owns
+      // the write, so this one joins it: no second write, and no second ask.
+      void autosave.flush(DOC);
+      return 'typed text';
+    });
+
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS);
+
+    expect(asked).toBe(1);
+    expect(writer.calls).toHaveLength(1);
+    expect(writer.calls[0]?.body).toBe('typed text');
+    expect(writer.peakConcurrency).toBe(1);
   });
 
   it('a string body still works exactly as it did', async () => {

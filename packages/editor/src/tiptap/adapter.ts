@@ -490,6 +490,21 @@ const createInstance = (
    *
    * The store's `pendingBodyOf` is the ask: it produces a producer's body once and
    * keeps it, so the flush that follows writes that same text without asking again.
+   *
+   * **What the ask cannot do is freeze a text it could not read.** The producer
+   * yields the editor's own text, so a read that fails is that text failing to be
+   * read: the capture leaves the store's pending source a producer still, and the
+   * change lands on top of it. The next attempt reads the text again, and what it
+   * reads then is the text the change left behind — so a producer that failed once
+   * and then succeeded stores the change's text under the user's revision. That is
+   * the hazard this capture closes, and a failed read is the one case where it
+   * stays open; the store records the failure, so the "unsaved changes" indicator
+   * is what the writer has.
+   *
+   * **The lane is the one this file reads everywhere.** A change that is not the
+   * user's is a transaction carrying `addToHistory: false`, and `markLane` is the
+   * only writer of that meta — so a change that arrives without it is a user
+   * change by §7's own definition, and it is counted as one.
    */
   const capturePending = (): void => {
     if (autosave === undefined) return;
