@@ -27,9 +27,17 @@ export type IdPrefix = 'p' | 'n' | 'c' | 'cmd' | 'f' | 'r' | 'w' | 'prv';
 /**
  * The number of characters an id's body carries, after its prefix.
  *
- * **Exported so that nothing else has to restate it.** A second copy of "ten"
- * is a second thing to get wrong: an id minted with one length and checked
- * against another fails at the check, not at the mint.
+ * **Exported so that a package that depends on `@caotang/ids` does not have
+ * to restate it.** A second copy of "ten" is a second thing to get wrong: an
+ * id minted with one length and checked against another fails at the check,
+ * not at the mint.
+ *
+ * **It is not a promise that nothing else restates the length.** The bus is
+ * the layer every other package sits on (§1) and takes no dependencies, so its
+ * own id patterns spell the length out; the id fixtures in the test suites are
+ * literals an id has to match. The export takes the restatement out of the
+ * code that mints and checks ids in the packages that can reach it, and the
+ * copies that remain are named here rather than left for a reader to find.
  */
 export const ID_LENGTH = 10;
 

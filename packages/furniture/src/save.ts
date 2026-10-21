@@ -10,7 +10,7 @@
  * A filter's over-long values are clamped and the clamp is reported. A goal over its
  * count is refused, because a goal cannot be truncated.
  */
-import { CROCKFORD_ALPHABET } from '@caotang/ids';
+import { CROCKFORD_ALPHABET, ID_LENGTH } from '@caotang/ids';
 import type { TreeNode } from '@caotang/store';
 
 import { createBinderIndex } from './binder-index.js';
@@ -42,8 +42,8 @@ export interface VocabularyShape {
   readonly labels: readonly { readonly id: string }[];
 }
 
-const FILTER_ID = new RegExp(`^q_[${CROCKFORD_ALPHABET}]{10}$`);
-const GOAL_ID = new RegExp(`^g_[${CROCKFORD_ALPHABET}]{10}$`);
+const FILTER_ID = new RegExp(`^q_[${CROCKFORD_ALPHABET}]{${ID_LENGTH}}$`);
+const GOAL_ID = new RegExp(`^g_[${CROCKFORD_ALPHABET}]{${ID_LENGTH}}$`);
 
 export interface SavedFilterDraft {
   /** Absent for a new filter; present for an update by id, or a new filter with a chosen id. */
