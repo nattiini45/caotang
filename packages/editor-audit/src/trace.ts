@@ -288,12 +288,26 @@ export const measure = async (entry: {
     threw = error instanceof Error ? error.message : String(error);
   }
   // **The two re-checks get their own tries, because their failures are
-  // different facts.** Neither of them is the library throwing: the round trip
-  // has already succeeded by the time they run, and what failed is the
-  // instrument's second reading of it. A `threw` on either would put a
-  // self-contradictory row on the table — a row that says the library threw
-  // *and* that the round trip was deterministic — and would force
-  // `byteIdentical` to false on bytes that are identical.
+  // different facts.** The round trip has already succeeded by the time they
+  // run, so what failed is the instrument's *second reading* of a round trip
+  // that worked — and that is the fact the row states. The determinism
+  // re-check runs the same `parse`/`serialize` again, so the library failing
+  // there is the same library failing a second time: the split does not
+  // change the cause, it changes which fact the row reports.
+  //
+  // **The self-contradictory row was the output re-parse's.** Under one try,
+  // a failure there landed after `deterministic` had already been assigned,
+  // so the row said the library threw *and* that the round trip was
+  // deterministic, and `byteIdentical` went false on bytes that were
+  // identical. A failure in the determinism expression never reached its
+  // assignment, so `deterministic` stayed `false` on that row — what that row
+  // lost was the round trip's own class, not its stability flag.
+  //
+  // **The two re-checks are not reported the same way, and the difference is
+  // the kind of fact.** An output that cannot be read back changes the class
+  // (those are the bytes a save would write, and nobody can read them); a
+  // determinism re-check that could not be completed only adds a note,
+  // because it says nothing about the round trip's own result.
   //
   // **The contract of the table is unchanged by the split**: a failure in any
   // of the three surfaces as a result — a row that says what happened — rather

@@ -272,11 +272,18 @@ describe('preflight · the outcome classifier measures the construct, not a stri
   it('a failure in the determinism re-check is not the library throwing', async () => {
     // **The row that could contradict itself.** The re-checks run *after* the
     // round trip has already succeeded, so a failure in one of them is the
-    // instrument's second reading failing — not the library throwing. While the
-    // two shared one try, such a failure set `threw` on a row whose first pass
-    // had parsed fine: the row said the library threw *and* that the round trip
-    // was deterministic, and it forced `byteIdentical` to false on bytes that
-    // were identical.
+    // instrument's second reading failing — the row states that fact instead
+    // of the round trip's. While the two shared one try, such a failure set
+    // `threw` on a row whose first pass had parsed fine: the row said the
+    // library threw, which was false — the first pass had parsed — and it
+    // forced `byteIdentical` to false on bytes that were identical.
+    //
+    // The determinism re-check is the case that could *not* also have claimed
+    // a stable round trip: under one try its failure landed before the
+    // assignment to `deterministic`, so that flag stayed `false` and what the
+    // row lost was the round trip's own class. The output re-parse was the
+    // other half of the pair — it landed after the assignment, so its row said
+    // the library threw *and* that the round trip was deterministic.
     //
     // The mock makes the **second** parse throw, so the first pass succeeds and
     // the determinism re-check's parse does not — which is the narrowest way to
