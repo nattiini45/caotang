@@ -17,6 +17,7 @@
  * | `summary` | ✅ | the apply, and the bus **refuses** a dispatch that reported none rather than inventing one |
  * | `source?` | ✅ | stamped `'native'`; §8 reserves `'mcp'` for the v0.2 client, which cannot reach `execute()` yet |
  * | `tokensSpent?` | declared, never written | the gateway ledger's, and the bus never writes it — the gateway owns the writer |
+ * | `defect?` | ✅ on a defect row only | the bus, when it reports a defect it found after the fact; the row names a command it did **not** execute again |
  *
  * ## Why an apply reports, and not the pipeline
  *
@@ -89,6 +90,20 @@ export interface ActivityReport {
   readonly summary: string;
 }
 
+/**
+ * The defects §8's log carries a row for.
+ *
+ * A defect row reports something the bus found **after** the fact — an apply
+ * that did what the spec does not allow. It is not an execution of the command
+ * it names, and the marker is what says so: a reader that counts command rows
+ * can tell a defect row from an effect row without reading the summary.
+ *
+ * - `late-undo-capture`: an apply stashed its undo scope and captured from a
+ *   timer, an event or a floating continuation, after its dispatch settled. The
+ *   dispatch's registration is closed, so the payload was dropped.
+ */
+export type ActivityDefect = 'late-undo-capture';
+
 export interface ActivityEntry {
   /** §2's `createdAt` — epoch ms, log/display only */
   readonly at: number;
@@ -119,6 +134,12 @@ export interface ActivityEntry {
    * to echo — `turnId` and `callId` have one and `tokensSpent` does not.
    */
   readonly tokensSpent?: number;
+  /**
+   * §8's defect marker. Set on a row that reports a defect the bus found after
+   * the fact, and absent on every row that reports a command's effect — so a
+   * row that carries it names a command that was **not** executed a second time.
+   */
+  readonly defect?: ActivityDefect;
 }
 
 export interface ActivityLog {

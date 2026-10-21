@@ -242,13 +242,13 @@ export function createUndoStore(options: UndoStoreOptions = {}): UndoStore {
       // An inverse that changes nothing has nothing to undo, and that is a
       // guarantee on the registering side rather than a hope: an apply that
       // wrote a field mints an inverse carrying that field's previous value,
-      // and an apply that wrote none stamps nothing and remembers no restore
-      // entry (the store's `binderSetMeta` writes `updatedAt` only for a value
-      // it actually changed), so the field-less inverse it registers has
-      // nothing to put back — not even the node's stamp. Dispatching it can
-      // only refuse, with a refusal that says the work is already done. That
-      // is a no-op, not a failure of the undo, so the group keeps its other
-      // entries and reports nothing for this one.
+      // and an apply that wrote none stamps nothing, remembers no restore
+      // entry and registers a field-less inverse (the store's `binderSetMeta`
+      // writes `updatedAt` only for a value it actually changed), so that
+      // inverse has nothing to put back — not even the node's stamp.
+      // Dispatching it can only refuse, with a refusal that says the work is
+      // already done. That is a no-op, not a failure of the undo, so the group
+      // keeps its other entries and reports nothing for this one.
       if (result.error.details?.changesNothing === true) return undefined;
       return {
         target: entry.name,
@@ -341,26 +341,16 @@ export function createUndoStore(options: UndoStoreOptions = {}): UndoStore {
  * created fresh per `execute()` and the pipeline holds the only reference to the
  * captured payload.
  *
- * **One capture per dispatch, and the second one throws** rather than overwriting
- * the first. §5 registers one entry per command, so a second capture is an apply
- * that disagrees with the spec about its own dispatch — and the overwrite was
- * silent: the pipeline saw a capture of the right kind and registered a group
- * that reversed only the last effect. `createActivityScope` refuses its second
- * report the same way, and the throw lands in the pipeline's apply-threw path,
- * which registers whatever was captured first and names the group. The message
- * does not name the command: the pipeline's refusal already prefixes it with
- * `the apply for "<name>" threw: `, so a second naming would only make the
- * surfaced error stutter.
- *
- * **The throw guards the apply window, and only the apply window.** The pipeline
- * calls {@link SettledUndoScope.settle} once it has read the payload, and a
- * capture that arrives after that — from an apply that stashed the scope and
- * captured from a timer, an event or a floating continuation — cannot join any
- * group: the dispatch's registration is closed. Throwing there would reach no
- * caller either; it would escape as an uncaught exception, or an unhandled
- * rejection on the async path. So a late capture is handed to `onLateCapture`
- * instead — the pipeline wires it to an activity-log row — and dropped: a
- * defect in the apply stays visible without detonating outside the bus.
+ * **The scope's window is the apply's window.** The pipeline calls
+ * {@link SettledUndoScope.settle} once it has read the payload, and a capture
+ * that arrives after that — from an apply that stashed the scope and captured
+ * from a timer, an event or a floating continuation — cannot join any group: the
+ * dispatch's registration is closed. Throwing there would reach no caller
+ * either; it would escape as an uncaught exception, or an unhandled rejection
+ * on the async path. So a late capture is handed to the scope's
+ * `onLateCapture` — the pipeline wires it to an activity-log row — and
+ * dropped: a defect in the apply stays visible without detonating outside the
+ * bus.
  */
 export interface SettledUndoScope extends UndoScope {
   /**
@@ -372,16 +362,49 @@ export interface SettledUndoScope extends UndoScope {
   settle(): void;
 }
 
+/**
+ * A scope for one dispatch, and the factory's own rules.
+ *
+ * **One capture per dispatch, and the second one throws** rather than overwriting
+ * the first. §5 registers one entry per command, so a second capture is an apply
+ * that disagrees with the spec about its own dispatch — and the overwrite was
+ * silent: the pipeline saw a capture of the right kind and registered a group
+ * that reversed only the last effect. `createActivityScope` refuses its second
+ * report the same way.
+ *
+ * **Where the throw lands depends on when the capture happens.** A capture the
+ * apply makes synchronously, while the pipeline awaits it, lands in the
+ * pipeline's apply-threw path — which registers whatever was captured first and
+ * names the group. A capture from an independent timer during an *asynchronous*
+ * apply is outside the awaited promise: it escapes as an uncaught exception or
+ * an unhandled rejection, because the pipeline only starts protecting the scope
+ * once it reads the payload back. The message does not name the command: the
+ * pipeline's refusal already prefixes it with `the apply for "<name>" threw: `,
+ * so a second naming would only make the surfaced error stutter.
+ *
+ * `onLateCapture` is **required**, so a late capture can never be dropped with
+ * no trace: it is the surface that keeps a defect visible. The pipeline's own
+ * reporter writes a §8 defect row.
+ */
 export function createUndoScope(
   kind: ApplyContext['undo']['kind'],
-  onLateCapture?: (payload: UndoPayload) => void,
+  onLateCapture: (payload: UndoPayload) => void,
 ): SettledUndoScope {
   let payload: UndoPayload | undefined;
   let settled = false;
 
   const capture = (next: UndoPayload): void => {
     if (settled) {
-      onLateCapture?.(next);
+      // The reporter is the last line of defence, and it runs wherever the
+      // apply's timer fires — so a reporter that throws must not become the
+      // uncaught exception this mechanism exists to prevent.
+      try {
+        onLateCapture(next);
+      } catch {
+        // A reporter that cannot report is a defect in the defect reporter, and
+        // there is no second surface to write to. Swallowing it is what keeps
+        // the promise the interface makes: a late capture never escapes the bus.
+      }
       return;
     }
     if (payload !== undefined) {

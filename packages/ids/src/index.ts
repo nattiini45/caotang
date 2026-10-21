@@ -24,7 +24,14 @@ export const CROCKFORD_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
  */
 export type IdPrefix = 'p' | 'n' | 'c' | 'cmd' | 'f' | 'r' | 'w' | 'prv';
 
-const ID_LENGTH = 10;
+/**
+ * The number of characters an id's body carries, after its prefix.
+ *
+ * **Exported so that nothing else has to restate it.** A second copy of "ten"
+ * is a second thing to get wrong: an id minted with one length and checked
+ * against another fails at the check, not at the mint.
+ */
+export const ID_LENGTH = 10;
 
 const FIXED_ROOTS = new Set(['root', 'manuscript', 'research']);
 

@@ -594,9 +594,12 @@ export const binderSetMeta: CommandDescriptor<BinderSetMetaParams> = {
     const keywords = checkKeywordPatch(node.value, typed);
     if (!keywords.ok) return keywords;
     // A patch with no field in it is not an idempotent no-op — it asks for
-    // nothing at all, and the two sibling patch commands refuse exactly that
-    // shape. What the refusal enforces is the shape, not the effect: a patch
-    // whose fields all match what the node already holds stays accepted,
+    // nothing at all, and `project.setMetadata` refuses exactly that shape.
+    // (`dialogue.setMeta` counts the raw keys instead, so a patch of
+    // `{ speaker: undefined }` passes there and normalizes to an empty patch —
+    // the two checks are not the same check.) What the refusal enforces is the
+    // shape, not the effect: a patch whose fields all match what the node
+    // already holds stays accepted,
     // because agent-harness §3 makes meta.set "idempotent by design" and
     // `requireStringArray` keeps `keywords_add: []` a legitimate "nothing to
     // do" payload. Such a dispatch stamps nothing and mints no restore entry
@@ -605,7 +608,7 @@ export const binderSetMeta: CommandDescriptor<BinderSetMetaParams> = {
     // change that did not happen — the row's own digest says "left ...
     // unchanged".
     if (Object.keys(typed).length === 0) {
-      return changesNothing('the patch names no field, so it asks for nothing to change', `name at least one of: ${PATCH_KEYS.join(', ')}`, 'patch');
+      return changesNothing('the patch names no field to write, so it asks for nothing to change', `name at least one of: ${PATCH_KEYS.join(', ')}`, 'patch');
     }
     return ok({ nodeId: node.value.id, patch: typed });
   },
@@ -699,6 +702,22 @@ function requireDocumentNode(
 }
 
 /**
+ * The project-relative path of a body node's file, for its kind.
+ *
+ * **The store's rule, restated**: `.ink` for a dialogue container, `.fountain`
+ * for a screenplay document, `.md` for a prose document, all under `docs/`
+ * (`@caotang/store`'s `bodyExtensionOf` and `bodyFile`). The bus cannot import
+ * the store — the dependency runs store → bus — so the rule is copied here, and
+ * `packages/store/test/bus-body-file.test.ts` pins the two together: a hint that
+ * names a file the loader never writes sends an agent to repair a file that does
+ * not exist.
+ */
+function bodyFilePath(node: ValidationNode): string {
+  const extension = node.type === 'dialogue' ? 'ink' : node.kind === 'screenplay' ? 'fountain' : 'md';
+  return `docs/${node.id}.${extension}`;
+}
+
+/**
  * The loaded body length an offset must fall inside, or a refusal.
  *
  * `because` names what the caller needed the body for: the editor commands need
@@ -709,21 +728,29 @@ function requireDocumentNode(
  * **The hint names the file, because the file is the surface that fixes this.**
  * The id already resolved in `requireDocumentNode` by the time this runs, so
  * §7's own rule — a `correctiveHint` names the surface that fixes the refusal —
- * cannot be satisfied by "list valid ids": a body is missing when the
- * document's file is not UTF-8 text the loader could read, and no id the caller
- * passes changes that.
+ * cannot be satisfied by "list valid ids": a body is missing when the document's
+ * file is not text the loader could read, and no id the caller passes changes
+ * that.
+ *
+ * **The file is the node's own, for its kind.** A prose document's body is
+ * `docs/<id>.md`, a screenplay's is `docs/<id>.fountain` and a dialogue
+ * container's is `docs/<id>.ink` — so a hint that named `<id>.md` for all three
+ * would send an agent to a file that does not hold the body. The message does
+ * not name a *cause*: a body can be missing because the file is not UTF-8 text,
+ * and because the runtime rehydrator had no body row for an id that resolved,
+ * and the bus cannot tell the two apart.
  */
 function requireLoadedBody(
   snapshot: ValidationSnapshot,
-  docId: string,
+  node: ValidationNode,
   because = 'so its offsets cannot be validated',
 ): Result<number, CommandError> {
-  const length = documentLength(snapshot, docId);
+  const length = documentLength(snapshot, node.id);
   if (length === undefined) {
     return notFound(
-      `document "${docId}" has no body loaded — its file is not text the loader could read — ${because}`,
-      `the surface to fix is the document's own file, not this command's params: "${docId}.md" is not UTF-8 text the loader could read, so repair or re-save that file and reload the project. The id itself resolved, so binder.read_tree cannot help here`,
-      docId,
+      `document "${node.id}" has no body loaded — ${because}`,
+      `the surface to fix is the document's own file, not this command's params: the body of "${node.id}" lives in "${bodyFilePath(node)}", and the loader could not read it as text; make sure that file holds UTF-8 text, then reload the project. The id itself resolved, so binder.read_tree cannot help here`,
+      node.id,
     );
   }
   return ok(length);
@@ -758,9 +785,12 @@ export const docWrite: CommandDescriptor<DocWriteParams> = {
     if (!p.ok) return p;
     const doc = requireDocumentNode(snapshot, p.value, 'docId');
     if (!doc.ok) return doc;
-    // The params are checked before the state: a write that is both malformed
-    // and to an unloaded document reports the defect its caller must fix in
-    // params, rather than a state refusal that hides it.
+    // The params are checked before the loaded-body state check: a write that is
+    // both malformed and to an unloaded document reports the defect its caller
+    // must fix in params, rather than a state refusal that hides it. The
+    // document's *existence* is checked before both — an id no node holds is a
+    // state refusal whatever the body says — so a malformed write to an unknown
+    // id still reports the unknown id first.
     const body = requireString(p.value, 'body');
     if (!body.ok) return body;
     const revision = expectedRevision(p.value);
@@ -769,7 +799,7 @@ export const docWrite: CommandDescriptor<DocWriteParams> = {
     // UTF-8 opens with no body record while its node stays in the tree, and a
     // write to it would reach the apply and fail there as a defect rather than
     // as the refusal the loader already promised.
-    const loaded = requireLoadedBody(snapshot, doc.value.id, 'so it cannot be written to');
+    const loaded = requireLoadedBody(snapshot, doc.value, 'so it cannot be written to');
     if (!loaded.ok) return loaded;
     return ok({
       docId: doc.value.id,
@@ -789,7 +819,7 @@ export const editorInsert: CommandDescriptor<EditorInsertParams> = {
     if (!p.ok) return p;
     const doc = requireDocumentNode(snapshot, p.value, 'docId');
     if (!doc.ok) return doc;
-    const length = requireLoadedBody(snapshot, doc.value.id);
+    const length = requireLoadedBody(snapshot, doc.value);
     if (!length.ok) return length;
     const offset = requireInteger(p.value, 'offset', {
       min: 0,
@@ -820,7 +850,7 @@ export const editorReplaceRange: CommandDescriptor<EditorReplaceRangeParams> = {
     if (!p.ok) return p;
     const doc = requireDocumentNode(snapshot, p.value, 'docId');
     if (!doc.ok) return doc;
-    const length = requireLoadedBody(snapshot, doc.value.id);
+    const length = requireLoadedBody(snapshot, doc.value);
     if (!length.ok) return length;
     const range = p.value['range'];
     if (!isRecord(range)) {
@@ -1704,20 +1734,6 @@ export const coherenceSetFindingStatus: CommandDescriptor<CoherenceSetFindingSta
  * advertised as read-only and the user trusts is `read`, and everything else asks first.
  */
 /**
- * `storyboard.create`, `shot.create` and `shot.setMeta` (storyboard.md §3.1). Each validates its closed key set and
- * its shape, and reads the snapshot for the state the command depends on: the folder the storyboard lands in, the
- * storyboard folder a shot lands in, the shot a metadata change names, and the id each create mints. The guards that
- * depend on what changed since the plan was made (a scene that moved, a shot whose metadata changed) run in the
- * apply, which the store registry supplies, because they read the storyboard module's own fields.
- *
- * These read `snapshot.manifest.tree` directly, like every other descriptor in this module. The manifest is a
- * required field of the snapshot, so a snapshot without one is a broken read seam — a partial projection, an adapter
- * defect — and not "no project state": it fails loudly here, the way `binder.move`'s sibling dereference does,
- * rather than silently standing every existence check down and letting a validated command fail mid-apply, which is
- * the §2 hole these checks exist to close.
- */
-
-/**
  * The id a create mints, checked against the project the command is about: the
  * shape the loader accepts, and an id no node holds already.
  *
@@ -1765,6 +1781,19 @@ function requireNodeInTree(
   return ok(node);
 }
 
+/**
+ * `storyboard.create`, `shot.create` and `shot.setMeta` (storyboard.md §3.1). Each validates its closed key set and
+ * its shape, and reads the snapshot for the state the command depends on: the folder the storyboard lands in, the
+ * storyboard folder a shot lands in, the shot a metadata change names, and the id each create mints. The guards that
+ * depend on what changed since the plan was made (a scene that moved, a shot whose metadata changed) run in the
+ * apply, which the store registry supplies, because they read the storyboard module's own fields.
+ *
+ * These read `snapshot.manifest.tree` directly, like every other descriptor in this module. The manifest is a
+ * required field of the snapshot, so a snapshot without one is a broken read seam — a partial projection, an adapter
+ * defect — and not "no project state": it fails loudly here, the way `binder.move`'s sibling dereference does,
+ * rather than silently standing every existence check down and letting a validated command fail mid-apply, which is
+ * the §2 hole these checks exist to close.
+ */
 export const storyboardCreate: CommandDescriptor<StoryboardCreateCommandParams> = {
   mutates: 'project',
   agentRisk: 'write-auto',

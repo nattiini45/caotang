@@ -48,8 +48,9 @@ function fakePort(): { port: ShotCommandPort; stored: Map<string, unknown> } {
  * manifest is a required field of the snapshot, and the storyboard descriptors
  * dereference `manifest.tree` directly — a bare `{}` cast is a broken read seam
  * that fails closed rather than silently standing every existence check down,
- * and the ids are the ten-Crockford-char shape the loader accepts, because the
- * id shape check is stateless input validation and runs on every dispatch.
+ * and the ids are the ten-Crockford-char shape the loader accepts: the id shape
+ * check is stateless input validation, and it runs on the `id` a create mints
+ * (`storyboard.create` and `shot.create`), not on every dispatch.
  */
 const SNAPSHOT: ValidationSnapshot = {
   manifest: {

@@ -155,13 +155,20 @@ export function limitExceeded(message: string, correctiveHint?: string, target?:
  *
  * `details.changesNothing` is the machine-readable half of it, and the undo
  * path reads that half: an inverse that changes nothing has nothing to undo.
- * The contract the undo path leans on is the registering side's: an apply that
- * wrote a field mints an inverse carrying that field's previous value, and an
- * apply that wrote none stamps nothing and registers no restore entry — so a
+ * The contract the undo path leans on is the registering side's, and
+ * **`binder.setMeta` is the command that keeps it**: an apply that wrote a field
+ * mints an inverse carrying that field's previous value, and an apply that
+ * wrote none stamps nothing and registers no restore entry — so a
  * changes-nothing inverse has nothing to put back, dispatching it can only
  * refuse, and that refusal says the work is already done, not that the undo
  * failed. A group with such an entry in it is therefore not a group with a
  * failure in it.
+ *
+ * **The other patch commands are safe for a different reason, and the paragraph
+ * above does not describe them.** `dialogue.setMeta` stamps on every accepted
+ * patch and `project.setMetadata` registers an inverse for a field that already
+ * holds the requested value; neither can ever produce a changes-nothing
+ * refusal, because one is compensable and the other's inverse is never empty.
  */
 export function changesNothing(message: string, correctiveHint: string, target: string): Result<never, CommandError> {
   return err({ code: 'invalid-params', message, correctiveHint, target, details: { changesNothing: true } });

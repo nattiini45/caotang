@@ -48,13 +48,18 @@ describe('binder.restructure', () => {
     expect(outcome.undoGroupId).toBeDefined();
   });
 
-  it('previews the position the move lands at, and dispatches the validated command', () => {
+  it('previews the position the move lands at', () => {
     const state = makeState();
     const harness = makeHarness({}, state);
     // Chapter 2 holds one scene, so a move asking for position 99 lands at 1:
     // binder.move's validate clamps the index against the sibling count, and the
     // card the user approves has to promise where the node lands, not the raw
     // index — the dispatch re-validates, so preview and result cannot disagree.
+    //
+    // **The preview is what this pins.** The pipeline re-validates every command
+    // it dispatches, so a raw index of 99 and a validated index of 1 land the
+    // node in the same place: the landing cannot tell the two apart, and a test
+    // that claimed it did would be asserting a difference that is not there.
     const outcome = valueOf(
       run(harness, 'binder.restructure', { ops: [{ action: 'move', node: STORM, newParent: CHAPTER_TWO, index: 99 }] }, CONFIRMED),
     );

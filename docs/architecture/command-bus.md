@@ -118,8 +118,13 @@ interface ActivityEntry {
   affected: { nodeId: string; title: string }[];   // human titles, not bare ids
   tokensSpent?: number;      // agent turns only (gateway ledger feeds it)
   summary: string;           // digest: "moved 3 scenes into Chapter 4"
+  defect?: 'late-undo-capture';  // a defect row: the command named was NOT executed again
 }
 ```
+
+**A defect row is not a second execution.** One entry per executed command is the rule for the *rows that report an effect*, and a defect is not an effect: it is the bus reporting that an apply did something the spec does not allow. The one defect row in v0.1 is the late undo capture — an apply that stashed its undo scope and captured from a timer, an event or a floating continuation, after the dispatch settled. Its row carries the `defect` marker, so a reader that counts command rows can tell it from an execution, and it carries **no undo group**: the dispatch's registration is closed, so the payload was dropped.
+
+**One defect row per dispatch, and the first late capture is the one reported.** The defect is the capture, not how many there were, and a scope stashed on a high-frequency timer would otherwise write a row per capture into a session-lifetime log.
 
 Rendered in the agent panel; exportable as Markdown (agent-harness §5).
 

@@ -10,11 +10,21 @@
  * applies: `taken` re-rolls on collision, and an exhausted re-roll is a throw.
  */
 
-import { newId, type RandomBytes } from '@caotang/ids';
+import { CROCKFORD_ALPHABET, ID_LENGTH, newId, type RandomBytes } from '@caotang/ids';
 
 export type CoherenceIdPrefix = 'f' | 'r' | 'w';
 
-const BODY_PATTERN = '[0-9ABCDEFGHJKMNPQRSTVWXYZ]{10}';
+/**
+ * The body of a coherence id, as a pattern: `ID_LENGTH` Crockford base32
+ * characters.
+ *
+ * **Built from `@caotang/ids`' own constants**, so the check and the mint
+ * cannot drift apart: if the alphabet or the length ever changes there, this
+ * changes with it, and `mintCoherenceId` keeps returning ids `isCoherenceId`
+ * accepts. A second copy of the alphabet here would be a second thing to get
+ * wrong — and the failure would surface at the codec load, not at the mint.
+ */
+const BODY_PATTERN = `[${CROCKFORD_ALPHABET}]{${ID_LENGTH}}`;
 
 /** True when `value` is `<prefix>_` followed by ten Crockford base32 characters. */
 export function isCoherenceId(prefix: CoherenceIdPrefix, value: unknown): value is string {

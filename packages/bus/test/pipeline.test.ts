@@ -697,7 +697,10 @@ describe('§5 — one gesture is one group, one agent turn is one group', () => 
 
   it('reports an inverse it cannot dispatch, instead of skipping it quietly', () => {
     const undo = createUndoStore(); // no dispatch attached
-    const scope = createUndoScope('inverse');
+    // The late-capture reporter is required, so a late capture can never be
+    // dropped with no trace. This scope never captures late, so the reporter
+    // does nothing.
+    const scope = createUndoScope('inverse', () => undefined);
     scope.inverse(cmd({ name: 'view.setActiveDoc', params: { docId: THE_LANDING } }));
     const target = undo.targetFor(cmd({ name: 'doc.write' }), 1);
     undo.register(target, {
@@ -846,14 +849,19 @@ describe('§5 — registration is a pipeline step, not an apply courtesy', () =>
     expect(() => stashed!.inverse(cmd({ name: 'view.setActiveDoc' }))).not.toThrow();
     // The registered group is untouched by the late captures…
     expect(undo.groups()).toHaveLength(1);
+    expect(undo.groups()[0]!.entries).toHaveLength(1);
     expect(undo.groups()[0]!.entries[0]).toMatchObject({ kind: 'compensable', label: 'the one that counts' });
     // …and the log says the late ones arrived and were dropped: the row for the
-    // dispatch, then one row per late capture.
+    // dispatch, then **one defect row for the dispatch** — §8 caps them, so a
+    // scope stashed on a timer cannot write a row per capture.
     const rows = log.entries();
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(2);
     expect(rows[1]?.summary).toContain('after its dispatch settled');
     expect(rows[1]?.command).toBe('doc.write');
-    expect(rows[2]?.summary).toContain('after its dispatch settled');
+    // The defect marker is what tells a defect row from an execution of the
+    // command it names.
+    expect(rows[1]?.defect).toBe('late-undo-capture');
+    expect(rows[0]?.defect).toBeUndefined();
   });
 
   it("skips registration for a view command even when its descriptor claims undo: 'inverse'", () => {

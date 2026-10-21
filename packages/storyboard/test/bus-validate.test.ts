@@ -138,8 +138,9 @@ describe('the derive still runs, because the bus reads the live tree', () => {
       registry,
     );
     // Thrown rather than expected: the shot dispatch below depends on the board
-    // having landed, and a bare `ok: false` assertion would discard the refusal's
-    // code and message — the only diagnostics that say why the derive broke.
+    // having landed, and a bare `expect(board.ok).toBe(true)` would discard the
+    // refusal's code and message — the only diagnostics that say why the derive
+    // broke.
     if (!board.ok) throw new Error(`storyboard.create was refused: ${board.error.code}: ${board.error.message}`);
 
     const shot = execute(

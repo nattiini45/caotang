@@ -480,9 +480,57 @@ describe('binder.setMeta — the inverse of a field the request could not expres
     const before = node(h.state, LANDING).updatedAt;
     const outcome = h.run(cmd({ name: 'binder.setMeta', params: { nodeId: LANDING, patch: { keywords_add: ['SEA'] } } }));
     expect(node(h.state, LANDING).updatedAt).toBe(before);
+    // The inverse itself is asserted, not only the stamp: an inverse that
+    // carried the field it did not write would be a restore entry waiting to
+    // leak, and the stamp assertion above cannot see one.
+    expect(inverseOf(h, outcome.undoGroupId).params).toEqual({
+      nodeId: LANDING,
+      patch: {},
+    });
     const undone = h.undoGroup(outcome.undoGroupId!);
     expect(undone.failures).toEqual([]);
     expect(node(h.state, LANDING).updatedAt).toBe(before);
+  });
+
+  it('stamps nothing on a status the node already holds, and registers a field-less inverse for it', () => {
+    // The other no-write dispatch: the patch names a field, and the field holds
+    // the value the patch asks for. Nothing is written, so nothing is stamped
+    // and nothing is restored — and the inverse says so by naming no field,
+    // which is what lets the bus refuse it as a changes-nothing request
+    // instead of dispatching a redundant write that appends a second row.
+    const h = harness();
+    const before = node(h.state, LANDING).updatedAt;
+    const outcome = h.run(cmd({ name: 'binder.setMeta', params: { nodeId: LANDING, patch: { status: 'draft' } } }));
+    expect(node(h.state, LANDING).status).toBe('draft');
+    expect(node(h.state, LANDING).updatedAt).toBe(before);
+    expect(inverseOf(h, outcome.undoGroupId).params).toEqual({
+      nodeId: LANDING,
+      patch: {},
+    });
+    const undone = h.undoGroup(outcome.undoGroupId!);
+    expect(undone.failures).toEqual([]);
+    expect(node(h.state, LANDING).updatedAt).toBe(before);
+  });
+
+  it('stamps nothing when a keyword is removed and re-added in the same patch', () => {
+    // The net-zero patch: 'grief' is on the node, the patch removes it and adds
+    // it back, and the list it leaves is the list it found. Counting the two
+    // halves would stamp the node and report a change that did not happen.
+    const h = harness();
+    const before = node(h.state, LANDING).updatedAt;
+    const outcome = h.run(cmd({
+      name: 'binder.setMeta',
+      params: { nodeId: LANDING, patch: { keywords_remove: ['grief'], keywords_add: ['grief'] } },
+    }));
+    expect(node(h.state, LANDING).keywords).toEqual(['sea', 'grief']);
+    expect(node(h.state, LANDING).updatedAt).toBe(before);
+    expect(inverseOf(h, outcome.undoGroupId).params).toEqual({
+      nodeId: LANDING,
+      patch: {},
+    });
+    const undone = h.undoGroup(outcome.undoGroupId!);
+    expect(undone.failures).toEqual([]);
+    expect(node(h.state, LANDING).keywords).toEqual(['sea', 'grief']);
   });
 
   it('adds a new keyword and removes exactly that one on undo', () => {
