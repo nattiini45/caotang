@@ -806,8 +806,11 @@ export const docWrite: CommandDescriptor<DocWriteParams> = {
     // both malformed and to an unloaded document reports the defect its caller
     // must fix in params, rather than a state refusal that hides it. The
     // document's *existence* is checked before both — an id no node holds is a
-    // state refusal whatever the body says — so a malformed write to an unknown
-    // id still reports the unknown id first.
+    // state refusal whatever the body says — so a write whose **body or
+    // revision** is malformed and whose id is unknown reports the unknown id
+    // first. A key that is not a declared param is a different refusal, and it
+    // comes first of all: the closed param list is checked before the id
+    // resolves, so a write carrying an undeclared key reports that key.
     const body = requireString(p.value, 'body');
     if (!body.ok) return body;
     const revision = expectedRevision(p.value);
