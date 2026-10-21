@@ -437,16 +437,6 @@ export interface RestoredStamps {
 export interface RestoreTable {
   remember(inverseId: string, stamps: RestoredStamps): void;
   recall(inverseId: string): RestoredStamps | undefined;
-  /**
-   * Whether an entry exists for this id, **without spending it**.
-   *
-   * The two are separate questions: `recall` is what reads the stamp back and
-   * takes the entry with it, and the *decision* to restore a stamp has to be
-   * made before the stamp is read. A dispatch that restores a stamp needs to
-   * know that it is restoring one, and asking `recall` to find out would spend
-   * the entry before `stampFor` could read it.
-   */
-  has(inverseId: string): boolean;
 }
 
 /** The table's capacity: one entry per undoable command, oldest evicted first. */
@@ -467,9 +457,6 @@ export function createRestoreTable(): RestoreTable {
       const found = entries.get(inverseId);
       entries.delete(inverseId);
       return found;
-    },
-    has(inverseId) {
-      return entries.has(inverseId);
     },
   };
 }
