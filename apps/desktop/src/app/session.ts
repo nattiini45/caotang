@@ -227,6 +227,17 @@ const LATER_CHANGES_FIRST =
 const ALREADY_UNDONE = 'That change has already been undone, so there is nothing to take back.';
 
 /**
+ * How long the latch that answers one moment at the front holds.
+ *
+ * A hidden tab coming to the front fires the window's focus and the document's visibilitychange for
+ * the same moment, and the platform does not promise to post the two in the same task: a latch that
+ * cleared on the next macrotask would let the second signal through, and the images would be listed
+ * twice for one moment. The latch re-arms on every signal and holds for this long after the last of
+ * them, so one moment costs one listing however the platform posts it.
+ */
+const ASSET_LISTING_LATCH_MS = 100;
+
+/**
  * What "restore to before this turn" reports: how many later changes went back with it, or why it stopped part way.
  * The session does not decide the words of the second case; the panel shows them as they are.
  */
@@ -679,16 +690,20 @@ export class ProjectSession {
    */
   private watchForAssetChanges(): () => void {
     // A hidden tab coming to the front fires the window's focus and the document's visibilitychange for the same moment. One
-    // moment asks for one listing, so the first signal of it is taken and the ones that follow in the same turn of the event
-    // loop are let through to nothing: the latch clears on the next macrotask, after both of a moment's signals have arrived.
+    // moment asks for one listing, so the first signal of it is taken and the ones that follow are let through to nothing. The
+    // platform does not promise to post the two in the same task, so the latch is not cleared on the next macrotask: it re-arms on
+    // every signal and holds for a moment after the last of them, and one moment costs one listing however it arrives.
     let listing = false;
+    let latch: ReturnType<typeof setTimeout> | null = null;
     const listAgain = (): void => {
       if (!this.assets.hasFolder()) return;
+      if (latch !== null) clearTimeout(latch);
+      latch = setTimeout(() => {
+        listing = false;
+        latch = null;
+      }, ASSET_LISTING_LATCH_MS);
       if (listing) return;
       listing = true;
-      setTimeout(() => {
-        listing = false;
-      }, 0);
       void this.refreshAssetRecords();
     };
     const whenVisible = (): void => {
@@ -700,6 +715,7 @@ export class ProjectSession {
     return () => {
       window.removeEventListener('focus', listAgain);
       document.removeEventListener('visibilitychange', whenVisible);
+      if (latch !== null) clearTimeout(latch);
     };
   }
 

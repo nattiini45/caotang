@@ -97,7 +97,14 @@ test('the images are listed again when the tab comes back to the front', async (
   await moved(session, before);
   expect(await settled(session)).toBe(before + 1);
 
-  // The document's visibility is the other half of the same moment.
+  // The document's visibility is the other half of the same moment, and the latch that answers a moment
+  // holds it: the images are not listed a second time for the moment the focus already answered.
+  const same = session.assetsVersion();
+  fakeDocument.dispatchEvent(new Event('visibilitychange'));
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  expect(session.assetsVersion()).toBe(same);
+
+  // A later moment is its own listing: the document's visibility, once the latch has let go.
   const after = session.assetsVersion();
   fakeDocument.dispatchEvent(new Event('visibilitychange'));
   await moved(session, after);
@@ -133,10 +140,33 @@ test('one moment at the front asks for one listing, not one per signal', async (
 
   // A later moment is its own listing: the latch of the first has let go.
   const after = session.assetsVersion();
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await new Promise((resolve) => setTimeout(resolve, 200));
   fakeWindow.dispatchEvent(new Event('focus'));
   await moved(session, after);
   expect(await settled(session)).toBe(after + 1);
+  await session.close();
+});
+
+test('one moment at the front asks for one listing even when the platform posts its two signals in different tasks', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const session = new ProjectSession({
+    store,
+    projectId: state.manifest.project.id,
+    state,
+    shadow: null,
+  });
+  await session.assets.attach(memoryFolder().handle);
+  await session.refreshAssetRecords();
+  const before = await settled(session);
+
+  // The platform does not promise to post the two signals of one moment in the same task: the second can
+  // arrive after the latch's own macrotask would have run, and the moment still costs one listing.
+  fakeWindow.dispatchEvent(new Event('focus'));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  fakeDocument.dispatchEvent(new Event('visibilitychange'));
+  await moved(session, before);
+  expect(await settled(session)).toBe(before + 1);
   await session.close();
 });
 
