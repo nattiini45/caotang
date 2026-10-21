@@ -23,10 +23,18 @@ export type CoherenceIdPrefix = 'f' | 'r' | 'w';
  * changes with it, and `mintCoherenceId` keeps returning ids `isCoherenceId`
  * accepts. A second copy of the alphabet here would be a second thing to get
  * wrong — and the failure would surface at the codec load, not at the mint.
+ *
+ * **The alphabet is escaped, because it goes into a character class.** The
+ * alphabet as it stands holds no metacharacter, so the pattern is the same
+ * either way — but an unescaped `-` or `]` would build a *valid* regex with
+ * the wrong language, and `isCoherenceId` would then accept ids the mint never
+ * produces. That is a silent mis-validation, not the load failure the
+ * paragraph above promises, so the class is built from an escaped copy.
  */
-const BODY_PATTERN = `[${CROCKFORD_ALPHABET}]{${ID_LENGTH}}`;
+const ESCAPED_ALPHABET = CROCKFORD_ALPHABET.replace(/[\\^\]-]/g, '\\$&');
+const BODY_PATTERN = `[${ESCAPED_ALPHABET}]{${ID_LENGTH}}`;
 
-/** True when `value` is `<prefix>_` followed by ten Crockford base32 characters. */
+/** True when `value` is `<prefix>_` followed by `ID_LENGTH` Crockford base32 characters. */
 export function isCoherenceId(prefix: CoherenceIdPrefix, value: unknown): value is string {
   return typeof value === 'string' && new RegExp(`^${prefix}_${BODY_PATTERN}$`).test(value);
 }

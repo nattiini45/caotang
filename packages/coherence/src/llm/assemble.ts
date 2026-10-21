@@ -13,6 +13,7 @@
 import type { CodexEntry } from '@caotang/store';
 
 import { groupKey } from '../checks/common.js';
+import { isCoherenceId } from '../ids.js';
 import { type Evidence, type FindingSeverity, type LlmCategory, type ModelMeta } from '../model.js';
 import { codePointLength, codePointPrefix } from '../text.js';
 import { identityOf, type UpsertDraft } from '../upsert.js';
@@ -31,7 +32,19 @@ export const SEVERITY_BY_CATEGORY: Readonly<Record<LlmCategory, FindingSeverity>
   'narrative-style': 'info',
 };
 
-const RULE_ID = /^w_[0-9ABCDEFGHJKMNPQRSTVWXYZ]{10}$/;
+/**
+ * A world-rule id, as the shape check the module owns: **`isCoherenceId`**, the
+ * same check `mintCoherenceId`'s output goes through.
+ *
+ * A second copy of the alphabet and the length here would be a second thing to
+ * get wrong — an alphabet or a length that changed in `@caotang/ids` would
+ * split this check from the mint, and the two would disagree about what a
+ * world-rule id is without either of them failing loudly.
+ */
+function isRuleId(value: string): boolean {
+  return isCoherenceId('w', value);
+}
+
 const SEVERITY_RANK: Readonly<Record<FindingSeverity, number>> = { error: 0, warning: 1, info: 2 };
 const MESSAGE_CHARS = 200;
 
@@ -43,7 +56,7 @@ const MESSAGE_CHARS = 200;
  */
 export function normalizeEntity(entity: string, entries: readonly CodexEntry[]): string {
   const trimmed = entity.trim();
-  if (RULE_ID.test(trimmed)) return trimmed;
+  if (isRuleId(trimmed)) return trimmed;
   const wanted = trimmed.toLowerCase();
   const matches = entries.filter((entry) => [entry.name, ...entry.aliases].some((term) => term.trim().toLowerCase() === wanted));
   return matches.length === 1 && matches[0] !== undefined ? matches[0].id : wanted;
