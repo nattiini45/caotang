@@ -211,10 +211,13 @@ describe('a takeover marker left behind by a writer that died', () => {
       expect(error).toBeInstanceOf(ProjectLockedError);
       expect((error as ProjectLockedError).refusal.takeoverPid).toBe(process.pid);
       expect((error as ProjectLockedError).message).toContain(`pid ${process.pid}`);
-      // The writer that marked it is still running, so the refusal does not tell the person to
-      // delete a file that a live takeover is using.
-      expect((error as ProjectLockedError).message).not.toMatch(/delete that file/);
+      // The writer that marked it is still running, so the advice is to wait for it. The way out
+      // is named as well, because a pid is reused and the process that made the marker may have
+      // been gone for a long time.
       expect((error as ProjectLockedError).message).toMatch(/still running/);
+      expect((error as ProjectLockedError).message).toMatch(/wait for it to finish/);
+      expect((error as ProjectLockedError).message).toMatch(/no other Caotang or MCP process is using the folder/);
+      expect((error as ProjectLockedError).message).not.toMatch(/the next writer takes the lock over/);
     } finally {
       clearLock(root);
     }

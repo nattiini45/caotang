@@ -71,6 +71,10 @@ export class ProjectLockedError extends Error {
  * behind. A marker whose body says nothing is a writer that has not said who it is yet, so the
  * age of the marker says it instead: a marker being written right now is a takeover in progress,
  * and one that has been there for a while is an orphan.
+ *
+ * A live pid is not proof that the takeover is running either: a pid is reused, and the process
+ * that has it now may never have made the marker. So the branch that waits also names the way
+ * out, guarded by the folder being free of other writers.
  */
 function markerRecovery(refusal: LockRefusal): string {
   const marker = refusal.takeoverMarker;
@@ -78,7 +82,7 @@ function markerRecovery(refusal: LockRefusal): string {
   const pid = refusal.takeoverPid;
   const named = pid === undefined ? marker : `${marker} (pid ${pid})`;
   if (pid !== undefined && processAlive(pid)) {
-    return `; a takeover of the lock is marked by ${named} in that folder, and the writer that marked it is still running: wait for it to finish`;
+    return `; a takeover of the lock is marked by ${named} in that folder, and the writer that marked it is still running: wait for it to finish — and if it does not finish, and no other Caotang or MCP process is using the folder, delete that file`;
   }
   if (refusal.takeoverFresh === true) {
     return `; a takeover of the lock is marked by ${marker} in that folder, and it is being marked right now: wait a moment for it to finish`;
