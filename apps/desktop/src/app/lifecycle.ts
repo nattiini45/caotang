@@ -452,6 +452,15 @@ export interface ExportedBundle {
   readonly filename: string;
   /** Things the writer should know about this copy, phrased for a person (a cover the page does not hold). */
   readonly notices: readonly string[];
+  /**
+   * The notices about the files this copy does not carry, apart from the other notices.
+   *
+   * They are kept apart because they are what an adopt failure has to report: a file the copy left out
+   * is a file the restored copy lacks, and a file the copy holds as an empty shell is one the restored
+   * copy holds empty — either way the text is not in the copy — while a notice about the cover says
+   * nothing about the files.
+   */
+  readonly omissions: readonly string[];
 }
 
 /**
@@ -508,6 +517,7 @@ async function bundleOf(
   copyFor: 'user' | 'internal' = 'user',
 ): Promise<ExportedBundle> {
   const notices: string[] = [];
+  const omissions: string[] = [];
   const cover = state.manifest.project.coverAssetId;
   if (cover && !(await coverFileHeld(assets, cover))) {
     notices.push(
@@ -521,13 +531,25 @@ async function bundleOf(
     ...(coherence === undefined ? {} : { coherence }),
     copyFor,
   });
-  // A file the load declined because its bytes are not UTF-8 has no text to carry: an internal copy leaves it out, and the
-  // notices name what is missing, so a copy that does not hold every file of the project says so instead of losing one
-  // silently. The writer's own copy refuses rather than getting here (write.ts `WriteOptions.copyFor`).
+  // A file the load declined because its bytes are not UTF-8 has no text to carry, and the copy says what
+  // it does with it rather than losing it silently. The writer's own copy refuses rather than getting here
+  // (write.ts `WriteOptions.copyFor`).
+  //
+  // The two kinds are told apart, because they are not the same thing: a codex file the copy cannot carry
+  // is left out of it altogether, while a document the load held is written as the empty body the browser's
+  // own copy shows — the copy holds that file, and it holds it empty. Saying "leaves it out" of a file the
+  // copy holds would be a lie, and it would hide the hazard: a save of that copy writes the empty text over
+  // the author's file.
   for (const path of exported.omitted) {
-    notices.push(`“${path}” is not UTF-8 text, so this copy leaves it out; the file it was opened from still holds its text`);
+    omissions.push(`“${path}” is not UTF-8 text, so this copy leaves it out; the file it was opened from still holds its text`);
   }
-  return { bytes: exported.bytes, filename: exported.filename, notices };
+  for (const path of exported.emptied) {
+    omissions.push(
+      `“${path}” is not UTF-8 text, so this copy holds an empty file in its place instead of its text; the file it was opened from still holds its text, and a save of this copy over it would write that empty text over it`,
+    );
+  }
+  notices.push(...omissions);
+  return { bytes: exported.bytes, filename: exported.filename, notices, omissions };
 }
 
 /**
@@ -1062,12 +1084,15 @@ export async function answerFolderDiffers(store: RuntimeStore, differs: FolderDi
       opened = await adopt(store, differs.state, log, differs.notices, differs.droppedFields, root, differs.pictures);
     } catch (error) {
       await restoreBrowserCopy(store, differs.projectId, kept.bytes, keptRecords);
-      // The failure is the only moment anyone learns what the safety copy does not hold: a file it omitted is a file the
-      // restored copy lacks, so its notice rides out with the failure. The folder the writer chose still holds the text.
-      if (kept.notices.length === 0) throw error;
+      // The failure is the only moment anyone learns what the safety copy does not hold: a file it left out is a file the
+      // restored copy lacks, and a file it holds as an empty shell is one the restored copy holds empty — either way the text
+      // is not in the copy — so its notice rides out with the failure. The folder the writer chose still holds the text. Only
+      // the notices about the files are said: a cover this browser does not hold says nothing about the files, and it is not
+      // what the writer has to know here.
+      if (kept.omissions.length === 0) throw error;
       const reason = error instanceof Error ? error.message : String(error);
       throw new Error(
-        `${reason} The copy of the project this browser kept, and that was put back, does not hold every file: ${kept.notices.join(' ')}`,
+        `${reason} The copy of the project this browser kept, and that was put back, does not hold every file: ${kept.omissions.join(' ')}`,
         { cause: error },
       );
     }

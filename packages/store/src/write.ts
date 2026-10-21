@@ -119,7 +119,9 @@ export interface WriteOptions {
    * the state holds rather than refusing: a codex file the load could not read
    * has no entry and no text, so the copy leaves it out; a document the load
    * held has no body, so the copy writes the empty body it shows. Both are
-   * named in the report, and the author's own file is never touched.
+   * named in the report — the codex file as one the copy leaves out, the
+   * document as one the copy holds empty — and the author's own file is never
+   * touched.
    */
   copyFor?: 'user' | 'internal';
   /**
@@ -140,10 +142,19 @@ export interface WriteReport {
   dropped: string[];
   /**
    * Files whose text this copy does not carry, because the load declined them
-   * and their bytes are not text. Only an `internal` copy has any
-   * (`WriteOptions.copyFor`); a `user` copy refuses instead of making one.
+   * and their bytes are not text, and which this copy does not hold at all.
+   * Only an `internal` copy has any (`WriteOptions.copyFor`); a `user` copy
+   * refuses instead of making one.
    */
   omitted?: string[];
+  /**
+   * Files this copy holds as an empty shell in place of the author's text: the
+   * load declined them because their bytes are not text, and a copy that left
+   * them out would name a document it does not hold. The text is not carried —
+   * the file is there, and empty, so a save of this copy writes that empty text
+   * over the file it was opened from.
+   */
+  emptied?: string[];
   /** `codex/<id>.md` files removed because no manifest entry owns them any more. */
   pruned: string[];
 }
@@ -323,7 +334,13 @@ export async function writeProject(
           await guard(target);
           await fs.writeAtomic(target, text);
           report.written.push(target);
-          (report.omitted ??= []).push(`${DOCS_DIR}/${declined}`);
+          // The copy holds this file as an empty shell, not the author's text: it says so rather than
+          // claiming to have left the file out, which is what the codex case does.
+          (report.emptied ??= []).push(target);
+          // The file the load declined is the author's own, and it is left where it is. Where that file
+          // is the copy's own file, the copy holds it (empty), so there is nothing left out; where it is
+          // the older name beside it, the copy does not hold that one at all.
+          if (`${DOCS_DIR}/${declined}` !== target) (report.omitted ??= []).push(`${DOCS_DIR}/${declined}`);
           continue;
         }
         // Named by title, in the writer's words: the file is the writer's, and the project folder still holds it.

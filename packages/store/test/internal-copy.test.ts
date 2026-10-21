@@ -24,7 +24,8 @@
  * - an **`internal`** copy mirrors what the state holds: a codex file the load
  *   could not read has no entry and no text, so the copy leaves it out; a
  *   document the load held has no body, so the copy writes the empty body the
- *   browser's own copy shows. Both are named in the report.
+ *   browser's own copy shows. Both are named in the report — the codex file as
+ *   one the copy leaves out, the document as one the copy holds empty.
  *
  * The author's own file is never touched by either: a save in place leaves the
  * file exactly as it is, and an internal copy writes into a copy of its own.
@@ -129,9 +130,11 @@ describe('an internal copy mirrors what the state holds', () => {
     const report = await writeProject(target, loaded.state, { now: T1, copyFor: 'internal' });
 
     expect(await target.exists(STRAY_CODEX)).toBe(false);
-    // The report names every file whose text the copy does not carry — this one
-    // and the held document below.
-    expect(report.omitted).toEqual([STRAY_CODEX, `docs/${HELD}.md`]);
+    // The report names every file whose text the copy does not carry — this one,
+    // and the held document below, which the copy holds empty rather than
+    // leaving out.
+    expect(report.omitted).toEqual([STRAY_CODEX]);
+    expect(report.emptied).toEqual([`docs/${HELD}.md`]);
   });
 
   it('writes the empty body a held document shows, so the copy still loads', async () => {
@@ -141,7 +144,10 @@ describe('an internal copy mirrors what the state holds', () => {
     const target = new MemoryArtifactFs();
     const report = await writeProject(target, loaded.state, { now: T1, copyFor: 'internal' });
 
-    expect(report.omitted).toContain(`docs/${HELD}.md`);
+    // The copy holds the document as an empty shell: it is not left out of the copy.
+    expect(report.emptied).toContain(`docs/${HELD}.md`);
+    expect(report.omitted).not.toContain(`docs/${HELD}.md`);
+    expect(await target.exists(`docs/${HELD}.md`)).toBe(true);
     // The copy names a document, so it has to hold a file for it: a copy whose
     // manifest names a document it does not hold is a fatal load.
     const copied = await readProject(target, { now: T1 });
