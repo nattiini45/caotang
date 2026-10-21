@@ -166,9 +166,19 @@ function mayCreate(step: PlanStep): boolean {
 /**
  * An ambiguous name: `resolveNode` refuses it as `invalid-params` carrying the
  * `candidates` it matched, so a caller can pick one without reading the prose.
+ *
+ * The anchor refusal carries `candidates` too, and it is not one: it names its
+ * own case in `details.askBackCode`, and its candidates may be empty. A name
+ * that matched nothing is not an ambiguous name either, so the array has to hold
+ * at least one candidate to count.
  */
 function isAmbiguousName(error: { readonly code?: CommandErrorCode; readonly details?: CommandErrorDetails }): boolean {
-  return error.code === 'invalid-params' && Array.isArray(error.details?.['candidates']);
+  return (
+    error.code === 'invalid-params' &&
+    error.details?.['askBackCode'] !== 'anchor_unresolvable' &&
+    Array.isArray(error.details?.['candidates']) &&
+    error.details['candidates'].length > 0
+  );
 }
 
 /**
