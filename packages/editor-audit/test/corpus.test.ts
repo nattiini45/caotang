@@ -271,11 +271,19 @@ describe('preflight · the outcome classifier measures the construct, not a stri
   it('a round trip that deletes fence info-string characters is not exact', async () => {
     // remark parses `js title=x` as `lang: 'js', meta: 'title=x'`, and the
     // loader keeps only the language — so a save writes the fence back without
-    // `title=x`: source characters deleted, with no loss warning. A shape that
-    // folds only `lang` reads `code:js` on both sides and the code value is
-    // unchanged, so the classifier would call that round trip exact. It is the
-    // same dropped-attribute class as a link that loses its title, and it must
-    // measure the same way.
+    // `title=x`: source characters deleted.
+    //
+    // **The warning clause is about this loader.** The preflight's own handler
+    // table has no warning channel at all, so the deletion is silent *here* —
+    // while the editor's loader warns `lossy-attribute` for the same fence
+    // (`packages/editor/src/handlers.ts`, pinned by the editor's own degrade
+    // test). The preflight measures the construct from the other side, and the
+    // two agree on what it is.
+    //
+    // A shape that folds only `lang` reads `code:js` on both sides and the
+    // code value is unchanged, so the classifier would call that round trip
+    // exact. It is the same dropped-attribute class as a link that loses its
+    // title, and it must measure the same way.
     const fenced = await measure({
       name: 'fence-meta',
       group: 'caotang',
