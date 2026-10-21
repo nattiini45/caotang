@@ -9,7 +9,14 @@ import { binderRow, createProject } from './support.js';
  * keystroke.
  */
 
-/** Counts the reads of the session log in the page. */
+/**
+ * Counts the reads of the session log in the page.
+ *
+ * The status line reads the log every three seconds to count today's words (Workspace.tsx), and it reads
+ * it through the same path the footer's reading uses — so a count that carried it would be moved by the
+ * page's own poll whether the footer read or not, and a liveness check on it would prove nothing. That
+ * poll is silenced here, and the count is the footer's reading alone.
+ */
 async function countSessionReads(page: Page): Promise<void> {
   await page.addInitScript(() => {
     const original = IDBIndex.prototype.getAll;
@@ -20,6 +27,13 @@ async function countSessionReads(page: Page): Promise<void> {
       if (this.objectStore.name === 'sessions') counter.sessionReads += 1;
       return original.apply(this, args);
     };
+    // The status line's poll of today's words is the page's own reading of the log. Nothing else runs on a
+    // three-second interval, so this one is the page's and only the page's.
+    const timers = window.setInterval.bind(window);
+    window.setInterval = ((handler: TimerHandler, timeout?: number, ...args: unknown[]): number => {
+      if (timeout === 3_000) return 0;
+      return timers(handler as () => void, timeout, ...args);
+    }) as typeof window.setInterval;
   });
 }
 
@@ -44,8 +58,8 @@ test('the footer does not read every project’s session log on every keystroke'
   await goals.getByRole('button', { name: 'Add goal' }).click();
   await expect(goals.locator('.goal-sentence')).toContainText('at least 500 words this week');
 
-  // The goal made the footer read the log, so the counter is known to move: a count that never counted would fail
-  // here instead of hiding behind the bound below.
+  // The counter moves: the page reads the log when it opens, and the footer's goal makes it read the log
+  // again. A count that never counted would fail here instead of hiding behind the bound below.
   await expect.poll(() => sessionReads(page)).toBeGreaterThan(0);
 
   // The scene is written in, and the writes are counted from here on.
@@ -58,11 +72,13 @@ test('the footer does not read every project’s session log on every keystroke'
   await page.keyboard.type('The lamp was lit.');
 
   // The keystrokes are no reason to read every project's log: the reading waits for its window, so a burst of the 17
-  // of them costs one reading and not one each. The count is the page's, so it also carries the readings of the
-  // today's-words poll and of the sitting's own append — a couple, against the 17 a reading per keystroke would be.
+  // of them costs one reading and not one each. The count is the footer's alone — the page's own poll is silenced
+  // above — so a reading per keystroke would be 17.
   const duringBurst = await sessionReads(page);
   expect(duringBurst).toBeLessThanOrEqual(3);
 
-  // And the reading is not silent: once its window has waited out, the burst does get its one reading.
+  // And the reading is not silent: once its window has waited out, the burst does get its one reading. The count is
+  // the footer's alone, so this is the footer's reading and not the page's own poll — which is what a footer that
+  // never read would fail.
   await expect.poll(() => sessionReads(page), { timeout: 5_000 }).toBeGreaterThan(duringBurst);
 });
