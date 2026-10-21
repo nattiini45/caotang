@@ -1281,10 +1281,11 @@ function validateGoals(
       }
     }
     const deadline = goal['deadline'];
-    // `null` is the bus's "no deadline" (goals-progress §4: "null reads as
-    // absent"), so it goes quietly, the way a `resetDay` of null goes: the file
-    // says the same thing as an absent field, and there is nothing to warn
-    // about.
+    // `null` is the bus's "no deadline": the bus reads a deadline of `null` as
+    // an absent one (`descriptors-furniture.ts`, which tests the field against
+    // both `undefined` and `null`), so it goes quietly here too, the way a
+    // `resetDay` of null goes: the file says the same thing as an absent field,
+    // and there is nothing to warn about.
     if (deadline === null) {
       delete goal['deadline'];
     } else if (deadline !== undefined && !isCalendarDay(deadline)) {
