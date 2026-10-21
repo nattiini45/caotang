@@ -52,8 +52,15 @@ describe('parseFdxParagraphs — the typed paragraphs of an FDX file', () => {
   it('reads a file whose closing tags are missing in linear time', () => {
     const truncated = (count: number): string => '<Paragraph Type="Action">'.repeat(count);
     // The best of three runs: the minimum is the measurement a GC pause or a busy CI runner distorted least, so the
-    // bounds below fail on a real complexity regression, not on wall-clock noise. Doubling the input doubles a
-    // linear scan and quadruples a quadratic one, which neither bound survives.
+    // bounds below fail on a real complexity regression, not on wall-clock noise.
+    //
+    // **The bound is measured, not asserted.** Measured on this machine, on 2026-10-21: the linear scan costs 2.6 ms
+    // for 20 000 paragraphs and 4.8 ms for 40 000 — a ratio of 2 (2.15 was the worst of twenty rounds with every core
+    // of the machine busy). The scan this PR replaced, the regex that looked for a closing tag from every opening tag,
+    // cost 493 ms and 2 545 ms on the same two files — a ratio of 5. The relative bound is 3: loose enough that a
+    // loaded machine passes it, tight enough that the quadratic fails it. The bound is a ratio and carries no absolute
+    // term, so a scan that turned quadratic again is caught however fast the machine ran it; the absolute bound beside
+    // it catches a scan that is slow in itself.
     const timed = (count: number): number => {
       const source = truncated(count);
       let best = Number.POSITIVE_INFINITY;
@@ -67,9 +74,11 @@ describe('parseFdxParagraphs — the typed paragraphs of an FDX file', () => {
     parseFdxParagraphs(truncated(1000));
     const small = timed(20_000);
     const large = timed(40_000);
-    expect(large).toBeLessThan(1000);
-    expect(large).toBeLessThan(4 * small + 250);
-  });
+    const ratio = large / small;
+    expect(large, `40 000 paragraphs took ${Math.round(large)} ms`).toBeLessThan(1000);
+    expect(ratio, `${Math.round(large)} ms for 40 000 paragraphs against ${Math.round(small)} ms for 20 000`).toBeLessThan(3);
+    // The timeout is generous, so a scan that turned quadratic again reports the ratio above instead of timing out.
+  }, 30_000);
 });
 
 describe('importFdx — the characters a numeric reference may name', () => {
