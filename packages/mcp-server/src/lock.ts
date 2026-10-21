@@ -198,10 +198,11 @@ export async function acquireProjectLock(root: string, now: Date = new Date()): 
       if (outcome === 'marker-busy') {
         const marker = join(root, LOCK_TAKEOVER_FILE);
         // The writer that won the takeover may have finished it and removed the marker already:
-        // a refusal that names a file that is not there sends the person after nothing.
-        if (!(await stat(marker).then(() => true, () => false))) throw new ProjectLockedError(root, undefined);
-        const markerPid = parseBody(await readFile(marker, 'utf8').catch(() => ''))?.pid;
-        throw new ProjectLockedError(root, undefined, marker, markerPid);
+        // a refusal that names a file that is not there sends the person after nothing. The
+        // marker is read once, and the read is the answer to whether it is still there.
+        const marked = await readFile(marker, 'utf8').catch(() => undefined);
+        if (marked === undefined) throw new ProjectLockedError(root, undefined);
+        throw new ProjectLockedError(root, undefined, marker, parseBody(marked)?.pid);
       }
       throw new ProjectLockedError(root, undefined);
     }
