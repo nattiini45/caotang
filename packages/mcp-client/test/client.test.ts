@@ -545,6 +545,24 @@ describe('what is never contacted', () => {
     expect(dropped).toEqual([]);
   });
 
+  it('writes the record before it hands the reference back, so no saved record names a token that is gone', async () => {
+    const server = fixture();
+    const saved: McpSettings[] = [];
+    const savedAtDrop: (McpSettings | undefined)[] = [];
+    const { client } = makeClient(server, {
+      servers: [serverFor(KEY, 'Authed', { auth: { kind: 'bearer', tokenRef: 'v_AAAAAAAAAA' } })],
+      onChange: (settings) => { saved.push(settings); },
+      // The record as it stood when the reference was handed back.
+      onTokenDropped: () => { savedAtDrop.push(saved.at(-1)); },
+    });
+    const moved = await client.updateServer(KEY, { url: 'https://elsewhere.fixture.test/mcp' });
+    expect(moved.ok).toBe(true);
+    // The record was written first: a saved record that still named the token would leave the
+    // server without the credential its own settings name.
+    expect(savedAtDrop).toHaveLength(1);
+    expect(savedAtDrop[0]?.servers[0]?.auth).toEqual({ kind: 'none' });
+  });
+
   it('does not hand back a reference that another server still names', async () => {
     const server = fixture();
     const dropped: string[] = [];

@@ -581,6 +581,10 @@ class McpClientImpl implements McpClient {
     }
     // A selection narrows what is searched and called; it never changes a pin or a trust grant, so it demotes nothing.
     if (selection !== undefined) server.enabledTools = selection;
+    if (reason !== undefined) await this.demote(key, reason);
+    // The record is written before the credential is handed back: a record that still named a
+    // token that is gone would leave the server without the credential its own settings name.
+    this.persist();
     // A credential the change dropped is handed back, so the vault does not keep a sealed token
     // that nothing names any more. A reference another server still names is not handed back:
     // the settings do not make a reference unique, and that server would lose a credential its
@@ -588,8 +592,6 @@ class McpClientImpl implements McpClient {
     if (before.kind === 'bearer' && (server.auth.kind !== 'bearer' || server.auth.tokenRef !== before.tokenRef)) {
       if (!this.tokenRefNamed(before.tokenRef, key)) this.onTokenDropped(before.tokenRef);
     }
-    if (reason !== undefined) await this.demote(key, reason);
-    this.persist();
     return ok(cloneServer(server));
   }
 
