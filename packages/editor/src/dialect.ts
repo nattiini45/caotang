@@ -868,11 +868,17 @@ export const sniffDialect = (
     spans.push(span);
     spanTotal += span;
   }
-  // The totals have to add up, **and** no per-block span may stall the walk at
-  // zero. The zero half is the one that closes a hole the sum cannot see: a
-  // block that compiles to zero blocks leaves the compiled index standing still
-  // while the walk moves on, and every later pairing would compare a block with
-  // a neighbour's bytes.
+  // The totals have to add up, **and** no per-block span of a type the
+  // comparison does not skip as a degrade may stall the walk at zero. The zero
+  // half is the one that closes a hole the sum cannot see: such a block
+  // compiles to zero blocks and the comparison pairs it anyway, so it would
+  // leave the compiled index standing still while the walk moves on, and every
+  // later pairing would compare a block with a neighbour's bytes.
+  //
+  // **A degrade type's zero is not that case.** A `definition` compiles to no
+  // compiled block at all, and the comparison skips it as a degrade, so a
+  // compiled index that stands still over it is the *right* count for it —
+  // which is why the rule above refuses only the zeros it does not skip.
   //
   // **What the rule does not catch is stated rather than claimed.** Two
   // *offsetting non-zero* span errors satisfy the sum and neither lands on
