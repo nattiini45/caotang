@@ -45,6 +45,7 @@ import {
   createViewState,
   err,
   execute,
+  executeAsync,
   ok,
   type ActivityLog,
   type ApplyContext,
@@ -861,6 +862,47 @@ describe('§5 — registration is a pipeline step, not an apply courtesy', () =>
     // The defect marker is what tells a defect row from an execution of the
     // command it names.
     expect(rows[1]?.defect).toBe('late-undo-capture');
+    expect(rows[0]?.defect).toBeUndefined();
+    // **The first late capture is the one reported.** The two late captures
+    // above are of different kinds, and the row names the kind it carries — so
+    // an implementation that reported the *last* capture would pass every
+    // assertion above and fail this one.
+    expect(rows[1]?.summary).toContain('kind "compensable"');
+    expect(rows[1]?.summary).not.toContain('kind "inverse"');
+    // A defect row belongs to no group: the dispatch's registration is closed,
+    // so the payload it carried was dropped rather than registered.
+    expect(rows[1]?.undoGroupId).toBeUndefined();
+  });
+
+  it('reports a late capture on the async path too, and caps it at one row per dispatch', async () => {
+    // `executeAsync` wires the same reporter as `execute` (pipeline.ts), so the
+    // defect row an async apply's late capture leaves is the same row. The
+    // async path is where a floating continuation is likeliest — an apply that
+    // stashed the scope and captures after its promise resolves — so the cap
+    // and the marker have to hold there too, not only on the synchronous path.
+    const { bus, log, undo } = harness();
+    let stashed: ApplyContext['undo'] | undefined;
+    const registry = registryWith(
+      fake(
+        { agentRisk: 'write-auto', undo: 'compensable' },
+        ((_s: unknown, _p: unknown, context: ApplyContext) => {
+          stashed = context.undo;
+          context.undo.compensate('the one that counts', () => {});
+          return Promise.resolve(null);
+        }),
+      ),
+    );
+
+    const result = await executeAsync(cmd({ name: 'doc.write' }), bus, registry);
+    expect(result.ok).toBe(true);
+    expect(undo.groups()).toHaveLength(1);
+
+    expect(() => stashed!.compensate('too late', () => {})).not.toThrow();
+    const rows = log.entries();
+    expect(rows).toHaveLength(2);
+    expect(rows[1]?.defect).toBe('late-undo-capture');
+    expect(rows[1]?.summary).toContain('kind "compensable"');
+    expect(rows[1]?.undoGroupId).toBeUndefined();
     expect(rows[0]?.defect).toBeUndefined();
   });
 

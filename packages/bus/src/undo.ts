@@ -382,9 +382,20 @@ export interface SettledUndoScope extends UndoScope {
  * pipeline's refusal already prefixes it with `the apply for "<name>" threw: `,
  * so a second naming would only make the surfaced error stutter.
  *
- * `onLateCapture` is **required**, so a late capture can never be dropped with
- * no trace: it is the surface that keeps a defect visible. The pipeline's own
- * reporter writes a §8 defect row.
+ * `onLateCapture` is **required**, so a late capture is always handed to a
+ * surface that can report it. What the requirement buys is that one is
+ * *wired* — not that every late capture leaves a trace:
+ *
+ * - **A reporter that throws is swallowed.** There is no second surface to
+ *   write to (see `capture` below), so a late capture whose reporter fails
+ *   leaves nothing behind.
+ * - **Only the first late capture of a dispatch is reported.** The pipeline's
+ *   own reporter writes one §8 defect row per dispatch and drops the rest the
+ *   same way, and that row says so.
+ *
+ * So the promise is that a late capture *reaches* a surface that can say it
+ * happened — the defect stays visible rather than escaping the bus — and not
+ * that each one leaves a row of its own.
  */
 export function createUndoScope(
   kind: ApplyContext['undo']['kind'],
