@@ -437,6 +437,16 @@ export interface RestoredStamps {
 export interface RestoreTable {
   remember(inverseId: string, stamps: RestoredStamps): void;
   recall(inverseId: string): RestoredStamps | undefined;
+  /**
+   * Whether an entry exists for this id, **without spending it**.
+   *
+   * The two are separate questions: `recall` is what reads the stamp back and
+   * takes the entry with it, and the *decision* to restore a stamp has to be
+   * made before the stamp is read. A dispatch that restores a stamp needs to
+   * know that it is restoring one, and asking `recall` to find out would spend
+   * the entry before `stampFor` could read it.
+   */
+  has(inverseId: string): boolean;
 }
 
 /** The table's capacity: one entry per undoable command, oldest evicted first. */
@@ -458,6 +468,9 @@ export function createRestoreTable(): RestoreTable {
       entries.delete(inverseId);
       return found;
     },
+    has(inverseId) {
+      return entries.has(inverseId);
+    },
   };
 }
 
@@ -475,12 +488,21 @@ function inverseWith<P>(
 }
 
 /**
- * The stamp a node takes in this apply: the one its inverse was minted to restore, when this apply is an inverse, and the
+ * The stamp a dispatch leaves on the node: the one its inverse was minted to restore, when this apply is an inverse, and the
  * clock otherwise. Used by the three inverse-based content commands (`binder.rename`, `binder.setSynopsis`, `binder.setMeta`).
+ *
+ * **An inverse restores its stamp even when it changed nothing**, so `wrote` says what the dispatch did, not what it is: a
+ * dispatch that wrote no value and is no inverse leaves the node's stamp alone (there is nothing to put back and nothing to
+ * stamp), while a dispatch that wrote no value and *is* an inverse still restores the stamp its forward left, because the
+ * forward stamped and the undo has to say so.
  */
-function stampFor(node: TreeNode, commandId: string, clock: CommandClock, restore: RestoreTable): void {
+function stampFor(node: TreeNode, commandId: string, clock: CommandClock, restore: RestoreTable, wrote: boolean): void {
   const recalled = restore.recall(commandId);
-  node.updatedAt = recalled !== undefined ? recalled.updatedAt : new Date(clock.now()).toISOString();
+  if (recalled !== undefined) {
+    node.updatedAt = recalled.updatedAt;
+    return;
+  }
+  if (wrote) node.updatedAt = new Date(clock.now()).toISOString();
 }
 
 /** A document's body write is a content change of its node, so the node is stamped (the same rule as `stampContent`). */
@@ -626,7 +648,7 @@ export function createProjectCommandRegistry(
     const previousTitle = node.title;
     const previousStamp = node.updatedAt;
     node.title = params.title;
-    stampFor(node, context.commandId, clock, restore);
+    stampFor(node, context.commandId, clock, restore, true);
     context.undo.inverse(
       inverseWith('binder.rename', { nodeId: params.nodeId, title: previousTitle }, clock, restore, {
         updatedAt: previousStamp,
@@ -651,7 +673,7 @@ export function createProjectCommandRegistry(
     const previousSynopsis = node.synopsis;
     const previousStamp = node.updatedAt;
     node.synopsis = params.synopsis;
-    stampFor(node, context.commandId, clock, restore);
+    stampFor(node, context.commandId, clock, restore, true);
     context.undo.inverse(
       inverseWith(
         'binder.setSynopsis',
@@ -690,15 +712,27 @@ export function createProjectCommandRegistry(
     // node that held no status at all (a hand-edited or legacy manifest, which
     // the loader tolerates and never defaults) therefore inverts to `null`,
     // which is the same "no status" the manifest's field type states.
-    const wroteStatus = patch.status !== undefined && patch.status !== previousStatus;
-    const wroteLabel = patch.label !== undefined && patch.label !== previousLabel;
-    if (patch.status !== undefined) {
-      if (wroteStatus) inverse.status = previousStatus ?? null;
-      node.status = patch.status;
+    //
+    // **The prior is compared in that same normalized form**, because absent and
+    // `null` are the same value: a node that holds no status holds `null`,
+    // whatever the manifest row says. Comparing against the raw prior instead
+    // would count `undefined → null` as a write — the forward would stamp and
+    // mint a `{ status: null }` inverse, and the undo of that inverse would find
+    // `previousStatus` already `null`, write nothing, and leave the forward's
+    // stamp unrestored while reporting success. The same holds for the label.
+    const wroteStatus = patch.status !== undefined && patch.status !== (previousStatus ?? null);
+    const wroteLabel = patch.label !== undefined && patch.label !== (previousLabel ?? null);
+    const status = patch.status;
+    const label = patch.label;
+    // A field that did not change is not written: the node keeps the value it
+    // holds, and the digest below can honestly say the dispatch left it alone.
+    if (status !== undefined && wroteStatus) {
+      inverse.status = previousStatus ?? null;
+      node.status = status;
     }
-    if (patch.label !== undefined) {
-      if (wroteLabel) inverse.label = previousLabel ?? null;
-      node.label = patch.label;
+    if (label !== undefined && wroteLabel) {
+      inverse.label = previousLabel ?? null;
+      node.label = label;
     }
 
     // `resultingKeywords` in `descriptors.ts` is the shipped definition of what
@@ -750,8 +784,17 @@ export function createProjectCommandRegistry(
     // field-less — nothing was written, so nothing is to be put back — and the
     // bus refuses to dispatch it as a changes-nothing request, and its undo
     // reports that as the honest no-op it now is.
-    if (wroteStatus || wroteLabel || keywordsChanged) {
-      stampFor(node, context.commandId, clock, restore);
+    //
+    // **The stamp is restored even when the replay changed nothing.** The
+    // restore table is what says which dispatch is an inverse of a forward that
+    // stamped: an entry under this dispatch's id exists only for one. The undo
+    // of a keyword reorder is such an inverse whose replay produces the list it
+    // found — the inverse cannot put the order back, which is the append-only
+    // design's own limit — and it still has to put the stamp back, or the
+    // forward's stamp survives the undo while the undo reports success.
+    const wroteSomething = wroteStatus || wroteLabel || keywordsChanged;
+    stampFor(node, context.commandId, clock, restore, wroteSomething);
+    if (wroteSomething) {
       context.undo.inverse(
         inverseWith('binder.setMeta', { nodeId: params.nodeId, patch: inverse }, clock, restore, {
           updatedAt: previousStamp,

@@ -533,6 +533,76 @@ describe('binder.setMeta — the inverse of a field the request could not expres
     expect(node(h.state, LANDING).keywords).toEqual(['sea', 'grief']);
   });
 
+  it('restores the stamp when the undo of a keyword reorder leaves the list it found', () => {
+    // The other arrangement of the same net-zero patch: 'sea' is *first* on the
+    // node, so removing and re-adding it produces ['grief', 'sea'] — a list
+    // that is not the one it found. The forward therefore stamps and mints an
+    // inverse carrying both halves, and the replay produces the list it found
+    // again, so the replay changes no field.
+    //
+    // The replay still has to put the stamp back: the forward stamped, so the
+    // undo restores it. An undo that skipped the restore would leave the
+    // forward's stamp on the node, leak the restore entry until the table
+    // evicted it, and report success — the same silent outcome the empty
+    // inverse is meant to avoid.
+    const h = harness();
+    const before = node(h.state, LANDING).updatedAt;
+    const outcome = h.run(cmd({
+      name: 'binder.setMeta',
+      params: { nodeId: LANDING, patch: { keywords_remove: ['sea'], keywords_add: ['sea'] } },
+    }));
+    expect(node(h.state, LANDING).keywords).toEqual(['grief', 'sea']);
+    expect(node(h.state, LANDING).updatedAt).not.toBe(before);
+    const undone = h.undoGroup(outcome.undoGroupId!);
+    expect(undone.failures).toEqual([]);
+    expect(node(h.state, LANDING).updatedAt).toBe(before);
+  });
+
+  it('writes nothing when a patch clears a status the node does not hold at all', () => {
+    // The legacy shape: a hand-edited or an old manifest row can leave the
+    // `status` key out altogether, and the loader tolerates that and never
+    // defaults it. Such a node holds no status — the same value `null` holds —
+    // so a patch that clears the status writes nothing.
+    //
+    // Counting `undefined → null` as a write would stamp the node and mint a
+    // `{ status: null }` inverse, and the undo of that inverse would find the
+    // status already `null`, write nothing, and leave the forward's stamp
+    // unrestored while reporting success.
+    const h = harness();
+    const legacy = node(h.state, STORM) as { status?: string | null };
+    delete legacy.status;
+    const before = node(h.state, STORM).updatedAt;
+    const outcome = h.run(cmd({ name: 'binder.setMeta', params: { nodeId: STORM, patch: { status: null } } }));
+    expect(node(h.state, STORM).status).toBeUndefined();
+    expect(node(h.state, STORM).updatedAt).toBe(before);
+    expect(inverseOf(h, outcome.undoGroupId).params).toEqual({
+      nodeId: STORM,
+      patch: {},
+    });
+    const undone = h.undoGroup(outcome.undoGroupId!);
+    expect(undone.failures).toEqual([]);
+    expect(node(h.state, STORM).updatedAt).toBe(before);
+  });
+
+  it('writes nothing when a patch clears a label the node does not hold at all', () => {
+    // The same rule for the label, which is the other field a node can hold
+    // "nothing" in.
+    const h = harness();
+    const legacy = node(h.state, STORM) as { label?: string | null };
+    delete legacy.label;
+    const before = node(h.state, STORM).updatedAt;
+    const outcome = h.run(cmd({ name: 'binder.setMeta', params: { nodeId: STORM, patch: { label: null } } }));
+    expect(node(h.state, STORM).label).toBeUndefined();
+    expect(node(h.state, STORM).updatedAt).toBe(before);
+    expect(inverseOf(h, outcome.undoGroupId).params).toEqual({
+      nodeId: STORM,
+      patch: {},
+    });
+    const undone = h.undoGroup(outcome.undoGroupId!);
+    expect(undone.failures).toEqual([]);
+    expect(node(h.state, STORM).updatedAt).toBe(before);
+  });
+
   it('adds a new keyword and removes exactly that one on undo', () => {
     const h = harness();
     const outcome = h.run(cmd({ name: 'binder.setMeta', params: { nodeId: LANDING, patch: { keywords_add: ['salt'] } } }));
