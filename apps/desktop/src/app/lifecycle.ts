@@ -1059,7 +1059,17 @@ export async function answerFolderDiffers(store: RuntimeStore, differs: FolderDi
     try {
       opened = await adopt(store, differs.state, log, differs.notices, differs.droppedFields, root, differs.pictures);
     } catch (error) {
-      await restoreBrowserCopy(store, differs.projectId, kept.bytes, keptRecords, keptHeld);
+      // The copy is put back, and the put-back is best-effort: a failure of it must not hide why the adopt failed.
+      // The writer is told both reasons — the adopt's own, and the put-back's if that failed too — and the adopt's
+      // error is the cause, so nothing about it is lost.
+      const restoreFailure = await restoreBrowserCopy(store, differs.projectId, kept.bytes, keptRecords, keptHeld);
+      if (restoreFailure !== null) {
+        const adoptReason = error instanceof Error ? error.message : String(error);
+        throw new Error(
+          `The folder's version could not be opened (${adoptReason}), and this browser's copy could not be put back (${restoreFailure.message}).`,
+          { cause: error },
+        );
+      }
       throw error;
     }
     holdFolderCopy(opened.session, root, differs.baselineText, differs.digests);
@@ -1094,6 +1104,13 @@ export async function answerFolderDiffers(store: RuntimeStore, differs: FolderDi
  * so the copy leaves it out (a codex file) or writes an empty document in its place (a document) and the record of it is lost. The copy
  * that comes back is the copy that was held. The restored session is closed at once: the caller reports the adopt's failure, and the
  * project is in the projects list as it was. Only the version history of earlier bodies (the store's snapshots) is not in a bundle.
+ *
+ * **Every step of the put-back is tried, whatever the one before it did.** A
+ * write of the held files that fails must not skip the close of the session —
+ * the project's lease would stay held by a session nobody has, and the
+ * projects list would refuse the copy that was just put back — nor the records
+ * the removal forgot. The first failure is the one reported, and `null` when
+ * every step worked.
  */
 async function restoreBrowserCopy(
   store: RuntimeStore,
@@ -1101,25 +1118,43 @@ async function restoreBrowserCopy(
   bytes: Uint8Array,
   records: KeptFolderRecords,
   held: HeldFiles,
-): Promise<void> {
-  if ((await listProjectIds(store)).includes(projectId)) await removeProject(store, projectId);
-  const restored = await importBundle(store, bytes, 'this browser’s copy');
-  // A bundle this browser itself exported should never pause on encodings — a declined file rides the bundle as the
-  // UTF-8 text the load kept for it. If one ever does, leaving every file is the safe answer: nothing is converted.
-  const settled = restored.kind === 'encoding' ? await completeEncodingReview(store, restored.encoding, []) : restored;
-  if (settled.kind === 'opened') {
-    // The bundle carried no record of the files the load declined, so the copy is put back as it was held: the files
+): Promise<Error | null> {
+  let failure: unknown = null;
+  const step = async (what: () => Promise<void>): Promise<void> => {
+    try {
+      await what();
+    } catch (error) {
+      failure = failure ?? error;
+    }
+  };
+  const opened: { session: ProjectSession | null } = { session: null };
+  await step(async () => {
+    if ((await listProjectIds(store)).includes(projectId)) await removeProject(store, projectId);
+    const restored = await importBundle(store, bytes, 'this browser’s copy');
+    // A bundle this browser itself exported should never pause on encodings — a declined file rides the bundle as the
+    // UTF-8 text the load kept for it. If one ever does, leaving every file is the safe answer: nothing is converted.
+    const settled = restored.kind === 'encoding' ? await completeEncodingReview(store, restored.encoding, []) : restored;
+    if (settled.kind !== 'opened') return;
+    opened.session = settled.opened.session;
+    // The bundle carried no record of the files the load held, so the copy is put back as it was held: the files
     // are named again, and the empty document the internal copy wrote in place of a held one is dropped — a document
     // the load held has no text, and a save leaves the author's file where it is.
     applyHeldFiles(settled.opened.session.state, held);
     await writeProjectState(store, settled.opened.session.state, { now: new Date() });
-    await settled.opened.session.close();
-  }
-  // The removal forgot the records the project kept beside it: they are kept again as they were, so the projects list still offers the
-  // folder, a save to it is checked against the folder copy last seen there, and a separate copy is still refused in its original's folder.
-  if (records.folder !== null) await rememberFolder(projectId, records.folder);
-  if (records.folderCopy !== null) await rememberFolderCopy(projectId, records.folderCopy);
-  if (records.copiedFrom !== null) await rememberCopiedFrom(projectId, records.copiedFrom);
+  });
+  // The session is closed whatever the write did: a write that failed must not leave the project's lease held by a
+  // session nobody has, or the projects list would refuse the copy that was just put back.
+  const session = opened.session;
+  if (session !== null) await step(() => session.close());
+  await step(async () => {
+    // The removal forgot the records the project kept beside it: they are kept again as they were, so the projects list still offers the
+    // folder, a save to it is checked against the folder copy last seen there, and a separate copy is still refused in its original's folder.
+    if (records.folder !== null) await rememberFolder(projectId, records.folder);
+    if (records.folderCopy !== null) await rememberFolderCopy(projectId, records.folderCopy);
+    if (records.copiedFrom !== null) await rememberCopiedFrom(projectId, records.copiedFrom);
+  });
+  if (failure === null) return null;
+  return failure instanceof Error ? failure : new Error(String(failure));
 }
 
 /**
