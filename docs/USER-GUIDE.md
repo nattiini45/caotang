@@ -198,7 +198,7 @@ Chinese, Japanese and Korean text prints in the Noto Sans Mono CJK font. Lines b
 
 Emoji print too, in black and white, in the Noto Emoji font: every emoji up to Unicode Emoji 15.1 prints, and an emoji newer than that prints as `?` (see the limits below). A family, a profession, a skin tone, a flag or a keycap prints as one picture and wraps as one character, and copying it out of the PDF gives back what you typed. Caotang loads this font only when a sheet holds an emoji. Skin tones print as the plain figure, since the font has no colour.
 
-**The prompt pack.** The **Prompt pack** tab lists each shot's prompt for one **Target model**, the references it sends, and the codex entries those references came from. Each check links back to its field, and **Fix on the board** opens the field. Export the pack as a **JSON pack**, a **Markdown pack** (with a Consistency block for each shot that names a codex entry, listing the entries that sent references and those that sent none) or a **CSV shot list**. Export is held while a row is an error, so no file is written from a prompt the model would refuse. Caotang never sends anything to a video service. You paste the prompts into your own tool.
+**The prompt pack.** The **Prompt pack** tab lists each shot's prompt for one **Target model**, the references it sends, and the codex entries those references came from. Each check links back to its field, and **Fix on the board** opens the field. Export the pack from the tab as a **JSON pack**, a **Markdown pack** (with a Consistency block for each shot that names a codex entry, listing the entries that sent references and those that sent none) or a **CSV shot list**. Export is held while a row is an error, so no file is written from a prompt the model would refuse. Caotang never sends anything to a video service. You paste the prompts into your own tool. The Compile dialog also offers the pack, as **Prompt pack (video)** (see [Export](#export)): it writes all three files at once.
 
 ## The codex
 
@@ -283,13 +283,14 @@ The formats come in three groups:
 | Media | Dialogue table (`.xlsx`) | The dialogue table as a spreadsheet, with the same columns and rows as the `.csv`. |
 | Media | Shot list (`.xlsx`) | The shot list as a spreadsheet, with the same columns and rows as the `.csv`. |
 | Media | Storyboard contact sheet (`.pdf`) | Each shot as a card with its picture, number, camera details and action, on A4 or US Letter pages. |
+| Media | Prompt pack (video) | The JSON, Markdown and CSV packs for one video model, in one zip. Choose the **Vendor template** it is written for; with none chosen the compile is refused and nothing is written. |
 | Review | Coherence report (`.md` or `.json`) | The findings and the runs, for reading outside Caotang. |
 
 The spreadsheets have one sheet each, with the column names in a bold first row that stays in view as you scroll. Shot numbers, durations and character limits are numbers, so a spreadsheet can sort and add them. Text is kept as text: a cell that starts with `=`, `+`, `-` or `@` is never run as a formula. A cell longer than 32,767 characters is cut, and the compile log says which. The spreadsheets are made in the browser, and nothing is sent anywhere.
 
 The title page's date is the day you compile, in your own time zone, not the UTC day.
 
-The prompt pack is not in this list. It is exported from the storyboard's **Prompt pack** tab.
+With **Prompt pack (video)**, choose the **Vendor template** the pack is written for. A pack recipe keeps that choice, and the compile writes the JSON, Markdown and CSV packs into one zip. The storyboard's **Prompt pack** tab still exports one file at a time.
 
 **Export bundle** is not a compile. It is a full copy of the project, for backups. **Export as Markdown** in the Activity tab writes the activity log as a file.
 

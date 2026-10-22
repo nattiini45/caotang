@@ -78,7 +78,7 @@ interface VideoVendorTemplate {
   1. **JSON pack** — machine-consumable: `{vendor, templateId, shots: [{shotNumber, …normalized fields, mapped fields, references[], bestTake?}]}` — the canonical artifact.
   2. **Markdown pack** — human-readable per-shot cards (spec row, mapped prompt, audio, negatives, reference file names, grammar comments) — the reviewable/printable artifact.
   3. **CSV shot list** — `shotNumber, vendor, mode, duration, aspect, prompt (single line), negativePrompt, refs` — the bulk/external-tool artifact.
-- Same exporter seam: `format: 'promptpack'` + `templateId: <vendor>` joins §2's enum; compile log gains per-shot validation rows (over-cap, out-of-enum, missing references — the §4 acceptance list).
+- Same exporter seam: `format: 'promptpack'` + `templateId: <vendor>` joins §2's enum; the Compile dialog is a second surface for it beside the Prompt pack tab, and it writes all three artifacts as one zip where the tab writes one per click; compile log gains per-shot validation rows (over-cap, out-of-enum, missing references — the §4 acceptance list).
 
 ## 6. Harness tools (the track's rows 20 and 21; the registry holds 26 rows, agent-harness §10)
 

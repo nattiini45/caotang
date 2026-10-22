@@ -227,6 +227,7 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - A cover below 1,400 px on its short side is noted in the compile log. Why: retailer minimums. [delegated]
 - The exporter's gates run before any confirmation is asked, and refusals show inside the Export dialog beside Compile. Why: never ask for a compile that would be refused. [delegated]
 - A prompt pack must name its vendor template, or it is refused. Why: the pack is written for one vendor. [delegated]
+- The Export dialog compiles a prompt pack as the bus does, three files in one zip, and the Prompt pack tab keeps its one file per click. Why: the dialog adds a path without changing the tab; one path for both is a separate change. [delegated]
 - The dialogue table's `charLimit` is a recipe option from 1 to 10,000. Why: localisation length budgets. [delegated]
 - The Export dialog groups formats as Prose, Media and Review. Why: findable formats. [delegated]
 

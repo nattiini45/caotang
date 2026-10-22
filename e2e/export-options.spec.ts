@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
 import { ZIP_ENGINE } from '../packages/store/src/index.js';
+import { VIDEO_TEMPLATE_IDS } from '../packages/video-prompt-pack/src/index.js';
 
 import { binderRow, createProject, waitForSaved } from './support.js';
 
@@ -153,4 +154,31 @@ test('a project that predates recipes offers the Manuscript recipe it holds, and
   ]);
   const text = readFileSync((await download.path()) ?? '', 'utf8');
   expect(text).toContain('The boat came in with the tide.');
+});
+
+test('the prompt pack is offered in the Media group with a vendor choice, and a compile that names no vendor is refused in the dialog', async ({
+  page,
+}) => {
+  await createProject(page, 'Pack Vendor');
+  await manuscriptWithScene(page);
+  await page.getByRole('button', { name: 'Compile…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Export' });
+  // The vendor is asked for only when the pack is chosen.
+  await expect(dialog.getByLabel('Vendor template')).toHaveCount(0);
+  await dialog.getByRole('group', { name: 'Media' }).getByRole('radio', { name: /^Prompt pack \(video\)/ }).check();
+
+  const vendor = dialog.getByLabel('Vendor template');
+  // The seeded Manuscript recipe carries a layout template id; it is not a vendor, so none is chosen.
+  await expect(vendor).toHaveValue('');
+  const values = await vendor.locator('option').evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+  expect(values).toEqual(['', ...VIDEO_TEMPLATE_IDS]);
+
+  let downloaded = false;
+  page.on('download', () => {
+    downloaded = true;
+  });
+  await dialog.getByRole('button', { name: 'Compile', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('vendor template');
+  await expect(dialog).toBeVisible();
+  expect(downloaded).toBe(false);
 });
