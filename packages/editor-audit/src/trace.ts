@@ -17,7 +17,7 @@ import remarkGfm from 'remark-gfm';
 import remarkStringify from 'remark-stringify';
 import { fromProseMirror, remarkProseMirror } from '@handlewithcare/remark-prosemirror';
 import type { Node as PmNode } from '@tiptap/pm/model';
-import type { Root as MdastRoot } from 'mdast';
+import type { Nodes, Root as MdastRoot } from 'mdast';
 import { caotangSchema } from './schema.js';
 import {
   CANONICAL_STRINGIFY_OPTIONS,
@@ -43,8 +43,17 @@ export interface ConstructResult {
   byteIdentical: boolean;
   /** The same comparison without the trailing-newline allowance. */
   byteIdenticalRaw: boolean;
-  /** §3.3's real bar: same input → same bytes, always. */
-  deterministic: boolean;
+  /**
+   * §3.3's real bar: same input → same bytes, always.
+   *
+   * **Three states, not two.** `true` is a measured stable round trip, `false`
+   * is a measured *unstable* one, and `null` is **no measurement at all** — the
+   * round trip threw, or the determinism re-check itself could not be
+   * completed. The last state is a different fact from an unstable construct,
+   * so the field keeps them apart: a row that says `false` says the bytes
+   * changed, and only that.
+   */
+  deterministic: boolean | null;
   /** The construct's fate, derived from the round-trip — not declared. */
   outcome: Class;
   /** A human-readable note for §2's table. Empty when nothing is notable. */
@@ -133,9 +142,6 @@ export const parse = async (body: string): Promise<PmNode> => {
   return processor.stringify(tree) as unknown as PmNode;
 };
 
-/** Strip every character the dialect is allowed to re-spell, for comparison. */
-const semantic = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-
 /**
  * The body projection is newline-terminated — every real `doc.<id>.md` body is,
  * and remark-stringify always emits a trailing `\n`. Comparing a fixture that
@@ -147,11 +153,122 @@ const semantic = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, ''
 const newlineTerminated = (s: string): string => (s.endsWith('\n') ? s : `${s}\n`);
 
 /**
+ * One mdast node's entry in a tree's **shape**: its type, with the attributes
+ * §3.1 declares folded into it — plus, for a fence, the info-string `meta`.
+ *
+ * The attributes are the point of the fold. A task list item that comes back
+ * without its `checked` is the same *kind* of node as the one that went in, so
+ * a shape that counted node types alone would call that round trip exact when
+ * §3.3's own table calls it a degrade. The same is true of a heading that
+ * changed depth and of a link that changed its URL.
+ *
+ * `meta` is folded in for the same reason even though §3.1 declares no
+ * attribute for it: the loader keeps only `lang` and the serializer writes
+ * only `lang`, so a round trip of `` ```js title=x `` deletes `title=x` from
+ * the document. A shape that did not carry `meta` would measure that deletion
+ * exact — the false-exact class this comparison exists to catch.
+ */
+const shapeEntry = (node: Nodes): string => {
+  switch (node.type) {
+    case 'heading':
+      return `heading:${node.depth}`;
+    case 'list':
+      return `list:${node.ordered ? 'ordered' : 'bullet'}:${node.start ?? 1}`;
+    case 'listItem':
+      return `listItem:${node.checked === null || node.checked === undefined ? '' : String(node.checked)}`;
+    case 'link':
+      return `link:${node.url}:${node.title ?? ''}`;
+    case 'image':
+      return `image:${node.url}:${node.alt ?? ''}:${node.title ?? ''}`;
+    case 'code':
+      return `code:${node.lang ?? ''}:${node.meta ?? ''}`;
+    case 'inlineCode':
+      return 'inlineCode';
+    case 'text':
+      return 'text';
+    case 'html':
+      return `html:${node.value}`;
+    default:
+      return node.type;
+  }
+};
+
+/**
+ * A tree's shape: **the things a round trip must not change**.
+ *
+ * Two parts, and the second is the one a stripped string cannot see:
+ *
+ * - the **nodes**, one entry per node in document order, so a mark that was
+ *   lost shows up as a missing entry and a mark that was invented shows up as
+ *   an extra one;
+ * - the **text**, concatenated in document order, so a construct whose
+ *   *characters* were dropped is caught even when its nodes are all still
+ *   there.
+ *
+ * The comparison is on the shape and not on the bytes, because the bytes are
+ * allowed to change: §3.3's exact-content row says *"content lossless; syntax
+ * normalization per §5"*, and §5's own line says *"a loss is not a
+ * re-spelling, and the two are counted separately"*. A `*` bullet list and a
+ * `-` bullet list are the same shape; the second is the first written the way
+ * Caotang writes it.
+ */
+interface TreeShape {
+  readonly entries: string[];
+  readonly text: string;
+}
+
+const treeShape = (tree: MdastRoot): TreeShape => {
+  const entries: string[] = [];
+  const text: string[] = [];
+  const walk = (node: Nodes): void => {
+    entries.push(shapeEntry(node));
+    if (node.type === 'text') {
+      // **A soft break is a space, not a character.** CommonMark says a line
+      // break inside a paragraph is whitespace, so `> first\ncontinued lazily`
+      // and `> first continued lazily` are the same sentence and the one that
+      // comes back from a round trip is the other spelling of it. A *hard*
+      // break is not a text node's newline — it is a `break` node — so it is
+      // not folded here, and a line break the writer asked for is still a line
+      // break. The fold is for text nodes only: a newline inside a code
+      // block's value is content.
+      text.push(node.value.replace(/\n/g, ' '));
+    } else if (
+      node.type === 'inlineCode' ||
+      node.type === 'code' ||
+      node.type === 'html'
+    ) {
+      text.push(node.value);
+    }
+    if ('children' in node) {
+      for (const child of node.children) walk(child as Nodes);
+    }
+  };
+  for (const child of tree.children) walk(child);
+  return { entries, text: text.join('') };
+};
+
+/** Whether the two trees hold the same nodes, in the same order. */
+const sameStructure = (left: TreeShape, right: TreeShape): boolean =>
+  left.entries.length === right.entries.length &&
+  left.entries.every((entry, at) => entry === right.entries[at]);
+
+/** Whether the two trees hold the same text. */
+const sameText = (left: TreeShape, right: TreeShape): boolean => left.text === right.text;
+
+/**
  * Round-trip one corpus entry and report what happened.
  *
- * `outcome` is DERIVED from the bytes, never declared by the fixture — so a
+ * `outcome` is DERIVED from the round trip, never declared by the fixture — so a
  * handler-table bug surfaces as a downgrade in the result table instead of
  * being papered over by a fixture that claims a class it did not achieve.
+ *
+ * **The classes are measured on the construct's shape, not on its letters.**
+ * The comparison this replaces stripped both sides down to `[a-z0-9]`, which
+ * cannot see a mark that was lost — `_gone and _struck_ together_` and
+ * `_gone and struck together_` reduce to the same letters, so a nested
+ * emphasis that §3.3 calls a degrade read as an exact round trip. The same
+ * stripping made a CJK sentence reduce to the empty string, and an empty
+ * string is the "the round-trip produced no content" reading of *lost*.
  */
 export const measure = async (entry: {
   name: string;
@@ -162,38 +279,120 @@ export const measure = async (entry: {
   // `remarkProseMirror` installed, whose compiler returns a PM doc, so asking
   // it for the raw tree would be asking the wrong question.
   const tree = unified().use(remarkParse).use(remarkGfm).parse(entry.input) as MdastRoot;
+  const inputShape = treeShape(tree);
 
   let pm: PmNode | null = null;
   let threw: string | null = null;
+  let determinismFailed: string | null = null;
+  let outputUnreadable: string | null = null;
   let output = '';
+  // `null` until the determinism re-check measures it: a claim that could not
+  // be checked is not a claim that failed, and the row says which it has.
+  let deterministic: boolean | null = null;
+  let outputShape: TreeShape | null = null;
+  // The round trip itself, in a try of its own: a failure here is **the
+  // library throwing**, and it is the only thing that is.
   try {
     pm = await parse(entry.input);
     output = serialize(pm);
   } catch (error) {
     threw = error instanceof Error ? error.message : String(error);
   }
+  // **The two re-checks get their own tries, because their failures are
+  // different facts.** The round trip has already succeeded by the time they
+  // run, so what failed is the instrument's *second reading* of a round trip
+  // that worked — and that is the fact the row states. The determinism
+  // re-check runs the same `parse`/`serialize` again, so the library failing
+  // there is the same library failing a second time: the split does not
+  // change the cause, it changes which fact the row reports.
+  //
+  // **The self-contradictory row was the output re-parse's.** Under one try,
+  // a failure there landed after `deterministic` had already been assigned,
+  // so the row said the library threw *and* that the round trip was
+  // deterministic, and `byteIdentical` went false on bytes that were
+  // identical. A failure in the determinism expression never reached its
+  // assignment, so `deterministic` stayed `false` on that row — what that row
+  // lost was the round trip's own class, not its stability flag.
+  //
+  // **The two re-checks are not reported the same way, and the difference is
+  // the kind of fact.** An output that cannot be read back changes the class
+  // (those are the bytes a save would write, and nobody can read them); a
+  // determinism re-check that could not be completed only adds a note,
+  // because it says nothing about the round trip's own result.
+  //
+  // **The contract of the table is unchanged by the split**: a failure in any
+  // of the three surfaces as a result — a row that says what happened — rather
+  // than as a rejection that kills the batch.
+  if (threw === null) {
+    try {
+      deterministic = output === serialize(await parse(entry.input));
+    } catch (error) {
+      determinismFailed = error instanceof Error ? error.message : String(error);
+    }
+    try {
+      // The output's shape, read back from the bytes a save would write. This is
+      // the comparison that matters: the question is not what the serializer wrote
+      // but what a reader — or the next parse — gets back.
+      outputShape = treeShape(
+        unified().use(remarkParse).use(remarkGfm).parse(output) as MdastRoot,
+      );
+    } catch (error) {
+      outputUnreadable = error instanceof Error ? error.message : String(error);
+    }
+  }
 
   const shape = pm ? pmShapeOf(pm) : { nodes: [], marks: [] };
   const byteIdenticalRaw = threw === null && output === entry.input;
   const byteIdentical = threw === null && output === newlineTerminated(entry.input);
-  const deterministic = threw === null && output === serialize(await parse(entry.input));
 
   let outcome: Class;
-  let note = '';
+  let note: string;
   if (threw !== null) {
     outcome = 'lost';
     note = 'library threw instead of degrading';
-  } else if (byteIdentical) {
-    outcome = 'exact';
-  } else if (semantic(output) === semantic(entry.input)) {
-    outcome = 'exact';
-    note = 'byte-normalized to the canonical dialect spelling';
-  } else if (semantic(output).length === 0) {
+  } else if (outputUnreadable !== null) {
+    // The bytes a save would write cannot be read back, so there is no shape to
+    // compare and nothing a reader would get. That is a loss, and it is **not**
+    // the library throwing — the round trip itself succeeded, and what failed
+    // is the reading of its own output.
+    outcome = 'lost';
+    note = `the round-trip output could not be read back: ${outputUnreadable}`;
+  } else if (
+    outputShape !== null &&
+    outputShape.text.trim() === '' &&
+    inputShape.text.trim() !== ''
+  ) {
+    // **"No content" means no content**, and the emptiness is measured on the
+    // text itself: a sentence in a script that is not Latin-alphabet is not
+    // the empty string, and calling it a loss would report a round trip that
+    // returned every character as one that returned none.
     outcome = 'lost';
     note = 'round-trip produced no content';
+  } else if (
+    outputShape !== null &&
+    sameStructure(inputShape, outputShape) &&
+    sameText(inputShape, outputShape)
+  ) {
+    outcome = 'exact';
+    // The spelling may still have been normalized — §5's dialect owns that,
+    // and §3.3 says a re-spelling is not a loss — so the note says so rather
+    // than leaving the reader to wonder why the bytes moved.
+    note = byteIdentical ? '' : 'byte-normalized to the canonical dialect spelling';
   } else {
     outcome = 'degrade';
-    note = 'content changed across the round-trip';
+    note =
+      outputShape !== null && !sameStructure(inputShape, outputShape)
+        ? 'the round-trip changed the construct’s structure'
+        : 'content changed across the round-trip';
+  }
+  // The determinism re-check is the instrument's own second reading, so its
+  // failure is a **note** and not a class: the round trip's own result stands,
+  // and the row says that the stability claim could not be checked.
+  if (determinismFailed !== null) {
+    note =
+      note === ''
+        ? `the determinism re-check could not be completed: ${determinismFailed}`
+        : `${note}; the determinism re-check could not be completed: ${determinismFailed}`;
   }
 
   return {

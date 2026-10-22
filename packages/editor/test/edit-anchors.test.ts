@@ -388,6 +388,28 @@ describe('§3’s context check — 80%, from both sides', () => {
     expect(contextMatches(truncated, 'ab', { from: 2, to: 6 })).toBe(true);
   });
 
+  it('folds the BMP case pair and not the astral one, and the limit is measured', () => {
+    // **The scope of the shared fold, measured rather than claimed.** The
+    // search folds per code point and this check folds per UTF-16 code unit,
+    // so the two agree for the BMP and do not agree for a cased astral script.
+    // Deseret is the smallest example: U+10400 and U+10428 are the two cases
+    // of the same letter, and their UTF-16 forms share a high surrogate and
+    // differ in the low one.
+    //
+    // The control is the pair the shared fold *does* close: a word-final sigma
+    // against a medial one is the same word on both sides, and the check
+    // passes.
+    const bmp = { ...base(), prefix: 'xς' };
+    expect(contextMatches(bmp, 'xσzz', { from: 2, to: 4 })).toBe(true);
+    // The astral pair: a lone surrogate half lower-cases to itself, so the
+    // low surrogates differ and the check counts the difference as drift. The
+    // search folds the two letters together — this is the disagreement the
+    // shared fold closes for Greek and leaves open for the astral planes, and
+    // the comment in `edit-anchors.ts` says so rather than claiming it fixed.
+    const astral = { ...base(), prefix: 'x\u{10428}' };
+    expect(contextMatches(astral, 'x\u{10400}zz', { from: 3, to: 5 })).toBe(false);
+  });
+
   it('counts only the characters available, right-aligned to the range edge', () => {
     // A 32-character prefix, of which the body now offers only the last 17: text
     // above the target was deleted, so the target moved *up*. The characters that
@@ -566,6 +588,183 @@ describe('§4’s lazy boundary — measured, and with a control', () => {
     expect(at(NEAR_OFFSET_WINDOW - 1).status).toBe('ok');
     expect(at(NEAR_OFFSET_WINDOW + 100).status).toBe('unresolvable');
     expect(locator).toBeTypeOf('function');
+  });
+
+  it('step 4 is not reached when the locator is unbound, and the refusal says which rung is missing', () => {
+    // **The header's rule, measured.** §4's lazy boundary is a boundary only if
+    // the ladder can say when it is short: a ladder that reaches step 3 with
+    // nothing bound refuses and names the reason, and does not skip to step 4.
+    //
+    // This fixture is the one that catches the skip: the anchored text is
+    // **present and unique** in the body, 3000 characters away — so step 2's
+    // window misses it and step 4's global search finds exactly one hit whose
+    // context still matches. Step 4 would answer `ok`, and the result would say
+    // `unique-global` and nothing about the rung that was skipped.
+    //
+    // The same fixture with a locator bound is the **control**: it is the
+    // existing step-4 test above, and it proves the rung answers when the
+    // ladder is whole.
+    bindAnchorLibraries();
+    expect(anchorLibrariesLoaded()).toBe(false);
+
+    const original = baseBody();
+    const anchor = capture(original, SENTENCE);
+    const body = `${filler(3000)}${original}`;
+    expect(Math.abs(body.indexOf(SENTENCE) - anchor.from)).toBeGreaterThan(NEAR_OFFSET_WINDOW);
+
+    const resolution = resolveAnchor(anchor, body, TICK_REVISION + 5);
+    expect(resolution.status).toBe('unresolvable');
+    if (resolution.status === 'unresolvable') {
+      expect(resolution.reason).toMatch(/locator is not loaded/);
+    }
+  });
+
+  it('when step 2 already checked the single occurrence, the refusal says the context failed', () => {
+    // The honest-reason rule in the other direction. The fixture above puts the
+    // only occurrence **outside** the ±2000 window, so step 2 never saw it and
+    // the missing-rung wording is the true one. Here the only occurrence is
+    // **inside** the window: step 2 ran the context check on this exact hit and
+    // it failed. The context was asked and answered "no", so the refusal must
+    // report the context failure — claiming the check "could not run" would
+    // name a rung that is not the one whose answer decided the outcome.
+    bindAnchorLibraries();
+    expect(anchorLibrariesLoaded()).toBe(false);
+
+    const original = baseBody();
+    const anchor = capture(original, SENTENCE);
+    // Both captured context sides are replaced wholesale, the sentence itself
+    // stays unique and moves by only a few characters — well inside the window.
+    const body = `${filler(40, 'a')} ${SENTENCE} ${filler(40, 'b')}`;
+    expect(Math.abs(body.indexOf(SENTENCE) - anchor.from)).toBeLessThan(NEAR_OFFSET_WINDOW);
+
+    const resolution = expectUnresolvable(resolveAnchor(anchor, body, TICK_REVISION + 5));
+    expect(resolution.reason).toMatch(/context around it no longer matches/);
+    expect(resolution.reason).not.toMatch(/the rung that would have checked its context could not run/);
+    // The missing locator is still disclosed — the ladder is **two** rungs short
+    // without it (the fuzzy rung and the unique-global rung, both of which are
+    // gated on it) — but as the addition to the honest primary reason, not as it.
+    expect(resolution.reason).toMatch(/locator is not loaded/);
+  });
+});
+
+describe('§3’s case-insensitive search — offsets in the body’s own coordinates', () => {
+  /** U+0130: the one character whose lower case is *longer* than it is. */
+  const DOTTED_I = 'İ';
+
+  it('resolves to the anchored text when the body carries a character whose lower case is longer', () => {
+    // `toLowerCase()` is not length-preserving: U+0130 lower-cases to `i` plus
+    // U+0307, two code units. So an offset computed on a lower-cased copy of
+    // the body is not an offset into the body, and every hit that follows such
+    // a character is shifted by one code unit per character.
+    //
+    // The shift here is three code units, and the ladder's own context check
+    // does not catch it: the suffix it compares is right-aligned and still
+    // scores 100%. So the rung answers `ok` — with a range that addresses
+    // `target wor` instead of `the target`, and an apply that would replace
+    // the wrong ten characters.
+    const body = `${DOTTED_I.repeat(3)} The target words here`;
+    const anchor: TextAnchor = {
+      // Stale by one character, so step 1 cannot answer and the search has to.
+      from: 5,
+      to: 15,
+      exact: 'the target',
+      prefix: '',
+      suffix: ' words here',
+      capturedRevision: 1,
+    };
+    expect(body.slice(anchor.from, anchor.to)).not.toBe(anchor.exact);
+
+    const resolution = expectOk(resolveAnchor(anchor, body, 2));
+    expect(resolution.method).toBe('near-offset');
+    // The range the rung names has to be the anchored text's own range.
+    expect(resolution.range).toEqual({ from: 4, to: 14 });
+    expect(body.slice(resolution.range.from, resolution.range.to).toLowerCase()).toBe('the target');
+  });
+
+  it('resolves to the anchored text on the global rung too, not only the near one', () => {
+    // The **second** call site of the same search, and the one a fix that only
+    // patched the near-offset rung would miss. The text is 3000 characters away
+    // — past §3's ±2000 window — so the near-offset rung cannot see it and the
+    // unique-global rung answers it. The offsets it names are the same offsets,
+    // and they have to be the body's own.
+    const spy = countingLocator();
+    bindAnchorLibraries(spy.locator);
+
+    const body = `${filler(3000)}${DOTTED_I.repeat(3)} The target words here`;
+    const anchor: TextAnchor = {
+      from: 5,
+      to: 15,
+      exact: 'the target',
+      prefix: '',
+      suffix: ' words here',
+      capturedRevision: 1,
+    };
+
+    const resolution = expectOk(resolveAnchor(anchor, body, 2));
+    expect(resolution.method).toBe('unique-global');
+    expect(resolution.range).toEqual({ from: 3004, to: 3014 });
+    expect(body.slice(resolution.range.from, resolution.range.to).toLowerCase()).toBe('the target');
+  });
+
+  it('matches Greek across a case-only edit, where the fold must unify final sigma with medial sigma', () => {
+    // Unicode's Final_Sigma rule is **contextual**: `Σ` lower-cases to `ς` only
+    // at the end of a word, and a per-character fold cannot see the context —
+    // it always answers `σ`. So `ΛΟΓΟΣ` folds to `λογοσ` while the same word
+    // already spelled lowercase carries `ς`, and a search that folds both sides
+    // per character without normalizing the two sigmas never matches: a
+    // case-only edit of a Greek word would fall through to the step-5 refusal.
+    // The fold normalizes `ς` → `σ` on both sides, which is length-preserving,
+    // so the offsets below are still the body's own.
+    const upper = 'Η πρόταση ΛΟΓΟΣ περιέχει τελικό σίγμα.';
+    const lower = upper.toLowerCase();
+    expect(lower).toContain('λογος');
+    expect(lower.indexOf('λογος')).toBe(upper.indexOf('ΛΟΓΟΣ'));
+
+    // Upper-cased capture, lower-cased body: the whole-string fold of the body
+    // produced the final sigma, the per-character fold of the needle did not.
+    const down = expectOk(resolveAnchor(capture(upper, 'ΛΟΓΟΣ'), lower, TICK_REVISION + 1));
+    expect(down.method).toBe('near-offset');
+    expect(lower.slice(down.range.from, down.range.to)).toBe('λογος');
+
+    // And the mirror: a lower-cased capture resolved against the upper-cased
+    // body, the direction a shouty rewrite of the same sentence produces.
+    const up = expectOk(resolveAnchor(capture(lower, 'λογος'), upper, TICK_REVISION + 1));
+    expect(up.method).toBe('near-offset');
+    expect(upper.slice(up.range.from, up.range.to)).toBe('ΛΟΓΟΣ');
+  });
+
+  it('folds the captured context the same way the search does, so a sigma spelling cannot refuse the rung', () => {
+    // **The other fold, and the one the search's fix left behind.** The search
+    // folds `ς` → `σ` so that `ΛΟΓΟΣ` and `λογος` meet; the context check
+    // compares the captured prefix and suffix against the body's own
+    // characters, and a check that does not apply the same normalization counts
+    // a spelling difference as a mismatch. So an occurrence the unified search
+    // finds is refused by the context check that is supposed to confirm it —
+    // and with the locator unbound nothing after it rescues the answer.
+    //
+    // The fixture is built so the difference **decides** the rung rather than
+    // being absorbed by the floor: the captured context is four characters
+    // long and one of them is the word-final `Σ`, so a single mismatch is a
+    // quarter of the side — and three of four is below §3's 80%. A longer
+    // context would hide the bug behind the floor, which is why the heading is
+    // short.
+    const upper = 'ΕΙΣ ΤΗΝ ΑΓΟΡΑΝ';
+    const lower = 'εις την αγοραν';
+    const anchor = capture(upper, 'ΤΗΝ');
+    expect(anchor.prefix).toBe('ΕΙΣ ');
+    expect(CONTEXT_MATCH_FLOOR * anchor.prefix.length).toBeGreaterThan(3);
+    // The two spellings really are the two spellings: the capture carries the
+    // capital sigma, the body the final one.
+    expect(anchor.prefix).toContain('Σ');
+    expect(lower.slice(0, 4)).toContain('ς');
+    // The locator is unbound, so a refusal would be the end of the ladder and
+    // not a rung that rescues it.
+    bindAnchorLibraries();
+    expect(anchorLibrariesLoaded()).toBe(false);
+
+    const resolution = expectOk(resolveAnchor(anchor, lower, TICK_REVISION + 1));
+    expect(resolution.method).toBe('near-offset');
+    expect(lower.slice(resolution.range.from, resolution.range.to)).toBe('την');
   });
 });
 

@@ -10,13 +10,29 @@
  * the way the spec groups it. `expect` is the spec's *claim* for the
  * construct; the measurement in `trace.ts` is the *fact*, and a claim that
  * disagrees with the fact is a finding, not a test failure to be updated.
+ *
+ * **What `expect` counts is loss, not spelling.** §3.3's own table puts
+ * `heading`, `list`, `emphasis`, `strong`, `link`, `code`, `break` and
+ * `thematicBreak` in the exact column, with the note *"content lossless;
+ * syntax normalization per §5"*, and it says outright that *"a loss is not a
+ * re-spelling, and the two are counted separately"*. So a `*` bullet list, a
+ * setext heading and an HTML entity are all **`exact`**: their content
+ * survives and only their spelling is normalized, and the spelling is §5's
+ * dialect banner's business. An entry is **`degrade`** when the construct
+ * itself is degraded — a table, raw HTML, a footnote, a reference, a task
+ * item, a nested emphasis inside an emphasis — and **`lost`** when the
+ * content is gone.
  */
 
 export interface CorpusEntry {
   name: string;
   group: string;
   input: string;
-  /** §3.3's class for the construct, per the spec's table. */
+  /**
+   * §3.3's class for the construct, per the spec's table: `exact` when the
+   * content survives the round trip (spelling may be normalized), `degrade`
+   * when the construct itself is degraded, `lost` when the content is gone.
+   */
   expect: 'exact' | 'degrade' | 'lost';
   /** The §5 note this fixture pins, quoted from the spec where it matters. */
   note?: string;
@@ -27,40 +43,40 @@ export const STRUCTURAL: CorpusEntry[] = [
   { name: 'paragraph', group: 'structural', input: 'A plain paragraph.', expect: 'exact' },
   { name: 'atx-heading-1', group: 'structural', input: '# Title', expect: 'exact' },
   { name: 'atx-heading-3', group: 'structural', input: '### Third level', expect: 'exact' },
-  { name: 'setext-heading', group: 'structural', input: 'Setext\n======', expect: 'degrade',
-    note: 'setext parses to heading depth 1; serialize is canonical ATX' },
+  { name: 'setext-heading', group: 'structural', input: 'Setext\n======', expect: 'exact',
+    note: 'setext parses to heading depth 1; serialize is canonical ATX — a re-spelling (§5), not a loss' },
   { name: 'thematic-break-stars', group: 'structural', input: '***', expect: 'exact',
     note: '§3.1 horizontal_rule — the scene separator' },
-  { name: 'thematic-break-dashes', group: 'structural', input: '---', expect: 'degrade',
-    note: 'canonical rule is `***` (§5 stringify `rule` option)' },
+  { name: 'thematic-break-dashes', group: 'structural', input: '---', expect: 'exact',
+    note: 'canonical rule is `***` (§5 stringify `rule` option) — a re-spelling, not a loss' },
   { name: 'hard-break-two-space', group: 'structural', input: 'line one  \nline two', expect: 'exact' },
-  { name: 'hard-break-backslash', group: 'structural', input: 'line one\\\nline two', expect: 'degrade',
-    note: '§3.3 break: line-break style normalized (two-space)' },
+  { name: 'hard-break-backslash', group: 'structural', input: 'line one\\\nline two', expect: 'exact',
+    note: '§3.3 break: line-break style normalized (two-space) — a re-spelling, not a loss' },
   { name: 'blockquote', group: 'structural', input: '> quoted', expect: 'exact' },
   { name: 'blockquote-nested', group: 'structural', input: '> outer\n> > inner', expect: 'exact' },
-  { name: 'blockquote-lazy', group: 'structural', input: '> first\ncontinued lazily', expect: 'degrade',
-    note: 'lazy continuation is not a distinct mdast construct' },
+  { name: 'blockquote-lazy', group: 'structural', input: '> first\ncontinued lazily', expect: 'exact',
+    note: 'lazy continuation is not a distinct mdast construct — the text is kept, so a re-spelling, not a loss' },
 ];
 
 /* --- lists (§5: markers ×3, ordered . / ), tight/loose, task, 3-level) --- */
 export const LISTS: CorpusEntry[] = [
   { name: 'bullet-dash', group: 'lists', input: '- one\n- two', expect: 'exact',
     note: 'canonical bullet per §5 `bullet: "-"`' },
-  { name: 'bullet-star', group: 'lists', input: '* one\n* two', expect: 'degrade',
-    note: 'marker normalized to `-`' },
-  { name: 'bullet-plus', group: 'lists', input: '+ one\n+ two', expect: 'degrade',
-    note: 'marker normalized to `-`' },
+  { name: 'bullet-star', group: 'lists', input: '* one\n* two', expect: 'exact',
+    note: 'marker normalized to `-` — a re-spelling (§5), not a loss' },
+  { name: 'bullet-plus', group: 'lists', input: '+ one\n+ two', expect: 'exact',
+    note: 'marker normalized to `-` — a re-spelling (§5), not a loss' },
   { name: 'ordered-dot', group: 'lists', input: '1. one\n2. two', expect: 'exact' },
-  { name: 'ordered-paren', group: 'lists', input: '1) one\n2) two', expect: 'degrade',
-    note: 'delimiter normalized to `.`' },
+  { name: 'ordered-paren', group: 'lists', input: '1) one\n2) two', expect: 'exact',
+    note: 'delimiter normalized to `.` — a re-spelling (§5), not a loss' },
   { name: 'ordered-start-3', group: 'lists', input: '3. three\n4. four', expect: 'exact',
     note: '§3.1 ordered_list `start?: number`' },
   { name: 'list-loose', group: 'lists', input: '- one\n\n- two', expect: 'exact' },
   { name: 'list-nested-3-level', group: 'lists',
     input: '- level one\n  - level two\n    - level three', expect: 'exact',
     note: '§5 `listItemIndent: "one"`' },
-  { name: 'list-tab-indented', group: 'lists', input: '- one\n\t- nested', expect: 'degrade',
-    note: 'tab indentation is not canonical; §5 rejects `listItemIndent: "tab"`' },
+  { name: 'list-tab-indented', group: 'lists', input: '- one\n\t- nested', expect: 'exact',
+    note: 'tab indentation is not canonical; §5 rejects `listItemIndent: "tab"` — a re-spelling, not a loss' },
   { name: 'list-task-item', group: 'lists', input: '- [ ] undone\n- [x] done', expect: 'degrade',
     note: '§3.3: task lists are NOT in the v0.1 schema' },
 ];
@@ -69,10 +85,10 @@ export const LISTS: CorpusEntry[] = [
 export const INLINE: CorpusEntry[] = [
   { name: 'emphasis-underscore', group: 'inline', input: '_emphasized_', expect: 'exact',
     note: 'canonical per §5 `emphasis: "_"`' },
-  { name: 'emphasis-star', group: 'inline', input: '*emphasized*', expect: 'degrade',
-    note: 'normalized to `_`' },
-  { name: 'strong-double-star', group: 'inline', input: '**strong**', expect: 'degrade',
-    note: '§5 `strong: "*"` is a single asterisk — this is a real spec question' },
+  { name: 'emphasis-star', group: 'inline', input: '*emphasized*', expect: 'exact',
+    note: 'normalized to `_` — a re-spelling (§5), not a loss' },
+  { name: 'strong-double-star', group: 'inline', input: '**strong**', expect: 'exact',
+    note: '§5 `strong: "*"` is a single asterisk — this is a real spec question; the content is exact (§3.3)' },
   { name: 'intraword-underscore', group: 'inline', input: 'Kara_thal', expect: 'exact',
     note: '§5: intraword `_` safety — a character name must not become em' },
   { name: 'nested-emphasis', group: 'inline', input: '_outer **inner** outer_', expect: 'exact' },
@@ -83,8 +99,8 @@ export const INLINE: CorpusEntry[] = [
     note: '§3.2 `code` is a MARK for inline code' },
   { name: 'backtick-run-double', group: 'inline', input: '`` a ` b ``', expect: 'exact' },
   { name: 'escape-bracket', group: 'inline', input: 'not \\[a link\\]', expect: 'exact' },
-  { name: 'entity', group: 'inline', input: '&amp; stays literal', expect: 'degrade',
-    note: 'remark applies no smart-punct transforms by default (§5)' },
+  { name: 'entity', group: 'inline', input: '&amp; stays literal', expect: 'exact',
+    note: 'remark applies no smart-punct transforms by default (§5) — the entity is decoded, which is a re-spelling, not a loss' },
 ];
 
 /* --- links / images (§5 incl. the image-in-link composite) --------------- */
@@ -92,11 +108,12 @@ export const LINKS: CorpusEntry[] = [
   { name: 'link-inline', group: 'links', input: '[text](https://example.com)', expect: 'exact' },
   { name: 'link-title', group: 'links', input: '[text](https://example.com "Title")', expect: 'exact',
     note: '§3.2 link `title?: string`' },
-  { name: 'link-angle-url', group: 'links', input: '[text](<https://example.com/a b>)', expect: 'degrade' },
-  { name: 'link-autolink', group: 'links', input: '<https://example.com>', expect: 'degrade',
-    note: 'GFM autolink' },
-  { name: 'link-bare-url', group: 'links', input: 'https://example.com', expect: 'degrade',
-    note: 'GFM autolink literal' },
+  { name: 'link-angle-url', group: 'links', input: '[text](<https://example.com/a b>)', expect: 'exact',
+    note: 'the angle-bracket URL survives the round trip — a re-spelling, not a loss' },
+  { name: 'link-autolink', group: 'links', input: '<https://example.com>', expect: 'exact',
+    note: 'GFM autolink — the link survives, so a re-spelling, not a loss' },
+  { name: 'link-bare-url', group: 'links', input: 'https://example.com', expect: 'exact',
+    note: 'GFM autolink literal — the link survives, so a re-spelling, not a loss' },
   { name: 'link-reference', group: 'links',
     input: '[text][ref]\n\n[ref]: https://example.com', expect: 'degrade',
     note: '§3.3: expanded to a direct link, warning lossy-attribute' },
@@ -115,10 +132,10 @@ export const BLOCKS: CorpusEntry[] = [
   { name: 'code-fenced', group: 'blocks', input: '```js\nconst a = 1;\n```', expect: 'exact',
     note: '§3.1 code_block `language?: string`' },
   { name: 'code-fence-no-lang', group: 'blocks', input: '```\nplain\n```', expect: 'exact' },
-  { name: 'code-fence-longer-than-content', group: 'blocks', input: '````\n```\n````', expect: 'degrade',
-    note: 'canonical fence is three backticks (§5)' },
-  { name: 'code-indented', group: 'blocks', input: '    indented code', expect: 'degrade',
-    note: 'indented code is not a fenced construct' },
+  { name: 'code-fence-longer-than-content', group: 'blocks', input: '````\n```\n````', expect: 'exact',
+    note: 'canonical fence is three backticks (§5) — a re-spelling, not a loss' },
+  { name: 'code-indented', group: 'blocks', input: '    indented code', expect: 'exact',
+    note: 'indented code is not a fenced construct — the code survives, so a re-spelling, not a loss' },
   { name: 'table-gfm', group: 'blocks',
     input: '| a | b |\n| --- | --- |\n| 1 | 2 |', expect: 'degrade',
     note: '§3.3: tables degrade, each row one paragraph line, warning lossy-structure' },
@@ -148,15 +165,15 @@ export const CAOTANG: CorpusEntry[] = [
 /* --- Obsidian spacing samples ------------------------------------------- */
 export const OBSIDIAN_SPACING: CorpusEntry[] = [
   { name: 'obsidian-4space-nested', group: 'obsidian',
-    input: '- one\n    - nested four-space', expect: 'degrade',
-    note: 'Obsidian 4-space imports normalize behind the re-style notice' },
+    input: '- one\n    - nested four-space', expect: 'exact',
+    note: 'Obsidian 4-space imports normalize behind the re-style notice — a re-spelling, not a loss' },
   { name: 'obsidian-loose-list', group: 'obsidian',
     input: '- one\n\n  paragraph in item', expect: 'exact' },
   { name: 'obsidian-blank-line-list', group: 'obsidian',
     input: '- one\n\n- two', expect: 'exact' },
   { name: 'obsidian-heading-spacing', group: 'obsidian',
-    input: '#Title\n\nno space after hash', expect: 'degrade',
-    note: 'Obsidian spacing sample' },
+    input: '#Title\n\nno space after hash', expect: 'exact',
+    note: 'Obsidian spacing sample — the paragraph survives, so a re-spelling, not a loss' },
 ];
 
 export const CORPUS: CorpusEntry[] = [

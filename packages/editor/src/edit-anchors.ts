@@ -190,7 +190,7 @@ export const bindAnchorLibraries = (locator?: BitapLocator): void => {
   pendingLoad = undefined;
 };
 
-/** Whether a locator is bound. `false` means step 3 cannot run and will say so. */
+/** Whether a locator is bound. `false` means steps 3 and 4 cannot run and will say so. */
 export const anchorLibrariesLoaded = (): boolean => boundLocator !== undefined;
 
 /** The bound locator, or `undefined`. For tests that assert *which* one ran. */
@@ -232,7 +232,7 @@ export const preloadAnchorLibraries = async (): Promise<BitapLocator> => {
       const ctor = namespace.diff_match_patch ?? namespace.default?.diff_match_patch ?? namespace.default;
       if (typeof ctor !== 'function') {
         throw new Error(
-          'diff-match-patch@1.0.5 exported none of diff_match_patch, default.diff_match_patch, or a default constructor, so the anchor ladder cannot bind its Bitap locate. Steps 1, 2 and 4 still work; step 3 will refuse with that reason.',
+          'diff-match-patch@1.0.5 exported none of diff_match_patch, default.diff_match_patch, or a default constructor, so the anchor ladder cannot bind its Bitap locate. Steps 1 and 2 still work; steps 3 and 4 will refuse with that reason.',
         );
       }
       const engine = new ctor();
@@ -271,6 +271,40 @@ export const similarity = (left: string, right: string): number => {
 };
 
 /**
+ * The one normalization **both** folds apply: `ς` → `σ` and `ſ` → `s`.
+ *
+ * **The two replacements are 1:1; the lower-casing beside them is not.** A code
+ * unit in, a code unit out holds for `ς` and `ſ`, but `toLowerCase()` can
+ * change the length: U+0130 (İ) lower-cases to `i` plus U+0307 — two code
+ * units from one. The repo's own matching fold keeps U+0130 unfolded for
+ * exactly that reason (`packages/codex/src/text.ts`), so this helper is **not**
+ * length-preserving and is not 1:1 in general.
+ *
+ * **What keeps the offsets exact is the map, not the fold.** `foldWithMap`
+ * pushes `sourceStart` per source code point and `origin` per folded unit, so a
+ * code point that folds to several units still names its own code point for
+ * every one of those units — and `origin` and `sourceStart` stay exact whatever
+ * the fold does to the length.
+ *
+ * **Both folds need it, and the two folds are two halves of the same rung.** The
+ * search folds the body and the needle; the context check folds the captured
+ * prefix and suffix against the body's own characters. A normalization that only
+ * one of them applies is undone by the other: the search finds the occurrence,
+ * and the context check then refuses it over a spelling difference the search
+ * had already folded away — which is how a case-only edit of a Greek word ends up
+ * in step 5's refusal instead of on a rung. (The two folds also differ in
+ * granularity, and the context check's own comment says where that leaves the
+ * astral planes.)
+ *
+ * The two replacements are the ones the repo's own matching fold applies, and
+ * they exist for Unicode's reason:
+ * Final_Sigma is **contextual**, so `Σ` lower-cases to `ς` only at the end of a
+ * word, and a per-character fold cannot see the context.
+ */
+const foldUnit = (character: string): string =>
+  character.toLowerCase().replace(/ς/g, 'σ').replace(/ſ/g, 's');
+
+/**
  * §3's context check, as a ratio over the characters available on one side.
  *
  * `"≥ 80% of prefix and suffix characters match at the corresponding positions,
@@ -291,6 +325,27 @@ export const similarity = (left: string, right: string): number => {
  * lengths), because the missing ones are not mismatches — they are characters that
  * are not there to compare.
  *
+ * **Both sides are folded the way {@link foldUnit} folds them**, so a difference
+ * that is only a spelling — a word-final `Σ` against a `ς` — is not counted as a
+ * mismatch. The floor is a floor on *drift*, and a spelling is not drift: the
+ * search treats the two spellings as the same word, and a context check that
+ * disagreed with the search would refuse an occurrence the rung it belongs to
+ * has just found.
+ *
+ * **What the shared fold closes is the BMP, and the scope is stated rather than
+ * assumed.** The two folds do not fold the same granularity: the search folds
+ * per code point (`for (const character of source)`) while this check folds per
+ * UTF-16 code unit (`charAt`). For a character whose case fold stays inside one
+ * code unit — Latin, Greek, Cyrillic — the two agree, and the spelling
+ * difference above is folded away on both sides. For a **cased astral**
+ * character (the Deseret letters in U+10400–U+1044F and the other cased
+ * astral planes) a lone surrogate half lower-cases to itself, so the two
+ * spellings of an astral letter do not meet here: the search folds them
+ * together and this check compares the surrogate halves and finds them
+ * different. The disagreement the paragraph above describes is closed for the
+ * BMP and **still open** for the astral planes, and this file does not claim
+ * otherwise.
+ *
  * Exported because it is a rule with two sides and §3 states one threshold: a check
  * that can only be observed passing is not a check.
  */
@@ -301,7 +356,7 @@ const contextSidePasses = (expected: string, available: string): boolean => {
   let compared = 0;
   for (let i = Math.max(0, skipped); i < expected.length; i += 1) {
     compared += 1;
-    if (expected.charAt(i).toLowerCase() === available.charAt(i - skipped).toLowerCase()) matched += 1;
+    if (foldUnit(expected.charAt(i)) === foldUnit(available.charAt(i - skipped))) matched += 1;
   }
   return compared > 0 && matched / compared >= CONTEXT_MATCH_FLOOR;
 };
@@ -322,19 +377,98 @@ export const contextMatches = (anchor: TextAnchor, body: string, range: AnchorRa
   return suffix;
 };
 
-/** Every case-insensitive occurrence of `needle` whose **start** lies in `[start, end]`. */
+/**
+ * A string's lower-cased copy, **with the map back to the source** that the copy
+ * does not carry.
+ *
+ * `toLowerCase()` is not length-preserving: U+0130 (İ) lower-cases to `i` plus
+ * U+0307 — two code units — so an index into the lower-cased string is not an
+ * index into the source, and an offset computed on the copy names a different
+ * piece of text than the one that was searched.
+ *
+ * **The folding is one code point at a time**, which is what makes the map
+ * exact: every code point contributes a known run of folded units, and the
+ * source offsets of that run are known too. Folding the whole string in one
+ * call folds the same characters the same way in almost every case but not in
+ * every case — Greek's final sigma is `ς` only at the end of a word — and a
+ * whole-string fold cannot say which source character produced which folded
+ * unit, which is the whole of what the map is for.
+ *
+ * **The context the per-code-point fold cannot see is normalized instead.**
+ * Unicode's Final_Sigma rule makes a whole-string fold of `ΛΟΓΟΣ` end in `ς`
+ * while `Σ` folded in isolation is always `σ`, so the two spellings of the same
+ * word would never meet in a search. Both are replaced on the way in — by
+ * {@link foldUnit}, the same normalization the repo's matching fold applies —
+ * and the two replacements are the length-preserving half of it: `ς` → `σ` and
+ * `ſ` → `s` map one code unit to one code unit. The lower-casing beside them
+ * is not length-preserving, and it does not have to be: `origin` and
+ * `sourceStart` stay exact because the map is built per source code point and
+ * per folded unit, not because the fold is 1:1.
+ *
+ * `sourceStart` carries one entry more than there are code points: the string's
+ * own length, so the end of the last code point is the next entry rather than a
+ * special case.
+ */
+interface FoldedText {
+  /** The lower-cased text. */
+  readonly folded: string;
+  /** The source code point each unit of `folded` came from. */
+  readonly origin: number[];
+  /** Each source code point's offset, plus the string's length at the end. */
+  readonly sourceStart: number[];
+}
+
+const foldWithMap = (source: string): FoldedText => {
+  let folded = '';
+  const origin: number[] = [];
+  const sourceStart: number[] = [];
+  let offset = 0;
+  let index = 0;
+  for (const character of source) {
+    // The two replacements are length-preserving — one code unit in, one code
+    // unit out — so they cannot disturb the map. The lower-casing beside them
+    // can: a code point that folds to several units contributes several
+    // entries to `origin`, and every one of them names the same source code
+    // point.
+    const lowered = foldUnit(character);
+    sourceStart.push(offset);
+    for (let unit = 0; unit < lowered.length; unit += 1) {
+      folded += lowered[unit]!;
+      origin.push(index);
+    }
+    offset += character.length;
+    index += 1;
+  }
+  sourceStart.push(offset);
+  return { folded, origin, sourceStart };
+};
+
+/**
+ * Every case-insensitive occurrence of `needle` whose **start** lies in `[start, end]`.
+ *
+ * **The offsets are the body's own.** A lower-cased copy of the slice is what
+ * the search runs on, and the copy is not the same length as the slice — so the
+ * copy's indices are translated back through the fold's map before they are
+ * used, and the range a hit names is the range of the **source** characters the
+ * hit was made of. A range's length is therefore the matched source length and
+ * not the needle's, which are the same thing only when the needle's own fold
+ * did not change its length.
+ */
 const findOccurrences = (body: string, needle: string, start: number, end: number): AnchorRange[] => {
   if (needle.length === 0) return [];
   const from = Math.max(0, start);
   const to = Math.min(body.length, end);
   if (to < from) return [];
-  const haystack = body.slice(from, to).toLowerCase();
-  const wanted = needle.toLowerCase();
+  const { folded, origin, sourceStart } = foldWithMap(body.slice(from, to));
+  const wanted = foldWithMap(needle).folded;
+  if (wanted.length === 0) return [];
   const found: AnchorRange[] = [];
-  let at = haystack.indexOf(wanted);
+  let at = folded.indexOf(wanted);
   while (at !== -1) {
-    found.push({ from: from + at, to: from + at + needle.length });
-    at = haystack.indexOf(wanted, at + 1);
+    const first = origin[at]!;
+    const last = origin[at + wanted.length - 1]!;
+    found.push({ from: from + sourceStart[first]!, to: from + sourceStart[last + 1]! });
+    at = folded.indexOf(wanted, at + 1);
   }
   return found;
 };
@@ -513,14 +647,8 @@ export const resolveAnchor = (
     if (distinct.length === 1) return ok(distinct[0]!, 'context-fuzzy');
   }
 
-  // Step 4 — unique-global. `"exactly one hit → verify ≥ 80% of prefix/suffix"`.
-  if (global.length === 1) {
-    const only = global[0]!;
-    if (contextMatches(anchor, body, only)) return ok(only, 'unique-global');
-  }
-
-  // Step 5 — exhaustion. Never a fallback, never a guess: name the drift, rank up to
-  // three candidates, and report how far the document moved since capture.
+  // Step 5's pool, built before step 4 because the refusal below hands it to
+  // the ask-back.
   const pool: AnchorCandidate[] = [
     ...global.map((range) => candidateFor(body, range, anchor)),
     ...inWindow.map((range) => candidateFor(body, range, anchor)),
@@ -529,6 +657,23 @@ export const resolveAnchor = (
     pool.push({ from: fuzzy.range.from, to: fuzzy.range.to, similarity: fuzzy.similarity });
   }
 
+  // Step 4 — unique-global. `"exactly one hit → verify ≥ 80% of prefix/suffix"`.
+  //
+  // **Only with the library bound.** §4's lazy boundary is a boundary only if
+  // the ladder can say when it is short: the header's rule is that a ladder
+  // which reaches step 3 with nothing bound refuses and names the reason
+  // rather than skipping to step 4, because step 4 is the rung that gives up
+  // on locality — it is the one an anchor that needed the fuzzy rung most is
+  // least helped by. An `ok` from here would say `unique-global` and nothing
+  // about the rung that was skipped, so the caller could not tell a full-ladder
+  // answer from a one-rung-short one.
+  if (locator !== undefined && global.length === 1) {
+    const only = global[0]!;
+    if (contextMatches(anchor, body, only)) return ok(only, 'unique-global');
+  }
+
+  // Step 5 — exhaustion. Never a fallback, never a guess: name the drift, rank up to
+  // three candidates, and report how far the document moved since capture.
   let reason: string;
   if (global.length === 0) {
     reason =
@@ -539,14 +684,22 @@ export const resolveAnchor = (
     reason = `the anchored text now appears ${global.length} times in this document and no single occurrence matches the captured context with enough of it (${Math.round(
       CONTEXT_MATCH_FLOOR * 100,
     )}% required). Quoting the span to target it is not possible without choosing one of them, so nothing was written.`;
+  } else if (locator === undefined && inWindow.length !== 1) {
+    // **The one occurrence is there, and nothing has said whether it is the
+    // right one.** It lies outside step 2's window — an in-window occurrence
+    // was context-checked by step 2, and a failure there is the honest
+    // "the context no longer matches" below — and the rung that would have
+    // checked it globally is the rung that could not run, so the reason must
+    // not claim the context failed; that question was never asked.
+    reason = `the anchored text appears once in this document, but the rung that would have checked its context could not run, so nothing has confirmed that this occurrence is the one the plan meant.`;
   } else {
     reason = `the anchored text appears once, but the context around it no longer matches (${Math.round(
       CONTEXT_MATCH_FLOOR * 100,
     )}% of the captured prefix and suffix required), so this occurrence is probably not the one the plan meant.`;
   }
-  if (locator === undefined && global.length === 0) {
+  if (locator === undefined) {
     reason +=
-      ' The fuzzy rung could not run because its locator is not loaded, so this answer is one rung short of the ladder; await `preloadAnchorLibraries()` before resolving to get the full ladder.';
+      ' The fuzzy rung and the unique-global rung could not run because the locator is not loaded, so this answer is two rungs short of the ladder; await `preloadAnchorLibraries()` before resolving to get the full ladder.';
   }
   return refuse(reason, pool);
 };
