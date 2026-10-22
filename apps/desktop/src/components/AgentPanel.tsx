@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEv
 import {
   CHECKPOINT_LABEL,
   groupCards,
+  headerLineOf,
   type AskBack,
   type Decision,
   type Finding,
@@ -27,6 +28,7 @@ import type { ProjectSession } from '../app/session.js';
 import { useAssetRecords } from '../media/hooks.js';
 import { ConfirmDialog, EmptyState, useReport, useSession } from './shared.js';
 import { PlanCard } from './PlanCard.js';
+import { TaskChecklist } from './TaskChecklist.js';
 
 export interface AgentPanelProps {
   readonly session: ProjectSession;
@@ -88,6 +90,8 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
   };
 
   const provider = snapshot.providerName;
+  const running = snapshot.turns[snapshot.turns.length - 1];
+  const stepLine = running === undefined || isSettled(running) ? null : headerLineOf(running.tasks);
   return (
     <section className={`agent${open ? ' is-open' : ''}`} aria-label="Agent" data-testid="agent-panel">
       <header className="agent-head">
@@ -99,13 +103,11 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
           {provider === null ? 'No provider' : `Provider: ${providerLabel(provider, snapshot.providerIsDemo)}`}
         </span>
         {/* A card that waits for the writer is the turn's state, not work: the turn is still open, so Send stays off, but the header says so. */}
-        {snapshot.pending !== null ? (
-          <span className="agent-busy" role="status">
-            Waiting for you
-          </span>
-        ) : snapshot.busy ? (
-          <span className="agent-busy" role="status">
-            Working…
+        {/* The step line names where the turn is, with the drawer open or closed. It is a live region that polite-announces a change
+            of step, not each streamed word: the line is derived from the task list and only moves when the step does. */}
+        {snapshot.pending !== null || snapshot.busy ? (
+          <span className="agent-busy" role="status" aria-live="polite" data-testid="agent-step">
+            {stepLine ?? (snapshot.pending !== null ? 'Waiting for you' : 'Working…')}
           </span>
         ) : null}
       </header>
@@ -225,6 +227,7 @@ function TurnBlock({
           {settled ? (turn.report?.status === 'applied' ? 'Applied' : turn.report?.status === 'replied' ? 'Answered' : phaseLabel(turn.phase)) : phaseLabel(turn.phase)}
         </span>
       </header>
+      <TaskChecklist list={turn.tasks} settled={settled} />
       {turn.provider !== null ? <p className="agent-on muted">Ran on {turn.provider}</p> : null}
 
       {!settled && turn.streamed !== '' ? <p className="agent-stream">{turn.streamed}</p> : null}
