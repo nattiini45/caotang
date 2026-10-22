@@ -296,6 +296,7 @@ const ROLE_LEVEL_NAMES: Readonly<Record<ThinkingLevel, string>> = {
   low: 'Low',
   medium: 'Medium',
   high: 'High',
+  xhigh: 'Extra high',
   max: 'Max',
 };
 

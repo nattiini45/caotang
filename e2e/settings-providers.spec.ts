@@ -50,7 +50,7 @@ test('the preset picker lists the registry, enables every preset the sweep found
   await expect(form.getByText(/adapter sends anthropic-dangerous-direct-browser-access/)).toBeVisible();
   await expect(form.getByRole('group', { name: 'Extra request headers (optional)' })).toHaveCount(0);
   // The default model's capability row is read aloud under the field: the published window, native tools, image input, and its thinking levels.
-  await expect(form.getByText('1,000,000-token window · native tools · image input · thinking: low / medium / high / max')).toBeVisible();
+  await expect(form.getByText('1,000,000-token window · native tools · image input · thinking: low / medium / high / xhigh / max')).toBeVisible();
 
   // A workspace-templated preset: the fields it declares build the endpoint, shown as they are typed.
   await picker.selectOption('alibaba');
@@ -153,7 +153,7 @@ test('task roles pin a profile, a model, and — only where the model documents 
   await settings.getByLabel('Chat model').fill('claude-sonnet-5-5');
   const thinking = settings.getByLabel('Chat thinking level');
   await expect(thinking).toBeVisible();
-  await expect(thinking.locator('option')).toHaveText(['Provider default', 'Low', 'Medium', 'High', 'Max']);
+  await expect(thinking.locator('option')).toHaveText(['Provider default', 'Low', 'Medium', 'High', 'Extra high', 'Max']);
   // Drafting pinned to the generic profile: the model documents no levels, so no thinking control is offered at all.
   await settings.getByLabel('Drafting profile').selectOption({ label: 'Local' });
   await settings.getByLabel('Drafting model').fill('test-model');

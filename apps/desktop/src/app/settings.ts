@@ -74,7 +74,7 @@ export interface ContextSettings {
 }
 
 /** The thinking levels a role may pin, as the gateway's normalised set (provider-gateway §3). */
-const THINKING_LEVELS: readonly ThinkingLevel[] = ['off', 'low', 'medium', 'high', 'max'];
+const THINKING_LEVELS: readonly ThinkingLevel[] = ['off', 'low', 'medium', 'high', 'xhigh', 'max'];
 
 /**
  * One role's own assignment (provider-gateway §6): the profile it sends through, and the model and thinking level its
