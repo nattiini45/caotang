@@ -80,7 +80,7 @@ interface VideoVendorTemplate {
   3. **CSV shot list** — `shotNumber, vendor, mode, duration, aspect, prompt (single line), negativePrompt, refs` — the bulk/external-tool artifact.
 - Same exporter seam: `format: 'promptpack'` + `templateId: <vendor>` joins §2's enum; the Compile dialog is a second surface for it beside the Prompt pack tab, and it writes all three artifacts as one zip where the tab writes one per click; compile log gains per-shot validation rows (over-cap, out-of-enum, missing references — the §4 acceptance list).
 
-## 6. Harness tools (the track's rows 20 and 21; the registry holds 26 rows, agent-harness §10)
+## 6. Harness tools (the track's rows 20 and 21; the registry holds 31 rows, agent-harness §10)
 
 The numbers in the first column are the track's own, as the module's spec gives them. They are not positions in the registry, whose count is agent-harness §10's.
 
