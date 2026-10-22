@@ -8,7 +8,7 @@ You need:
 
 - **Node.js** in a version the `engines` field of [package.json](package.json) allows: 22.12 or later in the 22 line, 24, or 26 and later. CI runs Node 24.
 - **pnpm** in the version the `packageManager` field pins. Run `corepack enable` once and the right pnpm is used automatically.
-- **A Chromium-based browser** to run the end-to-end tests and to try folder saves.
+- **A Chromium-based browser** to run the end-to-end tests and to try folder saves. Firefox and WebKit are optional: the nightly workflow runs the suite in them (see the README's Test section).
 
 Then:
 

@@ -336,5 +336,5 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - Node per `engines` (22.12+, 24, 26+); pnpm pinned by `packageManager`. Why: a reproducible toolchain. [delegated]
 - Dependencies, pnpm included, are updated to their latest versions at least weekly; a fixable break is fixed, not deferred. Why: no known holes. [owner]
 - Exact pins for runtime dependencies that need them (editor, exporter, test-only scanners). Why: a floating range can silently absorb a breaking or relicensed release. [delegated]
-- End-to-end tests run in Chromium only. Why: one browser to keep green. [delegated]
+- End-to-end tests gate a pull request in Chromium; Firefox and WebKit run them nightly (and on demand) without the folder-save specs, which skip outside Chromium, and without e2e/unit, the production smoke and the provider specs. Why: those browsers are what writers without File System Access use, and a nightly job tests them without lengthening a pull request. [delegated]
 - Each pull request requires a review before merge. Why: a second reader on every change. [owner]

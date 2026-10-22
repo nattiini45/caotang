@@ -32,7 +32,7 @@ Not in this build yet: the desktop wrapper. [docs/USER-GUIDE.md](docs/USER-GUIDE
 
 - **Node.js.** The `engines` field of [package.json](package.json) allows Node 22.12 or later in the 22 line, 24.x, and 26 or later. Continuous integration tests Node 24 only.
 - **pnpm** 12.9.1, the version the `packageManager` field pins. Run `corepack enable`, and the right pnpm is used.
-- **A browser.** The app is written for current browsers. The end-to-end suite runs in Chromium only. Opening and saving a project folder needs Chrome or Edge, or another Chromium-based browser. Bundles work in any browser.
+- **A browser.** The app is written for current browsers. The end-to-end suite gates every pull request in Chromium, and runs nightly in Firefox and WebKit. Opening and saving a project folder needs Chrome or Edge, or another Chromium-based browser. Bundles work in any browser.
 - **A window at least 960 px wide.** The layout is made for that width, and a narrower window scrolls rather than overlapping. Under 1100 px the toolbar wraps onto a second row and the side panels narrow.
 
 ## Install and run
@@ -105,7 +105,7 @@ The repository's [Pages workflow](.github/workflows/pages.yml) deploys caotang.a
 
 ```sh
 pnpm verify                             # lint, typecheck, and the unit tests in packages/ and test/
-pnpm exec playwright install chromium   # once, for the browser the end-to-end tests use
+pnpm exec playwright install chromium   # once, for the browser the end-to-end tests use (firefox webkit as well, for the nightly projects)
 pnpm test:e2e                           # the Playwright suite
 ```
 
@@ -113,7 +113,7 @@ pnpm test:e2e                           # the Playwright suite
 
 The end-to-end suite starts its own dev server, or, outside CI and when `CAOTANG_E2E_PORT` is not set, reuses one already on port 5173. To run it beside another copy of Caotang, give each checkout its own port with `CAOTANG_E2E_PORT`, for example `CAOTANG_E2E_PORT=5183 pnpm test:e2e`. In PowerShell, set it first with `$env:CAOTANG_E2E_PORT = 5183`. The production preview then uses that port plus 1000, or `CAOTANG_E2E_PREVIEW_PORT` when you set it.
 
-Continuous integration (`.github/workflows/ci.yml`) runs `pnpm verify`, `pnpm build`, packs the MCP server bundle, and runs `pnpm test:e2e`, all on Node 24 in one job.
+Continuous integration (`.github/workflows/ci.yml`) runs `pnpm verify`, `pnpm build`, packs the MCP server bundle, and runs `pnpm test:e2e`, all on Node 24 in one job. A nightly workflow (`.github/workflows/e2e-browsers.yml`, also runnable by hand) runs the suite in Firefox and WebKit in shards: set `CAOTANG_E2E_BROWSERS=all` to get those projects locally, as in `CAOTANG_E2E_BROWSERS=all pnpm exec playwright test --project=webkit`. The specs that need a project folder skip outside Chromium; `e2e/non-chromium-storage.spec.ts` covers the bundle-only path those browsers use.
 
 The scripted demo is [`e2e/demo.spec.ts`](e2e/demo.spec.ts). It builds a three-chapter story, has the agent draft a scene and approve the draft, reorders the story on the corkboard, and compiles it to Word. Then it unzips the file and checks its structure. The demo runs on the built-in demo provider, with no key.
 
