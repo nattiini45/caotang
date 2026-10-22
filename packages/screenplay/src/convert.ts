@@ -32,6 +32,11 @@ export const LINE_ELEMENT_TYPES = [
 
 export type LineElementType = (typeof LINE_ELEMENT_TYPES)[number];
 
+/** Fails to compile when a switch over `LineElementType` misses a case, and throws if one is reached anyway. */
+function assertNever(value: never): never {
+  throw new Error(`Unhandled line element: ${String(value)}`);
+}
+
 /** The text after a conversion, and where the caret goes in it. */
 export interface LineConversion {
   readonly text: string;
@@ -164,6 +169,8 @@ function formsOf(target: LineElementType, words: string, dual: boolean): readonl
       return [{ before: '[[', after: ']]' }];
     case 'page_break':
       return [{ before: '===', after: '' }];
+    default:
+      return assertNever(target);
   }
 }
 
@@ -185,8 +192,12 @@ function needsBlankAbove(target: LineElementType, above: ScreenplayElementType |
     case 'centered':
     case 'page_break':
       return BLOCK_TYPES.has(above);
-    default:
+    case 'parenthetical':
+    case 'dialogue':
+    case 'note':
       return false;
+    default:
+      return assertNever(target);
   }
 }
 
