@@ -7,7 +7,7 @@
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { emojiKey, emojiPrint, emojiStyleOf, firstCodePoint, graphemesOf, isEmojiCluster, isEmojiPicture } from '../src/emoji.js';
+import { emojiKey, emojiLayoutGlyph, emojiPrint, emojiStyleOf, firstCodePoint, graphemesOf, isEmojiCluster, isEmojiPicture } from '../src/emoji.js';
 
 const FAMILY = '👨‍👩‍👧‍👦';
 
@@ -71,10 +71,24 @@ describe('what Noto Emoji prints for a cluster', () => {
     expect(firstCodePoint('👨‍👩‍👧')).toBe('👨');
   });
 
-  it('prints a sequence whole, a sequence the font cannot lay out as its first emoji, and a character it lacks as nothing', () => {
+  it('gives the woman and man walking, kneeling and running facing right one glyph, whatever the skin tone and selectors', () => {
+    const walking = emojiLayoutGlyph('🚶‍♀️‍➡️');
+    expect(walking).toBeGreaterThan(0);
+    for (const form of ['🚶🏽‍♀️‍➡️', '🚶🏿‍♀️‍➡️', '🚶‍♀‍➡', '🚶🏻‍♀‍➡️']) expect(emojiLayoutGlyph(form), form).toBe(walking);
+    // The man draws the same figure, the kneeling and running people their own.
+    expect(emojiLayoutGlyph('🚶‍♂️‍➡️')).toBe(walking);
+    expect(emojiLayoutGlyph('🧎‍♀️‍➡️')).not.toBe(walking);
+    expect(emojiLayoutGlyph('🏃‍♂️‍➡️')).not.toBe(emojiLayoutGlyph('🧎‍♂️‍➡️'));
+    // Fontkit gets the rest right: the person facing right, the unmarked woman, everything else.
+    for (const form of ['🚶‍➡️', '🧑‍🦯‍➡️', '🚶‍♀️', '👨‍👩‍👧', '👍🏽']) expect(emojiLayoutGlyph(form), form).toBeUndefined();
+  });
+
+  it('prints a sequence whole, a sequence newer than the font as its first emoji, and a character it lacks as nothing', () => {
     expect(emojiPrint('👨‍👩‍👧')).toBe('whole');
     expect(emojiPrint('👍🏽')).toBe('whole');
-    expect(emojiPrint('🚶‍♀️‍➡️')).toBe('base');
+    // The people facing right are whole, fontkit's parts notwithstanding; a cat joined to a sloth is no sequence of any Emoji version.
+    expect(emojiPrint('🚶‍♀️‍➡️')).toBe('whole');
+    expect(emojiPrint('🐈‍🦥')).toBe('base');
     // Emoji 16.0 and 17.0: one glyph each, the flag of Sark included.
     for (const cluster of ['🫩', '🫆', '🪾', '🫜', '🪉', '🪏', '🫟', '🇨🇶', '🫪', '🛘']) expect(emojiPrint(cluster), cluster).toBe('whole');
     // A private-use code point is one no font will ever map.

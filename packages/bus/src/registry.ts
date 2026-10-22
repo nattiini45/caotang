@@ -100,6 +100,8 @@ export function buildRegistry(): CommandRegistry {
     // The external-call command. Descriptor only: its apply reaches a server, so the store
     // registry injects it with the client's own descriptor (`ProjectCommandOptions.mcpInvoke`).
     'mcp.invoke': { descriptor: descriptors.mcpInvoke },
+    // The writer's own read of a resource they picked. Descriptor only, like `mcp.invoke`: the store registry injects the client's.
+    'mcp.readResource': { descriptor: descriptors.mcpReadResource },
     // The storyboard module's shot commands (storyboard.md §3.1). Descriptors here; the applies are
     // the store registry's, injected with the storyboard module's guards (`ProjectCommandOptions.shots`).
     'storyboard.create': { descriptor: descriptors.storyboardCreate },

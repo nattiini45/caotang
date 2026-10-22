@@ -86,3 +86,11 @@ export const NOTO_EMOJI_TONED =
   '2qug.6bx.2qsw.6bx.2qug 2qug.6bx.2rrx.6bx.2qug 2qug.6bx.2s4v.6bx.2qug 2quh.6bx.2qsw.6bx.2quh 2quh.6bx.2rrx.6bx.2qug ' +
   '2quh.6bx.2rrx.6bx.2quh 2quh.6bx.2s4v.6bx.2quh 2rwx.6bx.7s4.6bx.2qvf.6bx.2rwx 2rwx.6bx.7s4.6bx.2rwx ' +
   '2rwx.6bx.2qsw.6bx.2rwx 2rwx.6bx.2s4v.6bx.2rwx 2s4x.6bx.2s4y';
+
+/**
+ * The keys fontkit lays out as more than one glyph though the font has one for them, each with the glyph HarfBuzz lays it out
+ * as: the key as in NOTO_EMOJI_SEQUENCES, "=", the glyph id in base 36.
+ */
+export const NOTO_EMOJI_LAYOUT =
+  '2qpv.6bx.7k0.6bx.7tt=1gy 2qpv.6bx.7k2.6bx.7tt=1gy 2rau.6bx.7k0.6bx.7tt=1gz 2rau.6bx.7k2.6bx.7tt=1gz ' +
+  '2rwu.6bx.7k0.6bx.7tt=1gx 2rwu.6bx.7k2.6bx.7tt=1gx';

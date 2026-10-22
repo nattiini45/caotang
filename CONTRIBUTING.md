@@ -42,6 +42,18 @@ After `pnpm build`, run `node tools/check-bundle-size.mjs`. It prints every JS c
 
 The numbers are in one object, `BUDGET`, at the top of `tools/check-bundle-size.mjs`. A heavy library that only some writers use (the MCP SDK, docx, fontkit) is loaded where it is used, not in the first paint. If your change makes the build grow past a number, load the new code on use if you can. If it cannot be, raise the number in the same change: build, run the script, put the new size plus about 5% in `BUDGET`, and say why in the commit. An allow-list entry is debt, and the script fails once its chunk is back under 500 kB, so remove the entry then.
 
+### PDF validation
+
+CI's `pdf-validate` job checks both PDFs the app writes with tools other than the ones that wrote them. To run it yourself after changing a PDF writer:
+
+```sh
+CAOTANG_PDF_OUT=/tmp/pdfs pnpm exec vitest run packages/exporter/test/pdf-write-corpus.test.ts   # writes the corpus and expected.json
+node tools/pdf-validate/check.mjs /tmp/pdfs                                                       # structure, fonts and pdf.js
+node tools/pdf-validate/check.mjs /tmp/pdfs --external                                            # also qpdf, Poppler, Ghostscript and MuPDF
+```
+
+The corpus test writes nothing without `CAOTANG_PDF_OUT`, so `pnpm verify` is unchanged. The external tools are CI-only (`apt-get install qpdf poppler-utils ghostscript mupdf-tools`) and never ship; a tool that is not installed fails the run, and `--external=pdftotext,qpdf` runs just those named. None of this is a check in Acrobat or on paper.
+
 ## The specs are the contract
 
 Each module is specified in [docs/architecture/](docs/architecture/), and the code and the spec agree:

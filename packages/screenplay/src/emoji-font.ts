@@ -7,15 +7,16 @@
  * Its outlines are TrueType, so the subset fontkit cuts is a `glyf` font.
  *
  * Each emoji is one grapheme cluster (emoji.ts). fontkit's layout engine (`font.layout`, the font's GSUB) turns the
- * cluster into one glyph: a ZWJ sequence, a skin-tone sequence, a flag, a keycap, a tag sequence. Every distinct cluster
- * gets its own CID, so the ToUnicode map gives a reader the whole sequence back, even where two clusters share a glyph
- * (👍 and 👍🏽: the font has no skin tones).
+ * cluster into one glyph: a ZWJ sequence, a skin-tone sequence, a flag, a keycap, a tag sequence. The few sequences the font
+ * draws as one glyph that fontkit lays out as parts (🚶‍♀️‍➡️) have the glyph HarfBuzz gives them, from a generated table
+ * (pdf-fonts `emojiLayoutGlyph`), which is used first. Every distinct cluster gets its own CID, so the ToUnicode map gives a
+ * reader the whole sequence back, even where two clusters share a glyph (👍 and 👍🏽: the font has no skin tones).
  *
  * This module is reached only by the dynamic import in render-pdf.ts, and only for a script with an emoji the font
  * prints.
  */
 
-import { cutCidSubset, emojiKey, firstCodePoint, isEmojiCluster, loadFont, type FontLoader } from '@caotang/pdf-fonts';
+import { cutCidSubset, emojiKey, emojiLayoutGlyph, firstCodePoint, isEmojiCluster, loadFont, type FontLoader } from '@caotang/pdf-fonts';
 import type { Font, Glyph } from '@pdf-lib/fontkit';
 
 import type { PdfEmojiFont, PdfEmojiGlyph } from './pdf.js';
@@ -53,14 +54,17 @@ function oneGlyph(font: Font, text: string): Glyph | undefined {
 }
 
 /**
- * The glyph a unit prints with. An emoji cluster is laid out whole, then without its variation selectors, then by its key
- * (emoji.ts), then as its first code point. Any other character is looked up in the cmap.
+ * The glyph a unit prints with. An emoji cluster has its HarfBuzz glyph where fontkit cannot reach it; else it is laid out
+ * whole, then without its variation selectors, then by its key (emoji.ts), then as its first code point. Any other character
+ * is looked up in the cmap.
  */
 export function emojiGlyph(font: Font, unit: string): Glyph | undefined {
   if (!isEmojiCluster(unit)) {
     const code = unit.codePointAt(0) ?? 0;
     return font.hasGlyphForCodePoint(code) ? font.glyphForCodePoint(code) : undefined;
   }
+  const reference = emojiLayoutGlyph(unit);
+  if (reference !== undefined) return font.getGlyph(reference);
   for (const form of [unit, unit.replace(/\uFE0F/g, ''), emojiKey(unit), firstCodePoint(unit)]) {
     const glyph = oneGlyph(font, form);
     if (glyph !== undefined) return glyph;

@@ -24,6 +24,7 @@
 import {
   Client,
   ProtocolError,
+  ProtocolErrorCode,
   SdkError,
   SdkErrorCode,
   SdkHttpError,
@@ -70,6 +71,65 @@ export interface WireAnnotations {
   readonly openWorldHint?: boolean;
 }
 
+/** A resource as a server lists it. Verbatim: the name and the description are the server's own text. */
+export interface WireResource {
+  readonly uri: string;
+  readonly name: string;
+  readonly title?: string;
+  readonly description?: string;
+  readonly mimeType?: string;
+  readonly size?: number;
+}
+
+/** A resource template as a server lists it: an RFC 6570 URI template, and the text that describes it. */
+export interface WireResourceTemplate {
+  readonly uriTemplate: string;
+  readonly name: string;
+  readonly title?: string;
+  readonly description?: string;
+  readonly mimeType?: string;
+}
+
+/** One piece of a resource's contents: text, or a blob, which the client refuses (extensibility §4). */
+export type WireResourceContents =
+  | { readonly uri: string; readonly mimeType?: string; readonly text: string }
+  | { readonly uri: string; readonly mimeType?: string; readonly blob: string };
+
+export interface WireResourceListing {
+  readonly resources: readonly WireResource[];
+  readonly templates: readonly WireResourceTemplate[];
+}
+
+export interface WirePromptArgument {
+  readonly name: string;
+  readonly description?: string;
+  readonly required?: boolean;
+}
+
+/** A prompt as a server lists it. Verbatim, like a tool. */
+export interface WirePrompt {
+  readonly name: string;
+  readonly title?: string;
+  readonly description?: string;
+  readonly arguments?: readonly WirePromptArgument[];
+}
+
+/** What `prompts/get` returned: the messages, verbatim. Nothing in this package sends them anywhere. */
+export interface WirePromptResult {
+  readonly description?: string;
+  readonly messages: readonly { readonly role: 'user' | 'assistant'; readonly content: unknown }[];
+}
+
+/** What the server says it offers beyond tools. A feature it does not advertise is never asked for. */
+export interface WireCapabilities {
+  readonly resources: boolean;
+  readonly prompts: boolean;
+  readonly completions: boolean;
+}
+
+/** What a completion is asked about: a prompt's argument, or a resource template's variable. */
+export type WireCompletionRef = { readonly type: 'ref/prompt'; readonly name: string } | { readonly type: 'ref/resource'; readonly uri: string };
+
 /** A call's result: the content blocks verbatim, and whether the tool reported an error. */
 export interface WireCallResult {
   readonly content: readonly unknown[];
@@ -85,6 +145,14 @@ export interface WireOptions {
 export interface McpWire {
   listTools(options: WireOptions): Promise<readonly WireTool[]>;
   callTool(name: string, args: Record<string, unknown>, options: WireOptions): Promise<WireCallResult>;
+  /** What the server advertises beyond tools. The client asks for resources and prompts only when this says they exist. */
+  capabilities(options: WireOptions): Promise<WireCapabilities>;
+  listResources(options: WireOptions): Promise<WireResourceListing>;
+  readResource(uri: string, options: WireOptions): Promise<readonly WireResourceContents[]>;
+  listPrompts(options: WireOptions): Promise<readonly WirePrompt[]>;
+  getPrompt(name: string, args: Record<string, string>, options: WireOptions): Promise<WirePromptResult>;
+  /** Suggestions for one argument of a prompt or template variable; absent on a wire that cannot ask. */
+  complete?(ref: WireCompletionRef, argument: { readonly name: string; readonly value: string }, options: WireOptions): Promise<readonly string[]>;
   close(): Promise<void>;
 }
 
@@ -146,10 +214,106 @@ class StreamableHttpWire implements McpWire {
     }
   }
 
+  async capabilities(options: WireOptions): Promise<WireCapabilities> {
+    return this.request(options, 'tools', (client) => {
+      const advertised = client.getServerCapabilities();
+      return Promise.resolve({
+        resources: advertised?.resources !== undefined,
+        prompts: advertised?.prompts !== undefined,
+        completions: advertised?.completions !== undefined,
+      });
+    });
+  }
+
+  async listResources(options: WireOptions): Promise<WireResourceListing> {
+    return this.request(options, 'resources', async (client) => {
+      this.require(client, 'resources');
+      // Without `cacheMode: 'refresh'`: the SDK keeps a list for the server's own `ttlMs`, which is what a picker opened twice in a row should do.
+      const requestOptions = { timeout: options.timeoutMs, signal: options.signal };
+      const listed = await client.listResources(undefined, requestOptions);
+      const templates = await client.listResourceTemplates(undefined, requestOptions);
+      return {
+        resources: listed.resources.map((resource) => ({
+          uri: resource.uri,
+          name: resource.name,
+          title: resource.title,
+          description: resource.description,
+          mimeType: resource.mimeType,
+          size: resource.size,
+        })),
+        templates: templates.resourceTemplates.map((template) => ({
+          uriTemplate: template.uriTemplate,
+          name: template.name,
+          title: template.title,
+          description: template.description,
+          mimeType: template.mimeType,
+        })),
+      };
+    });
+  }
+
+  async readResource(uri: string, options: WireOptions): Promise<readonly WireResourceContents[]> {
+    return this.request(options, 'resources', async (client) => {
+      this.require(client, 'resources');
+      const read = await client.readResource({ uri }, { timeout: options.timeoutMs, signal: options.signal });
+      return read.contents.map((content): WireResourceContents => {
+        if ('text' in content && typeof content.text === 'string') return { uri: content.uri, mimeType: content.mimeType, text: content.text };
+        return { uri: content.uri, mimeType: content.mimeType, blob: 'blob' in content && typeof content.blob === 'string' ? content.blob : '' };
+      });
+    });
+  }
+
+  async listPrompts(options: WireOptions): Promise<readonly WirePrompt[]> {
+    return this.request(options, 'prompts', async (client) => {
+      this.require(client, 'prompts');
+      const listed = await client.listPrompts(undefined, { timeout: options.timeoutMs, signal: options.signal });
+      return listed.prompts.map((prompt) => ({
+        name: prompt.name,
+        title: prompt.title,
+        description: prompt.description,
+        arguments: prompt.arguments?.map((argument) => ({ name: argument.name, description: argument.description, required: argument.required })),
+      }));
+    });
+  }
+
+  async getPrompt(name: string, args: Record<string, string>, options: WireOptions): Promise<WirePromptResult> {
+    return this.request(options, 'prompts', async (client) => {
+      this.require(client, 'prompts');
+      const got = await client.getPrompt({ name, arguments: args }, { timeout: options.timeoutMs, signal: options.signal });
+      return { description: got.description, messages: got.messages.map((message) => ({ role: message.role, content: message.content })) };
+    });
+  }
+
+  async complete(ref: WireCompletionRef, argument: { readonly name: string; readonly value: string }, options: WireOptions): Promise<readonly string[]> {
+    return this.request(options, 'completions', async (client) => {
+      this.require(client, 'completions');
+      const done = await client.complete({ ref, argument }, { timeout: options.timeoutMs, signal: options.signal });
+      return done.completion.values;
+    });
+  }
+
   async close(): Promise<void> {
     const client = this.client;
     this.client = undefined;
     if (client !== undefined) await client.close();
+  }
+
+  /** One request on the open connection, with the failure classified. `what` says which feature the request is for, to read a not-found right. */
+  private async request<T>(options: WireOptions, what: 'tools' | 'resources' | 'prompts' | 'completions', run: (client: Client) => Promise<T>): Promise<T> {
+    this.networkFailure = undefined;
+    this.sizeRefusal = undefined;
+    try {
+      return await run(await this.open(options.timeoutMs, options.signal));
+    } catch (error) {
+      throw this.classify(error, options.signal, what);
+    }
+  }
+
+  /** A feature the server did not advertise is never asked for: the wire refuses before anything is sent. */
+  private require(client: Client, feature: 'resources' | 'prompts' | 'completions'): void {
+    if (client.getServerCapabilities()?.[feature] === undefined) {
+      throw new WireError('protocol', `the server does not advertise ${feature}, so Caotang did not ask for them`);
+    }
   }
 
   private async open(timeoutMs: number, signal?: AbortSignal): Promise<Client> {
@@ -196,7 +360,7 @@ class StreamableHttpWire implements McpWire {
     };
   }
 
-  private classify(error: unknown, signal: AbortSignal | undefined): WireError {
+  private classify(error: unknown, signal: AbortSignal | undefined, what: 'tools' | 'resources' | 'prompts' | 'completions' = 'tools'): WireError {
     if (error instanceof WireError) return error;
     // An answer refused for its size is this module's own refusal, and it is the kind the person
     // is told, however deeply the SDK wrapped it on the way out. A refusal inside an event stream
@@ -218,6 +382,13 @@ class StreamableHttpWire implements McpWire {
     // in a message does not.
     const refusal = sizeRefusalOf(error);
     if (refusal !== undefined) return refusal;
+    if (what !== 'tools' && isInputRequired(error)) {
+      return new WireError('input-required', 'the server answered with input_required, which asks for more input than Caotang can give yet');
+    }
+    // A resource the server does not have: `-32002` before 2026-07-28 and `-32602` after it are one answer here.
+    if (what === 'resources' && error instanceof ProtocolError && (error.code === ProtocolErrorCode.ResourceNotFound || error.code === ProtocolErrorCode.InvalidParams)) {
+      return new WireError('not-found', error.message);
+    }
     if (error instanceof SdkError) {
       switch (error.code) {
         case SdkErrorCode.RequestTimeout:
@@ -247,6 +418,16 @@ class StreamableHttpWire implements McpWire {
     if (error instanceof TypeError) return new WireError('network', error.message);
     return new WireError('protocol', errorMessage(error));
   }
+}
+
+/** Whether the server answered `input_required`, however the SDK reported that it could not fulfil it. */
+function isInputRequired(error: unknown): boolean {
+  if (!(error instanceof SdkError)) return false;
+  if (error.code === SdkErrorCode.InputRequiredRoundsExceeded) return true;
+  // With no handler for the embedded request (this client declares none), the SDK cannot fulfil it and says so in these words.
+  if (error.code === SdkErrorCode.CapabilityNotSupported && error.message.startsWith('Cannot fulfil input request')) return true;
+  const data = (error as { data?: unknown }).data;
+  return error.code === SdkErrorCode.UnsupportedResultType && typeof data === 'object' && data !== null && (data as { resultType?: unknown }).resultType === 'input_required';
 }
 
 function isAbort(error: unknown): boolean {

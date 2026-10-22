@@ -33,6 +33,7 @@ import { err, ok, type CommandError, type Result } from './result.js';
 import { SCENE_STYLES } from './command.js';
 import type {
   McpInvokeParams,
+  McpReadResourceParams,
   ShotCreateCommandParams,
   ShotSetMetaCommandParams,
   StoryboardCreateCommandParams,
@@ -1988,5 +1989,47 @@ export const mcpInvoke: CommandDescriptor<McpInvokeParams> = {
     if (!p.ok) return p;
     // The closed key set is all this floor checks. Its shape is the client's to check (see the header).
     return ok(p.value as unknown as McpInvokeParams);
+  },
+};
+
+/**
+ * `mcp.readResource` (extensibility.md §6, §4 rule 8). This is the bus's own floor, like {@link mcpInvoke}'s: the store registry
+ * substitutes the descriptor `@caotang/mcp-client` builds, which also checks the URI against the server's live listing and the
+ * template's pin. What the floor keeps is what no injected descriptor may lose: the name has a row in the closed registry, the key set is
+ * closed, `pickedBy` is the literal `'writer'`, and the command is `agentRisk: 'never'` so no agent can issue it.
+ *
+ * The risk of the read itself is `read` (it changes nothing), but the gate that decides who may issue it is `never`: a resource is
+ * attached by the writer, and an agent that could fetch one would fetch whatever an injected text told it to.
+ */
+export const mcpReadResource: CommandDescriptor<McpReadResourceParams> = {
+  mutates: 'none',
+  agentRisk: 'never',
+  undo: 'none',
+  activitySource: 'mcp',
+  // The apply awaits the server, so the synchronous bus refuses it and `executeAsync` runs it (command-bus §3).
+  asyncApply: true,
+  validate: (params) => {
+    const p = requireDeclaredParams('mcp.readResource', params);
+    if (!p.ok) return p;
+    const serverKey = requireNonBlankString(p.value, 'serverKey', { maxChars: 64 });
+    if (!serverKey.ok) return serverKey;
+    const uri = requireNonBlankString(p.value, 'uri', { maxChars: 4096 });
+    if (!uri.ok) return uri;
+    if (p.value['pickedBy'] !== 'writer') {
+      return err({
+        code: 'permission-denied',
+        message: `a resource is read only when the writer picks it: params.pickedBy must be 'writer', got ${showValue(p.value['pickedBy'])}`,
+        target: 'pickedBy',
+        correctiveHint: 'the agent cannot read a resource; ask the writer to attach it',
+      });
+    }
+    const viaTemplate = optionalNonBlankString(p.value, 'viaTemplate', { maxChars: 4096 });
+    if (!viaTemplate.ok) return viaTemplate;
+    return ok({
+      serverKey: serverKey.value,
+      uri: uri.value,
+      pickedBy: 'writer' as const,
+      ...(viaTemplate.value === undefined ? {} : { viaTemplate: viaTemplate.value }),
+    });
   },
 };

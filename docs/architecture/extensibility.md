@@ -52,12 +52,16 @@ interface McpServerConfig {                       // persisted (app settings)
   enabledTools?: string[];                        // tool names kept enabled; absent = all discovered tools enabled (§8)
   trustReads: boolean;                            // per-server "trusted for reads" opt-in; default false; toggle disabled until first tool-list review completed (§3.4 step 4a)
   pinnedTools: Record<string, ToolPin>;           // qualified tool name → content pin
+  pinnedPrompts?: Record<string, ToolPin>;        // prompt name → content pin; absent until a review has seen a prompt (§3.5)
+  pinnedTemplates?: Record<string, ToolPin>;      // resource-template URI → content pin; absent likewise
   addedAt: string;                                // ISO-8601
 }
 
 interface ToolPin { hash: string; firstSeen: string; lastReviewedAt: string; }
 // hash = SHA-256 over canonical JSON of { toolName, description, inputSchema, annotations } (assumption A4, §12):
 // `annotations` carries the four hint keys the server advertises, and is absent when it advertises none
+// A prompt is pinned over { kind: 'prompt', name, description, arguments } and a resource template over
+// { kind: 'resourceTemplate', uriTemplate, description, mimeType }, each in its own map above, so no tool hash changes (§12 D19)
 
 interface McpServerHealth {                       // runtime only — never persisted
   key: string;
@@ -135,12 +139,35 @@ interface ExternalToolDescriptor {
 }
 
 interface McpToolResult { content: McpContent[]; isError: boolean; }   // verbatim MCP content blocks (text | image | resource, per the MCP content schema); untrusted input (§4)
-type McpError = { code: 'unreachable' | 'pin_mismatch' | 'schema' | 'timeout' | 'server_error'; message: string };   // maps into the CommandError envelope (§6)
+type McpError = { code: 'unreachable' | 'pin_mismatch' | 'schema' | 'timeout' | 'server_error' | 'not_found' | 'input_required'; message: string };   // maps into the CommandError envelope (§6)
 ```
+
+**Resources and prompts (read surface).** The client lists them beside the tools and reads nothing:
+
+```ts
+interface McpClient {                                   // …existing members, and:
+  listResources(key: string): ExternalResourceDescriptor[];   // resources, then templates (`template: true`)
+  listPrompts(key: string): ExternalPromptDescriptor[];
+  catalogStatus(key: string): { resourcesUnavailable?: string; promptsUnavailable?: string; cut: boolean };
+  refreshCatalog(key: string): Promise<void>;           // the picker's refresh; the wire keeps a list for the server's ttlMs
+}
+interface ExternalResourceDescriptor {                  // description VERBATIM — untrusted text, like a tool's
+  serverKey: string; serverName: string; uri: string; template: boolean; name: string; description: string; mimeType?: string;
+  pinState: 'verified' | 'changed' | 'new';             // templates only; a plain resource is 'verified' because it is not pinned
+}
+interface ExternalPromptDescriptor {
+  serverKey: string; serverName: string; name: string; description: string;
+  arguments: { name: string; description: string; required: boolean }[]; pinState: 'verified' | 'changed' | 'new';
+}
+// The seam (`McpWire`) gains capabilities(), listResources() (resources and templates), readResource(), listPrompts(), getPrompt() and an optional
+// complete(). The transport (`McpTransport`) gains readResource() and refreshCatalog(); only `mcp.readResource` holds the first (§6).
+```
+
+The lists are asked for on the connection that listed the tools, after it. A server that does not advertise `resources` or `prompts` is **never asked** for them: the wire reads the capabilities the server declared and refuses to send the request otherwise. A list that fails is told on the server card as *"resources unavailable: <reason>"* (or *prompts*) and **never demotes the tools**. At most 500 of each kind are kept, and the card says when a list was cut. The review card shows each prompt (name, description and arguments in full) and each resource template (URI template and description in full) with its pin state; a changed one reads *"Changed since review"* and waits for the writer's approval, a new one *"New, not reviewed"*, and the approval pins them with the tools. They do not hold the tools: a prompt or template that changed leaves the server `healthy` with its trust grant, because nothing in the client uses one yet except the read command, which refuses a template that is not verified (§6). A server saved before these pins existed loads as saved, and its prompts and templates show as new.
 
 **Model-facing names: the alias rule.** The model's tool-name rule takes letters, digits, `_` and `-`, at most 64 characters. A server's tool name may hold anything else: Caotang's own MCP server names every tool with a dot (`project.overview`). Such a tool is not hidden from search: it keeps its own name for the server and gets an **alias** for the model. The **room** is 64 characters less the length of the `mcp__<serverKey>__` prefix (45 for a key of twelve characters). A tool's name the rule takes, and that fits the room, keeps its own name, and those names are placed first, so a changed name never takes one of them. Any other name becomes an alias in three steps, in this order: each character the rule does not take is replaced by `_` (a name with no characters at all becomes `tool`); the result is cut to the room less seven characters, and at least one; then `_` and the first six lowercase hex digits of SHA-256 of the tool's name, **as the server advertises it** and UTF-8 encoded, are appended. So the alias always fits the room, and `a.b` and `a_b` never share one. An alias still taken (by a name placed first, or by an earlier alias) is tried again with the next digest: that of `name#1`, then `name#2`, and so on, with the same cut. Sixteen digests are tried in all, the first being the name's own, and the first free alias is the one used, so two tools of one server never share a name. `qualifiedName` is `mcp__<serverKey>__<alias>`: the search index, the loaded set, the pins, the approval card and the activity row key by it. The descriptor carries both names, and `tools/call` sends the server's own `toolName` (§3.3), whichever name the caller gave. Pins are keyed by the qualified name, so a tool whose name changed under this rule reads as new on its first listing and waits for review (§3.4 step 2a). A tool that still cannot be given a name is hidden, and the health detail names it.
 
-Client scope is **tools-only** in v0.2: MCP `resources` and `prompts` are out of scope (assumption A7 — scope discipline; revisit with real server-ecosystem evidence).
+Client scope is **tools, plus resources the writer attaches and prompts the writer runs** (§12 D19, which supersedes assumption A7). The agent never fetches a resource or runs a prompt on its own: MCP makes resources application-controlled and prompts user-controlled, and the writer's pick is the consent (§4 rule 8). **Roots is not adopted:** it is deprecated in MCP 2026-07-28, and a browser page has no file roots to offer; a server that needs a location takes it as a tool parameter or a resource URI. **Subscriptions are not held:** no `subscriptions/listen` stream is kept open, because up to 20 long-lived requests cost a tab connections and battery; the lists are read when a server connects and again when a picker opens, within the server's own `ttlMs`. *Built so far:* the listing, the pins for prompts and resource templates, their rows on the review card, and the writer-only read command `mcp.readResource` (§6). The composer's `@` picker, the `/` prompt menu and the rendering of an attached resource in the prompt wait for the untrusted-output marking (issue #54) and the slash menu (issue #61), and nothing here carries a resource's text into a prompt.
 
 **2026-07-28 reconciliation note (client half):** for a 2026-07-28 server the connect flow above includes no `initialize` handshake and no `Mcp-Session-Id` header — the stateless-first revision removed both from the core. A 2025-era server is connected through its `initialize` handshake, and it keeps the session header only if it issues one (§3.3, §12 D17). Health-state triggers change accordingly (`configured` = no successful `tools/list` this session; `connected` survives as the demotion state for pin deltas; `healthy` = list + pin verification). The 2026-07-28 deterministic-order/cache-hint list rules make the §3.4 pin diff compare against a catalog servers promise stable across reconnects. Elicitation is a **server→client direction only** — a client-side `elicitInput` handler throws on 2026-07-28 connections; Caotang's v0.2 client never issues elicitation (user input for external calls comes from the plan/confirm cards, §4). See §12 D17.
 
@@ -166,6 +193,7 @@ Caotang is the worst-case MCP client: an agent with write access to a manuscript
 5. **Approval-card content contract (external calls):** full args JSON in monospace (no payload truncation — Cursor's confirmation dialog not showing full tool input is exactly the gap Invariant exploited), full tool description on the tool's first use and whenever its pin state is "changed", server name + trust state + risk badge always visible.
 6. **Hard-deny extension (v0.2; extends command-bus §4):** the egress allowlist becomes *provider endpoints + user-connected MCP server URLs* (both user-configured; local-first promise intact — tool arguments may quote manuscript text and go only to servers the user connected, the same trust model as BYOK). Externals may never: see provider profiles or keys (no credential visibility across the seam), disable the bus gate, write outside project scope. v0.2 exposes no shell or filesystem externals, so a poisoned external's blast radius = what that single tool can touch + prompt-injection into the turn context — the confirm gate caps it.
 7. **No agent-driven installs.** The agent may never install, enable, or configure an MCP server; installation is a human settings action, full stop. Cline's `llms-install.md` path (agent autonomously clones/installs/configures from the server's own README — confirmed in its marketplace FAQ as optional *agent guidance*) is rejected as the precise channel an attacker writes for. Applies to any future pack format too (§10).
+8. **Resources and prompts are writer-initiated.** The agent never reads a resource and never runs a prompt: no tool, no `tool.search` result and no bus call it may issue reaches either. `mcp.readResource` is `agentRisk: 'never'` and is also refused without `pickedBy: 'writer'`, so both the bus gate and the command's own check close it to the agent (§6). The URI it reads is one the server currently lists, or one that arrives through a listed resource template whose pin is verified, so a template that changed is refused until the writer has reviewed it; Caotang does not match a URI against a template's variables. A resource's contents are untrusted data exactly like a tool result, are not pinned, and are text or JSON only, and no more than 8,000 tokens, with a blob refused by its MIME type and an over-cap answer refused with the cap named and never trimmed. The names, descriptions and arguments of prompts and the URI templates and descriptions of resource templates are attacker-controlled text and are pinned and shown in full (§3.5). A server answer of `input_required` is a refusal that names the server, until elicitation exists (issue #79).
 
 ## 5. Tier-2: search-then-load — the `tool.search` meta-tool
 
@@ -195,6 +223,14 @@ External tool calls route through the command bus — that is the whole point of
 | Command | Params | agentRisk | undo | Notes |
 |---|---|---|---|---|
 | `mcp.invoke` | `{ serverKey, toolName, args: object, expectedPins?: string[] }` | per `effectiveRisk` (`read-auto` → auto; `write-confirm` → confirm) | **none** | Pipeline fit (command-bus §3): **validate** = model args against the pinned `inputSchema` (schema violations listed with JSON paths) + pin verification (mismatch → refusal, not a warning) → **permission gate** per risk → **apply** = `McpClient.callTool` (the only async boundary; awaited inside apply) → **postconditions** = result well-formed, `isError` surfaced → **activity log** with `source: 'mcp'`. `mutates: 'none'` — external systems are not project state; the bus still gates and audits the *agent action*. |
+
+A second, smaller row carries the one read the writer asks for (§4 rule 8):
+
+| Command | Params | agentRisk | undo | Notes |
+|---|---|---|---|---|
+| `mcp.readResource` | `{ serverKey, uri, pickedBy: 'writer', viaTemplate? }` | **never** (the agent cannot issue it; the command is also refused without `pickedBy: 'writer'`) | **none** | **validate** = the server is connected, `pickedBy` is the literal `'writer'`, and `uri` is a resource the server currently lists, or `viaTemplate` names a listed resource template whose pin is verified (a changed or new template is refused) → **permission gate** (a writer's own gesture; `agentRisk: 'never'` closes it to the agent) → **apply** = list again, check again, then one `resources/read` (`McpTransport.readResource`, 120 s, no retry) → **postconditions** = text only (a blob is refused naming its MIME type), at most `EXTERNAL_RESULT_TOKEN_CAP` (8,000) tokens (over it is refused naming the cap, with *"split or pick a smaller page"*; never trimmed) → **activity log** with `source: 'mcp'`. Returns `UntrustedResource { untrusted: true, source: { serverKey, serverName, uri }, mimeType?, text, tokens }`. `mutates: 'none'`, risk `read`, `asyncApply`, `executeAsync` only. |
+
+A resource the server does not have is one not-found message whichever code it used (`-32002` before 2026-07-28, `-32602` after it). An `input_required` answer is a refusal that names the server.
 
 - **callId dedupe applies unchanged:** replays of the same callId within a turn return the cached result without re-execution — protective for side-effectful externals (command-bus §6).
 - **Error envelope:** every external failure maps into the standard `CommandError` shape with model-facing text: unreachable → *"server '<name>' unreachable (health: configured). Check the URL in Settings › MCP & tools, or drop this step"*; pin mismatch → *"server changed since review — re-approve in Settings"*; schema violation → lists the offending paths; timeout/abort → *"external call timed out after 120 s — no partial results exist"*.
@@ -281,7 +317,9 @@ Precedent-rich (Figma official, Blender official, multiple Obsidian community se
 interface MockMcpScript {                       // provider-gateway §8 discipline applied to MCP
   listTools: ExternalToolDescriptor[];          // canned discovery (pin states settable)
   respond: (tool: string, args: object) => McpToolResult | McpError;
-  fail?: (phase: 'handshake' | 'list' | 'call') => void;   // injected failures
+  fail?: (phase: 'handshake' | 'list' | 'call' | 'resources' | 'prompts' | 'read' | 'prompt') => void;   // injected failures
+  resources?: Resource[]; templates?: ResourceTemplate[]; prompts?: Prompt[];   // absent = the server advertises none, and none is asked for
+  readResource?: (uri: string) => ResourceContents[] | McpError;
 }
 ```
 
@@ -297,6 +335,7 @@ Deterministic, scripted, no wall-clock. v0.2 suite additions:
 8. **Hard-deny audits:** no external surface exposes provider credentials (schema audit over all advertised tools + mcp.invoke params); a `mcp.invoke` attempt targeting provider mutation is refused.
 9. **callId replay** on an external call returns the cached result, one wire request total.
 10. **CORS surface:** reachable-but-blocked server → `configured` + the exact §3.3 detail message.
+11. **Resource injection:** a resource whose body tells the model to call a tool is read through `mcp.readResource` and comes back marked `untrusted`; no tool call reaches the wire, and a call the text asks for still meets the normal gate. A server that advertises neither resources nor prompts is never asked for them; a failed list leaves the tools healthy.
 
 ## 12. Decisions & assumptions
 
@@ -323,8 +362,9 @@ Deterministic, scripted, no wall-clock. v0.2 suite additions:
 | A4 | Pin hash = SHA-256 over canonical JSON `{toolName, description, inputSchema, annotations}`, where `annotations` holds the four hint keys (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`) the server advertises, and is absent when it advertises none. A tool with no hints therefore hashes exactly as the original three-field rule did, and a changed hint is a change that needs review. | Explicit; implemented in `canonical.ts` and pinned by `pins.test.ts`; canonical-JSON serialization pinned in evals. |
 | A5 | `tool.search` excerpting doesn't harm discovery | Explicit; eval-pinned; usage revisits. |
 | A6 | v0.2 auth = none + bearer; OAuth documented, not built | Explicit — OAuth's spec-correct SPA shape is *documented with evidence* (§3.6); the variant joins only on real user demand. |
-| A7 | Client scope = tools only (no resources/prompts) in v0.2 | Explicit scope discipline; revisit with server-ecosystem evidence. |
+| A7 | ~~Client scope = tools only (no resources/prompts) in v0.2~~ | **Superseded by D19.** It was explicit scope discipline, to be revisited with server-ecosystem evidence; that evidence now exists (Claude Code, Cursor and VS Code read both). |
 | A8 | ≤ 20 servers per install; ≤ 120 s tool-call timeout | Explicit clamps, raisable. |
 | D16 | Caotang-as-server builds against MCP 2026-07-28 + TS SDK v2; its own process (not in-process in the desktop shell), loopback bearer, MRTR elicitation as the host's write-confirm channel; `.mcpb` (stdio) as the desktop packaging | **Resolved:** the 2026-07-28 stateless-first revision removes session affinity and stream-held elicitation — the two hard parts of hosting; secrets-never-in-elicitation-forms adopted as a hard rule; OAuth on loopback rejected (friction without an upstream IdP). A 2025-era host keeps a bounded connection so that it can answer a write-confirm (§9). |
 | D17 | Client revision negotiated, not pinned: the SDK's `auto` mode sends `server/discover` first; a server that offers 2026-07-28 is connected on the stateless path (`tools/list` without an initialize handshake or session header); a 2025-era server, which answers the probe with "method not found", is connected through the SDK's plain `initialize` handshake, with the session header only if that server issues one; a server that speaks none of the revisions the client offers (2026-07-28, or a 2024 or 2025 revision) is refused, and the refusal names the server's revision, not one Caotang chose. Health-state triggers: `configured` = no successful list; `connected` = pin-delta demotion state. Elicitation is server→client only (a client-side `elicitInput` throws on 2026-07-28 connections — Caotang's client never issues it); deterministic list order is load-bearing for the §3.4 pin diff | **Delegated.** One negotiated client covers both server eras: a pin to 2026-07-28 would refuse every 2025-era server, and the pinned SDK (2.3.1) supports the legacy handshake under `auto`. The `initialize`-free language in §3.3 and §3.4 applies to the 2026-07-28 path; the 2025-era path is the `initialize` handshake described there. |
 | D18 | Deferral is context, not trust: a deferred native row is preflighted like any step even when the turn has not loaded it, while an unloaded external tool is refused | Delegated. The one difference between the two sources: an external tool is untrusted and loading binds its pin; a native row is Caotang's own code behind the same bus gate, so refusing it would only cost a round trip. |
+| D19 | The client reads resources the writer attaches and runs prompts the writer picks; the agent never fetches a resource or runs a prompt on its own. Roots is not adopted, and no `subscriptions/listen` stream is held. Prompts and resource templates are pinned under their own kinds; a resource's contents are not. | Delegated, 2026-10-22; supersedes A7. Resources are application-controlled and prompts user-controlled in MCP, so the writer's pick is the consent and nothing unseen reaches the model (§4 rule 8). Roots is deprecated in MCP 2026-07-28, and a browser page has no file roots. Up to 20 held streams cost a tab connections and battery, and the lists are read when a picker opens within the server's `ttlMs`. Attacker-controlled listing text is rug-pull surface, and additive pin kinds need no re-review of a trusted server. Built: the listing, the pins, the review-card rows and the writer-only `mcp.readResource`. Held: the `@` picker and the rendering of an attachment in the prompt (issue #54), the `/` prompt menu with a preview before sending (issue #61), and agent-visible resources (not committed; revisit on writer evidence). |

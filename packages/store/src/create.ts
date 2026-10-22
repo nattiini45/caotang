@@ -3,6 +3,7 @@ import type { ExportRecipe, Manifest, TreeNode } from './manifest.js';
 import { FIXED_ROOT_IDS, FORMAT_VERSION } from './manifest.js';
 import { defaultLanguage, mintIdentifier, type BackfillOptions } from './project-identity.js';
 import { newId } from '@caotang/ids';
+import { WORD_RULE_VERSION, wordRuleInUse } from './word-count.js';
 
 export type { Manifest, TreeNode };
 // The bus's constant, under the name the store has always exported it (index.ts re-exports it from here).
@@ -48,7 +49,7 @@ export function createEmptyManifest(name: string, now: Date = new Date(), option
       { ...base, id: 'manuscript', parentId: 'root', type: 'folder', title: 'Manuscript', order: 10 },
       { ...base, id: 'research', parentId: 'root', type: 'folder', title: 'Research', order: 20 },
     ],
-    derived: { wordCounts: {}, computedAt: ts },
+    derived: { wordCounts: {}, computedAt: ts, ...(wordRuleInUse() === WORD_RULE_VERSION ? { ruleVersion: WORD_RULE_VERSION } : {}) },
     codex: [],
     recipes: [defaultRecipe()],
   };

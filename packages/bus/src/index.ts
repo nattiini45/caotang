@@ -74,6 +74,7 @@ export { ok, err } from './result.js';
 // The param shapes of the two injected families (the external call, and the storyboard shot commands).
 export type {
   McpInvokeParams,
+  McpReadResourceParams,
   ShotCreateCommandParams,
   ShotImportImageParams,
   ShotSetMetaCommandParams,

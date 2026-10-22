@@ -129,7 +129,12 @@ One exception is open: `ScreenplayPreview.tsx` imports `paginate` and `LAYOUT` f
 
 ## What is not wired
 
-1. **Shot images, drop and paste, are tested through synthetic events.** The OS drag and the clipboard are not driven.
+1. **Shot images: the OS drag and the system clipboard are not driven.** `e2e/media-storyboard-images.spec.ts` dispatches a `drop` and a `paste`
+   in Chromium, each carrying a real `DataTransfer` with real `File` objects, against the real handlers: a PNG or a JPEG lands through
+   `shot.importImage`, a text file beside a picture is skipped, and a payload with no picture changes nothing. The spec asserts the files the
+   `DataTransfer` holds before it dispatches. What is not covered is the gesture itself: that Explorer's or Finder's drag payload, or a
+   copied image on the system clipboard, reaches `dataTransfer.files` and `clipboardData.files` in that shape. Try both by hand after a
+   change to the handlers.
 2. **Dialogue table and container settings.** The dialogue table's character limit (`charLimit`) is a recipe option, set in the
    export dialog's Character limit field when the dialogue table is chosen, so a `dialogue-csv` or `dialogue-xlsx` export from the app carries it.
    The engine target and the locale reach the exports (*What a writer can do*, *Container settings*). The agent's
@@ -164,7 +169,7 @@ prompt draft and its record, the strict refusals, the vendor-preserving write, t
 the graph follows the Ink, a shot is a `binder.create` and its fields survive a reload, and each of the five formats the Compile
 dialog offers (Fountain, Final Draft, the Ink story, the dialogue table and the shot list) compiles. `e2e/media-rebase.spec.ts`
 types, undoes and types again in each view, and checks that the second text survives a reload. `e2e/media-storyboard-images.spec.ts`
-chooses, drops and pastes a picture, looks at it in the lightbox, keeps it across a reload, and drops a reference whose file is gone.
+chooses a picture, drops and pastes PNG and JPEG files and non-pictures as real `File` objects, looks at it in the lightbox, keeps it across a reload, and drops a reference whose file is gone.
 `e2e/media-storyboard-board.spec.ts` drags a card and checks the animatic header. `e2e/media-storyboard-coverage.spec.ts` covers
 selected script text and removes it. `e2e/media-prompt-authoring.spec.ts` writes a prompt, follows a check to its field, and follows
 a check on the pack tab back to the board. `e2e/media-prompt-provenance.spec.ts` sets an entry's visual reference in the stored
@@ -179,4 +184,5 @@ the derive scene and the radio keys without a browser.
 ```
 CAOTANG_E2E_PORT=<your port> pnpm exec playwright test e2e/unit/media-
 CAOTANG_E2E_PORT=<your port> pnpm exec playwright test e2e/media-nodes.spec.ts
+CAOTANG_E2E_PORT=<your port> pnpm exec playwright test e2e/media-storyboard-images.spec.ts
 ```

@@ -342,7 +342,7 @@ describe('through the synchronous bus: an external call is refused before its ap
     loaded.beginTurn('turn-sync');
     loaded.load([qualified(STORY_KEY, 'lore_lookup')]);
     let reached = 0;
-    const transport: McpTransport = {
+    const transport: Pick<McpTransport, 'callTool' | 'relist'> = {
       callTool: async () => {
         reached += 1;
         return { content: [{ type: 'text', text: 'reached the server' }], isError: false };

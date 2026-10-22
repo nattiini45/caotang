@@ -662,6 +662,11 @@ function validateFields(
         delete counts[id];
       }
     }
+    const ruleVersion = source.derived['ruleVersion'];
+    if (ruleVersion !== undefined && !(isJsonNumber(ruleVersion) && Number.isInteger(ruleVersion) && ruleVersion >= 1)) {
+      warn('derived.ruleVersion', 'expected a whole number from 1; treated as absent, and the counts are recomputed on open when the engine counts with a newer rule');
+      delete source.derived['ruleVersion'];
+    }
   }
 
   return { manifest: source as unknown as Manifest, errors, migrations };

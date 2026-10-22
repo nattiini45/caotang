@@ -22,6 +22,7 @@ import {
   AUTOSAVE_DEBOUNCE_MS,
   RevisionConflictError,
   addDocument,
+  countBody,
   createAutosave,
   createEmptyManifest,
   createProjectState,
@@ -382,6 +383,24 @@ describe('§4 — a saved write is a document write for the session tracker', ()
     // The session's own net: 6 words now against 5 when it began.
     expect(sessions.pending()?.wordsWritten).toBe(1);
     expect(sessions.pending()?.docIds).toEqual([DOC]);
+  });
+
+  it('counts a CJK document by the word rule of the store, so the session delta is not the whitespace token count', async () => {
+    const clock = new ManualClock();
+    const writer = new FakeWriter();
+    const sessions = createSessionTracker({ projectId: PROJECT, append: () => Promise.resolve() });
+    const autosave = createAutosave({ projectId: PROJECT, source: 'write', write: writer.write, clock, sessions });
+    const before = '我喜欢写作';
+    const after = '我喜欢在海边的灯塔里写作';
+    autosave.open(DOC, { body: before, revision: 0 });
+    sessions.beginSession();
+
+    autosave.noteEdit(DOC, after);
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS);
+
+    const delta = countBody(after).words - countBody(before).words;
+    expect(delta).toBeGreaterThan(0);
+    expect(sessions.pending()?.wordsWritten).toBe(delta);
   });
 
   it('does not count a flush that stored nothing new', async () => {

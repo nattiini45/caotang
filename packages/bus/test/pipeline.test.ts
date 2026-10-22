@@ -1170,7 +1170,8 @@ describe('the three view commands, through the shipped registry with no fakes', 
     // The storyboard's image import adds `shot.importImage`, a descriptor here with its apply in the store: 38 + 1 = 39. The
     // script imports add `screenplay.import`, `dialogue.importInk` and `dialogue.setMeta`, descriptors here and applies in the store: 39 + 3 = 42.
     // The project's skills add `skill.import`, `skill.write`, `skill.delete` and `skill.setEnabled`, descriptors here and applies in the store: 42 + 4 = 46. The knowledge facts add `coherence.addKnowledgeFact`, `coherence.editKnowledgeFact` and `coherence.removeKnowledgeFact`, descriptors here and applies in the store: 46 + 3 = 49.
-    expect(COMMAND_NAMES.length).toBe(49);
+    // `mcp.readResource` (the writer's read of a resource, extensibility §6) is the same kind of name as `mcp.invoke`: a descriptor here, its apply injected: 49 + 1 = 50.
+    expect(COMMAND_NAMES.length).toBe(50);
   });
 
   it('an agent may emit a view command, and it is granted as a read', () => {

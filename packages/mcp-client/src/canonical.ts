@@ -62,3 +62,45 @@ export function pinnedHints(annotations: PinnedAnnotations): PinnedAnnotations |
   }
   return Object.keys(hints).length === 0 ? undefined : (hints as PinnedAnnotations);
 }
+
+/** One prompt argument as a pin covers it. */
+export interface PinnedPromptArgument {
+  readonly name: string;
+  readonly description?: string;
+  readonly required?: boolean;
+}
+
+/**
+ * What a pin covers, by kind (extensibility §3.2). A tool keeps the rule above, byte for byte. A prompt is pinned over its
+ * name, description and arguments, and a resource template over its URI template, description and MIME type: the text a
+ * server writes about them reaches the writer and, for a prompt, the model. Each kind has its own namespace in the hash
+ * (`kind` is part of the canonical text), and its own map in the settings, so adding a kind changed no tool hash.
+ */
+export type PinSubject =
+  | { readonly kind: 'tool'; readonly toolName: string; readonly description?: string; readonly inputSchema?: unknown; readonly annotations?: PinnedAnnotations }
+  | { readonly kind: 'prompt'; readonly name: string; readonly description?: string; readonly arguments?: readonly PinnedPromptArgument[] }
+  | { readonly kind: 'resourceTemplate'; readonly uriTemplate: string; readonly description?: string; readonly mimeType?: string };
+
+/** The pin hash of one subject. A tool hashes exactly as {@link pinHash} says. */
+export function subjectHash(subject: PinSubject): Promise<string> {
+  switch (subject.kind) {
+    case 'tool':
+      return pinHash({
+        toolName: subject.toolName,
+        description: subject.description ?? '',
+        inputSchema: subject.inputSchema ?? { type: 'object' },
+        ...(subject.annotations === undefined ? {} : { annotations: subject.annotations }),
+      });
+    case 'prompt':
+      return sha256Hex(
+        canonicalJson({
+          kind: 'prompt',
+          name: subject.name,
+          description: subject.description ?? '',
+          arguments: (subject.arguments ?? []).map((argument) => ({ name: argument.name, description: argument.description ?? '', required: argument.required === true })),
+        }),
+      );
+    case 'resourceTemplate':
+      return sha256Hex(canonicalJson({ kind: 'resourceTemplate', uriTemplate: subject.uriTemplate, description: subject.description ?? '', mimeType: subject.mimeType }));
+  }
+}

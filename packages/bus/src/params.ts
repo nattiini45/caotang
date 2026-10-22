@@ -95,6 +95,7 @@ export const DECLARED_PARAMS: Readonly<Record<CommandName, readonly string[]>> =
   'coherence.editKnowledgeFact': ['factId', 'text', 'ruleId', 'entryId'],
   'coherence.removeKnowledgeFact': ['factId'],
   'mcp.invoke': ['serverKey', 'toolName', 'args', 'expectedPins'],
+  'mcp.readResource': ['serverKey', 'uri', 'pickedBy', 'viaTemplate'],
   'storyboard.create': ['id', 'parentId', 'title', 'scene'],
   'shot.create': ['id', 'parentId', 'title', 'stored'],
   'shot.setMeta': ['nodeId', 'stored', 'expect'],

@@ -13,7 +13,7 @@ import type { SchemaFailure } from './schema.js';
 import { describeFailure } from './schema.js';
 
 /** §3.5's `McpError` codes. A call failure is one of these, and it is data: nothing throws past the boundary without one. */
-export type McpErrorCode = 'unreachable' | 'pin_mismatch' | 'schema' | 'timeout' | 'server_error';
+export type McpErrorCode = 'unreachable' | 'pin_mismatch' | 'schema' | 'timeout' | 'server_error' | 'not_found' | 'input_required';
 
 export interface McpError {
   readonly code: McpErrorCode;
@@ -58,6 +58,21 @@ export function schemaText(failures: readonly SchemaFailure[]): string {
 /** The sentence for a schema the checker cannot read. The call is refused, and the reason is the keyword. */
 export function unsupportedSchemaText(keyword: string): string {
   return `the tool's input schema uses ${keyword}, which Caotang cannot check, so the call is refused`;
+}
+
+/** One name for a resource the server does not have, however it said so (-32002 before 2026-07-28, -32602 after it). */
+export function notFoundText(serverName: string, what: string): string {
+  return `'${what}' was not found on server '${serverName}' — the server may have moved or removed it; pick it again from the list`;
+}
+
+/** A server that answered `input_required`: it wants more from the writer than Caotang can ask for yet (elicitation is not built). */
+export function inputRequiredText(serverName: string): string {
+  return `server '${serverName}' asked for more input before it would answer, which Caotang cannot give yet — nothing was read`;
+}
+
+/** The sentence for a server that answered a `resources/read` with an error. */
+export function readErrorText(serverName: string, uri: string, detail: string): string {
+  return `server '${serverName}' returned an error reading '${uri}': ${detail}. Nothing was read`;
 }
 
 /** The sentence for a server that answered with an error. The effect, if any, is external and Caotang cannot undo it. */
@@ -113,6 +128,20 @@ export function toCommandError(error: McpError, serverName: string, toolName: st
         message: error.message,
         target: serverName,
         correctiveHint: 'report the server error to the user, or drop this step',
+      };
+    case 'not_found':
+      return {
+        code: 'not-found',
+        message: error.message,
+        target: toolName,
+        correctiveHint: "pick the resource again from the server's list",
+      };
+    case 'input_required':
+      return {
+        code: 'io-error',
+        message: error.message,
+        target: serverName,
+        correctiveHint: 'tell the user this server needs input Caotang cannot ask for yet',
       };
   }
 }

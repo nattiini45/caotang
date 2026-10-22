@@ -1,6 +1,6 @@
 # Command bus & undo — the spine every module talks through (v1)
 
-> Status: built. §9 lists every one of the registry's 49 command names (`packages/bus/src/command.ts` `COMMAND_NAMES`).
+> Status: built. §9 lists every one of the registry's 50 command names (`packages/bus/src/command.ts` `COMMAND_NAMES`).
 > Cross-refs: tool registry = [agent-harness.md](agent-harness.md) §3 · write-ahead snapshots = [project-format.md](project-format.md) §4 · edit anchors = [edit-anchors.md](edit-anchors.md) · usage ledger = [provider-gateway.md](provider-gateway.md) §6.
 
 ## 1. Purpose
@@ -14,7 +14,7 @@ Non-goals: no network in the bus (the gateway owns transport); no cross-worker b
 ```ts
 interface Command {
   id: string;                 // "cmd_" + 10 chars Crockford base32 (same generator family as node ids)
-  name: CommandName;          // from the registry (§9; 49 names)
+  name: CommandName;          // from the registry (§9; 50 names)
   params: object;             // flat, enum-constrained, schema-validated
   issuedBy: 'user' | 'agent';
   turnId?: string;            // agent turn this command belongs to (agent-issued only)
@@ -133,7 +133,7 @@ The log keeps every row it is given. The Activity panel shows a 200-row window o
 
 ## 9. v0.1 command registry (closed set)
 
-The heading keeps the name the v0.1 table had. The table lists all 49 of the registry's names: the v0.1 rows and those each module added (their owning specs are named in the notes). Reads are **not commands** — modules read the store directly; only mutations route through the bus. Provider/settings mutation is app-level state, never a project command (agentRisk `never`, hard-deny §4). `sessions.jsonl` appends are session-tracker side-effects of doc writes, not commands.
+The heading keeps the name the v0.1 table had. The table lists all 50 of the registry's names: the v0.1 rows and those each module added (their owning specs are named in the notes). Reads are **not commands** — modules read the store directly; only mutations route through the bus. Provider/settings mutation is app-level state, never a project command (agentRisk `never`, hard-deny §4). `sessions.jsonl` appends are session-tracker side-effects of doc writes, not commands.
 
 | Command | Params (essentials) | agentRisk | undo | Notes |
 |---|---|---|---|---|
@@ -162,6 +162,7 @@ The heading keeps the name the v0.1 table had. The table lists all 49 of the reg
 | `coherence.editKnowledgeFact` | `{factId, text?, ruleId?, entryId?}` | write-confirm | compensable | Changes the fields it names (coherence.md §4.4, §7.1); `null` clears a link. A call that names no field is refused. Undo puts the fact back as it was. |
 | `coherence.removeKnowledgeFact` | `{factId}` | write-confirm | compensable | Removes the fact and the `learns`/`knows` pairs of every scene that name it, in one command (coherence.md §4.4, §7.1). One undo puts back the fact and the pairs. On the never-exposed list: the agent holds no tool for it. |
 | `mcp.invoke` | `{serverKey, toolName, args, expectedPins?}` | write-confirm | none | An external tool call (extensibility.md §6). `mutates: none`, and its activity row is `source: 'mcp'`. Its apply awaits the server, so it runs through `executeAsync` only (§3). Per call it is `read` when the external is trusted for reads and its tool is read-only (`agentRiskOf`; extensibility §7). |
+| `mcp.readResource` | `{serverKey, uri, pickedBy, viaTemplate?}` | never | none | The writer's read of a resource they picked on a connected server (extensibility.md §6). `pickedBy` is the literal `'writer'`: the command is refused without it, and `agentRisk: 'never'` refuses an agent's call outright. `mutates: none`, and its activity row is `source: 'mcp'`. Its apply awaits the server, so it runs through `executeAsync` only (§3). |
 | `storyboard.create` | `{id, parentId, title, scene}` | write-auto | inverse | The `<Scene Title> — Shots` folder (storyboard.md §3.1). `scene` is the scene facts the plan was made against, and the apply refuses when the scene has moved or changed since. Validate resolves `parentId` against the snapshot's tree and refuses a parent that is gone (not-found, naming the id), and checks the minted `id` against the tree and against project-format §2's shape (`n_` and ten Crockford base32 chars). Its apply comes from the store, injected through `ProjectCommandOptions.shots`, because its guards belong to the storyboard module. The manifest is a required field of the snapshot, so a snapshot without one fails loudly in validate rather than standing the state check down. |
 | `shot.create` | `{id, parentId, title, stored}` | write-auto | inverse | One shot card with its stored metadata (storyboard.md §2.2, §3.1). Validate resolves `parentId` and refuses a parent that is gone (not-found) or is not a storyboard folder (invalid-params, target `parentId`), and checks the minted `id` the way `storyboard.create`'s does. Only the module's own write-time guards are left in the apply, where they run as `storyboard.create`'s do. Its state check reads the manifest the same way, so a snapshot without one fails loudly rather than standing the check down. |
 | `shot.setMeta` | `{nodeId, stored, expect}` | write-auto | inverse | A whole stored shot value written over the one it replaces. Validate resolves `nodeId` and refuses a node that is gone (not-found) or is not a shot (invalid-params, target `nodeId`). `expect` is the value the plan read (`null` when there was none), and the apply refuses when it no longer holds, so the undo is the same command with the two values swapped. Its state check reads the manifest the same way, so a snapshot without one fails loudly rather than standing the check down. |
@@ -196,6 +197,8 @@ The `agentRisk` and `undo` columns are the descriptors' own (`packages/bus/src/d
 `view.*`'s `various` is the only row this table does not spell out; those three shapes are declared in `packages/bus/src/params.ts` (`DECLARED_PARAMS`) and held to the same rule, and a test asserts the exemption is exactly those three rows.
 
 **`mcp.invoke` ([extensibility.md](extensibility.md) §6).** External tool calls ride this row. Its `agentRisk` is the external tool's effectiveRisk, read-auto or write-confirm and never write-auto, so the table's `write-confirm` is the default and the per-call `read` is the exception described in its notes. `undo: 'none'` and `mutates: 'none'`: externals are not project state, and the bus still gates, audits and dedupes the agent action.
+
+**`mcp.readResource` ([extensibility.md](extensibility.md) §6, §4 rule 8).** The one command whose caller is always the writer. It is `agentRisk: 'never'`, so the gate refuses `issuedBy: 'agent'` before anything runs, and its `validate` refuses a call without `pickedBy: 'writer'` besides: two closures, so a descriptor change that loosened one would still meet the other. `undo: 'none'` and `mutates: 'none'`, like `mcp.invoke`. The descriptor in the registry is the bus's floor (closed key set, the literal); the store registry replaces it with the MCP client's, which also checks the URI against the server's live listing and the template's pin.
 
 ## 10. Evals (headless)
 

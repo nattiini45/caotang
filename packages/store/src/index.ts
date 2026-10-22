@@ -161,7 +161,7 @@ export {
 export { emptyCoherenceState, type CoherenceFindingState, type CoherenceRunState, type CoherenceState } from './coherence-state.js';
 export { checkWordsOf, dismissalLabelOf } from './coherence-words.js';
 
-export { countBody, type BodyCount } from './word-count.js';
+export { countBody, WORD_RULE_VERSION, wordRuleInUse, type BodyCount } from './word-count.js';
 
 export {
   createProjectCommandRegistry,
@@ -173,6 +173,7 @@ export {
   type ExportCommandOutcome,
   type ExportCommandPort,
   type McpInvokeCommandPort,
+  type McpReadResourceCommandPort,
   type ShotCommandPort,
   type ShotCommandReport,
   type ExportCommandRequest,

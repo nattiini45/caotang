@@ -94,6 +94,9 @@ export const COMMAND_NAMES = [
   // tabulates it with its reason. Its descriptor is the one `@caotang/mcp-client` builds, and its apply reaches a server,
   // so the store registry takes both as an injected option (`ProjectCommandOptions.mcpInvoke`). Without that, the name is refused.
   'mcp.invoke',
+  // The one read the writer asks for from a connected server (extensibility.md §6): a resource they picked. `agentRisk: 'never'` and
+  // refused without `pickedBy: 'writer'`, so an agent cannot issue it. Injected like `mcp.invoke` (`ProjectCommandOptions.mcpReadResource`).
+  'mcp.readResource',
   // The storyboard module's three shot commands (storyboard.md §3.1 and §4). They are the bus shape
   // `@caotang/storyboard`'s `commands.ts` was written against, and §9 tabulates them. Their applies come from the store
   // registry, injected (`ProjectCommandOptions.shots`), because the guards they run belong to the storyboard module.
@@ -560,6 +563,7 @@ export interface CommandParams {
   'coherence.editKnowledgeFact': CoherenceEditKnowledgeFactParams;
   'coherence.removeKnowledgeFact': CoherenceRemoveKnowledgeFactParams;
   'mcp.invoke': McpInvokeParams;
+  'mcp.readResource': McpReadResourceParams;
   'storyboard.create': StoryboardCreateCommandParams;
   'shot.create': ShotCreateCommandParams;
   'shot.setMeta': ShotSetMetaCommandParams;
@@ -630,6 +634,18 @@ export type McpInvokeParams = {
   readonly toolName: string;
   readonly args: Readonly<Record<string, unknown>>;
   readonly expectedPins?: readonly string[];
+};
+
+/**
+ * `mcp.readResource`'s params (extensibility.md §6). `pickedBy` is the literal `'writer'`: the command is refused without it, and
+ * only the writer's own picker sends it. `viaTemplate` names the listed resource template the URI comes through, when the URI is
+ * not one the server lists itself.
+ */
+export type McpReadResourceParams = {
+  readonly serverKey: string;
+  readonly uri: string;
+  readonly pickedBy: 'writer';
+  readonly viaTemplate?: string;
 };
 
 /**

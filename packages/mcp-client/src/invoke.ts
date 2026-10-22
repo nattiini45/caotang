@@ -74,7 +74,7 @@ export interface ValidateDeps {
  * nowhere else: the client's own surface has no call (see {@link McpTransport}).
  */
 export interface InvokeDeps extends ValidateDeps {
-  readonly transport: McpTransport;
+  readonly transport: Pick<McpTransport, 'callTool' | 'relist'>;
   /** The most tokens an external answer may carry before it is refused. Defaults to {@link EXTERNAL_RESULT_TOKEN_CAP}. */
   readonly resultTokenCap?: number;
 }
