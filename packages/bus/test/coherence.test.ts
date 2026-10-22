@@ -67,10 +67,12 @@ describe('the scene-metadata patch rule (coherence.md §5.2, §5.2.1)', () => {
   it('keeps linear as absence, and refuses a timeline mode outside the §5.2.1 enum', () => {
     const linear = applySceneMetaPatch(SCENE, { timelineMode: 'flashback' }, { timelineMode: 'linear' }, context);
     expect(linear.ok && linear.meta).toEqual({});
-    // `time-skip` is deferred (coherence.md §5.2.1), so the enum must refuse it.
-    const deferred = applySceneMetaPatch(SCENE, undefined, { timelineMode: 'time-skip' }, context);
-    expect(deferred.ok).toBe(false);
-    if (!deferred.ok) expect(deferred.error).toContain('valid modes are');
+    const unknown = applySceneMetaPatch(SCENE, undefined, { timelineMode: 'montage' }, context);
+    expect(unknown.ok).toBe(false);
+    if (!unknown.ok) expect(unknown.error).toContain('valid modes are');
+    // `time-skip` is in the enum since `timeline.gap` consumes it (coherence.md §5.2.1).
+    const skip = applySceneMetaPatch(SCENE, undefined, { timelineMode: 'time-skip' }, context);
+    expect(skip.ok && skip.meta).toEqual({ timelineMode: 'time-skip' });
   });
 
   it('refuses a scene that follows itself, and a dependency or codex id the project does not hold', () => {
@@ -142,7 +144,7 @@ describe('finding transitions (coherence.md §6.3, the lifecycle)', () => {
   it('keeps the vocabulary the validator reads', () => {
     expect(COHERENCE_STATUSES).toEqual(['open', 'dismissed', 'fixed']);
     expect(DISMISSAL_REASON_IDS).toEqual(['flashback', 'in-world-lie', 'unreliable-narrator', 'intentional', 'false-positive']);
-    expect(TIMELINE_MODES).toHaveLength(10);
+    expect(TIMELINE_MODES).toHaveLength(11);
     expect(COHERENCE_NOTE_LIMIT).toBe(500);
   });
 });

@@ -279,6 +279,7 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - Coherence never edits text inline and never runs in the background or while typing. Why: no meter on the writer's work. [delegated]
 - The model review runs only after its plan (calls, tokens, first prompt, cost) is approved; a scope over 20 documents asks first. Why: the writer controls spend. [delegated]
 - The review sends only the codex entries each scene's include policies select. Why: "never" means never. [delegated]
+- A jump of seven story days between consecutive scenes is noted, and a scene declared a time skip, dream or mythic silences it; the threshold is one fixed number. Why: StoryLine's precedent, and a prompt to declare rather than a rule. [delegated]
 - Scene metadata uses writer-declared day offsets, POV, presence and ordering; a richer constraint model is rejected for now. Why: covers the evidenced need. [delegated]
 - Dismissal is a writer verdict; the agent may set a finding only to fixed. Why: judgment calls stay with the writer. [delegated]
 - Codex entries are the fact store; non-entity facts go in additive `worldRules[]`. Why: no free-floating fact table. [delegated]

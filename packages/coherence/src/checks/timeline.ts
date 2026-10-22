@@ -1,6 +1,6 @@
 /**
  * Timeline checks — [coherence.md §5.1 and §5.2.1](../../../../docs/architecture/coherence.md):
- * `timeline.order-drift`, `timeline.relation`, `timeline.window`, `timeline.overlap`.
+ * `timeline.order-drift`, `timeline.relation`, `timeline.window`, `timeline.overlap`, `timeline.gap`.
  *
  * Every rule here fires only on something the writer declared. A scene with no
  * day offset is counted and reported as unscheduled, and it is never a violation
@@ -8,7 +8,7 @@
  * {@link treatmentOf}, so this file holds no mode lists of its own.
  */
 
-import { treatmentOf, windowInside, windowOf, windowsOverlap, type DayWindow } from '../timeline.js';
+import { GAP_THRESHOLD_DAYS, treatmentOf, windowInside, windowOf, windowsOverlap, type DayWindow } from '../timeline.js';
 import { headEvidence, type ScannedScene } from '../scope.js';
 import { groupKey, modeOf, pairKey, type CheckInput, type CheckOutput, type DraftFinding } from './common.js';
 
@@ -62,6 +62,53 @@ export function checkOrderDrift(input: CheckInput): CheckOutput {
   for (const mode of ['parallel', 'frame'] as const) {
     const strand = scheduled.filter((scene) => modeOf(scene) === mode);
     drafts.push(...compareDayOrder(strand, 'strand-order-drift', mode));
+  }
+  return { drafts, notes };
+}
+
+/**
+ * Adjacent pairs in day order that are {@link GAP_THRESHOLD_DAYS} or more apart, start to start. The pair is skipped when
+ * either side is exempt from the gap, which is how `time-skip`, `dream` and `mythic` legitimize one (§5.2.1).
+ */
+function gapsIn(list: readonly ScannedScene[], strand: string | undefined): DraftFinding[] {
+  const sorted = [...list].sort((a, b) => (dayOf(a) ?? 0) - (dayOf(b) ?? 0) || a.binderIndex - b.binderIndex);
+  const drafts: DraftFinding[] = [];
+  for (let i = 0; i + 1 < sorted.length; i += 1) {
+    const early = sorted[i];
+    const late = sorted[i + 1];
+    if (early === undefined || late === undefined) continue;
+    const days = (dayOf(late) ?? 0) - (dayOf(early) ?? 0);
+    if (days < GAP_THRESHOLD_DAYS) continue;
+    if ([early, late].some((scene) => treatmentOf(modeOf(scene), 'timeline.gap') === 'exempt')) continue;
+    drafts.push({
+      checkId: 'timeline.gap',
+      type: 'time-gap',
+      severity: 'info',
+      factGroup: groupKey(pairKey(early.docId, late.docId), 'gap'),
+      evidence: [headEvidence(early), headEvidence(late)],
+      message: `"${late.title}" happens ${days} days after "${early.title}"${strand === undefined ? '' : `, within the ${strand} strand`}`,
+      expected: 'declare a time skip on one of the scenes if the jump is intended, or accept the gap',
+    });
+  }
+  return drafts;
+}
+
+/**
+ * §5.1 `timeline.gap`: consecutive scheduled scenes in day order that are a week or more apart. Information only, a prompt to
+ * declare a `time-skip` rather than a rule. Order is not this check's concern: a pair whose binder order disagrees with the
+ * days is `timeline.order-drift`, and one that is also a week apart is a second fact under its own group. `parallel` and
+ * `frame` scenes are compared within their own strand, as for order drift.
+ */
+export function checkGap(input: CheckInput): CheckOutput {
+  const scheduled = scheduledScenes(input);
+  const notes: string[] = [];
+  const unscheduled = input.scenes.length - scheduled.length;
+  if (unscheduled > 0) notes.push(`${unscheduled} scene(s) unscheduled (no day offset); they are not compared`);
+
+  const main = scheduled.filter((scene) => modeOf(scene) !== 'parallel' && modeOf(scene) !== 'frame');
+  const drafts = gapsIn(main, undefined);
+  for (const mode of ['parallel', 'frame'] as const) {
+    drafts.push(...gapsIn(scheduled.filter((scene) => modeOf(scene) === mode), mode));
   }
   return { drafts, notes };
 }

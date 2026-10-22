@@ -152,7 +152,7 @@ describe('applySceneMetaPatch (§5.2 and §7.1)', () => {
   });
 
   it('validates the timeline mode, and stores linear as absence', () => {
-    const bad = applySceneMetaPatch('sA', undefined, { timelineMode: 'time-skip' }, context);
+    const bad = applySceneMetaPatch('sA', undefined, { timelineMode: 'montage' }, context);
     expect(bad.ok === false && bad.error).toContain('valid modes are linear, flashback');
     expect(applySceneMetaPatch('sA', { timelineMode: 'dream' }, { timelineMode: 'linear' }, context)).toEqual({ ok: true, meta: {} });
     expect(applySceneMetaPatch('sA', undefined, { timelineMode: 'circular' }, context)).toEqual({

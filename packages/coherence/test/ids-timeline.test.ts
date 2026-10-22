@@ -59,7 +59,7 @@ describe('ids', () => {
 
 describe('timeline exemption table (§5.2.1)', () => {
   it('leaves linear scenes checked on every timeline check', () => {
-    for (const check of ['timeline.order-drift', 'timeline.window', 'timeline.overlap'] as const) {
+    for (const check of ['timeline.order-drift', 'timeline.window', 'timeline.overlap', 'timeline.gap'] as const) {
       expect(treatmentOf('linear', check)).toBe('checked');
     }
   });
@@ -83,6 +83,19 @@ describe('timeline exemption table (§5.2.1)', () => {
     expect(treatmentOf('frame', 'timeline.order-drift')).toBe('per-strand');
   });
 
+  it('exempts dream, mythic and time-skip scenes from the gap check, and no other mode', () => {
+    for (const mode of ['dream', 'mythic', 'time-skip'] as const) expect(treatmentOf(mode, 'timeline.gap')).toBe('exempt');
+    for (const mode of TIMELINE_MODES.filter((candidate) => !['dream', 'mythic', 'time-skip'].includes(candidate))) {
+      expect(treatmentOf(mode, 'timeline.gap'), mode).toBe('checked');
+    }
+  });
+
+  it('keeps a time-skip scene in the date-order group: its one exempt cell is the gap', () => {
+    for (const check of ['timeline.order-drift', 'timeline.window', 'timeline.overlap'] as const) {
+      expect(treatmentOf('time-skip', check), check).toBe('checked');
+    }
+  });
+
   it('exempts simultaneous scenes from overlap only', () => {
     expect(treatmentOf('simultaneous', 'timeline.overlap')).toBe('exempt');
     expect(treatmentOf('simultaneous', 'timeline.order-drift')).toBe('checked');
@@ -92,11 +105,12 @@ describe('timeline exemption table (§5.2.1)', () => {
     const lines = readFileSync(SPEC, 'utf8').split('\n');
     const header = lines.findIndex((line) => line.startsWith('| `timelineMode` | `timeline.order-drift`'));
     expect(header).toBeGreaterThan(-1);
-    // Cell positions after the mode column: order-drift, relation, window, overlap, pov/presence.
+    // Cell positions after the mode column: order-drift, relation, window, overlap, gap, pov/presence.
     const columns: readonly (readonly [TimelineCheck, number])[] = [
       ['timeline.order-drift', 1],
       ['timeline.window', 3],
       ['timeline.overlap', 4],
+      ['timeline.gap', 5],
     ];
     const seen = new Set<TimelineMode>();
     for (let row = header + 2; row < lines.length && lines[row]?.startsWith('|'); row += 1) {

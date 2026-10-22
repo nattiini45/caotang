@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { assembleInput, emptyCoherenceFile, runChecks, type CoherenceFile, type DraftFinding, type SceneMeta } from '../src/index.js';
+import { GAP_THRESHOLD_DAYS, assembleInput, emptyCoherenceFile, runChecks, type CoherenceFile, type DraftFinding, type SceneMeta } from '../src/index.js';
 
 import { buildState, detect } from './fixtures.js';
 
@@ -215,5 +215,134 @@ describe('timeline.overlap (§5.1)', () => {
   it('exempts a simultaneous scene, since declaring simultaneity is the intent this check asks about', () => {
     const file = withMeta({ x: { dayOffset: 3, durationDays: 2, timelineMode: 'simultaneous' }, y: { dayOffset: 4 } });
     expect(drafts(state(), file, ['timeline.overlap']).drafts).toEqual([]);
+  });
+});
+
+describe('timeline.gap (§5.1)', () => {
+  const GAP = ['timeline.gap'] as const;
+  const twoScenes = (): ReturnType<typeof buildState> =>
+    buildState({
+      scenes: [
+        { id: 'before', title: 'Before', body: 'The ferry left.' },
+        { id: 'after', title: 'After', body: 'The ferry came back.' },
+      ],
+    });
+
+  it('names both scenes and the day count when a scene comes 7 days after the one before it, as information', () => {
+    const file = withMeta({ before: { dayOffset: 2 }, after: { dayOffset: 2 + GAP_THRESHOLD_DAYS } });
+    const out = drafts(twoScenes(), file, GAP);
+    expect(out.drafts).toHaveLength(1);
+    const [finding] = out.drafts;
+    expect(finding).toMatchObject({ checkId: 'timeline.gap', type: 'time-gap', severity: 'info' });
+    expect(finding?.message).toBe('"After" happens 7 days after "Before"');
+    expect(finding?.expected).toContain('time skip');
+    expect(finding?.evidence.map((passage) => passage.docId)).toEqual(['before', 'after']);
+  });
+
+  it('is silent for 6 days, and for two scenes on the same day', () => {
+    expect(drafts(twoScenes(), withMeta({ before: { dayOffset: 2 }, after: { dayOffset: 8 } }), GAP).drafts).toEqual([]);
+    expect(drafts(twoScenes(), withMeta({ before: { dayOffset: 2 }, after: { dayOffset: 2 } }), GAP).drafts).toEqual([]);
+  });
+
+  it('measures start to start, whatever the earlier scene’s duration', () => {
+    const file = withMeta({ before: { dayOffset: 0, durationDays: 30 }, after: { dayOffset: 7 } });
+    expect(drafts(twoScenes(), file, GAP).drafts).toHaveLength(1);
+  });
+
+  it('compares scenes in day order, not binder order', () => {
+    const state = buildState({
+      scenes: [
+        { id: 'a', title: 'Alpha', body: 'A.' },
+        { id: 'b', title: 'Beta', body: 'B.' },
+        { id: 'c', title: 'Gamma', body: 'C.' },
+      ],
+    });
+    // Binder order a, b, c; day order a (0), c (3), b (20): only c -> b is a gap.
+    const out = drafts(state, withMeta({ a: { dayOffset: 0 }, b: { dayOffset: 20 }, c: { dayOffset: 3 } }), GAP);
+    expect(out.drafts.map((d) => d.message)).toEqual(['"Beta" happens 17 days after "Gamma"']);
+  });
+
+  it.each(['time-skip', 'dream', 'mythic'] as const)('raises nothing when either side is %s (positive control)', (mode) => {
+    const later = withMeta({ before: { dayOffset: 0 }, after: { dayOffset: 40, timelineMode: mode } });
+    expect(drafts(twoScenes(), later, GAP).drafts).toEqual([]);
+    const earlier = withMeta({ before: { dayOffset: 0, timelineMode: mode }, after: { dayOffset: 40 } });
+    expect(drafts(twoScenes(), earlier, GAP).drafts).toEqual([]);
+  });
+
+  it('raises the finding for the same pair when both sides are linear (negative control)', () => {
+    const file = withMeta({ before: { dayOffset: 0, timelineMode: 'linear' }, after: { dayOffset: 40, timelineMode: 'linear' } });
+    expect(drafts(twoScenes(), file, GAP).drafts).toHaveLength(1);
+  });
+
+  it.each(['backstory', 'flashback'] as const)('does not exempt a %s scene', (mode) => {
+    const file = withMeta({ before: { dayOffset: 0 }, after: { dayOffset: 40, timelineMode: mode } });
+    expect(drafts(twoScenes(), file, GAP).drafts).toHaveLength(1);
+  });
+
+  it('counts unscheduled scenes in a note and never treats them as violations', () => {
+    const out = drafts(twoScenes(), withMeta({ before: { dayOffset: 0 } }), GAP);
+    expect(out.drafts).toEqual([]);
+    expect(out.notes.some((note) => note.includes('1 scene(s) unscheduled'))).toBe(true);
+  });
+
+  it('says the unscheduled count once when order-drift and gap both run', () => {
+    const out = drafts(twoScenes(), withMeta({ before: { dayOffset: 0 } }), ['timeline.order-drift', 'timeline.gap']);
+    expect(out.notes.filter((note) => note.includes('unscheduled'))).toHaveLength(1);
+  });
+
+  it('compares parallel scenes within their strand, not against the main sequence', () => {
+    const state = buildState({
+      scenes: [
+        { id: 'm1', title: 'Main one', body: 'A.' },
+        { id: 'p1', title: 'Parallel one', body: 'B.' },
+        { id: 'm2', title: 'Main two', body: 'C.' },
+        { id: 'p2', title: 'Parallel two', body: 'D.' },
+      ],
+    });
+    // Across strands every neighbour is 30 or more days away, within each strand the pair is 2 days apart.
+    const file = withMeta({
+      m1: { dayOffset: 0 },
+      p1: { dayOffset: 30, timelineMode: 'parallel' },
+      m2: { dayOffset: 2 },
+      p2: { dayOffset: 32, timelineMode: 'parallel' },
+    });
+    expect(drafts(state, file, GAP).drafts).toEqual([]);
+    const far = withMeta({
+      m1: { dayOffset: 0 },
+      p1: { dayOffset: 30, timelineMode: 'parallel' },
+      m2: { dayOffset: 2 },
+      p2: { dayOffset: 50, timelineMode: 'parallel' },
+    });
+    const out = drafts(state, far, GAP);
+    expect(out.drafts).toHaveLength(1);
+    expect(out.drafts[0]?.message).toBe('"Parallel two" happens 20 days after "Parallel one", within the parallel strand');
+  });
+
+  it('keeps a time-skip scene in the date-order group: out of binder order it still raises order-drift', () => {
+    const file = withMeta({ before: { dayOffset: 5, timelineMode: 'time-skip' }, after: { dayOffset: 1 } });
+    const out = drafts(twoScenes(), file, ['timeline.order-drift', 'timeline.gap']);
+    expect(out.drafts.map((d) => d.checkId)).toEqual(['timeline.order-drift']);
+  });
+
+  it('leaves a binder-reversed pair under 7 days to order-drift alone', () => {
+    const file = withMeta({ before: { dayOffset: 5 }, after: { dayOffset: 1 } });
+    const out = drafts(twoScenes(), file, ['timeline.order-drift', 'timeline.gap']);
+    expect(out.drafts.map((d) => d.checkId)).toEqual(['timeline.order-drift']);
+  });
+
+  it('reports a binder-reversed pair 7 or more days apart twice, once for the order and once for the size, under separate fact groups', () => {
+    const file = withMeta({ before: { dayOffset: 20 }, after: { dayOffset: 1 } });
+    const out = drafts(twoScenes(), file, ['timeline.order-drift', 'timeline.gap']);
+    expect(out.drafts.map((d) => d.checkId)).toEqual(['timeline.order-drift', 'timeline.gap']);
+    const [drift, gap] = out.drafts;
+    expect(drift?.factGroup).not.toBe(gap?.factGroup);
+    expect(gap?.message).toBe('"Before" happens 19 days after "After"');
+  });
+
+  it('keys the finding on the pair, so an unrelated edit leaves the dismissal in place', () => {
+    const file = withMeta({ before: { dayOffset: 0 }, after: { dayOffset: 9 } });
+    expect(drafts(twoScenes(), file, GAP).drafts[0]?.factGroup).toBe('after+before|gap');
+    const edited = withMeta({ before: { dayOffset: 0 }, after: { dayOffset: 12 } });
+    expect(drafts(twoScenes(), edited, GAP).drafts[0]?.factGroup).toBe('after+before|gap');
   });
 });
