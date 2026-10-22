@@ -109,6 +109,8 @@ export type PrepareFn =(params: CallParams, context: PrepareContext) => Result<P
 
 export interface PortContext {
   readonly state: ProjectState;
+  /** The turn this call belongs to. A port that keeps something for one turn (the skills a turn has loaded) keys it by this. */
+  readonly turnId: string;
   /** Dispatches one command through the bus, under the same turn and permission as the call. */
   readonly dispatch: (name: CommandName, params: CallParams) => Result<ExecutionOutcome, CommandError>;
   /**
@@ -178,7 +180,9 @@ export type PortToolName =
   // The dialogue module's two tools (dialogue-narrative.md §7). `dialogue.table` is a read and is wired
   // by default; `dialogue.draft` takes the loop's staged Ink, and is wired by the agent ports (`createAgentPorts`).
   | 'dialogue.draft'
-  | 'dialogue.table';
+  | 'dialogue.table'
+  // The project's skills (extensibility.md §10). Wired only where the app supplies `HarnessOptions.skills`, so the outward MCP server, which does not, never lists it.
+  | 'skill.load';
 
 interface EntryBase {
   readonly meta: ToolMetadata;

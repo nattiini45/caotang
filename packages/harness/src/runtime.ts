@@ -91,13 +91,15 @@ import {
 } from '@caotang/mcp-client';
 import { newId } from '@caotang/ids';
 import { createProjectCommandRegistry, type McpInvokeCommandPort, type ProjectState } from '@caotang/store';
+import { skillCatalog as skillCatalogOf, type SkillCatalog, type SkillState } from '@caotang/skills';
 import { shotCommandPort } from '@caotang/storyboard';
 
 import { createCallCache } from './cache.js';
 import { portPreflights } from './agent/ports.js';
-import { TOOL_METADATA, type ToolMetadata, type ToolName, type ToolRisk } from './metadata.js';
+import { TOOL_METADATA, capOf, type ToolMetadata, type ToolName, type ToolRisk } from './metadata.js';
 import { coherenceAsyncPorts, coherencePorts, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
 import { NO_SERVERS, toolSearchPort } from './tools/search.js';
+import { createSkillLoads, skillLoadPort, skillStatesOf, type LoadedSkill, type SkillsOption } from './tools/skills.js';
 import { storyboardPorts } from './tools/storyboard.js';
 import {
   parsePlan,
@@ -174,6 +176,12 @@ export interface HarnessOptions {
    * run by `callAsync` after its plan is approved, and the agent loop reaches it there. Absent, the tool is refused as not wired.
    */
   readonly asyncPorts?: Readonly<Partial<Record<PortToolName, AsyncToolPort>>>;
+  /**
+   * The project's skills (extensibility.md §10): the app's lookup of the review the writer holds for a skill. With it, the model is told
+   * of each skill that is on, reviewed and open to it (`skillCatalog`) and `skill.load` is wired. Without it, as in the outward MCP
+   * server, `skill.load` is refused as not wired and no skill is mentioned.
+   */
+  readonly skills?: SkillsOption;
 }
 
 /** A metadata row, plus what the caller needs to decide whether to call the tool. */
@@ -245,6 +253,14 @@ export interface Harness {
   loadedExternalTools(): readonly ExternalToolDescriptor[];
   /** The deferred native rows loaded this turn, by `tool.search` or a preload, in registry order: callable and wired ones only. */
   loadedNativeTools(): readonly ToolListing[];
+  /**
+   * The model's list of skills (context-assembly §2, the second planner addendum): one line per skill that is on, reviewed and open to
+   * the model, within its budget, and the names the budget left out. Undefined when there is nothing to say, which is every project
+   * with no skills and every harness built without `skills`.
+   */
+  skillCatalog(): SkillCatalog | undefined;
+  /** The skills `skill.load` has loaded under this turn, in the order they were loaded. Forgotten by `endTurn`. */
+  loadedSkills(turnId: string): readonly LoadedSkill[];
   /**
    * Loads deferred native rows for a turn without a search: a UI action that starts a turn about one of them, or the context table
    * (agent-harness §3). A row that is not deferred is already declared, and a name that is not a row is ignored.
@@ -563,6 +579,11 @@ export function createHarness(options: HarnessOptions): Harness {
   let externalStop: AbortSignal | undefined;
   const mcpInvoke = mcpClient === undefined ? undefined : mcpInvokeInjection(mcpClient, loaded, () => externalStop);
   const registry = completeRegistry(options.registry, clock, mcpInvoke);
+  // The skills each turn has loaded, kept for that turn only (tools/skills.ts).
+  const skillLoads = createSkillLoads();
+  const skillSource = options.skills;
+  const skillStates = (): readonly SkillState[] => (skillSource === undefined ? [] : skillStatesOf(state, skillSource));
+  const SKILL_LOAD_CAP = capOf('skill.load');
   // The coherence engine answers its two synchronous tools by default (tools/coherence.ts), and its review, which awaits a
   // model, is the default async port (`asyncPorts`). A caller's port of the same name replaces the default, so the app can
   // supply its own. `tool.search` is a read, so it is wired whether or not a server is connected (tools/search.ts).
@@ -572,6 +593,8 @@ export function createHarness(options: HarnessOptions): Harness {
   const ports: Readonly<Partial<Record<PortToolName, ToolPort>>> = {
     ...coherencePorts(clock, options.coherence),
     'tool.search': toolSearchPort(index, deferredRows, loaded),
+    // The project's skills: wired only where the app says how to find the writer's review of one (HarnessOptions.skills).
+    ...(options.skills === undefined ? {} : { 'skill.load': skillLoadPort(skillStates, skillLoads, SKILL_LOAD_CAP) }),
     ...(registry['shot.setMeta'].apply === undefined ? {} : storyboardPorts(options.presentAssets ?? (() => new Set<string>()))),
     // The dialogue table is a read of the container's Ink, so it needs no provider and is wired by default
     // (dialogue-narrative.md §7, row 23). `dialogue.draft` is the agent ports' (`createAgentPorts`): it writes the loop's staged Ink.
@@ -750,6 +773,7 @@ export function createHarness(options: HarnessOptions): Harness {
     const permission = grantedBy(turn);
     return {
       state,
+      turnId: turn.turnId,
       dispatch: (name, command) => run(name, command),
       // A compound tool's own grant, inherited by the primitive it composes (command-bus §4).
       dispatchInherited: (name, command) => run(name, command, 'write-confirm'),
@@ -990,6 +1014,7 @@ export function createHarness(options: HarnessOptions): Harness {
     planCache.endTurn(turnId);
     idempotency.endTurn(turnId);
     undo.endTurn(turnId);
+    skillLoads.forget(turnId);
     if (loaded.turnId === turnId) loaded.endTurn();
   }
 
@@ -1142,6 +1167,11 @@ export function createHarness(options: HarnessOptions): Harness {
     callAsync,
     reviewPlan: (params) => stageReviewPlan(params, state, clock, options.coherence ?? {}),
     loadedAddendum: () => loadedAddendum(loaded.names()),
+    skillCatalog: () => {
+      const catalog = skillSource === undefined ? undefined : skillCatalogOf(skillStates());
+      return catalog === undefined || catalog.text === '' ? undefined : catalog;
+    },
+    loadedSkills: (turnId) => skillLoads.of(turnId),
     loadedNativeTools: () => {
       const names = new Set(loaded.nativeNames());
       return listTools().filter((tool) => names.has(tool.name) && tool.callable && tool.wired);
