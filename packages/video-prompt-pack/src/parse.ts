@@ -8,7 +8,19 @@ import { MalformedReplyError } from './errors.js';
 
 type Obj = Record<string, unknown>;
 
-const FENCE = /^```(?:json)?\s*\n?([\s\S]*?)\n?```$/i;
+const FENCE = '```';
+
+/**
+ * The body of a reply wrapped in a code fence, trimmed, or null when it is not wrapped in one. The fence opens
+ * with three backticks and an optional `json` tag, and closes with three backticks at the very end. Scanned
+ * by hand, because a pattern with overlapping whitespace quantifiers backtracks quadratically on a long run of blanks.
+ */
+function unfence(text: string): string | null {
+  if (text.length < 2 * FENCE.length || !text.startsWith(FENCE) || !text.endsWith(FENCE)) return null;
+  let start = FENCE.length;
+  if (text.slice(start, start + 4).toLowerCase() === 'json') start += 4;
+  return text.slice(start, text.length - FENCE.length).trim();
+}
 
 /** The fields the draft reply may carry. Audio and negatives are read only when the template takes them. */
 export const DRAFT_FIELDS = ['camera', 'subject', 'action', 'context', 'style', 'dialogue', 'sfx', 'ambient', 'music', 'negativePrompt'] as const;
@@ -21,8 +33,8 @@ function isRecord(value: unknown): value is Obj {
 /** Parses a reply to a JSON object, or refuses it as malformed. */
 export function parseJsonReply(content: string, stage: string): Obj {
   let text = content.trim();
-  const fenced = FENCE.exec(text);
-  if (fenced !== null) text = (fenced[1] ?? '').trim();
+  const fenced = unfence(text);
+  if (fenced !== null) text = fenced;
   let value: unknown;
   try {
     value = JSON.parse(text);

@@ -277,3 +277,29 @@ test('the Markdown export carries every row of the log, not only the panel’s w
     await session.close();
   }
 });
+
+test('the Markdown export escapes backslashes before pipes in a summary, so a cell cannot be split', () => {
+  const entry = (summary: string): ActivityEntry => ({
+    at: 0,
+    command: 'node.rename',
+    issuedBy: 'user',
+    source: 'native',
+    affected: [],
+    summary,
+  });
+  const markdown = activityMarkdown({
+    title: 'Fixture Book',
+    entries: [entry('a | b'), entry('ends with \\'), entry('a \\| b')],
+    turns: [],
+    now: 0,
+  });
+  const rows = markdown.split('\n').filter((line) => /^\| \d+ \|/.test(line));
+  expect(rows).toHaveLength(3);
+  expect(rows[0]).toContain('| a \\| b |');
+  // A trailing backslash is doubled, so it cannot escape the pipe that closes the cell.
+  expect(rows[1]).toContain('| ends with \\\\ |');
+  // A literal backslash then a pipe becomes an escaped backslash then an escaped pipe.
+  expect(rows[2]).toContain('| a \\\\\\| b |');
+  // Reading escapes as pairs, every row keeps exactly seven cells.
+  for (const row of rows) expect(row.replace(/\\./g, '').split('|')).toHaveLength(9);
+});

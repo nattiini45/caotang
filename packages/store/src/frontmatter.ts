@@ -184,7 +184,7 @@ function parseBlockScalar(indicator: string, blockLines: readonly string[]): str
     .filter((l) => l.trim() !== '')
     .map((l) => (/^\s*/.exec(l)?.[0].length ?? 0) as number);
   const base = indents.length > 0 ? Math.min(...indents) : 0;
-  const content = blockLines.map((l) => l.slice(base).replace(/\s+$/, ''));
+  const content = blockLines.map((l) => l.slice(base).trimEnd());
 
   while (content.length > 0 && content[content.length - 1] === '') content.pop();
 
@@ -201,10 +201,9 @@ function parseBlockScalar(indicator: string, blockLines: readonly string[]): str
       if (parts.length > 0 && !parts[parts.length - 1]?.endsWith('\n')) parts.push(' ');
       parts.push(line);
     }
-    value = parts
-      .join('')
-      .replace(/\n(?!\n)/g, '\n')
-      .replace(/[ ]+\n/g, '\n');
+    // Every line is already trimmed and a joining space only ever precedes a line,
+    // so no space can stand before a newline here.
+    value = parts.join('');
   } else {
     value = content.join('\n');
   }

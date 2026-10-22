@@ -160,11 +160,18 @@ export function xlsxText(text: string): string {
   return escapeXmlText(escaped);
 }
 
+/** `text` without leading and trailing apostrophes: a scan from both ends, not an `^'+|'+$` regex, which backtracks quadratically on `x''''x`. */
+function trimApostrophes(text: string): string {
+  let start = 0;
+  let end = text.length;
+  while (start < end && text[start] === "'") start++;
+  while (end > start && text[end - 1] === "'") end--;
+  return text.slice(start, end);
+}
+
 /** A sheet name Excel accepts: none of `[]:*?/\`, no leading or trailing apostrophe, at most 31 characters, never empty. */
 export function sheetName(name: string): string {
-  const cleaned = stripXmlIllegal(name)
-    .replace(/[[\]:*?/\\]/g, ' ')
-    .replace(/^'+|'+$/g, '')
+  const cleaned = trimApostrophes(stripXmlIllegal(name).replace(/[[\]:*?/\\]/g, ' '))
     .trim()
     .slice(0, SHEET_NAME_MAX)
     .trim();

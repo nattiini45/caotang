@@ -314,7 +314,10 @@ export const insertionOf = (text: string, schema: Schema): Slice => {
   // Only spaces and tabs are the text's own edge whitespace. A newline at either end is a paragraph
   // boundary, and the parse must see it: kept as a character it saves as `&#xA;`.
   const leading = /^[ \t]*/.exec(text)![0];
-  const trailing = /[ \t]*$/.exec(text)![0];
+  // Scanned from the end: `/[ \t]*$/` retries from every start in a run of tabs, which is quadratic.
+  let trailingStart = text.length;
+  while (trailingStart > 0 && (text[trailingStart - 1] === ' ' || text[trailingStart - 1] === '\t')) trailingStart--;
+  const trailing = text.slice(trailingStart);
   const core = text.slice(leading.length, text.length - trailing.length);
   if (core.length === 0) return new Slice(Fragment.from(schema.text(text)), 0, 0);
   const parsed = schema.nodeFromJSON(parseFragment(core).toJSON());
