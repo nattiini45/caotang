@@ -54,9 +54,13 @@
  * executed, so it leaves **no row**. That is the log's whole value as an audit
  * (*§1: "auditable (activity log)"*): a row means the bus did something.
  *
- * **And a defect row is not an execution.** One dispatch can leave two rows:
- * the effect it made, and — after the fact — a defect the bus found in the
- * apply. The defect row is marked (`defect`), reports nothing that ran, and
+ * **And a defect row is not an execution.** A dispatch that made an effect can
+ * leave two rows: the effect it made, and — after the fact — a defect the bus
+ * found in the apply. **The pairing is not guaranteed.** The effect row is
+ * written only when the dispatch registered an undo group or reported an
+ * attempt (`pipeline.ts`), so a dispatch that registered neither — an apply
+ * that threw before it captured anything — leaves the defect row on its own.
+ * The defect row is marked (`defect`), reports nothing that ran, and
  * carries no undo group, so the rule this section states is the rule for the
  * **rows that report an effect**. A reader of the entries can tell the two
  * apart by the marker; a reader of a rendered surface cannot, until that
