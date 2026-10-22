@@ -72,6 +72,13 @@ export interface McpServerConfig {
   trustReads: boolean;
   /** Qualified tool name → the pin the person last reviewed. Changes only on an explicit review. */
   pinnedTools: Record<string, ToolPin>;
+  /**
+   * Prompt name → the pin the person last reviewed (extensibility §3.2). Absent until a review has seen a prompt, so a server saved before
+   * prompts were pinned loads as it was saved, with its tool pins untouched.
+   */
+  pinnedPrompts?: Record<string, ToolPin>;
+  /** URI template → the pin the person last reviewed, for the server's resource templates. Absent like {@link pinnedPrompts}. */
+  pinnedTemplates?: Record<string, ToolPin>;
   addedAt: string;
 }
 
@@ -238,6 +245,11 @@ function parseStoredServer(entry: unknown, now: string, position: string): Store
     };
   }
 
+  const pinnedPrompts = parsePinMap(entry['pinnedPrompts'], 'prompt', label, now, warnings);
+  if (pinnedPrompts === 'invalid') return reject('its pinnedPrompts must be an object');
+  const pinnedTemplates = parsePinMap(entry['pinnedTemplates'], 'resource template', label, now, warnings);
+  if (pinnedTemplates === 'invalid') return reject('its pinnedTemplates must be an object');
+
   const server: McpServerConfig = {
     key,
     name,
@@ -250,7 +262,29 @@ function parseStoredServer(entry: unknown, now: string, position: string): Store
     addedAt: typeof entry['addedAt'] === 'string' ? entry['addedAt'] : now,
   };
   if (enabledTools !== undefined) server.enabledTools = enabledTools;
+  if (pinnedPrompts !== undefined) server.pinnedPrompts = pinnedPrompts;
+  if (pinnedTemplates !== undefined) server.pinnedTemplates = pinnedTemplates;
   return { ok: true, label, server, warnings };
+}
+
+/** A saved map of prompt or template pins. Absent stays absent, and an empty map is not kept, so a server with none is saved as it always was. */
+function parsePinMap(value: unknown, what: string, label: string, now: string, warnings: string[]): Record<string, ToolPin> | undefined | 'invalid' {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) return 'invalid';
+  const pins: Record<string, ToolPin> = {};
+  for (const [name, pin] of Object.entries(value)) {
+    if (name === '__proto__') continue;
+    if (!isRecord(pin) || typeof pin['hash'] !== 'string' || !/^[0-9a-f]{64}$/.test(pin['hash'])) {
+      warnings.push(`dropped the pin for ${what} ${name} on MCP server ${label}: it needs review again`);
+      continue;
+    }
+    pins[name] = {
+      hash: pin['hash'],
+      firstSeen: typeof pin['firstSeen'] === 'string' ? pin['firstSeen'] : now,
+      lastReviewedAt: typeof pin['lastReviewedAt'] === 'string' ? pin['lastReviewedAt'] : now,
+    };
+  }
+  return Object.keys(pins).length === 0 ? undefined : pins;
 }
 
 function parseAuth(value: unknown): McpAuth | undefined {
@@ -281,7 +315,7 @@ function parseNameList(value: unknown): string[] | undefined | 'invalid' {
 
 /** The fields an import may set. Anything else in an entry is refused by name, and the grants are refused on purpose. */
 const IMPORT_FIELDS: readonly string[] = ['name', 'url', 'auth', 'enabled', 'enabledTools'];
-const REFUSED_IMPORT_FIELDS: readonly string[] = ['key', 'trustReads', 'pinnedTools', 'addedAt', 'transport'];
+const REFUSED_IMPORT_FIELDS: readonly string[] = ['key', 'trustReads', 'pinnedTools', 'pinnedPrompts', 'pinnedTemplates', 'addedAt', 'transport'];
 
 export interface ImportRefusal {
   readonly entry: string;

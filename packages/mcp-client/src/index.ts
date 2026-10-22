@@ -17,7 +17,12 @@ export {
   canonicalJson,
   pinHash,
   sha256Hex,
+  subjectHash,
+  type PinSubject,
+  type PinnedPromptArgument,
 } from './canonical.js';
+
+export { CATALOG_LIMIT } from './catalog.js';
 
 export {
   EMPTY_MCP_SETTINGS,
@@ -47,6 +52,9 @@ export {
 export {
   McpFailure,
   PIN_MISMATCH_TEXT,
+  inputRequiredText,
+  notFoundText,
+  readErrorText,
   schemaText,
   serverErrorText,
   timeoutText,
@@ -66,6 +74,9 @@ export {
   createMcpTransport,
   qualifiedNameOf,
   type AddServerInput,
+  type CatalogStatus,
+  type ExternalPromptDescriptor,
+  type ExternalResourceDescriptor,
   type ExternalToolDescriptor,
   type HealthState,
   type IndexedTools,
@@ -75,6 +86,8 @@ export {
   type McpToolResult,
   type McpTransport,
   type ReviewCard,
+  type ReviewPrompt,
+  type ReviewTemplate,
   type ReviewTool,
   type UpdateServerPatch,
 } from './client.js';
@@ -94,9 +107,18 @@ export type {
   McpWire,
   WireAnnotations,
   WireCallResult,
+  WireCapabilities,
+  WireCompletionRef,
   WireDeps,
   WireFactory,
   WireOptions,
+  WirePrompt,
+  WirePromptArgument,
+  WirePromptResult,
+  WireResource,
+  WireResourceContents,
+  WireResourceListing,
+  WireResourceTemplate,
   WireTool,
 } from './wire.js';
 
@@ -174,4 +196,4 @@ export { egressAllowed, egressAllowlistFor, type EgressAllowlist } from './egres
 
 export { APPROVAL_NOTICE, approvalCardFor, type ApprovalCard } from './approval.js';
 
-export { createMockWire, createMockWireFactory, type MockMcpScript } from './mock.js';
+export { createMockWire, createMockWireFactory, type MockMcpScript, type MockPhase } from './mock.js';

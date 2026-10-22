@@ -16,7 +16,20 @@
 import { egressAllowed } from './egress.js';
 import type { McpServerConfig } from './config.js';
 import { WireError, WireLoadError } from './wire-error.js';
-import type { McpWire, WireCallResult, WireDeps, WireFactory, WireOptions, WireTool } from './wire.js';
+import type {
+  McpWire,
+  WireCallResult,
+  WireCapabilities,
+  WireCompletionRef,
+  WireDeps,
+  WireFactory,
+  WireOptions,
+  WirePrompt,
+  WirePromptResult,
+  WireResourceContents,
+  WireResourceListing,
+  WireTool,
+} from './wire.js';
 
 /** How the real wire's code is fetched. Tests replace it. */
 export type WireLoader = () => Promise<{ readonly createSdkWire: WireFactory }>;
@@ -38,6 +51,32 @@ class LazyWire implements McpWire {
 
   async callTool(name: string, args: Record<string, unknown>, options: WireOptions): Promise<WireCallResult> {
     return (await this.wire()).callTool(name, args, options);
+  }
+
+  async capabilities(options: WireOptions): Promise<WireCapabilities> {
+    return (await this.wire()).capabilities(options);
+  }
+
+  async listResources(options: WireOptions): Promise<WireResourceListing> {
+    return (await this.wire()).listResources(options);
+  }
+
+  async readResource(uri: string, options: WireOptions): Promise<readonly WireResourceContents[]> {
+    return (await this.wire()).readResource(uri, options);
+  }
+
+  async listPrompts(options: WireOptions): Promise<readonly WirePrompt[]> {
+    return (await this.wire()).listPrompts(options);
+  }
+
+  async getPrompt(name: string, args: Record<string, string>, options: WireOptions): Promise<WirePromptResult> {
+    return (await this.wire()).getPrompt(name, args, options);
+  }
+
+  async complete(ref: WireCompletionRef, argument: { readonly name: string; readonly value: string }, options: WireOptions): Promise<readonly string[]> {
+    const wire = await this.wire();
+    if (wire.complete === undefined) throw new WireError('protocol', 'this connection cannot ask for completions');
+    return wire.complete(ref, argument, options);
   }
 
   async close(): Promise<void> {
