@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { MemoryArtifactFs, ArtifactNotFoundError } from '../src/index.js';
+import { MemoryArtifactFs, ArtifactNotFoundError, joinPath } from '../src/index.js';
 
 /** A payload with every byte value a UTF-8 decoder would reject or mangle. */
 const BINARY = Uint8Array.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x80, 0xc3, 0x28, 0xff, 0xfe, 0x00]);
@@ -63,5 +63,26 @@ describe('binary files through ArtifactFs', () => {
 
     expect(await fs.listFiles('exports')).toEqual(['out.bin']);
     expect(await fs.readBytes('exports/out.bin')).toEqual(BINARY);
+  });
+});
+
+describe('joinPath', () => {
+  it('joins a directory and a name, dropping trailing slashes from the directory', () => {
+    expect(joinPath('', 'a.md')).toBe('a.md');
+    expect(joinPath('.', 'a.md')).toBe('a.md');
+    expect(joinPath('docs', 'a.md')).toBe('docs/a.md');
+    expect(joinPath('docs/', 'a.md')).toBe('docs/a.md');
+    expect(joinPath('docs///', 'a.md')).toBe('docs/a.md');
+    expect(joinPath('/', 'a.md')).toBe('/a.md');
+    expect(joinPath('///', 'a.md')).toBe('/a.md');
+    expect(joinPath('dös/ünï/', 'ä.md')).toBe('dös/ünï/ä.md');
+  });
+
+  it('joins in linear time when the directory is a long run of slashes', () => {
+    // `/\/+$/` took ~800 ms on this at 30k.
+    const hostile = `${'/'.repeat(100_000)}x`;
+    const start = performance.now();
+    expect(joinPath(hostile, 'a.md')).toBe(`${hostile}/a.md`);
+    expect(performance.now() - start).toBeLessThan(500);
   });
 });

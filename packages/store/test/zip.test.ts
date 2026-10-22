@@ -83,6 +83,30 @@ describe('§7 zip bundle', () => {
     expect(bundleFilename('   ', 'n_abc12345')).toBe(`n_abc12345${BUNDLE_EXTENSION}`);
   });
 
+  it('trims leading and trailing dots and whitespace from a project name, and only there', () => {
+    const f = (n: string): string => bundleFilename(n, 'n_abc12345');
+    expect(f('  ..The Lighthouse.. ')).toBe(`The Lighthouse${BUNDLE_EXTENSION}`);
+    expect(f('. . .')).toBe(`n_abc12345${BUNDLE_EXTENSION}`);
+    expect(f('...')).toBe(`n_abc12345${BUNDLE_EXTENSION}`);
+    expect(f('')).toBe(`n_abc12345${BUNDLE_EXTENSION}`);
+    expect(f('\t\r\n')).toBe(`n_abc12345${BUNDLE_EXTENSION}`);
+    expect(f('.\r\n.a.b.\r\n.')).toBe(`a.b${BUNDLE_EXTENSION}`);
+    expect(f('\u00a0\u2003.Café Ünï.\ufeff')).toBe(`Café Ünï${BUNDLE_EXTENSION}`);
+    // The 80-character cap re-trims whitespace (not dots), as before.
+    expect(f(`${'a'.repeat(79)} b`)).toBe(`${'a'.repeat(79)}${BUNDLE_EXTENSION}`);
+  });
+
+  it('sanitizes a long run of dots and spaces in linear time', () => {
+    // `/^[.\s]+|[.\s]+$/g` took seconds on this input at 30k.
+    const hostile = `a${'. '.repeat(50_000)}b`;
+    const start = performance.now();
+    const out = bundleFilename(hostile, 'n_abc12345');
+    expect(performance.now() - start).toBeLessThan(500);
+    expect(out.endsWith(BUNDLE_EXTENSION)).toBe(true);
+    const edge = bundleFilename(`${'. '.repeat(50_000)}x${'. '.repeat(50_000)}`, 'n_abc12345');
+    expect(edge).toBe(`x${BUNDLE_EXTENSION}`);
+  });
+
   it('strips every control character from a project name, the class the searchable-sources guard refuses', () => {
     // §7 puts `<project-name>` in a filename, so the strip has to cover the
     // whole C0 range and DEL. The class is written as escapes because the
