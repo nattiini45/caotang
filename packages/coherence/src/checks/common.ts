@@ -60,6 +60,11 @@ export interface CheckInput {
    * is not an error: that scene's checks fall back to a fresh parse of its own body, which costs a parse, nothing else.
    */
   readonly cueFacts?: ReadonlyMap<string, CueFacts>;
+  /**
+   * Every document in the binder, scanned or not, by id and title (§5.5). `plot.unresolved-thread` needs it to tell a payoff
+   * that names nothing from one that is in the project and was not read. Absent means that check cannot run and says so.
+   */
+  readonly treeDocuments?: ReadonlyMap<string, string>;
 }
 
 export interface CheckOutput {

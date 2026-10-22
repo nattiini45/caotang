@@ -182,6 +182,31 @@ describe('coherence.setSceneMeta (coherence.md §5.2, §7.1)', () => {
     expect(h.state.coherence?.sceneMeta[STORM]?.after).toEqual([LETTER]);
   });
 
+  it('declares a thread through the bus, and undo restores the threads that were there, byte for byte', () => {
+    const h = harness();
+    expectOk(h.send('coherence.setSceneMeta', { docId: STORM, patch: { threads_add: [{ id: 'the map', payoff: LETTER }] } }));
+    const before = snapshotOf(h.state);
+    const edit = expectOk(
+      h.send('coherence.setSceneMeta', {
+        docId: STORM,
+        patch: { threads_add: [{ id: 'the lamp', payoff: LETTER, note: 'lit again' }, { id: 'the key', payoff: LETTER }], threads_remove: ['the map'] },
+      }),
+    );
+    expect(h.state.coherence?.sceneMeta[STORM]?.threads?.map((thread) => thread.id)).toEqual(['the key', 'the lamp']);
+    expect(h.undo.undo(edit.undoGroupId!).ok).toBe(true);
+    expect(snapshotOf(h.state)).toBe(before);
+  });
+
+  it('refuses a blank handle and a payoff that is not a document, naming the field, and changes nothing', () => {
+    const h = harness();
+    const before = snapshotOf(h.state);
+    const blank = h.send('coherence.setSceneMeta', { docId: STORM, patch: { threads_add: [{ id: '  ', payoff: LETTER }] } });
+    expect(!blank.ok && blank.error.message).toContain('threads_add[0].id');
+    const gone = h.send('coherence.setSceneMeta', { docId: STORM, patch: { threads_add: [{ id: 'the lamp', payoff: 'n_NOPE000000' }] } });
+    expect(!gone.ok && gone.error.message).toContain('threads_add[0].payoff');
+    expect(snapshotOf(h.state)).toBe(before);
+  });
+
   it('refuses a pov that is not a codex entry, naming the valid ones, and changes nothing', () => {
     const h = harness();
     const before = snapshotOf(h.state);

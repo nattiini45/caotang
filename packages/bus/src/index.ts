@@ -175,6 +175,7 @@ export type {
   ScenePatchResult,
   SceneMetaContext,
   SceneMetaRecord,
+  SceneThread,
   TimelineModeName,
 } from './coherence.js';
 export {
@@ -182,6 +183,8 @@ export {
   COHERENCE_STATUSES,
   DISMISSAL_REASON_IDS,
   SCENE_PATCH_KEYS,
+  THREAD_ID_LIMIT,
+  THREAD_NOTE_LIMIT,
   TIMELINE_MODES,
   applySceneMetaPatch,
   coherenceNoteProblem,

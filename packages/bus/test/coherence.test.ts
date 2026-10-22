@@ -95,6 +95,77 @@ describe('the scene-metadata patch rule (coherence.md §5.2, §5.2.1)', () => {
   });
 });
 
+describe('threads in the scene-metadata patch (coherence.md §5.5)', () => {
+  const OTHER = 'n_OTHER00001';
+  const lamp = { id: 'the lamp', payoff: OTHER, note: 'it is lit again' };
+
+  it('declares a thread, trims its handle, and keeps the threads sorted by handle', () => {
+    const first = applySceneMetaPatch(SCENE, undefined, { threads_add: [{ id: '  the map ', payoff: OTHER }, lamp] }, context);
+    expect(first.ok && first.meta.threads).toEqual([lamp, { id: 'the map', payoff: OTHER }]);
+  });
+
+  it('refuses an empty or whitespace-only handle, naming the field', () => {
+    for (const id of ['', '   ']) {
+      const result = applySceneMetaPatch(SCENE, undefined, { threads_add: [{ id, payoff: OTHER }] }, context);
+      expect(result).toEqual({ ok: false, error: 'threads_add[0].id must be a handle that is not blank' });
+    }
+  });
+
+  it('refuses a payoff that is not a document, one that is the scene itself, and one that is blank', () => {
+    const gone = applySceneMetaPatch(SCENE, undefined, { threads_add: [{ id: 'x', payoff: 'n_MISSING001' }] }, context);
+    expect(!gone.ok && gone.error).toContain('threads_add[0].payoff names "n_MISSING001", which is not a document');
+    const self = applySceneMetaPatch(SCENE, undefined, { threads_add: [{ id: 'x', payoff: SCENE }] }, context);
+    expect(!self.ok && self.error).toContain('threads_add[0].payoff cannot be the scene that sets the thread up');
+    const blank = applySceneMetaPatch(SCENE, undefined, { threads_add: [{ id: 'x', payoff: ' ' }] }, context);
+    expect(!blank.ok && blank.error).toContain('threads_add[0].payoff must be the id of the document');
+  });
+
+  it('refuses a handle already on the scene, in any case, unless the same patch removes it', () => {
+    const current = { threads: [lamp] };
+    const twice = applySceneMetaPatch(SCENE, current, { threads_add: [{ id: 'The Lamp', payoff: OTHER }] }, context);
+    expect(!twice.ok && twice.error).toContain('is already a thread on this scene');
+    const within = applySceneMetaPatch(SCENE, undefined, { threads_add: [lamp, { ...lamp, id: 'THE LAMP' }] }, context);
+    expect(within.ok).toBe(false);
+    const edit = applySceneMetaPatch(SCENE, current, { threads_remove: ['the lamp'], threads_add: [{ id: 'the lamp', payoff: OTHER, note: 'lit' }] }, context);
+    expect(edit.ok && edit.meta.threads).toEqual([{ id: 'the lamp', payoff: OTHER, note: 'lit' }]);
+  });
+
+  it('refuses an over-long handle or note, and entries that are not threads', () => {
+    const longId = applySceneMetaPatch(SCENE, undefined, { threads_add: [{ id: 'x'.repeat(81), payoff: OTHER }] }, context);
+    expect(!longId.ok && longId.error).toContain('threads_add[0].id is 81 characters; the limit is 80');
+    const longNote = applySceneMetaPatch(SCENE, undefined, { threads_add: [{ id: 'x', payoff: OTHER, note: 'n'.repeat(201) }] }, context);
+    expect(!longNote.ok && longNote.error).toContain('threads_add[0].note is 201 characters; the limit is 200');
+    const notThread = applySceneMetaPatch(SCENE, undefined, { threads_add: ['x'] as never }, context);
+    expect(!notThread.ok && notThread.error).toContain('threads_add[0] must be an object');
+  });
+
+  it('removes by handle without regard to case, drops a blank note, and drops the key when none are left', () => {
+    const noted = applySceneMetaPatch(SCENE, undefined, { threads_add: [{ id: 'x', payoff: OTHER, note: '  ' }] }, context);
+    expect(noted.ok && noted.meta.threads).toEqual([{ id: 'x', payoff: OTHER }]);
+    const gone = applySceneMetaPatch(SCENE, { threads: [lamp] }, { threads_remove: ['THE LAMP'] }, context);
+    expect(gone.ok && isEmptySceneMeta(gone.meta)).toBe(true);
+  });
+
+  it('undoes an add, a removal and an edit to the threads that were there before', () => {
+    const before = { threads: [lamp, { id: 'the map', payoff: OTHER }] };
+    const patches = [
+      { threads_add: [{ id: 'a key', payoff: OTHER }] },
+      { threads_remove: ['the lamp'] },
+      { threads_remove: ['the map'], threads_add: [{ id: 'the map', payoff: OTHER, note: 'found' }] },
+      { threads_remove: ['the map'], threads_add: [{ id: 'the chart', payoff: OTHER }] },
+    ];
+    for (const forward of patches) {
+      const after = applySceneMetaPatch(SCENE, before, forward, context);
+      expect(after.ok).toBe(true);
+      if (!after.ok) continue;
+      const restored = applySceneMetaPatch(SCENE, after.meta, inverseScenePatch(before, forward, after.meta), context);
+      expect(restored.ok && restored.meta, JSON.stringify(forward)).toEqual(before);
+    }
+    const first = applySceneMetaPatch(SCENE, undefined, patches[0] as never, context);
+    expect(first.ok && applySceneMetaPatch(SCENE, first.meta, inverseScenePatch(undefined, patches[0] as never, first.meta), context)).toEqual({ ok: true, meta: {} });
+  });
+});
+
 describe('inverseScenePatch (undo, command-bus §5)', () => {
   it('restores a scalar to its prior value, or to a clear when there was none', () => {
     const before = { dayOffset: 2 };
@@ -176,6 +247,19 @@ describe('coherence.setSceneMeta descriptor (coherence.md §7.1)', () => {
     const result = validate({ docId: SCENE, patch: { after_add: 'n_OTHER00001' } }, snapshot());
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.message).toContain('after_add must be a list of ids');
+  });
+
+  it('accepts a thread on a document, and refuses one on a folder or a list that is not a list', () => {
+    const thread = { id: 'the lamp', payoff: 'n_OTHER00001' };
+    expect(validate({ docId: SCENE, patch: { threads_add: [thread] } }, snapshot()).ok).toBe(true);
+    const folder = validate({ docId: 'manuscript', patch: { threads_add: [thread] } }, snapshot());
+    expect(!folder.ok && folder.error.message).toContain('a thread is declared on a scene, not a folder');
+    const notList = validate({ docId: SCENE, patch: { threads_add: thread } }, snapshot());
+    expect(!notList.ok && notList.error.message).toContain('threads_add must be a list of threads');
+    const handles = validate({ docId: SCENE, patch: { threads_remove: 'the lamp' } }, snapshot());
+    expect(!handles.ok && handles.error.message).toContain('threads_remove must be a list of ids');
+    const blank = validate({ docId: SCENE, patch: { threads_add: [{ id: ' ', payoff: 'n_OTHER00001' }] } }, snapshot());
+    expect(!blank.ok && blank.error.message).toContain('threads_add[0].id');
   });
 
   it('refuses a parameter outside the declared set', () => {

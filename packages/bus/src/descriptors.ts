@@ -1644,7 +1644,7 @@ export const viewSetCorkboardScope: CommandDescriptor<ViewSetCorkboardScopeParam
  * ------------------------------------------------------------------ */
 
 /** The list-valued patch keys, each a list of non-blank ids (§7.1). */
-const SCENE_LIST_KEYS = ['after_add', 'after_remove', 'expectedPresent_add', 'expectedPresent_remove'] as const;
+const SCENE_LIST_KEYS = ['after_add', 'after_remove', 'expectedPresent_add', 'expectedPresent_remove', 'threads_remove'] as const;
 
 /**
  * The coherence file's parts a validate reads, or a refusal when none is open. A project with
@@ -1695,6 +1695,14 @@ export const coherenceSetSceneMeta: CommandDescriptor<CoherenceSetSceneMetaParam
       if (!Array.isArray(value) || value.some((id) => typeof id !== 'string' || id.trim() === '')) {
         return invalid(`${key} must be a list of ids, each a non-blank string, got ${showValue(value)}`, undefined, `patch.${key}`);
       }
+    }
+    // §5.5: a thread is declared on the scene that sets it up. The rule reads each entry, so only the list is checked here.
+    const threadsAdd = raw['threads_add'];
+    if (threadsAdd !== undefined && !Array.isArray(threadsAdd)) {
+      return invalid(`threads_add must be a list of threads, got ${showValue(threadsAdd)}`, undefined, 'patch.threads_add');
+    }
+    if (node.type === 'folder' && (threadsAdd !== undefined || raw['threads_remove'] !== undefined)) {
+      return invalid('a thread is declared on a scene, not a folder', 'pass the document that sets the thread up as docId', 'patch.threads_add');
     }
     const patch = raw as ScenePatch;
     const documentIds = new Set(snapshot.manifest.tree.filter((n) => n.type === 'document').map((n) => n.id));

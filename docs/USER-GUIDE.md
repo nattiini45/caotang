@@ -94,7 +94,7 @@ The panel on the right shows the selected item:
 - **Status and label**: the menus described above.
 - **Export style**: for a scene, **Normal** or **Section**. A scene marked **Section** prints its title as a heading above it when you export (see [Export](#export)). **Normal** clears it. Undo puts the last choice back.
 - **Codex**: the codex entries attached to the item, with **Attach a codex entry**. The **Mentioned in this document** list shows the codex names the text contains.
-- **Scene declarations**: for a scene, its **Point of view**, **Day offset**, **Duration in days** and **Timeline mode** (Linear, Flashback, Flash-forward, Parallel, Frame, Dream, Mythic, Backstory, Simultaneous, Circular or Time skip), the scenes listed under **Follows these scenes**, and the codex entries listed under **Expected to appear**. The continuity checks read these.
+- **Scene declarations**: for a scene, its **Point of view**, **Day offset**, **Duration in days** and **Timeline mode** (Linear, Flashback, Flash-forward, Parallel, Frame, Dream, Mythic, Backstory, Simultaneous, Circular or Time skip), the scenes listed under **Follows these scenes**, and the codex entries listed under **Expected to appear**. The continuity checks read these. Under **Threads this scene sets up** you can name something this scene plants (a **Thread name**, for example "the lamp"), choose the scene it is **Paid off in**, and add a line on **What the payoff is for**. Choose **Edit** to change a thread and **×** to remove it.
 - **Container settings**: for a dialogue container, described in [Writing dialogue](#writing-dialogue).
 
 ## The editor
@@ -226,6 +226,8 @@ The **Findings** tab checks the manuscript. It has two kinds of check:
 - **Review with agent** reads the story for plot and character problems with your provider. It first shows a plan: which documents it reads, about how many model calls and tokens it needs, the first prompt it sends, and a cost when your provider profile has a price. It runs only after you choose **Start the review**. **Stop the review** ends it. The demo provider cannot do this review, so connect a provider first. The review sends each scene only the codex entries its include policies select for that scene, so an entry marked **Never** is not sent.
 
 Choose the **Scope**: **This document**, **Changed since the last scan**, or **Whole manuscript**. A scope of more than 20 documents asks first: the status line asks, and the panel shows **Scan it anyway**. **Scan it anyway** runs the scope that asked, and **Run again** on a large scope asks the same way.
+
+A scan also checks the threads you declared. If the scene a thread is **Paid off in** has since been deleted, the scan warns, and says what the scene declares rather than that the story is wrong. If that scene exists but the scan did not read it (it is empty or archived), the scan notes it instead. The scan report says how many scenes declare a thread, so a quiet result is not taken for a clean one.
 
 A scan also notes two scenes whose day offsets are a week or more apart, one after the other in day order. If the jump is meant, set the later or earlier scene's **Timeline mode** to **Time skip** (a **Dream** or **Mythic** scene also silences it), or dismiss the note.
 
