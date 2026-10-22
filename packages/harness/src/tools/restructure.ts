@@ -167,9 +167,15 @@ export function prepareRestructure(params: CallParams, context: PrepareContext):
         failures.push({ target, error: checked.error });
         continue;
       }
-      commands.push({ name: 'binder.move', params: command });
+      // The validated command is what gets dispatched, and the validated index is
+      // what the preview quotes: binder.move's validate resolves the raw index
+      // against the sibling count and hands back the position the node will land
+      // at, so a card that echoed the raw index would promise a position the
+      // dispatch re-validates away — a preview-vs-result mismatch.
+      const validated = checked.value as { readonly nodeId: string; readonly newParentId: string; readonly index: number };
+      commands.push({ name: 'binder.move', params: validated });
       touch(nodeId);
-      lines.push(`move "${titleIn(tree, nodeId)}" under "${titleIn(tree, newParentId)}" at position ${String(op['index'])}`);
+      lines.push(`move "${titleIn(tree, nodeId)}" under "${titleIn(tree, newParentId)}" at position ${String(validated.index)}`);
       const moved = tree.find((node) => node.id === nodeId);
       if (moved !== undefined) moved.parentId = newParentId;
       continue;

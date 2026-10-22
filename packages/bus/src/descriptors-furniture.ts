@@ -127,7 +127,16 @@ const GOAL_KEYS: readonly string[] = ['id', 'nodeId', 'metric', 'kind', 'resetDa
 /** goals-progress §9.3: every month has a 28th, so a monthly goal resets on a day up to it, or on the month's last day. */
 const MONTHLY_RESET_MAX = 28;
 
-/** Crockford base32, as the id generators draw it (`@caotang/ids`). */
+/**
+ * Crockford base32, as the id generators draw it (`@caotang/ids`).
+ *
+ * **A copy, and the bus cannot have the shared one.** The bus takes no
+ * dependencies, so it cannot import `@caotang/ids` — the alphabet and the
+ * length are spelled out here.
+ * The furniture package's own patterns are built from the shared constants
+ * (`packages/furniture/src/save.ts`), so a change to the family is two edits
+ * rather than one, and this comment is what says so.
+ */
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const FILTER_ID = new RegExp(`^q_[${CROCKFORD}]{10}$`);
 const GOAL_ID = new RegExp(`^g_[${CROCKFORD}]{10}$`);

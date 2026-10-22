@@ -54,7 +54,14 @@ export type {
   ViewSetSelectionParams,
   ViewState,
 } from './command.js';
-export type { ActivityEntry, ActivityLog, ActivitySource } from './activity-log.js';
+export type {
+  ActivityAffected,
+  ActivityDefect,
+  ActivityEntry,
+  ActivityLog,
+  ActivityReport,
+  ActivitySource,
+} from './activity-log.js';
 export { createActivityLog } from './activity-log.js';
 export type { CommandError, CommandErrorCode, CommandErrorDetails, PerOpFailure, Result } from './result.js';
 export { ok, err } from './result.js';
@@ -115,7 +122,7 @@ export type { BusContext, ExecutionOutcome } from './pipeline.js';
 export { ApplyRefusal, execute, executeAsync } from './pipeline.js';
 export type { IdempotencyCache } from './idempotency.js';
 export { createIdempotencyCache } from './idempotency.js';
-export type { UndoDispatch, UndoEntry, UndoGroup, UndoGroupKind, UndoOutcome, UndoStore, UndoStoreOptions, UndoTarget } from './undo.js';
+export type { SettledUndoScope, UndoDispatch, UndoEntry, UndoGroup, UndoGroupKind, UndoOutcome, UndoStore, UndoStoreOptions, UndoTarget } from './undo.js';
 export { applyContext, createUndoScope, createUndoStore } from './undo.js';
 export {
   createViewState,

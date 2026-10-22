@@ -96,6 +96,20 @@ export interface CommandErrorDetails {
    */
   expectedRevision?: number;
   actualRevision?: number;
+  /**
+   * A `changesNothing` refusal (params.ts): the machine-readable half of "this
+   * request asks for no change at all".
+   *
+   * **Declared rather than left to the index signature, for the same reason as
+   * `expectedRevision`**: undo.ts reads this key to decide that an inverse which
+   * could not dispatch was a no-op rather than a kept failure, so the key
+   * carries behaviour and deserves a declared, discoverable name.
+   *
+   * The index signature is still there, so a misspelled key (on either side)
+   * still typechecks; what the declaration rules out is a writer that puts a
+   * non-boolean under this name.
+   */
+  changesNothing?: boolean;
   /** anything else the refusing command wants the model to see */
   [key: string]: unknown;
 }

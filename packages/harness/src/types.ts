@@ -18,6 +18,7 @@
  */
 
 import type {
+  ActivityAffected,
   ActivityEntry,
   CommandError,
   CommandName,
@@ -36,8 +37,8 @@ import type { JsonSchema, ObjectSpec } from './schema.js';
 /** Where a call came from. `ActivityEntry.source` is reserved for this (command-bus §8). */
 export type ActivitySource = ActivityEntry['source'];
 
-/** One node a row names, with its human title (command-bus §8). The bus does not export this name, so it is read off the row type. */
-export type ActivityAffected = ActivityEntry['affected'][number];
+/** One node a row names, with its human title (command-bus §8). The bus names it too, so it is named here and not read off the row type. */
+export type { ActivityAffected };
 
 /** A tool call's params, as the caller sent them, after the closed-set check. */
 export type CallParams = Readonly<Record<string, unknown>>;

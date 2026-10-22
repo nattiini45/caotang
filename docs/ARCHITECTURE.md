@@ -129,7 +129,7 @@ ExportRecipe   { include[], template, format }
 AssembledPrompt{ messages[], layers[{id, included, tokens, dropped[]}], estimate }  // context-assembly.md §4
 TextAnchor     { from, to, exact, prefix, suffix, capturedRevision }              // edit-anchors.md §2
 Command        { id, name, params, issuedBy: user|agent, turnId?, callId?, createdAt }  // command-bus.md §2
-ActivityEntry  { at, command, issuedBy, turnId?, callId?, undoGroupId?, source?: native|mcp, affected[], tokensSpent?, summary } // command-bus.md §8
+ActivityEntry  { at, command, issuedBy, turnId?, callId?, undoGroupId?, source?: native|mcp, affected[], tokensSpent?, summary, defect? } // command-bus.md §8
 AskBack        { code, reason, candidates?, revisionDrift?, options[] }           // agent-harness.md §2
 LossWarning    { code: unsupported-node|lossy-attribute|lossy-structure, mdastType, position?, detail }  // editor-engine.md §3.3
 SavedFilter    { id, name, root?, criteria: FilterCriteria, createdAt, updatedAt }         // binder-filters.md §2

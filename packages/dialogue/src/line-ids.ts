@@ -8,7 +8,7 @@
  * tag keeps the runtime output (`MintMode` in ink-parse.ts).
  */
 
-import { CROCKFORD_ALPHABET, type RandomBytes } from '@caotang/ids';
+import { CROCKFORD_ALPHABET, ID_LENGTH, type RandomBytes } from '@caotang/ids';
 
 import { parseInk, type DialogueLine } from './ink-parse.js';
 
@@ -41,7 +41,12 @@ export interface EnsureResult {
 }
 
 const ATTEMPTS = 16;
-const ID_CHARS = 10;
+/**
+ * The body of a line id: one Crockford character per random byte, and the same
+ * length every other id body in the system carries (`@caotang/ids`'s
+ * `ID_LENGTH`) — so a line id is the same shape as the id beside it.
+ */
+const ID_CHARS = ID_LENGTH;
 
 function defaultRandomBytes(n: number): Uint8Array {
   const out = new Uint8Array(n);

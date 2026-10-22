@@ -475,12 +475,21 @@ function inverseWith<P>(
 }
 
 /**
- * The stamp a node takes in this apply: the one its inverse was minted to restore, when this apply is an inverse, and the
+ * The stamp a dispatch leaves on the node: the one its inverse was minted to restore, when this apply is an inverse, and the
  * clock otherwise. Used by the three inverse-based content commands (`binder.rename`, `binder.setSynopsis`, `binder.setMeta`).
+ *
+ * **An inverse restores its stamp even when it changed nothing**, so `wrote` says what the dispatch did, not what it is: a
+ * dispatch that wrote no value and is no inverse leaves the node's stamp alone (there is nothing to put back and nothing to
+ * stamp), while a dispatch that wrote no value and *is* an inverse still restores the stamp its forward left, because the
+ * forward stamped and the undo has to say so.
  */
-function stampFor(node: TreeNode, commandId: string, clock: CommandClock, restore: RestoreTable): void {
+function stampFor(node: TreeNode, commandId: string, clock: CommandClock, restore: RestoreTable, wrote: boolean): void {
   const recalled = restore.recall(commandId);
-  node.updatedAt = recalled !== undefined ? recalled.updatedAt : new Date(clock.now()).toISOString();
+  if (recalled !== undefined) {
+    node.updatedAt = recalled.updatedAt;
+    return;
+  }
+  if (wrote) node.updatedAt = new Date(clock.now()).toISOString();
 }
 
 /** A document's body write is a content change of its node, so the node is stamped (the same rule as `stampContent`). */
@@ -626,7 +635,7 @@ export function createProjectCommandRegistry(
     const previousTitle = node.title;
     const previousStamp = node.updatedAt;
     node.title = params.title;
-    stampFor(node, context.commandId, clock, restore);
+    stampFor(node, context.commandId, clock, restore, true);
     context.undo.inverse(
       inverseWith('binder.rename', { nodeId: params.nodeId, title: previousTitle }, clock, restore, {
         updatedAt: previousStamp,
@@ -651,7 +660,7 @@ export function createProjectCommandRegistry(
     const previousSynopsis = node.synopsis;
     const previousStamp = node.updatedAt;
     node.synopsis = params.synopsis;
-    stampFor(node, context.commandId, clock, restore);
+    stampFor(node, context.commandId, clock, restore, true);
     context.undo.inverse(
       inverseWith(
         'binder.setSynopsis',
@@ -671,18 +680,46 @@ export function createProjectCommandRegistry(
   const binderSetMeta: ProjectApply<BinderSetMetaParams> = (state, params, context: ApplyContext) => {
     const node = requireNode(state, params.nodeId);
     const previousStamp = node.updatedAt;
+    const previousStatus = node.status;
+    const previousLabel = node.label;
+    const previousKeywords = node.keywords;
     const patch = params.patch;
     const inverse: MetaPatch = {};
 
     // `undefined` is "leave it alone" and only a present field is written, so an
-    // inverse patch carries exactly the fields this dispatch touched.
-    if (patch.status !== undefined) {
-      inverse.status = node.status;
-      node.status = patch.status;
+    // inverse patch carries exactly the fields this dispatch **wrote** — each
+    // with the value it held before. A field the dispatch named but did not
+    // change carries nothing: there is nothing to put back.
+    //
+    // **A previous value of `null` is how "no status" is restored.** `null` is
+    // MetaPatch's "clear it" and `undefined` is "leave it alone", so an inverse
+    // carrying `undefined` normalizes to an empty patch — and an empty patch is
+    // what the bus refuses as a changes-nothing request, which would report a
+    // successful undo while leaving the stamp this dispatch wrote unrestored. A
+    // node that held no status at all (a hand-edited or legacy manifest, which
+    // the loader tolerates and never defaults) therefore inverts to `null`,
+    // which is the same "no status" the manifest's field type states.
+    //
+    // **The prior is compared in that same normalized form**, because absent and
+    // `null` are the same value: a node that holds no status holds `null`,
+    // whatever the manifest row says. Comparing against the raw prior instead
+    // would count `undefined → null` as a write — the forward would stamp and
+    // mint a `{ status: null }` inverse, and the undo of that inverse would find
+    // `previousStatus` already `null`, write nothing, and leave the forward's
+    // stamp unrestored while reporting success. The same holds for the label.
+    const wroteStatus = patch.status !== undefined && patch.status !== (previousStatus ?? null);
+    const wroteLabel = patch.label !== undefined && patch.label !== (previousLabel ?? null);
+    const status = patch.status;
+    const label = patch.label;
+    // A field that did not change is not written: the node keeps the value it
+    // holds, and the digest below can honestly say the dispatch left it alone.
+    if (status !== undefined && wroteStatus) {
+      inverse.status = previousStatus ?? null;
+      node.status = status;
     }
-    if (patch.label !== undefined) {
-      inverse.label = node.label;
-      node.label = patch.label;
+    if (label !== undefined && wroteLabel) {
+      inverse.label = previousLabel ?? null;
+      node.label = label;
     }
 
     // `resultingKeywords` in `descriptors.ts` is the shipped definition of what
@@ -691,9 +728,9 @@ export function createProjectCommandRegistry(
     // missing. The apply has to agree with it exactly, because §2's invariant is
     // that a command which passed validation cannot fail mid-apply, and the only
     // reason that can hold for keywords is that the two implementations are the
-    // same rule. The inverse is built from what each half *actually* changed, so
-    // adding a keyword that was already present inverts to a remove that skips it
-    // rather than to a remove that would delete it.
+    // same rule. The inverse is built from what the produced list actually
+    // changed, so adding a keyword that was already present inverts to a remove
+    // that skips it rather than to a remove that would delete it.
     const removed = new Set((patch.keywords_remove ?? []).map((k) => k.toLowerCase()));
     const kept = node.keywords.filter((k) => !removed.has(k.toLowerCase()));
     const dropped = node.keywords.filter((k) => removed.has(k.toLowerCase()));
@@ -707,18 +744,52 @@ export function createProjectCommandRegistry(
         added.push(keyword);
       }
     }
-    if (dropped.length > 0) inverse.keywords_add = dropped;
-    if (added.length > 0) inverse.keywords_remove = added;
     if (patch.keywords_add !== undefined || patch.keywords_remove !== undefined) {
       node.keywords = kept;
     }
 
-    stampFor(node, context.commandId, clock, restore);
-    context.undo.inverse(
-      inverseWith('binder.setMeta', { nodeId: params.nodeId, patch: inverse }, clock, restore, {
-        updatedAt: previousStamp,
-      }),
-    );
+    // **The list this dispatch produced, not the two halves of the patch.** A
+    // remove and an add of the same keyword leave the list byte-identical, so
+    // counting both halves would stamp a node and report a change that did not
+    // happen — and would mint an inverse for a difference that is not there.
+    const keywordsChanged =
+      node.keywords.length !== previousKeywords.length ||
+      node.keywords.some((keyword, index) => keyword !== previousKeywords[index]);
+    if (keywordsChanged) {
+      if (dropped.length > 0) inverse.keywords_add = dropped;
+      if (added.length > 0) inverse.keywords_remove = added;
+    }
+
+    // The fields this dispatch **wrote**, as opposed to the keys it was handed:
+    // a status equal to the one the node holds, a label equal to the current
+    // one and a keyword re-added in another spelling each write no value
+    // (agent-harness §3 keeps meta.set idempotent by design, and the bus's
+    // validate accepts such a patch). project-format §2 bumps `updatedAt` for
+    // content-touching mutations, and a dispatch that wrote no value touched no
+    // content — so it stamps nothing, and it mints no restore-table entry:
+    // there is nothing for the inverse to recall. The inverse it registers is
+    // field-less — nothing was written, so nothing is to be put back — and the
+    // bus refuses to dispatch it as a changes-nothing request, and its undo
+    // reports that as the honest no-op it now is.
+    //
+    // **The stamp is restored even when the replay changed nothing.** The
+    // restore table is what says which dispatch is an inverse of a forward that
+    // stamped: an entry under this dispatch's id exists only for one. The undo
+    // of a keyword reorder is such an inverse whose replay produces the list it
+    // found — the inverse cannot put the order back, which is the append-only
+    // design's own limit — and it still has to put the stamp back, or the
+    // forward's stamp survives the undo while the undo reports success.
+    const wroteSomething = wroteStatus || wroteLabel || keywordsChanged;
+    stampFor(node, context.commandId, clock, restore, wroteSomething);
+    if (wroteSomething) {
+      context.undo.inverse(
+        inverseWith('binder.setMeta', { nodeId: params.nodeId, patch: inverse }, clock, restore, {
+          updatedAt: previousStamp,
+        }),
+      );
+    } else {
+      context.undo.inverse(inverseCommand('binder.setMeta', { nodeId: params.nodeId, patch: inverse }, clock));
+    }
 
     // §8's digest, built from the fields this dispatch **wrote** rather than the
     // keys it was handed — the two differ, and the difference is the interesting
@@ -727,16 +798,21 @@ export function createProjectCommandRegistry(
     // about a change that did not happen. The empty branch is therefore reachable
     // on a valid command, not only a defective one.
     const written: string[] = [];
-    if (patch.status !== undefined) written.push('status');
-    if (patch.label !== undefined) written.push('label');
-    if (added.length > 0) written.push(countOf(added.length, 'keyword') + ' added');
-    if (dropped.length > 0) written.push(countOf(dropped.length, 'keyword') + ' removed');
+    if (wroteStatus) written.push('status');
+    if (wroteLabel) written.push('label');
+    if (keywordsChanged) {
+      if (added.length > 0) written.push(countOf(added.length, 'keyword') + ' added');
+      if (dropped.length > 0) written.push(countOf(dropped.length, 'keyword') + ' removed');
+    }
     context.report({
       affected: [{ nodeId: params.nodeId, title: node.title }],
       summary: agentWriteSummary(
         context,
-        `the agent’s ${agentMetaFields(patch.status !== undefined, patch.label !== undefined, added.length + dropped.length > 0)} for “${node.title}”`,
-        written.length > 0 ? `set ${written.join(', ')} on "${node.title}"` : `left the keywords of "${node.title}" unchanged`,
+        `the agent’s ${agentMetaFields(patch.status !== undefined, patch.label !== undefined, keywordsChanged)} for “${node.title}”`,
+        // The empty branch names no field: a patch can change nothing in any of
+        // them, and "the keywords" would be a claim about a field the patch
+        // never mentioned.
+        written.length > 0 ? `set ${written.join(', ')} on "${node.title}"` : `left "${node.title}" unchanged`,
       ),
     });
 
