@@ -62,7 +62,7 @@ function watchChunks(page: Page): () => string[] {
   page.on('request', (request) => {
     const path = new URL(request.url()).pathname;
     const file = path.slice(path.lastIndexOf('/') + 1);
-    if (path.includes('/assets/') && file.endsWith('.js')) names.push(file.slice(0, file.lastIndexOf('-')));
+    if (path.includes('/assets/') && file.endsWith('.js')) names.push(file.replace(/-[A-Za-z0-9_-]{8}\.js$/, '')); // the content hash is 8 characters and may itself hold a dash
   });
   return () => [...names];
 }
