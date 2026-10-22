@@ -44,7 +44,7 @@ import {
   type ThinkingLevel,
   UsageLedger,
 } from '@caotang/gateway';
-import { DEMO_REFUSAL, createMockProvider, demoScripts, echo, plannerScript, type MockProvider } from '@caotang/gateway/mock';
+import { DEMO_FALLBACK_REPLY, appMockProvider, type MockProvider } from '@caotang/gateway/mock';
 
 import { APP_KEYS, type AppDb } from './app-db.js';
 import { normalizeSettings, type RoleSettings } from './settings.js';
@@ -52,11 +52,8 @@ import { normalizeSettings, type RoleSettings } from './settings.js';
 /** The name the first-run profile carries. It answers the three demo intents and nothing else. */
 export const DEMO_PROFILE_NAME = 'Demo (no key)';
 
-/**
- * What the demo provider says to anything outside its three demo intents: the same words the gateway's demo refuses a drafting call
- * with, held once in the gateway's mock (`DEMO_REFUSAL`), so a copy change cannot leave the planner's reply and the refusal apart.
- */
-export const DEMO_FALLBACK_REPLY = DEMO_REFUSAL;
+// The demo provider's mock lives in the gateway, shared with the SDK. These keep the names the app and its specs import.
+export { DEMO_FALLBACK_REPLY, appMockProvider };
 
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 /** The request-log entries kept across reloads: the log's own cap (provider-gateway §4). */
@@ -68,13 +65,6 @@ const REQUEST_LOG_KEEP = 50;
  * The key is never on it — the vault holds the sealed payload.
  */
 type PersistedProfile = Omit<ProfileView, 'kind'> & { kind: ProfileView['kind'] | 'openai-compatible' };
-
-/** The provider's mock: the demo intents, a fixed answer for anything else from the planner, and the echo fallback. */
-export function appMockProvider(): MockProvider {
-  return createMockProvider({
-    scripts: [...demoScripts, plannerScript(() => JSON.stringify({ reply: DEMO_FALLBACK_REPLY })), echo],
-  });
-}
 
 /** A profile's id as the ten random bytes that generate it. The generator maps a byte with `% 32`, so an index is its own byte. */
 function bytesForId(id: string): Uint8Array<ArrayBuffer> | null {
