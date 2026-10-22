@@ -1650,10 +1650,12 @@ test.describe('a folder whose version differs from this browser\'s asks which to
    */
   async function heldCopy(
     name: string,
+    seed?: (folder: ReturnType<typeof folderArtifactFs>) => Promise<void>,
   ): Promise<{ store: RuntimeStore; root: ReturnType<typeof memoryFolder>; id: string; held: string }> {
     const state = project();
     const root = memoryFolder(name);
     await writeProject(folderArtifactFs(root), state);
+    await seed?.(folderArtifactFs(root));
     const store = await openRuntimeStore(new MemoryIndexedDb());
     const first = await openFolder(store, root);
     if (first.kind !== 'opened') throw new Error('the folder should open');
@@ -1687,6 +1689,38 @@ test.describe('a folder whose version differs from this browser\'s asks which to
       // And a save to the folder leaves the author's file as it is.
       expect(await saveFolder(restored, root)).toEqual({ kind: 'saved' });
       expect(await folderArtifactFs(root).read(`docs/${held}`)).toContain('Four little words here');
+      await restored.close();
+    } finally {
+      setActiveAppDb(null);
+    }
+  });
+
+  // The codex twin: a codex file the load declined is one no entry owns, so the
+  // save's prune would remove it unless the copy put back still names it.
+  test('"Use the folder\'s version" that fails to open puts back the codex files the load held, and a save keeps them', async () => {
+    setActiveAppDb(handleDb());
+    try {
+      const declined = 'c_7K3M9P2Q4R.md';
+      // A codex file with no front matter: the load declines it and keeps it.
+      const { store, root, id } = await heldCopy('Held Codex Book', (folder) =>
+        folder.writeAtomic(`codex/${declined}`, 'the author’s only copy'),
+      );
+      const folder = folderArtifactFs(root);
+      // Held as a file whose bytes are not UTF-8 is held: named, with no text the state could write back.
+      const heldState = await readProjectState(store, id);
+      expect(heldState.declinedCodexFiles.has(declined)).toBe(true);
+      heldState.declinedText.delete(`codex/${declined}`);
+      await writeProjectState(store, heldState, { now: new Date() });
+
+      const asked = await openFolder(store, root);
+      if (asked.kind !== 'differs') throw new Error('the open should ask');
+      const broken = { ...asked.differs, folderLog: [{ startedAt: 'not a time' } as unknown as SessionRecord] };
+      await expect(answerFolderDiffers(store, broken, 'use-folder')).rejects.toThrow();
+
+      const restored = await openProject(store, id);
+      expect(restored.state.declinedCodexFiles.has(declined)).toBe(true);
+      expect(await saveFolder(restored, root)).toEqual({ kind: 'saved' });
+      expect(await folder.read(`codex/${declined}`)).toBe('the author’s only copy');
       await restored.close();
     } finally {
       setActiveAppDb(null);
