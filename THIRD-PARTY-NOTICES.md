@@ -193,6 +193,9 @@ License: OFL-1.1. Source: https://github.com/notofonts/noto-cjk
 LICENSE:
 
 ```text
+Copyright 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'.
+Noto is a trademark of Google Inc.
+
 This Font Software is licensed under the SIL Open Font License,
 Version 1.1.
 

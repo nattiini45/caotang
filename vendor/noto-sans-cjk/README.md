@@ -13,7 +13,7 @@ package, or from `fonts/` beside its bundle.
 - Font: Noto Sans Mono CJK SC Regular 2.004, © 2014-2021 Adobe, licensed under the SIL Open Font License 1.1 (LICENSE).
 - File: <https://github.com/notofonts/noto-cjk/raw/Sans2.004/Sans/Mono/NotoSansMonoCJKsc-Regular.otf> (16,393,784 bytes).
 - Tag: `Sans2.004` of <https://github.com/notofonts/noto-cjk> (commit `523d033d6cb47f4a80c58a35753646f5c3608a78`).
-- LICENSE is <https://raw.githubusercontent.com/notofonts/noto-cjk/Sans2.004/LICENSE>, unchanged.
+- LICENSE is <https://raw.githubusercontent.com/notofonts/noto-cjk/Sans2.004/LICENSE> with the font's copyright notice (Adobe, Reserved Font Name 'Source') above it, as the font's own copy carries it.
 
 SHA256SUMS holds the SHA-256 of the source file and of the built file.
 
