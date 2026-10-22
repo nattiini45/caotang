@@ -338,7 +338,7 @@ const foldUnit = (character: string): string =>
  * UTF-16 code unit (`charAt`). For a character whose case fold stays inside one
  * code unit — Latin, Greek, Cyrillic — the two agree, and the spelling
  * difference above is folded away on both sides. For a **cased astral**
- * character (the Deseret letters in U+10400–U+1043F and the other cased
+ * character (the Deseret letters in U+10400–U+1044F and the other cased
  * astral planes) a lone surrogate half lower-cases to itself, so the two
  * spellings of an astral letter do not meet here: the search folds them
  * together and this check compares the surrogate halves and finds them
