@@ -279,6 +279,31 @@ test('a demo turn runs on the built-in demo profile, and never reaches an endpoi
   await session.close();
 });
 
+test('a turn starts with the dialogue tools loaded when a dialogue container is selected, and loads nothing for prose', async () => {
+  const state = sampleProjectState();
+  const prose = state.manifest.tree.find((node) => node.type === 'document');
+  if (prose === undefined) throw new Error('the sample has no document');
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const session = await sessionOver(state, store);
+  const preloaded: (readonly string[])[] = [];
+  const preload = session.harness.preload;
+  session.harness.preload = (turnId, names) => {
+    preloaded.push(names);
+    preload(turnId, names);
+  };
+  const controller = new AgentController(session, await demoProviders());
+
+  session.dispatch('view.setSelection', { nodeIds: [prose.id] });
+  await controller.submit(DEMO_INTENTS.continuity);
+  expect(preloaded).toEqual([]);
+
+  // A dialogue container is a node the media track marks with its type, as the binder's New dialogue does.
+  Object.assign(prose, { type: 'dialogue', kind: 'branching' });
+  await controller.submit(DEMO_INTENTS.continuity);
+  expect(preloaded).toEqual([['dialogue.draft', 'dialogue.table']]);
+  await session.close();
+});
+
 test('the snapshot sweep runs when a project opens, and keeps the checkpoint cap (command-bus §5.1)', async () => {
   const state = sampleProjectState();
   const projectId = state.manifest.project.id;

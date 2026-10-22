@@ -58,11 +58,12 @@ function FormMessage({ message }: { message: { readonly text: string; readonly t
   );
 }
 
-export type SettingsSection = 'providers' | 'context' | 'writing' | 'coherence' | 'mcp' | 'appearance' | 'data';
+export type SettingsSection = 'providers' | 'context' | 'agent' | 'writing' | 'coherence' | 'mcp' | 'appearance' | 'data';
 
 const SECTIONS: readonly { readonly id: SettingsSection; readonly label: string }[] = [
   { id: 'providers', label: 'Providers' },
   { id: 'context', label: 'Context' },
+  { id: 'agent', label: 'Agent' },
   { id: 'writing', label: 'Writing' },
   { id: 'coherence', label: 'Coherence' },
   { id: 'mcp', label: 'MCP & tools' },
@@ -145,6 +146,7 @@ export function Settings({
           <div className="settings-body">
             {section === 'providers' ? <ProvidersSection services={services} onChanged={onProvidersChanged} /> : null}
             {section === 'context' ? <ContextSection services={services} session={session} /> : null}
+            {section === 'agent' ? <AgentSection services={services} /> : null}
             {section === 'writing' ? <WritingSection services={services} /> : null}
             {section === 'coherence' ? <CoherenceSection services={services} /> : null}
             {section === 'mcp' ? <McpSection mcp={services.mcp} /> : null}
@@ -942,6 +944,37 @@ function RequestLogPanel({ services }: { services: AppServices }): ReactNode {
           </tbody>
         </table>
       )}
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ * Agent
+ * ------------------------------------------------------------------ */
+
+function AgentSection({ services }: { services: AppServices }): ReactNode {
+  const [loadEvery, setLoadEvery] = useState(services.settings.current().agent.loadEveryTool);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const change = (next: boolean): void => {
+    setLoadEvery(next);
+    void services.settings.update({ agent: { loadEveryTool: next } }).then((error) => {
+      setMessage(error ?? 'Saved. It applies to the agent’s next request.');
+    });
+  };
+
+  return (
+    <section className="settings-section" aria-labelledby="settings-agent">
+      <h3 id="settings-agent">Agent</h3>
+      <p className="settings-note">
+        The agent starts each request with a short list of tools and finds the others with a search when a task needs them. Some models
+        search poorly. Turn this on to give such a model every tool on every request, at the cost of a longer prompt each time.
+      </p>
+      <label className="settings-check">
+        <input type="checkbox" checked={loadEvery} data-testid="agent-load-every-tool" onChange={(event) => change(event.target.checked)} />
+        <span>Load every tool on every request</span>
+      </label>
+      <FormMessage message={message === null ? null : { text: message, tone: 'info' }} />
     </section>
   );
 }

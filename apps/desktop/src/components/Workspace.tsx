@@ -161,7 +161,13 @@ export function Workspace({
   // One agent controller per open project: its turns, its pending decision and its ghost belong to this session.
   // The budgets are read at each turn, so a change in Settings › Context applies to the next one (context-assembly §3).
   const agent = useMemo(
-    () => new AgentController(session, services.providers, () => contextConfigOf(services.settings.current().context)),
+    () =>
+      new AgentController(
+        session,
+        services.providers,
+        () => contextConfigOf(services.settings.current().context),
+        () => services.settings.current().agent.loadEveryTool,
+      ),
     [session, services.providers, services.settings],
   );
   useEffect(() => {

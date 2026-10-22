@@ -15,6 +15,18 @@ import {
 } from '../../apps/desktop/src/app/storage.js';
 
 test.describe('settings (ui-modules §5.1)', () => {
+  test('the Agent slice loads off, reads only a true as on, and a patch changes it alone', () => {
+    expect(DEFAULT_SETTINGS.agent).toEqual({ loadEveryTool: false });
+    // A record written before the slice existed has none, which reads as off.
+    expect(normalizeSettings({ editor: {} }).agent).toEqual({ loadEveryTool: false });
+    expect(normalizeSettings({ agent: { loadEveryTool: 'yes' } }).agent).toEqual({ loadEveryTool: false });
+    expect(normalizeSettings({ agent: { loadEveryTool: true } }).agent).toEqual({ loadEveryTool: true });
+    const on = applyPatch(DEFAULT_SETTINGS, { agent: { loadEveryTool: true } });
+    expect(on.agent.loadEveryTool).toBe(true);
+    expect(on.editor).toEqual(DEFAULT_SETTINGS.editor);
+    expect(applyPatch(on, { editor: { autosaveDebounceMs: 1200 } }).agent.loadEveryTool).toBe(true);
+  });
+
   test('a missing or non-object record loads to the defaults, field by field', () => {
     expect(normalizeSettings(undefined)).toEqual(DEFAULT_SETTINGS);
     expect(normalizeSettings('not a record')).toEqual(DEFAULT_SETTINGS);
