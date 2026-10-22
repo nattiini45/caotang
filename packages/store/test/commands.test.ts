@@ -405,6 +405,45 @@ describe('binder.setSynopsis', () => {
   });
 });
 
+describe('binder.setMeta — the scene style (exporter.md §2, Per-scene styling)', () => {
+  it('sets a style, restores a prior absence on undo, and stamps the node', () => {
+    const h = harness();
+    const before = node(h.state, LANDING).updatedAt;
+    const outcome = h.run(cmd({ name: 'binder.setMeta', params: { nodeId: LANDING, patch: { style: 'section' } } }));
+    expect(node(h.state, LANDING).style).toBe('section');
+    expect(node(h.state, LANDING).updatedAt).not.toBe(before);
+    expect(inverseOf(h, outcome.undoGroupId).params).toEqual({ nodeId: LANDING, patch: { style: null } });
+    h.undoGroup(outcome.undoGroupId!);
+    expect('style' in node(h.state, LANDING)).toBe(false);
+    expect(node(h.state, LANDING).updatedAt).toBe(before);
+  });
+
+  it('clears a style with null or normal, and undo puts the style back', () => {
+    const h = harness();
+    node(h.state, LANDING).style = 'section';
+    for (const value of [null, 'normal']) {
+      node(h.state, LANDING).style = 'section';
+      const outcome = h.run(cmd({ name: 'binder.setMeta', params: { nodeId: LANDING, patch: { style: value } } }));
+      expect('style' in node(h.state, LANDING)).toBe(false);
+      expect(inverseOf(h, outcome.undoGroupId).params).toEqual({ nodeId: LANDING, patch: { style: 'section' } });
+      h.undoGroup(outcome.undoGroupId!);
+      expect(node(h.state, LANDING).style).toBe('section');
+    }
+  });
+
+  it('is idempotent: the style a node already has writes nothing and stamps nothing', () => {
+    const h = harness();
+    node(h.state, LANDING).style = 'section';
+    const before = node(h.state, LANDING).updatedAt;
+    const same = h.run(cmd({ name: 'binder.setMeta', params: { nodeId: LANDING, patch: { style: 'section' } } }));
+    expect(node(h.state, LANDING).updatedAt).toBe(before);
+    expect(inverseOf(h, same.undoGroupId).params).toEqual({ nodeId: LANDING, patch: {} });
+    const none = h.run(cmd({ name: 'binder.setMeta', params: { nodeId: STORM, patch: { style: 'normal' } } }));
+    expect('style' in node(h.state, STORM)).toBe(false);
+    expect(inverseOf(h, none.undoGroupId).params).toEqual({ nodeId: STORM, patch: {} });
+  });
+});
+
 describe('binder.setMeta — the inverse of a field the request could not express', () => {
   it('restores a prior status, and a prior null status as null', () => {
     const h = harness();

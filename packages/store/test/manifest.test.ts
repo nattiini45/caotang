@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createEmptyManifest, isFixedRoot, nextSiblingOrder, validateManifest } from '../src/index.js';
+import { createEmptyManifest, isFixedRoot, nextSiblingOrder, serializeManifest, validateManifest } from '../src/index.js';
 
 const doc = (id: string, parentId: string, order: number) => ({
   id,
@@ -161,5 +161,36 @@ describe('project creation helpers', () => {
     expect(nextSiblingOrder(m.tree, 'root')).toBe(30);
     m.tree.push(doc('n_3W8RN2TQ6C', 'manuscript', 10));
     expect(nextSiblingOrder(m.tree, 'manuscript')).toBe(20);
+  });
+});
+
+describe('the scene style (exporter.md §2, Per-scene styling)', () => {
+  const sceneWith = (extra: Record<string, unknown>) => ({ ...doc('n_3W8RN2TQ6C', 'manuscript', 10), ...extra });
+
+  it('is absent from a manifest written before the field existed, which loads without a notice for it', () => {
+    const m = createEmptyManifest('X');
+    m.tree.push(doc('n_3W8RN2TQ6C', 'manuscript', 10));
+    expect(serializeManifest(m)).not.toContain('"style"');
+    const report = validateManifest(JSON.parse(serializeManifest(m)), { docFiles: ['n_3W8RN2TQ6C.md'] });
+    expect(report.ok).toBe(true);
+    expect(report.warnings.filter((w) => w.message.includes('style'))).toEqual([]);
+  });
+
+  it('round-trips a known style with no notice', () => {
+    const m = createEmptyManifest('X');
+    m.tree.push(sceneWith({ style: 'section' }));
+    const report = validateManifest(JSON.parse(serializeManifest(m)), { docFiles: ['n_3W8RN2TQ6C.md'] });
+    expect(report.ok).toBe(true);
+    expect(report.warnings.filter((w) => w.message.includes('style'))).toEqual([]);
+    expect(JSON.parse(serializeManifest(m)).tree.at(-1).style).toBe('section');
+  });
+
+  it('drops a style that is not a string, with a notice', () => {
+    const m = createEmptyManifest('X');
+    m.tree.push(sceneWith({ style: 3 }));
+    const report = validateManifest(m, { docFiles: ['n_3W8RN2TQ6C.md'] });
+    expect(report.ok).toBe(true);
+    expect(report.warnings.some((w) => w.message.includes('expected a string'))).toBe(true);
+    expect('style' in m.tree.at(-1)!).toBe(false);
   });
 });

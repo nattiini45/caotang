@@ -192,6 +192,7 @@ export const KNOWN_NODE_KEYS = new Set([
   'kind',
   'shot',
   'dialogue',
+  'style',
 ]);
 
 /** §2 field contracts, restated for the import path (validate.ts enforces them on the manifest). */

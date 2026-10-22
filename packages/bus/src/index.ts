@@ -1,6 +1,7 @@
 export {
   COMMAND_NAMES,
   FIXED_ROOT_IDS,
+  SCENE_STYLES,
   VIEW_COMMAND_NAMES,
   isFixedRootId,
 } from './command.js';
@@ -35,6 +36,7 @@ export type {
   ExportCompileParams,
   ExportCompileSelectionParams,
   MetaPatch,
+  SceneStyle,
   NotesAppendParams,
   NotesSetParams,
   Postcondition,

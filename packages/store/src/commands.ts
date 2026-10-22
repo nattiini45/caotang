@@ -683,6 +683,7 @@ export function createProjectCommandRegistry(
     const previousStatus = node.status;
     const previousLabel = node.label;
     const previousKeywords = node.keywords;
+    const previousStyle = node.style ?? null;
     const patch = params.patch;
     const inverse: MetaPatch = {};
 
@@ -709,6 +710,10 @@ export function createProjectCommandRegistry(
     // stamp unrestored while reporting success. The same holds for the label.
     const wroteStatus = patch.status !== undefined && patch.status !== (previousStatus ?? null);
     const wroteLabel = patch.label !== undefined && patch.label !== (previousLabel ?? null);
+    // `normal` is the absence of a style (exporter.md §2), so setting it clears the field and an inverse restores the
+    // field's prior value, `null` when there was none; the comparison is in that same form for the reason the status's is.
+    const style = patch.style === 'normal' ? null : patch.style;
+    const wroteStyle = style !== undefined && style !== previousStyle;
     const status = patch.status;
     const label = patch.label;
     // A field that did not change is not written: the node keeps the value it
@@ -720,6 +725,11 @@ export function createProjectCommandRegistry(
     if (label !== undefined && wroteLabel) {
       inverse.label = previousLabel ?? null;
       node.label = label;
+    }
+    if (style !== undefined && wroteStyle) {
+      inverse.style = previousStyle;
+      if (style === null) delete node.style;
+      else node.style = style;
     }
 
     // `resultingKeywords` in `descriptors.ts` is the shipped definition of what
@@ -779,7 +789,7 @@ export function createProjectCommandRegistry(
     // found — the inverse cannot put the order back, which is the append-only
     // design's own limit — and it still has to put the stamp back, or the
     // forward's stamp survives the undo while the undo reports success.
-    const wroteSomething = wroteStatus || wroteLabel || keywordsChanged;
+    const wroteSomething = wroteStatus || wroteLabel || wroteStyle || keywordsChanged;
     stampFor(node, context.commandId, clock, restore, wroteSomething);
     if (wroteSomething) {
       context.undo.inverse(
@@ -800,6 +810,7 @@ export function createProjectCommandRegistry(
     const written: string[] = [];
     if (wroteStatus) written.push('status');
     if (wroteLabel) written.push('label');
+    if (wroteStyle) written.push('style');
     if (keywordsChanged) {
       if (added.length > 0) written.push(countOf(added.length, 'keyword') + ' added');
       if (dropped.length > 0) written.push(countOf(dropped.length, 'keyword') + ' removed');
