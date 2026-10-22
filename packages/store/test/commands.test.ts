@@ -1603,7 +1603,9 @@ describe('the bus/store split these applies depend on', () => {
     // keys, and the implemented count stays 31, because the registry here is built with neither. The script imports add
     // `screenplay.import`,
     // `dialogue.importInk` and `dialogue.setMeta`, whose applies are the store's own: 39 + 3 = 42 names, 31 + 3 = 34 implemented.
-    expect(Object.keys(registry)).toHaveLength(42);
-    expect(implemented).toHaveLength(34);
+    // The project's skills add four names: `skill.write`, `skill.delete` and `skill.setEnabled` have applies of the store's own, and
+    // `skill.import` registers only with the host's staging, so with nothing injected: 42 + 4 = 46 names, 34 + 3 = 37 implemented.
+    expect(Object.keys(registry)).toHaveLength(46);
+    expect(implemented).toHaveLength(37);
   });
 });

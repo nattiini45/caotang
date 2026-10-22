@@ -158,6 +158,7 @@ const KNOWN_TOP_LEVEL = new Set([
   'filters',
   'goals',
   'recipes',
+  'disabledSkills',
 ]);
 
 /**

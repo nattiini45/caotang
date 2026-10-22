@@ -800,6 +800,16 @@ describe('§10 — the permission matrix, over the registry that implements the 
         return { docId: LANDING, range: { from: 0, to: 3 }, text: 'That' };
       case 'project.deleteNode':
         return { nodeId: FRIEND };
+      // The skill commands (extensibility.md §10) are `never` for an agent and the writer's own. `skill.import` has no apply in this
+      // registry (it needs the host's staging), so commands-skills.test.ts runs it, for a user and refused for an agent.
+      case 'skill.import':
+        return { stagingId: 'stg_none' };
+      case 'skill.write':
+        return { name: 'close-third', path: 'SKILL.md', text: ['---', 'name: close-third', 'description: Close third person.', '---', 'Write close.', ''].join('\n') };
+      case 'skill.delete':
+      case 'skill.setEnabled':
+        state.skills.set('close-third', [{ path: 'SKILL.md', bytes: new Uint8Array([45, 45, 45]) }]);
+        return name === 'skill.delete' ? { name: 'close-third' } : { name: 'close-third', enabled: false };
       default:
         throw new Error(`no user params for the never-class name ${name}`);
     }
@@ -808,12 +818,14 @@ describe('§10 — the permission matrix, over the registry that implements the 
   it('finds the never-class names in the implementing registry, and finds some', () => {
     // Read out, not typed out: a name promoted to `never` later must arrive here
     // without this file being edited.
-    expect(NEVER).toEqual(['editor.insert', 'editor.replaceRange', 'project.deleteNode']);
+    expect(NEVER).toEqual(['editor.insert', 'editor.replaceRange', 'project.deleteNode', 'skill.delete', 'skill.import', 'skill.setEnabled', 'skill.write']);
   });
 
   it('refuses every never-class name for an agent, with §7\'s risk and corrective path', () => {
     expect(NEVER.length).toBeGreaterThan(0);
     for (const name of NEVER) {
+      // Not wired in this registry, so the bus refuses it before the gate; commands-skills.test.ts refuses it for an agent with the staging injected.
+      if (name === 'skill.import') continue;
       const h = scriptedHarness();
       const result = h.dispatch(
         cmd({ name, params: userParams(name, h.state), issuedBy: 'agent', turnId: 'turn-x' }),
@@ -838,6 +850,7 @@ describe('§10 — the permission matrix, over the registry that implements the 
   it('allows every never-class name for a user, and asks for a confirm where the effect is destructive', () => {
     expect(NEVER.length).toBeGreaterThan(0);
     for (const name of NEVER) {
+      if (name === 'skill.import') continue;
       const h = scriptedHarness();
       const result = h.dispatch(cmd({ name, params: userParams(name, h.state) }));
 

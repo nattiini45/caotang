@@ -110,6 +110,10 @@ export const DECLARED_PARAMS: Readonly<Record<CommandName, readonly string[]>> =
   'screenplay.import': ['format', 'text', 'parentId'],
   'dialogue.importInk': ['containers', 'parentId'],
   'dialogue.setMeta': ['nodeId', 'patch'],
+  'skill.import': ['stagingId'],
+  'skill.write': ['name', 'path', 'text'],
+  'skill.delete': ['name'],
+  'skill.setEnabled': ['name', 'enabled'],
 };
 
 /** §9's three "various" rows, spelled out — asserted, not inferred. */

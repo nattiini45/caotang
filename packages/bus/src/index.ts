@@ -80,6 +80,8 @@ export * as shotImageCommands from './descriptors-shot-image.js';
 export * as commands from './descriptors.js';
 // Project export: the project, recipe, vocabulary and cover-import descriptors, by name. The store reads them here.
 export * as projectCommands from './descriptors-project.js';
+// The skill commands (extensibility.md §10), by name. The store reads them here.
+export * as skillCommands from './descriptors-skills.js';
 export {
   AUTHOR_MAX,
   CHAR_LIMIT_MAX,
@@ -92,6 +94,11 @@ export {
 } from './descriptors-project.js';
 export type {
   ProjectImportAssetParams,
+  SkillDeleteParams,
+  SkillImportParams,
+  SkillSetEnabledParams,
+  SkillWriteParams,
+  ValidationSkillFile,
   ProjectRenameParams,
   ProjectSetMetadataParams,
   RecipeDeleteParams,

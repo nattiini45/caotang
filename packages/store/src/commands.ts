@@ -161,6 +161,7 @@ import {
 } from './state.js';
 import type { CodexEntry, CodexIncludePolicy, TreeNode } from './manifest.js';
 import { projectCommandRegistrations, type ProjectAssetPort } from './commands-project.js';
+import { skillCommandRegistrations, type SkillStaging } from './commands-skills.js';
 import { shotImageCommandRegistrations } from './commands-shot-image.js';
 import { furnitureApplies } from './commands-furniture.js';
 import { scriptApplies } from './commands-script.js';
@@ -218,6 +219,11 @@ export interface ProjectCommandOptions {
    * other ports are: the host owns where the bytes are written. Without it the name stays descriptor-only and is refused as not wired.
    */
   readonly assets?: ProjectAssetPort;
+  /**
+   * The staging `skill.import` takes a skill folder from (extensibility.md §10): the host stages the files the writer chose and names
+   * the token. Without it `skill.import` stays descriptor-only and is refused as not wired; the other three skill commands need nothing.
+   */
+  readonly skillStaging?: SkillStaging;
 }
 
 /** A shot command's report for the activity row (command-bus §8): the nodes it touched, and what it did. */
@@ -1782,6 +1788,9 @@ export function createProjectCommandRegistry(
   // Project export: the project block, the saved recipes, the vocabulary and the cover import. The applies are in
   // commands-project.ts; `project.importAsset` is added only when the host injects its asset port.
   Object.assign(registry, projectCommandRegistrations({ clock, ...(options.assets === undefined ? {} : { assets: options.assets }) }));
+  // The project's skills (extensibility.md §10): the writer's own files in `.agents/skills/`. The three that need nothing from the host
+  // are always registered; `skill.import` is added only when the host injects its staging.
+  Object.assign(registry, skillCommandRegistrations({ clock, ...(options.skillStaging === undefined ? {} : { staging: options.skillStaging }) }));
   // Storyboard: the shot image import needs both the asset port and the storyboard port (commands-shot-image.ts).
   Object.assign(
     registry,

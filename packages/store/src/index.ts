@@ -83,6 +83,7 @@ export {
   skillFilePath,
   snapshotFile,
 } from './paths.js';
+export { createSkillStaging, type SkillStaging, type StagedSkill } from './commands-skills.js';
 export { isSkillFilePath, readSkills, type ReadSkills, type SkillsNotice } from './skills-fs.js';
 export { createBinderNode, type MediaCreateParams } from './commands-media.js';
 

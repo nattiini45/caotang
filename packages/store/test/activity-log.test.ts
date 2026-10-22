@@ -150,6 +150,8 @@ interface Case {
   readonly coherence?: boolean;
   /** The case needs a dialogue container in the state: the settings command names one. */
   readonly dialogue?: boolean;
+  /** The case needs a skill in the state: the skill commands name one. */
+  readonly skill?: boolean;
 }
 
 /** The finding the coherence cases act on: one open finding that quotes the storm scene. */
@@ -434,6 +436,10 @@ const CASES: readonly Case[] = [
     titles: ['Greeting'],
     digestMentions: 'imported 1 dialogue container from an Ink story',
   },
+  // The skill commands report no node: a skill is not in the binder. Their digests name the skill.
+  { name: 'skill.write', params: { name: 'close-third', path: 'references/voice.md', text: 'Stay close.' }, titles: [], digestMentions: 'added references/voice.md in the skill “close-third”', skill: true },
+  { name: 'skill.delete', params: { name: 'close-third' }, titles: [], digestMentions: 'deleted the skill “close-third”', skill: true },
+  { name: 'skill.setEnabled', params: { name: 'close-third', enabled: false }, titles: [], digestMentions: 'turned the skill “close-third” off', skill: true },
   {
     name: 'dialogue.setMeta',
     params: { nodeId: CELLAR, patch: { autoLineIds: true } },
@@ -481,6 +487,7 @@ describe('§8 — the activity row for every shipped store apply', () => {
       'shot.create',
       'shot.importImage',
       'shot.setMeta',
+      'skill.import',
       'storyboard.create',
     ]);
   });
@@ -489,6 +496,7 @@ describe('§8 — the activity row for every shipped store apply', () => {
     it(`${testCase.name} writes §8's row, with human titles and a digest that says what changed`, () => {
       const state = fixture();
       if (testCase.coherence === true) state.coherence = coherenceWithFinding();
+      if (testCase.skill === true) state.skills.set('close-third', [{ path: 'SKILL.md', bytes: new TextEncoder().encode(['---', 'name: close-third', 'description: d', '---', 'Body', ''].join('\n')) }]);
       if (testCase.dialogue === true) {
         addDocument(state, { parentId: 'manuscript', title: 'The Cellar', type: 'dialogue', kind: 'branching', body: '=== Cellar ===\nHello.\n-> END\n', now: OPENED, id: CELLAR });
       }
