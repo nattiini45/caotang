@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Node-only at runtime: the server listens on a socket, reads the project folder
+    // with node:fs, and speaks stdio. DOM is here for the type check alone, as in the
+    // harness and store tsconfigs: this package type-checks `@caotang/store` and
+    // `@caotang/exporter` sources, whose IndexedDB and Blob types live in `lib.dom`.
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "vite.config.ts"]
+}
