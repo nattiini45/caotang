@@ -164,6 +164,39 @@ export class StaleMountError extends Error {
   }
 }
 
+/**
+ * The mount was refused because the store holds unsaved text it could not read:
+ * the producer that yields the editor's own text failed.
+ *
+ * This is not the refusal {@link StaleMountError} names. The store has not moved
+ * on, and it does hold unsaved work — the editor's text — but the editor cannot
+ * show a body it could not read, and mounting over it would replace the store's
+ * work with a body that does not have it. Nothing is mounted, and the store keeps
+ * its text.
+ *
+ * The remedy is a mount again, because the flush a mount makes asks a failed
+ * producer once more: a text that can be read now is stored, and the document is
+ * then at a new revision — so reload it from the store and mount again, as
+ * {@link StaleMountError} says. A text that still cannot be read is still the
+ * store's to keep, and the failure is named here so the writer is told why.
+ */
+export class UnreadablePendingBodyError extends Error {
+  constructor(
+    readonly docId: string,
+    readonly error: unknown,
+  ) {
+    super(
+      `"${docId}" holds unsaved text the editor could not read (${describeFailure(error)}), so the editor ` +
+        'will not mount over it; the store keeps the text, and mounting again reads it again',
+    );
+    this.name = 'UnreadablePendingBodyError';
+  }
+}
+
+/** A failure in words, for a message that names it. */
+const describeFailure = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 /** The seam's load diagnostics, grouped for the banner (grouping is a separate call). */
 export interface LoadResult extends LoadDiagnostics {
   groups: LossWarningGroup[];
@@ -309,6 +342,9 @@ interface MountSeed {
  * - **Unsaved keystrokes the store still holds** (a failed flush, or an edit that arrived while flushing)
  *   are what the editor shows, at the store's revision. The mount is not refused: the store keeps the
  *   keystrokes, so none is lost, and the editor shows them rather than an older body.
+ * - **Unsaved text the store could not read** (a producer that failed) is refused with
+ *   {@link UnreadablePendingBodyError}: the editor cannot show a body it could not read, and mounting
+ *   over it would replace the store's work with a body that does not have it.
  * - **A flush that stored the unsaved body** leaves that body as the one the store holds, so the editor
  *   shows it at the revision the flush produced.
  * - **A write still running** has a body this caller cannot know yet, so the mount is refused.
@@ -328,7 +364,15 @@ const settleStoreWork = async (
   const after = autosave.status(docId);
   const pending = autosave.pendingBodyOf(docId);
   if (pending !== null) return { body: pending, revision: after.revision };
-  if (after.dirty) throw new StaleMountError(docId);
+  if (after.dirty) {
+    // The store still holds a body, and it is not one it can show: the producer
+    // that yields the editor's text failed, and the failure is what the store
+    // recorded. That is not the refusal `StaleMountError` names — the store has
+    // not moved on, and it does hold unsaved work — so the cause is named
+    // instead, and the store keeps the text.
+    if (after.lastError !== null) throw new UnreadablePendingBodyError(docId, after.lastError);
+    throw new StaleMountError(docId);
+  }
   if (after.revision === before.revision) return loaded;
   if (unsaved !== null) return { body: unsaved, revision: after.revision };
   throw new StaleMountError(docId);
@@ -500,6 +544,16 @@ const createInstance = (
    * the hazard this capture closes, and a failed read is the one case where it
    * stays open; the store records the failure, so the "unsaved changes" indicator
    * is what the writer has.
+   *
+   * **A text the store could not read also refuses the next mount.** The mount
+   * shows the store's unsaved body, and a body it could not read is not a body it
+   * can show: mounting over it would replace the store's work with a body that
+   * does not have it. So the mount is refused with
+   * {@link UnreadablePendingBodyError}, which names the failure rather than
+   * blaming a store that has not moved. The store keeps the text, and the mount
+   * reads it again — the flush a mount makes asks a failed producer once more, so
+   * a text that can be read now is stored, and one that cannot is still the
+   * store's to keep.
    *
    * **The lane is the one this file reads everywhere.** A change that is not the
    * user's is a transaction carrying `addToHistory: false`, and `markLane` is the

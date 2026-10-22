@@ -34,7 +34,12 @@ import { createAutosave, domFlushSignals, RevisionConflictError } from '@caotang
 import type { Autosave, DocumentWriter } from '@caotang/store';
 import type { EditorApi, EditorInstance } from '../src/index.js';
 import { groupLossWarnings, parseWithDiagnostics, resolveAnchor } from '../src/index.js';
-import { createTiptapEditorApi, StaleMountError, UnsavedEditsError } from '../src/tiptap/index.js';
+import {
+  createTiptapEditorApi,
+  StaleMountError,
+  UnreadablePendingBodyError,
+  UnsavedEditsError,
+} from '../src/tiptap/index.js';
 import {
   focusDom,
   ghostDom,
@@ -674,6 +679,37 @@ describe('a mount does not show a body the store has moved past', () => {
     release({ revision: 5, changed: true });
     await expect(remount).rejects.toBeInstanceOf(StaleMountError);
     expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  it('a remount over a pending body the store could not read is refused with the failure that caused it', async () => {
+    // The store holds the editor's text as a producer, and the producer fails:
+    // the text could not be read. The mount cannot show a body it could not
+    // read — mounting over it would replace the store's work with a body that
+    // does not have it — so it is refused. But not with the refusal that blames
+    // a store that has not moved: this one names the failure.
+    const write = acceptingWriter();
+    const { autosave } = scheduler(write);
+    const { instance } = await mountInto('Hello.\n', { revision: 4, autosave });
+    instance.destroy();
+    await settle();
+
+    // The editor's text could not be read: the producer the store holds fails.
+    autosave.noteEdit('doc-under-test', () => {
+      throw new Error('the editor is gone');
+    });
+
+    const remount = createTiptapEditorApi().mount(document.createElement('div'), {
+      docId: 'doc-under-test',
+      initialBody: 'Hello.\n',
+      revision: 4,
+      autosave,
+    });
+
+    await expect(remount).rejects.toBeInstanceOf(UnreadablePendingBodyError);
+    await expect(remount).rejects.toThrow('the editor is gone');
+    // The store keeps the text: nothing was written, and the body still waits.
+    expect(write).not.toHaveBeenCalled();
+    expect(autosave.status('doc-under-test')).toMatchObject({ state: 'pending', dirty: true });
   });
 });
 
