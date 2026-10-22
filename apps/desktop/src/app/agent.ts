@@ -24,6 +24,15 @@
  * document is opened first if it is not. Apply, Retry and Discard are the ghost's own callbacks, and they answer the decision
  * the loop is waiting on.
  *
+ * ## Stop, steer and the queue
+ *
+ * Each turn has an `AbortController` of its own, and its signal rides in the turn's options. `stop` aborts it and answers a parked
+ * card with Cancel, so a stopped turn ends exactly as a cancelled one does (agent-harness §2, "Stop and steer"). `steer` hands a note
+ * to the running turn, which the model reads at its next request; a note the turn ends without delivering becomes the first queued
+ * message. The queue holds messages typed while a turn ran: each is a future turn, started once the one before has settled, so no
+ * two turns ever run at once (decisions.md: "An approved turn stays busy until it settles"). The queue is view state of this
+ * controller: it is not project state, it is not undoable, and it never reaches the bus or the activity log.
+ *
  * ## Restore
  *
  * "Restore to before this turn" is the session's `restoreBefore`. It takes back every change made after the turn as well, so
@@ -41,6 +50,7 @@ import {
   type AgentSession,
   type Decision,
   type PendingCard,
+  type TurnOptions,
   type TurnReport,
 } from '@caotang/harness';
 
@@ -56,13 +66,45 @@ export interface SubmitOptions {
   readonly demo?: boolean;
 }
 
+/** A message the writer typed while a turn ran. It is a future turn: it starts once the turn before it has settled. */
+export interface QueuedMessage {
+  readonly id: string;
+  readonly intent: string;
+  readonly options: SubmitOptions;
+  /** A steering note the running turn ended before delivering, moved here so it is not lost. */
+  readonly fromUndeliveredNote?: boolean;
+}
+
+/** A note sent to the running turn that has not reached the model yet. */
+export interface PendingNote {
+  readonly noteId: string;
+  readonly text: string;
+  /** Where it lands: the next model call, or after the decision of the card that waits. */
+  readonly lands: 'next-model-call' | 'after-decision';
+}
+
+/** What `steer` did with a note. */
+export type SteerResult = 'sent' | 'card-waiting' | 'idle' | 'refused';
+
 export interface AgentSnapshot {
   /** Every turn this project has run in this visit, oldest first. */
   readonly turns: readonly TurnView[];
   /** The decision the loop is waiting for, or `null`. */
   readonly pending: PendingCard | null;
-  /** A turn is running. The panel does not start another. */
+  /** A turn is running. The panel queues what the writer types meanwhile instead of starting another. */
   readonly busy: boolean;
+  /** Stop is offered: a turn runs, or a card waits. */
+  readonly stoppable: boolean;
+  /** Stop was pressed and the turn has not settled yet. */
+  readonly stopping: boolean;
+  /** The messages typed while a turn ran, in the order they will run. */
+  readonly queue: readonly QueuedMessage[];
+  /** The queue waits instead of running, after a turn that stopped on a question or never ran. */
+  readonly queuePaused: boolean;
+  /** Notes sent to the running turn that it has not read yet. */
+  readonly notes: readonly PendingNote[];
+  /** A line for a screen reader's status region: what Stop, a note or the queue just did. Empty when there is nothing to say. */
+  readonly announcement: string;
   /** The name of the active provider, or `null` when none is active. */
   readonly providerName: string | null;
   /** Whether the active provider is the demo one, which answers only the demo intents. */
@@ -76,6 +118,9 @@ export interface AgentSnapshot {
   /** Why the last action did not go through, for the panel. `null` when there is nothing to say. */
   readonly message: string | null;
 }
+
+/** What the panel says when the queue waits after a turn that stopped on a question. */
+export const QUEUE_PAUSED = 'The last turn stopped on a question. Answer it or choose Run the queue.';
 
 // Said without a pointer to the first-run card, which the writer can dismiss for good (settings firstRun), so it may not be on screen.
 const NO_PROVIDER = 'No provider is active. Add one in Settings > Providers to use the agent.';
@@ -97,6 +142,16 @@ export class AgentController {
   /** The turn that set the per-turn fields below, so only that turn clears them. */
   private turnOwner = 0;
   private turnsStarted = 0;
+  /** The running turn's own abort controller: its signal rides in the turn's options. */
+  private turnAbort: AbortController | null = null;
+  private runningAgent: AgentSession | null = null;
+  private runningTurnId: string | null = null;
+  private stopping = false;
+  private queue: QueuedMessage[] = [];
+  private queuePaused = false;
+  private queueSeq = 0;
+  private pendingNotes: PendingNote[] = [];
+  private announcement = '';
   private intentForNextTurn: string | null = null;
   private providerForNextTurn: string | null = null;
   private priceForNextTurn: { readonly prompt: number; readonly completion: number } | null = null;
@@ -172,6 +227,12 @@ export class AgentController {
       turns: this.turns,
       pending: this.pending,
       busy: this.busy,
+      stoppable: this.busy || this.pending !== null,
+      stopping: this.stopping,
+      queue: this.queue,
+      queuePaused: this.queuePaused,
+      notes: this.pendingNotes,
+      announcement: this.announcement,
       providerName: active?.name ?? null,
       providerIsDemo: active?.kind === 'mock',
       ghosts: this.ghosts,
@@ -195,7 +256,12 @@ export class AgentController {
     // A turn about a dialogue container or a storyboard starts with that module's tools loaded (PRELOAD_BY_CONTEXT), so it
     // costs no search. The node is the one the writer has selected, which is the document the centre pane shows.
     const preload = preloadFor(this.activeNode());
-    return this.turnWith(trimmed, options, (agent) => agent.submit(trimmed, { preload }));
+    return this.turnWith(trimmed, options, (agent, turn) => agent.submit(trimmed, { preload, ...turn }));
+  }
+
+  /** How many turns this controller has started. A queued message counts once it starts, never while it waits. */
+  turnCount(): number {
+    return this.turnsStarted;
   }
 
   /** The first selected node that still exists, or undefined: a deleted node may linger in view state. */
@@ -218,17 +284,25 @@ export class AgentController {
       this.bump();
       return null;
     }
-    return this.turnWith(fix.intent, {}, (agent) => agent.submitPlan(fix.intent, fix.plan));
+    return this.turnWith(fix.intent, {}, (agent, turn) => agent.submitPlan(fix.intent, fix.plan, turn));
   }
 
   /** Runs one turn on the active provider (or the demo's), with `start` as the turn's entry point. One turn runs at a time. */
-  private async turnWith(intent: string, options: SubmitOptions, start: (agent: AgentSession) => Promise<TurnReport>): Promise<TurnReport | null> {
+  private async turnWith(
+    intent: string,
+    options: SubmitOptions,
+    start: (agent: AgentSession, turn: TurnOptions) => Promise<TurnReport>,
+  ): Promise<TurnReport | null> {
     if (this.busy) return null;
     this.message = null;
+    this.announcement = '';
     this.busy = true;
     this.turnsStarted += 1;
     const owner = this.turnsStarted;
+    const abort = new AbortController();
+    this.turnAbort = abort;
     this.bump();
+    let report: TurnReport | null = null;
     try {
       // The demo intents run on the built-in demo profile, whichever profile is active (context-assembly §6).
       // Every other turn runs under the 'chat' role (provider-gateway §6). The role's profile, model and thinking
@@ -271,13 +345,19 @@ export class AgentController {
               this.session_ = { agent: created, profileId: profile.id, model, thinking };
               return created;
             })();
-      return await start(agent);
+      this.runningAgent = agent;
+      report = await start(agent, { signal: abort.signal });
+      return report;
     } catch (error) {
       this.message = `The turn stopped unexpectedly: ${error instanceof Error ? error.message : String(error)}`;
       return null;
     } finally {
       // The turn has settled, so the next one may start. Only the turn that set the per-turn fields clears them.
       this.busy = false;
+      this.stopping = false;
+      this.turnAbort = null;
+      this.runningAgent = null;
+      this.runningTurnId = null;
       if (this.turnOwner === owner) {
         this.turnOwner = 0;
         this.intentForNextTurn = null;
@@ -288,8 +368,151 @@ export class AgentController {
       this.session.coherenceChanged();
       // Usage and the request log are kept after every turn, so a closed tab loses at most the turn in flight.
       void this.providers.persist();
+      this.afterTurn(report);
       this.bump();
     }
+  }
+
+  /**
+   * What follows a settled turn (decisions.md: queued messages run one turn at a time). A note the turn ended without delivering
+   * goes to the front of the queue as a message of its own. The queue then pauses after a turn that stopped on a question, or that
+   * never ran, so it never piles writes on an unresolved failure; otherwise the next entry starts on a microtask, once `busy` is clear.
+   */
+  private afterTurn(report: TurnReport | null): void {
+    const stopped = report?.stop !== undefined;
+    if (this.pendingNotes.length > 0) {
+      const undelivered = this.pendingNotes.map(
+        (note): QueuedMessage => ({ id: this.nextQueueId(), intent: note.text, options: {}, fromUndeliveredNote: true }),
+      );
+      this.queue = [...undelivered, ...this.queue];
+      this.pendingNotes = [];
+    }
+    // A turn that stopped on a question, or never ran, holds the queue; a turn that went through (the answer to that question, say) lets it go.
+    this.queuePaused = (report === null || (report.status === 'failed' && report.askBack !== undefined)) && this.queue.length > 0;
+    if (stopped) this.announcement = this.queue.length > 0 && !this.queuePaused ? 'Stopped by you. The next queued message runs now.' : 'Stopped by you.';
+    else if (this.queuePaused) this.announcement = QUEUE_PAUSED;
+    if (this.queue.length > 0 && !this.queuePaused && !this.detached) queueMicrotask(() => void this.runNext());
+  }
+
+  private nextQueueId(): string {
+    this.queueSeq += 1;
+    return `queued-${this.queueSeq}`;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Stop, steer and the queue
+   * ------------------------------------------------------------------ */
+
+  /**
+   * Stops the running turn (agent-harness §2). The turn ends at its next boundary as cancelled by the writer: what it applied stays,
+   * and a bus command that has started is not interrupted. A card that waits is cancelled, exactly as its Cancel does.
+   */
+  stop(): void {
+    if (this.turnAbort === null || this.stopping) return;
+    this.stopping = true;
+    this.announcement = 'Stopping the turn.';
+    this.turnAbort.abort();
+    const resolve = this.resolveDecision;
+    this.resolveDecision = null;
+    this.pending = null;
+    this.clearGhosts();
+    resolve?.({ action: 'cancel' });
+    this.bump();
+  }
+
+  /**
+   * Sends the running turn a note, which the model reads at its next request. While a card waits the note is not sent: the panel
+   * offers Send with Cancel and Queue as next turn, and neither approves or drops the card behind the writer's back.
+   */
+  steer(text: string): SteerResult {
+    const note = text.trim();
+    if (note === '') return 'refused';
+    if (!this.busy || this.runningAgent === null || this.runningTurnId === null) return 'idle';
+    if (this.pending !== null) return 'card-waiting';
+    return this.sendNote(note);
+  }
+
+  /** Cancels the waiting card, and sends the note with the Cancel: the turn goes back to the model with it (agent-harness §2). */
+  sendWithCancel(text: string): void {
+    const note = text.trim();
+    if (note === '' || this.pending === null) return;
+    if (this.sendNote(note) === 'sent') this.answer({ action: 'cancel' });
+  }
+
+  private sendNote(note: string): SteerResult {
+    if (this.runningAgent === null || this.runningTurnId === null) return 'idle';
+    const receipt = this.runningAgent.steer(this.runningTurnId, note);
+    if (!receipt.ok) {
+      this.message = receipt.error.message;
+      this.bump();
+      return 'refused';
+    }
+    this.pendingNotes = [...this.pendingNotes, { noteId: receipt.value.noteId, text: note, lands: receipt.value.lands }];
+    this.announcement = 'Note sent. The agent reads it at its next step.';
+    this.bump();
+    return 'sent';
+  }
+
+  /** Adds a message to the queue. With no turn running (and the queue not paused) it starts at once. */
+  enqueue(intent: string, options: SubmitOptions = {}): void {
+    const text = intent.trim();
+    if (text === '') return;
+    this.queue = [...this.queue, { id: this.nextQueueId(), intent: text, options }];
+    this.announcement = this.busy ? `Queued. ${this.queue.length} ${this.queue.length === 1 ? 'message' : 'messages'} waiting.` : '';
+    this.bump();
+    if (!this.busy && !this.queuePaused) queueMicrotask(() => void this.runNext());
+  }
+
+  editQueued(id: string, intent: string): void {
+    const text = intent.trim();
+    if (text === '') return;
+    this.queue = this.queue.map((entry) => (entry.id === id ? { ...entry, intent: text } : entry));
+    this.bump();
+  }
+
+  /** Moves a queued message to a place in the queue (0 is next). A place past either end is the end. */
+  moveQueued(id: string, to: number): void {
+    const from = this.queue.findIndex((entry) => entry.id === id);
+    if (from === -1) return;
+    const entry = this.queue[from] as QueuedMessage;
+    const rest = this.queue.filter((candidate) => candidate.id !== id);
+    const at = Math.max(0, Math.min(rest.length, to));
+    this.queue = [...rest.slice(0, at), entry, ...rest.slice(at)];
+    this.bump();
+  }
+
+  removeQueued(id: string): void {
+    this.queue = this.queue.filter((entry) => entry.id !== id);
+    if (this.queue.length === 0) this.queuePaused = false;
+    this.bump();
+  }
+
+  /** Promotes a queued message to a steering note for the running turn. Not while a card waits: that is the writer's decision to make. */
+  steerQueued(id: string): SteerResult {
+    const entry = this.queue.find((candidate) => candidate.id === id);
+    if (entry === undefined) return 'idle';
+    const result = this.steer(entry.intent);
+    if (result === 'sent') this.removeQueued(id);
+    return result;
+  }
+
+  /** Resumes a paused queue. */
+  runQueue(): void {
+    this.queuePaused = false;
+    this.announcement = '';
+    this.bump();
+    if (!this.busy) queueMicrotask(() => void this.runNext());
+  }
+
+  /** Starts the first queued message, when nothing runs and the queue is not paused. */
+  private async runNext(): Promise<void> {
+    if (this.busy || this.queuePaused || this.detached) return;
+    const next = this.queue[0];
+    if (next === undefined) return;
+    this.queue = this.queue.slice(1);
+    this.bump();
+    // The entry is submitted as the writer typed it, so anything the intent box parses (a slash command) is read now, when it runs.
+    await this.submit(next.intent, next.options);
   }
 
   /** The loop's decision request. The card is parked here until the panel or the ghost answers it. */
@@ -382,8 +605,11 @@ export class AgentController {
 
   private onEvent(event: AgentEvent): void {
     if (event.type === 'turn' && event.phase === 'started' && this.intentForNextTurn !== null) {
+      this.runningTurnId = event.turnId;
       this.turns = [...this.turns, newTurnView(event.turnId, this.intentForNextTurn, this.providerForNextTurn, this.priceForNextTurn)];
     }
+    // A note has reached the model: it is no longer waiting.
+    if (event.type === 'steer') this.pendingNotes = this.pendingNotes.filter((note) => note.noteId !== event.note.noteId);
     // A card is shown again after every edit and redraft, and each showing brings its own drafts, which follow its steps.
     if (event.type === 'plan') this.clearGhosts();
     const tree = this.session.state.manifest.tree;

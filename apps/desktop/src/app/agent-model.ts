@@ -14,6 +14,7 @@ import {
   type Finding,
   type NameOf,
   type PlanCardView,
+  type SteeringNote,
   type StatusCard,
   type TaskList,
   type TurnPhase,
@@ -78,6 +79,8 @@ export interface TurnView {
   readonly context: ContextView | null;
   /** The checklist of the turn, folded from the same events (agent-harness §8). Never sent to the model. */
   readonly tasks: TaskList;
+  /** The notes the writer sent that the model has read, in order (agent-harness §2, "Stop and steer"). */
+  readonly steering: readonly SteeringNote[];
 }
 
 /** A turn that has been submitted and has not yet reported its id. */
@@ -105,6 +108,7 @@ export function newTurnView(
     reasoning: '',
     context: null,
     tasks: emptyTaskList(turnId),
+    steering: [],
   };
 }
 
@@ -129,6 +133,8 @@ function reduceView(turn: TurnView, event: AgentEvent): TurnView {
       return { ...turn, reasoning: `${turn.reasoning}${event.delta}` };
     case 'context':
       return { ...turn, context: { layers: event.layers, dropped: event.dropped } };
+    case 'steer':
+      return { ...turn, steering: [...turn.steering, event.note] };
     case 'card': {
       const index = turn.cards.findIndex((card) => card.id === event.card.id);
       const cards = index === -1 ? [...turn.cards, event.card] : turn.cards.map((card, at) => (at === index ? event.card : card));
