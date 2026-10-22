@@ -21,6 +21,7 @@ import {
   createStreamableHttpWire,
   exportServers,
   parseServerImport,
+  WireError,
   type ImportRefusal,
   type McpAuth,
   type McpClient,
@@ -28,6 +29,9 @@ import {
   type McpServerHealth,
   type McpSettings,
   type WireFactory,
+  type WirePrompt,
+  type WireResource,
+  type WireResourceTemplate,
   type WireTool,
 } from '@caotang/mcp-client';
 
@@ -181,6 +185,12 @@ function randomRef(): string {
 interface FixtureServer {
   readonly tools: readonly WireTool[];
   readonly content?: readonly unknown[];
+  /** What the server lists beyond tools. A fixture with none of these advertises none. */
+  readonly resources?: readonly WireResource[];
+  readonly templates?: readonly WireResourceTemplate[];
+  readonly prompts?: readonly WirePrompt[];
+  /** When set, listing resources fails with this reason, and the tools stay listed. */
+  readonly resourcesError?: string;
 }
 
 /**
@@ -199,6 +209,22 @@ export function fixtureWireFactory(): WireFactory | undefined {
       get listTools() {
         return [...fixture.tools];
       },
+      get resources() {
+        return fixture.resources === undefined ? undefined : [...fixture.resources];
+      },
+      get templates() {
+        return fixture.templates === undefined ? undefined : [...fixture.templates];
+      },
+      get prompts() {
+        return fixture.prompts === undefined ? undefined : [...fixture.prompts];
+      },
+      ...(fixture.resourcesError === undefined
+        ? {}
+        : {
+            fail: (phase: string) => {
+              if (phase === 'resources') throw new WireError('protocol', fixture.resourcesError ?? '');
+            },
+          }),
       respond: () => ({ content: [...(fixture.content ?? [])], isError: false }),
     });
   };

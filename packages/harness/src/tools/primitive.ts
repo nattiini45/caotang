@@ -49,6 +49,8 @@ export const NEVER_EXPOSED = [
   'project.importAsset',
   'shot.importImage',
   'mcp.invoke',
+  // A resource is read when the writer picks it, so no tool stands for the read (extensibility §4 rule 8).
+  'mcp.readResource',
   // A skill is an instruction the agent will read later, so the agent never writes one (extensibility §4 rule 7).
   'skill.import',
   'skill.write',

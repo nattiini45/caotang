@@ -18,7 +18,19 @@ import type { FetchLike } from '@modelcontextprotocol/client';
 import { err, ok, type Result } from '@caotang/bus';
 
 import { modelSafeAliases } from './alias.js';
-import { canonicalJson, pinHash } from './canonical.js';
+import { canonicalJson, pinHash, sha256Hex } from './canonical.js';
+import {
+  CATALOG_LIMIT,
+  catalogFingerprint,
+  EMPTY_CATALOG,
+  listPrompts as listedPrompts,
+  listResources as listedResources,
+  listTemplates as listedTemplates,
+  removedFrom,
+  reviewedPins,
+  stateOf,
+  type Catalog,
+} from './catalog.js';
 import {
   checkServerUrl,
   MCP_NAME_MAX,
@@ -32,12 +44,12 @@ import {
   type McpSettings,
   type ToolPin,
 } from './config.js';
-import { McpFailure, PIN_MISMATCH_TEXT, serverErrorText, timeoutText, unreachableText, type McpError } from './errors.js';
+import { inputRequiredText, McpFailure, notFoundText, PIN_MISMATCH_TEXT, readErrorText, serverErrorText, timeoutText, unreachableText, type McpError } from './errors.js';
 import { effectiveRiskOf, type EffectiveRisk } from './risk.js';
 import { diffPins, hasDelta, listingFingerprint, pinsAfterReview, pinStateOf, type PinDelta, type PinState } from './pins.js';
 import { createStreamableHttpWire } from './lazy-wire.js';
 import { corsProbe, WireError, WireLoadError } from './wire-error.js';
-import type { McpWire, WireAnnotations, WireCallResult, WireDeps, WireFactory, WireTool } from './wire.js';
+import type { McpWire, WireAnnotations, WireCallResult, WireCapabilities, WireDeps, WireFactory, WireResourceContents, WireTool } from './wire.js';
 
 /** §3.3: the reachable-but-blocked message, verbatim. */
 export const CORS_REFUSAL = 'server reachable but refuses browser connections (CORS). The desktop app on the roadmap connects without this restriction.';
@@ -97,6 +109,40 @@ export interface ExternalToolDescriptor {
   readonly deferred: true;
 }
 
+/**
+ * A resource or a resource template a server lists (extensibility §3.5). The text is the server's, verbatim. A template is pinned and a
+ * plain resource is not: its `pinState` is `verified` because there is nothing to verify, and its contents are data.
+ */
+export interface ExternalResourceDescriptor {
+  readonly serverKey: string;
+  readonly serverName: string;
+  /** The resource's URI, or the template with `template: true`. A URI is a name for the server to resolve, never an address Caotang fetches. */
+  readonly uri: string;
+  readonly template: boolean;
+  readonly name: string;
+  readonly description: string;
+  readonly mimeType?: string;
+  readonly pinState: PinState;
+}
+
+/** A prompt a server lists. Nothing in this package runs one. */
+export interface ExternalPromptDescriptor {
+  readonly serverKey: string;
+  readonly serverName: string;
+  readonly name: string;
+  readonly description: string;
+  readonly arguments: readonly { readonly name: string; readonly description: string; readonly required: boolean }[];
+  readonly pinState: PinState;
+}
+
+/** Why a part of a server's catalog is missing. Absent for a part that was listed, and for one the server does not offer. */
+export interface CatalogStatus {
+  readonly resourcesUnavailable?: string;
+  readonly promptsUnavailable?: string;
+  /** True when a list was longer than {@link CATALOG_LIMIT} and only the first part is kept. */
+  readonly cut: boolean;
+}
+
 /** What `tool.search` may find: the tools of healthy, enabled servers, and a note for each server it skipped. */
 export interface IndexedTools {
   readonly tools: readonly ExternalToolDescriptor[];
@@ -115,15 +161,36 @@ export interface ReviewTool {
   readonly enabled: boolean;
 }
 
+export interface ReviewPrompt {
+  readonly name: string;
+  readonly status: 'new' | 'changed' | 'unchanged';
+  readonly description: string;
+  readonly arguments: readonly { readonly name: string; readonly description: string; readonly required: boolean }[];
+}
+
+export interface ReviewTemplate {
+  readonly uriTemplate: string;
+  readonly name: string;
+  readonly status: 'new' | 'changed' | 'unchanged';
+  readonly description: string;
+  readonly mimeType?: string;
+}
+
 /** §3.4's review card, as data. The UI renders every description in full (§4 rule 4). */
 export interface ReviewCard {
   readonly serverKey: string;
   readonly serverName: string;
+  /** `changed` also when only a prompt or a resource template is new, changed or gone: those wait for a review as well, though they do not hold the tools. */
   readonly kind: 'first-connect' | 'changed' | 'current';
   /** The approval must carry this back. A listing that changed since the card was built will not match it. */
   readonly fingerprint: string;
   readonly tools: readonly ReviewTool[];
   readonly removed: readonly { readonly qualifiedName: string; readonly toolName: string; readonly previousHash: string }[];
+  /** The server's prompts and resource templates, in full (extensibility §3.5). Empty for a server that lists none. */
+  readonly prompts: readonly ReviewPrompt[];
+  readonly resourceTemplates: readonly ReviewTemplate[];
+  readonly removedPrompts: readonly string[];
+  readonly removedTemplates: readonly string[];
 }
 
 /** A successful call's result, verbatim, and not yet trusted. */
@@ -177,6 +244,17 @@ export interface McpClient {
   serverFor(serverKey: string): McpServerConfig | undefined;
   healthOf(serverKey: string): McpServerHealth | undefined;
   indexedTools(): IndexedTools;
+  /** The resources and resource templates the server last listed. Read-only: reading one is `mcp.readResource`'s, and the writer's. */
+  listResources(key: string): ExternalResourceDescriptor[];
+  /** The prompts the server last listed. Nothing here runs one. */
+  listPrompts(key: string): ExternalPromptDescriptor[];
+  /** Why a list is missing, if it is. */
+  catalogStatus(key: string): CatalogStatus;
+  /**
+   * Lists resources, templates and prompts again, for a picker that has just opened. The wire keeps a list for the server's own `ttlMs`,
+   * so a second call within it asks nothing. A failure is reported in {@link catalogStatus} and never demotes the server's tools.
+   */
+  refreshCatalog(key: string): Promise<void>;
   review(key: string): ReviewCard | undefined;
   approveReview(key: string, fingerprint: string): Result<McpServerHealth, string>;
   setTrustReads(key: string, value: boolean): Result<McpServerConfig, string>;
@@ -221,6 +299,13 @@ export interface McpTransport {
    * rejects: a failed listing demotes the server, and the caller's recheck refuses the call.
    */
   relist(serverKey: string): Promise<McpServerHealth>;
+  /**
+   * One `resources/read`, with the 120 s call limit. Held by `mcp.readResource` and nowhere else. It checks what the client owns (a live
+   * connection), and the command decides the rest before this step is reached. A failure is thrown as an {@link McpFailure}.
+   */
+  readResource(serverKey: string, uri: string, options?: { readonly signal?: AbortSignal }): Promise<readonly WireResourceContents[]>;
+  /** Lists resources, templates and prompts again (the picker's refresh). It never rejects. */
+  refreshCatalog(serverKey: string): Promise<void>;
 }
 
 /**
@@ -249,7 +334,10 @@ interface Listing {
   readonly tools: readonly ListedTool[];
   readonly delta: PinDelta;
   readonly removed: readonly string[];
+  /** The card's fingerprint: the tools', and the prompts' and templates' when the server lists any (`withCatalog`). */
   readonly fingerprint: string;
+  /** The tools' alone, from which the card's is made again when the catalog is listed again. */
+  readonly toolsFingerprint: string;
   /** The canonical text of the listing's (name, hash) pairs, to notice a listing that changed since the last one. */
   readonly listedKey: string;
 }
@@ -258,7 +346,10 @@ interface ServerRuntime {
   health: McpServerHealth;
   wire: McpWire | undefined;
   listing: Listing | undefined;
+  /** Resources, templates and prompts, from the same connection as `listing`. Never decides the server's health. */
+  catalog: Catalog | undefined;
   pending: Promise<McpServerHealth> | undefined;
+  catalogPending: Promise<void> | undefined;
   /** Moves on at every teardown. A listing that started under an earlier value writes nothing when it returns. */
   generation: number;
 }
@@ -411,6 +502,83 @@ class McpClientImpl implements McpClient {
     return { tools, notes };
   }
 
+  listResources(key: string): ExternalResourceDescriptor[] {
+    const server = this.config.servers.find((candidate) => candidate.key === key);
+    const catalog = this.runtimes.get(key)?.catalog;
+    if (server === undefined || catalog === undefined) return [];
+    const base = { serverKey: key, serverName: server.name };
+    return [
+      ...catalog.resources.map((resource) => ({
+        ...base,
+        uri: resource.uri,
+        template: false,
+        name: resource.name,
+        description: resource.description,
+        ...(resource.mimeType === undefined ? {} : { mimeType: resource.mimeType }),
+        // A plain resource is not pinned: its contents are data, and its name is a label on a picker.
+        pinState: 'verified' as const,
+      })),
+      ...catalog.templates.map((template) => ({
+        ...base,
+        uri: template.uriTemplate,
+        template: true,
+        name: template.name,
+        description: template.description,
+        ...(template.mimeType === undefined ? {} : { mimeType: template.mimeType }),
+        pinState: stateOf(server.pinnedTemplates, template.uriTemplate, template.candidateHash),
+      })),
+    ];
+  }
+
+  listPrompts(key: string): ExternalPromptDescriptor[] {
+    const server = this.config.servers.find((candidate) => candidate.key === key);
+    const catalog = this.runtimes.get(key)?.catalog;
+    if (server === undefined || catalog === undefined) return [];
+    return catalog.prompts.map((prompt) => ({
+      serverKey: key,
+      serverName: server.name,
+      name: prompt.name,
+      description: prompt.description,
+      arguments: prompt.arguments.map((argument) => ({ ...argument })),
+      pinState: stateOf(server.pinnedPrompts, prompt.name, prompt.candidateHash),
+    }));
+  }
+
+  catalogStatus(key: string): CatalogStatus {
+    const catalog = this.runtimes.get(key)?.catalog;
+    if (catalog === undefined) return { cut: false };
+    return {
+      ...(catalog.resourcesUnavailable === undefined ? {} : { resourcesUnavailable: catalog.resourcesUnavailable }),
+      ...(catalog.promptsUnavailable === undefined ? {} : { promptsUnavailable: catalog.promptsUnavailable }),
+      cut: catalog.cut,
+    };
+  }
+
+  async refreshCatalog(key: string): Promise<void> {
+    const server = this.config.servers.find((candidate) => candidate.key === key);
+    const rt = this.runtimes.get(key);
+    if (server === undefined || rt === undefined || !this.config.enabled || !server.enabled) return;
+    // A listing that is under way brings the catalog with it, so the refresh waits for that one and asks nothing more.
+    if (rt.pending !== undefined) {
+      await rt.pending.catch(() => undefined);
+      return;
+    }
+    if (rt.catalogPending !== undefined) return rt.catalogPending;
+    const wire = rt.wire;
+    if (wire === undefined || rt.listing === undefined || rt.health.state === 'configured') return;
+    const generation = rt.generation;
+    const pending = (async (): Promise<void> => {
+      const catalog = await this.loadCatalog(server, wire);
+      if (rt.generation !== generation || rt.listing === undefined) return;
+      rt.listing = await withCatalog(rt.listing, catalog);
+      rt.catalog = catalog;
+    })();
+    rt.catalogPending = pending;
+    return pending.finally(() => {
+      if (rt.catalogPending === pending) rt.catalogPending = undefined;
+    });
+  }
+
   review(key: string): ReviewCard | undefined {
     const server = this.config.servers.find((candidate) => candidate.key === key);
     const listing = this.runtimes.get(key)?.listing;
@@ -436,8 +604,43 @@ class McpClientImpl implements McpClient {
       toolName: pinOf(server, qualifiedName)?.toolName ?? qualifiedName.slice(prefixOf(server.key).length),
       previousHash: pinOf(server, qualifiedName)?.hash ?? '',
     }));
-    const kind = listing.delta.firstConnect ? 'first-connect' : hasDelta(listing.delta) ? 'changed' : 'current';
-    return { serverKey: key, serverName: server.name, kind, fingerprint: listing.fingerprint, tools, removed };
+    const catalog = this.runtimes.get(key)?.catalog;
+    const prompts: ReviewPrompt[] = (catalog?.prompts ?? []).map((prompt) => ({
+      name: prompt.name,
+      status: reviewStatus(stateOf(server.pinnedPrompts, prompt.name, prompt.candidateHash)),
+      description: prompt.description,
+      arguments: prompt.arguments.map((argument) => ({ ...argument })),
+    }));
+    const resourceTemplates: ReviewTemplate[] = (catalog?.templates ?? []).map((template) => ({
+      uriTemplate: template.uriTemplate,
+      name: template.name,
+      status: reviewStatus(stateOf(server.pinnedTemplates, template.uriTemplate, template.candidateHash)),
+      description: template.description,
+      ...(template.mimeType === undefined ? {} : { mimeType: template.mimeType }),
+    }));
+    // A pin is "removed" only when the list it belongs to was read: a list that failed says nothing about what is gone.
+    const removedPrompts =
+      catalog === undefined || catalog.promptsUnavailable !== undefined ? [] : removedFrom(server.pinnedPrompts, prompts.map((prompt) => prompt.name));
+    const removedTemplates =
+      catalog === undefined || catalog.resourcesUnavailable !== undefined
+        ? []
+        : removedFrom(server.pinnedTemplates, resourceTemplates.map((template) => template.uriTemplate));
+    const toolKind = listing.delta.firstConnect ? 'first-connect' : hasDelta(listing.delta) ? 'changed' : 'current';
+    const catalogPending =
+      [...prompts, ...resourceTemplates].some((item) => item.status !== 'unchanged') || removedPrompts.length + removedTemplates.length > 0;
+    const kind = toolKind === 'current' && catalogPending ? 'changed' : toolKind;
+    return {
+      serverKey: key,
+      serverName: server.name,
+      kind,
+      fingerprint: listing.fingerprint,
+      tools,
+      removed,
+      prompts,
+      resourceTemplates,
+      removedPrompts,
+      removedTemplates,
+    };
   }
 
   approveReview(key: string, fingerprint: string): Result<McpServerHealth, string> {
@@ -456,6 +659,7 @@ class McpClientImpl implements McpClient {
     const listed = rt.listing.tools.map((tool) => ({ qualifiedName: tool.qualifiedName, hash: tool.candidateHash, toolName: tool.toolName }));
     const pins = pinsAfterReview(server.pinnedTools, listed, this.clock());
     server.pinnedTools = pins;
+    this.pinCatalog(server, rt.catalog);
     const delta = diffPins(pins, listed);
     rt.listing = { ...rt.listing, delta, removed: [] };
     this.setHealth(key, 'healthy', healthDetailOf(rt.listing), { toolsDiscovered: rt.listing.tools.length, pendingReview: false });
@@ -582,6 +786,8 @@ class McpClientImpl implements McpClient {
       // told that it is gone rather than asked for one: nothing asks them for it.
       server.url = address;
       server.pinnedTools = {};
+      delete server.pinnedPrompts;
+      delete server.pinnedTemplates;
       server.trustReads = false;
       delete server.enabledTools;
       server.auth = { kind: 'none' };
@@ -666,7 +872,101 @@ class McpClientImpl implements McpClient {
     return { content: [...result.content], isError: result.isError === true };
   }
 
+  /**
+   * The transport step of `mcp.readResource`, reached only through {@link createMcpTransport}: one `resources/read`, with the 120 s limit
+   * and no retry. The command has decided that the writer picked it and that the URI is listed or comes through a verified template.
+   */
+  async readWire(serverKey: string, uri: string, options: { readonly signal?: AbortSignal } = {}): Promise<readonly WireResourceContents[]> {
+    const server = this.config.servers.find((candidate) => candidate.key === serverKey);
+    const rt = this.runtimes.get(serverKey);
+    if (server === undefined || rt === undefined) throw new McpFailure({ code: 'unreachable', message: unreachableText(serverKey) });
+    const wire = rt.wire;
+    if (wire === undefined || rt.health.state === 'configured') throw new McpFailure({ code: 'unreachable', message: unreachableText(server.name) });
+    try {
+      return await wire.readResource(uri, { timeoutMs: this.callTimeoutMs, ...(options.signal === undefined ? {} : { signal: options.signal }) });
+    } catch (error) {
+      const failure = asWireError(error);
+      if (failure.kind === 'network' || failure.kind === 'cors' || failure.kind === 'auth') {
+        await this.demote(serverKey, listFailureDetail(failure, this.listTimeoutMs));
+      }
+      throw new McpFailure(mapReadFailure(failure, server.name, uri, this.callTimeoutMs));
+    }
+  }
+
   // -- connection and listing ------------------------------------------------
+
+  /**
+   * Lists resources, templates and prompts on an open connection. It never throws and never touches the server's health: a part that
+   * fails is told with its reason, and the tools stay as they were. A server that does not advertise a feature is not asked for it.
+   */
+  private async loadCatalog(server: McpServerConfig, wire: McpWire): Promise<Catalog> {
+    const options = { timeoutMs: this.listTimeoutMs };
+    let resources = [...EMPTY_CATALOG.resources];
+    let templates = [...EMPTY_CATALOG.templates];
+    let prompts = [...EMPTY_CATALOG.prompts];
+    let resourcesUnavailable: string | undefined;
+    let promptsUnavailable: string | undefined;
+    let cut = false;
+    let caps: WireCapabilities;
+    try {
+      caps = await wire.capabilities(options);
+    } catch (error) {
+      const failure = asWireError(error);
+      return {
+        ...EMPTY_CATALOG,
+        resourcesUnavailable: catalogFailureDetail(failure, this.listTimeoutMs, 'resources/list'),
+        promptsUnavailable: catalogFailureDetail(failure, this.listTimeoutMs, 'prompts/list'),
+      };
+    }
+    if (caps.resources) {
+      try {
+        const listing = await wire.listResources(options);
+        cut = listing.resources.length > CATALOG_LIMIT || listing.templates.length > CATALOG_LIMIT;
+        resources = listedResources(listing.resources.slice(0, CATALOG_LIMIT));
+        templates = await listedTemplates(listing.templates.slice(0, CATALOG_LIMIT));
+      } catch (error) {
+        resourcesUnavailable = catalogFailureDetail(asWireError(error), this.listTimeoutMs, 'resources/list');
+      }
+    }
+    if (caps.prompts) {
+      try {
+        const listing = await wire.listPrompts(options);
+        cut = cut || listing.length > CATALOG_LIMIT;
+        prompts = await listedPrompts(listing.slice(0, CATALOG_LIMIT));
+      } catch (error) {
+        promptsUnavailable = catalogFailureDetail(asWireError(error), this.listTimeoutMs, 'prompts/list');
+      }
+    }
+    const removed = {
+      prompts: promptsUnavailable === undefined ? removedFrom(server.pinnedPrompts, prompts.map((prompt) => prompt.name)) : [],
+      templates: resourcesUnavailable === undefined ? removedFrom(server.pinnedTemplates, templates.map((template) => template.uriTemplate)) : [],
+    };
+    return {
+      resources,
+      templates,
+      prompts,
+      ...(resourcesUnavailable === undefined ? {} : { resourcesUnavailable }),
+      ...(promptsUnavailable === undefined ? {} : { promptsUnavailable }),
+      cut,
+      fingerprint: await catalogFingerprint(prompts, templates, removed),
+    };
+  }
+
+  /** What a review keeps of the catalog: each prompt and template at the hash the person saw. A list that failed leaves its pins as they were. */
+  private pinCatalog(server: McpServerConfig, catalog: Catalog | undefined): void {
+    if (catalog === undefined) return;
+    const at = this.clock();
+    if (catalog.promptsUnavailable === undefined) {
+      const next = reviewedPins(server.pinnedPrompts, catalog.prompts.map((prompt) => ({ key: prompt.name, hash: prompt.candidateHash })), at);
+      if (next === undefined) delete server.pinnedPrompts;
+      else server.pinnedPrompts = next;
+    }
+    if (catalog.resourcesUnavailable === undefined) {
+      const next = reviewedPins(server.pinnedTemplates, catalog.templates.map((template) => ({ key: template.uriTemplate, hash: template.candidateHash })), at);
+      if (next === undefined) delete server.pinnedTemplates;
+      else server.pinnedTemplates = next;
+    }
+  }
 
   private runtime(key: string): ServerRuntime {
     let rt = this.runtimes.get(key);
@@ -739,7 +1039,14 @@ class McpClientImpl implements McpClient {
       return this.demote(key, `the server's tool list could not be read: ${asWireError(error).message}`);
     }
     if (overtaken()) return rt.health;
-    rt.listing = listing;
+    // Resources, templates and prompts are listed on the same connection. A failure there is told on the card and holds nothing back.
+    const live = rt.wire;
+    if (live === undefined) return rt.health;
+    const catalog = await this.loadCatalog(server, live);
+    if (overtaken()) return rt.health;
+    rt.listing = await withCatalog(listing, catalog);
+    if (overtaken()) return rt.health;
+    rt.catalog = catalog;
     const reviewPending = hasDelta(listing.delta);
     const health = this.setHealth(key, reviewPending ? 'connected' : 'healthy', healthDetailOf(listing), {
       toolsDiscovered: listing.tools.length,
@@ -777,11 +1084,13 @@ class McpClientImpl implements McpClient {
     const pins = listed.map((tool) => ({ qualifiedName: tool.qualifiedName, hash: tool.candidateHash }));
     const names = new Set(pins.map((pin) => pin.qualifiedName));
     const removed = Object.keys(server.pinnedTools).filter((name) => !names.has(name)).sort();
+    const fingerprint = await listingFingerprint(pins, removed);
     return {
       tools: listed,
       delta: diffPins(server.pinnedTools, pins),
       removed,
-      fingerprint: await listingFingerprint(pins, removed),
+      fingerprint,
+      toolsFingerprint: fingerprint,
       listedKey: canonicalJson(pins.map((pin) => [pin.qualifiedName, pin.hash])),
     };
   }
@@ -825,7 +1134,9 @@ class McpClientImpl implements McpClient {
     if (rt === undefined) return Promise.resolve();
     rt.generation += 1;
     rt.pending = undefined;
+    rt.catalogPending = undefined;
     rt.listing = undefined;
+    rt.catalog = undefined;
     const wire = rt.wire;
     rt.wire = undefined;
     return wire === undefined ? Promise.resolve() : wire.close().catch(() => undefined);
@@ -916,6 +1227,8 @@ export function createMcpTransport(client: McpClient): McpTransport {
   return {
     callTool: (serverKey, toolName, args, options) => client.callWire(serverKey, toolName, args, options),
     relist: (serverKey) => client.refresh(serverKey),
+    readResource: (serverKey, uri, options) => client.readWire(serverKey, uri, options),
+    refreshCatalog: (serverKey) => client.refreshCatalog(serverKey),
   };
 }
 
@@ -924,7 +1237,9 @@ function freshRuntime(key: string, detail: string): ServerRuntime {
     health: { key, state: 'configured', detail },
     wire: undefined,
     listing: undefined,
+    catalog: undefined,
     pending: undefined,
+    catalogPending: undefined,
     generation: 0,
   };
 }
@@ -941,6 +1256,8 @@ function cloneServer(server: McpServerConfig): McpServerConfig {
   const copy: McpServerConfig = { ...server, auth: { ...server.auth }, pinnedTools: { ...server.pinnedTools } };
   if (server.enabledTools !== undefined) copy.enabledTools = [...server.enabledTools];
   else delete copy.enabledTools;
+  if (server.pinnedPrompts !== undefined) copy.pinnedPrompts = { ...server.pinnedPrompts };
+  if (server.pinnedTemplates !== undefined) copy.pinnedTemplates = { ...server.pinnedTemplates };
   return copy;
 }
 
@@ -980,8 +1297,28 @@ export function healthDetailOf(listing: { readonly delta: PinDelta; readonly too
   return parts.length === 0 ? undefined : parts.join('; ');
 }
 
+/** A prompt's or template's pin state, as a review row names it. */
+function reviewStatus(state: PinState): 'new' | 'changed' | 'unchanged' {
+  return state === 'new' ? 'new' : state === 'changed' ? 'changed' : 'unchanged';
+}
+
+/** The card's fingerprint with the prompts and templates in it, when there are any. A server with none keeps the tools' fingerprint as it was. */
+async function withCatalog(listing: Listing, catalog: Catalog): Promise<Listing> {
+  const fingerprint = catalog.fingerprint === '' ? listing.toolsFingerprint : await sha256Hex(`${listing.toolsFingerprint}:${catalog.fingerprint}`);
+  return { ...listing, fingerprint };
+}
+
+/** Why a list of resources or prompts is not here: the words of a failed tool list, for the method that failed. */
+function catalogFailureDetail(failure: WireError, listTimeoutMs: number, method: 'resources/list' | 'prompts/list'): string {
+  return listFailureDetail(failure, listTimeoutMs, { method, thing: method === 'resources/list' ? 'resource list' : 'prompt list' });
+}
+
 /** The health detail for a failed listing, with the named corrective path. */
-function listFailureDetail(failure: WireError, listTimeoutMs: number): string {
+function listFailureDetail(
+  failure: WireError,
+  listTimeoutMs: number,
+  named: { readonly method: string; readonly thing: string } = { method: 'tools/list', thing: 'tool list' },
+): string {
   switch (failure.kind) {
     case 'cors':
       return CORS_REFUSAL;
@@ -989,7 +1326,7 @@ function listFailureDetail(failure: WireError, listTimeoutMs: number): string {
       if (failure instanceof WireLoadError) return 'the MCP connector could not be loaded — check your connection, then connect again';
       return 'server unreachable: no response from the host — check the URL in Settings › MCP & tools';
     case 'timeout':
-      return `tools/list timed out after ${Math.round(listTimeoutMs) / 1000} s`;
+      return `${named.method} timed out after ${Math.round(listTimeoutMs) / 1000} s`;
     case 'abort':
       return 'the connection was aborted';
     case 'auth':
@@ -999,13 +1336,17 @@ function listFailureDetail(failure: WireError, listTimeoutMs: number): string {
     case 'http':
       return failure.status === 404
         ? 'no MCP endpoint at this URL (HTTP 404) — check the URL in Settings › MCP & tools'
-        : `the server answered HTTP ${failure.status ?? 'error'} to tools/list`;
+        : `the server answered HTTP ${failure.status ?? 'error'} to ${named.method}`;
     case 'protocol':
-      return `the server returned an error to tools/list: ${failure.message}`;
+      return `the server returned an error to ${named.method}: ${failure.message}`;
     case 'result':
-      return 'the server sent a tool list Caotang cannot read';
+      return `the server sent a ${named.thing} Caotang cannot read`;
     case 'revision':
       return revisionDetail(failure);
+    case 'not-found':
+      return `the server has no ${named.thing}`;
+    case 'input-required':
+      return `the server asked for more input to answer ${named.method}, which Caotang cannot give yet`;
   }
 }
 
@@ -1037,6 +1378,36 @@ function mapCallFailure(failure: WireError, serverName: string, toolName: string
       return { code: 'server_error', message: serverErrorText(serverName, toolName, failure.message) };
     case 'revision':
       return { code: 'server_error', message: serverErrorText(serverName, toolName, revisionDetail(failure)) };
+    case 'not-found':
+      return { code: 'not_found', message: notFoundText(serverName, toolName) };
+    case 'input-required':
+      return { code: 'input_required', message: inputRequiredText(serverName) };
+  }
+}
+
+/** A failed `resources/read`, as the error the command reports. The tool-call text is not used: a read has no tool, and its URI is what was asked for. */
+function mapReadFailure(failure: WireError, serverName: string, uri: string, timeoutMs: number): McpError {
+  switch (failure.kind) {
+    case 'not-found':
+      return { code: 'not_found', message: notFoundText(serverName, uri) };
+    case 'input-required':
+      return { code: 'input_required', message: inputRequiredText(serverName) };
+    case 'network':
+    case 'cors':
+      return { code: 'unreachable', message: unreachableText(serverName) };
+    case 'timeout':
+    case 'abort':
+      return { code: 'timeout', message: timeoutText(timeoutMs) };
+    case 'auth':
+      return { code: 'server_error', message: readErrorText(serverName, uri, 'it rejected the bearer token — re-enter it in the server card') };
+    case 'http':
+      if (failure.status === 404) return { code: 'unreachable', message: unreachableText(serverName) };
+      return { code: 'server_error', message: readErrorText(serverName, uri, `it answered HTTP ${failure.status ?? 'error'}`) };
+    case 'protocol':
+    case 'result':
+      return { code: 'server_error', message: readErrorText(serverName, uri, failure.message) };
+    case 'revision':
+      return { code: 'server_error', message: readErrorText(serverName, uri, revisionDetail(failure)) };
   }
 }
 

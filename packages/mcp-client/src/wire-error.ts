@@ -26,8 +26,23 @@ const PROBE_MS = 5_000;
  * `revision`: the server speaks none of the revisions Caotang offers (2026-07-28, or a 2024 or 2025 revision),
  * so there is no common one to connect on. It is named apart from a generic protocol error, because the
  * person's fix is the server's version, not the URL.
+ *
+ * `not-found`: a resource the server does not have (`-32002` before 2026-07-28, `-32602` after it, both read as one).
+ * `input-required`: the server answered with `input_required`, a request for more input that Caotang cannot make until
+ * elicitation exists.
  */
-export type WireErrorKind = 'network' | 'cors' | 'timeout' | 'abort' | 'auth' | 'http' | 'protocol' | 'result' | 'revision';
+export type WireErrorKind =
+  | 'network'
+  | 'cors'
+  | 'timeout'
+  | 'abort'
+  | 'auth'
+  | 'http'
+  | 'protocol'
+  | 'result'
+  | 'revision'
+  | 'not-found'
+  | 'input-required';
 
 /** A classified transport failure. The client turns the kind into the person's sentence. */
 export class WireError extends Error {

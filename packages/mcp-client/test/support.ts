@@ -5,7 +5,7 @@
  * only the transport is in memory, and nothing here touches the network (repo rule 6).
  */
 
-import { createMcpHandler, Server, type McpHttpHandler, type Tool } from '@modelcontextprotocol/server';
+import { createMcpHandler, ProtocolError, ProtocolErrorCode, ResourceNotFoundError, Server, type McpHttpHandler, type Tool } from '@modelcontextprotocol/server';
 
 import { MODERN_REVISION, type McpServerConfig, type ToolPin } from '../src/index.js';
 
@@ -27,6 +27,14 @@ export interface FixtureResult {
 export interface FixtureState {
   tools: FixtureTool[];
   respond: (name: string, args: Record<string, unknown>) => FixtureResult | Promise<FixtureResult>;
+  /** Setting any of these makes the server advertise the feature; a server with none of them advertises tools alone. */
+  resources?: { uri: string; name: string; description?: string; mimeType?: string }[];
+  templates?: { uriTemplate: string; name: string; description?: string; mimeType?: string }[];
+  prompts?: { name: string; description?: string; arguments?: { name: string; description?: string; required?: boolean }[] }[];
+  /** A resource's contents. Absent, every URI is not found. */
+  readResource?: (uri: string) => { uri: string; mimeType?: string; text?: string; blob?: string }[];
+  /** How the server words a missing resource: -32002 (before 2026-07-28) or the 2026-07-28 code, -32602. */
+  notFoundCode?: -32002 | -32602;
 }
 
 /** One POST the client made, as it was sent. */
@@ -98,13 +106,35 @@ export function startInProcessServer(state: FixtureState, options: { readonly re
 }
 
 function buildServer(state: FixtureState, revisions: readonly string[]): Server {
+  const hasResources = state.resources !== undefined || state.templates !== undefined;
+  const hasPrompts = state.prompts !== undefined;
   const server = new Server(
     { name: 'caotang-mcp-client-fixture', version: '0.0.0' },
     {
-      capabilities: { tools: {} },
+      capabilities: { tools: {}, ...(hasResources ? { resources: {} } : {}), ...(hasPrompts ? { prompts: {} } : {}) },
       supportedProtocolVersions: [...revisions],
     },
   );
+  if (hasResources) {
+    server.setRequestHandler('resources/list', () => ({ resources: (state.resources ?? []).map((resource) => ({ ...resource })) }));
+    server.setRequestHandler('resources/templates/list', () => ({ resourceTemplates: (state.templates ?? []).map((template) => ({ ...template })) }));
+    server.setRequestHandler('resources/read', (request) => {
+      const uri = request.params.uri;
+      const contents = state.readResource?.(uri);
+      if (contents === undefined) {
+        if (state.notFoundCode === -32002) throw new ProtocolError(ProtocolErrorCode.ResourceNotFound, `no resource ${uri}`, { uri });
+        throw new ResourceNotFoundError(uri);
+      }
+      return { contents: contents as never[] };
+    });
+  }
+  if (hasPrompts) {
+    server.setRequestHandler('prompts/list', () => ({ prompts: (state.prompts ?? []).map((prompt) => ({ ...prompt })) }));
+    server.setRequestHandler('prompts/get', (request) => ({
+      description: request.params.name,
+      messages: [{ role: 'user' as const, content: { type: 'text' as const, text: `run ${request.params.name}` } }],
+    }));
+  }
   server.setRequestHandler('tools/list', () => ({ tools: state.tools.map((tool) => toSdkTool(tool)) }));
   server.setRequestHandler('tools/call', async (request) => {
     const args = (request.params.arguments ?? {}) as Record<string, unknown>;

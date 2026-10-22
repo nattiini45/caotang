@@ -1605,7 +1605,8 @@ describe('the bus/store split these applies depend on', () => {
     // `dialogue.importInk` and `dialogue.setMeta`, whose applies are the store's own: 39 + 3 = 42 names, 31 + 3 = 34 implemented.
     // The project's skills add four names: `skill.write`, `skill.delete` and `skill.setEnabled` have applies of the store's own, and
     // `skill.import` registers only with the host's staging, so with nothing injected: 42 + 4 = 46 names, 34 + 3 = 37 implemented.
-    expect(Object.keys(registry)).toHaveLength(46);
+    // `mcp.readResource` (the writer's read of a resource) is descriptor-only until its injected half is supplied, like `mcp.invoke`: 47 names, 37 implemented.
+    expect(Object.keys(registry)).toHaveLength(47);
     expect(implemented).toHaveLength(37);
   });
 });

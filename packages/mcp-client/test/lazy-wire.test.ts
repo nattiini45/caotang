@@ -53,6 +53,21 @@ function scripted(log: string[] = []): McpWire {
       log.push(`call ${name}`);
       return { content: [], isError: false };
     },
+    async capabilities() {
+      return { resources: false, prompts: false, completions: false };
+    },
+    async listResources() {
+      return { resources: [], templates: [] };
+    },
+    async readResource() {
+      return [];
+    },
+    async listPrompts() {
+      return [];
+    },
+    async getPrompt() {
+      return { messages: [] };
+    },
     async close() {
       log.push('close');
     },

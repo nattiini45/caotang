@@ -2,10 +2,13 @@ import { expect, test } from '@playwright/test';
 import { EMPTY_MCP_SETTINGS, createMockWire, type McpServerConfig, type McpSettings, type WireFactory } from '../../packages/mcp-client/src/index.js';
 
 import { McpApp, type McpKeyPort, type McpSettingsPort } from '../../apps/desktop/src/app/mcp.js';
-import { mcpServerView, reviewSummary, toolStatusLabel } from '../../apps/desktop/src/app/mcp-model.js';
+import { mcpServerView, reviewHeading, reviewSummary, toolStatusLabel } from '../../apps/desktop/src/app/mcp-model.js';
 import { DEFAULT_SETTINGS, applyPatch, mcpLoadWarnings, normalizeSettings } from '../../apps/desktop/src/app/settings.js';
 
 const NOW = '2026-10-08T09:00:00.000Z';
+
+/** A review of a server that lists no prompts and no resource templates. */
+const NO_CATALOG = { prompts: [], resourceTemplates: [], removedPrompts: [], removedTemplates: [] };
 
 /** An in-memory settings port: the slice as the app keeps it, written whole on every change. */
 function memorySettings(initial: McpSettings): McpSettingsPort & { value(): McpSettings } {
@@ -251,7 +254,7 @@ test.describe('the MCP panel model (extensibility §3.2, §3.4)', () => {
   });
 
   test('a current listing has nothing to review, and a changed one shows its review', () => {
-    const current = { serverKey: server.key, serverName: 'Good', kind: 'current' as const, fingerprint: 'f', tools: [], removed: [] };
+    const current = { serverKey: server.key, serverName: 'Good', kind: 'current' as const, fingerprint: 'f', tools: [], removed: [], ...NO_CATALOG };
     expect(mcpServerView(server, { key: server.key, state: 'healthy' }, current).review).toBeUndefined();
     const changed = { ...current, kind: 'changed' as const };
     expect(mcpServerView(server, { key: server.key, state: 'connected', pendingReview: true }, changed).review).toBe(changed);
@@ -268,9 +271,32 @@ test.describe('the MCP panel model (extensibility §3.2, §3.4)', () => {
         { qualifiedName: 'b', toolName: 'b', status: 'changed', description: '', inputSchema: {}, candidateHash: 'h', enabled: true },
       ],
       removed: [{ qualifiedName: 'c', toolName: 'c', previousHash: 'h' }],
+      ...NO_CATALOG,
     });
     expect(summary).toBe('1 new, 1 changed, 0 unchanged, 1 removed. Every tool stays confirm-only until you approve this list.');
     expect(toolStatusLabel('changed')).toBe('Changed since review');
     expect(toolStatusLabel('new')).toBe('New, not reviewed');
+  });
+
+  test('a review that has only prompts or templates to approve says the tools are unchanged, and names its own button', () => {
+    const review = {
+      serverKey: server.key,
+      serverName: 'Good',
+      kind: 'changed' as const,
+      fingerprint: 'f',
+      tools: [{ qualifiedName: 'a', toolName: 'a', status: 'unchanged' as const, description: '', inputSchema: {}, candidateHash: 'h', enabled: true }],
+      removed: [],
+      prompts: [{ name: 'recap', status: 'changed' as const, description: 'Recap.', arguments: [] }],
+      resourceTemplates: [{ uriTemplate: 'wiki://{page}', name: 'Page', status: 'new' as const, description: '' }],
+      removedPrompts: [],
+      removedTemplates: [],
+    };
+    expect(reviewSummary(review)).toBe(
+      'The tools are unchanged and stay as they are. The server also lists 1 prompt and 1 resource template, shown in full below. They are pinned when you approve, and a changed one is shown again.',
+    );
+    expect(reviewHeading(review)).toMatchObject({ title: 'Review the prompts and resource templates', approve: 'Approve these prompts and templates' });
+    // With a tool to approve, the heading is the tool list's, as it always was.
+    const tool = { qualifiedName: 'a', toolName: 'a', status: 'new' as const, description: '', inputSchema: {}, candidateHash: 'h', enabled: true };
+    expect(reviewHeading({ ...review, tools: [tool] }).approve).toBe('Approve this tool list');
   });
 });

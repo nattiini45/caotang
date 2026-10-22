@@ -209,6 +209,12 @@ export interface ProjectCommandOptions {
    */
   readonly mcpInvoke?: McpInvokeCommandPort;
   /**
+   * The writer's read of a resource, `mcp.readResource` (extensibility.md §6). **Injected** for the reason `mcpInvoke` is: its descriptor checks
+   * the URI against the live MCP client. Without it the name stays descriptor-only and is refused as not wired. The descriptor is
+   * `agentRisk: 'never'`, so nothing an agent sends reaches the apply.
+   */
+  readonly mcpReadResource?: McpReadResourceCommandPort;
+  /**
    * The storyboard module's shot commands (storyboard.md §3.1): `storyboard.create`, `shot.create` and
    * `shot.setMeta`. **Injected, not imported**: the guards and the write belong to `@caotang/storyboard`, which
    * depends on this package. Without it the three names stay descriptor-only and are refused as not wired.
@@ -255,6 +261,9 @@ export interface McpInvokeCommandPort {
   readonly descriptor: CommandDescriptor<unknown>;
   readonly apply: CommandApply<unknown, unknown>;
 }
+
+/** What `mcp.readResource` needs from the MCP client: the same two halves as {@link McpInvokeCommandPort}, for the writer's read. */
+export type McpReadResourceCommandPort = McpInvokeCommandPort;
 
 /**
  * What `export.compile` and `export.compileSelection` ask the exporter for. Declared
@@ -1732,6 +1741,14 @@ export function createProjectCommandRegistry(
     registry['mcp.invoke'] = {
       descriptor: mcpPort.descriptor as CommandRegistry['mcp.invoke']['descriptor'],
       apply: mcpPort.apply,
+    };
+  }
+
+  const readPort = options.mcpReadResource;
+  if (readPort !== undefined) {
+    registry['mcp.readResource'] = {
+      descriptor: readPort.descriptor as CommandRegistry['mcp.readResource']['descriptor'],
+      apply: readPort.apply,
     };
   }
 

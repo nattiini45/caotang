@@ -41,6 +41,7 @@ export const COMMAND_TITLES: Readonly<Record<CommandName, string>> = {
   'coherence.discardRun': 'Check run discarded',
   // The external call, and the storyboard shot commands (command-bus §9, the closed set's additions).
   'mcp.invoke': 'External tool called',
+  'mcp.readResource': 'External resource read',
   'storyboard.create': 'Storyboard created',
   'shot.create': 'Shot added',
   'shot.setMeta': 'Shot details changed',

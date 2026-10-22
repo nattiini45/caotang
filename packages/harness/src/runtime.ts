@@ -82,6 +82,7 @@ import {
   createMcpTransport,
   loadedAddendum,
   mcpInvokeRegistration,
+  mcpReadResourceRegistration,
   type ExternalToolDescriptor,
   type IndexedTools,
   type LoadedTools,
@@ -90,7 +91,7 @@ import {
   type UntrustedCallResult,
 } from '@caotang/mcp-client';
 import { newId } from '@caotang/ids';
-import { createProjectCommandRegistry, type McpInvokeCommandPort, type ProjectState } from '@caotang/store';
+import { createProjectCommandRegistry, type McpInvokeCommandPort, type McpReadResourceCommandPort, type ProjectState } from '@caotang/store';
 import { skillCatalog as skillCatalogOf, type SkillCatalog, type SkillState } from '@caotang/skills';
 import { shotCommandPort } from '@caotang/storyboard';
 
@@ -293,13 +294,27 @@ function mcpInvokeInjection(client: McpClient, loaded: LoadedTools, stop: () => 
 }
 
 /**
+ * The bus's `mcp.readResource` entry, built from the client. It is registered so the writer's picker can dispatch it through the app's bus; the
+ * harness itself never sends it, and its descriptor is `agentRisk: 'never'`, so no call an agent makes reaches it (extensibility §4 rule 8).
+ */
+function mcpReadResourceInjection(client: McpClient): McpReadResourceCommandPort {
+  const registration = mcpReadResourceRegistration({ client, transport: createMcpTransport(client) });
+  return { descriptor: registration.descriptor, apply: registration.apply as CommandApply<unknown, unknown> };
+}
+
+/**
  * The registry the harness runs: the one the caller supplied, completed with the two families the agent needs where
  * it has no implementation. An app builds its registry for its own commands (its snapshots, its exporter), and that
  * registry carries neither the shot commands nor `mcp.invoke` unless the app passes them. Without this completion the
  * planner would not see `shots.annotate`, and an external call would be refused as unimplemented, in the app and in any
  * host that supplies its own registry. A registration the caller did supply is kept as it is.
  */
-function completeRegistry(supplied: CommandRegistry | undefined, clock: () => number, mcpInvoke: McpInvokeCommandPort | undefined): CommandRegistry {
+function completeRegistry(
+  supplied: CommandRegistry | undefined,
+  clock: () => number,
+  mcpInvoke: McpInvokeCommandPort | undefined,
+  mcpReadResource: McpReadResourceCommandPort | undefined,
+): CommandRegistry {
   const completed: CommandRegistry = { ...(supplied ?? createProjectCommandRegistry({ clock: { now: clock } })) };
   if (completed['shot.setMeta'].apply === undefined) {
     const shots = createProjectCommandRegistry({ clock: { now: clock }, shots: shotCommandPort() });
@@ -311,6 +326,12 @@ function completeRegistry(supplied: CommandRegistry | undefined, clock: () => nu
     completed['mcp.invoke'] = {
       descriptor: mcpInvoke.descriptor as CommandRegistry['mcp.invoke']['descriptor'],
       apply: mcpInvoke.apply,
+    };
+  }
+  if (mcpReadResource !== undefined && completed['mcp.readResource'].apply === undefined) {
+    completed['mcp.readResource'] = {
+      descriptor: mcpReadResource.descriptor as CommandRegistry['mcp.readResource']['descriptor'],
+      apply: mcpReadResource.apply,
     };
   }
   return completed;
@@ -578,7 +599,8 @@ export function createHarness(options: HarnessOptions): Harness {
   // commands is always wanted, since the planner they serve is always here (see completeRegistry).
   let externalStop: AbortSignal | undefined;
   const mcpInvoke = mcpClient === undefined ? undefined : mcpInvokeInjection(mcpClient, loaded, () => externalStop);
-  const registry = completeRegistry(options.registry, clock, mcpInvoke);
+  const mcpReadResource = mcpClient === undefined ? undefined : mcpReadResourceInjection(mcpClient);
+  const registry = completeRegistry(options.registry, clock, mcpInvoke, mcpReadResource);
   // The skills each turn has loaded, kept for that turn only (tools/skills.ts).
   const skillLoads = createSkillLoads();
   const skillSource = options.skills;
