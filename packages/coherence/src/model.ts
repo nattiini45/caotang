@@ -71,7 +71,7 @@ export type WorldRuleOrigin = (typeof WORLD_RULE_ORIGINS)[number];
  * The deterministic registry, closed (§5.4: adding a check is a spec change with fixtures). The first eight are §5.1's.
  * Six more come from the media-track specs, which each say they ride this rule: screenplay.md §4 adds two
  * (`script.cue-*`), storyboard.md §5 adds one (`script.shot-coverage`), and dialogue-narrative.md §5 adds three
- * (`branch.*` and `dialogue.speaker-unknown`). `timeline.gap` (§5.1), `plot.unresolved-thread` (§5.5) and `knowledge.leak` (§4.4) are the last three. The count is 8 + 2 + 1 + 3 + 1 + 1 + 1 = 17.
+ * (`branch.*` and `dialogue.speaker-unknown`). `timeline.gap` (§5.1), `plot.unresolved-thread` (§5.5) and `knowledge.leak` (§4.4) follow, and `medium.speaker-parity` (§5.1, the first cross-medium check) is last. The count is 8 + 2 + 1 + 3 + 1 + 1 + 1 + 1 = 18.
  * New ids are appended, so the order of the first eight, which the run report and the check order depend on, does not move.
  */
 export const DETERMINISTIC_CHECK_IDS = [
@@ -92,6 +92,7 @@ export const DETERMINISTIC_CHECK_IDS = [
   'timeline.gap',
   'plot.unresolved-thread',
   'knowledge.leak',
+  'medium.speaker-parity',
 ] as const;
 export type DeterministicCheckId = (typeof DETERMINISTIC_CHECK_IDS)[number];
 
@@ -121,6 +122,7 @@ export const DETERMINISTIC_CHECK_LABELS: Readonly<Record<DeterministicCheckId, s
   'timeline.gap': 'A scene is days after the scene before it',
   'plot.unresolved-thread': 'A thread’s declared payoff is not in the manuscript',
   'knowledge.leak': 'A character knows something before they learn it',
+  'medium.speaker-parity': 'The screenplay and its dialogue name different speakers',
 };
 
 /** §5.3's five ConStory categories. The enum is closed; subtypes are model-proposed strings. */
@@ -268,6 +270,8 @@ export interface SceneMeta {
   learns?: KnowledgeLink[];
   /** §4.4. Additive: absent and an empty list both mean the scene shows no one acting on a fact. */
   knows?: KnowledgeLink[];
+  /** §5.1 `medium.speaker-parity`. Additive: the id of the dialogue container this scene's speakers are compared with; absent means not compared. */
+  dialogueContainer?: string;
 }
 
 export interface WorldRule {

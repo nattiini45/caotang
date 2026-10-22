@@ -81,11 +81,21 @@ export interface SkillReviewDb {
   delete(keys: readonly string[]): Promise<void>;
 }
 
+/** One record of the `kv` store, as `AppDb.list` returns it. */
+export interface KvRow<T = unknown> {
+  readonly key: string;
+  readonly value: T;
+}
+
 export interface AppDb {
   /** The value stored under `key`, or `undefined` when nothing has been stored there. */
   get<T>(key: string): Promise<T | undefined>;
   /** Replaces the value under `key`. Resolves when the transaction has committed. */
   put(key: string, value: unknown): Promise<void>;
+  /** Every record whose key starts with `prefix`, in key order. The background tasks of a project are read this way (task-store.ts). */
+  list<T>(prefix: string): Promise<readonly KvRow<T>[]>;
+  /** Removes the record under `key`. A key with nothing stored is not an error. */
+  delete(key: string): Promise<void>;
   /** The editor's undo journals. Absent on a stand-in that keeps only settings; the editor then keeps no undo across a reload. */
   readonly history?: HistoryDb;
   /** The writer's skill reviews. Absent on a stand-in that keeps only settings; no skill is then reviewed across a reload. */
@@ -143,6 +153,17 @@ export function openAppDb(factory: IDBFactory, name: string = APP_DB_NAME): Prom
         async put(key: string, value: unknown): Promise<void> {
           const tx = db.transaction(STORE_KV, 'readwrite');
           await requestOf(tx.objectStore(STORE_KV).put({ key, value }) as IDBRequest<IDBValidKey>, tx);
+        },
+        async list<T>(prefix: string): Promise<readonly KvRow<T>[]> {
+          const tx = db.transaction(STORE_KV, 'readonly');
+          // A key range narrows the read where the host has one; the filter below keeps the answer exact where it does not.
+          const range = typeof IDBKeyRange === 'undefined' ? undefined : IDBKeyRange.bound(prefix, `${prefix}￿`);
+          const rows = await requestOf(tx.objectStore(STORE_KV).getAll(range) as IDBRequest<KvRow<T>[]>, tx);
+          return rows.filter((row) => row.key.startsWith(prefix)).sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+        },
+        async delete(key: string): Promise<void> {
+          const tx = db.transaction(STORE_KV, 'readwrite');
+          await requestOf(tx.objectStore(STORE_KV).delete(key) as IDBRequest<undefined>, tx);
         },
         history: {
           async get(key: string): Promise<HistoryRecord | undefined> {

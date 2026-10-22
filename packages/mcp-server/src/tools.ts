@@ -57,7 +57,7 @@ export interface ToolRuntime {
 }
 
 /** A value the harness can return in the tool result, as the MCP `structuredContent` object. */
-type Structured = Record<string, unknown>;
+export type Structured = Record<string, unknown>;
 
 /** The advertised Standard Schema: the harness's own JSON Schema, and a pass-through validate. */
 export function advertisedSchema(schema: JsonSchema): StandardSchemaWithJSON<Structured, Structured> {
@@ -96,12 +96,12 @@ export function toCallResult(outcome: ToolOutcome): CallToolResult {
   };
 }
 
-function refusal(error: CommandError): CallToolResult {
+export function refusal(error: CommandError): CallToolResult {
   return toCallResult(err(error));
 }
 
 /** The result for a confirmation the user did not give: the call completed, and the project did not change. */
-function notWritten(name: string, status: string): CallToolResult {
+export function notWritten(name: string, status: string): CallToolResult {
   return {
     content: [{ type: 'text', text: `${name} was ${status}: nothing was written.` }],
     structuredContent: { status, written: false, tool: name },
@@ -235,39 +235,47 @@ async function applyConfirmed(runtime: ToolRuntime, name: string, bound: RoundSt
   }
 }
 
+/** The confirmation machinery a round needs, and nothing of the project: the sealed state's codec and the replay ledger. */
+export interface RoundRuntime {
+  readonly codec: RequestStateCodec<RoundState>;
+  readonly ledger: ConfirmLedger;
+}
+
+/** What one write-confirm call supplies to its rounds: the checks before the question, the question, and the write after a yes. */
+export interface ConfirmHooks {
+  readonly name: string;
+  readonly params: Structured;
+  /** Where the change can be made when this host cannot be asked, in place of "inside Caotang". */
+  readonly elsewhere?: string;
+  /** Checks that await, run before the ledger is read. A result stops the call with it; nothing is asked. */
+  prepare(): Promise<CallToolResult | undefined>;
+  /** The refusal the accept would return, found with no effect, or `undefined` when the call would be accepted. Synchronous, so nothing awaits between the ledger read and the write. */
+  check(): CommandError | undefined;
+  /** The change, in words, for the question. */
+  summary(): string;
+  /** Runs an accepted call and resolves to what the caller is told. It starts its write before it returns its promise. */
+  apply(bound: RoundState): Promise<CallToolResult>;
+}
+
 /** One write-confirm call, across its rounds. See confirm.ts for why each step is needed. */
-async function runConfirmed(
+export async function confirmRound(
   server: McpServer,
-  listing: ToolListing,
-  params: Structured,
   ctx: ServerContext,
-  runtime: ToolRuntime,
+  runtime: RoundRuntime,
+  hooks: ConfirmHooks,
   waitSeconds: number | undefined,
 ): Promise<CallToolResult | InputRequiredResult> {
-  const name = listing.name;
+  const { name, params } = hooks;
   const digest = argsDigest(name, params);
   const round = ctx.mcpReq.requestState<RoundState>();
   const bound = round !== undefined && round.tool === name && round.digest === digest ? round : undefined;
   const reply = inputResponse(ctx.mcpReq.inputResponses, CONFIRM_KEY);
   const accepted = bound !== undefined && reply.kind === 'elicit' && reply.action === 'accept' && reply.content?.['confirmed'] === true;
 
-  // The images an export names are listed now, before the check below reads them: a listing held from an earlier call may be one
-  // that failed, or one that has since stopped being true.
-  await runtime.session.refreshAssets();
-
-  // The folder is checked before the host is asked, as the accept would check it (verifyFolder). A folder that changed is refused now, and
-  // the host is not asked about a change the save would refuse. This await comes before the ledger is read, not after it: of two accepts of
-  // one round, the second must find the first's answer in the ledger with nothing awaited between that read and the write.
-  try {
-    await runtime.session.verifyFolder();
-  } catch (error) {
-    return refusal({
-      code: 'io-error',
-      message: `"${name}" was not made: the project folder could not be read (${reason(error, runtime.session)}). Nothing was written.`,
-      correctiveHint: 'make sure the project folder can be read, then make the change again',
-      target: name,
-    });
-  }
+  // This await comes before the ledger is read, not after it: of two accepts of one round, the second must find the first's answer in
+  // the ledger with nothing awaited between that read and the write.
+  const stopped = await hooks.prepare();
+  if (stopped !== undefined) return stopped;
 
   // A replay of an accepted retry is answered first, from the ledger. The first accept has already changed the project, so the same
   // arguments may no longer check against it (a codex create whose name the first accept took), and a refusal here would tell the agent
@@ -279,7 +287,7 @@ async function runConfirmed(
 
   // The arguments are checked before the host is asked. A dialog that asks for a change which the accept would refuse misleads the
   // person, so the refusal the accept would return comes back now: nothing is asked, and nothing is written.
-  const invalid = runtime.session.check(name, params);
+  const invalid = hooks.check();
   if (invalid !== undefined) return refusal(invalid);
   const declared = declaredCapabilities(server, ctx);
   if (!canAnswerForm(declared)) {
@@ -295,8 +303,8 @@ async function runConfirmed(
       code: 'permission-denied',
       message: `"${name}" needs your confirmation, and ${why}. Nothing was written.`,
       correctiveHint: unseen
-        ? 'to confirm writes from this host, send initialize over this endpoint and make the call on the Mcp-Session-Id it returns, or connect over stdio (caotang-mcp serve --stdio --allow-writes, or the MCPB bundle); do not retry this call without a session'
-        : 'use a client that supports elicitation, or make the change inside Caotang; do not retry the call from here',
+        ? `to confirm writes from this host, send initialize over this endpoint and make the call on the Mcp-Session-Id it returns, or connect over stdio (caotang-mcp serve --stdio --allow-writes, or the MCPB bundle)${hooks.elsewhere === undefined ? '' : `, or ${hooks.elsewhere}`}; do not retry this call without a session`
+        : `use a client that supports elicitation, or ${hooks.elsewhere ?? 'make the change inside Caotang'}; do not retry the call from here`,
       target: name,
       risk: 'write-confirm',
     });
@@ -305,10 +313,10 @@ async function runConfirmed(
   if (bound !== undefined && reply.kind === 'elicit') {
     if (accepted) {
       // Nothing awaits between the ledger read above and this write, so of two accepts of one round, the second finds the first's
-      // answer, still in flight, and waits for it. The write itself starts inside `applyConfirmed`, before that function returns
+      // answer, still in flight, and waits for it. The write itself starts inside `apply`, before that function returns
       // its promise.
       const now = Date.now();
-      const answer = applyConfirmed(runtime, name, bound, params);
+      const answer = hooks.apply(bound);
       runtime.ledger.remember(bound.nonce, answer, now + ROUND_TTL_SECONDS * 1000, now);
       return answer;
     }
@@ -323,20 +331,62 @@ async function runConfirmed(
   return inputRequired({
     inputRequests: {
       [CONFIRM_KEY]: inputRequired.elicit({
-        message: confirmationMessage(
-          confirmationSummary(
-            name,
-            params,
-            (id) => titleOfNode(runtime.session.state, id),
-            (id) => codexEntryNameOf(runtime.session.state, id),
-          ),
-          waitSeconds,
-        ),
+        message: confirmationMessage(hooks.summary(), waitSeconds),
         requestedSchema: CONFIRMATION_SCHEMA,
       }),
     },
     requestState: state,
   });
+}
+
+/** One write-confirm harness tool: the round of {@link confirmRound}, with the project's own checks and write. */
+function runConfirmed(
+  server: McpServer,
+  listing: ToolListing,
+  params: Structured,
+  ctx: ServerContext,
+  runtime: ToolRuntime,
+  waitSeconds: number | undefined,
+): Promise<CallToolResult | InputRequiredResult> {
+  const name = listing.name;
+  const { session } = runtime;
+  return confirmRound(
+    server,
+    ctx,
+    runtime,
+    {
+      name,
+      params,
+      async prepare() {
+        // The images an export names are listed now, before the check below reads them: a listing held from an earlier call may be one
+        // that failed, or one that has since stopped being true.
+        await session.refreshAssets();
+        // The folder is checked before the host is asked, as the accept would check it (verifyFolder). A folder that changed is refused now, and
+        // the host is not asked about a change the save would refuse.
+        try {
+          await session.verifyFolder();
+        } catch (error) {
+          return refusal({
+            code: 'io-error',
+            message: `"${name}" was not made: the project folder could not be read (${reason(error, session)}). Nothing was written.`,
+            correctiveHint: 'make sure the project folder can be read, then make the change again',
+            target: name,
+          });
+        }
+        return undefined;
+      },
+      check: () => session.check(name, params),
+      summary: () =>
+        confirmationSummary(
+          name,
+          params,
+          (id) => titleOfNode(session.state, id),
+          (id) => codexEntryNameOf(session.state, id),
+        ),
+      apply: (bound) => applyConfirmed(runtime, name, bound, params),
+    },
+    waitSeconds,
+  );
 }
 
 /**

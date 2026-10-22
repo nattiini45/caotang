@@ -258,6 +258,22 @@ describe('coherence.json codec', () => {
     expect(messages.some((m) => m.includes('("colour")'))).toBe(true);
   });
 
+  it('round-trips a scene’s dialogue container, loads a file without one unchanged, and drops a malformed id with a notice', () => {
+    const linked = { ...emptyCoherenceFile(), sceneMeta: { sA: { dayOffset: 1, dialogueContainer: 'dCourt' } } };
+    const outcome = parseCoherenceFile(serializeCoherenceFile(linked));
+    expect(outcome.kind === 'ok' && outcome.file).toEqual(linked);
+    expect(outcome.kind === 'ok' && outcome.notices).toEqual([]);
+    expect(serializeCoherenceFile({ ...emptyCoherenceFile(), sceneMeta: { sA: { dayOffset: 1 } } })).not.toContain('dialogueContainer');
+
+    const raw = { formatVersion: 1, findings: [], runs: [], sceneMeta: { sA: { dialogueContainer: 7 }, sB: { dialogueContainer: '' } }, worldRules: [], reviewState: {} };
+    const bad = parseCoherenceFile(JSON.stringify(raw));
+    expect(bad.kind === 'ok' && bad.file.sceneMeta).toEqual({ sA: {}, sB: {} });
+    expect(bad.kind === 'ok' && bad.notices.map((n) => n.message)).toEqual([
+      'The "dialogueContainer" declaration for "sA" is malformed and was dropped.',
+      'The "dialogueContainer" declaration for "sB" is malformed and was dropped.',
+    ]);
+  });
+
   it('loads a file written before knowledge existed unchanged, as none and with no notice, and writes no key for an empty list', () => {
     const before = { formatVersion: 1, findings: [], runs: [], sceneMeta: { sA: { dayOffset: 2 } }, worldRules: [], reviewState: {} };
     const outcome = parseCoherenceFile(JSON.stringify(before));
@@ -387,6 +403,29 @@ describe('coherence.json on disk', () => {
 });
 
 describe('reconcileCoherence', () => {
+  it('drops a dialogue container link that names no dialogue node, with a notice, and keeps one to an archived container', () => {
+    const state = buildState({
+      scenes: [
+        { id: 'sA', title: 'Scene A', body: 'Elena returned.' },
+        { id: 'sB', title: 'Scene B', body: 'Ben left.' },
+        { id: 'sC', title: 'Scene C', body: 'Mara slept.' },
+        { id: 'dOld', title: 'Old court', body: 'Zed: hi' },
+      ],
+    });
+    const court = state.manifest.tree.find((node) => node.id === 'dOld');
+    if (court !== undefined) Object.assign(court, { type: 'dialogue', status: 'archived' });
+    const file: CoherenceFile = {
+      ...emptyCoherenceFile(),
+      sceneMeta: { sA: { dialogueContainer: 'dGone' }, sB: { dialogueContainer: 'sC' }, sC: { dialogueContainer: 'dOld', dayOffset: 2 } },
+    };
+    const { file: next, notices } = reconcileCoherence(file, state);
+    expect(next.sceneMeta).toEqual({ sC: { dialogueContainer: 'dOld', dayOffset: 2 } });
+    expect(notices.map((n) => n.message)).toEqual([
+      'The dialogue container linked to "Scene A" no longer exists or is not a dialogue container, so that link was dropped.',
+      'The dialogue container linked to "Scene B" no longer exists or is not a dialogue container, so that link was dropped.',
+    ]);
+  });
+
   it('drops the pairs whose character or fact is gone, and the links of a fact whose entry or rule is gone, with a notice each', () => {
     const state = buildState({
       scenes: [{ id: 'sA', title: 'Scene A', body: 'Elena returned.' }, { id: 'sB', title: 'Scene B', body: 'Ben left.' }],

@@ -4,10 +4,11 @@
  */
 import { createHash } from 'node:crypto';
 
-import type { CodexEntry } from '@caotang/store';
+import { seededId } from '@caotang/ids';
+import { addDocument, createEmptyManifest, createProjectState, type CodexEntry } from '@caotang/store';
 import { describe, expect, it } from 'vitest';
 
-import { TABLE_COLUMNS, YARN_COLUMNS, buildRows, toCsv, toYarnCsv, type TableRow } from '../src/index.js';
+import { TABLE_COLUMNS, YARN_COLUMNS, buildRows, dialogueTableTool, exportCsv, readDialogueMeta, toCsv, toYarnCsv, type TableRow } from '../src/index.js';
 
 const lockOf = (text: string): string => createHash('sha256').update(text, 'utf8').digest('hex').slice(0, 8);
 
@@ -101,5 +102,26 @@ describe('toYarnCsv — the yarn-csv target', () => {
   it('writes the container id as the file when no name is given, and applies the cell transform to the language and the free text', () => {
     const lines = toYarnCsv(rows, { cell: (value) => (value === '' ? value : `[${value}]`) }).split('\r\n');
     expect(lines[2]).toBe('[en],line:l_0000000002,"[Alice: Welcome, friend.]",[d1],hall,4,58c93c51,[hall / Alice]');
+  });
+});
+
+describe('dialogue.table and the export agree on the locale', () => {
+  it('gives a row the locale the exporter’s rule gives it: locBaseline, else the trimmed project language', () => {
+    const state = createProjectState(createEmptyManifest('Hall', new Date('2026-10-22T09:00:00.000Z')));
+    state.manifest.project.language = ' en-GB ';
+    addDocument(state, { id: seededId('n', 1), parentId: 'manuscript', title: 'Hall', type: 'dialogue', body: BODY, now: new Date('2026-10-22T09:00:00.000Z') });
+    addDocument(state, { id: seededId('n', 2), parentId: 'manuscript', title: 'Halle', type: 'dialogue', body: BODY, now: new Date('2026-10-22T09:00:00.000Z') });
+    const halle = state.manifest.tree.find((node) => node.id === seededId('n', 2));
+    if (halle !== undefined) halle.dialogue = { locBaseline: 'de' };
+    const language = state.manifest.project.language?.trim() ?? '';
+    for (const [title, id] of [['Hall', seededId('n', 1)], ['Halle', seededId('n', 2)]] as const) {
+      const meta = readDialogueMeta(state.manifest.tree.find((node) => node.id === id)?.dialogue).meta;
+      const expected = exportCsv([{ id, title, body: BODY, meta }], { locale: language });
+      if (!expected.ok) throw new Error('the fixture must export');
+      const tool = dialogueTableTool({ doc: id }, { state });
+      if (!tool.ok) throw new Error(tool.error.message);
+      const toolLocales = String(tool.value.data.csv).split('\r\n').slice(1, -1).map((record) => record.split(',').slice(-1)[0]);
+      expect(toolLocales).toEqual(expected.rows.map((row) => row.locale));
+    }
   });
 });

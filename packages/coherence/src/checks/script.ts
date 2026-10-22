@@ -24,7 +24,7 @@ const COVERABLE_TYPES: ReadonlySet<string> = new Set(['character', 'dialogue']);
  * The screenplay read of a scene: the read the run shared, when it has one, and a read of its own otherwise. A check
  * called on its own reads the body itself, so the findings are the same either way.
  */
-function factsOf(input: CheckInput, scene: ScannedScene): CueFacts {
+export function factsOf(input: CheckInput, scene: ScannedScene): CueFacts {
   return input.cueFacts?.get(scene.docId) ?? cueFactsOf(scene.body);
 }
 
@@ -33,7 +33,7 @@ function factsOf(input: CheckInput, scene: ScannedScene): CueFacts {
  * reads that text), and they are mapped to the body's before the slice, so a CRLF or byte-order-marked body quotes the
  * passage it names.
  */
-function passageAt(scene: ScannedScene, from: number, to: number): Evidence {
+export function passageAt(scene: ScannedScene, from: number, to: number): Evidence {
   const toBody = bodyOffsetsOf(scene.body);
   const start = toBody(from);
   const quote = codePointPrefix(scene.body.slice(start, toBody(to)), EVIDENCE_QUOTE_LIMIT);

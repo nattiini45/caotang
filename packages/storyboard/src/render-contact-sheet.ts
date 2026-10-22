@@ -33,6 +33,10 @@
  * and Noto Sans Hebrew), and a mark of either none, since the PDF leaves marks out. Text wraps in logical order, which is right for
  * both directions; the emitter puts each line in visual order.
  *
+ * A Devanagari letter counts 0.63 em (`devanagariCharWidthEm`: the average advance of the consonants of Noto Sans Devanagari), and a
+ * combining mark of any Brahmic script none: a vowel sign, a nukta, a virama or an anusvara is drawn on or beside its consonant and a
+ * conjunct is narrower than its parts, so the estimate stays at the wide side and the emitter cuts with the real font, on a cluster.
+ *
  * An emoji is measured, wrapped and cut as one unit however many code points it has (a ZWJ family, a flag, a keycap, a
  * skin tone: `./emoji.ts`), and counts {@link SHEET_LAYOUT}`.emojiWidthEm`, the advance the PDF's emoji font gives it. A line
  * may break between two emoji, as between two Chinese characters, and never inside one.
@@ -46,7 +50,7 @@
 import { nodeById, type ArtifactFs, type ProjectState } from '@caotang/store';
 
 import { animaticTotals } from './animatic.js';
-import { graphemesOf, isEmojiPicture, isRtlMark, rtlScriptOf } from '@caotang/pdf-fonts';
+import { clustersOf, isBrahmic, isEmojiPicture, isRtlMark, rtlScriptOf } from '@caotang/pdf-fonts';
 import { readImage, type LoadedImage } from './assets.js';
 import { cardSpecRowOf, durationText, isStoryboardFolder } from './model.js';
 import { shotFieldOf } from './nodes.js';
@@ -96,6 +100,8 @@ export const SHEET_LAYOUT = {
   /** The average advance of a letter of Noto Sans Arabic, and of Noto Sans Hebrew, in em. A mark of either adds none. */
   arabicCharWidthEm: 0.5,
   hebrewCharWidthEm: 0.55,
+  /** The average advance of a consonant of Noto Sans Devanagari, in em. A combining mark of a Brahmic script adds none. */
+  devanagariCharWidthEm: 0.63,
   chipHeight: 12,
 } as const;
 
@@ -140,17 +146,19 @@ const NARROW_NO_LINE_START = new Set([...',.;:!?)]}%']);
 /** Marks that must not end a line: opening brackets and quotes. */
 const NO_LINE_END = new Set([...'（「『【〔〈《〖〘〚｛［〝‘“']);
 
-/** The estimated advance of one character, in em: Arabic and Hebrew letters at their fonts' averages, their marks at none. */
+/** The estimated advance of one character, in em: Arabic, Hebrew and Devanagari letters at their fonts' averages, their marks at none. */
 function charEms(char: string): number {
   const script = rtlScriptOf(char.codePointAt(0) ?? 0);
   if (script !== undefined) return isRtlMark(char) ? 0 : script === 'arabic' ? SHEET_LAYOUT.arabicCharWidthEm : SHEET_LAYOUT.hebrewCharWidthEm;
+  const code = char.codePointAt(0) ?? 0;
+  if (isBrahmic(code)) return /^\p{M}/u.test(char) ? 0 : SHEET_LAYOUT.devanagariCharWidthEm;
   return isWide(char) ? SHEET_LAYOUT.wideCharWidthEm : SHEET_LAYOUT.charWidthEm;
 }
 
 /** Estimated width of a run of text at a font size. See the header on why this is an estimate. */
 export function measureText(text: string, fontSize: number): number {
   let ems = 0;
-  for (const cluster of graphemesOf(text)) {
+  for (const cluster of clustersOf(text)) {
     if (isEmojiPicture(cluster)) ems += SHEET_LAYOUT.emojiWidthEm;
     else for (const char of cluster) ems += charEms(char);
   }
@@ -179,7 +187,7 @@ function isHangul(char: string): boolean {
 function piecesOf(word: string): string[] {
   const raw: string[] = [];
   let narrow = '';
-  for (const char of graphemesOf(word)) {
+  for (const char of clustersOf(word)) {
     if ((isWide(char) && !isHangul(char)) || isEmojiPicture(char) || NO_LINE_START.has(char) || NO_LINE_END.has(char)) {
       if (narrow !== '') raw.push(narrow);
       narrow = '';
@@ -214,7 +222,7 @@ function appendToLast(pieces: string[], text: string): void {
 
 /** The longest start of `text` that fits the width, at least one grapheme cluster, so a line always moves on. */
 function longestFit(text: string, maxWidth: number, fontSize: number): string {
-  const chars = graphemesOf(text);
+  const chars = clustersOf(text);
   let keep = 1;
   while (keep < chars.length && fits(chars.slice(0, keep + 1).join(''), maxWidth, fontSize)) keep += 1;
   return chars.slice(0, keep).join('');
@@ -255,7 +263,7 @@ export function wrapText(text: string, maxWidth: number, fontSize: number, maxLi
 
   if (lines.length <= maxLines) return lines;
   const kept = lines.slice(0, maxLines);
-  const chars = graphemesOf(kept[maxLines - 1] ?? '');
+  const chars = clustersOf(kept[maxLines - 1] ?? '');
   while (chars.length > 0 && !fits(`${chars.join('')}${ELLIPSIS}`, maxWidth, fontSize)) chars.pop();
   kept[maxLines - 1] = `${chars.join('')}${ELLIPSIS}`;
   return kept;

@@ -27,13 +27,14 @@ Run these on each host. Tick a row only for the host and date you record in the 
 - [ ] Not yet run. With **Allow changes** on, the host lists 21 tools. A write that applies at once (`notes.append`) applies. A write that asks (`codex.write`) shows the host's confirmation dialog; declining writes nothing, accepting writes.
 - [ ] Not yet run. The fonts load from `server/fonts/`: a contact-sheet export with CJK and emoji text through `export.compile` shows the characters.
 - [ ] Not yet run. Uninstalling removes the server and leaves the project folder clean, with no `.caotang-mcp.lock` left in it.
+- [ ] Not yet run. A folder whose `caotang.json` is damaged (cut a copy of a project's manifest in half, keeping its `caotang.json.bak.1`) starts the server without a project. `project.recover` shows the snapshot, and with **Allow changes** on, `project.recoverApply` shows the host's dialog: it must name `caotang.json.bak.1`, the kept copy `caotang.json.corrupt-<timestamp>` and the folder lock. Declining writes nothing; accepting writes the new manifest, keeps the original, and every tool then says to restart. Remove `bak.1` and repeat: the call without `rebuild` is refused naming the loss, and `rebuild: true` shows a dialog that names the loss of folder structure and vocabulary.
 - [ ] Not yet run. The Node version the host runs is recorded and meets the root `package.json` `engines` range, `^22.12.0 || ^24.0.0 || >=26.0.0`. (`server.type: node` uses the host's own Node.)
 
 ## Results
 
 One row per run. Write `pass` or `fail` for each check, in the order above.
 
-| Date | Host | Host version | OS | Node version | Checks 1–7 | Notes |
+| Date | Host | Host version | OS | Node version | Checks 1–8 | Notes |
 | ---- | ---- | ------------ | -- | ------------ | ---------- | ----- |
 |      |      |              |    |              |            |       |
 

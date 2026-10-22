@@ -69,8 +69,8 @@ describe('ids', () => {
   // coherence.md §3/§4.1/§4.3 and provider-gateway's `prv_` ids are minted by this family now,
   // so each new prefix must come out in the documented shape. Before this list grew, the
   // coherence module borrowed `c` and swapped the prefix, and this test would fail on that.
-  it('mints the coherence and provider prefixes in the documented shape', () => {
-    for (const prefix of ['f', 'r', 'w', 'k', 'prv'] as const) {
+  it('mints the coherence, provider and background-task prefixes in the documented shape', () => {
+    for (const prefix of ['f', 'r', 'w', 'k', 'prv', 'task'] as const) {
       const id = newId(prefix);
       expect(id).toMatch(new RegExp(`^${prefix}_[0-9ABCDEFGHJKMNPQRSTVWXYZ]{10}$`));
       expect(isIdWithPrefix(prefix, id)).toBe(true);

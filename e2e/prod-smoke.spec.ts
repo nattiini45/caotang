@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
+
 import { expect, test, type Page } from '@playwright/test';
 
-import { createProject, waitForSaved } from './support.js';
+import { binderTitle, createProject, firstChapter, waitForSaved } from './support.js';
 
 /**
  * The production build, smoke-tested. This spec runs only in the `production-preview` project (playwright.config.ts), against
@@ -60,7 +62,7 @@ function watchChunks(page: Page): () => string[] {
   page.on('request', (request) => {
     const path = new URL(request.url()).pathname;
     const file = path.slice(path.lastIndexOf('/') + 1);
-    if (path.includes('/assets/') && file.endsWith('.js')) names.push(file.slice(0, file.lastIndexOf('-')));
+    if (path.includes('/assets/') && file.endsWith('.js')) names.push(file.replace(/-[A-Za-z0-9_-]{8}\.js$/, '')); // the content hash is 8 characters and may itself hold a dash
   });
   return () => [...names];
 }
@@ -210,4 +212,36 @@ test('Settings that cannot be fetched say so with a way out, and the page stays 
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
   }
   await expect(settings).toBeVisible();
+});
+
+test('the built app compiles a Hindi screenplay PDF: fontkit 2.0.4 and the Devanagari font load under the policy, with no eval and nothing refused', async ({ page }) => {
+  test.setTimeout(90_000);
+  const problems = await watchForProblems(page);
+  const fonts: string[] = [];
+  page.on('request', (request) => {
+    const name = new URL(request.url()).pathname.split('/').pop() ?? '';
+    if (/\.ttf$/i.test(name)) fonts.push(name.replace(/-[\w-]{8}(?=\.ttf)/, ''));
+  });
+  await createProject(page, 'Hindi Room');
+  const parent = await firstChapter(page);
+  await binderTitle(page, parent).click({ button: 'right' });
+  await page.getByRole('menu', { name: `Actions for ${parent}` }).getByRole('menuitem', { name: 'New screenplay scene here' }).click();
+  await page.keyboard.press('Escape');
+  await page.getByRole('radio', { name: 'Source', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Fountain source' }).fill('INT. घर - NIGHT\n\nराम हिन्दी में क्षत्रिय श्रीमान् की बात करता है।\n\n@राम\nमैं हिन्दी बोलता हूँ।\n');
+  await waitForSaved(page);
+
+  await binderTitle(page, 'Untitled scene').click();
+  await page.getByRole('button', { name: 'Compile…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Export' });
+  await dialog.getByRole('radio', { name: /^Only “Untitled scene”/ }).check();
+  await dialog.getByRole('radio', { name: /^Screenplay PDF \(\.pdf\)/ }).check();
+  const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Compile', exact: true }).click()]);
+  const pdf = readFileSync(await download.path(), 'latin1');
+
+  expect(pdf).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSansDevanagari-Regular/);
+  expect(pdf).toContain('/ActualText <FEFF0939093F0928094D09260940>');
+  expect([...new Set(fonts)]).toEqual(['NotoSansDevanagari-Regular.ttf']);
+  expect(problems).toEqual([]);
+  expect(await violations(page)).toEqual([]);
 });

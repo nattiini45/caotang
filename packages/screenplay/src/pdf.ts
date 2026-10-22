@@ -33,6 +33,11 @@
  * `/ActualText` holding the run's logical text, so a reader copies and searches what the writer typed. The runs are written in
  * logical order, each at an absolute position. A line without a plan is written as it always was.
  *
+ * Devanagari prints in a fourth such font (rtl-font.ts cuts it): a subset of Noto Sans Devanagari, written like the others. A line
+ * that holds it is planned the same way (`PdfRtlFonts.lines`): each Devanagari word is a shaped run, set glyph by glyph, because
+ * the reordered vowel signs, reph and the stacked marks are placed by offsets a text operator would drop, with the word's typed
+ * text as its `/ActualText`.
+ *
  * Every byte is ASCII. Strings are escaped on the way in and the font program is written in
  * hexadecimal (`ASCIIHexDecode`), so the object offsets the xref table records are string
  * offsets, and the tests can check them exactly.
@@ -113,10 +118,10 @@ export interface PdfShapedGlyph {
   readonly y: number;
 }
 
-/** A word of Arabic or Hebrew, set in the font of its script glyph by glyph (see the header). */
+/** A word of Arabic, Hebrew or Devanagari, set in the font of its script glyph by glyph (see the header). */
 export interface PdfShapedRun {
   readonly kind: 'shaped';
-  readonly font: 'arabic' | 'hebrew';
+  readonly font: 'arabic' | 'hebrew' | 'devanagari';
   /** The column of the run's left edge, from the line's start. */
   readonly column: number;
   /** The glyphs left to right as drawn, each at its own position, the order the shaper gives them. */
@@ -139,10 +144,11 @@ export interface PdfPlainRun {
 
 export type PdfRtlItem = PdfShapedRun | PdfPlainRun;
 
-/** The Arabic and Hebrew subsets, and the plan of each line that holds either script or belongs to a right-to-left paragraph. */
+/** The Arabic, Hebrew and Devanagari subsets, and the plan of each line that holds one of the scripts or belongs to a right-to-left paragraph. */
 export interface PdfRtlFonts {
   readonly arabic?: CidSubset;
   readonly hebrew?: CidSubset;
+  readonly devanagari?: CidSubset;
   /** A line's plan, by {@link rtlLineKey}. */
   readonly lines: ReadonlyMap<string, readonly PdfRtlItem[]>;
 }
@@ -227,6 +233,9 @@ function contentStream(lines: readonly PdfText[], fallback?: PdfCidFont, emoji?:
   return parts.join('\n');
 }
 
+/** The font resource of each script's subset. */
+const SHAPED_FONT = { arabic: 'F4', hebrew: 'F5', devanagari: 'F6' } as const;
+
 /** The marked content that gives a reader the text a stretch of the page stands for (PDF 32000-1 §14.9.4). */
 const actualText = (text: string): string => `/Span << /ActualText <FEFF${utf16Hex(text)}> >> BDC`;
 
@@ -247,7 +256,7 @@ function writePlan(
     const x = line.x + item.column * LAYOUT.charWidth;
     if (item.kind === 'shaped') {
       parts.push(actualText(item.source));
-      setFont(item.font === 'arabic' ? 'F4' : 'F5');
+      setFont(SHAPED_FONT[item.font]);
       for (const glyph of item.glyphs) {
         parts.push(`1 0 0 1 ${num(x + glyph.x)} ${num(LAYOUT.pageHeight - line.y + glyph.y)} Tm`, `${cidString([glyph])} Tj`);
       }
@@ -389,7 +398,7 @@ function infoString(text: string): string {
  * 3 the font, 4 the info dictionary. Each page then takes two objects: the page, and its
  * content stream. An embedded font adds its descriptor and its program after the pages, a CJK fallback that prints at
  * least one character adds its six objects after those, and an emoji font that prints at least one unit its six after
- * those, and an Arabic and a Hebrew font that print at least one glyph their six each after those. Every page names each font the file has.
+ * those, and an Arabic, a Hebrew and a Devanagari font that print at least one glyph their six each after those. Every page names each font the file has.
  *
  * A document with nothing to print writes one blank page: PDF 1.7 §7.7.3.2 asks the page tree to hold at least one
  * page, and a reader refuses a file whose page tree is empty.
@@ -445,13 +454,21 @@ export function writePdf(
       bodies[hebrewId - 1 + i] = body;
     });
   }
+  const devanagari = rtlFonts?.devanagari === undefined || rtlFonts.devanagari.entries.length === 0 ? undefined : rtlFonts.devanagari;
+  const devanagariId = hebrewId + (hebrew === undefined ? 0 : CID_FONT_OBJECTS);
+  if (devanagari !== undefined) {
+    cidFontText(devanagari, devanagariId).forEach((body, i) => {
+      bodies[devanagariId - 1 + i] = body;
+    });
+  }
   const fonts =
     '/F1 3 0 R' +
     (fallback === undefined ? '' : ` /F2 ${fallbackId} 0 R`) +
     (emoji === undefined ? '' : ` /F3 ${emojiId} 0 R`) +
     (arabic === undefined ? '' : ` /F4 ${arabicId} 0 R`) +
-    (hebrew === undefined ? '' : ` /F5 ${hebrewId} 0 R`);
-  const planned = arabic === undefined && hebrew === undefined ? undefined : rtlFonts;
+    (hebrew === undefined ? '' : ` /F5 ${hebrewId} 0 R`) +
+    (devanagari === undefined ? '' : ` /F6 ${devanagariId} 0 R`);
+  const planned = arabic === undefined && hebrew === undefined && devanagari === undefined ? undefined : rtlFonts;
   const author = info.author === undefined || info.author.trim() === '' ? '' : ` /Author ${infoString(info.author)}`;
   bodies[3] = `<< /Title ${infoString(info.title ?? 'Screenplay')}${author} /Producer ${infoString(info.producer ?? 'Caotang')} >>`;
   written.forEach((lines, i) => {

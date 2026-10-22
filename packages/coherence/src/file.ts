@@ -222,6 +222,21 @@ export async function saveCoherence(fs: ArtifactFs, load: LoadResult, file: Cohe
 }
 
 /**
+ * §5.1 `medium.speaker-parity`: a scene's `dialogueContainer` that names no dialogue node (gone, or another kind of node) is
+ * dropped with a notice. A container that is archived or outside the manuscript still exists and keeps the link; the check
+ * treats it as not compared, and the Inspector shows it as missing.
+ */
+function reconcileDialogueLinks(next: CoherenceFile, state: ProjectState, notices: LoadNotice[]): void {
+  const dialogueIds = new Set(state.manifest.tree.filter((node) => node.type === 'dialogue').map((node) => node.id));
+  for (const [key, meta] of Object.entries(next.sceneMeta)) {
+    if (meta.dialogueContainer === undefined || dialogueIds.has(meta.dialogueContainer)) continue;
+    const title = state.manifest.tree.find((node) => node.id === key)?.title ?? key;
+    notices.push({ code: 'dangling-scene-meta', message: `The dialogue container linked to "${title}" no longer exists or is not a dialogue container, so that link was dropped.` });
+    delete meta.dialogueContainer;
+  }
+}
+
+/**
  * §4.4: a `learns` or `knows` pair whose codex entry or fact is gone is dropped, and a fact whose world rule or codex entry
  * is gone keeps its text and loses the link. Each is named in a notice, so a writer who deleted a character sees what went.
  */
@@ -285,6 +300,7 @@ export function reconcileCoherence(file: CoherenceFile, state: ProjectState): { 
     }
   }
 
+  reconcileDialogueLinks(next, state, notices);
   reconcileKnowledge(next, state, notices);
 
   next.findings = next.findings.filter((finding) => {

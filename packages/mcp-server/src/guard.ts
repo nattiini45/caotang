@@ -23,6 +23,11 @@ import { metadataFor } from '@caotang/harness';
 export interface GuardPolicy {
   /** Whether write tools are exposed (`--allow-writes`). */
   readonly allowWrites: boolean;
+  /**
+   * Set on a server that could not open its project (recovery.ts): the refusal a tool name earns there, or `undefined` for a name that
+   * reaches a handler. It reads the recovery's live phase, so it answers differently once the recovery is written.
+   */
+  readonly degraded?: (name: string) => CommandError | undefined;
 }
 
 /**
@@ -94,6 +99,9 @@ export function guardMessage(message: unknown, policy: GuardPolicy): RefusalResp
 
   const denied = hardDeniedError(name);
   if (denied !== undefined) return refusalResponse(id, denied);
+
+  const stopped = policy.degraded?.(name);
+  if (stopped !== undefined) return refusalResponse(id, stopped);
 
   const meta = metadataFor(name);
   if (meta !== undefined && meta.risk !== 'read' && meta.risk !== 'meta' && !policy.allowWrites) {

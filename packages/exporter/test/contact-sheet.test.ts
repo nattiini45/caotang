@@ -25,7 +25,7 @@ import { createProjectCommandRegistry, MemoryArtifactFs, type ProjectState } fro
 import { addShotNode, planContactSheet } from '@caotang/storyboard';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
 import { emojiStyleOf, graphemesOf, sfntFromWoff, type FontLoader } from '@caotang/pdf-fonts';
-import { loadArabicFontInNode, loadCjkFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
+import { loadArabicFontInNode, loadCjkFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
 import { harfbuzzEmoji } from '../../pdf-fonts/test/harfbuzz-reference.js';
 import { EmojiEmbedding, EmojiFace, type FontkitFont } from '../src/emoji-font.js';
 import {
@@ -54,6 +54,7 @@ function rig(
     loadEmojiFont?: FontLoader;
     loadArabicFont?: FontLoader;
     loadHebrewFont?: FontLoader;
+    loadDevanagariFont?: FontLoader;
     readAsset?: (path: string) => Promise<Uint8Array | null>;
   } = {},
 ): { exporter: ExporterService; reads: string[] } {
@@ -74,6 +75,7 @@ function rig(
     ...(options.loadEmojiFont === undefined ? {} : { loadEmojiFont: options.loadEmojiFont }),
     ...(options.loadArabicFont === undefined ? {} : { loadArabicFont: options.loadArabicFont }),
     ...(options.loadHebrewFont === undefined ? {} : { loadHebrewFont: options.loadHebrewFont }),
+    ...(options.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: options.loadDevanagariFont }),
   });
   return { exporter, reads };
 }
@@ -538,10 +540,10 @@ describe('contact-sheet-pdf — text outside Latin script, in the Noto Sans Mono
   });
 
   it('draws a character neither font has as "?", and names it in the log', async () => {
-    const state = withAction('雨 ⲁ and क');
+    const state = withAction('雨 ⲁ and க');
     const { result, pdf } = await compileSheet(rig({ state, loadFallbackFont: loadCjkFontInNode }).exporter);
     expect(result.log.notes).toContain(
-      'contact sheet: 2 characters neither the PDF\'s built-in font nor Noto Sans Mono CJK SC can show were drawn as "?": ⲁ (U+2C81), क (U+0915)',
+      'contact sheet: 2 characters neither the PDF\'s built-in font nor Noto Sans Mono CJK SC can show were drawn as "?": ⲁ (U+2C81), க (U+0B95)',
     );
     expect(toUnicodeText(pdf)).toContain('雨');
   });
@@ -754,6 +756,84 @@ describe('contact-sheet-pdf — Arabic and Hebrew, in Noto Sans Arabic and Noto 
     const state = withAction('Abeßer crosses the café © 2026');
     const plain = await compileSheet(rig({ state }).exporter);
     const given = await compileSheet(rig({ state, ...bothLoaders }).exporter);
+    expect(given.bytes).toEqual(plain.bytes);
+  });
+});
+
+describe('contact-sheet-pdf — Devanagari, in Noto Sans Devanagari', () => {
+  const HINDI = 'राम हिन्दी में क्षत्रिय श्रीमान् प्रेम कार्यक्रम स्त्री की बात।';
+
+  /** The `/ActualText` strings of the page, in the order they are drawn. */
+  function actualTexts(pdf: PDFDocument): string[] {
+    return [...pageContent(pdf, 0).matchAll(/\/ActualText <FEFF([0-9A-F]*)>/g)].map((match) =>
+      String.fromCharCode(...(match[1]?.match(/.{4}/g) ?? []).map((hex) => parseInt(hex, 16))),
+    );
+  }
+
+  it('sets Hindi in the font, shaped, with each word as marked content, the typed text in the ToUnicode map, and no "?"', async () => {
+    const { pdf, result } = await compileSheet(rig({ state: withAction(HINDI), loadDevanagariFont: loadDevanagariFontInNode }).exporter);
+    const copied = actualTexts(pdf);
+    for (const word of ['राम', 'हिन्दी', 'में', 'क्षत्रिय', 'श्रीमान्', 'प्रेम', 'कार्यक्रम', 'स्त्री', 'की', 'बात।']) expect(copied, word).toContain(word);
+    expect(copied.indexOf('हिन्दी')).toBeLessThan(copied.indexOf('क्षत्रिय'));
+    expect(result.log.notes).toContain('contact sheet: Devanagari text is set in Noto Sans Devanagari, embedded with only the glyphs it uses');
+    expect(result.log.notes.some((note) => note.includes('drawn as "?"'))).toBe(false);
+    const entries = toUnicodeEntries(pdf);
+    // The cluster is the text of the first glyph drawn of it: कि is drawn with its short i first, and copies back as typed.
+    for (const cluster of ['हि', 'क्ष', 'स्त्री', 'र्य']) expect(entries.some((entry) => entry.includes(cluster)), cluster).toBe(true);
+    expect(embeddedFontFiles(pdf)).toHaveLength(1);
+    expect((embeddedFontFiles(pdf)[0] as Uint8Array).length).toBeLessThan(100_000);
+  });
+
+  it('cuts a line wider than its box with an ellipsis on a cluster boundary, and never inside a conjunct', async () => {
+    const word = 'क्षत्रिय'.repeat(40);
+    const { pdf } = await compileSheet(rig({ state: withAction(word), loadDevanagariFont: loadDevanagariFontInNode }).exporter);
+    const drawn = actualTexts(pdf).filter((text) => text.startsWith('क्ष'));
+    expect(drawn.length).toBeGreaterThan(0);
+    for (const text of drawn) {
+      expect(text.length).toBeLessThan(word.length);
+      expect(text.endsWith('्'), text).toBe(false);
+      // Every cluster of the kept head is a whole one.
+      expect(text.replace(/क्ष|त्रि|य/gu, ''), text).toBe('');
+    }
+  });
+
+  it('shapes the precomposed nukta letter and the letter with its nukta alike, as NFC does', async () => {
+    const state = (text: string) => rig({ state: withAction(text), loadDevanagariFont: loadDevanagariFontInNode }).exporter;
+    const composed = await compileSheet(state('क़ फ़ क़ फ़'));
+    const decomposed = await compileSheet(state('क़ फ़ क़ फ़'));
+    expect(pageContent(composed.pdf, 0)).toBe(pageContent(decomposed.pdf, 0));
+  });
+
+  it('reads the font once, and only for a sheet that holds Devanagari', async () => {
+    const loader = countingLoader(loadDevanagariFontInNode);
+    await compileSheet(rig({ state: withAction('Abeßer crosses the café © 2026'), loadDevanagariFont: loader.load }).exporter);
+    expect(loader.calls()).toBe(0);
+    await compileSheet(rig({ state: withAction(`${HINDI} ${HINDI}`), loadDevanagariFont: loader.load }).exporter);
+    expect(loader.calls()).toBe(1);
+  });
+
+  it('draws Devanagari as "?", and says why, when the compile has no font or the font cannot be read', async () => {
+    const none = await compileSheet(rig({ state: withAction('हिन्दी') }).exporter);
+    expect(embeddedFontFiles(none.pdf)).toHaveLength(0);
+    expect(none.result.log.notes.find((line) => line.includes('drawn as "?"'))).toContain('this compile has no Devanagari font');
+    const failing: FontLoader = async () => {
+      throw new Error('offline');
+    };
+    const failed = await compileSheet(rig({ state: withAction('हिन्दी'), loadDevanagariFont: failing }).exporter);
+    expect(failed.result.log.notes.find((line) => line.includes('drawn as "?"'))).toContain('the Devanagari font could not be read (offline)');
+  });
+
+  it('names a script that has no font, and not Devanagari, when both are in the sheet', async () => {
+    const { result } = await compileSheet(rig({ state: withAction('हिन्दी தமிழ்'), loadDevanagariFont: loadDevanagariFontInNode }).exporter);
+    const note = result.log.notes.find((line) => line.includes('drawn as "?"')) ?? '';
+    expect(note).toContain('த (U+0BA4)');
+    expect(note).not.toContain('U+0939');
+  });
+
+  it('writes a Latin-only sheet byte for byte as it was, with the Devanagari font given', async () => {
+    const state = withAction('Abeßer crosses the café © 2026');
+    const plain = await compileSheet(rig({ state }).exporter);
+    const given = await compileSheet(rig({ state, loadDevanagariFont: loadDevanagariFontInNode }).exporter);
     expect(given.bytes).toEqual(plain.bytes);
   });
 });

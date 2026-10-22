@@ -25,6 +25,7 @@ import { captureTextAnchor } from '@caotang/storyboard';
 import { getBody, getRevision, type CodexEntry, type ProjectState } from '@caotang/store';
 
 import { childrenOf } from './binder-model.js';
+import { containersOf } from './coherence-facts.js';
 
 /** The severity sections, most severe first (coherence.md §5.3: the severity the check or the category gives). */
 export const SEVERITY_SECTIONS: readonly { readonly severity: FindingSeverity; readonly label: string }[] = [
@@ -372,6 +373,18 @@ export const NOTE_LIMIT = 500;
  */
 export function sceneMetaOf(file: CoherenceFile | undefined, docId: string): SceneMeta {
   return file?.sceneMeta[docId] ?? {};
+}
+
+/**
+ * The dialogue containers a scene may be compared with (coherence.md §5.1 `medium.speaker-parity`): the ones a scan reads, which are
+ * live and under the manuscript. A link to any other container is `missing`, so the Inspector can say so and offer to clear it.
+ */
+export function dialogueContainerChoices(
+  state: ProjectState,
+  linked: string | undefined,
+): { readonly containers: readonly { id: string; title: string }[]; readonly missing: boolean } {
+  const containers = containersOf(state).map((node) => ({ id: node.id, title: node.title }));
+  return { containers, missing: linked !== undefined && !containers.some((container) => container.id === linked) };
 }
 
 /** The document ids a scene may name as `after`: every document except the scene itself. */

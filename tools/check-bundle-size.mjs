@@ -38,13 +38,15 @@ export const BUDGET = {
    */
   allow: {
     'fontkit.es': 750_000,
-    index: 1_180_000,
+    index: 1_205_000,
     src: 655_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
-  initialGzip: 795_000,
+  initialGzip: 810_000,
   /** All JS, raw. */
-  totalJs: 4_888_000,
+  // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
+  // about 280 kB of it; the ceiling is that plus about 5%.
+  totalJs: 5_430_000,
 };
 
 const KB = 1000;

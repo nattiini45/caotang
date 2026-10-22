@@ -512,6 +512,12 @@ function memoryDb(): AppDb & { rows: Map<string, unknown> } {
     async put(key: string, value: unknown): Promise<void> {
       rows.set(key, structuredClone(value));
     },
+    async list<T>(prefix: string) {
+      return [...rows.entries()].filter(([key]) => key.startsWith(prefix)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([key, value]) => ({ key, value: structuredClone(value) as T }));
+    },
+    async delete(key: string): Promise<void> {
+      rows.delete(key);
+    },
     close(): void {},
   };
 }

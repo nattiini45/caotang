@@ -2470,6 +2470,80 @@ dialog.confirm::backdrop {
   font-size: 12.5px;
 }
 
+/* Background tasks and the offer before a big plan is staged (agent-harness §8). */
+.agent-tasks {
+  margin: 0 0 12px;
+}
+
+.agent-tasks h4 {
+  margin: 0 0 4px;
+  font-size: 12.5px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.agent-tasks-note {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+}
+
+.agent-task-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.agent-task {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--raised);
+  font-size: 12.5px;
+}
+
+.agent-task[data-status='ready'] {
+  border-color: var(--accent);
+}
+
+.agent-task-intent {
+  font-family: var(--manuscript);
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+.agent-task p {
+  margin: 2px 0;
+}
+
+.agent-task-status {
+  font-weight: 600;
+}
+
+.agent-task-errors {
+  margin: 2px 0;
+  padding-left: 18px;
+}
+
+.agent-task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.plan-offer-steps {
+  margin: 6px 0;
+  padding-left: 20px;
+  font-size: 12.5px;
+}
+
+.plan-offer-calls {
+  margin: 4px 0;
+  font-size: 12.5px;
+}
+
 .agent-turns {
   list-style: none;
   margin: 0;

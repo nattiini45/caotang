@@ -33,6 +33,14 @@
  * two turns ever run at once (decisions.md: "An approved turn stays busy until it settles"). The queue is view state of this
  * controller: it is not project state, it is not undoable, and it never reaches the bus or the activity log.
  *
+ * ## Background tasks
+ *
+ * A planner's plan that needs five or more model calls is offered to the background before any call is made (`beforeStage`): the
+ * offer is parked here like a card, and the writer's answer is Run now, Run in background or Cancel. A plan sent to the background
+ * becomes a task in the project's queue (task-queue.ts), the turn ends with a report that says so, and the writer can send the next
+ * intent at once. The queue only stages. A ready task is reviewed from the Tasks list as a turn of its own (`reviewTask`): the
+ * card, the ghost previews and the apply are the ordinary path, and no model call is made for a draft already held.
+ *
  * ## Restore
  *
  * "Restore to before this turn" is the session's `restoreBefore`. It takes back every change made after the turn as well, so
@@ -49,7 +57,9 @@ import {
   type AgentEvent,
   type AgentSession,
   type Decision,
+  type OfferAnswer,
   type PendingCard,
+  type PlanOffer,
   type TurnOptions,
   type TurnReport,
 } from '@caotang/harness';
@@ -60,6 +70,9 @@ import { documentIdFor, draftCheckOf, newTurnView, reduceTurn, type DraftCheck, 
 import { fixPlanFor } from './findings-model.js';
 import type { ProviderService } from './providers.js';
 import type { ProjectSession, RestoreResult } from './session.js';
+import { TaskQueue, type TaskAgent } from './task-queue.js';
+import { announcementFor, viewOf, type TaskView } from './task-model.js';
+import { TaskStore, type TaskRecord } from './task-store.js';
 
 /** Where a turn runs. The demo intents run on the built-in demo profile, whatever is active (context-assembly §6). */
 export interface SubmitOptions {
@@ -85,6 +98,22 @@ export interface PendingNote {
 
 /** What `steer` did with a note. */
 export type SteerResult = 'sent' | 'card-waiting' | 'idle' | 'refused';
+
+/** The plan the writer is asked about before it is staged, and what the Run in background button may do. */
+export interface OfferView {
+  readonly offer: PlanOffer;
+  /** Why the plan cannot go to the background in this browser, in a sentence, or `null` when it can. */
+  readonly unavailable: string | null;
+  /** Why the last Run in background was refused, in a sentence, or `null`. */
+  readonly error: string | null;
+}
+
+/** What the controller needs of the background queue beyond the project: a test stands in for the store and the clock. */
+export interface BackgroundOptions {
+  readonly store?: TaskStore;
+  readonly locksAvailable?: () => boolean;
+  readonly sleep?: (ms: number) => Promise<void>;
+}
 
 export interface AgentSnapshot {
   /** Every turn this project has run in this visit, oldest first. */
@@ -117,6 +146,10 @@ export interface AgentSnapshot {
   readonly approvable: boolean;
   /** Why the last action did not go through, for the panel. `null` when there is nothing to say. */
   readonly message: string | null;
+  /** The plan that waits for the writer to choose how it runs, or `null`. */
+  readonly offer: OfferView | null;
+  /** The project's background tasks, oldest first, as the project stood when the snapshot was made (`taskViews` reads it now). */
+  readonly tasks: readonly TaskView[];
 }
 
 /** What the panel says when the queue waits after a turn that stopped on a question. */
@@ -188,6 +221,13 @@ export class AgentController {
   private snapshotValue: AgentSnapshot;
   /** Whether the panel that shows this controller has gone. A detached controller refuses to park a decision. */
   private detached = false;
+  /** The offer the loop is waiting on, with the way to answer it. */
+  private offer: { view: OfferView; resolve: (answer: OfferAnswer) => void } | null = null;
+  private readonly tasks: TaskQueue;
+  /** The status each task had when the panel last heard of it, so only a change is announced. */
+  private readonly taskStatus = new Map<string, TaskRecord['status']>();
+  /** Opening and closing the queue run one after the other, so a panel that attaches twice reads the tasks once at a time. */
+  private queueWork: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly session: ProjectSession,
@@ -196,7 +236,17 @@ export class AgentController {
     private readonly contextConfig: () => ContextConfig = () => ({}),
     /** Whether every tool is declared on every request, read at each request so Settings › Agent applies to the next one (agent-harness §3). */
     private readonly loadEveryTool: () => boolean = () => false,
+    background: BackgroundOptions = {},
   ) {
+    this.tasks = new TaskQueue({
+      projectId: session.projectId,
+      store: background.store ?? new TaskStore(),
+      agentFor: (_task, sessionId, maxModelCalls) => this.agentForTask(sessionId, maxModelCalls),
+      foregroundBusy: () => this.busy,
+      ...(background.locksAvailable === undefined ? {} : { locksAvailable: background.locksAvailable }),
+      ...(background.sleep === undefined ? {} : { sleep: background.sleep }),
+    });
+    this.tasks.subscribe(() => this.onTasksChanged());
     this.snapshotValue = this.buildSnapshot();
   }
 
@@ -239,6 +289,8 @@ export class AgentController {
       drafts,
       approvable: this.pending !== null && this.pending.card.approvable && (drafts === null || drafts.blocked === null),
       message: this.message,
+      offer: this.offer?.view ?? null,
+      tasks: this.tasks.snapshot().map((task) => viewOf(task, this.session.state)),
     };
   }
 
@@ -338,6 +390,7 @@ export class AgentController {
                 emit: (event) => this.onEvent(event),
                 role: 'chat',
                 loadEveryTool: this.loadEveryTool,
+                beforeStage: (offer) => this.askOffer(offer),
                 profileId: profile.id,
                 ...(model === undefined ? {} : { model }),
                 ...(thinking === undefined ? {} : { thinking }),
@@ -415,6 +468,7 @@ export class AgentController {
     const resolve = this.resolveDecision;
     this.resolveDecision = null;
     this.pending = null;
+    this.dropOffer();
     this.clearGhosts();
     resolve?.({ action: 'cancel' });
     this.bump();
@@ -742,6 +796,137 @@ export class AgentController {
   }
 
   /* ------------------------------------------------------------------ *
+   * Background tasks
+   * ------------------------------------------------------------------ */
+
+  /** The loop's offer. It is parked here until the panel answers it, or the turn is stopped. */
+  private askOffer(offer: PlanOffer): Promise<OfferAnswer> {
+    return new Promise<OfferAnswer>((resolve) => {
+      if (this.detached) {
+        resolve('cancel');
+        return;
+      }
+      this.dropOffer();
+      this.offer = { view: { offer, unavailable: this.tasks.unavailable(), error: null }, resolve };
+      this.announcement = `This plan needs ${offer.estimatedCalls} model calls. Choose how it runs.`;
+      this.bump();
+    });
+  }
+
+  /** Cancels an offer that waits, so no answer is left parked. */
+  private dropOffer(): void {
+    const held = this.offer;
+    this.offer = null;
+    held?.resolve('cancel');
+  }
+
+  /**
+   * The writer's answer to the offer. Run in background queues the plan first, and the turn is told only once it is queued; a plan the
+   * queue refuses stays on offer with the reason, and the writer can still run it now or cancel it.
+   */
+  async answerOffer(choice: OfferAnswer): Promise<void> {
+    const held = this.offer;
+    if (held === null) return;
+    if (choice === 'background') {
+      if (held.view.unavailable !== null) return;
+      const queued = await this.tasks.enqueue(this.intentForNextTurn ?? '', held.view.offer.steps);
+      if (this.offer !== held) return;
+      if (!queued.ok) {
+        this.offer = { ...held, view: { ...held.view, error: queued.reason } };
+        this.bump();
+        return;
+      }
+    }
+    this.offer = null;
+    this.bump();
+    held.resolve(choice);
+  }
+
+  /**
+   * Opens a ready task for review: a turn of its own on the usual card, with the drafts the background staged. Approving applies them
+   * as one undo group; cancelling leaves the task ready to open again. A turn that is running is not interrupted for it.
+   */
+  async reviewTask(id: string): Promise<TurnReport | null> {
+    if (this.busy) {
+      this.message = 'The agent is working on another turn. Open this task when it has finished.';
+      this.bump();
+      return null;
+    }
+    const found = this.tasks.review(id);
+    if (found === undefined) {
+      this.message = 'That task is no longer ready to review.';
+      this.bump();
+      return null;
+    }
+    const { task, review } = found;
+    const report = await this.turnWith(task.intent, {}, (agent, turn) =>
+      agent.submitStaged(task.intent, { steps: review.steps }, review.proposals, review.revisions, turn),
+    );
+    if (report?.status === 'applied') await this.tasks.markApplied(id);
+    return report;
+  }
+
+  /** The background tasks as the project stands now: a draft is out of date the moment its scene changes, not at the next event. */
+  taskViews(): readonly TaskView[] {
+    return this.tasks.snapshot().map((task) => viewOf(task, this.session.state));
+  }
+
+  cancelTask(id: string): void {
+    void this.tasks.cancel(id);
+  }
+
+  resumeTask(id: string): void {
+    void this.tasks.resume(id);
+  }
+
+  dismissTask(id: string): void {
+    void this.tasks.dismiss(id);
+  }
+
+  /** Whether a task is being drafted or waits to be: the leave prompt warns about it. */
+  tasksWorking(): boolean {
+    return this.tasks.working();
+  }
+
+  /** Resolves when the queue has nothing left to run. A test waits on it. */
+  tasksIdle(): Promise<void> {
+    return this.tasks.idle();
+  }
+
+  /** The session a task is staged with: the Background role's profile, the task's id as its name, and no way to decide a card. */
+  private agentForTask(sessionId: string, maxModelCalls: number): TaskAgent | string {
+    const resolved = this.providers.resolveForRole?.('background');
+    const profile = resolved?.profile ?? this.providers.active();
+    if (profile === undefined) return NO_PROVIDER;
+    return createAgentSession({
+      harness: this.session.harness,
+      gateway: this.providers.gateway,
+      context: createContextPort({ state: this.session.state, config: this.contextConfig }),
+      // Staging shows no card. A card that did arrive would be cancelled, so nothing here waits on a writer who is not looking.
+      decide: async () => ({ action: 'cancel' }),
+      role: 'background',
+      sessionId,
+      maxModelCalls,
+      loadEveryTool: this.loadEveryTool,
+      profileId: profile.id,
+      ...(resolved?.model === undefined ? {} : { model: resolved.model }),
+      ...(resolved?.thinking === undefined ? {} : { thinking: resolved.thinking }),
+    });
+  }
+
+  /** The queue changed: the panel redraws, and a task that reached a state the writer should hear about is announced. */
+  private onTasksChanged(): void {
+    for (const task of this.tasks.snapshot()) {
+      if (this.taskStatus.get(task.id) === task.status) continue;
+      const known = this.taskStatus.has(task.id);
+      this.taskStatus.set(task.id, task.status);
+      // The statuses a project opens with are not news; a change after that is.
+      if (known || task.status === 'ready') this.announcement = announcementFor(task) || this.announcement;
+    }
+    this.bump();
+  }
+
+  /* ------------------------------------------------------------------ *
    * Lifecycle
    * ------------------------------------------------------------------ */
 
@@ -751,8 +936,11 @@ export class AgentController {
     const resolve = this.resolveDecision;
     this.resolveDecision = null;
     this.pending = null;
+    this.dropOffer();
     this.clearGhosts();
     resolve?.({ action: 'cancel' });
+    // The queue stops with the panel: a task in flight is interrupted and can be resumed when the project is open again.
+    this.queueWork = this.queueWork.then(() => this.tasks.close());
     this.bump();
   }
 
@@ -762,6 +950,7 @@ export class AgentController {
    */
   attach(): void {
     this.detached = false;
+    this.queueWork = this.queueWork.then(() => this.tasks.open());
     // Registered here, where the panel that shows the controller attaches it, so a controller React discarded (StrictMode builds
     // one twice) is never the one a findings panel reaches.
     controllers.set(this.session, this);

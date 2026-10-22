@@ -104,12 +104,13 @@ export interface ExporterOptions {
    */
   readonly loadEmojiFont?: FontLoader;
   /**
-   * Reads Noto Sans Arabic (`@caotang/font-noto-arabic`) and Noto Sans Hebrew (`@caotang/font-noto-hebrew`) for the screenplay PDF's
-   * Arabic, Persian, Urdu and Hebrew text, the same way. Each is called only when a file holds its script. Without one, that
-   * script is drawn as `?`, and the compile log says so.
+   * Reads Noto Sans Arabic (`@caotang/font-noto-arabic`), Noto Sans Hebrew (`@caotang/font-noto-hebrew`) and Noto Sans Devanagari
+   * (`@caotang/font-noto-devanagari`) for both PDFs' Arabic, Persian, Urdu, Hebrew, Hindi, Marathi, Nepali and Sanskrit text, the
+   * same way. Each is called only when a file holds its script. Without one, that script is drawn as `?`, and the compile log says so.
    */
   readonly loadArabicFont?: FontLoader;
   readonly loadHebrewFont?: FontLoader;
+  readonly loadDevanagariFont?: FontLoader;
   /**
    * The scene styles and the formats that express them (exporter.md §2, Per-scene styling). Absent is the build's own rows
    * (`section`, in all four prose formats); a test supplies a row a format lacks to reach the compile log's dropped-style note.
@@ -365,6 +366,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
       ...(options.loadEmojiFont === undefined ? {} : { loadEmojiFont: options.loadEmojiFont }),
       ...(options.loadArabicFont === undefined ? {} : { loadArabicFont: options.loadArabicFont }),
       ...(options.loadHebrewFont === undefined ? {} : { loadHebrewFont: options.loadHebrewFont }),
+      ...(options.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: options.loadDevanagariFont }),
       ...(common.language === undefined ? {} : { language: common.language }),
       at: request.at,
     });

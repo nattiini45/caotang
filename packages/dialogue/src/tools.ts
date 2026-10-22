@@ -23,7 +23,7 @@ import { compileInk, type InkMessage } from './compile.js';
 import { dialogueSourcesIn, resolveContainer } from './container.js';
 import { checkDraft, planDraft } from './draft.js';
 import { beatIds, parseInk } from './ink-parse.js';
-import type { DialogueContainerMeta } from './kinds.js';
+import { readDialogueMeta, type DialogueContainerMeta } from './kinds.js';
 import { ensureLineIds, lineIdsOf, stripLineIdTags } from './line-ids.js';
 import { buildRows, toCsv, toJsonRows } from './table.js';
 import { unreachableNodes, validateContainer } from './validate.js';
@@ -100,7 +100,7 @@ const DRAFT_DESCRIPTION =
   'Draft dialogue beats as Ink text for one dialogue container, after the named knots or at the end of an empty container. The proposed Ink is compile-checked before the card is shown: a compile error blocks it, and a new warning is shown for explicit approval. Write-confirm: nothing is written until the writer approves. Never touches other documents.';
 
 const TABLE_DESCRIPTION =
-  'Read the dialogue table of one dialogue container: one row per spoken line and choice label, with its line id, speaker, text, context and any character limit. Read-only. Pass a title or an id. A container whose lines lack ids says how many. A table over 8,000 tokens is refused: export it with export.compile instead.';
+  'Read the dialogue table of one dialogue container: one row per spoken line and choice label, with its line id, speaker, text, context, character limit and locale. It reports the engine target and locale of the container, and says when the export writes a Yarn Spinner strings file instead of this table. Read-only. Pass a title or an id. A container whose lines lack ids says how many. A table over 8,000 tokens is refused: export it with export.compile instead.';
 
 const DRAFT_PARAMS: ObjectSpec = param.object(
   'The container, the brief, and where the draft goes.',
@@ -153,7 +153,7 @@ export const DIALOGUE_TOOL_ENTRIES: readonly DialogueToolEntry[] = [
       risk: 'read',
       undoable: false,
       response_token_cap: TABLE_TOKEN_CAP,
-      descriptionVersion: 1,
+      descriptionVersion: 2,
       description: TABLE_DESCRIPTION,
       surface: 'extension',
       load: 'deferred',
@@ -199,14 +199,19 @@ export function dialogueTableTool(params: Readonly<Record<string, unknown>>, con
   if (!compiled.ok) {
     return refuse('invalid-params', `the Ink in "${title}" does not compile, so it has no table`, `fix the Ink first. The compiler says: ${messagesOf(compiled.errors)}`, 'params.doc');
   }
-  const meta = context.metaFor?.(resolved.node.id);
-  const rows = buildRows([{ id: resolved.node.id, title, body: resolved.body, ...(meta !== undefined ? { meta } : {}) }], {
+  const read = readDialogueMeta(resolved.node.dialogue);
+  const meta = context.metaFor?.(resolved.node.id) ?? read.meta;
+  // The exporter's rule: the container's locBaseline, else the project's language, with no further check.
+  const projectLanguage = context.state.manifest.project.language?.trim() ?? '';
+  const locale = meta.locBaseline ?? projectLanguage;
+  const rows = buildRows([{ id: resolved.node.id, title, body: resolved.body, meta }], {
     entries: context.state.manifest.codex ?? [],
+    locale: projectLanguage,
   });
   const includeConditions = params.includeConditions === true;
   const json = params.format === 'json';
   const missing = rows.filter((row) => row.missing).length;
-  const payload = json ? JSON.stringify(toJsonRows(rows)) : toCsv(rows, { includeConditions });
+  const payload = json ? JSON.stringify(toJsonRows(rows)) : toCsv(rows, { includeConditions, includeLocale: true });
   const tokens = estimateTokens(payload);
   if (tokens > TABLE_TOKEN_CAP) {
     return refuse(
@@ -222,13 +227,26 @@ export function dialogueTableTool(params: Readonly<Record<string, unknown>>, con
     format: json ? 'json' : 'csv',
     rows: rows.length,
     missingLineIds: missing,
+    engineTarget: meta.engineTarget ?? null,
+    locale: locale === '' ? null : locale,
     ...(json ? { table: toJsonRows(rows) } : { csv: payload }),
   };
+  // Fixed strings only: a hand-edited setting never reaches the model through a note.
+  const notes: string[] = [];
+  if (missing > 0) notes.push(`${missing} spoken line(s) have no line id. The save path mints them when autoLineIds is on.`);
+  if (meta.engineTarget === 'yarn-csv') {
+    notes.push(
+      "This container's engine target is yarn-csv, so the export writes a Yarn Spinner strings file for it, `<base> (dialogue, Yarn).csv`, not the dialogue table.",
+    );
+  }
+  notes.push('The charLimit column is empty because this tool has no export recipe; an empty column does not mean the export leaves it unconstrained.');
+  if (locale === '') notes.push('The container has no locale and the project has no language, so the locale column is empty.');
+  if (read.notes.length > 0) notes.push('A container setting could not be used and was ignored.');
   const value: ToolValue = {
     data,
     summary: `${rows.length} row(s) from "${title}"; ${missing} without a line id.`,
     affected: [],
-    ...(missing > 0 ? { notes: [`${missing} spoken line(s) have no line id. The save path mints them when autoLineIds is on.`] } : {}),
+    notes,
   };
   return ok(value);
 }

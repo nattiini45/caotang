@@ -292,7 +292,7 @@ function keyHint(preset: PresetDef | undefined, form: FormState, view: ProfileVi
 const ROLE_NAMES: readonly { readonly id: TaskRole; readonly label: string; readonly hint: string }[] = [
   { id: 'chat', label: 'Chat', hint: 'the agent panel' },
   { id: 'drafting', label: 'Drafting', hint: 'the prompt pack’s generations' },
-  { id: 'background', label: 'Background', hint: 'checks and encoding work' },
+  { id: 'background', label: 'Background', hint: 'checks, encoding work and plans sent to the background' },
 ];
 
 /** A role row as the form holds it: '' fields mean the role's defaults (follow chat; the profile's own model). */

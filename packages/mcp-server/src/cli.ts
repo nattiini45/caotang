@@ -14,7 +14,8 @@ import { parseArgs } from 'node:util';
 import { LOCK_FILE, NoProjectError, ProjectLockedError } from '@caotang/sdk/folder';
 
 import { DEFAULT_TOKEN_ENV, resolveToken } from './auth.js';
-import { openProject, ProjectContentError, type ProjectSession } from './session.js';
+import { isDegraded, offerClause, openProjectOrOffer, wayForward, type DegradedSession } from './recovery.js';
+import { ProjectContentError, type ProjectSession } from './session.js';
 import { createToolRuntime, startHttpServer, startStdioServer, type RunningHttpServer } from './server.js';
 import { VERSION } from './version.js';
 
@@ -55,7 +56,9 @@ export const USAGE = `usage: caotang-mcp serve --project <dir> [--create <name>]
 
   --project <dir>      the project folder to serve
   --create <name>      make a new project named <name> when the folder holds no caotang.json (refused, unchanged,
-                       if it holds documents, codex files or manifest copies: open that folder in Caotang first)
+                       if it holds documents, codex files or manifest copies: open that folder in Caotang first).
+                       A caotang.json that exists and cannot be read is never replaced: the server starts without a
+                       project and offers its recovery (project.recover), whether or not --create is given
   --allow-writes       let external callers change the project (off by default: read-only)
   --port <n>           the loopback port for Streamable HTTP (default ${DEFAULT_PORT}; 0 picks one)
   --token-env <VAR>    read the bearer token from this variable (default ${DEFAULT_TOKEN_ENV})
@@ -118,23 +121,19 @@ export function parseServeArgs(argv: readonly string[]): ServeOptions | 'help' {
   };
 }
 
-/** The lines the server says about itself at start. Written to stderr by the caller. */
-export function startupLines(
-  session: ProjectSession,
+/** The lines every start ends with: whether writes are on, how the environment set them, where the server listens, and the token. */
+function serverLines(
+  allowWrites: boolean,
   options: ServeOptions,
   token: { minted: boolean; token: string },
   url?: string,
   env?: NodeJS.ProcessEnv,
 ): string[] {
-  const lines = [`caotang-mcp ${VERSION}: project "${session.state.manifest.project.name}" at ${session.root}`];
-  if (session.created) lines.push(`caotang-mcp: made a new project; the folder held no caotang.json`);
-  else if (options.create !== undefined) lines.push(`caotang-mcp: the folder already holds a project, so --create "${options.create}" was not used`);
-  for (const notice of session.notices) lines.push(`caotang-mcp: notice: ${notice.path}: ${notice.message}`);
-  lines.push(
-    session.allowWrites
+  const lines = [
+    allowWrites
       ? 'caotang-mcp: writes are on: external callers may change this project, and a write that asks the user is confirmed first'
       : 'caotang-mcp: writes are off: this server is read-only (pass --allow-writes to let external callers change the project)',
-  );
+  ];
   if (env !== undefined) {
     const setting = classifyWritesSetting(env[ALLOW_WRITES_ENV]);
     lines.push(
@@ -153,6 +152,41 @@ export function startupLines(
     lines.push('caotang-mcp: send it as "Authorization: Bearer <token>" on every request');
   }
   return lines;
+}
+
+/** The lines the server says about itself at start. Written to stderr by the caller. */
+export function startupLines(
+  session: ProjectSession,
+  options: ServeOptions,
+  token: { minted: boolean; token: string },
+  url?: string,
+  env?: NodeJS.ProcessEnv,
+): string[] {
+  const lines = [`caotang-mcp ${VERSION}: project "${session.state.manifest.project.name}" at ${session.root}`];
+  if (session.created) lines.push(`caotang-mcp: made a new project; the folder held no caotang.json`);
+  else if (options.create !== undefined) lines.push(`caotang-mcp: the folder already holds a project, so --create "${options.create}" was not used`);
+  for (const notice of session.notices) lines.push(`caotang-mcp: notice: ${notice.path}: ${notice.message}`);
+  return [...lines, ...serverLines(session.allowWrites, options, token, url, env)];
+}
+
+/**
+ * The lines of a start whose project would not open: that no project is open and why, what the ladder found, the way forward, and that
+ * the server holds the folder's lock. The unreadable manifest's own message is the operator's, so it is said here and not to a host.
+ */
+export function degradedStartupLines(
+  session: DegradedSession,
+  options: ServeOptions,
+  token: { minted: boolean; token: string },
+  url?: string,
+  env?: NodeJS.ProcessEnv,
+): string[] {
+  return [
+    `caotang-mcp ${VERSION}: no project is open at ${session.root}: caotang.json ${session.cause === 'unreadable' ? 'cannot be read' : 'is not a valid project'} (${session.problem})`,
+    `caotang-mcp: ${offerClause(session)}`,
+    `caotang-mcp: ${wayForward(session)}`,
+    `caotang-mcp: this server holds the folder's lock (${LOCK_FILE}) until it stops, so Caotang asks before it saves over this folder; stop the server to release it`,
+    ...serverLines(session.allowWrites, options, token, url, env),
+  ];
 }
 
 export interface RunIo {
@@ -189,9 +223,9 @@ export async function runCli(argv: readonly string[], io: RunIo): Promise<number
   // manifest sets this variable from the user's "allow writes" setting. Only the exact value "true" turns writes on.
   const allowWrites = options.allowWrites || io.env[ALLOW_WRITES_ENV] === 'true';
 
-  let session: ProjectSession;
+  let session: ProjectSession | DegradedSession;
   try {
-    session = await openProject({
+    session = await openProjectOrOffer({
       root: options.project,
       ...(options.create === undefined ? {} : { create: options.create }),
       allowWrites,
@@ -214,9 +248,13 @@ export async function runCli(argv: readonly string[], io: RunIo): Promise<number
   try {
     const token = options.stdio ? { token: '', minted: false } : resolveToken(io.env, options.tokenEnv);
     const runtime = createToolRuntime(session);
+    const linesOf = (url?: string): string[] =>
+      isDegraded(session)
+        ? degradedStartupLines(session, options, token, url, io.env)
+        : startupLines(session, options, token, url, io.env);
 
     if (options.stdio) {
-      for (const line of startupLines(session, options, token, undefined, io.env)) io.stderr(`${line}\n`);
+      for (const line of linesOf()) io.stderr(`${line}\n`);
       const handle = startStdioServer(runtime);
       await io.untilDone(async () => {
         await handle.close();
@@ -226,7 +264,7 @@ export async function runCli(argv: readonly string[], io: RunIo): Promise<number
     }
 
     const server: RunningHttpServer = await startHttpServer(runtime, { port: options.port, token: token.token });
-    for (const line of startupLines(session, options, token, server.url, io.env)) io.stderr(`${line}\n`);
+    for (const line of linesOf(server.url)) io.stderr(`${line}\n`);
     io.stderr('caotang-mcp: ready\n');
     await io.untilDone(async () => {
       await server.close();

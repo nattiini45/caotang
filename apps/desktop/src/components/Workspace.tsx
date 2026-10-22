@@ -451,15 +451,16 @@ export function Workspace({
     return () => window.removeEventListener('keydown', listener);
   }, []);
 
-  // A dirty session warns before the tab goes away (project-format §4: a flush is not guaranteed).
+  // A dirty session warns before the tab goes away (project-format §4: a flush is not guaranteed), and so does a background task that is
+  // still being drafted: it runs only while the project is open in this tab.
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent): void => {
-      if (session.saveState() === 'saved') return;
+      if (session.saveState() === 'saved' && !agent.tasksWorking()) return;
       event.preventDefault();
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [session]);
+  }, [session, agent]);
 
   const doomed = askingDelete === null ? undefined : summarizeSubtree(state, askingDelete);
 

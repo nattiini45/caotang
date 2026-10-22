@@ -593,3 +593,28 @@ describe('measureText — Arabic and Hebrew', () => {
     expect(lines.join(' ').startsWith('بِسْمِ')).toBe(true);
   });
 });
+
+describe('measureText — Devanagari', () => {
+  it('counts a letter at 0.63 em and a combining mark of a Brahmic script at none, so a vowel sign, a nukta or a virama adds no width', () => {
+    expect(measureText('कखग', 10)).toBeCloseTo(3 * 0.63 * 10, 6);
+    expect(measureText('कि', 10)).toBeCloseTo(0.63 * 10, 6);
+    expect(measureText('हिन्दी', 10)).toBeCloseTo(3 * 0.63 * 10, 6);
+    expect(measureText('क़', 10)).toBeCloseTo(0.63 * 10, 6);
+    expect(measureText('क़', 10)).toBeCloseTo(0.63 * 10, 6);
+    // Tamil has no font and prints as "?", but its marks are marks too.
+    expect(measureText('தமி', 10)).toBeCloseTo(2 * 0.63 * 10, 6);
+    expect(measureText('abc', 10)).toBeCloseTo(3 * 0.55 * 10, 6);
+  });
+
+  it('wraps at spaces and cuts a word wider than its box between clusters, never inside a conjunct', () => {
+    const lines = wrapText(Array.from({ length: 12 }, () => 'हिन्दी').join(' '), 60, 10, 6);
+    expect(lines.length).toBeGreaterThan(1);
+    for (const line of lines) expect(measureText(line, 10)).toBeLessThanOrEqual(60 + 1e-6);
+    const cut = wrapText('क्षत्रिय'.repeat(10), 40, 10, 6);
+    expect(cut.length).toBeGreaterThan(1);
+    for (const line of cut) {
+      expect(line.endsWith('्'), line).toBe(false);
+      expect(line.replace('…', '').replace(/क्ष|त्रि|य/gu, ''), line).toBe('');
+    }
+  });
+});

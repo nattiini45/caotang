@@ -36,7 +36,7 @@ export * from './world-rules.js';
 export * from './knowledge.js';
 export * from './canon.js';
 export * from './errors.js';
-export { DETERMINISTIC_CHECKS, runChecks, type CheckInput, type CheckOutput, type DialogueFacts, type DraftFinding } from './checks/index.js';
+export { DETERMINISTIC_CHECKS, runChecks, type CheckInput, type CheckOutput, type DialogueFacts, type DialogueSpeaker, type DraftFinding } from './checks/index.js';
 export * from './cues.js';
 export { groupKey, pairKey, termsOf, resolveEntry, modeOf } from './checks/common.js';
 export * from './llm/port.js';

@@ -29,6 +29,16 @@ export {
   type OpenProjectOptions,
   type ProjectSession,
 } from './session.js';
+export {
+  RECOVER_APPLY_TOOL,
+  RECOVER_TOOL,
+  guardDegraded,
+  isDegraded,
+  openProjectOrOffer,
+  type DegradedSession,
+  type RecoveryPhase,
+  type RecoveryRuntime,
+} from './recovery.js';
 export { sourceWindow, type CallerSource, type SourceWindow } from './attribution.js';
 export {
   CONFIRMATION_SCHEMA,
@@ -54,6 +64,7 @@ export {
   startHttpServer,
   startStdioServer,
   type HttpServerOptions,
+  type ServerRuntime,
   type McpServerOptions,
   type RunningHttpServer,
 } from './server.js';
@@ -66,6 +77,7 @@ export {
   parseServeArgs,
   runCli,
   startupLines,
+  degradedStartupLines,
   type RunIo,
   type ServeOptions,
 } from './cli.js';

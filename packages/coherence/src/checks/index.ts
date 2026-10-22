@@ -14,8 +14,9 @@ import { checkCueCollision, checkCueConsistency, checkShotCoverage } from './scr
 import { checkBranch } from './branch.js';
 import { checkUnresolvedThread } from './plot.js';
 import { checkKnowledgeLeak } from './knowledge.js';
+import { checkSpeakerParity } from './medium.js';
 
-export type { CheckInput, CheckOutput, DialogueFacts, DraftFinding } from './common.js';
+export type { CheckInput, CheckOutput, DialogueFacts, DialogueSpeaker, DraftFinding } from './common.js';
 export { groupKey, pairKey, termsOf, resolveEntry, modeOf } from './common.js';
 
 export const DETERMINISTIC_CHECKS: Readonly<Record<DeterministicCheckId, (input: CheckInput) => CheckOutput>> = {
@@ -36,6 +37,7 @@ export const DETERMINISTIC_CHECKS: Readonly<Record<DeterministicCheckId, (input:
   'timeline.gap': checkGap,
   'plot.unresolved-thread': checkUnresolvedThread,
   'knowledge.leak': checkKnowledgeLeak,
+  'medium.speaker-parity': checkSpeakerParity,
 };
 
 /**
