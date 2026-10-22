@@ -207,7 +207,7 @@ async function main() {
     cjkFont,
     emojiFont,
     fonts: [
-      createRequire(import.meta.url).resolve('@caotang/font-noto-cjk/NotoSansCJKsc-Regular.woff'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-cjk/NotoSansMonoCJKsc-Regular.woff'),
       createRequire(import.meta.url).resolve('@caotang/font-noto-emoji/NotoEmoji-Regular.woff'),
     ],
   });

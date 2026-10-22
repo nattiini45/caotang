@@ -8,8 +8,8 @@ import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
-import { CJK_FONT_FILE, EMOJI_FONT_FILE } from '@caotang/exporter';
-import { cjkFontCandidates, emojiFontCandidates } from '@caotang/exporter/fallback-fonts-node';
+import { CJK_FONT_FILE, EMOJI_FONT_FILE } from '@caotang/pdf-fonts';
+import { cjkFontCandidates, emojiFontCandidates } from '@caotang/pdf-fonts/node-loader';
 
 import { BUNDLE_CJK_FONT, BUNDLE_EMOJI_FONT, BUNDLE_ENTRY, BUNDLE_FONTS, manifestProblems, mcpbCliPath, packBundle, runMcpb, stageBundle } from '../scripts/pack-mcpb.mjs';
 import { removeDir, tempDir } from './support.js';
@@ -219,7 +219,7 @@ describe('staging and packing', () => {
     try {
       const serverBundle = join(outDir, 'caotang-mcp.mjs');
       writeFileSync(serverBundle, '#!/usr/bin/env node\n');
-      const cjk = join(outDir, 'NotoSansCJKsc-Regular.woff');
+      const cjk = join(outDir, 'NotoSansMonoCJKsc-Regular.woff');
       const emoji = join(outDir, 'NotoEmoji-Regular.woff');
       writeFileSync(cjk, 'cjk');
       writeFileSync(emoji, 'emoji');
@@ -232,8 +232,8 @@ describe('staging and packing', () => {
         license: join(REPO_ROOT, 'LICENSE'),
         fonts: [cjk, emoji],
       });
-      // The literal paths, not the constant: the exporter's Node loader reads `fonts/` beside the server bundle, by name.
-      expect(files).toContain('server/fonts/NotoSansCJKsc-Regular.woff');
+      // The literal paths, not the constant: the Node loader reads `fonts/` beside the server bundle, by name.
+      expect(files).toContain('server/fonts/NotoSansMonoCJKsc-Regular.woff');
       expect(files).toContain('server/fonts/NotoEmoji-Regular.woff');
       expect(readFileSync(join(staging, 'server', 'fonts', 'NotoEmoji-Regular.woff'), 'utf8')).toBe('emoji');
     } finally {
@@ -306,7 +306,7 @@ describe('staging and packing', () => {
       for (const file of [BUNDLE_ENTRY, 'manifest.json', 'THIRD-PARTY-NOTICES.md', 'LICENSE']) {
         expect(existsSync(join(unpacked, file)), `${file} is in the bundle`).toBe(true);
       }
-      for (const file of ['server/fonts/NotoSansCJKsc-Regular.woff', 'server/fonts/NotoEmoji-Regular.woff']) {
+      for (const file of ['server/fonts/NotoSansMonoCJKsc-Regular.woff', 'server/fonts/NotoEmoji-Regular.woff']) {
         expect(existsSync(join(unpacked, file)), `${file} is in the bundle`).toBe(true);
       }
       // The installed server finds them where its loader looks first.

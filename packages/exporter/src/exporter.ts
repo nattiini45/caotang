@@ -22,7 +22,7 @@ import { ApplyRefusal, DEFAULT_RECIPE_NAME, type CommandError } from '@caotang/b
 import { ArtifactNotFoundError, identifierUrn, type ArtifactFs, type ProjectState } from '@caotang/store';
 import { PDF_MIME } from '@caotang/screenplay';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
-import type { FontLoader } from './cjk-font.js';
+import type { FontLoader } from '@caotang/pdf-fonts';
 import { createEmitter, splitRendered, type ByteArtifacts, type Emitter, type EmitFailure, type RenderedContents } from './emit.js';
 import {
   ExportUnavailableError,
@@ -90,8 +90,8 @@ export interface ExporterOptions {
    */
   readonly readAsset?: (path: string) => Promise<Uint8Array | null>;
   /**
-   * Reads the PDF fallback font (Noto Sans CJK SC, ./cjk-font.ts) for contact-sheet text outside Latin script. The app fetches
-   * it from its own origin; Node reads it from `@caotang/font-noto-cjk` (`@caotang/exporter/fallback-fonts-node`). It is called only
+   * Reads the PDF fallback font (Noto Sans Mono CJK SC, `@caotang/font-noto-cjk`) for contact-sheet text outside Latin script. The app fetches
+   * it from its own origin; Node reads it from `@caotang/font-noto-cjk` (`@caotang/pdf-fonts/node-loader`). It is called only
    * when a contact sheet holds such text. Without it, that text is drawn as `?`, and the compile log says so.
    */
   readonly loadFallbackFont?: FontLoader;

@@ -1,10 +1,10 @@
 /**
- * The contact sheet's fallback fonts, read in Node: the MCP server, and the tests. The app has its own loaders, over `fetch`
- * (apps/desktop/src/app/fallback-fonts.ts), so this file is a subpath of its own (`@caotang/exporter/fallback-fonts-node`) and
- * the package's index never imports it: the browser bundle never sees `node:fs`.
+ * The fallback fonts, read in Node: the MCP server, and the tests. The app has its own loaders, over `fetch`
+ * (apps/desktop/src/app/fallback-fonts.ts), so this file is a subpath of its own (`@caotang/pdf-fonts/node-loader`) and the
+ * package's index never imports it: the browser bundle never sees `node:fs`.
  *
- * Two fonts, each a {@link FontLoader}: Noto Sans CJK SC (`@caotang/font-noto-cjk`, ./cjk-font.ts) and Noto Emoji
- * (`@caotang/font-noto-emoji`, ./emoji-font.ts). Where each loader looks, in order:
+ * Two fonts, each a {@link FontLoader}: Noto Sans Mono CJK SC (`@caotang/font-noto-cjk`) and Noto Emoji
+ * (`@caotang/font-noto-emoji`). Where each loader looks, in order:
  *
  * 1. `fonts/<file>` beside the running module. The MCPB bundle stages both files there, beside `caotang-mcp.mjs`, so the
  *    installed server needs no `node_modules`.
@@ -16,8 +16,8 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { CJK_FONT_FILE, type FontLoader } from './cjk-font.js';
-import { EMOJI_FONT_FILE } from './emoji-font.js';
+import type { FontLoader } from './font-bytes.js';
+import { CJK_FONT_FILE, EMOJI_FONT_FILE } from './font-files.js';
 
 const CJK_PACKAGE = '@caotang/font-noto-cjk';
 const EMOJI_PACKAGE = '@caotang/font-noto-emoji';
@@ -55,7 +55,7 @@ export function emojiFontCandidates(moduleUrl: string = import.meta.url): string
   return fontCandidates(EMOJI_FONT_FILE, EMOJI_PACKAGE, moduleUrl);
 }
 
-/** Reads Noto Sans CJK SC, the fallback for text outside Latin script. */
+/** Reads Noto Sans Mono CJK SC, the fallback for text outside Latin script. */
 export const loadCjkFontInNode: FontLoader = async () => readFirst(CJK_FONT_FILE, cjkFontCandidates());
 
 /** Reads Noto Emoji, the fallback for emoji. */

@@ -1,6 +1,6 @@
 /**
  * The emoji font of the contact-sheet PDF ([storyboard.md](../../../docs/architecture/storyboard.md) §6): the last fallback,
- * after Helvetica and Noto Sans CJK.
+ * after Helvetica and Noto Sans Mono CJK.
  *
  * The font is Noto Emoji Regular 3.002 (OFL-1.1), the monochrome Noto emoji font, as a static TrueType WOFF file in
  * `@caotang/font-noto-emoji` (vendor/noto-emoji, where its source, checksum and build are written down). It draws every
@@ -27,12 +27,6 @@
 
 import { encodeSubset } from '@caotang/pdf-fonts';
 import type * as PdfLib from 'pdf-lib';
-
-/** The emoji font's file name in `@caotang/font-noto-emoji`. */
-export const EMOJI_FONT_FILE = 'NotoEmoji-Regular.woff';
-
-/** The emoji font's name, as the compile log names it. */
-export const EMOJI_FONT_NAME = 'Noto Emoji';
 
 /** The parts of a fontkit glyph this file reads. */
 interface FontkitGlyph {

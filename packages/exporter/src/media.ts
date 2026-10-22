@@ -74,7 +74,7 @@ import {
 } from './coherence-report.js';
 import type { RenderedContents } from './emit.js';
 import { flatten, type FlattenResult } from './flatten.js';
-import type { FontLoader } from './cjk-font.js';
+import type { FontLoader } from '@caotang/pdf-fonts';
 import { drawContactSheet } from './render-contact-sheet.js';
 import { XLSX_MIME, prepareSheet, renderXlsx, type XlsxCell, type XlsxSheet } from './render-xlsx.js';
 import { fileStem, suffixName } from './template.js';
@@ -124,9 +124,9 @@ export interface MediaRequest {
   readonly pageSize?: PageSize;
   /** The moment the compile ran, in ms. The contact sheet's PDF dates are set from it. Absent is now. */
   readonly at?: number;
-  /** Reads the contact sheet's fallback font for text outside Latin script (./cjk-font.ts). Only `contact-sheet-pdf` reads it. */
+  /** Reads the contact sheet's fallback font for text outside Latin script (`@caotang/font-noto-cjk`). Only `contact-sheet-pdf` reads it. */
   readonly loadFallbackFont?: FontLoader;
-  /** Reads the contact sheet's emoji font (./emoji-font.ts). Only `contact-sheet-pdf` reads it, and only for a sheet with emoji. */
+  /** Reads the contact sheet's emoji font (`@caotang/font-noto-emoji`). Only `contact-sheet-pdf` reads it, and only for a sheet with emoji. */
   readonly loadEmojiFont?: FontLoader;
 }
 

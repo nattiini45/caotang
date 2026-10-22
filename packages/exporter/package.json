@@ -8,14 +8,11 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./fallback-fonts-node": "./src/fallback-fonts-node.ts"
+    ".": "./src/index.ts"
   },
   "dependencies": {
     "@caotang/bus": "workspace:*",
     "@caotang/dialogue": "workspace:*",
-    "@caotang/font-noto-cjk": "workspace:*",
-    "@caotang/font-noto-emoji": "workspace:*",
     "@caotang/pdf-fonts": "workspace:*",
     "@caotang/screenplay": "workspace:*",
     "@caotang/store": "workspace:*",

@@ -15,13 +15,13 @@
  * ## The fallback font
  *
  * Helvetica's built-in encoding is WinAnsi: Latin letters with their accents, and common punctuation. Text outside it is set
- * in Noto Sans CJK SC (`./cjk-font.ts`), embedded through `@pdf-lib/fontkit` (exact pin, MIT) as a subset that carries only
+ * in Noto Sans Mono CJK SC (`@caotang/font-noto-cjk`), embedded through `@pdf-lib/fontkit` (exact pin, MIT) as a subset that carries only
  * the glyphs the file draws. Each run of text switches font per character cluster: Helvetica for what WinAnsi encodes, the
  * fallback for the rest. The font is read through the input's `loadFallbackFont`, and only when a run needs it, so a
  * Latin-only sheet never reads it and its bytes do not change.
  *
  * Emoji are set in Noto Emoji (`./emoji-font.ts`), monochrome, the last fallback: a cluster in emoji presentation (🎬, ❤️,
- * 👨‍👩‍👧, 🇩🇪, 1️⃣, 👍🏽) goes to it directly; a pictograph whose default is text (☺, ✌) tries Helvetica and Noto Sans CJK first.
+ * 👨‍👩‍👧, 🇩🇪, 1️⃣, 👍🏽) goes to it directly; a pictograph whose default is text (☺, ✌) tries Helvetica and Noto Sans Mono CJK first.
  * Each emoji is laid out through the font's ligatures as one grapheme cluster, so a sequence is measured, cut and drawn as one
  * unit, and the ToUnicode map gives the exact sequence back when it is copied. The emoji font is read only when a sheet holds
  * an emoji, through the input's `loadEmojiFont`.
@@ -35,12 +35,11 @@
  * does not parse) gets the card's caption in its box instead, and the log names the picture once.
  */
 
-import { loadFontkit, sfntFromWoff } from '@caotang/pdf-fonts';
+import { CJK_FONT_NAME, EMOJI_FONT_NAME, loadFontkit, sfntFromWoff, type FontLoader } from '@caotang/pdf-fonts';
 import type * as PdfLib from 'pdf-lib';
 import { emojiStyleOf, graphemesOf, sniffImage, type PlacedCard, type PlacedText, type SheetPlan } from '@caotang/storyboard';
 
-import { CJK_FONT_NAME, type FontLoader } from './cjk-font.js';
-import { EMOJI_FONT_NAME, EmojiEmbedding, EmojiFace, type EmojiGlyph, type FontkitFont } from './emoji-font.js';
+import { EmojiEmbedding, EmojiFace, type EmojiGlyph, type FontkitFont } from './emoji-font.js';
 
 export const PDF_MIME = 'application/pdf';
 
@@ -59,7 +58,7 @@ export interface ContactSheetPdfInput {
   /** The moment the compile ran: the document's creation and modification dates, so one compile writes one file. */
   readonly at: Date;
   /**
-   * Reads the fallback font for text outside WinAnsi (`./cjk-font.ts`). Called at most once, and only when the sheet holds such
+   * Reads the fallback font for text outside WinAnsi (`@caotang/font-noto-cjk`). Called at most once, and only when the sheet holds such
    * text. Without it, that text is drawn as `?` and the log says so.
    */
   readonly loadFallbackFont?: FontLoader;
@@ -89,7 +88,7 @@ const FRAME_LINE: Shade = { r: 0.7, g: 0.7, b: 0.7 };
 const CHIP_FILL: Shade = { r: 0.15, g: 0.15, b: 0.15 };
 const PAPER: Shade = { r: 1, g: 1, b: 1 };
 
-/** The fonts a piece of text can be set in: Helvetica (or Helvetica-Bold), Noto Sans CJK, Noto Emoji. */
+/** The fonts a piece of text can be set in: Helvetica (or Helvetica-Bold), Noto Sans Mono CJK, Noto Emoji. */
 type Face = 'base' | 'cjk' | 'emoji';
 
 /** One grapheme cluster of a line, resolved to the font that draws it. An emoji carries the glyphs its layout gave. */
