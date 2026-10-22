@@ -31,6 +31,7 @@
  */
 
 import {
+  CidNumbering,
   cutCidSubset,
   devanagariFontPrints,
   devanagariRuns,
@@ -166,6 +167,7 @@ export async function loadRtlSupport(
 interface Collected {
   readonly units: CidUnit[];
   readonly cids: Map<string, number>;
+  readonly numbering: CidNumbering;
 }
 
 const round = (value: number): number => Math.round(value * 100) / 100;
@@ -178,8 +180,8 @@ function placeGlyphs(glyphs: readonly ShapedGlyph[], font: Font, start: number, 
     const key = `${glyph.id}:${glyph.text}`;
     let cid = target.cids.get(key);
     if (cid === undefined) {
-      target.units.push({ glyphId: glyph.id, width: Math.round(glyph.advance * (1000 / font.unitsPerEm)), text: glyph.text });
-      cid = target.units.length;
+      cid = target.numbering.next(glyph.text);
+      target.units.push({ glyphId: glyph.id, width: Math.round(glyph.advance * (1000 / font.unitsPerEm)), text: glyph.text, cid });
       target.cids.set(key, cid);
     }
     const placed = { cid, x: round(x + glyph.dx * scale), y: round(glyph.dy * scale) };
@@ -274,9 +276,10 @@ function planDevanagariLine(text: string, support: RtlSupport, collected: Record
  */
 export async function subsetRtl(pages: readonly LayoutPage[], support: RtlSupport): Promise<PdfRtlFonts> {
   const collected: Record<ShapedScript, Collected> = {
-    arabic: { units: [], cids: new Map() },
-    hebrew: { units: [], cids: new Map() },
-    devanagari: { units: [], cids: new Map() },
+    // A glyph with no text takes a CID pdf.js skips in the two scripts that carry no /ActualText (cid-font.ts CidNumbering).
+    arabic: { units: [], cids: new Map(), numbering: new CidNumbering(true) },
+    hebrew: { units: [], cids: new Map(), numbering: new CidNumbering(true) },
+    devanagari: { units: [], cids: new Map(), numbering: new CidNumbering(false) },
   };
   const lines = new Map<string, readonly PdfRtlItem[]>();
   for (const page of pages) {

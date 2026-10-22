@@ -13,7 +13,7 @@
  * objects are written by {@link CidEmbedding.finish}, once every page is drawn; until then the pages point at `ref`.
  */
 
-import { cidFontObjects, describeSubset, encodeSubset, padGlyphs, type PdfObject, type PdfValue } from '@caotang/pdf-fonts';
+import { CidNumbering, cidFontObjects, describeSubset, encodeSubset, padGlyphs, type PdfObject, type PdfValue } from '@caotang/pdf-fonts';
 import type * as PdfLib from 'pdf-lib';
 
 /** One glyph a text draws: its id in the font, its advance in font units, and the text it stands for when copied. */
@@ -65,7 +65,8 @@ export class CidEmbedding {
   readonly ref: PdfLib.PDFRef;
   private readonly subset: FontkitSubset;
   private readonly cids = new Map<string, number>();
-  private readonly entries: { readonly gid: number; readonly advance: number; readonly text: string }[] = [];
+  private readonly entries: { readonly gid: number; readonly advance: number; readonly text: string; readonly cid: number }[] = [];
+  private readonly numbering: CidNumbering;
   private readonly keys = new Map<PdfLib.PDFPage, PdfLib.PDFName>();
 
   constructor(
@@ -73,7 +74,10 @@ export class CidEmbedding {
     private readonly doc: PdfLib.PDFDocument,
     readonly font: FontkitFont,
     private readonly names: CidFontNames,
+    /** True for a font whose glyphs with no text take a CID pdf.js skips (cid-font.ts CidNumbering): the right-to-left fonts. */
+    textlessCids = false,
   ) {
+    this.numbering = new CidNumbering(textlessCids);
     this.ref = doc.context.nextRef();
     this.subset = font.createSubset();
     padGlyphs(this.subset);
@@ -158,8 +162,8 @@ export class CidEmbedding {
     const known = this.cids.get(key);
     if (known !== undefined) return known;
     const gid = this.subset.includeGlyph(glyph.id);
-    this.entries.push({ gid, advance: glyph.advance, text: glyph.text });
-    const cid = this.entries.length;
+    const cid = this.numbering.next(glyph.text);
+    this.entries.push({ gid, advance: glyph.advance, text: glyph.text, cid });
     this.cids.set(key, cid);
     return cid;
   }
@@ -171,7 +175,7 @@ export class CidEmbedding {
   async finish(): Promise<void> {
     if (!this.used) return;
     const scale = 1000 / this.font.unitsPerEm;
-    const entries = this.entries.map((entry) => ({ gid: entry.gid, width: Math.round(entry.advance * scale * 1000) / 1000, text: entry.text }));
+    const entries = this.entries.map((entry) => ({ gid: entry.gid, width: Math.round(entry.advance * scale * 1000) / 1000, text: entry.text, cid: entry.cid }));
     const program = await encodeSubset(this.subset);
     const subset = describeSubset(this.font, program, entries, this.names.postscriptName, this.names.tag);
     this.register(cidFontObjects(subset));

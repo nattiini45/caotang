@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { NO_TEXT, cidFontObjects, cutCidSubset, toUnicodeCMap, type CidSubset } from '../src/cid-font.js';
+import { CidNumbering, NO_TEXT, cidFontObjects, cutCidSubset, isTextlessCid, toUnicodeCMap, type CidSubset } from '../src/cid-font.js';
 import { loadFont, openFont } from '../src/fontkit.js';
 import { loadCjkFontInNode, loadEmojiFontInNode } from '../src/node-loader.js';
 
@@ -93,5 +93,68 @@ describe('toUnicodeCMap', () => {
     const map = toUnicodeCMap(entries);
     expect([...map.matchAll(/(\d+) beginbfchar/g)].map((match) => match[1])).toEqual(['100', '100', '50']);
     expect(map).toContain('<0001> <D83DDC4D>');
+  });
+});
+
+describe('CidNumbering', () => {
+  it('numbers a font whose pairs all have text 1, 2, 3, ..., as it always was, in either mode', () => {
+    for (const textless of [false, true]) {
+      const numbering = new CidNumbering(textless);
+      expect(Array.from({ length: 5 }, (_, index) => numbering.next(`t${index}`))).toEqual([1, 2, 3, 4, 5]);
+    }
+  });
+
+  it('gives a pair with no text a CID that pdf.js skips as a format character, and never reuses one for text', () => {
+    const numbering = new CidNumbering(true);
+    const dots = Array.from({ length: 5 }, () => numbering.next(''));
+    expect(dots).toEqual([0xad, 0x600, 0x601, 0x602, 0x603]);
+    expect(dots.every((cid) => /^\p{Cf}$/u.test(String.fromCharCode(cid)))).toBe(true);
+    // The pairs with text count up past the code points that are kept for the others (U+00AD = 173).
+    const texted = Array.from({ length: 200 }, () => numbering.next('x'));
+    expect(texted.slice(0, 3)).toEqual([1, 2, 3]);
+    expect(texted).not.toContain(0xad);
+    expect(new Set(texted).size).toBe(200);
+    expect(texted.some(isTextlessCid)).toBe(false);
+  });
+
+  it('keeps the CIDs it hands out unique, and falls back to a counted CID with the zero-width space once the 38 codes are used', () => {
+    const numbering = new CidNumbering(true);
+    const dots = Array.from({ length: 45 }, () => numbering.next(''));
+    expect(new Set(dots).size).toBe(45);
+    expect(dots.slice(0, 38).every(isTextlessCid)).toBe(true);
+    expect(dots.slice(38)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it('counts every pair, a glyph with no text too, when the font is not one of the right-to-left fonts', () => {
+    const numbering = new CidNumbering(false);
+    expect([numbering.next('a'), numbering.next(''), numbering.next('b')]).toEqual([1, 2, 3]);
+  });
+});
+
+describe('a font whose glyphs with no text have CIDs of their own', () => {
+  const entries = [
+    { gid: 1, width: 600, text: 'ب', cid: 1 },
+    { gid: 2, width: 0, text: '', cid: 0x0ad },
+    { gid: 3, width: 500, text: 'ت', cid: 2 },
+    { gid: 4, width: 0, text: '', cid: 0x600 },
+    { gid: 5, width: 0, text: '', cid: 3 },
+  ];
+  const subset: CidSubset = { baseFont: 'ABCDEF+Test', program: new Uint8Array([1]), entries, bbox: [0, 0, 1, 1], ascent: 1, descent: -1, capHeight: 1 };
+  const objects = cidFontObjects(subset);
+
+  it('maps a CID that pdf.js skips to nothing, and a counted CID with no text to the zero-width space', () => {
+    const map = decode(objects[4]?.stream);
+    expect(map).toContain('3 beginbfchar\n<0001> <0628>\n<0002> <062A>\n<0003> <200B>\nendbfchar');
+    expect(map).not.toContain('<00AD>');
+    expect(map).not.toContain('<0600>');
+  });
+
+  it('states the width of each CID in runs of consecutive ones, and sends each CID to its glyph', () => {
+    expect(objects[1]?.dict['W']).toEqual([1, [600, 500, 0], 0xad, [0], 0x600, [0]]);
+    const gids = objects[5]?.stream as Uint8Array;
+    expect(gids.length).toBe(2 * (0x600 + 1));
+    const at = (cid: number): number => ((gids[2 * cid] ?? 0) << 8) | (gids[2 * cid + 1] ?? 0);
+    expect([1, 2, 3, 0xad, 0x600].map(at)).toEqual([1, 3, 5, 2, 4]);
+    expect(at(4)).toBe(0);
   });
 });

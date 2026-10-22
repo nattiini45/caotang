@@ -52,10 +52,10 @@ function missingText(haystack, needles) {
 
 /**
  * A reader's text without U+200B ZERO WIDTH SPACE, and nothing else. It is what the writers' ToUnicode maps hold for a glyph
- * with no text of its own (the positioned dot of an Arabic letter, which Noto Sans Arabic draws as a glyph of its own;
- * `NO_TEXT` in packages/pdf-fonts/src/cid-font.ts): a glyph the map does not name is not a glyph with no text, because pdf.js
- * reads the glyph's character code as its text. The stand-in is no letter of the page, so an engine may or may not pass it on.
- * Every other character a reader gives back stays where it is, a control character, a space or a stray letter inside a word
+ * with no text of its own where the CID cannot be one pdf.js skips (the later glyphs of a Devanagari cluster, or the 39th glyph
+ * of an Arabic font with none; `NO_TEXT` and `CidNumbering` in packages/pdf-fonts/src/cid-font.ts): a glyph the map does not
+ * name is not a glyph with no text, because pdf.js reads the glyph's character code as its text. The stand-in is no letter of
+ * the page, so an engine may or may not pass it on. Every other character a reader gives back stays where it is, a control character, a space or a stray letter inside a word
  * included, and the letters stay in the order the reader gave them, so a word with junk in it or a reversed word still fails.
  */
 export function withoutNoText(text) {

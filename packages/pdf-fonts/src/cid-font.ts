@@ -23,12 +23,15 @@ export interface CidEntry {
   readonly width: number;
   /**
    * The text a reader gets back when it copies the CID. Empty for a CID that draws part of another's text (the positioned dot of
-   * an Arabic letter, the later glyphs of an Indic cluster) or none: the ToUnicode map then holds {@link NO_TEXT} for it.
+   * an Arabic letter, the later glyphs of an Indic cluster) or none. What the ToUnicode map says for it depends on its CID:
+   * see {@link CidNumbering}.
    */
   readonly text: string;
+  /** The CID, when a {@link CidNumbering} chose it; otherwise the entry's place in the list, counting from 1. */
+  readonly cid?: number;
 }
 
-/** A font subset ready to be written: its program, and one entry for each CID, CID 1 first. */
+/** A font subset ready to be written: its program, and one entry for each CID (CID 1 first, unless the entries name theirs). */
 export interface CidSubset {
   /** The subset's name: a six-letter tag, a plus, the PostScript name. */
   readonly baseFont: string;
@@ -46,9 +49,11 @@ export interface CidUnit {
   readonly glyphId: number;
   readonly width: number;
   readonly text: string;
+  /** The CID the host numbered it with ({@link CidNumbering}); otherwise the unit's place in the list, counting from 1. */
+  readonly cid?: number;
 }
 
-/** A subset of the glyphs the units name, one CID per unit in order (CID 1 is the first). */
+/** A subset of the glyphs the units name, one CID per unit (its own, or its place in the list: CID 1 is the first). */
 export async function cutCidSubset(font: Font, units: readonly CidUnit[], postscriptName: string): Promise<CidSubset> {
   const subset = font.createSubset();
   padGlyphs(subset);
@@ -59,7 +64,7 @@ export async function cutCidSubset(font: Font, units: readonly CidUnit[], postsc
       gid = subset.includeGlyph(unit.glyphId as unknown as Parameters<typeof subset.includeGlyph>[0]);
       gids.set(unit.glyphId, gid);
     }
-    return { gid, width: unit.width, text: unit.text };
+    return { gid, width: unit.width, text: unit.text, ...(unit.cid === undefined ? {} : { cid: unit.cid }) };
   });
   return describeSubset(font, await encodeSubset(subset), entries, postscriptName);
 }
@@ -115,14 +120,58 @@ const BFCHAR_BLOCK = 100;
 const hex4 = (value: number): string => value.toString(16).toUpperCase().padStart(4, '0');
 
 /**
- * What the ToUnicode map says for a CID with no text of its own: U+200B ZERO WIDTH SPACE. A CID with no entry is not a CID with
- * no text: pdf.js reads the character code as the text (`toUnicode.get(code) || code`), and the codes are the CIDs, so the dot
- * glyph of an Arabic letter came out inside the word as a control character, and as a space, a letter or a digit once the file
- * had more than 31 CIDs. A zero-width space is a format character (category Cf): pdf.js skips it; a viewer that copies it adds
- * an invisible character that is no letter of the word. It stands for the absence of text and is never text, so
- * `tools/pdf-validate` removes it and nothing else.
+ * What the ToUnicode map says for a CID with no text of its own that {@link CidNumbering} could not give a code of the kind
+ * below: U+200B ZERO WIDTH SPACE, a format character (category Cf) that pdf.js skips. A CID with no entry is not a CID with no
+ * text: pdf.js reads the character code as the text (`toUnicode.get(code) || code`), and the codes are the CIDs. The stand-in
+ * is no letter of the page, so `tools/pdf-validate` removes it from what a reader gives back, and nothing else.
  */
-export const NO_TEXT = '​';
+export const NO_TEXT = '\u200B';
+
+/**
+ * The CIDs of a glyph with no text of its own in a right-to-left font: codes that pdf.js reads as format characters (Cf) and
+ * skips. The positioned dot of an Arabic letter is a glyph of its own with no text, and pdf.js gives a glyph the ToUnicode map
+ * does not name the character whose number is the CID: a control character, and from CID 32 on a space, a letter or a digit,
+ * inside the word. Mapping it to U+200B instead puts a character on the page that Poppler places on the dot's own line, which
+ * cuts the word into pieces ("رأيت" came out in three, the last on the next line). A CID that is a skipped code and has no
+ * ToUnicode entry is neither: Poppler ignores a code that maps to nothing, and pdf.js skips this one.
+ */
+const TEXTLESS_CIDS: readonly number[] = [
+  0x00ad, 0x0600, 0x0601, 0x0602, 0x0603, 0x0604, 0x0605, 0x061c, 0x06dd, 0x070f, 0x200b, 0x200c, 0x200d, 0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e,
+  0x2060, 0x2061, 0x2062, 0x2063, 0x2064, 0x2066, 0x2067, 0x2068, 0x2069, 0x206a, 0x206b, 0x206c, 0x206d, 0x206e, 0x206f, 0xfff9, 0xfffa, 0xfffb,
+];
+const TEXTLESS = new Set(TEXTLESS_CIDS);
+
+/** Whether a CID is one of the codes {@link CidNumbering} keeps for glyphs with no text. */
+export const isTextlessCid = (cid: number): boolean => TEXTLESS.has(cid);
+
+/**
+ * Numbers the CIDs of one font as its (glyph, text) pairs come, so the host can write them into content before the font is cut.
+ * With `textless` on, a pair with no text takes the next of {@link TEXTLESS_CIDS} (its ToUnicode entry is then left out: see
+ * there), and the others count up from 1 without ever taking one of those codes; with it off, or once the codes run out (38
+ * distinct glyphs with no text, more than a document of Arabic holds), every pair counts up and the ToUnicode entry of one with
+ * no text is {@link NO_TEXT}. A font whose pairs all have text is numbered 1, 2, 3, ... as before.
+ */
+export class CidNumbering {
+  private count = 0;
+  private textlessCount = 0;
+
+  constructor(private readonly textless: boolean) {}
+
+  /** The CID of a new pair whose text is `text`. */
+  next(text: string): number {
+    if (text === '' && this.textless && this.textlessCount < TEXTLESS_CIDS.length) {
+      const cid = TEXTLESS_CIDS[this.textlessCount];
+      this.textlessCount += 1;
+      if (cid !== undefined) return cid;
+    }
+    do this.count += 1;
+    while (TEXTLESS.has(this.count) && this.textless);
+    return this.count;
+  }
+}
+
+/** The CID of an entry: the one it was numbered with, or its place in the list, counting from 1. */
+const cidOfEntry = (entry: CidEntry, index: number): number => entry.cid ?? index + 1;
 
 /** UTF-16BE hex of a text, as a ToUnicode destination writes it. */
 function utf16Hex(text: string): string {
@@ -132,11 +181,15 @@ function utf16Hex(text: string): string {
 }
 
 /**
- * The ToUnicode CMap (PDF 1.7 §9.10.3): each CID back to its text, so the text extracts; a CID with no text of its own maps to
- * {@link NO_TEXT}, never to nothing (see there).
+ * The ToUnicode CMap (PDF 1.7 §9.10.3): each CID back to its text, so the text extracts. A CID with no text of its own that is
+ * one of {@link TEXTLESS_CIDS} has no entry (pdf.js skips its code); another maps to {@link NO_TEXT}, never to nothing.
  */
 export function toUnicodeCMap(entries: readonly CidEntry[]): string {
-  const mapped = entries.map((entry, index) => `<${hex4(index + 1)}> <${utf16Hex(entry.text === '' ? NO_TEXT : entry.text)}>`);
+  const mapped = entries.flatMap((entry, index) => {
+    const cid = cidOfEntry(entry, index);
+    if (entry.text === '') return TEXTLESS.has(cid) ? [] : [`<${hex4(cid)}> <${utf16Hex(NO_TEXT)}>`];
+    return [`<${hex4(cid)}> <${utf16Hex(entry.text)}>`];
+  });
   const blocks: string[] = [];
   for (let i = 0; i < mapped.length; i += BFCHAR_BLOCK) {
     const block = mapped.slice(i, i + BFCHAR_BLOCK);
@@ -160,16 +213,35 @@ export function toUnicodeCMap(entries: readonly CidEntry[]): string {
   ].join('\n');
 }
 
+/** The widths of the CIDs as the /W array of a CIDFont writes them: runs of consecutive CIDs, `first [w1 w2 ...]`. */
+function widthRuns(entries: readonly CidEntry[]): PdfValue[] {
+  const byCid = entries.map((entry, index) => ({ cid: cidOfEntry(entry, index), width: entry.width })).sort((a, b) => a.cid - b.cid);
+  const out: PdfValue[] = [];
+  let run: number[] = [];
+  let first = 0;
+  byCid.forEach(({ cid, width }, i) => {
+    if (run.length > 0 && cid === first + run.length) run.push(width);
+    else {
+      if (run.length > 0) out.push(first, run);
+      first = cid;
+      run = [width];
+    }
+    if (i === byCid.length - 1) out.push(first, run);
+  });
+  return out;
+}
+
 /**
  * The six objects of a subset, in this order, referring to each other by index: 0 the Type 0 font (what a page's font
  * resource points at), 1 its CIDFontType2 descendant, 2 the descriptor, 3 the TrueType program, 4 the ToUnicode map and
  * 5 the CIDToGIDMap.
  */
 export function cidFontObjects(font: CidSubset): readonly PdfObject[] {
-  const gidMap = new Uint8Array(2 * (font.entries.length + 1));
+  const gidMap = new Uint8Array(2 * (Math.max(0, ...font.entries.map(cidOfEntry)) + 1));
   font.entries.forEach((entry, i) => {
-    gidMap[2 * (i + 1)] = entry.gid >> 8;
-    gidMap[2 * (i + 1) + 1] = entry.gid & 0xff;
+    const cid = cidOfEntry(entry, i);
+    gidMap[2 * cid] = entry.gid >> 8;
+    gidMap[2 * cid + 1] = entry.gid & 0xff;
   });
   return [
     {
@@ -183,7 +255,7 @@ export function cidFontObjects(font: CidSubset): readonly PdfObject[] {
         CIDSystemInfo: { dict: { Registry: { string: 'Adobe' }, Ordering: { string: 'Identity' }, Supplement: 0 } },
         FontDescriptor: ref(2),
         DW: 1000,
-        W: [1, font.entries.map((entry) => entry.width)],
+        W: widthRuns(font.entries),
         CIDToGIDMap: ref(5),
       },
     },

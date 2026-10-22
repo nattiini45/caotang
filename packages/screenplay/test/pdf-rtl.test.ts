@@ -30,7 +30,7 @@ import {
 import { loadRtlSupport } from '../src/rtl-font.js';
 import { rtlLineKey } from '../src/pdf.js';
 import { text } from './fixtures/corpus.js';
-import { copiedRtl, drawnTexts } from './fixtures/copied-text.js';
+import { copiedRtl, drawnTexts, entryOf } from './fixtures/copied-text.js';
 import { LOADERS } from './fixtures/fonts.js';
 
 function blocksOf(source: string): FlatBlock[] {
@@ -248,7 +248,7 @@ describe('the marks that are left out', () => {
     };
     const { items: marked, fonts } = await plan('بِسْمِ');
     const { items: bare } = await plan('بسم');
-    const isMark = (cid: number): boolean => /^\p{Mn}$/u.test(fonts?.arabic?.entries[cid - 1]?.text ?? '');
+    const isMark = (cid: number): boolean => /^\p{Mn}$/u.test((fonts?.arabic === undefined ? undefined : entryOf(fonts.arabic, cid))?.text ?? '');
     // A mark is a glyph of its own with the mark's text and no outline: set those aside and the drawn glyphs are the bare word's.
     const drawn = (items: typeof marked, withMarks: boolean) =>
       items?.flatMap((item) => (item.kind === 'shaped' ? item.glyphs.filter((glyph) => withMarks || !isMark(glyph.cid)).map((glyph) => glyph.x) : []));
@@ -360,8 +360,9 @@ describe('the file', () => {
     ]);
     expect(arabic).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSansArabic-Regular/);
     expect(hebrew).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSansHebrew-Regular/);
-    // Subsets of TrueType fonts, not the whole file: the file is far smaller than Noto Sans Arabic's 142 KB.
-    expect(arabic.length).toBeLessThan(150_000);
+    // Subsets of TrueType fonts, not the whole file: the file is far smaller than Noto Sans Arabic's 142 KB written in hexadecimal
+    // (284 KB). The CID-to-glyph map of a font whose dots take the CIDs of skipped codes (cid-font.ts) is a few KB longer than a dense one.
+    expect(arabic.length).toBeLessThan(170_000);
   });
 
   it('is byte for byte the same for a Latin-only script whether or not the Arabic and Hebrew fonts and a right-to-left language are given', async () => {

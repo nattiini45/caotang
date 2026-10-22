@@ -4,7 +4,7 @@
  * of its own with no text, and pdf.js reads a glyph the ToUnicode map does not name as the character whose number is the CID
  * (`toUnicode.get(code) || code`). The CIDs are numbered in the order the file first prints each (glyph, text) pair, so a file
  * with a few dozen of them already puts a space, a letter or a digit in the middle of a word. The dot glyphs therefore map to
- * U+200B (`NO_TEXT`), which pdf.js skips; this runs a file with more than a hundred CIDs ahead of its last dotted letters.
+ * CIDs pdf.js skips as format characters (`CidNumbering`, pdf-fonts cid-font.ts); this runs a file with more than a hundred CIDs ahead of its last dotted letters. (U+200B would not do: Poppler cuts a word at it.)
  */
 
 import { join } from 'node:path';

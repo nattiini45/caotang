@@ -73,6 +73,6 @@ export class RtlEmbedding extends CidEmbedding {
       resource: face.script === 'arabic' ? 'NotoArabic' : 'NotoHebrew',
       tag: face.script === 'arabic' ? 'CAOTAR' : 'CAOTHE',
       postscriptName: face.font.postscriptName ?? (face.script === 'arabic' ? 'NotoSansArabic-Regular' : 'NotoSansHebrew-Regular'),
-    });
+    }, true);
   }
 }
