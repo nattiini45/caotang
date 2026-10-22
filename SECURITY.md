@@ -34,7 +34,7 @@ Only the latest release is supported. Fixes go into the next release, not into o
 
 The full statement is in [docs/architecture/provider-gateway.md](docs/architecture/provider-gateway.md) §7 and, for MCP, [docs/architecture/extensibility.md](docs/architecture/extensibility.md) §4 and §9.
 
-- **There is no Caotang server.** The app is static files. Projects stay in your browser, or in a folder you choose.
+- **There is no Caotang server.** The app is static files. Projects stay in your browser, or in a folder you choose. A hosted instance with end-to-end encrypted storage is a roadmap spec, [hosted.md](docs/architecture/hosted.md), and is not built.
 - **Provider calls go straight from your browser to your provider.** The agent sends requests only to the provider you configured, and to MCP servers you connected yourself. The built-in demo provider makes no network request.
 - **Keys are sealed.** Provider keys and MCP bearer tokens are encrypted with AES-GCM under a non-extractable WebCrypto key, stored in IndexedDB outside the project database. Plaintext keys never go into localStorage.
 - **Keys never leave with your work.** No key, token or provider address is written into a project, a bundle or an export.
