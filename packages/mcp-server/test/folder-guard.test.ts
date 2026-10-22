@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 
 import { FolderChangedError, openProject, type ProjectSession } from '../src/index.js';
 
-import { HAND_WRITTEN_DOC, HAND_WRITTEN_DOC_NAME, LANDING, LANDING_BODY, folderBytes, removeDir, seedProject, tempDir } from './support.js';
+import { HAND_WRITTEN_DOC, HAND_WRITTEN_DOC_NAME, LANDING, LANDING_BODY, connectClient, folderBytes, removeDir, seedProject, startFixture, tempDir } from './support.js';
 
 /** The document's path as the server names it: POSIX, whatever the platform (the writer's own paths are POSIX too). */
 const DOC_PATH = `docs/${LANDING}.md`;
@@ -51,6 +51,27 @@ describe('a save refuses to overwrite a document another program edited', () => 
       const refused = session.callDirect('meta.set', 'call-named', { targets: [LANDING], status: 'final' }, 'turn-named');
       await expect(refused).rejects.toThrow('because another program changed the document “The Landing”.');
       await expect(refused).rejects.toThrow('The change is in memory and is not saved.');
+    } finally {
+      await session.close();
+      removeDir(root);
+    }
+  });
+
+  it('the refusal names the project by its name, and not by the folder path it is open at', async () => {
+    const { root, session } = await openSeeded('guard-path');
+    try {
+      appendFileSync(join(root, DOC_PATH), MARKER);
+
+      const refused = session.callDirect('meta.set', 'call-path', { targets: [LANDING], status: 'final' }, 'turn-path');
+      const message = await refused.then(
+        () => '',
+        (caught: unknown) => (caught instanceof Error ? caught.message : String(caught)),
+      );
+      // The refusal is read by an external model, so it must not carry the machine's own
+      // path to the project: that is a stronger identifier than any file name, and it
+      // leaves the machine for the provider the caller chose.
+      expect(message).not.toContain(root);
+      expect(message).toContain('“Guarded Book”');
     } finally {
       await session.close();
       removeDir(root);
@@ -137,6 +158,34 @@ describe('a save refuses to delete a document another program added', () => {
 });
 
 describe('a save that fails part way does not stop the server', () => {
+  it('a save that could not finish names the failure by its code, not by the machine path of the file', async () => {
+    const fixture = await startFixture({ label: 'guard-reason', allowWrites: true, seed: true });
+    // A directory where the manifest's snapshot rotation writes a file: the document is written
+    // first, then the save fails before the manifest, with the error Node gives for that write.
+    const blocker = join(fixture.root, 'caotang.json.bak.1');
+    try {
+      mkdirSync(blocker);
+      const client = await connectClient(fixture.url, fixture.token);
+      try {
+        const result = await client.callTool({ name: 'meta.set', arguments: { targets: [LANDING], status: 'final' } });
+        const message = JSON.stringify(result);
+        // The reason an external caller reads is the class of failure. A raw error message
+        // carries the machine's path to the file it hit, and that is an identifier the
+        // refusal must not give away: §4 rule 5 names a file by its title and name.
+        expect(message).not.toContain(fixture.root);
+        // The class of the failure, and not one machine's name of it: reading a directory is
+        // EISDIR on Linux, and EACCES or EPERM on Windows.
+        expect(message).toMatch(/\bE[A-Z]+\b/);
+        // No raw error text comes along: it would carry the machine's own path to the file.
+        expect(message).not.toMatch(/illegal operation|operation not permitted/);
+      } finally {
+        await client.close();
+      }
+    } finally {
+      await fixture.close();
+    }
+  });
+
   it('the next save goes through, because this server’s own partial write is not another program’s change', async () => {
     const { root, session } = await openSeeded('guard-partial');
     // A directory where the manifest's snapshot rotation writes a file: the document is written first, then the save fails before the manifest.

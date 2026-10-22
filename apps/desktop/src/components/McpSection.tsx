@@ -82,6 +82,11 @@ function ServerCard({ mcp, server, onChanged }: { mcp: McpApp; server: McpServer
     setBusy(true);
     try {
       setMessage(outcomeMessage(await action(), done));
+    } catch (error) {
+      // A failure that is not a refusal is still a failure, and it is said: a vault that cannot
+      // take a token back leaves a sealed token behind, and a rejection that vanishes would
+      // leave the person with a card that says "Removed." and a token nobody can name.
+      setMessage({ text: `The action did not finish: ${error instanceof Error ? error.message : String(error)}`, tone: 'error' });
     } finally {
       setBusy(false);
       onChanged();
