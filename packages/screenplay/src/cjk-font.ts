@@ -13,9 +13,10 @@
  * fetched from another host.
  */
 
+import { encodeSubset, openFont, subsetTag } from '@caotang/pdf-fonts';
 import type { Font } from '@pdf-lib/fontkit';
 
-import { encodeSubset, fontFileBytes, fontkit, subsetTag } from './font-file.js';
+import { fontFileBytes } from './font-file.js';
 import type { PdfCidFont, PdfCidGlyph } from './pdf.js';
 import { charColumns } from './width.js';
 
@@ -30,7 +31,7 @@ let loaded: Promise<Font> | undefined;
 /** The parsed fallback font. Loaded once per session. */
 export function loadNotoCjk(): Promise<Font> {
   loaded ??= fontFileBytes(FONT_URL, 'CJK fallback font').then(
-    (bytes) => fontkit.create(bytes),
+    (bytes) => openFont(bytes),
     (error: unknown) => {
       loaded = undefined;
       throw error;

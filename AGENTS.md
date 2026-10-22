@@ -74,6 +74,7 @@ packages/harness/        the agent harness — its tools and its registry
 packages/ids/           id helpers
 packages/mcp-client/     MCP client (Streamable HTTP)
 packages/mcp-server/     Caotang as an MCP server (@caotang/mcp-server)
+packages/pdf-fonts/      what both PDFs share for their fallback fonts (byte checks, fontkit, CID writer, emoji)
 packages/screenplay/     Fountain screenplay model
 packages/store/          the project store and the manifest
 packages/storyboard/     shot cards and animatics

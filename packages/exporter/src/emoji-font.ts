@@ -25,6 +25,7 @@
  * and 👍 gives 👍, though the two draw the same glyph.
  */
 
+import { encodeSubset } from '@caotang/pdf-fonts';
 import type * as PdfLib from 'pdf-lib';
 
 /** The emoji font's file name in `@caotang/font-noto-emoji`. */
@@ -201,21 +202,7 @@ export class EmojiEmbedding {
     const scale = 1000 / font.unitsPerEm;
     const name = `CAOTEM+${font.postscriptName ?? 'NotoEmoji-Regular'}`;
 
-    const program = await new Promise<Uint8Array>((resolve, reject) => {
-      const parts: Uint8Array[] = [];
-      const stream = this.subset.encodeStream();
-      stream.on('data', (bytes) => parts.push(bytes as Uint8Array));
-      stream.on('end', () => {
-        const out = new Uint8Array(parts.reduce((sum, part) => sum + part.byteLength, 0));
-        let at = 0;
-        for (const part of parts) {
-          out.set(part, at);
-          at += part.byteLength;
-        }
-        resolve(out);
-      });
-      stream.on('error', (error) => reject(error instanceof Error ? error : new Error(String(error))));
-    });
+    const program = await encodeSubset(this.subset);
 
     const cidToGid = new Uint8Array((this.entries.length + 1) * 2);
     this.entries.forEach((entry, index) => {

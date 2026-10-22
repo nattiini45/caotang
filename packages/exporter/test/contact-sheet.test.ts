@@ -796,6 +796,27 @@ describe('contact-sheet-pdf — emoji, in the Noto Emoji fallback font', () => {
     expect(doc.context.lookup(embedding.ref)).toBeUndefined();
   });
 
+  it('rejects when fontkit throws while it encodes the emoji subset, which it does on the next tick, instead of hanging', async () => {
+    const lib = await import('pdf-lib');
+    const doc = await PDFDocument.create();
+    const face = await noto();
+    const embedding = new EmojiEmbedding(lib, doc, face);
+    const page = doc.addPage();
+    const glyphs = face.glyphsOf('👍');
+    if (glyphs === null) throw new Error('the font draws 👍');
+    embedding.draw(page, glyphs, 10, 10, 12, { r: 0, g: 0, b: 0 });
+    const subset = (embedding as unknown as { subset: { encode: () => void } }).subset;
+    subset.encode = () => {
+      throw new Error('encode failed');
+    };
+    const outcome = await Promise.race([
+      embedding.finish().then(() => 'resolved', (error: unknown) => error),
+      new Promise((resolve) => setTimeout(() => resolve('pending'), 2000)),
+    ]);
+    expect(outcome).toBeInstanceOf(Error);
+    expect((outcome as Error).message).toBe('encode failed');
+  });
+
   it('draws emoji as "?", and says why, when the compile has no emoji font or it cannot be read', async () => {
     const none = await compileSheet(rig({ state: withAction('🎬') }).exporter);
     expect(none.result.log.notes).toContain(
@@ -980,9 +1001,12 @@ describe('pdf-lib is loaded lazily', () => {
 
   it('loads fontkit with a dynamic import() too, and keeps the Node font loader out of the package index', () => {
     const source = readFileSync(resolve(__dirname, '../src/render-contact-sheet.ts'), 'utf8');
-    expect(source).toMatch(/import\('@pdf-lib\/fontkit'\)/);
-    expect(source).not.toMatch(/^import [^\n]*from '@pdf-lib\/fontkit'/m);
-    const woff = readFileSync(resolve(__dirname, '../src/cjk-font.ts'), 'utf8');
+    expect(source).not.toMatch(/^import (?!type )[^\n]*from '@pdf-lib\/fontkit'/m);
+    // The shared module loads it, on first use.
+    const shared = readFileSync(resolve(__dirname, '../../pdf-fonts/src/fontkit.ts'), 'utf8');
+    expect(shared).toMatch(/import\('@pdf-lib\/fontkit'\)/);
+    expect(shared).not.toMatch(/^import (?!type )[^\n]*from '@pdf-lib\/fontkit'/m);
+    const woff = readFileSync(resolve(__dirname, '../../pdf-fonts/src/font-bytes.ts'), 'utf8');
     expect(woff).toMatch(/await import\('fflate\/browser'\)/);
     expect(woff).not.toMatch(/^import (?!type )[^;]*from 'fflate[^']*';/m);
     for (const file of ['exporter.ts', 'media.ts', 'index.ts', 'render-contact-sheet.ts', 'cjk-font.ts', 'emoji-font.ts']) {

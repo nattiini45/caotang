@@ -16,6 +16,7 @@
     "@caotang/dialogue": "workspace:*",
     "@caotang/font-noto-cjk": "workspace:*",
     "@caotang/font-noto-emoji": "workspace:*",
+    "@caotang/pdf-fonts": "workspace:*",
     "@caotang/screenplay": "workspace:*",
     "@caotang/store": "workspace:*",
     "@caotang/storyboard": "workspace:*",

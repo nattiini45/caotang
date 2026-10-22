@@ -35,10 +35,11 @@
  * does not parse) gets the card's caption in its box instead, and the log names the picture once.
  */
 
+import { loadFontkit, sfntFromWoff } from '@caotang/pdf-fonts';
 import type * as PdfLib from 'pdf-lib';
 import { emojiStyleOf, graphemesOf, sniffImage, type PlacedCard, type PlacedText, type SheetPlan } from '@caotang/storyboard';
 
-import { CJK_FONT_NAME, sfntFromWoff, type FontLoader } from './cjk-font.js';
+import { CJK_FONT_NAME, type FontLoader } from './cjk-font.js';
 import { EMOJI_FONT_NAME, EmojiEmbedding, EmojiFace, type EmojiGlyph, type FontkitFont } from './emoji-font.js';
 
 export const PDF_MIME = 'application/pdf';
@@ -150,11 +151,6 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
   /** What WinAnsi encodes: the same set for Helvetica and Helvetica-Bold. */
   const builtIn = new Set(regular.getCharacterSet());
 
-  // The fonts are imported once, the first time a fallback font is needed.
-  let fontkitModule: Promise<{ default: { create(bytes: Uint8Array): unknown } }> | undefined;
-  const fontkitOnce = (): Promise<{ default: { create(bytes: Uint8Array): unknown } }> =>
-    (fontkitModule ??= import('@pdf-lib/fontkit') as unknown as Promise<{ default: { create(bytes: Uint8Array): unknown } }>);
-
   // The fallback font, embedded the first time a run needs it. `null` once it is known to be unavailable, with the reason.
   let fallback: { font: PdfLib.PDFFont; covers: Set<number> } | null | undefined;
   let fallbackError = '';
@@ -166,8 +162,8 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
       return fallback;
     }
     try {
-      const [bytes, fontkit] = await Promise.all([input.loadFallbackFont(), fontkitOnce()]);
-      pdf.registerFontkit(fontkit.default as Parameters<PdfLib.PDFDocument['registerFontkit']>[0]);
+      const [bytes, fontkit] = await Promise.all([input.loadFallbackFont(), loadFontkit()]);
+      pdf.registerFontkit(fontkit as Parameters<PdfLib.PDFDocument['registerFontkit']>[0]);
       const font = await pdf.embedFont(await sfntFromWoff(bytes), { subset: true });
       fallback = { font, covers: new Set(font.getCharacterSet()) };
     } catch (error) {
@@ -188,8 +184,8 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
       return emoji;
     }
     try {
-      const [bytes, fontkit] = await Promise.all([input.loadEmojiFont(), fontkitOnce()]);
-      const face = new EmojiFace(fontkit.default.create(await sfntFromWoff(bytes)) as FontkitFont);
+      const [bytes, fontkit] = await Promise.all([input.loadEmojiFont(), loadFontkit()]);
+      const face = new EmojiFace(fontkit.create(await sfntFromWoff(bytes) as Buffer) as unknown as FontkitFont);
       emoji = new EmojiEmbedding(lib, pdf, face);
     } catch (error) {
       emojiError = `the emoji font could not be read (${error instanceof Error ? error.message : String(error)})`;

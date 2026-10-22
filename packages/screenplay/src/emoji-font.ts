@@ -15,10 +15,11 @@
  * prints. The file is loaded from the app's own origin in the browser, or from disk under Node.
  */
 
+import { encodeSubset, openFont, padGlyphs, subsetTag } from '@caotang/pdf-fonts';
 import type { Font, Glyph } from '@pdf-lib/fontkit';
 
 import { emojiKey, firstCodePoint, isEmojiCluster } from './emoji.js';
-import { encodeSubset, fontFileBytes, fontkit, subsetTag } from './font-file.js';
+import { fontFileBytes } from './font-file.js';
 import type { PdfEmojiFont, PdfEmojiGlyph } from './pdf.js';
 import { LAYOUT } from './paginate.js';
 import { unitColumns } from './width.js';
@@ -40,7 +41,7 @@ let loaded: Promise<Font> | undefined;
 /** The parsed emoji font. Loaded once per session. */
 export function loadNotoEmoji(): Promise<Font> {
   loaded ??= fontFileBytes(FONT_URL, 'emoji fallback font').then(
-    (bytes) => fontkit.create(bytes),
+    (bytes) => openFont(bytes),
     (error: unknown) => {
       loaded = undefined;
       throw error;
@@ -69,36 +70,6 @@ export function emojiGlyph(font: Font, unit: string): Glyph | undefined {
     if (glyph !== undefined) return glyph;
   }
   return undefined;
-}
-
-interface TtfSubsetInternals {
-  _addGlyph(gid: number): number;
-  glyf: Uint8Array[];
-  offset: number;
-}
-
-/**
- * fontkit 1.1.1 writes a TrueType subset's `loca` in the short format, which stores each offset halved, whenever the
- * glyph data is under 128 KB (loca.preEncode), but copies each glyph's bytes as the source font has them
- * (TTFSubset._addGlyph). Noto Emoji's glyphs are not padded, so a glyph of odd length would shift every glyph after it
- * by a byte. Each glyph copied into the subset is padded to an even length here; a pad byte after a glyph is ignored.
- */
-function padGlyphs(subset: ReturnType<Font['createSubset']>): void {
-  const internals = subset as unknown as TtfSubsetInternals;
-  const add = internals._addGlyph.bind(subset);
-  internals._addGlyph = (gid) => {
-    const index = add(gid);
-    const last = internals.glyf[internals.glyf.length - 1];
-    if (last !== undefined && last.length % 2 === 1) {
-      // The copy is a Buffer under Node; the same type is used for the padded one.
-      const make = (last.constructor as { alloc?: (size: number) => Uint8Array }).alloc;
-      const padded = typeof make === 'function' ? make(last.length + 1) : new Uint8Array(last.length + 1);
-      padded.set(last);
-      internals.glyf[internals.glyf.length - 1] = padded;
-      internals.offset += 1;
-    }
-    return index;
-  };
 }
 
 /** Code point order, so the same units always give the same subset. */
