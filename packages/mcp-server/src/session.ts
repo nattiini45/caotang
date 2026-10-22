@@ -30,7 +30,7 @@ import { resolve } from 'node:path';
 
 import { ApplyRefusal, type CommandError } from '@caotang/bus';
 import { assetRecordsOf, createExporter, exportMetadataOf, type ExportDispatch, type ExporterService } from '@caotang/exporter';
-import { loadCjkFontInNode, loadEmojiFontInNode } from '@caotang/pdf-fonts/node-loader';
+import { loadArabicFontInNode, loadCjkFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
 import { codexReadPort, createHarness, metadataFor, type Harness, type ToolOutcome } from '@caotang/harness';
 import { isIdWithPrefix } from '@caotang/ids';
 import {
@@ -433,6 +433,9 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
       loadFallbackFont: loadCjkFontInNode,
       // Their emoji font (Noto Emoji, monochrome): from fonts/ beside the bundle, or from @caotang/font-noto-emoji.
       loadEmojiFont: loadEmojiFontInNode,
+      // Their Arabic and Hebrew fonts: from fonts/ beside the bundle, or from @caotang/font-noto-arabic and @caotang/font-noto-hebrew.
+      loadArabicFont: loadArabicFontInNode,
+      loadHebrewFont: loadHebrewFontInNode,
     });
     await exporter.ready();
 
