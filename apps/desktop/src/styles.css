@@ -1703,6 +1703,33 @@ dialog.export-dialog::backdrop {
   list-style: none;
 }
 
+.thread-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.thread-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.thread-row > span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.thread-actions {
+  display: flex;
+  gap: 6px;
+}
+
 .picker-row {
   display: grid;
   grid-template-columns: 1fr 1fr;

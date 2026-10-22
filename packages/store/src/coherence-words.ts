@@ -15,6 +15,7 @@ const DECLARATION_WORDS: Readonly<Record<string, string>> = {
   after: 'dependencies',
   expectedPresent: 'expected presence',
   timelineMode: 'timeline mode',
+  threads: 'threads',
 };
 
 /** Joins words the way a sentence does: `a`, `a and b`, `a, b and c`. */

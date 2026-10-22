@@ -1,12 +1,12 @@
 /**
  * The inspector's sections that reach beyond the node's own fields: the codex (codex.md §8: the attach picker, the entries
  * attached here, and the mention chips detected in this document) and the scene declarations (coherence.md §5.2, §8: POV,
- * day offsets, the `after` and `expected present` lists, and the timeline mode), and the export style (exporter.md §2, Per-scene styling).
+ * day offsets, the `after` and `expected present` lists, the timeline mode and the setup → payoff threads), and the export style (exporter.md §2, Per-scene styling).
  * Each change is one bus command.
  */
 
-import { type ReactNode } from 'react';
-import { SCENE_STYLES, TIMELINE_MODES, type ScenePatch } from '@caotang/bus';
+import { useState, type ReactNode } from 'react';
+import { SCENE_STYLES, THREAD_ID_LIMIT, THREAD_NOTE_LIMIT, TIMELINE_MODES, type ScenePatch, type SceneThread } from '@caotang/bus';
 import type { CodexEntry, TreeNode } from '@caotang/store';
 
 import { attachEntry, explain, setSceneStyle } from './actions.js';
@@ -239,7 +239,101 @@ export function SceneMetaSection({ session, node }: { session: ProjectSession; n
         onRemove={(id) => apply({ expectedPresent_remove: [id] })}
         removeLabel={(title) => `Stop expecting ${title}`}
       />
+      <ThreadsEditor key={node.id} threads={meta.threads ?? []} documents={documents} apply={apply} />
     </details>
+  );
+}
+
+/**
+ * The threads this scene sets up (coherence.md §5.5): a handle, the scene that pays it off, and a line on what the payoff is
+ * for. Editing a thread removes it and adds it back in one patch, so it is one command and one undo.
+ */
+function ThreadsEditor({
+  threads,
+  documents,
+  apply,
+}: {
+  threads: readonly SceneThread[];
+  documents: readonly { readonly id: string; readonly title: string }[];
+  apply: (patch: ScenePatch) => void;
+}): ReactNode {
+  const [editing, setEditing] = useState<string | null>(null);
+  const [handle, setHandle] = useState('');
+  const [payoff, setPayoff] = useState('');
+  const [note, setNote] = useState('');
+  const reset = (): void => {
+    setEditing(null);
+    setHandle('');
+    setPayoff('');
+    setNote('');
+  };
+  const submit = (): void => {
+    const thread: SceneThread = note.trim() === '' ? { id: handle.trim(), payoff } : { id: handle.trim(), payoff, note: note.trim() };
+    apply(editing === null ? { threads_add: [thread] } : { threads_remove: [editing], threads_add: [thread] });
+    reset();
+  };
+  const titleOf = (id: string): string => documents.find((doc) => doc.id === id)?.title ?? 'a document that is gone';
+
+  return (
+    <div className="scene-chips scene-threads" data-testid="scene-threads">
+      <p className="field-label">Threads this scene sets up</p>
+      <ul className="thread-list" aria-label="Threads">
+        {threads.length === 0 ? <li className="field-note">None declared.</li> : null}
+        {threads.map((thread) => (
+          <li key={thread.id} className="thread-row">
+            <span>
+              <strong>{thread.id}</strong> is paid off in {titleOf(thread.payoff)}
+              {thread.note === undefined ? '' : `: ${thread.note}`}
+            </span>
+            <button
+              type="button"
+              className="chip-remove"
+              aria-label={`Edit the thread ${thread.id}`}
+              onClick={() => {
+                setEditing(thread.id);
+                setHandle(thread.id);
+                setPayoff(thread.payoff);
+                setNote(thread.note ?? '');
+              }}
+            >
+              Edit
+            </button>
+            <button type="button" className="chip-remove" aria-label={`Remove the thread ${thread.id}`} onClick={() => apply({ threads_remove: [thread.id] })}>
+              ×
+            </button>
+          </li>
+        ))}
+      </ul>
+      <label className="scene-field">
+        <span>Thread name</span>
+        <input type="text" aria-label="Thread name" maxLength={THREAD_ID_LIMIT} value={handle} onChange={(event) => setHandle(event.target.value)} />
+      </label>
+      <label className="scene-field">
+        <span>Paid off in</span>
+        <select aria-label="Paid off in" value={payoff} onChange={(event) => setPayoff(event.target.value)}>
+          <option value="">Choose a scene…</option>
+          {documents.map((doc) => (
+            <option key={doc.id} value={doc.id}>
+              {doc.title}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="scene-field">
+        <span>What the payoff is for</span>
+        <input type="text" aria-label="What the payoff is for" maxLength={THREAD_NOTE_LIMIT} value={note} onChange={(event) => setNote(event.target.value)} />
+      </label>
+      <div className="thread-actions">
+        <button type="button" disabled={handle.trim() === '' || payoff === ''} onClick={submit}>
+          {editing === null ? 'Add thread' : 'Save thread'}
+        </button>
+        {editing === null ? null : (
+          <button type="button" onClick={reset}>
+            Cancel
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 

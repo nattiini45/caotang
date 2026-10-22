@@ -227,7 +227,15 @@ export interface CoherenceRun {
   notes?: string[];
 }
 
-/** §5.2 plus §5.2.1. Keys of `sceneMeta` are binder node ids: documents, and folders for window spans. */
+/** §5.5: a thread the writer declares on the scene that sets it up. `id` is the writer's handle, `payoff` the document that pays it off. */
+export interface SceneThread {
+  id: string;
+  payoff: string;
+  /** One line on what the payoff is for. No check reads it. */
+  note?: string;
+}
+
+/** §5.2 plus §5.2.1 and §5.5. Keys of `sceneMeta` are binder node ids: documents, and folders for window spans. */
 export interface SceneMeta {
   /** A codex entry id (§5.2). Free text is accepted and reported as an unanchored finding. */
   pov?: string;
@@ -241,6 +249,8 @@ export interface SceneMeta {
   expectedPresent?: string[];
   /** §5.2.1. Absent is `linear`. */
   timelineMode?: TimelineMode;
+  /** §5.5. Additive: absent and an empty list both mean the scene declares no thread. */
+  threads?: SceneThread[];
 }
 
 export interface WorldRule {

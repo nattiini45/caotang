@@ -36,6 +36,7 @@ import {
   type Redetection,
   type ReviewStateEntry,
   type SceneMeta,
+  type SceneThread,
   type TimelineMode,
   type WorldRule,
 } from './model.js';
@@ -78,7 +79,8 @@ const FINDING_KEYS = [
 const RUN_KEYS = [
   'id', 'at', 'kind', 'checkIds', 'scope', 'findingsUpserted', 'tokens', 'model', 'status', 'notes',
 ] as const;
-const SCENE_META_KEYS = ['pov', 'dayOffset', 'durationDays', 'after', 'expectedPresent', 'timelineMode'] as const;
+const SCENE_META_KEYS = ['pov', 'dayOffset', 'durationDays', 'after', 'expectedPresent', 'timelineMode', 'threads'] as const;
+const THREAD_KEYS = ['id', 'payoff', 'note'] as const;
 const WORLD_RULE_KEYS = ['id', 'text', 'origin', 'source', 'verified', 'createdAt', 'updatedAt'] as const;
 const TOP_KEYS = ['formatVersion', 'findings', 'runs', 'sceneMeta', 'worldRules', 'reviewState'] as const;
 
@@ -350,7 +352,39 @@ export function readSceneMeta(raw: unknown, notices: LoadNotice[], key: string, 
       modes.add(String(mode));
     }
   }
+  if (raw.threads !== undefined) {
+    if (Array.isArray(raw.threads)) {
+      const threads = readThreads(raw.threads, notices, key);
+      if (threads.length > 0) meta.threads = threads;
+    } else dropped('threads');
+  }
   return meta;
+}
+
+/**
+ * Reads §5.5's threads. An entry that is not a thread, or repeats a handle (compared without case, as the fact group is),
+ * is dropped with a notice and the rest are kept. An unknown field on an entry is reported, as on the scene itself.
+ */
+function readThreads(raw: readonly unknown[], notices: LoadNotice[], key: string): SceneThread[] {
+  const threads = new Map<string, SceneThread>();
+  for (const item of raw) {
+    if (!isRecord(item) || !isNonEmptyString(item.id) || !isNonEmptyString(item.payoff) || (item.note !== undefined && typeof item.note !== 'string')) {
+      notices.push({ code: 'dropped-scene-meta', message: `A thread declared on "${key}" is malformed and was dropped.` });
+      continue;
+    }
+    const id = item.id.trim();
+    const handle = id.toLowerCase();
+    if (threads.has(handle)) {
+      notices.push({ code: 'dropped-scene-meta', message: `The thread "${id}" is declared twice on "${key}"; the second was dropped.` });
+      continue;
+    }
+    for (const extra of unknownKeys(item, THREAD_KEYS)) {
+      notices.push({ code: 'unknown-field', message: `A thread on "${key}" has a field this version does not know ("${extra}"); it is dropped on the next save.` });
+    }
+    const note = typeof item.note === 'string' ? item.note.trim() : '';
+    threads.set(handle, note === '' ? { id, payoff: item.payoff } : { id, payoff: item.payoff, note });
+  }
+  return [...threads.values()];
 }
 
 /** Serializes in §3's field order, with keys sorted where the spec leaves order to the map. */
