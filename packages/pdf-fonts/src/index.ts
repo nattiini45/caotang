@@ -32,6 +32,7 @@ export {
 } from './cid-font.js';
 export {
   emojiKey,
+  emojiLayoutGlyph,
   emojiPrint,
   emojiStyleOf,
   firstCodePoint,
@@ -40,7 +41,16 @@ export {
   isEmojiPicture,
   type EmojiStyle,
 } from './emoji.js';
-export { arabicFontMaps, emojiFontHasSequence, emojiFontHasTonedSequence, emojiFontMaps, fallbackCovers, hebrewFontMaps, inRanges } from './coverage.js';
+export {
+  arabicFontMaps,
+  emojiFontHasSequence,
+  emojiFontHasTonedSequence,
+  emojiFontLayoutGlyph,
+  emojiFontMaps,
+  fallbackCovers,
+  hebrewFontMaps,
+  inRanges,
+} from './coverage.js';
 export {
   countMarks,
   hasBidiControl,

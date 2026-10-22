@@ -12,14 +12,17 @@ import { NOTO_ARABIC_CODE_POINTS } from '../src/coverage/noto-arabic-coverage.js
 import { NOTO_CJK_CODE_POINTS } from '../src/coverage/noto-cjk-coverage.js';
 import {
   NOTO_EMOJI_CODE_POINTS,
+  NOTO_EMOJI_LAYOUT,
   NOTO_EMOJI_RANGES,
   NOTO_EMOJI_SEQUENCES,
   NOTO_EMOJI_TONED,
 } from '../src/coverage/noto-emoji-coverage.js';
 import { NOTO_HEBREW_CODE_POINTS } from '../src/coverage/noto-hebrew-coverage.js';
-import { arabicFontMaps, emojiFontMaps, fallbackCovers, hebrewFontMaps } from '../src/coverage.js';
+import { arabicFontMaps, emojiFontLayoutGlyph, emojiFontMaps, fallbackCovers, hebrewFontMaps } from '../src/coverage.js';
+import { emojiKey } from '../src/emoji.js';
 import { ARABIC_FONT_FILE, CJK_FONT_FILE, EMOJI_FONT_FILE, HEBREW_FONT_FILE } from '../src/font-files.js';
 import { loadFont } from '../src/fontkit.js';
+import { harfbuzzEmoji } from './harfbuzz-reference.js';
 import { loadArabicFontInNode, loadCjkFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '../src/node-loader.js';
 
 const VENDOR = new URL('../../../vendor/', import.meta.url);
@@ -117,6 +120,43 @@ describe('the emoji coverage tables', () => {
       }
     }
   });
+
+  it('give the glyph HarfBuzz lays out for each key fontkit does not reach, and leave out every other', async () => {
+    const harfbuzz = await harfbuzzEmoji();
+    // What fontkit reaches, the way the PDFs try it: the cluster, without its variation selectors, its key.
+    const reached = (unit: string): number | undefined => {
+      for (const form of [unit, unit.replace(/️/g, ''), emojiKey(unit)]) {
+        const glyphs = font.layout(form).glyphs;
+        if (glyphs.length === 1 && glyphs[0] !== undefined && glyphs[0].id !== 0) return glyphs[0].id;
+      }
+      return undefined;
+    };
+    const fullyQualified = readFileSync(EMOJI_TEST_PATH, 'utf8')
+      .split('\n')
+      .filter((line) => /^[0-9A-F]/.test(line) && line.split(';')[1]?.trim().startsWith('fully-qualified'))
+      .map((line) => String.fromCodePoint(...(line.split(';')[0] ?? '').trim().split(/\s+/).map((hex) => parseInt(hex, 16))));
+    expect(fullyQualified).toHaveLength(3944);
+    const drifted = new Map<string, number>();
+    for (const unit of fullyQualified) {
+      const reference = harfbuzz(unit);
+      expect(reference, unit).toHaveLength(1);
+      if (reached(unit) !== reference[0]) drifted.set(emojiKey(unit), reference[0] ?? 0);
+    }
+    // The woman and man walking, kneeling and running facing right: six keys, 36 sequences with their skin tones.
+    expect(drifted.size).toBe(6);
+    const table = new Map(
+      NOTO_EMOJI_LAYOUT.split(' ').map((entry): [string, number] => {
+        const [seq = '', glyph = ''] = entry.split('=');
+        return [String.fromCodePoint(...seq.split('.').map((part) => parseInt(part, 36))), parseInt(glyph, 36)];
+      }),
+    );
+    expect(table).toEqual(drifted);
+    for (const [key, glyph] of drifted) expect(emojiFontLayoutGlyph(key), key).toBe(glyph);
+    // Every fully-qualified sequence is then one glyph through the table or fontkit, and it is HarfBuzz's.
+    for (const unit of fullyQualified) {
+      expect(emojiFontLayoutGlyph(emojiKey(unit)) ?? reached(unit), unit).toBe(harfbuzz(unit)[0]);
+    }
+  }, 60_000);
 
   it('were generated from Unicode’s emoji list for 17.0, byte for byte the one kept here', () => {
     expect(sha256(readFileSync(EMOJI_TEST_PATH))).toBe(EMOJI_TEST_SHA256);

@@ -156,7 +156,7 @@ Arabic, Persian, Urdu and Hebrew print in Noto Sans Arabic and Noto Sans Hebrew,
 
 Marks that sit on a letter (the Arabic harakat and shadda, the Hebrew points and cantillation) are left out of the print, because their place in the font cannot be checked yet; the file still holds them as text, and the compile log says how many were left out. Nastaliq, the style of Urdu in Pakistan, is not drawn: Urdu prints in the plain Arabic style. These pages were checked by tests that read the file back, not yet by a reader of the language.
 
-A character no font has prints as a question mark, and the compile log names it. The woman and the man walking, kneeling or running facing right (🚶‍♀️‍➡️, 36 with their skin tones) have no glyph here, and print as their first emoji (🚶); the log says so.
+A character no font has prints as a question mark, and the compile log names it.
 
 The PDF is made in your browser. Nothing is sent anywhere.
 
@@ -202,7 +202,7 @@ Choose **New storyboard here** from a folder's menu. A storyboard holds shots, a
 
 Chinese, Japanese and Korean text prints in the Noto Sans Mono CJK font. Lines break between Chinese and Japanese characters, and at spaces in Korean. Caotang loads the font only when a sheet holds such text, and the PDF carries only the characters it uses. Greek and Cyrillic print in the same font.
 
-Emoji print too, in black and white, in the Noto Emoji font: every emoji up to Unicode Emoji 17.0 prints. A family, a profession, a skin tone, a flag or a keycap prints as one picture and wraps as one character, and copying it out of the PDF gives back what you typed. Caotang loads this font only when a sheet holds an emoji. Skin tones print as the plain figure, since the font has no colour.
+Emoji print too, in black and white, in the Noto Emoji font: every emoji up to Unicode Emoji 17.0 prints. A family, a profession, a skin tone, a flag or a keycap prints as one picture and wraps as one character, and copying it out of the PDF gives back what you typed. Caotang loads this font only when a sheet holds an emoji. Skin tones print as the plain figure, since the font has no colour, and the people "facing right" (🚶‍♀️‍➡️) print as one figure facing right, without a gender sign, as 🚶‍♀️ prints without one.
 
 **The prompt pack.** The **Prompt pack** tab lists each shot's prompt for one **Target model**, the references it sends, and the codex entries those references came from. Each check links back to its field, and **Fix on the board** opens the field. Export the pack from the tab as a **JSON pack**, a **Markdown pack** (with a Consistency block for each shot that names a codex entry, listing the entries that sent references and those that sent none) or a **CSV shot list**. Export is held while a row is an error, so no file is written from a prompt the model would refuse. Caotang never sends anything to a video service. You paste the prompts into your own tool. The Compile dialog also offers the pack, as **Prompt pack (video)** (see [Export](#export)): it writes all three files at once.
 
@@ -427,7 +427,7 @@ The server runs on your computer and opens no network port. Uninstalling it leav
 ## What is not in this build yet
 
 - **Exports.** The screenplay PDF is US Letter only; there is no A4 page and no choice of font.
-- **Contact sheet pictures and characters.** The contact sheet does not draw WebP pictures; their cards show the caption. Characters that none of its fonts has, such as Hindi, print as `?`. The compile log names them. Emoji print in black and white, and skin tones as the plain figure. Of Emoji 17.0's people "facing right", only a woman or a man walking, kneeling or running (36 with their skin tones) print as their parts side by side (the figure, a gender sign, then an arrow); the rest print as one picture. Chinese, Japanese and Korean text has no bold, and Han characters take their Simplified Chinese forms.
+- **Contact sheet pictures and characters.** The contact sheet does not draw WebP pictures; their cards show the caption. Characters that none of its fonts has, such as Hindi, print as `?`. The compile log names them. Emoji print in black and white, and skin tones as the plain figure. Chinese, Japanese and Korean text has no bold, and Han characters take their Simplified Chinese forms.
 - **Final Draft files.** Import and export of `.fdx` files have not been checked against files that Final Draft wrote or opened. The scene numbers and page headers that Caotang writes are not yet confirmed to show in Final Draft.
 - **Word contents.** How Word and LibreOffice handle the contents field in a `.docx` file has not been tested.
 - **The Pages view.** The Pages view of a screenplay is a read-only preview. It draws a dual-dialogue pair side by side, as the PDF does, but it closes up the blank lines and is not the page's exact height.
