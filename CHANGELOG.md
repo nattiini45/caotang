@@ -7,6 +7,11 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 ### Added
 
 - **Agent.** A live task list for multi-step turns, in the agent header and at the top of the turn, with the model-call budget. The header says "Step 3 of 5 · Drafting “The Landing”", or "Waiting for you · Plan, 3 steps", with the drawer open or closed. The list is worked out from the plan and the tool calls, so it costs no model tokens and shows only work that ran.
+- **Providers.** An Extra high thinking level (`xhigh`) for the four Claude 5 models, and a thinking budget a single call can set in tokens: it is sent as a number where the route takes one, and otherwise becomes the nearest level the model lists. The plan card's cost estimate adds the thinking a set level can spend and says "including thinking". The request log records the output cap each request was sent with.
+
+### Fixed
+
+- **Providers.** A thinking level on an Anthropic profile no longer makes every request fail; Claude 5 models get adaptive thinking with the chosen effort, and the Thinking block shows their summary. On routes that take a thinking budget, the output cap is raised so it always exceeds the budget.
 
 ## 0.1.0
 
