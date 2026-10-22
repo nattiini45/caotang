@@ -122,7 +122,7 @@ On the Source tab:
 - Enter at the end of a character's name (a cue) moves onto the line for its dialogue.
 - Enter on an empty line after dialogue starts an action line.
 - Tab completes a half-typed character name from the names cued in the scene and the characters in the codex.
-- **Element**, above the text, or Ctrl+E, opens the element menu for the line the caret is on. It lists **Scene heading**, **Action**, **Character**, **Parenthetical**, **Dialogue**, **Transition**, **Centered**, **Note** and **Page break**, and marks the one the line is. The arrow keys move through it, and Enter chooses. The digits 1 to 9 choose an element directly.
+- **Element**, above the text, or Ctrl+E (Cmd+E on a Mac), opens the element menu for the line the caret is on. It lists **Scene heading**, **Action**, **Character**, **Parenthetical**, **Dialogue**, **Transition**, **Centered**, **Note** and **Page break**, and marks the one the line is. The arrow keys move through it, and Enter chooses. The digits 1 to 9 choose an element directly.
 - Choosing an element rewrites the line in its Fountain form. Your words are kept. Caotang adds a mark such as `.`, `@`, `!` or `>` only where the line would otherwise read as another element. A heading, a character or a transition under other text gets a blank line above it. **Parenthetical** and **Dialogue** are offered only under a character. **Page break** on a line with words puts the break on its own line above it.
 
 When Caotang saves a scene, it writes Fountain in the standard layout: a run of blank lines becomes one blank line, and Windows line endings become the usual ones. Your words are kept.
@@ -303,6 +303,8 @@ Choose **Settings** on the projects screen or in the toolbar. It has seven secti
 - **Data.** The storage location, which is this browser, what the browser says about its storage, and the checkpoint limits: **Checkpoints kept per project** (100 by default) and **Days a checkpoint is kept** (30 by default). Choose **Save the limits** to keep your change. With a project open, **Trim to the limits now** applies them at once.
 
 ## Keyboard
+
+On a Mac, Cmd takes the place of Ctrl.
 
 | Key | What it does |
 |---|---|

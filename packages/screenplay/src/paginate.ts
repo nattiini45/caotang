@@ -125,6 +125,18 @@ export interface LayoutPage {
   readonly lines: readonly LayoutLine[];
 }
 
+/**
+ * The scene-number placements the paginator prints, one list for the type and the
+ * runtime guard. The bus holds the same placements for the recipe option
+ * (`packages/bus/src/descriptors-project.ts`); this package cannot import the bus
+ * (the dependency edge would run the wrong way), so a placement the bus gains is
+ * caught here — the guard below throws on one this list does not name, rather than
+ * printing it as off.
+ */
+export const SCENE_NUMBER_PLACEMENTS = ['off', 'left', 'right', 'both'] as const;
+
+export type SceneNumberPlacement = (typeof SCENE_NUMBER_PLACEMENTS)[number];
+
 export interface PaginateOptions {
   /** Lay out the title page from the title_page element (default true). */
   readonly titlePage?: boolean;
@@ -136,7 +148,7 @@ export interface PaginateOptions {
    * Scene numbers in the margins. A heading's own `#n#` number is used when it has one,
    * otherwise a running count. Off by default (screenplay.md §5.3).
    */
-  readonly sceneNumbers?: 'off' | 'left' | 'right' | 'both';
+  readonly sceneNumbers?: SceneNumberPlacement;
   /** `(MORE)` and `NAME (CONT'D)` on split dialogue (default true). */
   readonly continued?: boolean;
 }
@@ -518,7 +530,7 @@ class Pager {
 
   constructor(
     private readonly continued: boolean,
-    private readonly sceneNumbers: 'off' | 'left' | 'right' | 'both',
+    private readonly sceneNumbers: SceneNumberPlacement,
   ) {}
 
   finish(): LayoutLine[][] {
@@ -607,7 +619,7 @@ class Pager {
     this.current.push({ kind, text, x: LAYOUT.marginLeft + col * LAYOUT.charWidth, y, row, scene });
     if (sceneNumber !== null) {
       const width = textColumns(sceneNumber) * LAYOUT.charWidth;
-      if (!['off', 'left', 'right', 'both'].includes(this.sceneNumbers)) {
+      if (!SCENE_NUMBER_PLACEMENTS.includes(this.sceneNumbers)) {
         // A placement the bus gains must be handled here, not printed as off.
         throw new Error(`Unknown scene-number placement: ${String(this.sceneNumbers)}`);
       }

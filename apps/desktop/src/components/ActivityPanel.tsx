@@ -8,12 +8,17 @@
  *
  * Nothing here dispatches a command except Undo, and Undo is the bus's own: `undoGroup` (session.ts) runs the
  * group's compensations in reverse, and the undo is logged like any other command.
+ *
+ * The panel shows a window of the log's rows, not the whole log: the log holds every command of the sitting
+ * (command-bus §8), and the older rows are one window at a time, on the button that names how many are left
+ * (activity-window.ts). The export carries the whole log, rows and all.
  */
 
 import { useState, type ReactNode } from 'react';
 
-import { activityRows, issuerLabel, sourceBadge, timeLabel } from '../app/activity-model.js';
 import type { ProjectSession } from '../app/session.js';
+import { issuerLabel, sourceBadge, timeLabel } from '../app/activity-model.js';
+import { activityWindow, ACTIVITY_PANEL_WINDOW, showOlderWindow } from './activity-window.js';
 import { EmptyState, useReport, useSession } from './shared.js';
 
 /** The title of an Undo that waits for the changes made after its group. */
@@ -23,11 +28,21 @@ export function ActivityPanel({ session, onExport }: { session: ProjectSession; 
   useSession(session);
   const report = useReport();
   const [showViews, setShowViews] = useState(false);
-  const rows = activityRows(session.log.entries(), {
+  // The panel shows a window of the log's rows, and the older ones one window at a time
+  // (activity-window.ts): the log keeps every row, and the panel renders none of the ones behind
+  // its window.
+  const [limit, setLimit] = useState(ACTIVITY_PANEL_WINDOW);
+  // The newest group the undo store holds, read once: the window needs it, and the Undo the panel
+  // offers is the one on it. Reading it walks every live group and copies it, so asking twice would
+  // walk the whole undo stack twice on every render of the panel.
+  const newest = session.newestUndoGroupId();
+  const panel = activityWindow(session.log.entries(), {
     showViews,
     groupOf: (id) => session.undo.group(id),
+    newestUndoGroupId: newest,
+    limit,
   });
-  const newest = session.newestUndoGroupId();
+  const rows = panel.rows;
 
   const undoGroup = (id: string, summary: string): void => {
     void session.undoGroup(id).then((done) => {
@@ -89,6 +104,16 @@ export function ActivityPanel({ session, onExport }: { session: ProjectSession; 
           ))}
         </ol>
       )}
+
+      {panel.showOlder !== null ? (
+        <button
+          type="button"
+          className="button is-quiet activity-older"
+          onClick={() => setLimit((current) => showOlderWindow(current))}
+        >
+          {panel.showOlder}
+        </button>
+      ) : null}
     </div>
   );
 }

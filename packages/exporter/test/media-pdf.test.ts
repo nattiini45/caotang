@@ -124,6 +124,18 @@ describe('pdf — through the §4 API', () => {
     await expect(attempt).rejects.toThrow('the selection holds no screenplay scene');
   });
 
+  it('refuses a scene whose text prints nothing (only notes and boneyard), rather than writing a blank PDF', async () => {
+    // The paginator writes at least one blank page so the PDF is always valid, so a scene with no printed text would
+    // compile to a blank page that reports success. The gate refuses it as it refuses a selection with no scene.
+    const state = makeMediaProject();
+    const kitchen = state.documents.get(MEDIA_IDS.kitchen);
+    if (kitchen === undefined) throw new Error('the fixture has no body for the kitchen scene');
+    kitchen.body = ['[[a note that does not print]]', '', '/* a boneyard that does not print */'].join('\n');
+    const attempt = rig({ state }).exporter.compile({ includeRootIds: ['manuscript'] }, 'pdf');
+    await expect(attempt).rejects.toBeInstanceOf(MediaRefusedError);
+    await expect(attempt).rejects.toThrow('nothing to print');
+  });
+
   it('prints CJK text and emoji in the embedded fallback fonts, and says in the log which characters no font can print', async () => {
     const state = makeMediaProject();
     const kitchen = state.documents.get(MEDIA_IDS.kitchen);

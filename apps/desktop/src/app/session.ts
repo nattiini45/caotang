@@ -227,6 +227,17 @@ const LATER_CHANGES_FIRST =
 const ALREADY_UNDONE = 'That change has already been undone, so there is nothing to take back.';
 
 /**
+ * How long the latch that answers one moment at the front holds.
+ *
+ * A hidden tab coming to the front fires the window's focus and the document's visibilitychange for
+ * the same moment, and the platform does not promise to post the two in the same task: a latch that
+ * cleared on the next macrotask would let the second signal through, and the images would be listed
+ * twice for one moment. The latch re-arms on every signal and holds for this long after the last of
+ * them, so one moment costs one listing however the platform posts it.
+ */
+const ASSET_LISTING_LATCH_MS = 100;
+
+/**
  * What "restore to before this turn" reports: how many later changes went back with it, or why it stopped part way.
  * The session does not decide the words of the second case; the panel shows them as they are.
  */
@@ -263,6 +274,11 @@ export class ProjectSession {
   private heldImages: HeldImages | null = null;
   /** How many image listings have started; a listing stores its result only when it is still the newest. */
   private imageListings = 0;
+  /**
+   * How many times the project's images have been listed. The views that show them read it and list
+   * them again when it moves, so a keystroke does not list them (media/hooks.ts).
+   */
+  private assetVersion = 0;
   private readonly runtime: RuntimeStore;
   private readonly bus: BusContext;
   private readonly listeners = new Set<() => void>();
@@ -297,6 +313,8 @@ export class ProjectSession {
   private coherenceInFlight = 0;
   /** Lets go of the lifecycle signals the findings file is flushed on (see the constructor). */
   private detachCoherenceFlush: () => void = () => undefined;
+  /** Lets go of the tab's focus signals, which list the project's images again (see the constructor). */
+  private detachAssetRefresh: () => void = () => undefined;
   private readonly onClosed: (() => void) | undefined;
   /** The project as it stood when the writer last had a copy of it (`markExported`), as a signature (`changedSinceExport`). */
   /** The images the open dropped because `assets/` does not hold them, one line each. Shown on the storyboard. */
@@ -396,6 +414,11 @@ export class ProjectSession {
     // is hidden or leaves, instead of waiting for the next change. A save already in flight is not awaited here, since a pagehide handler
     // cannot wait for it: the save indicator and the unload warning cover that case.
     this.detachCoherenceFlush = flushSignals.subscribe(() => this.queueCoherenceSave());
+
+    // A picture put into the project's folder from outside the app is picked up when the tab comes
+    // back to the front: the images are listed again then, and not on every change of the session
+    // (assetsVersion). The listener is one for the session, and it is let go when the session closes.
+    this.detachAssetRefresh = this.watchForAssetChanges();
 
     // Opening a project is the moment the retention ladder runs (command-bus §5.1). It is not awaited by the open:
     // a failed sweep is kept for the Data section to report, and the project opens regardless.
@@ -618,14 +641,82 @@ export class ProjectSession {
     // Listings can overlap (the constructor's and a later import's): only the newest one started is kept, so a slow early listing
     // taken before a bundle's images loaded never replaces a newer one.
     const generation = ++this.imageListings;
-    await this.assets.ready();
     let held: HeldImages;
     try {
+      // The binding is awaited inside the try, so a store that will not open is this listing's failure, held the way a listing
+      // that cannot read is. The callers that fire this without awaiting it (the constructor, the tab's focus) then never face an
+      // unhandled rejection, and a compile refuses with the reason instead of waiting on a listing that never lands.
+      await this.assets.ready();
       held = { records: await assetRecordsOf(this.assets.artifactFs()) };
     } catch (failure) {
       held = { failure };
     }
-    if (generation === this.imageListings) this.heldImages = held;
+    // A superseded listing neither replaces the images nor moves the version: only the listing this session kept says the images
+    // have been listed again, so a slow early listing that lands late does not make every view re-list what a newer one read.
+    if (generation !== this.imageListings) return;
+    this.heldImages = held;
+    // The images have been listed again, so they can have changed: the views that show them read the
+    // version this moves and list them again (media/hooks.ts). A keystroke does not list them.
+    this.assetVersion += 1;
+    this.bump();
+  }
+
+  /**
+   * The version of the project's images.
+   *
+   * It moves when the images have been listed again, which is when they can have changed: the open,
+   * an import, a folder attached, a settle, an export asked for (`exportsReady`, which lists before
+   * each compile), and the tab coming back to the front (`watchForAssetChanges`). A view that shows
+   * the images lists them again when this moves, so it does not list them on every change of the
+   * session (media/hooks.ts).
+   */
+  assetsVersion(): number {
+    return this.assetVersion;
+  }
+
+  /**
+   * Lists the project's images again when the tab comes back to the front.
+   *
+   * The images are listed when they can have changed — the open, an import, a folder attached, a
+   * settle, an export asked for — and a picture put into the project's folder from outside the app is
+   * one more way they can have changed: the writer drops the file into the folder with another
+   * program and comes back. The tab's focus is that moment, so the listing is then, and nowhere else:
+   * a keystroke does not list the folder.
+   *
+   * The listeners are installed for every session, whatever its folder, so a folder attached later is
+   * refreshable from the moment it exists; until then the handler returns without listing, because a
+   * project without a folder has no images to pick up from outside the app. The listener is one for
+   * the session, and the returned function lets go of it.
+   */
+  private watchForAssetChanges(): () => void {
+    // A hidden tab coming to the front fires the window's focus and the document's visibilitychange for the same moment. One
+    // moment asks for one listing, so the first signal of it is taken and the ones that follow are let through to nothing. The
+    // platform does not promise to post the two in the same task, so the latch is not cleared on the next macrotask: it re-arms on
+    // every signal and holds for a moment after the last of them, and one moment costs one listing however it arrives.
+    let listing = false;
+    let latch: ReturnType<typeof setTimeout> | null = null;
+    const listAgain = (): void => {
+      if (!this.assets.hasFolder()) return;
+      if (latch !== null) clearTimeout(latch);
+      latch = setTimeout(() => {
+        listing = false;
+        latch = null;
+      }, ASSET_LISTING_LATCH_MS);
+      if (listing) return;
+      listing = true;
+      void this.refreshAssetRecords();
+    };
+    const whenVisible = (): void => {
+      if (document.visibilityState === 'hidden') return;
+      listAgain();
+    };
+    window.addEventListener('focus', listAgain);
+    document.addEventListener('visibilitychange', whenVisible);
+    return () => {
+      window.removeEventListener('focus', listAgain);
+      document.removeEventListener('visibilitychange', whenVisible);
+      if (latch !== null) clearTimeout(latch);
+    };
   }
 
   /**
@@ -1122,6 +1213,8 @@ export class ProjectSession {
       try {
         // The lifecycle signals are let go first, so nothing this session does after its close begins can start a findings save.
         this.detachCoherenceFlush();
+        // The tab's focus signals are let go too, so a closed session does not list the project's images any more.
+        this.detachAssetRefresh();
         await this.autosave.flush();
         await this.persistence.settle();
         await this.coherenceQueue;

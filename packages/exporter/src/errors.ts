@@ -72,7 +72,7 @@ export class ExportUnavailableError extends ApplyRefusal {
         `"${format}" is a binary artifact and this project has no byte binding to store it in (ArtifactFs holds strings only). Nothing was compiled or written. Compile it for download through the exporter instead, or bind a byte store.`,
         {
           target: 'format',
-          correctiveHint: 'compile as md, txt or epub, which are text, or attach a project folder, which gives the project a byte store',
+          correctiveHint: 'compile as md or txt, which are text, or attach a project folder, which gives the project a byte store',
         },
       ),
     );
@@ -137,6 +137,28 @@ export class InvalidRecipeError extends ApplyRefusal {
       }),
     );
     this.name = 'InvalidRecipeError';
+  }
+}
+
+/**
+ * A selection naming a node the tree does not hold. The recipe path refuses a node it does not know as `not-found`
+ * (descriptors-project.ts), and the selection path agrees: an id that resolves to nothing would compile a
+ * title-page-only artifact that reports success, which is the outcome the bus refuses an *empty* list to prevent. The
+ * refusal names every id that could not be resolved so the writer or agent can correct them all at once.
+ */
+export class UnknownSelectionNodeError extends ApplyRefusal {
+  constructor(ids: readonly string[]) {
+    super(
+      refusal(
+        'not-found',
+        `the selection names ${ids.length === 1 ? 'a node' : 'nodes'} the project does not hold: ${ids.map((id) => `"${id}"`).join(', ')}. Nothing was compiled or written.`,
+        {
+          target: 'includeRootIds',
+          correctiveHint: 'name nodes that are in the project (recovery reassigns ids after an import, so read them again), or compile without a selection for the whole manuscript',
+        },
+      ),
+    );
+    this.name = 'UnknownSelectionNodeError';
   }
 }
 
