@@ -54,7 +54,7 @@ describe('emoji clusters', () => {
       return PICTOGRAPH.test(cluster) && EMOJI_MARK.test(cluster);
     };
     const units = new Set<string>(['©', '©️', '❤', '❤︎', '☺', '☺️', '✌', '✌︎', 'a', 'e︎', '1', '🇩', '→', '↔', '↔️', '▪', '▶', '▶️', '☀', '♠️', '🫩', '草']);
-    for (const line of readFileSync(new URL('./fixtures/emoji-test-15.1.txt', import.meta.url), 'utf8').split('\n')) {
+    for (const line of readFileSync(new URL('./fixtures/emoji-test-17.0.txt', import.meta.url), 'utf8').split('\n')) {
       if (!/^[0-9A-F]/.test(line)) continue;
       units.add((line.split(';')[0] ?? '').trim().split(/\s+/).map((hex) => String.fromCodePoint(parseInt(hex, 16))).join(''));
     }
@@ -71,10 +71,13 @@ describe('what Noto Emoji prints for a cluster', () => {
     expect(firstCodePoint('👨‍👩‍👧')).toBe('👨');
   });
 
-  it('prints a sequence whole, a sequence newer than the font as its first emoji, and an emoji it lacks as nothing', () => {
+  it('prints a sequence whole, a sequence the font cannot lay out as its first emoji, and a character it lacks as nothing', () => {
     expect(emojiPrint('👨‍👩‍👧')).toBe('whole');
     expect(emojiPrint('👍🏽')).toBe('whole');
     expect(emojiPrint('🚶‍♀️‍➡️')).toBe('base');
-    expect(emojiPrint('🫩')).toBe('none');
+    // Emoji 16.0 and 17.0: one glyph each, the flag of Sark included.
+    for (const cluster of ['🫩', '🫆', '🪾', '🫜', '🪉', '🪏', '🫟', '🇨🇶', '🫪', '🛘']) expect(emojiPrint(cluster), cluster).toBe('whole');
+    // A private-use code point is one no font will ever map.
+    expect(emojiPrint('')).toBe('none');
   });
 });

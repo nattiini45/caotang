@@ -608,18 +608,27 @@ function emojiShows(pdf: PDFDocument, index: number): string[] {
   return [...pageContent(pdf, index).matchAll(/\/NotoEmoji\S* [\d.]+ Tf\s+[\d.-]+ [\d.-]+ Td\s+<([0-9A-F]*)> Tj/g)].map((match) => match[1] ?? '');
 }
 
-/** The fully-qualified emoji of Unicode Emoji 15.1, the version Noto Emoji 3.002 supports (test/fixtures). */
-function fullyQualifiedEmoji(): { emoji: string; name: string }[] {
-  return readFileSync(resolve(__dirname, 'fixtures/emoji-15.1-fully-qualified.txt'), 'utf8')
+/**
+ * Unicode's emoji list for Emoji 17.0, the version Noto Emoji 3.006 supports, kept beside the coverage tables it generates
+ * (packages/pdf-fonts/test/fixtures): each line's emoji, status and name ("woman walking facing right: light skin tone").
+ */
+function emojiList(): { emoji: string; name: string; status: string }[] {
+  return readFileSync(resolve(__dirname, '../../pdf-fonts/test/fixtures/emoji-test-17.0.txt'), 'utf8')
     .split('\n')
-    // `trim()` rather than `!== ''`: a CRLF edit of the fixture leaves blank lines
-    // as '\r', which would otherwise reach `String.fromCodePoint` as NaN.
-    .filter((line) => line.trim() !== '' && !line.startsWith('#'))
+    .filter((line) => /^[0-9A-F]/.test(line))
     .map((line) => {
-      const [codes = '', comment = ''] = line.split(' # ');
-      return { emoji: String.fromCodePoint(...codes.trim().split(/\s+/).map((hex) => parseInt(hex, 16))), name: comment };
+      const [codes = '', rest = ''] = line.split(';');
+      const [status = '', comment = ''] = rest.split('#');
+      // The comment is the emoji, its Emoji version, then its name.
+      return {
+        emoji: String.fromCodePoint(...codes.trim().split(/\s+/).map((hex) => parseInt(hex, 16))),
+        name: comment.trim().split(' ').slice(2).join(' '),
+        status: status.trim(),
+      };
     });
 }
+
+const fullyQualifiedEmoji = () => emojiList().filter((row) => row.status === 'fully-qualified');
 
 let emojiFace: EmojiFace | undefined;
 async function noto(): Promise<EmojiFace> {
@@ -691,17 +700,18 @@ describe('contact-sheet-pdf — emoji, in the Noto Emoji fallback font', () => {
     expect([...latin.result.log.notes, ...cjk.result.log.notes].some((note) => note.includes('Noto Emoji'))).toBe(false);
   });
 
-  it('draws an emoji newer than the font as "?", and names it in the log', async () => {
-    const { result, pdf } = await compileSheet(rig({ state: withAction('🎬 🫩'), loadEmojiFont: loadEmojiFontInNode }).exporter);
-    expect(result.log.notes).toContain('contact sheet: 1 character neither the PDF\'s built-in font nor Noto Emoji can show was drawn as "?": 🫩 (U+1FAE9)');
+  // U+1FFFD is in the range reserved for future pictographs: a character no font will have, which still tries the emoji font.
+  it('draws a pictograph no font has as "?", and names it in the log', async () => {
+    const { result, pdf } = await compileSheet(rig({ state: withAction('🎬 \u{1FFFD}'), loadFallbackFont: loadCjkFontInNode, loadEmojiFont: loadEmojiFontInNode }).exporter);
+    expect(result.log.notes).toContain('contact sheet: 1 character neither the PDF\'s built-in font nor Noto Sans Mono CJK SC nor Noto Emoji can show was drawn as "?": \u{1FFFD} (U+1FFFD)');
     expect(toUnicodeEntries(pdf)).toContain('🎬');
   });
 
-  it('embeds no emoji font when the font was read but drew nothing, as for a sheet whose only emoji is newer than it', async () => {
+  it('embeds no emoji font when the font was read but drew nothing, as for a sheet whose only pictograph no font has', async () => {
     const emojiLoader = countingLoader(loadEmojiFontInNode);
-    const { result, pdf } = await compileSheet(rig({ state: withAction('Cut 🫩 now'), loadEmojiFont: emojiLoader.load }).exporter);
+    const { result, pdf } = await compileSheet(rig({ state: withAction('Cut \u{1FFFD} now'), loadFallbackFont: loadCjkFontInNode, loadEmojiFont: emojiLoader.load }).exporter);
     expect(emojiLoader.calls()).toBe(1);
-    expect(result.log.notes).toContain('contact sheet: 1 character neither the PDF\'s built-in font nor Noto Emoji can show was drawn as "?": 🫩 (U+1FAE9)');
+    expect(result.log.notes).toContain('contact sheet: 1 character neither the PDF\'s built-in font nor Noto Sans Mono CJK SC nor Noto Emoji can show was drawn as "?": \u{1FFFD} (U+1FFFD)');
     expect(result.log.notes.some((note) => note.includes('emoji are set in'))).toBe(false);
     expect(embeddedFontFiles(pdf)).toHaveLength(0);
     expect(toUnicodeEntries(pdf)).toEqual([]);
@@ -789,11 +799,11 @@ describe('contact-sheet-pdf — emoji, in the Noto Emoji fallback font', () => {
   });
 });
 
-describe('the emoji font file covers Unicode Emoji 15.1', () => {
+describe('the emoji font file covers Unicode Emoji 17.0', () => {
   const ALL = fullyQualifiedEmoji();
 
   it('lists every fully-qualified emoji of the version the font supports', () => {
-    expect(ALL).toHaveLength(3773);
+    expect(ALL).toHaveLength(3944);
   });
 
   it('draws every fully-qualified emoji with no .notdef, each as one glyph or, for a ZWJ sequence with no ligature, one per part', async () => {
@@ -813,23 +823,44 @@ describe('the emoji font file covers Unicode Emoji 15.1', () => {
       if (glyphs !== null) expect(glyphs.map((glyph) => glyph.text).join(''), name).toBe(emoji);
     }
     expect(missing).toEqual([]);
-    // Emoji 15.1's "facing right" people are the only sequences the font draws in parts, and not all of them: the person walking,
-    // kneeling or running facing right (with any skin tone) is one glyph; the woman and man forms of those, and every person with
-    // a white cane or in a wheelchair facing right, are drawn in three parts. The guide and the changelog say exactly this.
+    // The woman and man walking, kneeling or running facing right (36 with their skin tones) are the only sequences drawn in
+    // parts: fontkit does not lay them out as one glyph, though the font has them (HarfBuzz does). The other 72 "facing right"
+    // people (the person form, and everyone with a white cane or in a wheelchair) are one glyph. The guide and the changelog
+    // say exactly this.
     const facingRight = ALL.filter(({ name }) => name.includes('facing right')).map(({ name }) => name);
     expect(facingRight).toHaveLength(108);
-    const whole = facingRight.filter((name) => !split.includes(name));
-    expect(whole).toHaveLength(18);
-    expect(whole.every((name) => / E15\.1 person (walking|kneeling|running) facing right/.test(name))).toBe(true);
-    expect(split.every((name) => name.includes('facing right'))).toBe(true);
-    expect(split.every((name) => / E15\.1 (woman|man) (walking|kneeling|running) facing right| with white cane facing right| wheelchair facing right/.test(name))).toBe(true);
-    expect(split).toHaveLength(90);
+    expect(facingRight.filter((name) => !split.includes(name))).toHaveLength(72);
+    expect(split.every((name) => /^(woman|man) (walking|kneeling|running) facing right/.test(name))).toBe(true);
+    expect(split).toHaveLength(36);
+  });
+
+  it('draws the emoji of 16.0 and 17.0 as one glyph each, copied back as typed', async () => {
+    const face = await noto();
+    for (const emoji of ['🫩', '🫆', '🪾', '🫜', '🪉', '🪏', '🫟', '🇨🇶', '🫪', '🛘']) {
+      const glyphs = face.glyphsOf(emoji);
+      expect(glyphs, emoji).toHaveLength(1);
+      expect(glyphs?.[0]?.text, emoji).toBe(emoji);
+    }
+  });
+
+  it('draws a minimally-qualified or unqualified emoji as the glyphs of its fully-qualified form', async () => {
+    const face = await noto();
+    const qualified = new Map(ALL.map(({ emoji, name }) => [name, emoji]));
+    const others = emojiList().filter(({ status }) => status === 'minimally-qualified' || status === 'unqualified');
+    expect(others.length).toBeGreaterThan(1000);
+    for (const { emoji, name } of others) {
+      const full = qualified.get(name) ?? '';
+      expect(full, `${name} has a fully-qualified form`).not.toBe('');
+      const glyphs = face.glyphsOf(emoji);
+      expect(glyphs, name).not.toBeNull();
+      expect(glyphs?.map((glyph) => glyph.id), name).toEqual(face.glyphsOf(full)?.map((glyph) => glyph.id));
+    }
   });
 
   it('prints every fully-qualified emoji in a contact sheet without one "?"', async () => {
     const state = makeMediaProject();
-    // Eight emoji to a card, four to a line: a line of four "facing right" people, each drawn in three parts, still fits.
-    const per = 8;
+    // Six emoji to a card, three to a line: a line of three "facing right" people, each drawn in two glyphs, still fits.
+    const per = 6;
     for (let i = 0; i * per < ALL.length; i += 1) {
       const chunk = ALL.slice(i * per, (i + 1) * per).map(({ emoji }) => emoji);
       addShotNode(state, {

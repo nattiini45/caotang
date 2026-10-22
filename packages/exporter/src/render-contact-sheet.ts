@@ -26,7 +26,7 @@
  * unit, and the ToUnicode map gives the exact sequence back when it is copied. The emoji font is read only when a sheet holds
  * an emoji, through the input's `loadEmojiFont`.
  *
- * A character no font has (Arabic, Devanagari, an emoji newer than Emoji 15.1) is drawn as `?`, and the compile log names each
+ * A character no font has (Arabic, Devanagari, a reserved pictograph) is drawn as `?`, and the compile log names each
  * one. So is every character a font would have drawn when that font cannot be read, and the log says why.
  *
  * ## Pictures

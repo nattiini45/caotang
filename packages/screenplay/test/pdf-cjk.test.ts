@@ -52,7 +52,7 @@ const JAPANESE = text('INT. 東京のアパート - DAY', '', 'ユキはカー�
 
 const KOREAN = text('EXT. 서울 거리 - DAY', '', '민준이 버스 정류장에서 기다린다.', '', 'MINJUN', '안녕하세요! 오늘 날씨가 정말 좋네요. 같이 커피 마실래요?');
 
-const MIXED = text('INT. CAFÉ - DAY', '', 'Mixed text: Café 草堂 with 한글 and かな, then 🫩 and ꙮ.');
+const MIXED = text('INT. CAFÉ - DAY', '', 'Mixed text: Café 草堂 with 한글 and かな, then \uE000 and ꙮ.');
 
 /**
  * The text a reader extracts from the file: each Tj's string through the font it is set in (WinAnsi for F1, the
@@ -287,7 +287,7 @@ describe('the PDF with CJK text', () => {
 
   it('prints a character neither font has as "?", and the log names it', () => {
     const layout = layoutPdf(blocksOf(MIXED), { title: 'T' });
-    expect(layout.notes).toEqual(['pdf: neither Courier Prime nor the CJK or emoji fallback font can print these 2 characters, so they are printed as "?": 🫩 ꙮ']);
+    expect(layout.notes).toEqual(['pdf: neither Courier Prime nor the CJK or emoji fallback font can print these 2 characters, so they are printed as "?": \uE000 ꙮ']);
     expect(layout.fallbackCharacters).toEqual(['草', '堂', '한', '글', 'か', 'な']);
   });
 
