@@ -54,6 +54,18 @@ node tools/pdf-validate/check.mjs /tmp/pdfs --external                          
 
 The corpus test writes nothing without `CAOTANG_PDF_OUT`, so `pnpm verify` is unchanged. The external tools are CI-only (`apt-get install qpdf poppler-utils ghostscript mupdf-tools`) and never ship; a tool that is not installed fails the run, and `--external=pdftotext,qpdf` runs just those named. None of this is a check in Acrobat or on paper.
 
+### XLSX interop
+
+CI's `office-interop` job opens the `.xlsx` files the app writes in openpyxl and in LibreOffice. To run it yourself after changing `render-xlsx.ts` or one of the tables it writes:
+
+```sh
+CAOTANG_XLSX_OUT=/tmp/xlsx pnpm exec vitest run packages/exporter/test/xlsx-write-corpus.test.ts   # writes the corpus and expected.json
+python3 tools/office-interop/check_xlsx.py /tmp/xlsx --skip-libreoffice                             # package parts and openpyxl
+python3 tools/office-interop/check_xlsx.py /tmp/xlsx                                                # also LibreOffice (soffice on PATH)
+```
+
+The corpus test writes nothing without `CAOTANG_XLSX_OUT`, so `pnpm verify` is unchanged. The checker needs `pip install openpyxl==3.1.5`, and LibreOffice is CI-only (`apt-get install libreoffice-calc`); a missing `soffice` fails the run unless you pass `--skip-libreoffice`. Excel and Numbers cannot run in CI: the by-hand list and its results table are in [docs/testing/office-interop.md](docs/testing/office-interop.md).
+
 ## The specs are the contract
 
 Each module is specified in [docs/architecture/](docs/architecture/), and the code and the spec agree:
