@@ -116,7 +116,7 @@ Choose **New screenplay scene here** from a folder's menu. A screenplay scene is
 
 - **Script** draws the scene as it reads.
 - **Source** is the Fountain text. Headings, cues, parentheticals, transitions and notes are drawn in their own styles as you type.
-- **Pages** shows the scene paginated. It is read only, and it is a preview: a dual-dialogue pair stands side by side, as in the PDF, but the blank lines between elements are closed up. To get a PDF, compile the screenplay as **Screenplay PDF**.
+- **Pages** shows the scene paginated, as a preview: you do not type on the page. Choose a line, by click or with Up and Down and Enter, and the Source tab opens with the caret at the start of the element that line prints, so a wrapped paragraph opens at its first word. Page numbers, scene numbers, (MORE), (CONT'D) and the title page are drawn by Caotang and open nothing. A dual-dialogue pair stands side by side, as in the PDF, but the blank lines between elements are closed up. To get a PDF, compile the screenplay as **Screenplay PDF**.
 
 On the Source tab:
 
@@ -430,7 +430,7 @@ The server runs on your computer and opens no network port. Uninstalling it leav
 - **Contact sheet pictures and characters.** The contact sheet does not draw WebP pictures; their cards show the caption. Characters that none of its fonts has, such as Hindi, print as `?`. The compile log names them. Emoji print in black and white, and skin tones as the plain figure. Of Emoji 17.0's people "facing right", only a woman or a man walking, kneeling or running (36 with their skin tones) print as their parts side by side (the figure, a gender sign, then an arrow); the rest print as one picture. Chinese, Japanese and Korean text has no bold, and Han characters take their Simplified Chinese forms.
 - **Final Draft files.** Import and export of `.fdx` files have not been checked against files that Final Draft wrote or opened. The scene numbers and page headers that Caotang writes are not yet confirmed to show in Final Draft.
 - **Word contents.** How Word and LibreOffice handle the contents field in a `.docx` file has not been tested.
-- **The Pages view.** The Pages view of a screenplay is a read-only preview. It draws a dual-dialogue pair side by side, as the PDF does, but it closes up the blank lines and is not the page's exact height.
+- **The Pages view.** You cannot type on the Pages view of a screenplay yet; a line opens its element in the Source tab. It draws a dual-dialogue pair side by side, as the PDF does, but it closes up the blank lines and is not the page's exact height.
 - **Undo and reloads.** The toolbar's Undo and the Undo in Activity last for the open tab; checkpoints survive a reload. Undo on a screenplay's Source tab and in Ink text is the browser's own.
 - **Local models, checked.** The three local model servers have been tried against test servers that imitate their browser settings, not against the real Ollama, LM Studio and llama-server. Firefox has not been tried, and Safari is not verified. A server on another computer on your network is not supported: plain http is allowed only to this computer.
 - **What a local server reports.** Caotang does not yet ask a local server about the model it runs, so it assumes a small context window and no native tools or images.
