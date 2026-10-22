@@ -394,8 +394,9 @@ export interface SettledUndoScope extends UndoScope {
  *   same way, and that row says so.
  *
  * So the promise is that a late capture *reaches* a surface that can say it
- * happened — the defect stays visible rather than escaping the bus — and not
- * that each one leaves a row of its own.
+ * happened — and that it never escapes the bus: a reporter that throws is
+ * swallowed, so such a capture leaves nothing behind — and not that each one
+ * leaves a row of its own.
  */
 export function createUndoScope(
   kind: ApplyContext['undo']['kind'],
