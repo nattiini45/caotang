@@ -453,7 +453,7 @@ export interface ExportedBundle {
   /** Things the writer should know about this copy, phrased for a person (a cover the page does not hold). */
   readonly notices: readonly string[];
   /**
-   * The notices about the files this copy does not carry, apart from the other notices.
+   * The notices about the files whose text this copy does not carry, apart from the other notices.
    *
    * They are kept apart because they are what an adopt failure has to report: a file the copy left out
    * is a file the restored copy lacks, and a file the copy holds as an empty shell is one the restored
