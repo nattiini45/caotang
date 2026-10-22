@@ -13,6 +13,10 @@
 
 import { devanagariFontMaps, inRanges } from './coverage.js';
 import { graphemesOf } from './emoji.js';
+import type { RtlScript } from './rtl-script.js';
+
+/** The scripts that are shaped glyph by glyph in a font of their own: Arabic and Hebrew, and Devanagari. */
+export type ShapedScript = RtlScript | 'devanagari';
 
 /** Devanagari, Devanagari Extended, and the Vedic Extensions that the Devanagari font may map. */
 const DEVANAGARI_BLOCKS: readonly (readonly [number, number])[] = [

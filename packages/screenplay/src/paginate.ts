@@ -258,8 +258,8 @@ interface BlockRow {
   readonly cuts: readonly number[];
 }
 
-/** A sentence end: Latin `.`, `!`, `?` or `…`, the Arabic question mark, full stop or semicolon (U+061F, U+06D4, U+061B), or the CJK `。`, `！`, `？`, each with any closing quotes after it. */
-const SENTENCE_END_RE = /(?:[.!?…\u061f\u06d4\u061b]["')\]”’]*|[。！？][」』）〉》"”’]*)$/;
+/** A sentence end: Latin `.`, `!`, `?` or `…`, the Arabic question mark, full stop or semicolon (U+061F, U+06D4, U+061B), the danda and double danda (U+0964, U+0965), or the CJK `。`, `！`, `？`, each with any closing quotes after it. */
+const SENTENCE_END_RE = /(?:[.!?…\u061f\u06d4\u061b\u0964\u0965]["')\]”’]*|[。！？][」』）〉》"”’]*)$/;
 
 /** Wrapped lines, and what joins each line to the one before it when the text is rewrapped: a space, or nothing. */
 interface Wrapped {
@@ -367,7 +367,7 @@ function makePara(
 function sentenceCuts(text: string): number[] {
   const cuts: number[] = [];
   // A Latin sentence end needs a space after it. A CJK one needs only more text: CJK puts no space between sentences.
-  const pattern = /[.!?…\u061f\u06d4\u061b]["')\]”’]*(?= )|[。！？][」』）〉》"”’]*(?=\S)/g;
+  const pattern = /[.!?…\u061f\u06d4\u061b\u0964\u0965]["')\]”’]*(?= )|[。！？][」』）〉》"”’]*(?=\S)/g;
   for (let m = pattern.exec(text); m !== null; m = pattern.exec(text)) cuts.push(m.index + m[0].length);
   return cuts;
 }

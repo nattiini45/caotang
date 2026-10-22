@@ -18,6 +18,13 @@
  * spaces, so Hangul breaks at spaces like Latin text; a Hangul word wider than the column breaks between syllables.
  * A line may break before or after an emoji with no space, as between Hanzi, and never inside one.
  *
+ * Indic text (Devanagari, and the other Brahmic scripts): a unit is an extended grapheme cluster with its conjuncts whole (क्ष, त्रि,
+ * न्दी, क़), never a bare code point, so a line never splits a consonant from its virama or a vowel sign from its consonant; this is
+ * the Brahmic text's alone, and Latin, CJK and emoji units are what they were. A combining mark with no consonant before it takes
+ * no column. A word the Devanagari font prints is shaped as a whole in a proportional font and takes the whole columns its shaped
+ * width needs, rounded up, the way an Arabic or Hebrew word does (the same `measure`); without one a word counts a column for each
+ * cluster.
+ *
  * Arabic and Hebrew: a letter and its marks are one unit (a grapheme cluster), so a line never splits a base letter from its
  * marks. A word of one of the two scripts is shaped as a whole in a proportional font, and takes the whole columns its shaped
  * width needs, rounded up (screenplay.md §5.3): the layout asks the `measure` of {@link withMeasure} for it, and without one
@@ -25,7 +32,24 @@
  * control character (a mark, an embedding, an isolate) prints nothing and takes none.
  */
 
-import { emojiFontMaps, fallbackCovers, hasBidiControl, hasRtlScript, inRanges, isBidiControl, isEmojiCluster, rtlFontPrints, rtlScriptOf, scriptRuns } from '@caotang/pdf-fonts';
+import {
+  devanagariRuns,
+  emojiFontMaps,
+  fallbackCovers,
+  hasBidiControl,
+  hasBrahmic,
+  hasDevanagari,
+  hasRtlScript,
+  inRanges,
+  isBidiControl,
+  isBrahmic,
+  isEmojiCluster,
+  joinConjuncts,
+  rtlFontPrints,
+  rtlScriptOf,
+  scriptRuns,
+  startsWithBrahmicMark,
+} from '@caotang/pdf-fonts';
 import { isPrintable } from './winansi.js';
 
 /** Wide and Fullwidth ranges (UAX #11), inclusive, in code point order. */
@@ -102,17 +126,20 @@ const CLUSTERED = /\u200D|\u20E3|[\uFE00-\uFE0F]|[\u{E0020}-\u{E007F}]|\p{Extend
 let segmenter: Intl.Segmenter | undefined;
 
 /**
- * A text cut into the units a line is measured and broken in: each emoji cluster whole, each other character on its own
- * with any variation selector after it. Text with no emoji and no selector is cut into its code points.
+ * A text cut into the units a line is measured and broken in: each emoji cluster whole, each cluster of Arabic, Hebrew and Brahmic
+ * text whole, each other character on its own with any variation selector after it. Text with none of these is cut into its code
+ * points.
  */
 export function textUnits(text: string): string[] {
   const rtl = hasRtlScript(text);
-  if (!rtl && !CLUSTERED.test(text)) return [...text];
+  const brahmic = hasBrahmic(text);
+  if (!rtl && !brahmic && !CLUSTERED.test(text)) return [...text];
   segmenter ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+  const segments = Array.from(segmenter.segment(text), (part) => part.segment);
   const units: string[] = [];
-  for (const { segment } of segmenter.segment(text)) {
-    // A letter of Arabic or Hebrew with its marks and joiners is one unit, whole.
-    if (isEmojiCluster(segment) || (rtl && rtlScriptOf(segment.codePointAt(0) ?? 0) !== undefined)) {
+  for (const segment of brahmic ? joinConjuncts(segments) : segments) {
+    // A letter of Arabic or Hebrew with its marks and joiners is one unit, whole; so is a cluster of Brahmic text.
+    if (isEmojiCluster(segment) || (rtl && rtlScriptOf(segment.codePointAt(0) ?? 0) !== undefined) || (brahmic && isBrahmic(segment.codePointAt(0) ?? 0))) {
       units.push(segment);
       continue;
     }
@@ -129,14 +156,17 @@ export function textUnits(text: string): string[] {
 
 /**
  * The columns one unit (textUnits) takes: 2 for an emoji, and for a character only Noto Emoji prints; 0 for a bidirectional
- * control character; 1 for a letter, digit or mark of the Arabic or Hebrew font (a word is measured as a whole, see
- * {@link textColumns}); otherwise its character's columns (charColumns). A variation selector adds none.
+ * control character and for a combining mark of Brahmic text with no consonant before it; 1 for a letter, digit or mark of the
+ * Arabic or Hebrew font, and for a cluster of Brahmic text (a word is measured as a whole, see {@link textColumns}); otherwise its
+ * character's columns (charColumns). A variation selector adds none.
  */
 export function unitColumns(unit: string): 0 | 1 | 2 {
   // Nothing below U+0590 is Arabic, Hebrew or a bidirectional control, so Latin text skips both tests.
   if (unit.charCodeAt(0) >= 0x0590) {
     if (isBidiControl(unit)) return 0;
     if (rtlFontPrints(unit) !== undefined) return 1;
+    // A mark with no consonant before it is drawn over what is there, and takes no column.
+    if (startsWithBrahmicMark(unit)) return 0;
   }
   // No emoji starts below U+231A (⌚), so Latin text skips the emoji test.
   if ((unit.length > 1 || unit.charCodeAt(0) >= 0x231a) && isEmojiCluster(unit)) return 2;
@@ -145,13 +175,13 @@ export function unitColumns(unit: string): 0 | 1 | 2 {
   return charColumns(base);
 }
 
-/** The columns of one shaped run of Arabic or Hebrew (a word, or a digit or mark), as {@link withMeasure} measures it. */
+/** The columns of one shaped run of Arabic, Hebrew or Devanagari (a word, or a digit or mark), as {@link withMeasure} measures it. */
 export type MeasureRun = (run: string) => number;
 
 let measureRun: MeasureRun | undefined;
 
 /**
- * Runs `work` with `measure` as the width of every run of Arabic or Hebrew. The layout stays synchronous and pure: the
+ * Runs `work` with `measure` as the width of every run of Arabic, Hebrew or Devanagari. The layout stays synchronous and pure: the
  * measure is the shaper's, loaded before the layout starts, and it holds for the call and no longer.
  */
 export function withMeasure<T>(measure: MeasureRun | undefined, work: () => T): T {
@@ -164,15 +194,27 @@ export function withMeasure<T>(measure: MeasureRun | undefined, work: () => T): 
   }
 }
 
-/** The columns a run of text takes on the grid. For text with no wide character, no emoji and no Arabic or Hebrew this is its length in code points. */
-export function textColumns(text: string): number {
+/** The columns of text that holds no Arabic, Hebrew or bidirectional control character: its units, a Devanagari word measured whole. */
+function unitsColumns(text: string): number {
+  const units = textUnits(text);
   let n = 0;
-  if (!hasRtlScript(text) && !hasBidiControl(text)) {
-    for (const unit of textUnits(text)) n += unitColumns(unit);
+  if (!hasDevanagari(text)) {
+    for (const unit of units) n += unitColumns(unit);
     return n;
   }
-  for (const run of scriptRuns(textUnits(text))) {
+  for (const run of devanagariRuns(units)) {
     if (run.kind === 'other') for (const unit of textUnits(run.text)) n += unitColumns(unit);
+    else n += measureRun !== undefined ? measureRun(run.text) : textUnits(run.text).length;
+  }
+  return n;
+}
+
+/** The columns a run of text takes on the grid. For text with no wide character, no emoji, no Arabic, Hebrew or Devanagari this is its length in code points. */
+export function textColumns(text: string): number {
+  if (!hasRtlScript(text) && !hasBidiControl(text)) return unitsColumns(text);
+  let n = 0;
+  for (const run of scriptRuns(textUnits(text))) {
+    if (run.kind === 'other') n += unitsColumns(run.text);
     else n += run.kind === 'single' ? 1 : measureRun !== undefined ? measureRun(run.text) : textUnits(run.text).length;
   }
   return n;
@@ -224,12 +266,12 @@ export function breakPieces(word: string): string[] {
   return pieces;
 }
 
-/** The longest head of a text that fits `width` columns, at least one unit, and the rest. An emoji or a letter with its marks is never split. */
+/** The longest head of a text that fits `width` columns, at least one unit, and the rest. An emoji, a letter with its marks or a cluster of Indic text is never split. */
 export function splitColumns(text: string, width: number): readonly [string, string] {
   let cols = 0;
   let head = '';
-  // A word of Arabic or Hebrew is as wide as its shaped form, which is not the sum of its letters: the head is measured whole.
-  const whole = hasRtlScript(text);
+  // A word of Arabic, Hebrew or Devanagari is as wide as its shaped form, which is not the sum of its letters: the head is measured whole.
+  const whole = hasRtlScript(text) || hasDevanagari(text);
   for (const ch of textUnits(text)) {
     const c = whole ? textColumns(head + ch) - cols : unitColumns(ch);
     if (head !== '' && cols + c > width) break;

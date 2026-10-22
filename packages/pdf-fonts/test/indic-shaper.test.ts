@@ -153,24 +153,17 @@ describe('the clusters', () => {
 });
 
 describe('shapeWord', () => {
-  it('rebuilds the spans from the clusters: the text of each cluster, once, over its glyphs in drawing order', () => {
+  it('gives the text of each cluster to the first glyph drawn of it, and none to the rest', () => {
     const word = shapeWord(shaper, 'हिन्दी', options('hi'));
     expect(word.failed).toBeUndefined();
-    expect(word.spans).toEqual([
-      { glyphs: 2, text: 'हि' },
-      { glyphs: 3, text: 'न्दी' },
-    ]);
-    // The first glyph drawn of a cluster carries the cluster's text for ToUnicode, the others none.
     expect(word.glyphs.map((glyph) => glyph.text)).toEqual(['हि', '', 'न्दी', '', '']);
     expect(word.advance).toBe(word.glyphs.reduce((sum, glyph) => sum + glyph.advance, 0));
-    expect(word.spans.map((span) => span.text).join('')).toBe('हिन्दी');
   });
 
-  it('keeps the logical text whole where glyphs are moved: the spans of a word, in order, are the typed word', () => {
-    for (const text of ['कार्यक्रम', 'प्रेम', 'र्क', 'कि', 'वर्षे', 'क्षत्रिय']) {
+  it('keeps the logical text whole where glyphs are moved: the texts of the glyphs, in drawing order, are the typed word', () => {
+    for (const text of ['कार्यक्रम', 'प्रेम', 'र्क', 'कि', 'वर्षे', 'क्षत्रिय', '\u0958']) {
       const word = shapeWord(shaper, text, options('hi'));
-      expect(word.spans.reduce((n, span) => n + span.glyphs, 0), text).toBe(word.glyphs.length);
-      expect(word.spans.map((span) => span.text).join(''), text).toBe(text);
+      expect(word.glyphs.map((glyph) => glyph.text).join(''), text).toBe(text);
     }
   });
 

@@ -83,4 +83,5 @@ export {
   joinConjuncts,
   startsWithBrahmicMark,
   type DevanagariRun,
+  type ShapedScript,
 } from './brahmic.js';

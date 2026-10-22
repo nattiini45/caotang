@@ -123,42 +123,35 @@ export async function createFontkitShaper(fonts: Readonly<Record<string, Uint8Ar
   };
 }
 
-/** A span of a shaped word that a reader copies as one text (`/ActualText`): `glyphs` glyphs, in drawing order, standing for `text`. */
-export interface WordSpan {
-  readonly glyphs: number;
-  readonly text: string;
-}
-
-/** A shaped word: its glyphs left to right, the spans that carry its logical text, and its advance in font units. */
+/** A shaped word: its glyphs left to right and its advance in font units. */
 export interface ShapedWord {
   readonly glyphs: readonly ShapedGlyph[];
-  readonly spans: readonly WordSpan[];
   readonly advance: number;
   /** Why the engine could not shape the word; the word then has no glyphs. */
   readonly failed?: string;
 }
 
 /**
- * Shapes a word and rebuilds its spans from the clusters the shaper gave, never from the glyph order: the clusters of a
- * reordered vowel sign or a reph are not monotonic. The first glyph drawn of a cluster carries the cluster's text for the
- * ToUnicode map and the others none, so a reader that ignores `/ActualText` still gets the typed text. An engine failure is a word
- * with no glyphs and the error in `failed`, never a throw.
+ * Shapes a word and gives each glyph the text it stands for, from the clusters the shaper gave and never from the glyph order: a
+ * reordered vowel sign or a reph is drawn out of its place in the text. The first glyph drawn of a cluster carries the cluster's
+ * text for the ToUnicode map and the others none, so a reader that ignores `/ActualText` still gets the typed text, and the texts
+ * of the glyphs in drawing order are the typed text. An engine failure is a word with no glyphs and the error in `failed`, never
+ * a throw.
  */
 export function shapeWord(shaper: BrahmicShaper, word: string, options: BrahmicShapeOptions): ShapedWord {
   let raw: BrahmicGlyph[];
   try {
     raw = shaper.shape(word, options);
   } catch (error) {
-    return { glyphs: [], spans: [], advance: 0, failed: error instanceof Error ? error.message : String(error) };
+    return { glyphs: [], advance: 0, failed: error instanceof Error ? error.message : String(error) };
   }
   const starts = [...new Set(raw.map((glyph) => glyph.cluster))].sort((a, b) => a - b);
   const textOf = (start: number): string => word.slice(start, starts[starts.indexOf(start) + 1] ?? word.length);
-  // A cluster must be one stretch of the drawing order, or the word is one span.
+  // A cluster must be one stretch of the drawing order, or the word is one cluster.
   const order: number[] = [];
   for (const glyph of raw) if (order[order.length - 1] !== glyph.cluster) order.push(glyph.cluster);
   const contiguous = new Set(order).size === order.length;
   const glyphs: ShapedGlyph[] = [];
-  const spans: { glyphs: number; text: string }[] = [];
   let previous: number | undefined;
   for (const glyph of raw) {
     const cluster = contiguous ? glyph.cluster : 0;
@@ -166,8 +159,6 @@ export function shapeWord(shaper: BrahmicShaper, word: string, options: BrahmicS
     previous = cluster;
     const text = contiguous ? textOf(cluster) : word;
     glyphs.push({ id: glyph.gid, advance: glyph.xAdvance, dx: glyph.xOffset, dy: glyph.yOffset, text: first ? text : '' });
-    if (first) spans.push({ glyphs: 1, text });
-    else (spans[spans.length - 1] as { glyphs: number }).glyphs += 1;
   }
-  return { glyphs, spans, advance: glyphs.reduce((sum, glyph) => sum + glyph.advance, 0) };
+  return { glyphs, advance: glyphs.reduce((sum, glyph) => sum + glyph.advance, 0) };
 }
