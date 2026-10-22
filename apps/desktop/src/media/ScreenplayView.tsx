@@ -13,7 +13,7 @@ import type { ProjectSession } from '../app/session.js';
 import type { RevealRequest } from '../components/EditorPane.js';
 import { radioStep } from '../components/radio-keys.js';
 import { Menu, useReport, useSession, type MenuAnchor } from '../components/shared.js';
-import type { LocatedElement } from './engines.js';
+import { LINE_ELEMENT_TYPES, type LineConversion, type LineElementType, type LocatedElement } from './engines.js';
 import { useCodexEntries } from './hooks.js';
 import { printedOf, saveLineOf, screenplayModelOf, sceneOffset, unwrittenFlushOf, type DialogueBlock, type ScreenplayUnit } from './screenplay-model.js';
 import { deriveIntentOf, shotsFolderOf } from './storyboard-model.js';
@@ -22,7 +22,7 @@ import { SourceField } from './SourceField.js';
 import { fountainSegments } from './source-decor.js';
 import { cueCompletion, cueNames, enterAfterCue, enterOnEmptyDialogue, type KeyEdit } from './screenplay-keys.js';
 import { ScreenplayPreview } from './ScreenplayPreview.js';
-import { ELEMENT_MENU_LABEL, elementEntries, opensElementMenu, type ElementEntry } from './element-menu.js';
+import { ELEMENT_MENU_LABEL, chordAria, chordPlatform, chordRange, elementChord, elementEntries, opensElementMenu, type ElementEntry } from './element-menu.js';
 
 export interface ScreenplayViewProps {
   readonly session: ProjectSession;
@@ -132,14 +132,20 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
   };
 
   /**
-   * The Source tab's keys (screenplay.md §3): Ctrl+E (Cmd+E) opens the element menu, Enter works after a cue and on empty
-   * dialogue, and Tab on a half-typed cue. Any other key with a modifier, or one that is not one of these, keeps its meaning,
-   * and so does Enter or Tab with a selection.
+   * The Source tab's keys (screenplay.md §3): Ctrl+E (Cmd+E) opens the element menu, the element chords (Ctrl+Shift+1..9, or
+   * Cmd+Alt+1..9 on a Mac) rewrite the caret's line, Enter works after a cue and on empty dialogue, and Tab on a half-typed cue.
+   * Any other key with a modifier, or one that is not one of these, keeps its meaning, and so does Enter or Tab with a selection.
    */
   const onSourceKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
     if (opensElementMenu(event)) {
       event.preventDefault();
       openElementMenu();
+      return;
+    }
+    const chosen = elementChord(event.nativeEvent, platform);
+    if (chosen !== null) {
+      event.preventDefault();
+      changeElement(event.currentTarget, chosen);
       return;
     }
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
@@ -166,6 +172,8 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
   // one where the selection starts.
   const [elementMenu, setElementMenu] = useState<OpenElementMenu | null>(null);
   const elementButtonRef = useRef<HTMLButtonElement>(null);
+  // The chord family the platform has (element-menu.ts), which the menu and the Element button name.
+  const [platform] = useState(() => chordPlatform(typeof navigator === 'undefined' ? undefined : navigator));
 
   const openElementMenu = (): void => {
     const field = sourceRef.current;
@@ -174,15 +182,12 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
     setElementMenu({
       anchor: { x: rect.left, y: rect.bottom + 4 },
       text: field.value,
-      entries: elementEntries(field.value, field.selectionStart),
+      entries: elementEntries(field.value, field.selectionStart, platform),
     });
   };
 
-  const chooseElement = (entry: ElementEntry): void => {
-    const field = sourceRef.current;
-    const edit = entry.edit;
-    // A text that changed under the open menu (an undo, a restore, an agent apply) is not the one the edit was worked out on.
-    if (field === null || edit === null || elementMenu === null || field.value !== elementMenu.text) return;
+  // The one place a conversion reaches the draft, for the menu and for the chords: the same edit, autosave note and caret.
+  const applyConversion = (field: HTMLTextAreaElement, edit: LineConversion): void => {
     if (edit.text !== field.value) {
       setDraft(edit.text);
       session.autosave.noteEdit(docId, edit.text);
@@ -194,6 +199,25 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
       target.focus();
       target.setSelectionRange(edit.caret, edit.caret);
     });
+  };
+
+  const chooseElement = (entry: ElementEntry): void => {
+    const field = sourceRef.current;
+    const edit = entry.edit;
+    // A text that changed under the open menu (an undo, a restore, an agent apply) is not the one the edit was worked out on.
+    if (field === null || edit === null || elementMenu === null || field.value !== elementMenu.text) return;
+    applyConversion(field, edit);
+  };
+
+  // An element chord. A line that already is the element is left as it is, and one that cannot be it says so on the status line.
+  const changeElement = (field: HTMLTextAreaElement, type: LineElementType): void => {
+    const entry = elementEntries(field.value, field.selectionStart).find((candidate) => candidate.type === type);
+    if (entry === undefined || entry.checked) return;
+    if (entry.edit === null) {
+      report({ text: `This line cannot be ${entry.label.toLowerCase()} here.`, tone: 'info' });
+      return;
+    }
+    applyConversion(field, entry.edit);
   };
 
   const jumpToScene = (index: number): void => {
@@ -291,8 +315,8 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
                   className="button is-quiet"
                   aria-haspopup="menu"
                   aria-expanded={elementMenu !== null}
-                  aria-keyshortcuts="Control+E Meta+E"
-                  title="Change the element of the line the caret is on (Ctrl+E, or Cmd+E on a Mac)"
+                  aria-keyshortcuts={`Control+E Meta+E ${LINE_ELEMENT_TYPES.map((type) => chordAria(type, platform)).join(' ')}`}
+                  title={`Change the element of the line the caret is on (Ctrl+E, or Cmd+E on a Mac). ${chordRange(platform)} chooses one directly.`}
                   onClick={openElementMenu}
                 >
                   Element
@@ -315,6 +339,7 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
                     key: entry.type,
                     label: entry.label,
                     shortcut: entry.shortcut,
+                    chord: entry.chord,
                     checked: entry.checked,
                     disabled: entry.edit === null,
                     onSelect: () => chooseElement(entry),

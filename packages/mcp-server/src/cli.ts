@@ -40,6 +40,15 @@ export interface ServeOptions {
 /** The environment variable that turns writes on, as `--allow-writes` does. Only the value "true" counts. */
 export const ALLOW_WRITES_ENV = 'CAOTANG_MCP_ALLOW_WRITES';
 
+/**
+ * What the environment says about writes, as one of four words. The raw value is never logged: a host that fails to
+ * substitute a setting leaves a template string here, and a log line must not carry whatever a host put in a variable.
+ */
+function classifyWritesSetting(value: string | undefined): 'unset' | 'true' | 'false' | 'other' {
+  if (value === undefined) return 'unset';
+  return value === 'true' || value === 'false' ? value : 'other';
+}
+
 export const USAGE = `usage: caotang-mcp serve --project <dir> [--create <name>] [--allow-writes] [--port <n>] [--token-env <VAR>]
        caotang-mcp serve --project <dir> [--create <name>] [--allow-writes] --stdio
 
@@ -109,7 +118,13 @@ export function parseServeArgs(argv: readonly string[]): ServeOptions | 'help' {
 }
 
 /** The lines the server says about itself at start. Written to stderr by the caller. */
-export function startupLines(session: ProjectSession, options: ServeOptions, token: { minted: boolean; token: string }, url?: string): string[] {
+export function startupLines(
+  session: ProjectSession,
+  options: ServeOptions,
+  token: { minted: boolean; token: string },
+  url?: string,
+  env?: NodeJS.ProcessEnv,
+): string[] {
   const lines = [`caotang-mcp ${VERSION}: project "${session.state.manifest.project.name}" at ${session.root}`];
   if (session.created) lines.push(`caotang-mcp: made a new project; the folder held no caotang.json`);
   else if (options.create !== undefined) lines.push(`caotang-mcp: the folder already holds a project, so --create "${options.create}" was not used`);
@@ -119,6 +134,14 @@ export function startupLines(session: ProjectSession, options: ServeOptions, tok
       ? 'caotang-mcp: writes are on: external callers may change this project, and a write that asks the user is confirmed first'
       : 'caotang-mcp: writes are off: this server is read-only (pass --allow-writes to let external callers change the project)',
   );
+  if (env !== undefined) {
+    const setting = classifyWritesSetting(env[ALLOW_WRITES_ENV]);
+    lines.push(
+      `caotang-mcp: ${ALLOW_WRITES_ENV} ${
+        setting === 'unset' ? 'is unset' : setting === 'other' ? 'is other (not "true", so it does not turn writes on)' : `is "${setting}"`
+      }`,
+    );
+  }
   if (url !== undefined) lines.push(`caotang-mcp: MCP endpoint ${url}`);
   if (!options.stdio) {
     lines.push(
@@ -192,7 +215,7 @@ export async function runCli(argv: readonly string[], io: RunIo): Promise<number
     const runtime = createToolRuntime(session);
 
     if (options.stdio) {
-      for (const line of startupLines(session, options, token)) io.stderr(`${line}\n`);
+      for (const line of startupLines(session, options, token, undefined, io.env)) io.stderr(`${line}\n`);
       const handle = startStdioServer(runtime);
       await io.untilDone(async () => {
         await handle.close();
@@ -202,7 +225,7 @@ export async function runCli(argv: readonly string[], io: RunIo): Promise<number
     }
 
     const server: RunningHttpServer = await startHttpServer(runtime, { port: options.port, token: token.token });
-    for (const line of startupLines(session, options, token, server.url)) io.stderr(`${line}\n`);
+    for (const line of startupLines(session, options, token, server.url, io.env)) io.stderr(`${line}\n`);
     io.stderr('caotang-mcp: ready\n');
     await io.untilDone(async () => {
       await server.close();

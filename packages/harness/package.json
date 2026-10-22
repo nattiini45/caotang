@@ -20,6 +20,7 @@
     "@caotang/gateway": "workspace:*",
     "@caotang/ids": "workspace:*",
     "@caotang/mcp-client": "workspace:*",
+    "@caotang/skills": "workspace:*",
     "@caotang/store": "workspace:*",
     "@caotang/storyboard": "workspace:*",
     "@caotang/video-prompt-pack": "workspace:*"

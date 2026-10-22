@@ -28,6 +28,7 @@ import * as furnitureDescriptors from './descriptors-furniture.js';
 import { coherenceDiscardRun } from './descriptors-coherence.js';
 import * as shotImageDescriptors from './descriptors-shot-image.js';
 import * as scriptDescriptors from './descriptors-script.js';
+import * as skillDescriptors from './descriptors-skills.js';
 import {
   viewSetActiveDocApply,
   viewSetCorkboardScopeApply,
@@ -117,6 +118,12 @@ export function buildRegistry(): CommandRegistry {
     'screenplay.import': { descriptor: scriptDescriptors.screenplayImport },
     'dialogue.importInk': { descriptor: scriptDescriptors.dialogueImportInk },
     'dialogue.setMeta': { descriptor: scriptDescriptors.dialogueSetMeta },
+    // The project's skills (extensibility.md §10). User-only: every descriptor is `agentRisk: 'never'`. The applies are the store's
+    // (`commands-skills.ts`), and `skill.import` is registered only when the host injects its staging.
+    'skill.import': { descriptor: skillDescriptors.skillImport },
+    'skill.write': { descriptor: skillDescriptors.skillWrite },
+    'skill.delete': { descriptor: skillDescriptors.skillDelete },
+    'skill.setEnabled': { descriptor: skillDescriptors.skillSetEnabled },
   };
 }
 

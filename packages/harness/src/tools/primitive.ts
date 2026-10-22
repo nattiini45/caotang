@@ -28,7 +28,7 @@ import { checkCommand } from './common.js';
 
 /**
  * The commands no tool may stand for: deletes, the document-body writes, the view commands, the staging commands, the external
- * call and the hard-denied names. The list is the source of the type, so naming one in a spec is a compile error
+ * call, the skill commands and the hard-denied names. The list is the source of the type, so naming one in a spec is a compile error
  * (`test/primitive.test.ts` holds the `@ts-expect-error`), and the runtime guard reads the same list.
  */
 export const NEVER_EXPOSED = [
@@ -49,6 +49,11 @@ export const NEVER_EXPOSED = [
   'project.importAsset',
   'shot.importImage',
   'mcp.invoke',
+  // A skill is an instruction the agent will read later, so the agent never writes one (extensibility §4 rule 7).
+  'skill.import',
+  'skill.write',
+  'skill.delete',
+  'skill.setEnabled',
 ] as const satisfies readonly CommandName[];
 
 export type NeverExposed = (typeof NEVER_EXPOSED)[number];

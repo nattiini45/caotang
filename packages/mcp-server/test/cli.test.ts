@@ -162,16 +162,33 @@ describe('runCli', () => {
   });
 
   it.each([
-    ['true', 'writes are on'],
-    ['false', 'writes are off'],
-    ['1', 'writes are off'],
-    ['', 'writes are off'],
-  ])('reads CAOTANG_MCP_ALLOW_WRITES=%j as %s, so the MCPB bundle can set writes from its settings', async (value, expected) => {
+    ['true', 'writes are on', 'is "true"'],
+    ['false', 'writes are off', 'is "false"'],
+    ['1', 'writes are off', 'is other (not "true", so it does not turn writes on)'],
+    ['', 'writes are off', 'is other (not "true", so it does not turn writes on)'],
+    ['${user_config.allow_writes}', 'writes are off', 'is other (not "true", so it does not turn writes on)'],
+  ])('reads CAOTANG_MCP_ALLOW_WRITES=%j as %s and logs it as %s, so the MCPB bundle can set writes from its settings', async (value, expected, classified) => {
     const root = tempDir('cli-allow-env');
     try {
       const { io, err } = captureIo({ CAOTANG_MCP_ALLOW_WRITES: value, CAOTANG_MCP_TOKEN: 'env-token-for-the-allow-test-0123' });
       expect(await runCli(['serve', '--project', root, '--create', 'Env Writes', '--port', '0'], io)).toBe(0);
-      expect(err.join('')).toContain(expected);
+      const log = err.join('');
+      expect(log).toContain(expected);
+      expect(log).toContain(`caotang-mcp: CAOTANG_MCP_ALLOW_WRITES ${classified}`);
+      if (value.includes('$')) expect(log).not.toContain(value);
+    } finally {
+      removeDir(root);
+    }
+  });
+
+  it('logs CAOTANG_MCP_ALLOW_WRITES as unset when the variable is absent, over stdio too', async () => {
+    const root = tempDir('cli-allow-unset');
+    try {
+      const { io, err } = captureIo({});
+      expect(await runCli(['serve', '--stdio', '--project', root, '--create', 'Unset'], io)).toBe(0);
+      const log = err.join('');
+      expect(log).toContain('caotang-mcp: CAOTANG_MCP_ALLOW_WRITES is unset');
+      expect(log).toContain('writes are off');
     } finally {
       removeDir(root);
     }

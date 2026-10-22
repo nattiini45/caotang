@@ -102,6 +102,25 @@ test.describe('the findings file beside the project (coherence.md §3)', () => {
     expect(attached.writable).toBe(true);
   });
 
+  test('a run the MCP server saved in the open folder is in the run history the project opens with', async () => {
+    const folder = memoryFolder();
+    const run = {
+      id: 'r_SERVER0001',
+      at: '2026-10-08T09:00:00.000Z',
+      kind: 'deterministic' as const,
+      checkIds: ['codex.never-mentioned'],
+      scope: { docIds: [IDS.sceneA], mode: 'full' as const },
+      findingsUpserted: [],
+      status: 'complete' as const,
+    };
+    const fromHost: CoherenceFile = { ...emptyCoherenceFile(), runs: [run] };
+    folder.tree.children.set('coherence.json', { kind: 'file', bytes: new TextEncoder().encode(serializeCoherenceFile(fromHost)) });
+
+    const { session, attached } = fakeSession();
+    await attachCoherence(session, await storeWithProject(), folder.handle);
+    expect(attached.file?.runs.map((held) => held.id)).toEqual(['r_SERVER0001']);
+  });
+
   test('a save writes the file into the project’s row in the store, and reads back from there on reopen', async () => {
     const store = await storeWithProject();
     const { session, attached } = fakeSession();

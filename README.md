@@ -19,6 +19,7 @@ Caotang is free and MIT-licensed. There are no accounts, no subscriptions, no cr
 - **Dialogue.** A container is an Ink story, with an outline, a branch graph, findings and line ids. Import a `.ink` story as one container for each group of knots that divert to one another.
 - **Storyboards.** Shot cards with pictures (chosen, dropped or pasted), an animatic total, script coverage, a prompt for each target video model, and a prompt pack that exports as JSON, Markdown or CSV.
 - **Codex.** Characters, locations, objects, lore, subplots and other entries, with aliases, include policies, excluded phrases and a list of the documents each name appears in.
+- **Skills.** Reusable writing instructions for the agent ("draft in close third person"), kept in the project as standard Agent Skills folders other tools read too. You read and approve each skill before the agent is told about it, and a change asks again. A skill guides the agent and changes nothing about what needs your approval.
 - **Findings.** A quick scan of the manuscript against the codex and the scene declarations, and a model review that runs only after you approve its plan. Findings are grouped by severity and quote their passages. Dismiss one with a reason, mark it fixed, or send it to the agent with **Fix with agent**. The run history keeps each run.
 - **Agent.** Plans, one-step cards and draft previews in the agent panel, with checkpoints and restore. Stop a running turn, steer it with a note, or queue your next message while it works. It runs on presets for the major providers (Anthropic, OpenAI, Google, xAI, Mistral, DeepSeek, OpenRouter and more) or any OpenAI-compatible endpoint you add, or on the built-in demo provider with no key. It uses native tool calling where the model supports it, and can run the model review as a plan step, and call the tools of the MCP servers you connect and enable (see below).
 - **Export.** Markdown, plain text, Word (`.docx`) and EPUB, for the whole manuscript or one part of it. For screenplays, dialogue and storyboards: Fountain, Final Draft (`.fdx`, not yet checked in Final Draft itself), a paginated screenplay PDF, an Ink story, a dialogue table, a shot list and a storyboard contact sheet (PDF). Also a coherence report. Recipes keep your export settings.
@@ -70,7 +71,7 @@ X-Content-Type-Options: nosniff
 Referrer-Policy: no-referrer
 ```
 
-`connect-src *` is deliberate: the agent talks to whichever provider and MCP servers you configure, straight from your browser.
+`connect-src *` is deliberate: the agent talks to whichever provider and MCP servers you configure, straight from your browser. If you tighten it, list the providers you use, and `http://127.0.0.1:*` if you use a local model preset (Ollama, LM Studio, llama.cpp).
 
 For **Netlify** or **Cloudflare Pages**, put the headers in a `_headers` file in `apps/desktop/dist/` (or in `apps/desktop/public/`, so each build copies it):
 
@@ -123,7 +124,7 @@ The scripted demo is [`e2e/demo.spec.ts`](e2e/demo.spec.ts). It builds a three-c
 
 - **Bring your own key.** Add a provider in **Settings › Providers**: pick a preset (its address and authentication are filled in) or a generic endpoint of your own, choose a model, and paste the key. When you save, Caotang lists the provider's models to check it works.
 - **Your key stays in this browser.** It is sealed with a key the page cannot export, and it is never written into a project file. Sealing keeps a stored key from being read out of storage. It does not protect against code running in the page while Caotang is open.
-- **Requests go to the provider you chose.** The agent sends requests only to the endpoint of the profile each task role resolves to. The built-in demo provider makes no network request at all.
+- **Requests go to the provider you chose.** The agent sends requests only to the endpoint of the profile each task role resolves to. A local model preset (Ollama, LM Studio, llama.cpp) talks to a server on your own computer, over plain http at a loopback address only, so the text stays on the machine; every other provider needs https. The built-in demo provider makes no network request at all.
 - **Your text goes to that provider when the agent works.** The parts of the project the agent needs are sent with each request. The agent panel shows what it left out. A model review on the Findings tab sends the text it reads, after you approve its plan.
 - **MCP servers are off until you turn them on.** **Settings › MCP & tools** is off by default, and while it is off no server is contacted. Once you turn it on and connect a server, Caotang sends requests to that server's address (https, or http on your own computer): to list its tools, and to check a tool before the agent calls it. When the agent calls a tool, the arguments it chose for that call go to that server, and the result comes back to Caotang. Caotang does not contact a server you have not connected.
 - **No account, no Caotang server, no analytics.** Projects live in your browser. Export a bundle to keep a copy you can open anywhere.
@@ -201,6 +202,18 @@ Three things to know before you connect:
 - While the server runs with `--allow-writes`, save its folder from the Caotang app only with the server stopped, or with each save question checked. The app asks before it saves over the server's lock, but a confirmed save can still overwrite what the server wrote (see the server's README, Known gaps).
 
 The tools that need a model, `scene.draft`, `synopsis.fill`, `continuity.scan`, `coherence.review`, `shots.derive`, `prompt.draft`, `prompt.variant` and `dialogue.draft`, are not available over MCP, because the server holds no provider key. [Bringing existing writing into Caotang](docs/USER-GUIDE.md#bringing-existing-writing-in-through-the-mcp-server) explains the import tools, `doc.import` and `codex.import`, which are available. With writes allowed, `export.compile` compiles the manuscript, one item or a saved recipe in any export format, EPUB included, once the host confirms it.
+
+### Install the bundle
+
+1. Build `caotang-mcp-0.1.0.mcpb` with the `pack` command above, or download it from the latest release.
+2. Drag the file onto an MCPB host such as Claude Desktop, or open it with the host. The host shows a dialog with the bundle's name, its description and two settings.
+3. Under **Project folder**, choose a folder that already holds a Caotang project.
+4. Leave **Allow changes** off unless you want the assistant to change the project. Off, the assistant can only read it. On, some changes still ask you to confirm them in the host first.
+5. The host may warn that the bundle is not signed and offer **Install Anyway**. The warning means the host cannot name a publisher for the file, because the signing tool today produces bundles that hosts refuse. The code is open, and you can build the same file from source with the `pack` command. Install it only if you built it or took it from this project's release.
+
+The server runs on your computer over stdio and opens no network port. Uninstalling the bundle removes the server and leaves your project folder as it was. The wording of the dialog differs between hosts and versions.
+
+The bundle is not signed, and it has not been tested in a real host yet. [packages/mcp-server/HOST-CHECKS.md](packages/mcp-server/HOST-CHECKS.md) lists the checks and holds the results; it has none so far. The release lists the file's SHA-256 in `SHA256SUMS`.
 
 ## Documents
 

@@ -18,6 +18,7 @@
  * - **Clamp at save.** At most twenty servers (A8). The clamp names what it dropped.
  */
 
+import { isLoopbackHost } from '@caotang/gateway/loopback';
 import { CROCKFORD_ALPHABET } from '@caotang/ids';
 
 import { hasOwn, isRecord } from './util.js';
@@ -88,17 +89,10 @@ export interface McpSettingsLoad {
   readonly warnings: readonly string[];
 }
 
+/** The one loopback predicate the gateway shares (`@caotang/gateway/loopback`), re-exported for callers of this package. */
+export { isLoopbackHost };
+
 export type UrlCheck = { readonly ok: true; readonly url: string } | { readonly ok: false; readonly reason: string };
-
-/** Loopback hosts, where plain `http://` is acceptable: the person's own machine. */
-const LOOPBACK_IPV4 = /^127\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
-
-export function isLoopbackHost(hostname: string): boolean {
-  const host = hostname.toLowerCase();
-  if (host === 'localhost' || host.endsWith('.localhost') || host === '[::1]') return true;
-  const match = LOOPBACK_IPV4.exec(host);
-  return match !== null && match.slice(1).every((octet) => Number(octet) <= 255);
-}
 
 /**
  * The save-time check on a server URL (§3.2: "validated at save (https or http://localhost*,

@@ -25,7 +25,7 @@
  */
 export const DEFAULT_MAX_OUTPUT_TOKENS = 4_096;
 
-import { MOCK_BASE_URL, normalizeBaseUrl, originOf } from './base-url.js';
+import { MOCK_BASE_URL, normalizeBaseUrl, normalizeLocalBaseUrl, originOf } from './base-url.js';
 import { ProfileError } from './errors.js';
 import type { KeyStore } from './keys/key-store.js';
 import { presetFor, type PresetDef } from './presets/index.js';
@@ -190,7 +190,8 @@ function checkFields(kind: ProfileKind, raw: RawFields): CheckedFields {
     }
     // The base URL: the save's own when given, else the preset's (templated from fields).
     const candidate = (raw.baseUrl ?? '').trim() !== '' ? raw.baseUrl : (preset.baseUrlFor?.(fields ?? {}) ?? preset.baseUrl);
-    baseUrl = normalizeBaseUrl(candidate ?? '');
+    // A local model preset may use http to this computer; every other endpoint is https only.
+    baseUrl = preset.local === undefined ? normalizeBaseUrl(candidate ?? '') : normalizeLocalBaseUrl(candidate ?? '');
     defaultModel = (raw.defaultModel ?? '').trim() || preset.defaultModel;
     if (defaultModel === '') {
       throw new ProfileError('invalid', 'Enter the model name, for example openai/gpt-4.1-mini.', 'defaultModel');
@@ -237,8 +238,8 @@ function checkKey(raw: string, keyOptional: boolean): string {
 
 /**
  * An endpoint needs a key unless its preset documents keyless calls (`keyOptional`,
- * per the registry: OpenCode's free models, a hand-rolled generic endpoint). There is
- * no other exemption — HTTPS is required either way.
+ * per the registry: OpenCode's free models, a hand-rolled generic endpoint, a server on this
+ * computer). There is no other exemption.
  */
 function requireKeyFor(hasKey: boolean, keyOptional: boolean): void {
   if (!hasKey && !keyOptional) throw new ProfileError('invalid', 'Enter the API key for this endpoint.', 'apiKey');

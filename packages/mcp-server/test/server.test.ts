@@ -12,7 +12,7 @@ import type { Client } from '@modelcontextprotocol/client';
 import { mcpExposure, metadataFor, TOOL_METADATA } from '@caotang/harness';
 import { ArtifactNotFoundError, parseDocumentFile } from '@caotang/store';
 
-import { createToolRuntime, LEGACY_ROUND_TIMEOUT_MS, LegacySessions, startHttpServer, type RunningHttpServer } from '../src/index.js';
+import { createRoundCodec, createToolRuntime, LEGACY_ROUND_TIMEOUT_MS, ROUND_TTL_SECONDS, LegacySessions, startHttpServer, type RunningHttpServer } from '../src/index.js';
 import { openProject, ProjectContentError, type ProjectSession } from '../src/index.js';
 import { NodeArtifactFs } from '../src/node-fs.js';
 import { manifestOnDisk } from '../src/session.js';
@@ -850,6 +850,38 @@ describe('the registry seam', () => {
       }
     }
   }, 30_000);
+
+  it('does not list skill.load, even over a project that holds skills: the outward tool list is the one it was', async () => {
+    // A skill is the writer's instruction to the agent in the app, and an outside host is not that agent (extensibility §10, the owner's
+    // decision (b)). The server builds its harness with no `skills`, so the row is registered and not wired, and tools.ts skips an unwired row.
+    const fixture = await startFixture({ label: 'listed-skills', allowWrites: true, seed: true });
+    try {
+      const before = await (async () => {
+        const client = await connectClient(fixture.url, fixture.token);
+        try {
+          return await listedNames(client);
+        } finally {
+          await client.close();
+        }
+      })();
+      fixture.session.harness.state.skills.set('close-third', [
+        { path: 'SKILL.md', bytes: new TextEncoder().encode(['---', 'name: close-third', 'description: Close third person.', '---', 'Write close.', ''].join('\n')) },
+      ]);
+      const listing = fixture.session.harness.tools().find((tool) => tool.name === 'skill.load');
+      expect(listing).toMatchObject({ wired: false, risk: 'read' });
+      expect(fixture.session.harness.skillCatalog()).toBeUndefined();
+      const client = await connectClient(fixture.url, fixture.token);
+      try {
+        const after = await listedNames(client);
+        expect(after).toEqual(before);
+        expect(after).not.toContain('skill.load');
+      } finally {
+        await client.close();
+      }
+    } finally {
+      await fixture.close();
+    }
+  }, 30_000);
 });
 
 describe('the confirmation round trip on the wire', () => {
@@ -971,12 +1003,60 @@ describe('the confirmation round trip on the wire', () => {
           params['requestState'] = `${state.slice(0, -3)}${state.endsWith('AAA') ? 'BBB' : 'AAA'}`;
         }),
       );
-      expect(answer['error']).toBeDefined();
+      expect(answer['error']).toMatchObject({ code: -32602, message: 'Invalid or expired requestState' });
       expect(folderBytes(fixture.root)).toEqual(before);
     } finally {
       await client.close();
       await fixture.close();
     }
+  });
+
+  // The SDK answers every refused requestState with one -32602 "Invalid or expired requestState" and gives the server no seam
+  // to word it (the verify hook's error is replaced), so the cause stays unnamed and the README says a restart is one of them.
+  describe('a requestState the server cannot verify', () => {
+    const REFUSED = { code: -32602, message: 'Invalid or expired requestState' };
+
+    async function refusedRetry(label: string, tamper: (retry: Exchange) => Promise<string> | string): Promise<void> {
+      const fixture = await startFixture({ label, allowWrites: true, seed: true });
+      const exchanges: Exchange[] = [];
+      const client = await connectClient(fixture.url, fixture.token, acceptConfirm, exchanges);
+      try {
+        await client.callTool({ name: 'doc.import', arguments: { parent: CHAPTER_ONE, title: 'Refused', body: 'Refused.' } });
+        const retry = acceptedRetry(exchanges);
+        const before = folderBytes(fixture.root);
+        const answer = await resend(retry, await tamper(retry));
+        const error = answer['error'] as { code: number; message: string } | undefined;
+        expect(error).toMatchObject(REFUSED);
+        expect(folderBytes(fixture.root)).toEqual(before);
+        // The first, accepted call wrote once; the refused retry added nothing.
+        expect(fixture.session.state.manifest.tree.filter((node) => node.title === 'Refused')).toHaveLength(1);
+      } finally {
+        await client.close();
+        await fixture.close();
+      }
+    }
+
+    it('one sealed by another process is refused with the same -32602 as an altered one, and nothing is written', async () => {
+      // A restarted server has a new random key; this seals a round the way the earlier process did.
+      const round = await createRoundCodec(Buffer.alloc(32, 1)).mint({ v: 1, tool: 'doc.import', digest: 'd', turnId: 't', callId: 'c', nonce: 'n' });
+      await refusedRetry('foreign-state', (retry) =>
+        altered(retry, (params) => {
+          params['requestState'] = round;
+        }),
+      );
+    });
+
+    it('one that expired is refused with the same -32602, and nothing is written', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      try {
+        await refusedRetry('expired-state', (retry) => {
+          vi.setSystemTime(Date.now() + (ROUND_TTL_SECONDS + 60) * 1000);
+          return retry.body;
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   it('export.compile through the confirmation writes the compiled file into exports/', async () => {
@@ -1162,6 +1242,27 @@ describe('the confirmation round trip on the wire', () => {
       // The emoji subset is embedded as a TrueType program under its own name; the CJK font is not read for emoji.
       expect(bytes).toContain('/BaseFont /CAOTEM+NotoEmoji-Regular');
       expect(bytes.match(/\/FontFile2/g)).toHaveLength(1);
+    } finally {
+      await client.close();
+      await fixture.close();
+    }
+  }, 30_000);
+
+  it('export.compile draws a contact sheet with Arabic and Hebrew in Noto Sans Arabic and Noto Sans Hebrew, read from their packages', async () => {
+    const fixture = await startFixture({ label: 'export-rtl', allowWrites: true, seed: true, shot: true, shotAction: 'مرحبا بالعالم שלום עולם' });
+    const client = await connectClient(fixture.url, fixture.token, () => ({ action: 'accept', content: { confirmed: true } }));
+    try {
+      const result = await client.callTool({
+        name: 'export.compile',
+        arguments: { selection: { root: SHOTS_FOLDER, includeSubtrees: true }, format: 'contact-sheet-pdf' },
+      });
+      expect(result.isError).not.toBe(true);
+      expect(JSON.stringify(result.content)).not.toContain('drawn as');
+      const pdf = readdirSync(join(fixture.root, 'exports')).filter((name) => name.endsWith('.pdf'));
+      expect(pdf).toHaveLength(1);
+      const bytes = readFileSync(join(fixture.root, 'exports', pdf[0] ?? '')).toString('latin1');
+      expect(bytes).toContain('/BaseFont /CAOTAR+NotoSansArabic-Regular');
+      expect(bytes).toContain('/BaseFont /CAOTHE+NotoSansHebrew-Regular');
     } finally {
       await client.close();
       await fixture.close();

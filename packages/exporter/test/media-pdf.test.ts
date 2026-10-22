@@ -20,7 +20,8 @@ import {
   type UndoStore,
 } from '@caotang/bus';
 import { createProjectCommandRegistry, MemoryArtifactFs, type ExportRecipe, type ProjectState } from '@caotang/store';
-import { loadCjkFontInNode, loadEmojiFontInNode } from '@caotang/pdf-fonts/node-loader';
+import { loadArabicFontInNode, loadCjkFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
+import { PDFDocument, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
 import { createExporter, EXPORT_MIME, isBinaryFormat, isMediaFormat, MediaRefusedError, type ByteArtifacts, type ExporterService } from '../src/index.js';
 import { COMPILED_AT } from './fixture.js';
 import { ASSETS, MEDIA_IDS, PROJECT_NAME, makeMediaProject } from './media-fixture.js';
@@ -38,7 +39,7 @@ interface Rig {
 
 let serial = 0;
 
-function rig(options: { bytes?: boolean; state?: ProjectState; fonts?: boolean } = {}): Rig {
+function rig(options: { bytes?: boolean; state?: ProjectState; fonts?: boolean; language?: string; rtlFonts?: boolean } = {}): Rig {
   const state = options.state ?? makeMediaProject();
   const fs = new MemoryArtifactFs();
   const clock = { now: () => COMPILED_AT };
@@ -52,9 +53,10 @@ function rig(options: { bytes?: boolean; state?: ProjectState; fonts?: boolean }
     artifacts: fs,
     ...(binding === undefined ? {} : { bytes: binding }),
     clock,
-    metadata: () => ({ author: 'Ada Lovelace' }),
+    metadata: () => ({ author: 'Ada Lovelace', ...(options.language === undefined ? {} : { language: options.language }) }),
     assets: () => ASSETS,
     ...(options.fonts === false ? {} : { loadFallbackFont: loadCjkFontInNode, loadEmojiFont: loadEmojiFontInNode }),
+    ...(options.fonts === false || options.rtlFonts === false ? {} : { loadArabicFont: loadArabicFontInNode, loadHebrewFont: loadHebrewFontInNode }),
   });
   const registry = createProjectCommandRegistry({ clock, exporter: exporter.commandPort() });
   const undo: UndoStore = createUndoStore({ dispatch: (command) => execute(command, bus, registry) });
@@ -164,6 +166,87 @@ describe('pdf — through the §4 API', () => {
     expect(log.notes).toContain('pdf: this compile has no emoji font, so this character is printed as "?": 🎬');
     const pdf = ascii(new Uint8Array(await blob.arrayBuffer()));
     expect(pdf).not.toContain('CIDFontType2');
+  });
+});
+
+/** Every page's content stream of a file, read back with pdf-lib, which also proves the file parses. */
+async function contentOf(bytes: Uint8Array): Promise<string> {
+  const doc = await PDFDocument.load(bytes);
+  const streams = doc.getPages().flatMap((page) => {
+    const contents = page.node.Contents();
+    return contents instanceof PDFRawStream ? [contents] : [];
+  });
+  return streams.map((stream) => new TextDecoder().decode(decodePDFRawStream(stream).decode())).join('\n');
+}
+
+/** The `/ActualText` strings of a content stream, in the order they are written. */
+const actualTexts = (content: string): string[] =>
+  [...content.matchAll(/\/ActualText <FEFF([0-9A-F]*)>/g)].map((match) =>
+    String.fromCharCode(...(match[1]?.match(/.{4}/g) ?? []).map((hex) => parseInt(hex, 16))),
+  );
+
+describe('pdf — Arabic and Hebrew', () => {
+  const body = 'INT. غرفة - NIGHT\n\n@سارة\n(بهدوء)\nمرحبا Bob، هل رأيت الفيلم؟\n\n@דוד\n(בשקט)\nשלום עולם, מה שלומך?';
+  const withBody = (text: string): ProjectState => {
+    const state = makeMediaProject();
+    const kitchen = state.documents.get(MEDIA_IDS.kitchen);
+    if (kitchen === undefined) throw new Error('the fixture has no body for the kitchen scene');
+    state.documents.set(MEDIA_IDS.kitchen, { ...kitchen, body: text });
+    return state;
+  };
+
+  it('prints both scripts in their own embedded fonts, with no "?" and no log line naming a character', async () => {
+    const { log, blob } = await rig({ state: withBody(body) }).exporter.compile({ includeRootIds: ['manuscript'] }, 'pdf');
+    expect(log.notes.filter((note) => note.includes('"?"'))).toEqual([]);
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const pdf = ascii(bytes);
+    expect(pdf).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSansArabic-Regular/);
+    expect(pdf).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSansHebrew-Regular/);
+    // Read back with pdf-lib: the file parses, and every word is marked content with its logical text.
+    const copied = actualTexts(await contentOf(bytes));
+    for (const word of ['غرفة', 'سارة', 'بهدوء', 'مرحبا', 'رأيت', 'דוד', 'בשקט', 'שלום', 'עולם', 'שלומך']) expect(copied, word).toContain(word);
+  });
+
+  it('measures the words in their fonts before it draws, and keeps the log page count when the measured layout has the same', async () => {
+    const { log } = await rig({ state: withBody(body) }).exporter.compile({ includeRootIds: ['manuscript'] }, 'pdf');
+    expect(log.notes).toContain('pdf: 1 script page, and a title page, about 1 minute of screen time at a page a minute');
+    expect(log.notes.some((note) => note.includes('measured in their fonts'))).toBe(false);
+  });
+
+  it('says which marks are left out, once for each script', async () => {
+    const state = withBody('INT. A - DAY\n\n@سارة\nبِسْمِ اللّٰهِ\n\n@דוד\nשָׁלוֹם');
+    const { log } = await rig({ state }).exporter.compile({ includeRootIds: ['manuscript'] }, 'pdf');
+    expect(log.notes.filter((note) => note.includes('left out of the print'))).toHaveLength(2);
+  });
+
+  it('prints both scripts as "?", and says so, when the compile has no font for them', async () => {
+    const { log, blob } = await rig({ state: withBody(body), rtlFonts: false }).exporter.compile({ includeRootIds: ['manuscript'] }, 'pdf');
+    expect(log.notes).toContain('pdf: this compile has no Arabic font, so the Arabic text is printed as "?"');
+    expect(log.notes).toContain('pdf: this compile has no Hebrew font, so the Hebrew text is printed as "?"');
+    const pdf = ascii(new Uint8Array(await blob.arrayBuffer()));
+    expect(pdf).not.toContain('NotoSansArabic');
+    expect(pdf).not.toContain('NotoSansHebrew');
+  });
+
+  it('lays out a neutral paragraph right to left in a project whose language is Arabic or Hebrew, and left to right otherwise', async () => {
+    const text = 'INT. A - DAY\n\n...\n\n@سارة\nمرحبا.';
+    const content = async (language: string | undefined): Promise<string> => {
+      const { blob } = await rig({ state: withBody(text), ...(language === undefined ? {} : { language }) }).exporter.compile({ includeRootIds: ['manuscript'] }, 'pdf');
+      return contentOf(new Uint8Array(await blob.arrayBuffer()));
+    };
+    const x = (stream: string): number => Number(/1 0 0 1 (\S+) \S+ Tm\n\(\.\.\.\) Tj/.exec(stream)?.[1] ?? Number.NaN);
+    expect(x(await content('ar'))).toBeGreaterThan(x(await content('en')));
+    expect(x(await content(undefined))).toBe(x(await content('en')));
+  });
+
+  it('writes a Latin-only script byte for byte as it was, whether or not the project is in an Arabic language', async () => {
+    const compile = async (language: string | undefined): Promise<string> => {
+      const { blob } = await rig({ ...(language === undefined ? {} : { language }) }).exporter.compile({ includeRootIds: ['manuscript'] }, 'pdf');
+      return ascii(new Uint8Array(await blob.arrayBuffer()));
+    };
+    const plain = await compile(undefined);
+    expect(await compile('ar')).toBe(plain);
+    expect(plain).not.toContain('NotoSans');
   });
 });
 

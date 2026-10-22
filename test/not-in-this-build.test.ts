@@ -42,6 +42,11 @@ const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp
   },
   { name: 'the engine target and locale in dialogue exports', pattern: /engine target|dialogue export settings|locale in exports/i },
   { name: 'the Source tab element menu', pattern: /element menu/i },
+  // A sentence that names Arabic or Hebrew as unprintable, with Hindi or as a question mark; the limits that remain (marks, Nastaliq, no mirrored page) do not.
+  { name: 'Arabic and Hebrew in the PDFs', pattern: /such as (?:an? )?(?:Arabic|Hebrew)|Arabic,? (?:and|or) Hindi|Hindi,? (?:and|or) Arabic/i },
+  // A limitation sentence about skills names what it is about (scripts, the other files, allowed tools, sharing, running by name), before or
+  // after the word. Any other sentence in these lists that names skills says the feature is missing, and it is built.
+  { name: 'skills', pattern: /(?:^|[.!?]\s+|\n)(?:(?!scripts?|other files|allowed tools|shared across|by name)[^.\n])*?\bskills?\b(?![^.\n]*(?:scripts?|other files|allowed tools|shared across|by name))/i },
   { name: 'the storyboard contact sheet PDF', pattern: /storyboard PDF|PDF (?:exports? |output )?(?:of|for) (?:a )?storyboards?|PDF of a storyboard/i },
 ];
 
@@ -64,6 +69,22 @@ describe('the built-feature patterns flag a stale claim and nothing else', () =>
   it('the spreadsheet pattern lets a true limitation sentence about the spreadsheet files through', () => {
     expect('The spreadsheet files have not been opened in Excel, Numbers or LibreOffice by the test suite.').not.toMatch(spreadsheet);
     expect('The `.xlsx` files are checked by unit tests against the Office Open XML parts.').not.toMatch(spreadsheet);
+  });
+});
+
+describe('the skills pattern flags a claim that skills are missing and lets the true limits through', () => {
+  const skills = BUILT_FEATURES.find((feature) => feature.name === 'skills')?.pattern ?? /$^/;
+
+  it('flags a list that names skills as missing', () => {
+    expect('Not in this build yet: skills.').toMatch(skills);
+    expect('There are no skills in this build.').toMatch(skills);
+  });
+
+  it('lets through a limitation sentence about scripts, the other files, allowed tools, sharing or running by name', () => {
+    expect('Skills that include scripts: Caotang uses their instructions and does not run the scripts.').not.toMatch(skills);
+    expect('The agent cannot read the other files kept with a skill.').not.toMatch(skills);
+    expect('A skill\'s list of allowed tools does not limit the agent.').not.toMatch(skills);
+    expect('There are no skills shared across projects and no way to run a skill by name.').not.toMatch(skills);
   });
 });
 
@@ -92,5 +113,19 @@ describe('the not-in-this-build lists name only what is missing', () => {
     expect(sectionUnder(media, '## What is not wired')).not.toMatch(/visual references/i);
     // The panel sets them and the pack names them; the wired-behaviour list says so.
     expect(media).toMatch(/The codex panel's \*Visual references\* section sets them/);
+  });
+});
+
+describe('the Arabic and Hebrew pattern', () => {
+  const pattern = BUILT_FEATURES.find((feature) => feature.name === 'Arabic and Hebrew in the PDFs')?.pattern ?? /$^/;
+
+  it('flags the old claims that Arabic does not print', () => {
+    expect('Characters that none of its fonts has, such as Arabic and Hindi, print as `?`.').toMatch(pattern);
+    expect('A character no font covers, such as an Arabic letter, prints as a question mark.').toMatch(pattern);
+  });
+
+  it('lets the limits that remain through', () => {
+    expect('Characters that none of its fonts has (Noto Sans Arabic, Noto Sans Hebrew), such as Hindi, print as `?`.').not.toMatch(pattern);
+    expect('Arabic marks and Hebrew points are left out of the print.').not.toMatch(pattern);
   });
 });

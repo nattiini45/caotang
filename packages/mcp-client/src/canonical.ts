@@ -11,31 +11,10 @@
  * browser build and must not import a Node module.
  */
 
-/** One JSON value's canonical text. Throws on a value JSON cannot carry (a function, a bigint, NaN). */
-export function canonicalJson(value: unknown): string {
-  if (value === null) return 'null';
-  switch (typeof value) {
-    case 'boolean':
-      return value ? 'true' : 'false';
-    case 'number':
-      if (!Number.isFinite(value)) throw new TypeError('canonical JSON cannot carry a non-finite number');
-      return JSON.stringify(value);
-    case 'string':
-      return JSON.stringify(value);
-    case 'object': {
-      if (Array.isArray(value)) {
-        return `[${value.map((item) => (item === undefined ? 'null' : canonicalJson(item))).join(',')}]`;
-      }
-      const record = value as Record<string, unknown>;
-      const keys = Object.keys(record)
-        .filter((key) => record[key] !== undefined)
-        .sort();
-      return `{${keys.map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`).join(',')}}`;
-    }
-    default:
-      throw new TypeError(`canonical JSON cannot carry a ${typeof value}`);
-  }
-}
+import { canonicalJson } from '@caotang/ids';
+
+/** The canonical text itself lives in `@caotang/ids`, shared with the skill pins; it is re-exported so this package's callers keep one import. */
+export { canonicalJson };
 
 /** SHA-256 of a string, as lowercase hex. */
 export async function sha256Hex(text: string): Promise<string> {

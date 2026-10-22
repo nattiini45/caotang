@@ -28,6 +28,7 @@ import type { ProjectState } from '@caotang/store';
 
 import { metadataFor, type ToolName } from '../metadata.js';
 import { createHarness } from '../runtime.js';
+import type { SkillsOption } from '../tools/skills.js';
 import type { AskBackCode } from '../plan.js';
 import { canonicalJson } from '../util.js';
 import { createAgentSession, type AgentSession } from './loop.js';
@@ -168,6 +169,11 @@ export interface Scenario {
   readonly coherence?: boolean;
   /** Deferred rows loaded before the planner's first request, as `submit(intent, { preload })` does. */
   readonly preload?: readonly ToolName[];
+  /**
+   * The app's lookup of the writer's reviews, as `HarnessOptions.skills` takes it. Given, the harness offers the project's skills as the
+   * app does, and a turn that has a skill on offer preloads `skill.load` itself. Absent, the harness has no skills, as the outward server has none.
+   */
+  readonly skills?: SkillsOption;
   /** What the writer does during the turn, at fixed moments: the turn's signal is aborted, or a note is sent to it. */
   readonly writer?: readonly WriterAction[];
   readonly expect: Expectation;
@@ -278,6 +284,7 @@ export async function runScenario(scenario: Scenario): Promise<ScenarioRun> {
     ports: createAgentPorts(),
     ...(registry === undefined ? {} : { registry }),
     ...(scenario.coherence === true ? { coherence: { model: () => reviewModelOf(gateway) } } : {}),
+    ...(scenario.skills === undefined ? {} : { skills: scenario.skills }),
   });
   const before = projectBytes(state);
 
@@ -454,7 +461,8 @@ function reachedFailures(scenario: Scenario, run: ScenarioRun): string[] {
       const surfaced = (step.data as { surfaced?: unknown } | undefined)?.surfaced;
       return index < first && step.tool === 'tool.search' && Array.isArray(surfaced) && surfaced.includes(tool);
     });
-    const preloaded = (scenario.preload ?? []).includes(tool as ToolName);
+    // `skill.load` is preloaded by the harness whenever the project has a skill on offer (loop.ts `plannedTurn`).
+    const preloaded = (scenario.preload ?? []).includes(tool as ToolName) || (tool === 'skill.load' && scenario.skills !== undefined);
     const actual: ReachedBy = preloaded ? 'preload' : searched ? 'search' : 'preflight';
     if (actual !== how) failures.push(`reached: ${tool} was expected by ${how}, and was reached by ${actual}`);
   }

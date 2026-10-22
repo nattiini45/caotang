@@ -125,6 +125,14 @@ describe('never-exposed commands', () => {
       () => primitiveTool(specFor('shot.importImage')),
       // @ts-expect-error an external call rides its own gateway
       () => primitiveTool(specFor('mcp.invoke')),
+      // @ts-expect-error a skill is an instruction the agent will read, so the agent never writes one
+      () => primitiveTool(specFor('skill.import')),
+      // @ts-expect-error a skill is an instruction the agent will read, so the agent never writes one
+      () => primitiveTool(specFor('skill.write')),
+      // @ts-expect-error a skill is an instruction the agent will read, so the agent never writes one
+      () => primitiveTool(specFor('skill.delete')),
+      // @ts-expect-error a skill is an instruction the agent will read, so the agent never writes one
+      () => primitiveTool(specFor('skill.setEnabled')),
     ];
     expect(attempts.length).toBe(NEVER_EXPOSED.length);
     for (const attempt of attempts) expect(attempt).toThrow();

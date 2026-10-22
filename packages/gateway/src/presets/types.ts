@@ -9,6 +9,7 @@
  */
 
 import type { AdapterId, QuirkFlags } from '../adapters/types.js';
+import type { TransportTimeouts } from '../retry.js';
 import type { ModelCaps } from '../types.js';
 
 /** One model entry in a preset's capability table. */
@@ -41,8 +42,21 @@ export interface PresetField {
   readonly defaultValue?: string;
 }
 
-/** Whether a browser page can reach the provider directly. */
-export type CorsStatus = 'ok' | 'blocked' | 'unknown';
+/**
+ * Whether a browser page can reach the provider directly. `local` is a server on this computer: whether the browser may
+ * call it is the person's setting on that server, which `PresetDef.local.corsFix` names.
+ */
+export type CorsStatus = 'ok' | 'blocked' | 'unknown' | 'local';
+
+/** What a preset for a model server on this computer adds. Its presence is what makes a preset local. */
+export interface LocalServer {
+  /** The product's name in messages: "Ollama", "LM Studio", "llama-server". */
+  readonly product: string;
+  /** The one-line fix shown when the browser's CORS check fails: the exact setting on that server. */
+  readonly corsFix: string;
+  /** A short setup note for the settings form: start the server, load a model, raise the context window. */
+  readonly setup: string;
+}
 
 export interface PresetDef {
   readonly id: string;
@@ -74,4 +88,11 @@ export interface PresetDef {
   readonly baseUrlFor?: (fields: Readonly<Record<string, string>>) => string;
   /** The provider's API documentation. */
   readonly docsUrl?: string;
+  /**
+   * A server on this computer. Its base URL follows the loopback rule (`normalizeLocalBaseUrl`: `http` to a literal
+   * loopback address is allowed), the picker groups it under "On this computer", and a failed call names `corsFix`.
+   */
+  readonly local?: LocalServer;
+  /** Per-preset deadline overrides: a local server loads its model from disk before it answers. The gateway's own settings still win. */
+  readonly timeouts?: Partial<TransportTimeouts>;
 }

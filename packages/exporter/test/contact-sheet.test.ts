@@ -25,7 +25,7 @@ import { createProjectCommandRegistry, MemoryArtifactFs, type ProjectState } fro
 import { addShotNode, planContactSheet } from '@caotang/storyboard';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
 import { emojiStyleOf, graphemesOf, sfntFromWoff, type FontLoader } from '@caotang/pdf-fonts';
-import { loadCjkFontInNode, loadEmojiFontInNode } from '@caotang/pdf-fonts/node-loader';
+import { loadArabicFontInNode, loadCjkFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
 import { EmojiEmbedding, EmojiFace, type FontkitFont } from '../src/emoji-font.js';
 import {
   CONTACT_SHEET_HEADER,
@@ -51,6 +51,8 @@ function rig(
     files?: Record<string, Uint8Array>;
     loadFallbackFont?: FontLoader;
     loadEmojiFont?: FontLoader;
+    loadArabicFont?: FontLoader;
+    loadHebrewFont?: FontLoader;
     readAsset?: (path: string) => Promise<Uint8Array | null>;
   } = {},
 ): { exporter: ExporterService; reads: string[] } {
@@ -69,6 +71,8 @@ function rig(
     },
     ...(options.loadFallbackFont === undefined ? {} : { loadFallbackFont: options.loadFallbackFont }),
     ...(options.loadEmojiFont === undefined ? {} : { loadEmojiFont: options.loadEmojiFont }),
+    ...(options.loadArabicFont === undefined ? {} : { loadArabicFont: options.loadArabicFont }),
+    ...(options.loadHebrewFont === undefined ? {} : { loadHebrewFont: options.loadHebrewFont }),
   });
   return { exporter, reads };
 }
@@ -533,10 +537,10 @@ describe('contact-sheet-pdf — text outside Latin script, in the Noto Sans Mono
   });
 
   it('draws a character neither font has as "?", and names it in the log', async () => {
-    const state = withAction('雨 ⲁ and ب');
+    const state = withAction('雨 ⲁ and क');
     const { result, pdf } = await compileSheet(rig({ state, loadFallbackFont: loadCjkFontInNode }).exporter);
     expect(result.log.notes).toContain(
-      'contact sheet: 2 characters neither the PDF\'s built-in font nor Noto Sans Mono CJK SC can show were drawn as "?": ⲁ (U+2C81), ب (U+0628)',
+      'contact sheet: 2 characters neither the PDF\'s built-in font nor Noto Sans Mono CJK SC can show were drawn as "?": ⲁ (U+2C81), क (U+0915)',
     );
     expect(toUnicodeText(pdf)).toContain('雨');
   });
@@ -635,6 +639,123 @@ async function noto(): Promise<EmojiFace> {
   emojiFace ??= new EmojiFace(fontkit.create(await sfntFromWoff(await loadEmojiFontInNode())) as unknown as FontkitFont);
   return emojiFace;
 }
+
+describe('contact-sheet-pdf — Arabic and Hebrew, in Noto Sans Arabic and Noto Sans Hebrew', () => {
+  const ARABIC = 'مرحبا بالعالم، هل رأيت الفيلم؟';
+  const HEBREW = 'שלום עולם, מה שלומך היום?';
+  const bothLoaders = { loadArabicFont: loadArabicFontInNode, loadHebrewFont: loadHebrewFontInNode };
+
+  /** The `/ActualText` strings of the page, in the order they are drawn. */
+  function actualTexts(pdf: PDFDocument): string[] {
+    return [...pageContent(pdf, 0).matchAll(/\/ActualText <FEFF([0-9A-F]*)>/g)].map((match) =>
+      String.fromCharCode(...(match[1]?.match(/.{4}/g) ?? []).map((hex) => parseInt(hex, 16))),
+    );
+  }
+
+  /** The x of the first glyph the `/ActualText` span of a word draws: where the run starts on the page. */
+  function startOf(pdf: PDFDocument, word: string): number {
+    const hex = [...word].map((char) => (char.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')).join('');
+    const span = new RegExp(`/ActualText <FEFF${hex}>\\s*>>\\s*BDC[\\s\\S]*?1 0 0 1 (\\S+) \\S+ Tm`).exec(pageContent(pdf, 0));
+    return Number(span?.[1] ?? Number.NaN);
+  }
+
+  /** The names of the fonts the file embeds as Type 0 fonts, without their subset tags. */
+  function embeddedNames(pdf: PDFDocument): string[] {
+    const names: string[] = [];
+    for (const [, object] of pdf.context.enumerateIndirectObjects()) {
+      if (object instanceof PDFDict && object.get(PDFName.of('Subtype')) === PDFName.of('Type0')) names.push(String(object.get(PDFName.of('BaseFont'))).replace(/^\/[A-Z]{6}\+/, ''));
+    }
+    return names.sort();
+  }
+
+  it('sets Arabic and Hebrew in their fonts, shaped, with the words as marked content and no "?"', async () => {
+    const { pdf, result } = await compileSheet(rig({ state: withAction(`${ARABIC} ${HEBREW}`), ...bothLoaders }).exporter);
+    const copied = actualTexts(pdf);
+    for (const word of ['مرحبا', 'بالعالم', 'الفيلم', 'שלום', 'עולם', 'שלומך']) expect(copied, word).toContain(word);
+    expect(embeddedNames(pdf)).toEqual(['NotoSansArabic-Regular', 'NotoSansHebrew-Regular']);
+    expect(result.log.notes).toContain('contact sheet: Arabic, Persian and Urdu text is set in Noto Sans Arabic, embedded with only the glyphs it uses');
+    expect(result.log.notes).toContain('contact sheet: Hebrew text is set in Noto Sans Hebrew, embedded with only the glyphs it uses');
+    expect(result.log.notes.some((note) => note.includes('drawn as "?"'))).toBe(false);
+    // The glyphs copy back as the letters they draw, in the fonts' ToUnicode maps.
+    expect(toUnicodeText(pdf)).toContain('ب');
+    expect(toUnicodeText(pdf)).toContain('ש');
+  });
+
+  it('puts the words of a right-to-left paragraph right to left and ends the line at the right edge of its box', async () => {
+    const rtl = await compileSheet(rig({ state: withAction('מה שלומך היום'), ...bothLoaders }).exporter);
+    const ltr = await compileSheet(rig({ state: withAction('How are you today'), ...bothLoaders }).exporter);
+    // Logical order: מה, שלומך, היום. Drawn left to right: היום, שלומך, מה.
+    expect(startOf(rtl.pdf, 'היום')).toBeLessThan(startOf(rtl.pdf, 'שלומך'));
+    expect(startOf(rtl.pdf, 'שלומך')).toBeLessThan(startOf(rtl.pdf, 'מה'));
+    // A left-to-right line starts at the left edge of the card's text box; the right-to-left line is set from the right.
+    const left = Number(/1 0 0 1 (\S+) \S+ Tm\n<486F77/.exec(pageContent(ltr.pdf, 0))?.[1] ?? Number.NaN);
+    expect(left).toBeGreaterThan(0);
+    expect(startOf(rtl.pdf, 'היום')).toBeGreaterThan(left + 20);
+  });
+
+  it('turns the brackets of a right-to-left run: (בשקט) is drawn with its parentheses the right way round', async () => {
+    const { pdf } = await compileSheet(rig({ state: withAction('(בשקט) שלום'), ...bothLoaders }).exporter);
+    // The paragraph runs right to left: the bracketed word is to the right of the word that follows it.
+    expect(startOf(pdf, 'שלום')).toBeLessThan(startOf(pdf, 'בשקט'));
+    // The brackets are drawn "(" on the word's left and ")" on its right, the mirror images of the characters typed.
+    const content = pageContent(pdf, 0);
+    const open = content.indexOf(`<${hexOf(' (')}> Tj`);
+    const close = content.indexOf(`<${hexOf(')')}> Tj`);
+    expect(open).toBeGreaterThan(-1);
+    expect(close).toBeGreaterThan(open);
+    expect(actualTexts(pdf)).toContain('בשקט');
+  });
+
+  it('cuts a line at a whole cluster, in logical order, before it puts the line in visual order', async () => {
+    const long = Array.from({ length: 40 }, () => 'بِسْمِ').join(' ');
+    const { pdf } = await compileSheet(rig({ state: withAction(long), ...bothLoaders }).exporter);
+    const words = actualTexts(pdf);
+    expect(words.length).toBeGreaterThan(1);
+    expect(words.length).toBeLessThan(40);
+    // Every word that was drawn is a whole one: the cut fell between words.
+    for (const word of words) expect(word, word).toBe('بِسْمِ');
+  });
+
+  it('leaves the marks out of the drawn glyphs and counts them in the log, and the text of the file still holds them', async () => {
+    const { pdf, result } = await compileSheet(rig({ state: withAction('بِسْمِ שָׁלוֹם'), ...bothLoaders }).exporter);
+    expect(actualTexts(pdf)).toEqual(expect.arrayContaining(['بِسْمِ', 'שָׁלוֹם']));
+    expect(result.log.notes.filter((note) => note.includes('left out of the print'))).toEqual([
+      expect.stringMatching(/^contact sheet: 3 Hebrew points and cantillation marks are left out/),
+      expect.stringMatching(/^contact sheet: 3 Arabic marks \(harakat, shadda and the like\) are left out/),
+    ]);
+  });
+
+  it('leaves out a mark that a dropped bidi control character left next to a character of the other fonts, and counts it', async () => {
+    for (const text of [`${ARABIC} .\u200f\u064e`, `${HEBREW} (\u202b\u064e`]) {
+      const { result } = await compileSheet(rig({ state: withAction(text), ...bothLoaders }).exporter);
+      expect(result.log.notes.filter((note) => note.includes('Arabic mark') && note.includes('left out'))).toEqual([expect.stringMatching(/^contact sheet: 1 Arabic mark/)]);
+    }
+  });
+
+  it('reads each font once, and only for a sheet that holds its script', async () => {
+    const arabic = countingLoader(loadArabicFontInNode);
+    const hebrew = countingLoader(loadHebrewFontInNode);
+    await compileSheet(rig({ state: withAction('Abeßer crosses the café © 2026'), loadArabicFont: arabic.load, loadHebrewFont: hebrew.load }).exporter);
+    expect([arabic.calls(), hebrew.calls()]).toEqual([0, 0]);
+    await compileSheet(rig({ state: withAction(`${ARABIC} ${ARABIC}`), loadArabicFont: arabic.load, loadHebrewFont: hebrew.load }).exporter);
+    expect([arabic.calls(), hebrew.calls()]).toEqual([1, 0]);
+  });
+
+  it('draws both scripts as "?", and says why, when the compile has no font for them', async () => {
+    const { pdf, result } = await compileSheet(rig({ state: withAction('مرحبا שלום') }).exporter);
+    expect(embeddedFontFiles(pdf)).toHaveLength(0);
+    const note = result.log.notes.find((line) => line.includes('drawn as "?"')) ?? '';
+    expect(note).toContain('this compile has no Arabic font');
+    expect(note).toContain('this compile has no Hebrew font');
+  });
+
+  it('writes a Latin-only sheet byte for byte as it was, with the Arabic and Hebrew fonts given', async () => {
+    const state = withAction('Abeßer crosses the café © 2026');
+    const plain = await compileSheet(rig({ state }).exporter);
+    const given = await compileSheet(rig({ state, ...bothLoaders }).exporter);
+    expect(given.bytes).toEqual(plain.bytes);
+  });
+});
 
 describe('contact-sheet-pdf — emoji, in the Noto Emoji fallback font', () => {
   // A ZWJ family, a ZWJ profession with a skin tone, a skin tone, a flag, two keycaps, a tag sequence, VS16 and a VS15 pictograph.

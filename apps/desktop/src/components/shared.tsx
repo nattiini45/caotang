@@ -63,6 +63,8 @@ export interface MenuItem {
   readonly separatorBefore?: boolean;
   /** One character that chooses this item while the menu is open, shown at its end. */
   readonly shortcut?: string;
+  /** A key chord that does the same outside the menu, shown beside the item. Display only: the menu does not act on it. */
+  readonly chord?: string;
 }
 
 export interface MenuAnchor {
@@ -205,6 +207,11 @@ export function Menu({
             {item.shortcut === undefined ? null : (
               <span className="menu-key" aria-hidden="true">
                 {item.shortcut}
+              </span>
+            )}
+            {item.chord === undefined ? null : (
+              <span className="menu-key menu-chord" aria-hidden="true">
+                {item.chord}
               </span>
             )}
           </button>

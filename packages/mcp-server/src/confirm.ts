@@ -11,7 +11,8 @@
  *
  *   - **The state is sealed.** `requestState` is an HMAC-SHA256 envelope from the
  *     SDK's codec, with an expiry. The server verifies it before the handler runs,
- *     and a tampered or expired state is refused with `-32602`. It is signed, not
+ *     and a tampered, expired or foreign state (one sealed by an earlier process)
+ *     is refused with `-32602`. It is signed, not
  *     encrypted, so it carries no secret: the tool, a digest of the arguments, the
  *     turn and call ids, and a nonce.
  *   - **The answer is bound to the arguments.** The state holds a digest of the
@@ -249,10 +250,13 @@ export function createConfirmLedger(): ConfirmLedger {
 }
 
 /**
- * The codec that seals the round state. The key is random per process: a server
- * restart ends every open confirmation, which is the safe failure, because a
- * confirmation the server cannot verify is never acted on.
+ * The codec that seals the round state. The key is random per process unless one is passed (a test passes one
+ * to seal with and to refuse a foreign seal). Nothing is persisted, by decision: a server restart ends every
+ * open confirmation, and a re-asked change writes nothing twice. A confirmation the server cannot verify, whether
+ * it expired, was altered or was sealed by another process, is never acted on. The SDK answers every refused
+ * state with one `-32602` "Invalid or expired requestState" and gives the server no seam to word it, so the
+ * README names the restart as one cause.
  */
-export function createRoundCodec(): RequestStateCodec<RoundState> {
-  return createRequestStateCodec<RoundState>({ key: randomBytes(32), ttlSeconds: ROUND_TTL_SECONDS });
+export function createRoundCodec(key: Uint8Array = randomBytes(32)): RequestStateCodec<RoundState> {
+  return createRequestStateCodec<RoundState>({ key, ttlSeconds: ROUND_TTL_SECONDS });
 }

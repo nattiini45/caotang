@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
 
-// The notices generator is a plain module with types beside it (tools/third-party-notices.d.mts).
+// The notices generator and the size budget are plain modules with types beside them (tools/*.d.mts).
+import { BUDGET } from '../../tools/check-bundle-size.mjs';
 import { generateNotices, NOTICES_FILE } from '../../tools/third-party-notices.mjs';
 
 const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url));
@@ -59,6 +60,32 @@ function devCsp(): Plugin {
  */
 const BASE = process.env['CAOTANG_BASE'] ?? '/';
 
+/** The npm package a module id belongs to, or undefined for the app's own code. Windows separators are normalised first. */
+function packageOf(id: string): string | undefined {
+  const path = id.replaceAll('\\', '/');
+  const at = path.lastIndexOf('/node_modules/');
+  if (at === -1) return undefined;
+  const [first, second] = path.slice(at + '/node_modules/'.length).split('/');
+  return first?.startsWith('@') === true ? `${first}/${second ?? ''}` : first;
+}
+
+const EDITOR_PACKAGES = new Set(['linkifyjs', 'orderedmap', 'rope-sequence']);
+const MARKDOWN_PACKAGES = new Set([
+  'unified', 'trough', 'bail', 'is-plain-obj', 'ccount', 'longest-streak', 'markdown-table', 'zwitch', 'devlop',
+  'decode-named-character-reference',
+]);
+const MARKDOWN_PREFIXES = ['micromark', 'mdast-util-', 'remark-', 'unist-', 'vfile', 'character-entities'];
+
+/** The vendor chunk a module goes in: React, the editor (tiptap and ProseMirror), or the Markdown pipeline. Everything else is left to the default. */
+function vendorChunkOf(id: string): string | null {
+  const name = packageOf(id);
+  if (name === undefined) return null;
+  if (name === 'react' || name === 'react-dom' || name === 'scheduler') return 'vendor-react';
+  if (name.startsWith('@tiptap/') || name.startsWith('prosemirror-') || EDITOR_PACKAGES.has(name)) return 'vendor-editor';
+  if (MARKDOWN_PACKAGES.has(name) || MARKDOWN_PREFIXES.some((prefix) => name.startsWith(prefix))) return 'vendor-markdown';
+  return null;
+}
+
 export default defineConfig(({ command }) => ({
   base: BASE,
   plugins: [react(), thirdPartyNotices(), devCsp()],
@@ -83,5 +110,14 @@ export default defineConfig(({ command }) => ({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    // Vite's own warning is turned down to the highest cap on the script's allow-list: tools/check-bundle-size.mjs is the gate.
+    chunkSizeWarningLimit: Math.max(...Object.values(BUDGET.allow)) / 1000,
+    rolldownOptions: {
+      output: {
+        // Vendor chunks: a release that touches only app code leaves these hashes alone, so the browser keeps them cached, and the size
+        // table names what the bytes are. They are not how the first download gets smaller (the dynamic imports are).
+        codeSplitting: { groups: [{ name: vendorChunkOf, debugName: 'vendor' }] },
+      },
+    },
   },
 }));

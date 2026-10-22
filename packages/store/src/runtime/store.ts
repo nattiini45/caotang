@@ -154,6 +154,12 @@ export interface ProjectRow {
    * across), and the only writer is {@link writeCoherenceFiles}.
    */
   coherenceFiles?: Record<string, string>;
+  /**
+   * `ProjectState.skills`, flattened: every skill file by its path inside `.agents/skills/` (`<folder>/<path>`), as bytes. The
+   * store is a view over the state, so a rehydrated state holds the skills the project had. Optional, and absent means no skills,
+   * which is what a row written before skills existed has. A structural commit carries it across, as it does `declinedText`.
+   */
+  skillFiles?: Record<string, Uint8Array>;
 }
 
 export interface DocumentRow {
@@ -552,6 +558,14 @@ export function readProjectState(
           for (const [path, text] of Object.entries(row.declinedText ?? {})) {
             state.declinedText.set(path, text);
           }
+          for (const [path, bytes] of Object.entries(row.skillFiles ?? {})) {
+            const slash = path.indexOf('/');
+            const folder = path.slice(0, slash);
+            const files = state.skills.get(folder) ?? [];
+            files.push({ path: path.slice(slash + 1), bytes: bytes.slice() });
+            state.skills.set(folder, files);
+          }
+          for (const files of state.skills.values()) files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
           for (const document of rows) {
             state.documents.set(document.id, {
               id: document.id,
@@ -637,6 +651,13 @@ export interface ProjectCommit {
  * than an accident. Only the two functions that *decide* what a commit means
  * refuse to overwrite a row somebody else wrote.
  */
+/** The state's skills as a row stores them: `<folder>/<path>` to bytes, copied. */
+function skillFilesOf(state: ProjectState): Record<string, Uint8Array> {
+  const files: Record<string, Uint8Array> = {};
+  for (const [folder, list] of state.skills) for (const file of list) files[`${folder}/${file.path}`] = file.bytes.slice();
+  return files;
+}
+
 export function commitProject(store: RuntimeStore, commit: ProjectCommit): Promise<void> {
   const storedAt = (commit.now ?? new Date()).toISOString();
   return transact<void>(
@@ -665,6 +686,9 @@ export function commitProject(store: RuntimeStore, commit: ProjectCommit): Promi
         }
         if (previous?.declinedText !== undefined) {
           row.declinedText = { ...previous.declinedText };
+        }
+        if (previous?.skillFiles !== undefined) {
+          row.skillFiles = { ...previous.skillFiles };
         }
         // The coherence set is not the manifest's, so a structural commit keeps it (ProjectRow.coherenceFiles).
         if (previous?.coherenceFiles !== undefined) {
@@ -839,6 +863,7 @@ export function writeProjectState(
         declinedCodexFiles: [...state.declinedCodexFiles],
         declinedDocFiles: [...state.declinedDocFiles],
         declinedText: Object.fromEntries(state.declinedText),
+        ...(state.skills.size === 0 ? {} : { skillFiles: skillFilesOf(state) }),
       };
       // The coherence set is not in the state, so the row keeps the one it held (ProjectRow.coherenceFiles). The read
       // comes first in this transaction, so the put that follows it sees the row as it was.
@@ -910,6 +935,35 @@ export function writeCoherenceFiles(store: RuntimeStore, projectId: string, file
         return;
       }
       projects.put({ ...row, coherenceFiles: { ...files } });
+      done(undefined);
+    });
+  });
+}
+
+/**
+ * Replaces the project's skills with `skills` (ProjectRow.skillFiles): one `put` of the project row, read and written in one
+ * transaction. The manifest and the bodies are not touched, so a change to a skill does not restate the manuscript.
+ */
+export function writeProjectSkills(
+  store: RuntimeStore,
+  projectId: string,
+  skills: ReadonlyMap<string, readonly { readonly path: string; readonly bytes: Uint8Array }[]>,
+): Promise<void> {
+  return transact<void>(store.db, [PROJECT_STORE], 'readwrite', (tx, done, fail) => {
+    const projects = tx.objectStore(PROJECT_STORE);
+    const request = projects.get(projectId);
+    request.onsuccess = guarded(fail, () => {
+      const row = request.result as ProjectRow | undefined;
+      if (!row) {
+        fail(new ProjectNotFoundError(projectId));
+        return;
+      }
+      const next: ProjectRow = { ...row };
+      delete next.skillFiles;
+      const files: Record<string, Uint8Array> = {};
+      for (const [folder, list] of skills) for (const file of list) files[`${folder}/${file.path}`] = file.bytes.slice();
+      if (Object.keys(files).length > 0) next.skillFiles = files;
+      projects.put(next);
       done(undefined);
     });
   });

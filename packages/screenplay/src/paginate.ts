@@ -20,6 +20,9 @@
  * column, the second in the right. A pair moves to the next page whole and never splits; a pair
  * taller than a page is laid one block after the other, which splits by the dialogue rules.
  *
+ * A paragraph has a direction (Para.dir): an Arabic or Hebrew paragraph is right-aligned inside its own column and its lines are
+ * marked `rtl`; the page itself is not mirrored (screenplay.md §5.3).
+ *
  * Widths are grid columns (width.ts): a Chinese, Japanese or Korean character takes two, every other
  * character one, so the indents, the column widths and the 54-line page hold for CJK text. A line breaks
  * at white space and between Chinese or Japanese characters, with the kinsoku marks kept on their side.
@@ -28,6 +31,9 @@
  * about one minute of screen time. The minute figure is an estimate, never a
  * timing.
  */
+
+import { needsBidi } from '@caotang/pdf-fonts';
+import { paragraphDirection, type Direction } from '@caotang/pdf-fonts/bidi';
 
 import { printedText, sceneNumberOf, stripSceneNumber } from './classify.js';
 import type { ScreenplayElement } from './types.js';
@@ -113,6 +119,8 @@ export interface LayoutLine {
   readonly row: number | null;
   /** The scene the line opens, on the first line of a scene heading. */
   readonly scene: number | null;
+  /** Set on a line of a right-to-left paragraph, which the writer lays out from its right edge; absent on every other line. */
+  readonly rtl?: true;
 }
 
 export interface LayoutPage {
@@ -151,6 +159,11 @@ export interface PaginateOptions {
   readonly sceneNumbers?: SceneNumberPlacement;
   /** `(MORE)` and `NAME (CONT'D)` on split dialogue (default true). */
   readonly continued?: boolean;
+  /**
+   * The direction of a paragraph with no strong character, such as a number or a row of dots: the direction of the project's
+   * language (screenplay.md §5.3). Default left to right.
+   */
+  readonly neutralDirection?: Direction;
 }
 
 type ParaKind = 'scene' | 'action' | 'character' | 'parenthetical' | 'dialogue' | 'transition' | 'centered';
@@ -167,6 +180,10 @@ interface Para {
   readonly align: 'left' | 'center' | 'right';
   /** The column a left-aligned line starts at, in characters from the left margin. */
   readonly indent: number;
+  /** The width of the column the paragraph is wrapped to, in characters. */
+  readonly width: number;
+  /** The paragraph's direction, from its first strong character (rules P2 and P3 of UAX #9). */
+  readonly dir: Direction;
   /** The scene number printed in the margin, on a scene heading. */
   readonly sceneNumber: string | null;
   /** The scene index, on a scene heading. */
@@ -230,8 +247,8 @@ interface BlockRow {
   readonly cuts: readonly number[];
 }
 
-/** A sentence end: Latin `.`, `!`, `?` or `…`, or the CJK `。`, `！`, `？`, each with any closing quotes after it. */
-const SENTENCE_END_RE = /(?:[.!?…]["')\]”’]*|[。！？][」』）〉》"”’]*)$/;
+/** A sentence end: Latin `.`, `!`, `?` or `…`, the Arabic question mark, full stop or semicolon (U+061F, U+06D4, U+061B), or the CJK `。`, `！`, `？`, each with any closing quotes after it. */
+const SENTENCE_END_RE = /(?:[.!?…\u061f\u06d4\u061b]["')\]”’]*|[。！？][」』）〉》"”’]*)$/;
 
 /** Wrapped lines, and what joins each line to the one before it when the text is rewrapped: a space, or nothing. */
 interface Wrapped {
@@ -290,6 +307,15 @@ function joinLines(para: Para): string {
   return para.lines.map((line, i) => (i === 0 ? line : `${para.joins[i - 1] ?? ' '}${line}`)).join('');
 }
 
+/**
+ * A paragraph's direction. Text with no Arabic, Hebrew or bidirectional control character is left to right unless the project
+ * language is right to left and the text has no strong character at all, so Latin-only documents never reach the algorithm.
+ */
+function directionOf(text: string, neutral: Direction): Direction {
+  if (neutral === 'ltr' && !needsBidi(text)) return 'ltr';
+  return paragraphDirection(text, neutral);
+}
+
 function makePara(
   kind: ParaKind,
   text: string,
@@ -300,9 +326,14 @@ function makePara(
     readonly cueName?: string;
     readonly indent?: number;
     readonly width?: number;
+    /** The direction of a paragraph that is wrapped again to a column, which keeps the one it had. */
+    readonly dir?: Direction;
+    /** The direction of a paragraph with no strong character. */
+    readonly neutral?: Direction;
   } = {},
 ): Para {
-  const { lines, joins } = wrap(text, extra.width ?? LAYOUT.width[kind]);
+  const width = extra.width ?? LAYOUT.width[kind];
+  const { lines, joins } = wrap(text, width);
   return {
     kind,
     lines,
@@ -311,6 +342,8 @@ function makePara(
     blankBefore,
     align: kind === 'transition' ? 'right' : kind === 'centered' ? 'center' : 'left',
     indent: extra.indent ?? LAYOUT.indent[kind],
+    width,
+    dir: extra.dir ?? directionOf(text, extra.neutral ?? 'ltr'),
     sceneNumber: extra.sceneNumber ?? null,
     sceneIndex: extra.sceneIndex ?? null,
     cueName: extra.cueName ?? '',
@@ -321,7 +354,7 @@ function makePara(
 function sentenceCuts(text: string): number[] {
   const cuts: number[] = [];
   // A Latin sentence end needs a space after it. A CJK one needs only more text: CJK puts no space between sentences.
-  const pattern = /[.!?…]["')\]”’]*(?= )|[。！？][」』）〉》"”’]*(?=\S)/g;
+  const pattern = /[.!?…\u061f\u06d4\u061b]["')\]”’]*(?= )|[。！？][」』）〉》"”’]*(?=\S)/g;
   for (let m = pattern.exec(text); m !== null; m = pattern.exec(text)) cuts.push(m.index + m[0].length);
   return cuts;
 }
@@ -353,9 +386,9 @@ function dualSide(open: OpenCue, column: 'left' | 'right'): DualSide {
   const at = LAYOUT.dual[column];
   const width = LAYOUT.dual.width;
   const rewrap = (para: Para, kind: 'parenthetical' | 'dialogue'): Para =>
-    makePara(kind, joinLines(para), false, { indent: at[kind], width: width[kind] });
+    makePara(kind, joinLines(para), false, { indent: at[kind], width: width[kind], dir: para.dir });
   return {
-    cue: makePara('character', open.cue.cueName, true, { cueName: open.cue.cueName, indent: at.character, width: width.character }),
+    cue: makePara('character', open.cue.cueName, true, { cueName: open.cue.cueName, indent: at.character, width: width.character, dir: open.cue.dir }),
     body: [...open.parens, ...open.items].map((para) => rewrap(para, para.kind === 'parenthetical' ? 'parenthetical' : 'dialogue')),
   };
 }
@@ -397,7 +430,8 @@ function glueToPrevious(units: Unit[], para: Para): void {
  * heading leads the unit after it. Annotations and the title page print nothing, so they do not
  * interrupt a block; an element that prints no text closes a block but adds no unit.
  */
-function buildUnits(elements: readonly ScreenplayElement[]): Unit[] {
+function buildUnits(elements: readonly ScreenplayElement[], neutral: Direction): Unit[] {
+  const paraOf: typeof makePara = (kind, text, blankBefore, extra = {}) => makePara(kind, text, blankBefore, { ...extra, neutral });
   const units: Unit[] = [];
   let open: OpenCue | null = null;
   // The first speaker of a dual pair, held while the second block (the cue marked `^`) is read.
@@ -427,7 +461,7 @@ function buildUnits(elements: readonly ScreenplayElement[]): Unit[] {
       if (open !== null && el.dual === true && dualLeft === null) dualLeft = open;
       else if (open !== null) close(open);
       const name = printedText(el.text);
-      open = { lead, cue: makePara('character', name, true, { cueName: name }), parens: [], items: [] };
+      open = { lead, cue: paraOf('character', name, true, { cueName: name }), parens: [], items: [] };
       lead = [];
       continue;
     }
@@ -435,7 +469,7 @@ function buildUnits(elements: readonly ScreenplayElement[]): Unit[] {
     if (el.type === 'parenthetical' || el.type === 'dialogue') {
       const printed = printedText(el.text);
       if (printed === '') continue;
-      const para = makePara(el.type, printed, false);
+      const para = paraOf(el.type, printed, false);
       if (open === null) {
         // Dialogue with no cue above it lays out as action, which splits at any line (screenplay.md §5.3).
         units.push({ kind: 'action', lead, para, trailer: [] });
@@ -461,7 +495,7 @@ function buildUnits(elements: readonly ScreenplayElement[]): Unit[] {
         if (heading !== '') {
           lead = [
             ...lead,
-            makePara('scene', heading, true, {
+            paraOf('scene', heading, true, {
               sceneIndex: sceneCount - 1,
               sceneNumber: sceneNumberOf(printed) ?? String(sceneCount),
             }),
@@ -472,7 +506,7 @@ function buildUnits(elements: readonly ScreenplayElement[]): Unit[] {
       case 'action': {
         const printed = printedText(el.text);
         if (printed !== '') {
-          units.push({ kind: 'action', lead, para: makePara('action', printed, true), trailer: [] });
+          units.push({ kind: 'action', lead, para: paraOf('action', printed, true), trailer: [] });
           lead = [];
         }
         break;
@@ -480,7 +514,7 @@ function buildUnits(elements: readonly ScreenplayElement[]): Unit[] {
       case 'centered': {
         const printed = printedText(el.text);
         if (printed !== '') {
-          units.push({ kind: 'paras', paras: [...lead, makePara('centered', printed, true)] });
+          units.push({ kind: 'paras', paras: [...lead, paraOf('centered', printed, true)] });
           lead = [];
         }
         break;
@@ -492,7 +526,7 @@ function buildUnits(elements: readonly ScreenplayElement[]): Unit[] {
       case 'transition': {
         const printed = printedText(el.text);
         if (printed === '') break;
-        const para = makePara('transition', printed, true);
+        const para = paraOf('transition', printed, true);
         if (lead.length > 0) {
           units.push({ kind: 'paras', paras: [...lead, para] });
           lead = [];
@@ -515,6 +549,8 @@ function rowY(row: number): number {
 function columnOf(para: Para, text: string): number {
   if (para.align === 'right') return LAYOUT.columns - textColumns(text);
   if (para.align === 'center') return Math.floor((LAYOUT.columns - textColumns(text)) / 2);
+  // A right-to-left paragraph ends at the right edge of its own column (an unbreakable word wider than the column starts at the indent).
+  if (para.dir === 'rtl') return para.indent + Math.max(0, para.width - textColumns(text));
   return para.indent;
 }
 
@@ -586,7 +622,7 @@ class Pager {
       let row = top;
       for (const para of [side.cue, ...side.body]) {
         for (const text of para.lines) {
-          this.current.push({ kind: para.kind, text, x: LAYOUT.marginLeft + columnOf(para, text) * LAYOUT.charWidth, y: rowY(row), row, scene: null });
+          this.current.push({ kind: para.kind, text, x: LAYOUT.marginLeft + columnOf(para, text) * LAYOUT.charWidth, y: rowY(row), row, scene: null, ...(para.dir === 'rtl' ? { rtl: true as const } : {}) });
           row += 1;
         }
       }
@@ -610,13 +646,13 @@ class Pager {
     if (this.used > 0 && this.used < LAYOUT.linesPerPage) this.used += 1;
   }
 
-  private line(kind: LineKind, text: string, col: number, scene: number | null = null, sceneNumber: string | null = null): void {
+  private line(kind: LineKind, text: string, col: number, scene: number | null = null, sceneNumber: string | null = null, rtl = false): void {
     // Every caller makes room first. A line past the foot would be a unit broken without its rules.
     if (this.used >= LAYOUT.linesPerPage) throw new Error('paginate: a line was placed past the foot of its page');
     const row = this.used;
     this.used += 1;
     const y = rowY(row);
-    this.current.push({ kind, text, x: LAYOUT.marginLeft + col * LAYOUT.charWidth, y, row, scene });
+    this.current.push({ kind, text, x: LAYOUT.marginLeft + col * LAYOUT.charWidth, y, row, scene, ...(rtl ? { rtl: true as const } : {}) });
     if (sceneNumber !== null) {
       const width = textColumns(sceneNumber) * LAYOUT.charWidth;
       if (!SCENE_NUMBER_PLACEMENTS.includes(this.sceneNumbers)) {
@@ -636,7 +672,7 @@ class Pager {
   private textLine(para: Para, text: string, first: boolean): void {
     const number = first && para.kind === 'scene' ? para.sceneNumber : null;
     const scene = first && para.kind === 'scene' ? para.sceneIndex : null;
-    this.line(para.kind, text, columnOf(para, text), scene, number);
+    this.line(para.kind, text, columnOf(para, text), scene, number, para.dir === 'rtl');
   }
 
   /** Lines of one paragraph that are known to fit. */
@@ -872,7 +908,7 @@ function pageNumberLine(number: number): LayoutLine {
  */
 export function paginate(elements: readonly ScreenplayElement[], opts: PaginateOptions = {}): LayoutPage[] {
   const pager = new Pager(opts.continued !== false, opts.sceneNumbers ?? 'off');
-  for (const unit of buildUnits(elements)) pager.placeUnit(unit);
+  for (const unit of buildUnits(elements, opts.neutralDirection ?? 'ltr')) pager.placeUnit(unit);
   const script = pager.finish();
 
   const pages: LayoutPage[] = [];

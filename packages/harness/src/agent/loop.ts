@@ -61,6 +61,7 @@ import { err, ok, type CommandError, type Result, type UndoOutcome } from '@caot
 import { ContextError, type AgentTask, type PromptPreview, type RecentTurn, type SelectionSpan } from '@caotang/context';
 import type { ChatMessage, Gateway, TaskRole, ThinkingLevel, ToolCall as WireToolCall, ToolDef } from '@caotang/gateway';
 import { newId } from '@caotang/ids';
+import { SKILL_CATALOG_TOKENS } from '@caotang/skills';
 import { getBody, getRevision, type ProjectState, type TreeNode } from '@caotang/store';
 import { dialogueDraftTool, resolveContainer } from '@caotang/dialogue';
 import { stagePromptDraftTool, stagePromptVariantTool } from '@caotang/video-prompt-pack';
@@ -74,6 +75,7 @@ import type { CallParams, ToolCall, ToolOutcome } from '../types.js';
 import { isRecord } from '../util.js';
 import { CONTINUITY_MAX_DOCS, SYNOPSIS_MAX_DOCS } from '../tools/ports.js';
 import { LARGE_SCOPE_APPROVAL, LARGE_SCOPE_APPROVAL_KEY } from '../tools/coherence.js';
+import { skillBlock } from '../tools/skills.js';
 import {
   advance,
   applyEdit,
@@ -884,6 +886,15 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   }
 
   /**
+   * A drafting task with the skills this turn has loaded ahead of its request. The writer's own instructions go in the task (L7, which
+   * is never cut), under their label, and never in the system role (extensibility §10). A turn that loaded none is unchanged.
+   */
+  function withSkills(turn: Turn, task: AgentTask): AgentTask {
+    const loaded = harness.loadedSkills(turn.id);
+    return loaded.length === 0 ? task : { ...task, instruction: [skillBlock(loaded), '---', task.instruction].join('\n\n') };
+  }
+
+  /**
    * One step's draft. The revision is read before the model is asked, so the draft is staged against the
    * text the model was given, and a document the user changes while it is being written is a conflict.
    */
@@ -911,7 +922,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const targetWords = typeof step.params['target_words'] === 'number' ? step.params['target_words'] : undefined;
       const call = context.assemble({
         ...history,
-        task: sceneTask(node.value.title, node.value.id, mode, instruction, selection, targetWords, step.params['include_forward_outline'] === true),
+        task: withSkills(turn, sceneTask(node.value.title, node.value.id, mode, instruction, selection, targetWords, step.params['include_forward_outline'] === true)),
         role: sceneRole(targetWords, node.value.kind, mode),
       });
       turn.dropped.push(...dropLinesOf(call.prompt));
@@ -987,7 +998,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         const call = context.assemble({
           ...history,
           state: sourceView(state, node.id, source),
-          task: { tool: 'synopsis.fill', instruction: synopsisInstruction(node, source), focus: node.id },
+          task: withSkills(turn, { tool: 'synopsis.fill', instruction: synopsisInstruction(node, source), focus: node.id }),
           role: synopsisRole(maxWords),
         });
         turn.dropped.push(...dropLinesOf(call.prompt));
@@ -1021,7 +1032,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // so the prompt is the standard stack. The task carries the brief only, because the Ink is already in the focus.
       const call = context.assemble({
         ...history,
-        task: { tool: 'dialogue.draft', instruction: `Brief: ${instruction}`, focus: container.node.id },
+        task: withSkills(turn, { tool: 'dialogue.draft', instruction: `Brief: ${instruction}`, focus: container.node.id }),
         role: dialogueRole(targetLines),
       });
       turn.dropped.push(...dropLinesOf(call.prompt));
@@ -2077,20 +2088,29 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       turns: turn.priorTurns,
       activity: harness.log.entries(),
     });
-    const dropped = dropLinesOf(planner.prompt);
+    // The skills list (context-assembly §2): a second planner addendum beside the loaded-tools line, in a user message after the
+    // system prompt and so never part of L0. A project with no skill on offer has none, and its requests are as they were.
+    const skills = harness.skillCatalog();
+    const dropped = [
+      ...dropLinesOf(planner.prompt),
+      ...(skills?.dropped ?? []).map((name) => `Skills: “${name}” is left out of the skills list (over its ${SKILL_CATALOG_TOKENS}-token budget)`),
+    ];
     turn.dropped.push(...dropped);
     emit({ type: 'context', turnId: turn.id, layers: planner.prompt.layers.map((layer) => ({ id: layer.id, tokens: layer.tokens })), dropped });
     turn.messages.push(...planner.messages);
     // A preload loads the rows as a search would have, and their descriptors follow the request in the same slot a search's do
     // (`loadedToolsMessage`), so the cached prefix is untouched. Nothing is preloaded when every tool is declared already.
-    if (preload.length > 0 && !loadEvery()) {
-      harness.preload(turn.id, preload);
+    // `skill.load` is preloaded whenever there is a list to load from, so the model never has to search for it.
+    const wanted: readonly ToolName[] = skills === undefined ? preload : [...preload, 'skill.load'];
+    if (wanted.length > 0 && !loadEvery()) {
+      harness.preload(turn.id, wanted);
       const rows = harness.loadedNativeTools();
       if (rows.length > 0) {
         turn.messages.push({ role: 'user', content: loadedToolsMessage(rows) });
         turn.addendumSent = harness.loadedAddendum();
       }
     }
+    if (skills !== undefined) turn.messages.push({ role: 'user', content: skills.text });
     return converse(turn);
   }
 

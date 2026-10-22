@@ -14,7 +14,7 @@ binder makes their nodes (`media/create-menu.ts`, through `binder.create`).
   scene paginated, read only. Enter at the end of a cue moves onto its dialogue, and Enter on an empty line after dialogue
   starts action. Tab completes a half-typed cue from the cues in the scene and the codex's characters. The element menu
   (the Element button, or Ctrl+E, Cmd+E on a Mac) rewrites the caret's line as the element chosen, through the screenplay engine's
-  `convertLine` (element-menu.ts). All of these write through the session's autosave, which is the path the prose editor
+  `convertLine` (element-menu.ts); a chord per element does the same from the text (*Known limits*, 3). All of these write through the session's autosave, which is the path the prose editor
   uses.
 - **Write a dialogue container.** The Ink text sits under the outline, with its knots, stitches, choices, diverts,
   declarations and tags drawn in their own styles. Tab after a divert arrow completes the knot or stitch name. Clicking a
@@ -89,6 +89,12 @@ editor (`activeDoc` skips it), so the editor and a media view never hold one doc
 Each view runs inside `MediaBoundary`, an error boundary, so a view that throws shows its fallback and the app keeps
 running.
 
+The storyboard, its prompt pack tab and the dialogue view are loaded when they are first opened (`React.lazy`, through
+`lazyView` in `components/lazy-view.tsx`); the screenplay view is not, as it is small and its package is the store's. Each
+view sits in a `LazyBoundary` inside `MediaBoundary`: a status line ("Loading Storyboard…") while the code arrives, and
+**Try again** and **Reload** if it cannot be fetched. A browser may keep a failed import for the life of the page, so
+Reload is the sure way out. The check in `e2e/lazy-views.spec.ts` holds a request, and refuses one, to show both.
+
 `mediaPortsFor(session)` is the one port the centre passes: `commitShot`, which sends every storyboard command through
 the bus (`commit.ts`), `importImage`, which stages a picture and runs `shot.importImage`, and `assets`, the project's images
 as an artifact store (`session.assets.artifactFs()`). The images are kept in the browser's own asset store
@@ -128,9 +134,11 @@ One exception is open: `ScreenplayPreview.tsx` imports `paginate` and `LAYOUT` f
    export dialog's Character limit field when the dialogue table is chosen, so a `dialogue-csv` or `dialogue-xlsx` export from the app carries it.
    The engine target and the locale reach the exports (*What a writer can do*, *Container settings*). The agent's
    `dialogue.table` tool does not read them: it returns §6's columns.
-3. **Screenplay source affordances.** The element menu offers no section or synopsis: a section is a binder folder, and a
-   scene's synopsis is the binder's (screenplay.md §2.2). Its digits work while the menu is open; there is no chord for each
-   element outside it.
+3. **Screenplay source affordances.** The element menu offers no section or synopsis: sections and synopses live in the binder and
+   the Inspector (screenplay.md §2.2). Each of the nine elements has a chord in the Source tab: Ctrl+Shift+1..9, or Cmd+Alt+1..9 on a
+   Mac, matched on the physical digit key. Playwright fakes the modifier state, so the chords are not checked on a real Mac, on a
+   German or Polish (AltGr) layout, in Safari, or against Linux and IME hotkeys. A chord the system or browser intercepts still works
+   from the menu.
 4. **Coverage of a repeated passage.** The text area shows the stored text with line feeds, so a selection is always located
    by its words in the stored text, whatever its line endings. A passage that appears more than once is refused in every
    file, with how many places; the writer selects more words around the one meant.

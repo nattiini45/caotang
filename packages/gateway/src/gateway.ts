@@ -100,6 +100,10 @@ export interface GatewayOptions {
   fetch?: FetchLike;
   timeouts?: Partial<TransportTimeouts>;
   retry?: Partial<RetryPolicy>;
+  /** Whether `fetch` takes `targetAddressSpace`; defaults to detecting it in the running browser. Tests say so. */
+  supportsAddressSpace?: () => boolean;
+  /** The browser's `loopback-network` permission state; defaults to asking the browser. Tests say so. */
+  loopbackPermission?: () => Promise<string | undefined>;
   ledger?: UsageLedger;
   requestLog?: RequestLog;
   /** the mock used for mock profiles; defaults to the shipped script library */
@@ -131,12 +135,28 @@ export function createGateway(options: GatewayOptions): Gateway {
     timeouts: { ...DEFAULT_TIMEOUTS, ...options.timeouts },
     retry: { ...DEFAULT_RETRY, ...options.retry },
     log: requestLog,
+    ...(options.supportsAddressSpace === undefined ? {} : { supportsAddressSpace: options.supportsAddressSpace }),
+    ...(options.loopbackPermission === undefined ? {} : { loopbackPermission: options.loopbackPermission }),
     // The egress pin is the profile a request resolved to, read live from the store, so
     // a key can only ever reach the origin it was entered for — never another profile's.
     profileOrigin: (profileId) => {
       const profile = profiles.get(profileId);
       return profile !== undefined && profile.kind === 'endpoint' ? originOf(profile.baseUrl) : undefined;
     },
+  };
+
+  /**
+   * What a call to a model server on this computer adds: the address space to declare, its preset's deadlines (the
+   * gateway's own settings still win), and the words for a failure. Nothing for any other profile.
+   */
+  const localCall = (profile: ProfileView): Pick<CallSpec, 'addressSpace' | 'timeouts' | 'local'> | Record<string, never> => {
+    const preset = presetFor(profile.preset);
+    if (profile.kind !== 'endpoint' || preset?.local === undefined) return {};
+    return {
+      addressSpace: 'loopback',
+      local: { product: preset.local.product, corsFix: preset.local.corsFix },
+      ...(preset.timeouts === undefined ? {} : { timeouts: { ...preset.timeouts, ...options.timeouts } }),
+    };
   };
 
   /** The profile a request targets: the one named, else the active one. Never a silent fallback. */
@@ -233,6 +253,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       secrets: revealed.redact,
       createParser: () => adapter.createStreamParser(ctx),
       promptTokens: usageFor(req.messages, '').promptTokens,
+      ...localCall(profile),
     };
   };
 
@@ -333,6 +354,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       headers: adapter.headers(ctx, revealed.secrets, 'models'),
       secrets: revealed.redact,
       promptTokens: 0,
+      ...localCall(profile),
     });
     const models = adapter.parseModels(json);
     if (models === undefined) {
@@ -413,6 +435,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       headers: route.adapter.headers(route.ctx, revealed.secrets, 'models'),
       secrets: revealed.redact,
       promptTokens: usageFor([{ role: 'user', content: PROBE_PROMPT }], '').promptTokens,
+      ...localCall(profile),
     });
     profiles.recordProbe(profile.id, { supportsJsonObject: supported, probedAt: clock.now() });
     ledger.record({ profileId: profile.id, model: profile.defaultModel, at: clock.now() }, ZERO, 1);

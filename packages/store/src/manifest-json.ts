@@ -480,6 +480,9 @@ export function serializeManifest(
   if (manifest.recipes !== undefined) {
     parts.push(`${INDENT}"recipes": ${objectArray(manifest.recipes.map(exportRecipe), 1)},`);
   }
+  if (manifest.disabledSkills !== undefined) {
+    parts.push(`${INDENT}"disabledSkills": ${inlineArray(manifest.disabledSkills, 'disabledSkills')},`);
+  }
 
   // Drop the trailing comma of the last member, then close.
   const last = parts.length - 1;

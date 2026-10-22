@@ -69,7 +69,7 @@ test('undo of the last typing still works after a reload, one burst at a time', 
   await waitForSaved(page);
 });
 
-test('caotang-app is upgraded from version 1 with the journal stores, and the records version 1 kept survive', async ({ page }) => {
+test('caotang-app is upgraded from version 1 with the journal and skill review stores, and the records version 1 kept survive', async ({ page }) => {
   // A static file of the app's origin, so IndexedDB is the app's own and the app has not opened its database yet.
   await page.goto('/tsconfig.json');
   await page.evaluate(
@@ -111,7 +111,8 @@ test('caotang-app is upgraded from version 1 with the journal stores, and the re
         };
       }),
   );
-  expect(after.version).toBe(2);
-  expect(after.stores).toEqual(['editor-history', 'editor-history-meta', 'kv']);
+  // Version 3 added the writer's skill reviews (app-db.ts); the upgrade adds a store and touches none of the others.
+  expect(after.version).toBe(3);
+  expect(after.stores).toEqual(['editor-history', 'editor-history-meta', 'kv', 'skill-reviews']);
   expect(after.row).toEqual({ key: 'version-one-row', value: { kept: true } });
 });

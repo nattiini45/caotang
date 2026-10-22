@@ -53,6 +53,7 @@ import {
 } from './paths.js';
 import { isIdWithPrefix } from '@caotang/ids';
 import { digestOfFile, type DigestReader } from './folder-digests.js';
+import { removeSkillFiles, writeSkillFiles } from './skills-fs.js';
 import type { ProjectState } from './state.js';
 import type { CodexEntry, TreeNode } from './manifest.js';
 
@@ -450,6 +451,10 @@ export async function writeProject(
     );
   }
 
+  // 2d. The project's skills (extensibility.md §10): the files whose bytes the folder does not already hold. Nothing here
+  //     creates `.agents/` for a project that has no skills, so such a project's folder is the same as before skills existed.
+  await writeSkillFiles(fs, state.skills, { guard, written: report.written, pruned: report.pruned });
+
   // 3. `.gitignore` — created only when absent. An artifact that a writer has
   //    customized is the author's file, and silently replacing it is the one
   //    thing this whole module must never do.
@@ -484,6 +489,9 @@ export async function writeProject(
   //    that stops naming a document must land first, so a failure between the two leaves an orphan file that the next load imports as
   //    Recovered, and never a manifest naming a file that is gone (§4's "fatal load").
   await pruneDocFiles(fs, state, options.pruneDocumentIds, guard, report);
+
+  // 5b. Skill files the writer removed. Only those: a file in `.agents/skills/` that the writer did not put there is not its to remove.
+  await removeSkillFiles(fs, state.skills, state.removedSkillFiles, { guard, written: report.written, pruned: report.pruned });
 
   report.written.sort();
   report.rotated.sort();

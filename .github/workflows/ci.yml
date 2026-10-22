@@ -5,8 +5,9 @@
 #     the engines range (22.12 or later in 22, 24, and 26 or later) is stated in the README, not tested here.
 #   - `pnpm verify` runs lint, typecheck and the vitest suites (packages/ and test/). The desktop's pure model specs live in
 #     e2e/unit as Playwright specs, so they run under `pnpm test:e2e`, not under `pnpm verify`.
-#   - `pnpm build` builds the desktop app, which writes THIRD-PARTY-NOTICES.md beside it. The MCP server bundle is then packed
-#     as an MCPB, which checks its manifest with the pinned MCPB CLI.
+#   - `pnpm build` builds the desktop app, which writes THIRD-PARTY-NOTICES.md beside it. `tools/check-bundle-size.mjs` then checks
+#     the build against its size budget (CONTRIBUTING.md, Bundle size). The MCP server bundle is then packed as an MCPB, which
+#     checks its manifest with the pinned MCPB CLI.
 #   - `pnpm test:e2e` runs the dev-server suite, and the production-preview project, which smoke-tests the build from the step
 #     above on its own port (e2e/prod-smoke.spec.ts).
 #
@@ -51,6 +52,9 @@ jobs:
 
       - name: Production build (desktop app, with its notices)
         run: pnpm build
+
+      - name: Bundle size (chunk caps, first load, total JS)
+        run: node tools/check-bundle-size.mjs
 
       - name: Pack the MCP server bundle (manifest checked by the pinned MCPB CLI)
         run: pnpm --filter @caotang/mcp-server run pack

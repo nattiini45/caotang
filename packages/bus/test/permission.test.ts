@@ -399,7 +399,9 @@ describe('the gate\'s own lists are held against the spec, not against themselve
       expect(COMMAND_REGISTRY[name].descriptor.agentRisk, name).toBe('never');
     }
     const inheritable = NEVER_CLASS.filter((n) => HARD_DENIED[n] === undefined);
-    expect([...inheritable].sort()).toEqual(['editor.insert', 'editor.replaceRange']);
+    // The four skill commands are `never` too, and nothing composes them: the harness's allowlist of primitives excludes them
+    // (`NEVER_EXPOSED`), so an agent reaches a skill only through the user's own gesture.
+    expect([...inheritable].sort()).toEqual(['editor.insert', 'editor.replaceRange', 'skill.delete', 'skill.import', 'skill.setEnabled', 'skill.write']);
     for (const name of inheritable) {
       expect(granted(name, 'agent', { inheritedGrant: 'write-confirm' }).via, name).toBe('inherited');
     }
@@ -427,6 +429,10 @@ describe('the gate\'s own lists are held against the spec, not against themselve
       'editor.insert',
       'editor.replaceRange',
       'project.deleteNode',
+      'skill.import',
+      'skill.write',
+      'skill.delete',
+      'skill.setEnabled',
     ]);
     expect(byRisk.get('write-confirm')).toContain('doc.write');
     expect(byRisk.get('write-auto')).toContain('binder.move');

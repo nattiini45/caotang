@@ -58,6 +58,7 @@
 // Types only. The functions are loaded on first use (`loadZipEngine`), so this module
 // never statically imports `fflate` and the app's main bundle does not carry it.
 import type { unzipSync as UnzipSync, zipSync as ZipSync } from 'fflate/browser';
+import { skillPathProblem } from '@caotang/skills';
 import { MemoryArtifactFs, type ArtifactFs } from './artifact-fs.js';
 import {
   CODEX_DIR,
@@ -66,6 +67,7 @@ import {
   GITIGNORE_FILE,
   MANIFEST_FILE,
   SESSIONS_FILE,
+  SKILLS_DIR,
   bodyFile,
   isBodyType,
 } from './paths.js';
@@ -520,6 +522,11 @@ export interface ImportZipResult {
  */
 function assertSafeEntry(entry: string): void {
   if (entry === '' || entry.endsWith('/')) return; // directory entry
+  // A skill's files get the stricter rules a skill folder has (a backslash, an empty segment and a control character are refused too).
+  if (entry.startsWith(`${SKILLS_DIR}/`)) {
+    const problem = skillPathProblem(entry.slice(SKILLS_DIR.length + 1));
+    if (problem !== undefined) throw new UnsafeZipEntryError(entry, problem);
+  }
   if (entry.startsWith('/')) {
     throw new UnsafeZipEntryError(entry, 'absolute paths are not project-relative');
   }

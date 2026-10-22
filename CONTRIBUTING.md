@@ -36,6 +36,12 @@ Tests run against the built-in mock and demo providers. They never need a real p
 
 If your change adds or upgrades a dependency, regenerate the licence notices with `node tools/third-party-notices.mjs --write`; a test fails when they no longer match the lockfile.
 
+### Bundle size
+
+After `pnpm build`, run `node tools/check-bundle-size.mjs`. It prints every JS chunk (raw and gzip) and fails when a chunk is over 500 kB and not on its allow-list, when an allow-listed chunk is over its own cap (fontkit, one library that loads only for CJK and emoji text in a PDF, may reach 750 kB), when the first load (the entry and what `index.html` preloads with it) is over its gzip budget, or when all JS is over its ceiling. CI runs it right after the build. Vite's own 500 kB warning is turned down to the highest cap, so this script is the gate.
+
+The numbers are in one object, `BUDGET`, at the top of `tools/check-bundle-size.mjs`. A heavy library that only some writers use (the MCP SDK, docx, fontkit) is loaded where it is used, not in the first paint. If your change makes the build grow past a number, load the new code on use if you can. If it cannot be, raise the number in the same change: build, run the script, put the new size plus about 5% in `BUDGET`, and say why in the commit. An allow-list entry is debt, and the script fails once its chunk is back under 500 kB, so remove the entry then.
+
 ## The specs are the contract
 
 Each module is specified in [docs/architecture/](docs/architecture/), and the code and the spec agree:

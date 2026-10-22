@@ -76,11 +76,14 @@ packages/mcp-client/     MCP client (Streamable HTTP)
 packages/mcp-server/     Caotang as an MCP server (@caotang/mcp-server)
 packages/pdf-fonts/      what both PDFs share for their fallback fonts (byte checks, fontkit, CID writer, emoji)
 packages/screenplay/     Fountain screenplay model
+packages/skills/         Agent Skills folders: the SKILL.md reader, the caps, the review pin, the model's catalog
 packages/store/          the project store and the manifest
 packages/storyboard/     shot cards and animatics
 packages/video-prompt-pack/
 vendor/noto-sans-cjk/    @caotang/font-noto-cjk
 vendor/noto-emoji/       @caotang/font-noto-emoji
+vendor/noto-sans-arabic/ @caotang/font-noto-arabic
+vendor/noto-sans-hebrew/ @caotang/font-noto-hebrew
 site/                    the marketing landing page (GitHub Pages root)
 e2e/                     Playwright specs; e2e/unit/ holds the pure model specs
 test/                    repo-level vitest guards (lockfile, toolchain floor, guide claims, …)

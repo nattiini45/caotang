@@ -133,6 +133,10 @@ export const TASK_PHRASES: Readonly<Record<ToolName, TaskPhraseFn>> = {
   'prompt.variant': () => phrase('Draft a prompt variant', 'Drafting a prompt variant'),
   'dialogue.draft': aboutDoc('Draft dialogue in', 'Drafting dialogue in', 'Draft dialogue', 'Drafting dialogue'),
   'dialogue.table': aboutDoc('Export the dialogue table of', 'Exporting the dialogue table of', 'Export a dialogue table', 'Exporting a dialogue table'),
+  'skill.load': (params) => {
+    const name = textOf(params, 'name');
+    return name === undefined ? phrase('Read a skill', 'Reading a skill') : phrase(`Read the skill ${quoted(name)}`, `Reading the skill ${quoted(name)}`);
+  },
   'notes.replace': aboutDoc('Rewrite the notes of', 'Rewriting the notes of', 'Rewrite notes', 'Rewriting notes'),
   'synopsis.set': aboutDoc('Set the synopsis of', 'Setting the synopsis of', 'Set a synopsis', 'Setting a synopsis'),
   'vocabulary.upsert': (params) => {

@@ -1,6 +1,6 @@
 /**
  * The screenplay PDF's fallback fonts (screenplay.md §5.3). A script with Chinese text and an emoji prints them in the two
- * Noto files the contact sheet uses too: the app fetches one CJK file (7.2 MB, not the 16 MB OTF it was) and one emoji file
+ * Noto files the contact sheet uses too (Arabic and Hebrew print in two more, below): the app fetches one CJK file (7.2 MB, not the 16 MB OTF it was) and one emoji file
  * from its own origin, only for an export that needs them, and the PDF carries the characters as text a reader can copy.
  */
 
@@ -38,7 +38,7 @@ function watchFonts(page: Page): string[] {
   const seen: string[] = [];
   page.on('request', (request) => {
     const name = new URL(request.url()).pathname.split('/').pop() ?? '';
-    if (/\.(otf|ttf|woff2?)$/i.test(name)) seen.push(name.replace(/-[\w-]{8}(?=\.woff)/, ''));
+    if (/\.(otf|ttf|woff2?)$/i.test(name)) seen.push(name.replace(/-[\w-]{8}(?=\.(woff|ttf))/, ''));
   });
   return seen;
 }
@@ -71,4 +71,19 @@ test('a Latin-only script loads no font', async ({ page }) => {
   expect(pdf).toContain('/BaseFont /CourierPrime');
   expect(pdf).not.toContain('CIDFontType2');
   expect(fonts).toEqual([]);
+});
+
+test('a script with Arabic and Hebrew loads the one Arabic file and the one Hebrew file under the unchanged CSP, and the PDF embeds both with the words as text', async ({ page }) => {
+  const fonts = watchFonts(page);
+  await createProject(page, PROJECT);
+  await makeScene(page, 'INT. LIGHTHOUSE - NIGHT\n\nمرحبا بالعالم، هل رأيت الفيلم؟\n\n@דוד\n(בשקט)\nשלום עולם, מה שלומך?\n');
+  const pdf = await compilePdf(page);
+
+  expect(pdf.startsWith('%PDF-')).toBe(true);
+  expect(pdf).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSansArabic-Regular/);
+  expect(pdf).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSansHebrew-Regular/);
+  expect(pdf).not.toContain('(?????) Tj');
+  // Each word is marked content that carries its logical text: "שלום" is U+05E9 U+05DC U+05D5 U+05DD, as UTF-16 hex.
+  expect(pdf).toContain('/ActualText <FEFF05E905DC05D505DD>');
+  expect([...new Set(fonts)].sort()).toEqual(['NotoSansArabic-Regular.ttf', 'NotoSansHebrew-Regular.ttf']);
 });

@@ -68,6 +68,7 @@ export {
   MANIFEST_FILE,
   PROSE_BODY_EXT,
   SESSIONS_FILE,
+  SKILLS_DIR,
   SNAPSHOT_COUNT,
   bodyExtOf,
   bodyExtensionOf,
@@ -79,8 +80,11 @@ export {
   docFile,
   isBodyFileName,
   isBodyType,
+  skillFilePath,
   snapshotFile,
 } from './paths.js';
+export { createSkillStaging, type SkillStaging, type StagedSkill } from './commands-skills.js';
+export { isSkillFilePath, readSkills, type ReadSkills, type SkillsNotice } from './skills-fs.js';
 export { createBinderNode, type MediaCreateParams } from './commands-media.js';
 
 export {
@@ -314,6 +318,7 @@ export {
   readSessions,
   writeBodySnapshot,
   writeCoherenceFiles,
+  writeProjectSkills,
   writeDocumentBody,
   writeProjectState,
   type DocumentRow,

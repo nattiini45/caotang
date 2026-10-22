@@ -229,4 +229,9 @@ export interface Manifest {
   goals?: ProjectGoal[];
   /** additive in v1 (exporter.md §2); absent = no saved recipes */
   recipes?: ExportRecipe[];
+  /**
+   * additive in v1 (extensibility.md §10): the names of the skills the writer turned off, sorted. Absent = every skill is on. A skill
+   * that is on is still not offered to the agent until the writer has reviewed it, and the review is not kept here.
+   */
+  disabledSkills?: string[];
 }

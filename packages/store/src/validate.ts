@@ -374,6 +374,13 @@ function validateFields(
     warn('project.author', 'expected a string; dropped, and the exports carry no byline');
     delete project['author'];
   }
+  // extensibility.md §10: the skills the writer turned off. A malformed list is dropped with a warning, which turns every skill on
+  // again, and a skill that is on still waits for the writer's review before the agent is told about it.
+  const disabledSkills = (source as unknown as Record<string, unknown>)['disabledSkills'];
+  if (disabledSkills !== undefined && !(Array.isArray(disabledSkills) && disabledSkills.every((name) => typeof name === 'string'))) {
+    warn('disabledSkills', 'expected a list of skill names; dropped, and every skill is on');
+    delete (source as unknown as Record<string, unknown>)['disabledSkills'];
+  }
   const recipes = (source as unknown as Record<string, unknown>)['recipes'];
   if (recipes !== undefined) {
     if (!Array.isArray(recipes)) {

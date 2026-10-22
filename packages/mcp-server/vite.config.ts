@@ -10,7 +10,7 @@ import { defineConfig } from 'vite';
  * `noExternal` is true. Node's built-in modules are left as imports, which is what
  * Vite's server-side build does for them already. The shebang is added so the file can
  * be run directly as the `caotang-mcp` bin. Minification is off, so a reviewer can read
- * what is shipped. The PDFs' two fallback fonts are not part of the build: the pack script
+ * what is shipped. The PDFs' fallback fonts are not part of the build: the pack script
  * stages them in `fonts/` beside the bundle from their packages (scripts/pack-mcpb.mjs),
  * and `@caotang/pdf-fonts/node-loader` reads them from there.
  */

@@ -196,3 +196,4 @@ export { CHARS_PER_TOKEN, estimateTokens, fitsCap } from './tokens.js';
 export { refusal, notWired } from './errors.js';
 export { coherenceAsyncPorts, coherencePorts, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
 export { codexImportParams, prepareCodexImport } from './tools/codex-import.js';
+export { parsedSkillsOf, skillBlock, skillLabel, skillStatesOf, type LoadedSkill, type SkillsOption } from './tools/skills.js';

@@ -10,7 +10,7 @@
  * `pnpm list --prod`, which walks the same lockfile the build uses, so the list cannot name a package the build does not
  * contain. Development tools are not shipped, so they are not listed. Caotang's own packages are MIT, under LICENSE, and
  * are not repeated here, except the workspace packages that hold third-party work under its own license
- * (VENDORED_WORKSPACE_PACKAGES): the Noto Sans Mono CJK and Noto Emoji fonts, under the SIL Open Font License, are listed like any
+ * (VENDORED_WORKSPACE_PACKAGES): the Noto Sans Mono CJK, Noto Emoji, Noto Sans Arabic and Noto Sans Hebrew fonts, under the SIL Open Font License, are listed like any
  * other package.
  *
  * Why each license text is kept. MIT and Apache-2.0 both require the copyright notice and the license to travel with
@@ -37,7 +37,7 @@ const LICENSE_FILE = /^(licen[cs]e|copying|notice)([.-][\w.-]*)?$/i;
 /**
  * Third-party files that ship inside a Caotang package rather than as a dependency, so the lockfile does not list them. Each
  * names the file it ships as, its license, its source, and the license text kept beside it in the repository (a path from the
- * repository root), which is reproduced in full. The screenplay PDF embeds Courier Prime. The two Noto fonts both PDFs fall
+ * repository root), which is reproduced in full. The screenplay PDF embeds Courier Prime. The Noto fonts both PDFs fall
  * back to are vendored workspace packages (VENDORED_WORKSPACE_PACKAGES below), so each is listed once (docs/architecture/screenplay.md §5.3).
  */
 export const BUNDLED_ASSETS = Object.freeze([
@@ -62,10 +62,16 @@ export const ELECTED_LICENSES = Object.freeze({
 
 /**
  * Workspace packages that vendor third-party work: they are linked like Caotang's own packages, but carry their own license,
- * so they are listed with it. `@caotang/font-noto-cjk` is Noto Sans Mono CJK SC (OFL-1.1), in vendor/noto-sans-cjk, and
- * `@caotang/font-noto-emoji` is Noto Emoji (OFL-1.1), in vendor/noto-emoji.
+ * so they are listed with it. `@caotang/font-noto-cjk` is Noto Sans Mono CJK SC (OFL-1.1), in vendor/noto-sans-cjk,
+ * `@caotang/font-noto-emoji` is Noto Emoji (OFL-1.1), in vendor/noto-emoji, `@caotang/font-noto-arabic` is Noto Sans Arabic (OFL-1.1), in
+ * vendor/noto-sans-arabic, and `@caotang/font-noto-hebrew` is Noto Sans Hebrew (OFL-1.1), in vendor/noto-sans-hebrew.
  */
-export const VENDORED_WORKSPACE_PACKAGES = Object.freeze(['@caotang/font-noto-cjk', '@caotang/font-noto-emoji']);
+export const VENDORED_WORKSPACE_PACKAGES = Object.freeze([
+  '@caotang/font-noto-cjk',
+  '@caotang/font-noto-emoji',
+  '@caotang/font-noto-arabic',
+  '@caotang/font-noto-hebrew',
+]);
 
 /** The label a notice taken from a README carries in place of a license file name. */
 export const README_NOTICE_NAME = 'README (licence section)';

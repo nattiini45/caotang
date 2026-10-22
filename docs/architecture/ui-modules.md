@@ -172,6 +172,17 @@ The Project panel is a dialog that opens from the project's name in the toolbar 
 
 - **`Ctrl+Alt+F`** focuses the binder's filter field (binder-filters §5). **`Ctrl+Shift+F`** stays focus mode, which shipped first and is in the user guide. The filter takes the Alt chord, as docs/decisions.md records. The filter chord is supplementary, not part of the §2.5 set (binder-filters §5).
 
+### 5.7 The Skills panel
+
+The Skills panel is a dialog that opens from **Skills** in the toolbar, or from **Review skills** in the agent panel's note that skills are waiting (`apps/desktop/src/components/SkillsPanel.tsx`; its model is `apps/desktop/src/app/skills-model.ts`, extensibility.md §10). Its subtitle is "Reusable writing instructions for the agent". The words in it are a writer's: **Skills**, **instructions**, **approve**, **on/off**. The folder's main-file name and the pin appear only in the docs; the main file is **Instructions** here. It has four views:
+
+- **The list**, in name order: each skill's name, description, where it stands with the review (**Not approved yet**, **Approved**, **Changed since you approved it**), and chips for **Off**, **Includes scripts** and **Only you use it**. Each row has **Read and approve…** (**Read again** once approved), **Edit**, **Turn off / Turn on** and **Delete** (undoable). **New skill…**, **Import a folder…** and **Import a zip…** sit above the list. A folder that cannot be a skill (its name is not its folder's, its front matter does not read) is listed under **Skills that cannot be used** with what to change. The agent panel carries a note, "N skills are waiting for you to approve them", while a skill that is on and open to the agent is unreviewed.
+- **The review**: the description, notes for scripts (named, with "Caotang reads the instructions and does not run them" and the line about other programs), for `allowed-tools` ("Not enforced in this build"), for the other files ("kept with the skill; the agent cannot read them in this build"), for characters that cannot be seen and for comments; then every file as plain text in a `<pre>` (nothing is rendered), with each hidden or bidirectional control character shown as `⟦U+XXXX⟧`, and a file that is not text named with its size. **Approve this skill** records the approval of those bytes (skill-reviews.ts).
+- **The editor**: one text area for the instructions, with live validation (the skill, with this text, must parse: a name that is its folder's, a description) and **Save** off while it cannot. Saving a change to an approved skill says it will need approving again.
+- **New skill**: a name, checked as it is typed (lower-case letters, digits and hyphens, not taken), then the editor on a template that parses.
+
+Escape goes back one view, and out of the panel from the list. Import reads the picked files only to find and check the skills among them (50 skills, 64 files, 256 KB a file, 2 MB a skill; a path that leaves the folder refuses the zip whole), then takes each through `skill.import`. Nothing in it is fetched or run.
+
 ## 6. Playwright traceability (the UI modules' shared eval bar)
 
 Per command-bus §10 + ARCHITECTURE §1.6: every scripted gesture must produce the **same command trace an agent plan would** — that equivalence is the eval:

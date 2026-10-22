@@ -124,6 +124,7 @@ On the Source tab:
 - Enter on an empty line after dialogue starts an action line.
 - Tab completes a half-typed character name from the names cued in the scene and the characters in the codex.
 - **Element**, above the text, or Ctrl+E (Cmd+E on a Mac), opens the element menu for the line the caret is on. It lists **Scene heading**, **Action**, **Character**, **Parenthetical**, **Dialogue**, **Transition**, **Centered**, **Note** and **Page break**, and marks the one the line is. The arrow keys move through it, and Enter chooses. The digits 1 to 9 choose an element directly.
+- **Ctrl+Shift+1** to **9** (**Cmd+Alt+1** to **9** on a Mac) do the same without opening the menu: the caret's line becomes the element that has that digit in the menu. A line that already is that element stays as it is. A line that cannot be it, such as dialogue with no character above, is left alone, and the status line says so. The menu shows each chord beside its digit. A chord your system or browser keeps for itself does nothing in the text, and the menu still works. Holding AltGr with a digit types the character your keyboard layout has there.
 - Choosing an element rewrites the line in its Fountain form. Your words are kept. Caotang adds a mark such as `.`, `@`, `!` or `>` only where the line would otherwise read as another element. A heading, a character or a transition under other text gets a blank line above it. **Parenthetical** and **Dialogue** are offered only under a character. **Page break** on a line with words puts the break on its own line above it.
 
 When Caotang saves a scene, it writes Fountain in the standard layout: a run of blank lines becomes one blank line, and Windows line endings become the usual ones. Your words are kept.
@@ -150,6 +151,10 @@ Courier Prime covers Western European letters and the usual punctuation. Other c
 A Chinese, Japanese or Korean character takes the width of two Courier letters. A line can break between Chinese or Japanese characters without a space, but not before a closing mark such as `。` or `」`. Korean breaks at spaces.
 
 Emoji print in Noto Emoji, a black-and-white emoji font. An emoji takes the width of two Courier letters, however it is built: a family such as 👨‍👩‍👧, a flag such as 🇩🇪, a keycap such as 1️⃣ or a skin tone such as 👍🏽 is one picture, and it is never split across lines. A line can break before or after an emoji without a space. The font has no colours and no skin tones, so 👍🏽 prints as 👍, but text you copy out of the PDF keeps the emoji you typed. A script with no emoji does not load this font.
+
+Arabic, Persian, Urdu and Hebrew print in Noto Sans Arabic and Noto Sans Hebrew, which are loaded only for a script that has them (0.15 MB and 0.02 MB). Letters take their joined forms, and a word takes whole Courier columns, rounded up, with the spare room on the side the word ends. A line that mixes these scripts with Latin letters, digits or emoji is ordered the way Unicode's bidirectional rules put it, and brackets turn to face the right way, so `(בשקט)` has its parentheses the right way round. A paragraph's direction is that of its first strong letter; a paragraph with none, such as a number or `...`, takes the direction of the project's language (Arabic, Persian, Urdu, Hebrew or Yiddish read right to left). A right-to-left paragraph ends at the right edge of its own column, inside the same page as any other: the margins, the page numbers, the transitions and the order of dual dialogue are not mirrored. These scripts have no capitals, so a character name in them needs a `@` in front, as in `@سارة`. A speech splits after `؟`, `۔` or `؛` as well as after the Latin stops. Copying text out of the PDF gives back the words as you typed them.
+
+Marks that sit on a letter (the Arabic harakat and shadda, the Hebrew points and cantillation) are left out of the print, because their place in the font cannot be checked yet; the file still holds them as text, and the compile log says how many were left out. Nastaliq, the style of Urdu in Pakistan, is not drawn: Urdu prints in the plain Arabic style. These pages were checked by tests that read the file back, not yet by a reader of the language.
 
 A character no font has prints as a question mark, and the compile log names it. The woman and the man walking, kneeling or running facing right (🚶‍♀️‍➡️, 36 with their skin tones) have no glyph here, and print as their first emoji (🚶); the log says so.
 
@@ -193,7 +198,7 @@ Choose **New storyboard here** from a folder's menu. A storyboard holds shots, a
 
 **The shot's prompt.** The **Prompt** section writes one target model's prompt for the shot: its camera, subject, action, context and style; its audio; the negative prompt; the clip length, aspect ratio, resolution and seed; and its references. Use **Vendor for this prompt** to choose the model. **Save prompt** saves that vendor's prompt, and the other vendors' prompts are kept as they were. The text you type for one vendor stays when you switch to another vendor and back. A change to the stored prompt, such as an undo or the agent's draft, can replace it, and then the section says so. **Remove this prompt** deletes it. Each check under the fields names a problem, and **Go to the field** brings that field into view. **Writer's note for this shot** is for you, and it is not sent to the model. **Add a reference** adds a codex entry or a picture the prompt sends with the shot, and **Best take** records the take you kept from your own generation.
 
-**Contact sheet.** To print a storyboard, choose **Compile…** and **Storyboard contact sheet (.pdf)**, with **Only “…”** for one storyboard or **The whole manuscript** for every shot. The PDF lays the shots out as cards in board order, 15 to an A4 page or 12 to a US Letter page. Each card shows the picture, the shot number, the camera details and duration in the shot editor’s words (on up to two lines), and the first two lines of the action. Each page's header gives the project, the storyboard, the date, the page number, the number of shots and the animatic total. A shot with no picture shows its caption. **Paper size** in the recipe's settings chooses A4 or US Letter.
+**Contact sheet.** Arabic, Persian, Urdu and Hebrew print on the sheet too, ordered right to left where the line runs that way, and a right-to-left line ends at the right edge of its box. To print a storyboard, choose **Compile…** and **Storyboard contact sheet (.pdf)**, with **Only “…”** for one storyboard or **The whole manuscript** for every shot. The PDF lays the shots out as cards in board order, 15 to an A4 page or 12 to a US Letter page. Each card shows the picture, the shot number, the camera details and duration in the shot editor’s words (on up to two lines), and the first two lines of the action. Each page's header gives the project, the storyboard, the date, the page number, the number of shots and the animatic total. A shot with no picture shows its caption. **Paper size** in the recipe's settings chooses A4 or US Letter.
 
 Chinese, Japanese and Korean text prints in the Noto Sans Mono CJK font. Lines break between Chinese and Japanese characters, and at spaces in Korean. Caotang loads the font only when a sheet holds such text, and the PDF carries only the characters it uses. Greek and Cyrillic print in the same font.
 
@@ -264,6 +269,20 @@ Reading the agent's work:
 - **Restore to before this turn.** This takes the project back to where it was before that turn. It also takes back the edits you made since then, and the later changes the dialog lists. The dialog says so before it does it.
 - **Activity.** The **Activity** tab lists every change, marked **You** or **Agent**, and a call to an outside tool carries an **MCP** badge. **Undo** takes one back.
 
+## Skills
+
+A skill is a set of instructions you write once and the agent follows when your request fits it: "draft in close third person, past tense, no adverbs in dialogue tags", or "fill synopses in three beats", or "use these slug-line conventions". The codex holds facts about your story; a skill holds how you want the agent to work. Choose **Skills** in the toolbar to open the panel.
+
+- **New skill…** asks for a name (lower-case letters, digits and hyphens) and opens its instructions. The first lines, between two lines of dashes, give the skill its name and say when to use it in a sentence or two (the **description**, which is what the agent reads to decide). Everything after them is what the agent follows. The editor says at once if the text cannot be used, and **Save** waits until it can.
+- **Import a folder…** and **Import a zip…** take skills someone else wrote. A skill is a folder of text files with its instructions file in it; a zip can hold one skill, or a folder of skills. A skill that is too large is refused, and the message names the limit: 50 skills in a project, 64 files in a skill, 256 KB for a file and 2 MB for a skill.
+- **Turn on / Turn off** decides whether the agent may be told about a skill. **Delete** takes a skill out of the project, and **Undo** brings it back.
+
+**The agent sees a skill only after you have approved it.** A skill is text the agent will follow, and a project someone shares with you may carry skills you have not read. **Read and approve…** shows everything in the skill as plain text, exactly as it is: the instructions and every other file. A character that cannot be seen on screen is shown as its code in brackets, such as ⟦U+200B⟧, and the review counts them, so a hidden instruction cannot slip through. A comment is shown as written. If the skill includes scripts, the review names them and says that Caotang reads the instructions and does not run them, and that other programs reading the same folder, such as Claude Code or Codex, may. **Approve this skill** is your decision. Change any file of the skill, in Caotang or in another program, and it needs your approval again; until then the agent is not told about it, and the agent panel says how many skills are waiting. Your approvals are kept in this browser and are not part of the project, a bundle or an export.
+
+When a skill is approved and on, the agent is told its name and description. It loads the skill when your request fits, and the instructions guide that turn's drafts. A skill changes how the agent works and nothing else: every change that needs your approval still shows its card, whatever a skill says. A skill whose instructions you keep for yourself (`disable-model-invocation: true` in its first lines) is listed as **Only you use it**, and the agent is never told about it.
+
+Skills are kept in the project, in the folder `.agents/skills/`, so a project folder, a `.caotang` bundle and this browser's copy all carry them, and other programs that read that folder use them too. The agent can suggest a skill in its answer, and it cannot create, change, import or turn on a skill; only you can.
+
 ## Export
 
 Choose **Compile…** in the toolbar. Then choose a recipe, a format and what to export.
@@ -307,7 +326,8 @@ With **Prompt pack (video)**, choose the **Vendor template** the pack is written
 
 Choose **Settings** on the projects screen or in the toolbar. It has eight sections: Providers, Context, Agent, Writing, Coherence, MCP & tools, Appearance and Data.
 
-- **Providers.** Choose **Add a provider**, then pick the provider in the list — its address and authentication are already set, and some providers ask for an extra field such as a region or a workspace id. Enter a name, a model (the field offers the provider's own model list), and the key. A provider whose API does not answer a browser page is marked **Desktop app or hosted only**. For an endpoint of your own, choose the generic entry at the bottom of the list: you type the base URL (ending in `/v1`) yourself, and can add extra request headers that are sealed with the key. **Save profile** checks the endpoint and lists its models. **Use this profile** makes it the one the agent calls. Keys stay in this browser, and are never written into a project. You can add a price per 1,000 tokens, which lets Caotang show what a step costs. To remove a saved price, empty both price fields and save. The usage totals count requests by day, profile, model and task role. The request log lists each request's time, profile, attempt, outcome, status, the output cap it was sent with (thinking room included) and address. It does not store your manuscript or prompts. For a failed request it can keep a short excerpt, up to 300 characters, of the error the provider or the network returned, with your key removed. A provider's error can repeat part of what was sent, so check the request log before you share it.
+- **Providers.** Choose **Add a provider**, then pick the provider in the list — its address and authentication are already set, and some providers ask for an extra field such as a region or a workspace id. Enter a name, a model (the field offers the provider's own model list), and the key. A provider whose API does not answer a browser page is marked **Desktop app or hosted only**. A model server running on this computer — **Ollama**, **LM Studio** or **llama.cpp (llama-server)** — is listed under **On this computer**; see below. For an endpoint of your own, choose the generic entry above that group: you type the base URL (ending in `/v1`) yourself, and can add extra request headers that are sealed with the key. **Save profile** checks the endpoint and lists its models. **Use this profile** makes it the one the agent calls. Keys stay in this browser, and are never written into a project. A server on this computer needs no key unless you set one on the server. You can add a price per 1,000 tokens, which lets Caotang show what a step costs. To remove a saved price, empty both price fields and save. The usage totals count requests by day, profile, model and task role. The request log lists each request's time, profile, attempt, outcome, status, the output cap it was sent with (thinking room included) and address. It does not store your manuscript or prompts. For a failed request it can keep a short excerpt, up to 300 characters, of the error the provider or the network returned, with your key removed. A provider's error can repeat part of what was sent, so check the request log before you share it.
+- **Models on this computer.** Under **On this computer** the provider list has **Ollama**, **LM Studio** and **llama.cpp (llama-server)**. Pick one, check the server address (it starts as the usual one, such as `http://127.0.0.1:11434/v1`, and you can change the port), and enter the name of a model you have pulled or loaded. Caotang talks to these servers only at an address on this computer, over plain http, and refuses any other address with the reason; the line **Your text stays on this computer** shows while the address is one. The server has to let the page call it. Ollama needs `OLLAMA_ORIGINS` set to the address Caotang is served from (for caotang.app, `OLLAMA_ORIGINS=https://caotang.app`) and a restart. LM Studio needs **Enable CORS** in its server settings. llama-server answers pages by default, but a server started with `--tools` or `--agent` needs `--cors-origins`. If the browser is blocked, the error names the setting. The first time, Chrome and Edge ask whether the site may connect to apps on your device; choose Allow. Until the server says otherwise, Caotang assumes a small context window (4,096 tokens) and no native tools or image input, so raise the window on the server: `OLLAMA_CONTEXT_LENGTH` for Ollama, the context length when you load the model in LM Studio, `-c` for llama-server. A model that takes time to load is given up to three minutes before its first words.
 - **Roles.** Below the profiles, **Chat**, **Drafting** and **Background** each name the profile, model and thinking level their calls run on. Chat is the agent panel, including the drafts a plan writes there; Drafting is the prompt pack's generations; Background is checks and encoding work. Drafting and Background follow Chat until you pin them to a profile of their own. A thinking level is offered only when the chosen model supports thinking, and only the levels it takes. Off is not offered where the model always thinks. On a model that takes a thinking budget, a higher level raises the output cap for that call so the answer still has room, and a step's cost estimate adds the thinking and says "including thinking".
 - **Context.** How much the agent may send the model in one request: the whole prompt, and the codex entries, the story so far and the focus document. Leave a field empty for the default. A change applies from the agent's next request.
 - **Agent.** **Load every tool on every request**, off by default. Turn it on for a model that does not find tools with the agent's search. A change applies from the agent's next request.
@@ -319,7 +339,7 @@ Choose **Settings** on the projects screen or in the toolbar. It has eight secti
 
 ## Keyboard
 
-On a Mac, Cmd takes the place of Ctrl.
+On a Mac, Cmd takes the place of Ctrl. The element chords are the one exception: they use Cmd+Alt, because Cmd+Shift+3 and Cmd+Shift+4 take screenshots.
 
 | Key | What it does |
 |---|---|
@@ -329,6 +349,7 @@ On a Mac, Cmd takes the place of Ctrl.
 | Ctrl+Alt+F | Move to the binder's filter. |
 | Ctrl+Enter | Open the selected item in the editor. |
 | Ctrl+E | On a screenplay's Source tab, open the element menu for the caret's line. |
+| Ctrl+Shift+1 to 9 (Cmd+Alt+1 to 9 on a Mac) | On a screenplay's Source tab, make the caret's line the 1st to 9th element of the element menu. |
 | F2 | Rename the selected item in the binder. |
 | Delete | Delete the selected item in the binder. It asks first. |
 | Arrow keys | Move the selection in the binder. |
@@ -348,6 +369,8 @@ If your writing is somewhere else, such as in notes, a wiki or an old draft, the
 - The import tool that adds codex entries adds up to 20 entries in one call. Each entry is attached to a document whose text names it. A name that already exists is refused, so nothing is merged. Imported entries show as **Imported** in the codex, not as **Drafted by the agent**.
 
 Each call asks you to confirm in your AI host. Decline it, and nothing is written.
+
+A coherence scan run from your host on a server started with `--allow-writes` is saved to the folder, and its findings and run show in the **Findings** tab after the folder is opened in Caotang again.
 
 To bring writing in:
 
@@ -371,6 +394,17 @@ Two limits to know:
 
 With writes allowed, an outside tool can also compile the manuscript, one item, or a saved recipe, in any format the Export dialog offers, EPUB included. The host asks you to confirm each compile first, as it does for any other change.
 
+## Installing the MCP bundle
+
+The MCP server also comes as a `.mcpb` file that a host such as Claude Desktop can install. Build it as the [README](../README.md#caotang-as-an-mcp-server) says, or take it from the latest release. In the host:
+
+1. Drag the file onto the host, or open it with the host.
+2. In the dialog, choose a **Project folder** that already holds a Caotang project.
+3. Leave **Allow changes** off to let the assistant read the project only. Turn it on to let it change the project; some changes still ask you to confirm them first.
+4. If the host warns that the bundle is not signed and offers **Install Anyway**, that is expected. The host cannot name a publisher for it, because the signing tool today produces bundles that hosts refuse. The code is open, and you can build the same file from source.
+
+The server runs on your computer and opens no network port. Uninstalling it leaves your project folder untouched. The dialog's wording differs between hosts and versions. The bundle is not signed, and it has not been tested in a real host yet.
+
 ## When something seems wrong
 
 - **The agent says it cannot do that.** The built-in demo provider answers only three requests. Add a provider in Settings › Providers.
@@ -393,9 +427,13 @@ With writes allowed, an outside tool can also compile the manuscript, one item, 
 ## What is not in this build yet
 
 - **Exports.** The screenplay PDF is US Letter only; there is no A4 page and no choice of font.
-- **Contact sheet pictures and characters.** The contact sheet does not draw WebP pictures; their cards show the caption. Characters that none of its fonts has, such as Arabic and Hindi, print as `?`. The compile log names them. Emoji print in black and white, and skin tones as the plain figure. Of Emoji 17.0's people "facing right", only a woman or a man walking, kneeling or running (36 with their skin tones) print as their parts side by side (the figure, a gender sign, then an arrow); the rest print as one picture. Chinese, Japanese and Korean text has no bold, and Han characters take their Simplified Chinese forms.
+- **Contact sheet pictures and characters.** The contact sheet does not draw WebP pictures; their cards show the caption. Characters that none of its fonts has, such as Hindi, print as `?`. The compile log names them. Emoji print in black and white, and skin tones as the plain figure. Of Emoji 17.0's people "facing right", only a woman or a man walking, kneeling or running (36 with their skin tones) print as their parts side by side (the figure, a gender sign, then an arrow); the rest print as one picture. Chinese, Japanese and Korean text has no bold, and Han characters take their Simplified Chinese forms.
 - **Final Draft files.** Import and export of `.fdx` files have not been checked against files that Final Draft wrote or opened. The scene numbers and page headers that Caotang writes are not yet confirmed to show in Final Draft.
 - **Word contents.** How Word and LibreOffice handle the contents field in a `.docx` file has not been tested.
 - **The Pages view.** The Pages view of a screenplay is a read-only preview. It draws a dual-dialogue pair side by side, as the PDF does, but it closes up the blank lines and is not the page's exact height.
 - **Undo and reloads.** The toolbar's Undo and the Undo in Activity last for the open tab; checkpoints survive a reload. Undo on a screenplay's Source tab and in Ink text is the browser's own.
+- **Local models, checked.** The three local model servers have been tried against test servers that imitate their browser settings, not against the real Ollama, LM Studio and llama-server. Firefox has not been tried, and Safari is not verified. A server on another computer on your network is not supported: plain http is allowed only to this computer.
+- **What a local server reports.** Caotang does not yet ask a local server about the model it runs, so it assumes a small context window and no native tools or images.
+- **The MCP bundle.** The `.mcpb` bundle is not signed, so a host asks you to confirm the install, and it has not been tested in a real host.
+- **Skill scripts and files.** Skills that include scripts: Caotang uses their instructions and does not run the scripts. The agent cannot read the other files kept with a skill, a skill's list of allowed tools does not limit the agent, and there are no skills shared across projects and no way to run a skill by name. Only the project's `.agents/skills` folder is read.
 - **The desktop app.** Caotang runs in the browser. A desktop wrapper is not in this build.

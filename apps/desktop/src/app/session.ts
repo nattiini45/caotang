@@ -78,6 +78,7 @@ import {
   readSessions,
   createAssetStaging,
   createProjectCommandRegistry,
+  createSkillStaging,
   createSessionTracker,
   domFlushSignals,
   evictSnapshots,
@@ -94,6 +95,7 @@ import {
   type RetentionConfig,
   type RuntimeStore,
   type SessionRecord,
+  type SkillStaging,
   type SessionTracker,
   type WriteDocumentResult,
 } from '@caotang/store';
@@ -102,11 +104,14 @@ import { assetRecordsOf, createExporter, exportMetadataOf, type EmitFailure, typ
 import { dropDanglingImages, shotCommandPort } from '@caotang/storyboard';
 import { createAgentPorts, createHarness, type Harness } from '@caotang/harness';
 import type { McpClient } from '@caotang/mcp-client';
+import type { SkillFile } from '@caotang/skills';
 
-import { loadCjkFontOverHttp, loadEmojiFontOverHttp } from './fallback-fonts.js';
+import { loadArabicFontOverHttp, loadCjkFontOverHttp, loadEmojiFontOverHttp, loadHebrewFontOverHttp } from './fallback-fonts.js';
 import { CodexMentions } from './codex-model.js';
 import { ExportStore } from './exports.js';
 import { ProjectAssets, coverFileHeld } from './project-assets.js';
+import { SkillReviews } from './skill-reviews.js';
+import { skillsView, type SkillsView } from './skills-model.js';
 import type { DirectoryHandleLike } from './fs-access.js';
 import { Persistence } from './persistence.js';
 import type { Shadow } from './persistence-plan.js';
@@ -212,6 +217,8 @@ export interface SessionOptions {
   readonly presentAssets?: () => ReadonlySet<string>;
   /** What the agent's coherence tools read from the app (`SessionCoherence`). Absent, every check runs and no review is wired. */
   readonly coherence?: SessionCoherence;
+  /** The writer's reviews of this project's skills (skill-reviews.ts). Absent, no skill is reviewed, so the agent is told of none. */
+  readonly skillReviews?: SkillReviews;
 }
 
 /**
@@ -272,6 +279,10 @@ export class ProjectSession {
   readonly assets: ProjectAssets;
   /** The images the writer has chosen and the next `project.importAsset` will take: held in memory, and single-use. */
   private readonly assetStaging: AssetStaging = createAssetStaging();
+  /** The skill folders the writer has chosen and the next `skill.import` will take: held in memory, and single-use. */
+  private readonly skillStaging: SkillStaging = createSkillStaging();
+  /** The writer's reviews of this project's skills. A skill the writer has not read is not offered to the agent (extensibility.md §10). */
+  readonly skillReviews: SkillReviews;
   /** The identity fields this open filled in (epub-metadata.md). Non-empty means the project must be saved once. */
   private readonly backfilled: readonly string[];
   /** The mention cache the codex panel's appearance view reads (codex-panels §1). */
@@ -351,6 +362,7 @@ export class ProjectSession {
     // follows writes them. It is idempotent, so a folder load that already ran it changes nothing a second time.
     this.backfilled = backfillProjectIdentity(this.state.manifest);
 
+    this.skillReviews = options.skillReviews ?? SkillReviews.none(options.projectId);
     this.assets = options.assets ?? new ProjectAssets();
     // The browser's copy of the project's images, so a reopened project's images read back after a reload. Every read and
     // write of the assets waits for this binding (project-assets.ts), so nothing is written to a store that is not yet bound.
@@ -372,6 +384,8 @@ export class ProjectSession {
       // The cover image's bytes go to the project's asset store, which writes them through to the project folder when one
       // is open. The exporter reads the cover back from the same store (epub-metadata.md).
       assets: { staging: this.assetStaging, writeBytes: (path, bytes) => this.assets.writeBytes(path, bytes) },
+      // The skills the writer imports are staged here, and the command names them (extensibility.md §10).
+      skillStaging: this.skillStaging,
     });
 
     this.harness = createHarness({
@@ -379,6 +393,8 @@ export class ProjectSession {
       registry: this.registry,
       clock: () => Date.now(),
       ports: createAgentPorts(),
+      // The agent is told only of the skills the writer has read and approved, and the harness checks that on every call.
+      skills: { reviewedPin: (name) => this.skillReviews.pinOf(name) },
       notify: () => this.afterCommand(),
       ...(options.mcp === undefined ? {} : { mcp: options.mcp }),
       ...(options.presentAssets === undefined ? {} : { presentAssets: options.presentAssets }),
@@ -677,6 +693,45 @@ export class ProjectSession {
     await this.refreshAssetRecords();
     this.afterCommand();
     return result;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Skills (extensibility.md §10): the writer's own instructions for the agent
+   * ------------------------------------------------------------------ */
+
+  /** The project's skills as the Skills panel lists them, with where each stands with the writer's review. */
+  skills(): SkillsView {
+    return skillsView(this.state, (name) => this.skillReviews.pinOf(name));
+  }
+
+  /** Takes one skill folder into the project (`skill.import`): the files are staged, and the command names them. */
+  importSkill(folder: string, files: readonly SkillFile[]): Result<ExecutionOutcome, CommandError> {
+    return this.dispatch('skill.import', { stagingId: this.skillStaging.stage({ folder, files }) });
+  }
+
+  /** Writes one text file of a skill (`skill.write`). A skill changed this way is unreviewed until the writer approves it again. */
+  writeSkillFile(name: string, path: string, text: string): Result<ExecutionOutcome, CommandError> {
+    return this.dispatch('skill.write', { name, path, text });
+  }
+
+  deleteSkill(name: string): Result<ExecutionOutcome, CommandError> {
+    return this.dispatch('skill.delete', { name });
+  }
+
+  setSkillEnabled(name: string, enabled: boolean): Result<ExecutionOutcome, CommandError> {
+    return this.dispatch('skill.setEnabled', { name, enabled });
+  }
+
+  /**
+   * Records that the writer read the skill as it is now and approved it. The approval is of these bytes: any change to any file of the
+   * skill makes it unreviewed again. Resolves with false when there is no such skill.
+   */
+  async approveSkill(name: string): Promise<boolean> {
+    const row = this.skills().rows.find((candidate) => candidate.name === name);
+    if (row === undefined) return false;
+    await this.skillReviews.approve(name, row.skill.pin);
+    this.bump();
+    return true;
   }
 
   /**
@@ -1345,6 +1400,9 @@ function exporterFor(
     loadFallbackFont: loadCjkFontOverHttp,
     // Its emoji font (Noto Emoji, monochrome), fetched from this origin only when a sheet holds an emoji.
     loadEmojiFont: loadEmojiFontOverHttp,
+    // Noto Sans Arabic and Noto Sans Hebrew, fetched from this origin only when a file holds their script.
+    loadArabicFont: loadArabicFontOverHttp,
+    loadHebrewFont: loadHebrewFontOverHttp,
   });
 }
 

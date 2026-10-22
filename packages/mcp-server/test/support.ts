@@ -12,7 +12,8 @@ import { join } from 'node:path';
 
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import type { ElicitRequestParams, ElicitResult } from '@modelcontextprotocol/client';
-import { addDocument, addFolder, createEmptyManifest, createProjectState, writeProject, type ProjectState } from '@caotang/store';
+import { loadCoherence, parseCoherenceFile, saveCoherence, type CoherenceFile } from '@caotang/coherence';
+import { addDocument, addFolder, createEmptyManifest, createProjectState, readProject, writeProject, type ProjectState } from '@caotang/store';
 
 import {
   NodeArtifactFs,
@@ -159,6 +160,21 @@ export async function startFixture(options: {
   };
 }
 
+/** A running server over a folder that already holds a project, as a restart would open it. `close` stops it and leaves the folder. */
+export async function startOver(root: string, allowWrites: boolean, report?: (line: string) => void): Promise<Fixture> {
+  const session = await openProject({ root, allowWrites, ...(report === undefined ? {} : { report }) });
+  const token = testToken();
+  const server = await startHttpServer(createToolRuntime(session), { port: 0, token });
+  let stopped = false;
+  const stop = async (): Promise<void> => {
+    if (stopped) return;
+    stopped = true;
+    await server.close();
+    await session.close();
+  };
+  return { root, session, server, token, url: server.url, stop, close: stop };
+}
+
 /** Answers an elicitation from the host's side. `accept` with `confirmed` set as given, or `decline` / `cancel`. */
 export type Answer = (params: ElicitRequestParams) => ElicitResult | Promise<ElicitResult>;
 
@@ -234,4 +250,54 @@ export function resultJson(result: { content: readonly unknown[] }): Record<stri
   const first = result.content[0] as { type?: string; text?: string } | undefined;
   if (first?.type !== 'text' || typeof first.text !== 'string') throw new Error('expected a text content block');
   return JSON.parse(first.text) as Record<string, unknown>;
+}
+
+/** The codex entry `seedCodexEntry` adds: a character the one scene never names, so `codex.never-mentioned` has a finding. */
+export const UNNAMED_CHARACTER = 'Marguerite';
+
+/** Adds a codex entry that no document mentions to a project that is not open, through the store's own read and write. */
+export async function seedCodexEntry(root: string): Promise<void> {
+  const fs = new NodeArtifactFs(root);
+  const { state } = await readProject(fs, { now: OPENED });
+  const stamp = OPENED.toISOString();
+  (state.manifest.codex ??= []).push({
+    id: 'c_MAG0A00001',
+    name: UNNAMED_CHARACTER,
+    aliases: [],
+    type: 'character',
+    description: 'The keeper’s sister.',
+    includePolicy: 'detected',
+    caseSensitive: false,
+    exclude: [],
+    attachments: [],
+    keywords: [],
+    origin: 'manual',
+    sources: [],
+    createdAt: stamp,
+    updatedAt: stamp,
+  });
+  await writeProject(fs, state, { now: OPENED });
+}
+
+/**
+ * What the app leaves in a folder: a `coherence.json` that holds a scan's findings and run, saved through the coherence module's own
+ * `saveCoherence`. A scan on a throwaway read-only server makes the file, so its ids are the engine's. Returns the file as saved.
+ */
+export async function saveAppFindings(root: string): Promise<CoherenceFile> {
+  const session = await openProject({ root, allowWrites: false });
+  try {
+    session.harness.external.call({ name: 'coherence.scan', callId: 'app-scan', params: {} }, { turnId: 'app-turn' });
+    const file = session.state.coherence as CoherenceFile;
+    await saveCoherence(session.fs, await loadCoherence(session.fs), file);
+    return file;
+  } finally {
+    await session.close();
+  }
+}
+
+/** Reads `coherence.json` from a folder as the coherence module parses it. */
+export function coherenceOnDisk(root: string): CoherenceFile {
+  const outcome = parseCoherenceFile(readFileSync(join(root, 'coherence.json'), 'utf8'));
+  if (outcome.kind !== 'ok') throw new Error(`coherence.json in ${root} is ${outcome.kind}`);
+  return outcome.file;
 }

@@ -1,0 +1,18 @@
+{
+  "name": "@caotang/font-noto-arabic",
+  "version": "2.13.0",
+  "license": "OFL-1.1",
+  "private": true,
+  "description": "Noto Sans Arabic Regular 2.013 as a static TrueType file: the font both PDFs embed, subset, for Arabic, Persian and Urdu text",
+  "repository": "https://github.com/notofonts/arabic",
+  "exports": {
+    "./NotoSansArabic-Regular.ttf": "./NotoSansArabic-Regular.ttf",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "NotoSansArabic-Regular.ttf",
+    "LICENSE",
+    "README.md",
+    "SHA256SUMS"
+  ]
+}

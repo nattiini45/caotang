@@ -1,13 +1,15 @@
 /// <reference types="vite/client" />
 // The `?url` imports below are typed by Vite's client types; the root typecheck (e2e/) reaches this file through the session.
 /**
- * The PDFs' fallback fonts, read in the browser (the contact sheet and the screenplay PDF load the same two): Noto Sans Mono
- * CJK SC for text outside Latin script, and Noto Emoji (monochrome) for emoji.
+ * The PDFs' fallback fonts, read in the browser (the contact sheet and the screenplay PDF load the same four): Noto Sans Mono
+ * CJK SC for text outside Latin script, Noto Emoji (monochrome) for emoji, and Noto Sans Arabic and Noto Sans Hebrew for those
+ * scripts.
  *
- * The font files come from `@caotang/font-noto-cjk` and `@caotang/font-noto-emoji`. The `?url` imports make Vite emit each
+ * The font files come from `@caotang/font-noto-cjk`, `@caotang/font-noto-emoji`, `@caotang/font-noto-arabic` and
+ * `@caotang/font-noto-hebrew`. The `?url` imports make Vite emit each
  * as an asset of its own, served from this app's origin like every other file, so the Content-Security-Policy needs no
  * change and no CDN is involved. Each import is dynamic and sits inside its loader, so neither the URL module nor the file is
- * fetched until a contact sheet holds text that needs it (CJK text, or an emoji) and the exporter asks for it.
+ * fetched until a contact sheet holds text that needs it (CJK text, an emoji, or Arabic or Hebrew) and the exporter asks for it.
  */
 
 import { checkFontBytes, type FontLoader } from '@caotang/pdf-fonts';
@@ -29,5 +31,15 @@ export const loadCjkFontOverHttp: FontLoader = async () => {
 
 export const loadEmojiFontOverHttp: FontLoader = async () => {
   const { default: url } = await import('@caotang/font-noto-emoji/NotoEmoji-Regular.woff?url');
+  return fetchBytes(url);
+};
+
+export const loadArabicFontOverHttp: FontLoader = async () => {
+  const { default: url } = await import('@caotang/font-noto-arabic/NotoSansArabic-Regular.ttf?url');
+  return fetchBytes(url);
+};
+
+export const loadHebrewFontOverHttp: FontLoader = async () => {
+  const { default: url } = await import('@caotang/font-noto-hebrew/NotoSansHebrew-Regular.ttf?url');
   return fetchBytes(url);
 };

@@ -1,0 +1,154 @@
+/* The Skills panel: the list, the review and the editor. The workspace's own tokens, so both themes read correctly. */
+
+.skills-dialog {
+  width: min(44rem, calc(100vw - 2rem));
+}
+
+.skills-subtitle {
+  margin: -0.4rem 0 0;
+  color: var(--ink-soft, inherit);
+}
+
+.skills-heading {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.skills-empty,
+.skills-waiting {
+  margin: 0;
+}
+
+.skills-waiting {
+  color: var(--warn, inherit);
+  font-weight: 600;
+}
+
+.skills-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.skills-row {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line, currentColor);
+  border-radius: 6px;
+  background: var(--raised, transparent);
+}
+
+.skills-row-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.skills-name {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+.skills-row .chip {
+  max-width: none;
+}
+
+.skills-description,
+.skills-review {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.skills-review {
+  color: var(--muted, GrayText);
+  font-size: 0.88rem;
+}
+
+.skills-review.is-open {
+  color: var(--ink, inherit);
+}
+
+.skills-problems {
+  margin: 0;
+  padding-inline-start: 1.1rem;
+  display: grid;
+  gap: 0.3rem;
+  color: var(--danger, #b3261e);
+}
+
+.skills-notices {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.skills-notice {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line-strong, currentColor);
+  border-inline-start-width: 4px;
+  border-radius: 4px;
+}
+
+.skills-notice.is-warning {
+  border-color: var(--warn, currentColor);
+}
+
+.skills-notice ul {
+  margin: 0.3rem 0 0;
+  padding-inline-start: 1.1rem;
+}
+
+.skills-file {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.skills-file-name {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.skills-file-size {
+  color: var(--muted, GrayText);
+  font-weight: 400;
+  font-size: 0.82rem;
+}
+
+/* The text of a file, as it is: nothing is rendered, wrapped words stay words, and a long line scrolls rather than hiding. */
+.skills-text {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  max-height: 18rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 0.85rem;
+  border: 1px solid var(--line-strong, currentColor);
+  border-radius: 4px;
+  background: var(--panel, Field);
+}
+
+.skills-editor {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 0.88rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line-strong, currentColor);
+  border-radius: 4px;
+  background: var(--panel, Field);
+  color: inherit;
+  resize: vertical;
+}
+
+.agent-skills-note {
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.88rem;
+  border-inline-start: 3px solid var(--warn, currentColor);
+}

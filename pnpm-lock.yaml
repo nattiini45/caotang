@@ -223,12 +223,18 @@ importers:
       '@caotang/exporter':
         specifier: workspace:*
         version: link:../../packages/exporter
+      '@caotang/font-noto-arabic':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-arabic
       '@caotang/font-noto-cjk':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-cjk
       '@caotang/font-noto-emoji':
         specifier: workspace:*
         version: link:../../vendor/noto-emoji
+      '@caotang/font-noto-hebrew':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-hebrew
       '@caotang/furniture':
         specifier: workspace:*
         version: link:../../packages/furniture
@@ -250,6 +256,9 @@ importers:
       '@caotang/screenplay':
         specifier: workspace:*
         version: link:../../packages/screenplay
+      '@caotang/skills':
+        specifier: workspace:*
+        version: link:../../packages/skills
       '@caotang/store':
         specifier: workspace:*
         version: link:../../packages/store
@@ -273,7 +282,11 @@ importers:
         specifier: ^19.3.0
         version: 19.3.0(@types/react@19.3.0)
 
-  packages/bus: {}
+  packages/bus:
+    dependencies:
+      '@caotang/skills':
+        specifier: workspace:*
+        version: link:../skills
 
   packages/codex:
     dependencies:
@@ -608,6 +621,9 @@ importers:
       '@caotang/mcp-client':
         specifier: workspace:*
         version: link:../mcp-client
+      '@caotang/skills':
+        specifier: workspace:*
+        version: link:../skills
       '@caotang/store':
         specifier: workspace:*
         version: link:../store
@@ -625,6 +641,9 @@ importers:
       '@caotang/bus':
         specifier: workspace:*
         version: link:../bus
+      '@caotang/gateway':
+        specifier: workspace:*
+        version: link:../gateway
       '@caotang/ids':
         specifier: workspace:*
         version: link:../ids
@@ -641,15 +660,24 @@ importers:
       '@caotang/bus':
         specifier: workspace:*
         version: link:../bus
+      '@caotang/coherence':
+        specifier: workspace:*
+        version: link:../coherence
       '@caotang/exporter':
         specifier: workspace:*
         version: link:../exporter
+      '@caotang/font-noto-arabic':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-arabic
       '@caotang/font-noto-cjk':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-cjk
       '@caotang/font-noto-emoji':
         specifier: workspace:*
         version: link:../../vendor/noto-emoji
+      '@caotang/font-noto-hebrew':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-hebrew
       '@caotang/harness':
         specifier: workspace:*
         version: link:../harness
@@ -678,15 +706,24 @@ importers:
 
   packages/pdf-fonts:
     dependencies:
+      '@caotang/font-noto-arabic':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-arabic
       '@caotang/font-noto-cjk':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-cjk
       '@caotang/font-noto-emoji':
         specifier: workspace:*
         version: link:../../vendor/noto-emoji
+      '@caotang/font-noto-hebrew':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-hebrew
       '@pdf-lib/fontkit':
         specifier: 1.1.1
         version: 1.1.1
+      bidi-js:
+        specifier: 1.1.0
+        version: 1.1.0
       fflate:
         specifier: 0.8.3
         version: 0.8.3
@@ -700,6 +737,12 @@ importers:
         specifier: 1.1.1
         version: 1.1.1
 
+  packages/skills:
+    dependencies:
+      '@caotang/ids':
+        specifier: workspace:*
+        version: link:../ids
+
   packages/store:
     dependencies:
       '@caotang/bus':
@@ -711,6 +754,9 @@ importers:
       '@caotang/screenplay':
         specifier: workspace:*
         version: link:../screenplay
+      '@caotang/skills':
+        specifier: workspace:*
+        version: link:../skills
       fflate:
         specifier: 0.8.3
         version: 0.8.3
@@ -741,7 +787,11 @@ importers:
 
   vendor/noto-emoji: {}
 
+  vendor/noto-sans-arabic: {}
+
   vendor/noto-sans-cjk: {}
+
+  vendor/noto-sans-hebrew: {}
 
 packages:
 

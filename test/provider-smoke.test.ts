@@ -207,7 +207,8 @@ describe('provider-smoke.yml', () => {
   });
 
   it('has a secret line for every real preset, named for its id', () => {
-    const real = PRESETS.map((preset) => preset.id).filter((id) => id !== 'generic' && id !== 'mock');
+    // A server on this computer has no account to put a secret on, so the real-key round is for the hosted providers.
+    const real = PRESETS.filter((preset) => preset.local === undefined).map((preset) => preset.id).filter((id) => id !== 'generic' && id !== 'mock');
     expect(real.length).toBeGreaterThan(20);
     for (const id of real) {
       const name = `CAOTANG_SMOKE_${id.toUpperCase().split('-').join('_')}`;

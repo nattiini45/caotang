@@ -13,6 +13,8 @@
  * derived from the title — that is the point of the whole scheme.
  */
 
+export { canonicalJson } from './canonical.js';
+
 /** Crockford base32: no I, L, O, or U. */
 export const CROCKFORD_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 

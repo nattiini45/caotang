@@ -29,6 +29,10 @@
  * ({@link SHEET_LAYOUT}`.wideCharWidthEm`), the width the PDF's CJK font gives it. An estimate that errs wide
  * is the safe error here: it wraps early rather than overflow, and the emitter cuts with the real font.
  *
+ * An Arabic letter counts 0.5 em and a Hebrew letter 0.55 em (`arabicCharWidthEm`, `hebrewCharWidthEm`: the averages of Noto Sans Arabic
+ * and Noto Sans Hebrew), and a mark of either none, since the PDF leaves marks out. Text wraps in logical order, which is right for
+ * both directions; the emitter puts each line in visual order.
+ *
  * An emoji is measured, wrapped and cut as one unit however many code points it has (a ZWJ family, a flag, a keycap, a
  * skin tone: `./emoji.ts`), and counts {@link SHEET_LAYOUT}`.emojiWidthEm`, the advance the PDF's emoji font gives it. A line
  * may break between two emoji, as between two Chinese characters, and never inside one.
@@ -42,7 +46,7 @@
 import { nodeById, type ArtifactFs, type ProjectState } from '@caotang/store';
 
 import { animaticTotals } from './animatic.js';
-import { graphemesOf, isEmojiPicture } from '@caotang/pdf-fonts';
+import { graphemesOf, isEmojiPicture, isRtlMark, rtlScriptOf } from '@caotang/pdf-fonts';
 import { readImage, type LoadedImage } from './assets.js';
 import { cardSpecRowOf, durationText, isStoryboardFolder } from './model.js';
 import { shotFieldOf } from './nodes.js';
@@ -89,6 +93,9 @@ export const SHEET_LAYOUT = {
   wideCharWidthEm: 1,
   /** The width of an emoji, however many code points it has, in em: the PDF's emoji font (Noto Emoji) draws it 2600/2048 em across. */
   emojiWidthEm: 1.3,
+  /** The average advance of a letter of Noto Sans Arabic, and of Noto Sans Hebrew, in em. A mark of either adds none. */
+  arabicCharWidthEm: 0.5,
+  hebrewCharWidthEm: 0.55,
   chipHeight: 12,
 } as const;
 
@@ -133,12 +140,19 @@ const NARROW_NO_LINE_START = new Set([...',.;:!?)]}%']);
 /** Marks that must not end a line: opening brackets and quotes. */
 const NO_LINE_END = new Set([...'（「『【〔〈《〖〘〚｛［〝‘“']);
 
+/** The estimated advance of one character, in em: Arabic and Hebrew letters at their fonts' averages, their marks at none. */
+function charEms(char: string): number {
+  const script = rtlScriptOf(char.codePointAt(0) ?? 0);
+  if (script !== undefined) return isRtlMark(char) ? 0 : script === 'arabic' ? SHEET_LAYOUT.arabicCharWidthEm : SHEET_LAYOUT.hebrewCharWidthEm;
+  return isWide(char) ? SHEET_LAYOUT.wideCharWidthEm : SHEET_LAYOUT.charWidthEm;
+}
+
 /** Estimated width of a run of text at a font size. See the header on why this is an estimate. */
 export function measureText(text: string, fontSize: number): number {
   let ems = 0;
   for (const cluster of graphemesOf(text)) {
     if (isEmojiPicture(cluster)) ems += SHEET_LAYOUT.emojiWidthEm;
-    else for (const char of cluster) ems += isWide(char) ? SHEET_LAYOUT.wideCharWidthEm : SHEET_LAYOUT.charWidthEm;
+    else for (const char of cluster) ems += charEms(char);
   }
   return ems * fontSize;
 }

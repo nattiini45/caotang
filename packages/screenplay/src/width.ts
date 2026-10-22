@@ -17,9 +17,15 @@
  * `」`, small kana, `ー` and the like) and after an opening mark (`「`, `（` and the like). Korean is written with
  * spaces, so Hangul breaks at spaces like Latin text; a Hangul word wider than the column breaks between syllables.
  * A line may break before or after an emoji with no space, as between Hanzi, and never inside one.
+ *
+ * Arabic and Hebrew: a letter and its marks are one unit (a grapheme cluster), so a line never splits a base letter from its
+ * marks. A word of one of the two scripts is shaped as a whole in a proportional font, and takes the whole columns its shaped
+ * width needs, rounded up (screenplay.md §5.3): the layout asks the `measure` of {@link withMeasure} for it, and without one
+ * counts a column for each letter. Each digit and punctuation mark of the scripts is a run of one column, and a bidirectional
+ * control character (a mark, an embedding, an isolate) prints nothing and takes none.
  */
 
-import { emojiFontMaps, fallbackCovers, inRanges, isEmojiCluster } from '@caotang/pdf-fonts';
+import { emojiFontMaps, fallbackCovers, hasBidiControl, hasRtlScript, inRanges, isBidiControl, isEmojiCluster, rtlFontPrints, rtlScriptOf, scriptRuns } from '@caotang/pdf-fonts';
 import { isPrintable } from './winansi.js';
 
 /** Wide and Fullwidth ranges (UAX #11), inclusive, in code point order. */
@@ -100,11 +106,13 @@ let segmenter: Intl.Segmenter | undefined;
  * with any variation selector after it. Text with no emoji and no selector is cut into its code points.
  */
 export function textUnits(text: string): string[] {
-  if (!CLUSTERED.test(text)) return [...text];
+  const rtl = hasRtlScript(text);
+  if (!rtl && !CLUSTERED.test(text)) return [...text];
   segmenter ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' });
   const units: string[] = [];
   for (const { segment } of segmenter.segment(text)) {
-    if (isEmojiCluster(segment)) {
+    // A letter of Arabic or Hebrew with its marks and joiners is one unit, whole.
+    if (isEmojiCluster(segment) || (rtl && rtlScriptOf(segment.codePointAt(0) ?? 0) !== undefined)) {
       units.push(segment);
       continue;
     }
@@ -120,10 +128,16 @@ export function textUnits(text: string): string[] {
 }
 
 /**
- * The columns one unit (textUnits) takes: 2 for an emoji, and for a character only Noto Emoji prints; otherwise its
- * character's columns (charColumns). A variation selector adds none.
+ * The columns one unit (textUnits) takes: 2 for an emoji, and for a character only Noto Emoji prints; 0 for a bidirectional
+ * control character; 1 for a letter, digit or mark of the Arabic or Hebrew font (a word is measured as a whole, see
+ * {@link textColumns}); otherwise its character's columns (charColumns). A variation selector adds none.
  */
-export function unitColumns(unit: string): 1 | 2 {
+export function unitColumns(unit: string): 0 | 1 | 2 {
+  // Nothing below U+0590 is Arabic, Hebrew or a bidirectional control, so Latin text skips both tests.
+  if (unit.charCodeAt(0) >= 0x0590) {
+    if (isBidiControl(unit)) return 0;
+    if (rtlFontPrints(unit) !== undefined) return 1;
+  }
   // No emoji starts below U+231A (⌚), so Latin text skips the emoji test.
   if ((unit.length > 1 || unit.charCodeAt(0) >= 0x231a) && isEmojiCluster(unit)) return 2;
   const base = String.fromCodePoint(unit.codePointAt(0) ?? 0);
@@ -131,10 +145,36 @@ export function unitColumns(unit: string): 1 | 2 {
   return charColumns(base);
 }
 
-/** The columns a run of text takes on the grid. For text with no wide character and no emoji this is its length in code points. */
+/** The columns of one shaped run of Arabic or Hebrew (a word, or a digit or mark), as {@link withMeasure} measures it. */
+export type MeasureRun = (run: string) => number;
+
+let measureRun: MeasureRun | undefined;
+
+/**
+ * Runs `work` with `measure` as the width of every run of Arabic or Hebrew. The layout stays synchronous and pure: the
+ * measure is the shaper's, loaded before the layout starts, and it holds for the call and no longer.
+ */
+export function withMeasure<T>(measure: MeasureRun | undefined, work: () => T): T {
+  const before = measureRun;
+  measureRun = measure;
+  try {
+    return work();
+  } finally {
+    measureRun = before;
+  }
+}
+
+/** The columns a run of text takes on the grid. For text with no wide character, no emoji and no Arabic or Hebrew this is its length in code points. */
 export function textColumns(text: string): number {
   let n = 0;
-  for (const unit of textUnits(text)) n += unitColumns(unit);
+  if (!hasRtlScript(text) && !hasBidiControl(text)) {
+    for (const unit of textUnits(text)) n += unitColumns(unit);
+    return n;
+  }
+  for (const run of scriptRuns(textUnits(text))) {
+    if (run.kind === 'other') for (const unit of textUnits(run.text)) n += unitColumns(unit);
+    else n += run.kind === 'single' ? 1 : measureRun !== undefined ? measureRun(run.text) : textUnits(run.text).length;
+  }
   return n;
 }
 
@@ -184,12 +224,14 @@ export function breakPieces(word: string): string[] {
   return pieces;
 }
 
-/** The longest head of a text that fits `width` columns, at least one unit, and the rest. An emoji is never split. */
+/** The longest head of a text that fits `width` columns, at least one unit, and the rest. An emoji or a letter with its marks is never split. */
 export function splitColumns(text: string, width: number): readonly [string, string] {
   let cols = 0;
   let head = '';
+  // A word of Arabic or Hebrew is as wide as its shaped form, which is not the sum of its letters: the head is measured whole.
+  const whole = hasRtlScript(text);
   for (const ch of textUnits(text)) {
-    const c = unitColumns(ch);
+    const c = whole ? textColumns(head + ch) - cols : unitColumns(ch);
     if (head !== '' && cols + c > width) break;
     head += ch;
     cols += c;

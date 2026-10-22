@@ -190,4 +190,15 @@ describe('createRoundCodec', () => {
     await expect(codec.verify(forged, context)).rejects.toThrow();
     await expect(codec.verify('v1.garbage', context)).rejects.toThrow();
   });
+
+  it('opens a state sealed with the same key and refuses one sealed under another, as a restart would', async () => {
+    const key = Buffer.alloc(32, 7);
+    const payload = { v: 1 as const, tool: 'doc.import', digest: 'd', turnId: 't', callId: 'c', nonce: 'n' };
+    const context = {} as Parameters<ReturnType<typeof createRoundCodec>['verify']>[1];
+    const sealed = await createRoundCodec(key).mint(payload);
+    expect(await createRoundCodec(key).verify(sealed, context)).toEqual(payload);
+    await expect(createRoundCodec(Buffer.alloc(32, 8)).verify(sealed, context)).rejects.toThrow();
+    // No key given: random per process, so a second codec is a restarted process and cannot open the first's state.
+    await expect(createRoundCodec().verify(sealed, context)).rejects.toThrow();
+  });
 });
