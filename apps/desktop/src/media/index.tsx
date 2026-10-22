@@ -13,17 +13,20 @@ import type { TreeNode } from '@caotang/store';
 import type { ZoomLevel } from '../app/corkboard-model.js';
 import type { ProjectSession } from '../app/session.js';
 import type { RevealRequest } from '../components/EditorPane.js';
+import { LazyBoundary, lazyView } from '../components/lazy-view.js';
 
 import { commitShotCommand, importShotImage } from './commit.js';
-import { DialogueView } from './DialogueView.js';
 import { MediaBoundary } from './MediaBoundary.js';
-import { PromptPackPanel } from './PromptPackPanel.js';
 import { ScreenplayView } from './ScreenplayView.js';
-import { StoryboardView } from './StoryboardView.js';
 import type { MediaPorts } from './ports.js';
 import { mediaKindOf } from './route.js';
 
 import './media.css';
+
+// The dialogue and storyboard views load when a node of that kind is first opened (they carry the Ink view and the shot board). The
+// screenplay view stays in the first download: it is small, and the screenplay package is also the store's for `kind: 'screenplay'`.
+const DialogueView = lazyView(() => import('./DialogueView.js').then((module) => ({ default: module.DialogueView })));
+const StoryboardView = lazyView(() => import('./StoryboardView.js').then((module) => ({ default: module.StoryboardView })));
 
 export interface MediaViewProps {
   readonly session: ProjectSession;
@@ -59,7 +62,8 @@ export function mediaPortsFor(session: ProjectSession): MediaPorts {
 /**
  * The view for a binder node: a screenplay scene, a storyboard folder (its board, with the prompt pack as a tab), or a
  * dialogue container. `null` for every other node, including a beat inside a container. The view is wrapped in an error
- * boundary, so a view that throws while drawing shows its fallback, and the App does not wrap it again.
+ * boundary, so a view that throws while drawing shows its fallback, and the App does not wrap it again. A storyboard or a
+ * dialogue container loads its code on first use, so the boundary also holds the loading line and the failed-load question.
  */
 export function mediaViewFor(node: TreeNode, props: MediaViewProps): ReactNode | null {
   const view = viewOf(node, props);
@@ -67,7 +71,7 @@ export function mediaViewFor(node: TreeNode, props: MediaViewProps): ReactNode |
   // Keyed on the node, so a view that failed on one node is not still failed on the next.
   return (
     <MediaBoundary key={node.id} title={node.title}>
-      {view}
+      <LazyBoundary label={node.title}>{view}</LazyBoundary>
     </MediaBoundary>
   );
 }
@@ -104,6 +108,6 @@ function viewOf(node: TreeNode, props: MediaViewProps): ReactNode | null {
   }
 }
 
-export { DialogueView, PromptPackPanel, ScreenplayView, StoryboardView };
+export { ScreenplayView };
 export type { MediaPorts, ShotCommitResult } from './ports.js';
 export { mediaKindOf, type MediaKind } from './route.js';

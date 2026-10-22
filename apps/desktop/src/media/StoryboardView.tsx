@@ -24,10 +24,13 @@ import { ShotPromptEditor } from './ShotPromptEditor.js';
 import { ENUM_OPTIONS, EDITABLE_FIELDS, derivableSceneOf, deriveIntentOf, draftAfterStoredChange, emptyBoardCopyOf, draftOf, moveShotCommand, newShotParams, shotCardsOf, shotEditCommand, type EditableField, type ShotCard, type ShotDraft } from './storyboard-model.js';
 import { IMAGE_ACCEPT, assignImageCommand, clearImageCommand, firstPicture, missingPictureLabelOf, type PictureListing } from './shot-image-model.js';
 import { useAssetListing, useImageUrl } from './hooks.js';
-import { PromptPackPanel } from './PromptPackPanel.js';
+import { LazyBoundary, lazyView } from '../components/lazy-view.js';
 import type { PromptFieldKey } from './prompt-edit-model.js';
 import type { MediaPorts } from './ports.js';
 import { ACTION_MAX_CHARS, SHOT_ENUMS, enumLabelOf, type AssetRecord } from './engines.js';
+
+// The prompt pack carries the video prompt packages, so its code loads when the tab is first opened, not with the board.
+const PromptPackPanel = lazyView(() => import('./PromptPackPanel.js').then((module) => ({ default: module.PromptPackPanel })));
 
 export interface StoryboardViewProps {
   readonly session: ProjectSession;
@@ -111,15 +114,17 @@ export function StoryboardView({ session, node, ports, zoom, onZoom, onAgentInte
       {tab === 'board' ? (
         <ShotBoard session={session} folder={node} ports={ports} focus={focus} zoom={zoom} onZoom={onZoom} onAgentIntent={onAgentIntent} />
       ) : (
-        <PromptPackPanel
-          session={session}
-          folder={node}
-          ports={ports}
-          onFix={(shotId, key, vendor) => {
-            setFocus({ shotId, key, ...(vendor === undefined ? {} : { vendor }) });
-            setTab('board');
-          }}
-        />
+        <LazyBoundary label="the prompt pack">
+          <PromptPackPanel
+            session={session}
+            folder={node}
+            ports={ports}
+            onFix={(shotId, key, vendor) => {
+              setFocus({ shotId, key, ...(vendor === undefined ? {} : { vendor }) });
+              setTab('board');
+            }}
+          />
+        </LazyBoundary>
       )}
     </section>
   );
