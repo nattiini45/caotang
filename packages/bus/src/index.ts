@@ -144,7 +144,9 @@ export type {
 } from './descriptors-furniture.js';
 // The criterion-key list the furniture commands refuse a key outside of. The store's loader reads the same list to drop an
 // unknown criterion key from a saved filter on load (binder-filters §4), so the two halves never keep two records of it.
-export { CRITERIA_KEYS } from './descriptors-furniture.js';
+// The name limit is exported for the same reason: the loader drops a saved filter whose name the bus would refuse — and the
+// rule itself, `filterNameFits`, so the loader counts a name exactly as the bus counts it.
+export { CRITERIA_KEYS, FILTER_NAME_MAX, filterNameFits } from './descriptors-furniture.js';
 // The coherence rules the bus and the store share (coherence.ts). The coherence module re-exports them.
 export type {
   CoherenceStatusName,

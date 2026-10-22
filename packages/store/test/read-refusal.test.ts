@@ -11,6 +11,7 @@ import {
   KNOWN_NODE_KEYS,
   MANIFEST_FILE,
   MemoryArtifactFs,
+  OPTIONAL_NODE_FIELDS,
   ProjectRefusedError,
   ProjectValidationError,
   addDocument,
@@ -126,7 +127,7 @@ describe('the load’s notices: each is a sentence, and only the fields a save d
 });
 
 /**
- * The list of node fields the load knows is a hand-written one (read.ts
+ * The node fields the load knows is a hand-written one (read.ts
  * `KNOWN_NODE_KEYS`), and it drifted from the writer: `kind`, `shot` and
  * `dialogue` are written by the serializer (project-format.md §2's media note)
  * and are not in it. A screenplay, a storyboard or a dialogue project was
@@ -137,15 +138,30 @@ describe('the load’s notices: each is a sentence, and only the fields a save d
  * so a field added to a node later fails this test until the load learns it.
  */
 describe('the node fields the writer persists are the ones the load knows', () => {
+  /**
+   * A value for every field the writer can write on a node, keyed by the field.
+   * The list of the fields is the writer's own (`OPTIONAL_NODE_FIELDS`), so a
+   * field the writer gains is seen here; a field this map has no value for
+   * fails the test loudly, rather than passing quietly as a field the writer
+   * never writes.
+   */
+  const NODE_FIELD_VALUES: Record<string, unknown> = {
+    kind: 'screenplay',
+    shot: { duration: 3 },
+    dialogue: { speaker: 'Elena' },
+    createdAt: STAMP.toISOString(),
+    updatedAt: STAMP.toISOString(),
+  };
+
   /** A manifest whose node carries every field the serializer can write. */
   function withEveryNodeField(): Manifest {
     const m = createEmptyManifest('Keys', STAMP);
-    const node = m.tree[1]!;
-    node.kind = 'screenplay';
-    node.shot = { duration: 3 };
-    node.dialogue = { speaker: 'Elena' };
-    node.createdAt = STAMP.toISOString();
-    node.updatedAt = STAMP.toISOString();
+    const node = m.tree[1]! as unknown as Record<string, unknown>;
+    for (const field of OPTIONAL_NODE_FIELDS) {
+      const value = NODE_FIELD_VALUES[field.key];
+      if (value === undefined) throw new Error(`the writer writes "${field.key}", and this fixture has no value for it`);
+      node[field.key] = value;
+    }
     return m;
   }
 
@@ -162,7 +178,8 @@ describe('the node fields the writer persists are the ones the load knows', () =
 
     // The load half, carrying every key the serializer wrote (except the ones
     // that name this node's own place in the tree): a future optional node field
-    // rides `full` into the fixture node, so the notice check below sees it even
+    // rides `full` into the fixture node, because the writer's own list names it
+    // and the fixture gives it a value — so the notice check below sees it even
     // when no hand-written assignment remembers to.
     const fs = await folderWithDocument();
     const { id: _id, parentId: _parentId, type: _type, ...fields } = full;

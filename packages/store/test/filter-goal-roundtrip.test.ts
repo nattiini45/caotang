@@ -11,13 +11,13 @@
  * the drop list is empty for everything the app itself writes.
  *
  * So this test holds a project state with **every criterion key and value
- * shape the loader must tolerate, and every goal variant the app can write**,
- * writes it with the store's own serializer, reads it back through the store's
- * own load and validation, and says two things: nothing was dropped, and what
- * comes back is what went out. The filter half is load-side shape tolerance,
- * not save-side acceptance: most key/value pairs (a `statusId` of `42`, a
- * `minWords` of `'probe-…'`) are refused by the bus at save time — what the
- * round trip proves is that a value the load kept is a value the writer can
+ * shape the loader must tolerate, and every goal shape the loader has to
+ * keep**, writes it with the store's own serializer, reads it back through the
+ * store's own load and validation, and says two things: nothing was dropped,
+ * and what comes back is what went out. The filter half is load-side shape
+ * tolerance, not save-side acceptance: most key/value pairs (a `statusId` of
+ * `42`, a `minWords` of `'probe-…'`) are refused by the bus at save time — what
+ * the round trip proves is that a value the load kept is a value the writer can
  * write back and the next load keeps again.
  *
  * ## Why the fixture is derived rather than written out
@@ -177,6 +177,13 @@ const GOALS: ProjectGoal[] = [
     resetDay: 'last',
     archived: false,
   }),
+  // A session goal with no reset day: the apply writes one when the writer
+  // supplies none, and the bus hint says to leave it out for the first day of
+  // the week (descriptors-furniture.ts).
+  projectGoal('g_10H2K3M4N5', 'words', 'at-least', 1_500, { kind: 'weekly' }),
+  // A goal on a folder of its own: the bus accepts any folder as a goal
+  // target, and only a session goal is bound to the manuscript root.
+  projectGoal('g_11H2K3M4N5', 'words', 'at-least', 3_000, { nodeId: 'research' }),
 ];
 
 /** The store's own write and the store's own load, with nothing in between. */
@@ -190,7 +197,7 @@ async function writeAndRead(filters: SavedFilter[], goals: ProjectGoal[]): Promi
   return readProject(fs);
 }
 
-describe('every filter shape the loader tolerates and every goal the app can write, through the writer and the loader', () => {
+describe('every filter shape the loader tolerates and every goal shape the loader keeps, through the writer and the loader', () => {
   it('comes back with nothing dropped and nothing changed', async () => {
     const loaded = await writeAndRead(FILTERS, GOALS);
 
@@ -256,5 +263,12 @@ describe('the fixture covers the whole vocabulary', () => {
     expect(GOALS.some((goal) => goal.deadline === undefined)).toBe(true);
     expect(GOALS.some((goal) => goal.archived !== undefined)).toBe(true);
     expect(GOALS.some((goal) => goal.archived === undefined)).toBe(true);
+  });
+
+  it('covers a session goal with no reset day, and a goal on a folder of its own', () => {
+    // The two shapes the apply writes that a session goal and a folder target
+    // would otherwise leave out of the fixture.
+    expect(GOALS.some((goal) => goal.kind === 'weekly' && goal.resetDay === undefined)).toBe(true);
+    expect(GOALS.some((goal) => goal.nodeId !== 'manuscript')).toBe(true);
   });
 });

@@ -28,6 +28,7 @@
  */
 
 import { CHAR_LIMIT_MAX, SCENE_NUMBER_OPTIONS } from '@caotang/bus';
+import { jsonValueProblem } from './json-value.js';
 import type {
   CodexEntry,
   Derived,
@@ -111,22 +112,18 @@ function scalar(value: string | number | boolean | null, field: string): string 
  * (project-format.md §2's media note). Either way the value is written as the
  * JSON it is, bare, so the file reads as JSON rather than as a quoted list.
  *
- * A number has to be finite and a BigInt cannot appear at all: `JSON.stringify`
- * writes NaN and Infinity as `null` — a save that silently changes the value —
- * and throws an unnamed `TypeError` for a BigInt. Both are refusals here,
- * naming the field, so the write either tells the truth or does not happen.
+ * The whole value is checked, not only its top: a number has to be finite and
+ * a BigInt cannot appear at all, because `JSON.stringify` writes NaN and
+ * Infinity as `null` — a save that silently changes the value — and throws an
+ * unnamed `TypeError` for a BigInt. A node's media metadata is an object, so a
+ * check of the top alone would never see what is inside it. Both are refusals
+ * here, naming the field, so the write either tells the truth or does not
+ * happen.
  */
 function criterion(value: unknown, field: string): string {
-  if (value === undefined) {
-    throw new Error(
-      `cannot write "${field}": the value is not there, and a field that is not there cannot be written as JSON`,
-    );
-  }
-  if (typeof value === 'bigint') {
-    throw new Error(`cannot write "${field}": a BigInt is not JSON`);
-  }
-  if (typeof value === 'number' && !Number.isFinite(value)) {
-    throw new Error(`cannot write "${field}": ${String(value)} is not a JSON number`);
+  const problem = jsonValueProblem(value);
+  if (problem !== undefined) {
+    throw new Error(`cannot write "${field}${problem.path}": ${problem.reason}`);
   }
   const text = JSON.stringify(value);
   if (text === undefined) {
@@ -165,6 +162,32 @@ function term(t: VocabularyTerm): string {
   ]);
 }
 
+/**
+ * The node fields the serializer writes only when they are present, with the writer for each.
+ *
+ * One record of what a node can carry: the serializer writes from this table, and the load's gate
+ * (`test/read-refusal.test.ts`) builds its fixture from it, so a field added to a node cannot be
+ * written without the gate seeing it too — the two halves cannot drift apart into a field the
+ * writer writes and the load does not know.
+ */
+export const OPTIONAL_NODE_FIELDS: readonly OptionalNodeField[] = [
+  { key: 'kind', value: (node: TreeNode) => node.kind, write: (value) => str(value as string, 'node.kind') },
+  { key: 'shot', value: (node: TreeNode) => node.shot, write: (value) => criterion(value, 'node.shot') },
+  { key: 'dialogue', value: (node: TreeNode) => node.dialogue, write: (value) => criterion(value, 'node.dialogue') },
+  { key: 'createdAt', value: (node: TreeNode) => node.createdAt, write: (value) => str(value as string, 'node.createdAt') },
+  { key: 'updatedAt', value: (node: TreeNode) => node.updatedAt, write: (value) => str(value as string, 'node.updatedAt') },
+];
+
+/** One optional node field: where its value is, and how it is written. */
+interface OptionalNodeField {
+  /** The manifest key it is written under. */
+  readonly key: 'kind' | 'shot' | 'dialogue' | 'createdAt' | 'updatedAt';
+  /** The node's value for it, or `undefined` when the node does not carry it. */
+  readonly value: (node: TreeNode) => unknown;
+  /** The text the serializer writes for it. */
+  readonly write: (value: unknown) => string;
+}
+
 function node(n: TreeNode): string {
   const pairs: [string, string][] = [
     ['id', str(n.id, 'node.id')],
@@ -178,17 +201,18 @@ function node(n: TreeNode): string {
     ['synopsis', str(n.synopsis, 'node.synopsis')],
     ['notes', str(n.notes, 'node.notes')],
   ];
-  // The media-track fields (project-format.md §2's media note) follow the same rule: written only when present, so a
-  // project with no media nodes round-trips with no new key. A shot's and a container's metadata is held as an
-  // object the storyboard and dialogue engines read, so it is written as one line of JSON: one node, one line, as the
-  // tree rule asks, and the key order is the one the engine gave it.
-  if (n.kind !== undefined) pairs.push(['kind', str(n.kind, 'node.kind')]);
-  if (n.shot !== undefined) pairs.push(['shot', criterion(n.shot, 'node.shot')]);
-  if (n.dialogue !== undefined) pairs.push(['dialogue', criterion(n.dialogue, 'node.dialogue')]);
-  // Additive timestamps are emitted only when present, so
-  // that a project which never sets them round-trips unchanged.
-  if (n.createdAt !== undefined) pairs.push(['createdAt', str(n.createdAt, 'node.createdAt')]);
-  if (n.updatedAt !== undefined) pairs.push(['updatedAt', str(n.updatedAt, 'node.updatedAt')]);
+  // The fields that are written only when they are present (project-format.md §2's media note, and the additive
+  // timestamps): a project with no media nodes and no timestamps round-trips with no new key. A shot's and a
+  // container's metadata is held as an object the storyboard and dialogue engines read, so it is written as one line of
+  // JSON: one node, one line, as the tree rule asks, and the key order is the one the engine gave it.
+  //
+  // The table is the writer's own record of them, so the load's gate can build its fixture from it and a field added to
+  // a node cannot be written without the gate seeing it too.
+  for (const field of OPTIONAL_NODE_FIELDS) {
+    const value = field.value(n);
+    if (value === undefined) continue;
+    pairs.push([field.key, field.write(value)]);
+  }
   return oneLine(pairs);
 }
 
@@ -203,8 +227,8 @@ function source(source: CodexEntry['sources'][number]): string {
   // value rather than writing it bare (`from: NaN` is not JSON and fails the
   // next load). The loader drops a citation with such an offset (validate.ts),
   // so this is the second guard: a value that somehow got past the first
-  // refuses the save, and a refused save writes nothing, so the file stays
-  // parseable either way.
+  // refuses the save, and a serializer refusal leaves `caotang.json` itself
+  // unwritten, so the file stays parseable either way.
   if (source.from !== undefined) fields.push(['from', scalar(source.from, 'source.from')]);
   if (source.to !== undefined) fields.push(['to', scalar(source.to, 'source.to')]);
   if (source.extractedAt !== undefined) fields.push(['extractedAt', str(source.extractedAt, 'source.extractedAt')]);
@@ -376,7 +400,11 @@ function derived(d: Derived): string {
           keys
             .map(
               (k, i) =>
-                `${INDENT.repeat(3)}${key(k)}: ${String(d.wordCounts[k] ?? 0)}${
+                // The count goes through `scalar`, whose number branch refuses a
+                // non-finite value rather than writing it bare (`wordCounts` is
+                // JSON, and a bare `Infinity` is not). The loader drops a count
+                // that is not a number (validate.ts), so this is the second guard.
+                `${INDENT.repeat(3)}${key(k)}: ${scalar(d.wordCounts[k] ?? 0, `derived.wordCounts.${k}`)}${
                   i < keys.length - 1 ? ',' : ''
                 }`,
             )

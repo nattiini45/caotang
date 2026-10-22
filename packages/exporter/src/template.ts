@@ -65,7 +65,7 @@ export function chapterLabel(template: ExportTemplate, number: number, title: st
 export function anchorOf(heading: string): string {
   return heading
     .toLowerCase()
-    .replace(/[^\p{L}\p{N} -]/gu, '')
+    .replace(/[^\p{L}\p{N} _-]/gu, '')
     .trim()
     .replace(/ /g, '-');
 }
