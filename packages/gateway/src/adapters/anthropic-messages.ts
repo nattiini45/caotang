@@ -344,6 +344,7 @@ export const anthropicMessagesAdapter: ProviderAdapter = {
   },
 
   parseModels(json: unknown): ModelInfo[] | undefined {
-    return parseModels(json);
+    // GET /v1/models reports `max_input_tokens` (the window) and `max_tokens` (the output cap), each nullable.
+    return parseModels(json, { window: ['max_input_tokens'], output: ['max_tokens'] });
   },
 };
