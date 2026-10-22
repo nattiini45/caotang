@@ -109,11 +109,13 @@ export interface AskBack {
 /**
  * How a plan is checked or run. `from` resumes a plan at a step, which the verify ladder uses to
  * retry the step that failed without re-running the steps before it. `proposals` is one entry per
- * step, aligned by index, holding what the agent loop staged for a model-backed step.
+ * step, aligned by index, holding what the agent loop staged for a model-backed step. `signal` is the writer's
+ * stop: it is read before each step, never inside one, so a started step finishes and the steps after it do not run.
  */
 export interface PlanOptions {
   readonly from?: number;
   readonly proposals?: readonly unknown[];
+  readonly signal?: AbortSignal;
 }
 
 export type PlanOutcome =
@@ -126,7 +128,9 @@ export type PlanOutcome =
       readonly askBack: AskBack;
       readonly undoGroupId?: string;
     }
-  | { readonly status: 'applied'; readonly steps: readonly StepResult[]; readonly undoGroupId?: string };
+  | { readonly status: 'applied'; readonly steps: readonly StepResult[]; readonly undoGroupId?: string }
+  /** The signal fired before step `stoppedAt`: the steps before it are applied, and it and the rest did not run. */
+  | { readonly status: 'stopped'; readonly completed: readonly StepResult[]; readonly stoppedAt: number; readonly undoGroupId?: string };
 
 /** What the plan needs from the harness: whether a tool exists, a pure check of one step, and a call. */
 export interface PlanHost {
@@ -319,6 +323,10 @@ export function runPlan(
 
   const completed: StepResult[] = [];
   for (let index = startOf(plan, options); index < plan.steps.length; index += 1) {
+    if (options.signal?.aborted === true) {
+      const stopped = completed.find((entry) => entry.value.undoGroupId !== undefined)?.value.undoGroupId;
+      return { status: 'stopped', completed, stoppedAt: index, ...(stopped === undefined ? {} : { undoGroupId: stopped }) };
+    }
     const step = plan.steps[index] as PlanStep;
     // A step's call id carries its index in the whole plan, so a resumed run names the same calls the first run did.
     const proposal = options.proposals?.[index];

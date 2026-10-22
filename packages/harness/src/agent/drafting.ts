@@ -18,6 +18,9 @@
  *    so, and the card blocks approval until the draft is retried or the cut text is accepted.
  *  - `error`: the stream ended on a failure with part of an answer. That is not a whole answer, so
  *    nothing is staged from it and the turn stops (`GenerationStopped`).
+ *
+ * The writer's Stop is not an error finish. The call's signal is forwarded to the gateway, and a stream that ended with
+ * the signal aborted throws `TurnStopped` instead, so a stop never reads as a provider failure (agent-harness §2).
  */
 
 import type { ChatChunk, ChatMessage, ChatRequest, ProviderGateway, ReasoningBlock, ThinkingLevel, ToolCall, ToolDef } from '@caotang/gateway';
@@ -53,6 +56,16 @@ export interface ModelCall {
    * the reply's terminal `reasoning` blocks are replay data for the next request and do not come through here.
    */
   readonly onReasoning?: (text: string) => void;
+  /** The turn's signal (`TurnOptions.signal`): forwarded to the gateway, and read when the stream ends. */
+  readonly signal?: AbortSignal;
+}
+
+/** The writer stopped the turn while a model call was in flight or about to be made. Whatever the call had streamed is dropped. */
+export class TurnStopped extends Error {
+  constructor() {
+    super('the writer stopped the turn');
+    this.name = 'TurnStopped';
+  }
 }
 
 /**
@@ -102,20 +115,30 @@ export async function complete(call: ModelCall, messages: readonly ChatMessage[]
     ...(call.tools === undefined || call.tools.length === 0 ? {} : { tools: call.tools, toolChoice: 'auto' as const }),
     ...(call.thinking === undefined ? {} : { thinking: call.thinking }),
   };
-  for await (const chunk of call.gateway.complete(request)) {
-    if (chunk.delta !== undefined && chunk.delta.length > 0) {
-      text += chunk.delta;
-      call.onDelta?.(chunk.delta);
+  const { signal } = call;
+  const stopped = (): boolean => signal?.aborted === true;
+  if (stopped()) throw new TurnStopped();
+  try {
+    // The stream is read to its end even after a stop, so the gateway's terminal chunk lands and the ledger records the usage.
+    for await (const chunk of call.gateway.complete(request, signal)) {
+      if (chunk.delta !== undefined && chunk.delta.length > 0) {
+        text += chunk.delta;
+        call.onDelta?.(chunk.delta);
+      }
+      // Streamed reasoning is panel text (the collapsed "Thinking" block); a terminal `reasoning` block
+      // is replay data for the next request and stays off this channel.
+      if (chunk.reasoningDelta !== undefined && chunk.reasoningDelta.length > 0) call.onReasoning?.(chunk.reasoningDelta);
+      // Calls and reasoning arrive on the terminal chunk; take the last value either way, so a
+      // provider that announces them piecemeal still lands its final form.
+      if (chunk.toolCalls !== undefined) toolCalls = chunk.toolCalls;
+      if (chunk.reasoning !== undefined) reasoning = chunk.reasoning;
+      if (chunk.finishReason !== undefined) finish = chunk.finishReason;
     }
-    // Streamed reasoning is panel text (the collapsed "Thinking" block); a terminal `reasoning` block
-    // is replay data for the next request and stays off this channel.
-    if (chunk.reasoningDelta !== undefined && chunk.reasoningDelta.length > 0) call.onReasoning?.(chunk.reasoningDelta);
-    // Calls and reasoning arrive on the terminal chunk; take the last value either way, so a
-    // provider that announces them piecemeal still lands its final form.
-    if (chunk.toolCalls !== undefined) toolCalls = chunk.toolCalls;
-    if (chunk.reasoning !== undefined) reasoning = chunk.reasoning;
-    if (chunk.finishReason !== undefined) finish = chunk.finishReason;
+  } catch (error) {
+    if (stopped()) throw new TurnStopped();
+    throw error;
   }
+  if (stopped()) throw new TurnStopped();
   if (finish === 'error') throw new GenerationStopped(`the provider ended the answer on an error after ${text.length} characters`);
   return {
     text,

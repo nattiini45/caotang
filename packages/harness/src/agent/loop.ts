@@ -97,10 +97,12 @@ import {
   type Decision,
   type PendingCard,
   type StepRecord,
+  type SteeringNote,
   type TraceEntry,
   type TurnPhase,
   type TurnReport,
   type TurnStatus,
+  type TurnStop,
 } from './events.js';
 import {
   complete,
@@ -110,6 +112,7 @@ import {
   draftScene,
   fillSynopses,
   GenerationStopped,
+  TurnStopped,
   sceneRole,
   scanContinuity,
   synopsisRole,
@@ -124,6 +127,7 @@ import {
   errorSummary,
   loadedToolsMessage,
   parseReply,
+  PLAN_CANCELLED_MESSAGE,
   plannerSystem,
   plannerSystemNative,
   plannerToolDefs,
@@ -132,6 +136,7 @@ import {
   REPLY_SCHEMA_HINT,
   resultsMessage,
   retryMessage,
+  steeringMessage,
   stepsRefusalMessage,
   type Reply,
 } from './protocol.js';
@@ -185,10 +190,26 @@ export interface AgentSessionOptions {
   readonly loadEveryTool?: () => boolean;
 }
 
+/** What the caller holds for one turn (agent-harness §2, "Stop and steer"). */
+export interface TurnOptions {
+  /**
+   * Aborts the turn: the in-flight model call, any awaited step, and every later step. Steps already applied stay in the undo group,
+   * and a bus command that has started is never interrupted. The turn ends as `cancelled` with `stop.by === 'user'`.
+   */
+  readonly signal?: AbortSignal;
+}
+
 /** What a UI action can tell a planner turn before it starts. */
-export interface SubmitOptions {
+export interface SubmitOptions extends TurnOptions {
   /** Deferred native rows the turn is about, loaded before the first request as if the planner had searched for them. */
   readonly preload?: readonly ToolName[];
+}
+
+/** Where a steering note will land (agent-harness §2). */
+export interface SteerReceipt {
+  readonly noteId: string;
+  /** The next model call, or nowhere yet because a card is waiting for a decision: the note lands after it. */
+  readonly lands: 'next-model-call' | 'after-decision';
 }
 
 export interface AgentSession {
@@ -199,7 +220,13 @@ export interface AgentSession {
    * any other. The "Fix with agent" entry of a coherence finding is the caller (coherence.md §6.3). The plan is checked as a
    * planner's is, and a plan that does not parse is refused before anything is staged.
    */
-  submitPlan(intent: string, plan: unknown): Promise<TurnReport>;
+  submitPlan(intent: string, plan: unknown, options?: TurnOptions): Promise<TurnReport>;
+  /**
+   * Adds a writer's note to a running turn. It reaches the model at the next planner request, after the previous reply's tool
+   * results, as one user message of its own. Refused with `not-found` for a turn that is not running. A note the turn ends
+   * without delivering is reported undelivered (`TurnReport.steering`), for the caller to send as a turn of its own.
+   */
+  steer(turnId: string, text: string): Result<SteerReceipt, CommandError>;
   /** Reverses a turn's undo group: "restore to before this turn" (command-bus §5). */
   restore(turnId: string): Result<UndoOutcome, CommandError>;
   /** Every turn this session has finished, oldest first. */
@@ -222,6 +249,14 @@ const MAX_STALLS = 5;
 
 /** The options a failed provider call offers: the user's own next actions, since the provider is outside the turn. */
 const PROVIDER_OPTIONS = ['check the provider profile and its key in Settings, then send the request again', 'switch to another provider profile in Settings'];
+
+/** The turn's signal, as the optional field a call or an option bag carries. */
+const signalOf = (turn: Turn): { readonly signal?: AbortSignal } => (turn.signal === undefined ? {} : { signal: turn.signal });
+
+/** The writer stopped the turn: ends it at this boundary. Nothing is started after it, and nothing already applied is undone. */
+function checkStop(turn: Turn): void {
+  if (turn.signal?.aborted === true) throw new TurnStopped();
+}
 
 /** A model call the turn's bound refused. The staging and card paths check the bound first, so this is a backstop. */
 class BudgetExceeded extends Error {
@@ -246,6 +281,13 @@ interface WireResult {
   readonly body: unknown;
 }
 
+/** A steering note as the turn holds it: delivery stamps it. */
+interface NoteRecord {
+  readonly noteId: string;
+  readonly text: string;
+  deliveredAtCall?: number;
+}
+
 interface Turn {
   readonly id: string;
   readonly messages: ChatMessage[];
@@ -257,6 +299,16 @@ interface Turn {
   /** The turns this one follows, oldest first: L6's source (context-assembly §2). Taken when the turn starts. */
   readonly priorTurns: readonly RecentTurn[];
   modelCalls: number;
+  /** The writer's stop (`TurnOptions.signal`). */
+  readonly signal: AbortSignal | undefined;
+  /** The phase the turn last reported: what a stop says it happened during. */
+  phase: TurnPhase;
+  /** The notes the writer sent, in order; one without `deliveredAtCall` has not reached the model. */
+  readonly notes: NoteRecord[];
+  /** A card waits for a decision, so a note sent now lands after it. */
+  deciding: boolean;
+  /** The turn is a planner conversation, which a cancelled card with a note can carry on. */
+  converses: boolean;
   /** Counts the calls a turn makes, so every call id within it is unique. */
   seq: number;
   /** The turn's undo group, recorded the moment a run applies anything, so no path loses it. */
@@ -280,6 +332,7 @@ interface Turn {
 /** How the turn ended, before the report is built from it. */
 interface Settled {
   readonly status: TurnStatus;
+  readonly stop?: TurnStop;
   readonly text?: string;
   readonly askBack?: AskBack;
   readonly summary?: string;
@@ -340,6 +393,9 @@ function messageOf(error: unknown): string {
 
 /** The reason a native call's tool message reports when the call never ran (the step was cancelled or edited away). */
 const NOT_RUN = 'the call did not run: its step was cancelled or changed before it ran';
+
+/** The reason a step reports when the writer's stop ended its wait. */
+const STOPPED_STEP = 'the writer stopped the turn before this step finished';
 
 /**
  * A native reply's step expectation. The wire carries no `expect`, so the step takes the reply's own
@@ -521,6 +577,8 @@ function stripCut(proposals: readonly unknown[]): readonly unknown[] {
 
 /** The settled outcome for a turn that stopped on a failure outside its steps: a model call, a stream, or the bound. */
 function stoppedBy(error: unknown, limit: number): Settled {
+  // The writer's Stop is a stop, not a provider failure (agent-harness §2): no ask-back, and the report says who stopped it.
+  if (error instanceof TurnStopped) return { status: 'cancelled' };
   if (error instanceof BudgetExceeded) return { status: 'failed', askBack: budgetAskBack(limit) };
   if (error instanceof GenerationStopped) {
     return {
@@ -554,6 +612,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   /** Every turn this session has started, oldest first, with its intent: what L6 is built from (context-assembly §2). */
   const started: RecentTurn[] = [];
   let turnCounter = 0;
+  /** The turns that are running, by id: what `steer` reaches. */
+  const running = new Map<string, Turn>();
 
   const loadEvery = (): boolean => options.loadEveryTool?.() === true;
 
@@ -623,6 +683,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       },
     },
     turnId: turn.id,
+    ...signalOf(turn),
     // The session's pins apply to its own role only: a call under another role resolves that role's
     // profile, model and thinking at the gateway instead of borrowing the session's.
     ...(options.profileId === undefined || role !== options.role ? {} : { profileId: options.profileId }),
@@ -789,6 +850,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const proposals: unknown[] = steps.map(() => undefined);
     const refusals: { index: number; tool: string; message: string }[] = [];
     for (const [index, step] of steps.entries()) {
+      checkStop(turn);
       // An external step the turn has not loaded is refused here, before any draft is made, so nothing runs for it.
       const external = externalRefusal(step.tool);
       if (external !== undefined) {
@@ -1023,7 +1085,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * harness. Only a native read takes the writer's one-step confirmation.
    */
   async function invokeRead(turn: Turn, call: ToolCall, permission?: { readonly confirmed: true }): Promise<ToolOutcome> {
-    if (loadedExternal(call.name) !== undefined) return harness.callExternal(call, { turnId: turn.id });
+    if (loadedExternal(call.name) !== undefined) return harness.callExternal(call, { turnId: turn.id, ...signalOf(turn) });
     return harness.call(call, permission === undefined ? { turnId: turn.id } : { turnId: turn.id, permission });
   }
 
@@ -1056,9 +1118,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const results: { tool: string; ok: boolean; body: unknown }[] = [];
     const surfaced = new Set<string>();
     for (const [index, step] of steps.entries()) {
+      checkStop(turn);
       const id = nextCallPrefix(turn, 'r');
       const proposal = proposals[index];
       const first = await invokeRead(turn, { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) });
+      // A read the stop cut short is not a refusal the model should hear about.
+      if (!first.ok && turn.signal?.aborted === true) throw new TurnStopped();
       let callId = id;
       let outcome: ToolOutcome = first;
       if (!first.ok && needsWriterApproval(first.error)) {
@@ -1214,6 +1279,33 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   }
 
   /**
+   * Asks for the card's decision, and answers it with a cancel when the writer stops the turn first, whether or not the decider
+   * ever answers. An approval that arrives with the signal already fired is a cancel too: Stop wins the race, and nothing runs.
+   */
+  async function decideOrStop(turn: Turn, pending: PendingCard): Promise<Decision> {
+    const { signal } = turn;
+    turn.deciding = true;
+    try {
+      if (signal === undefined) return await options.decide(pending);
+      let release = (): void => {};
+      const stopped = new Promise<Decision>((resolve) => {
+        const onAbort = (): void => resolve({ action: 'cancel' });
+        if (signal.aborted) return onAbort();
+        signal.addEventListener('abort', onAbort, { once: true });
+        release = () => signal.removeEventListener('abort', onAbort);
+      });
+      try {
+        const decided = await Promise.race([options.decide(pending), stopped]);
+        return signal.aborted ? { action: 'cancel' } : decided;
+      } finally {
+        release();
+      }
+    } finally {
+      turn.deciding = false;
+    }
+  }
+
+  /**
    * Shows a card and asks for decisions until the user approves or cancels. An edit or a retry is
    * checked and the card is shown again, so an approval always covers the card as it now stands
    * (agent-harness §2). An edit that cannot be applied is refused by name, and the last good card stays.
@@ -1231,6 +1323,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     let retries = 0;
     let stalls = 0;
     for (;;) {
+      // Before the card is shown, so a stop leaves no pending card behind.
+      checkStop(turn);
       const shown = cardOf(turn, editable, start.from, revision, kind, notice);
       notice = undefined;
       if ('refused' in shown) return { settled: 'refused', editable, edits, retries, error: shown.refused };
@@ -1242,7 +1336,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       emit({ type: 'plan', turnId: turn.id, card: shown.card });
       showGhosts(turn, editable, kind, prefix);
       phase(turn, 'awaiting-approval');
-      const decision = await options.decide({ kind, turnId: turn.id, card: shown.card } satisfies PendingCard);
+      const decision = await decideOrStop(turn, { kind, turnId: turn.id, card: shown.card } satisfies PendingCard);
 
       if (decision.action === 'cancel') return { settled: 'cancelled', editable, edits, retries };
       if (decision.action === 'approve') {
@@ -1346,8 +1440,16 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // An external tool is called through its own entry, under the confirmation its card gave (extensibility §4 rule 2).
     const outcome =
       loadedExternal(step.tool) === undefined
-        ? await harness.callAsync(call, grant === 'plan' ? { turnId: turn.id, permission: { approvedPlan: true } } : { turnId: turn.id, permission: { confirmed: true } })
-        : await harness.callExternal(call, grant === 'confirmed' ? { turnId: turn.id, permission: { confirmed: true } } : { turnId: turn.id });
+        ? await harness.callAsync(call, grant === 'plan' ? { turnId: turn.id, permission: { approvedPlan: true }, ...signalOf(turn) } : { turnId: turn.id, permission: { confirmed: true }, ...signalOf(turn) })
+        : await harness.callExternal(call, grant === 'confirmed' ? { turnId: turn.id, permission: { confirmed: true }, ...signalOf(turn) } : { turnId: turn.id, ...signalOf(turn) });
+    if (!outcome.ok && turn.signal?.aborted === true) {
+      // The wait ended because the writer stopped the turn: the step did not finish, and that is not a refusal to adjust.
+      moveCard(turn, id, 'failed', { error: STOPPED_STEP });
+      turn.trace.push({ tool: step.tool, callId: id, outcome: 'not-run', params: step.params });
+      turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'cancelled' });
+      wireResult(turn, step, { ok: false, body: STOPPED_STEP });
+      return { ok: false, cancelled: true, effect: write, completed: [] };
+    }
     if (outcome.ok) {
       turn.trace.push({ tool: step.tool, callId: id, outcome: 'ok', params: step.params });
       turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'done', summary: outcome.value.summary, data: outcome.value.data });
@@ -1394,6 +1496,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (ranAt(editable, index)) {
         index += 1;
         continue;
+      }
+      // The writer's stop is read before each step, never inside one: the steps that ran stay applied, and the rest are not run.
+      if (turn.signal?.aborted === true) {
+        cancelAfter(turn, editable, index - 1, 'plan', prefix);
+        return { ok: false, cancelled: true, effect: completed.length > 0, completed, ...(undoGroupId === undefined ? {} : { undoGroupId }) };
       }
       const id = callIdFor('plan', prefix, index);
       if (awaited(step.tool)) {
@@ -1461,7 +1568,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const result = harness.executePlan(
         { steps: editable.steps.slice(0, end) },
         { turnId: turn.id, callId: `${prefix}.s${index}` },
-        { from: index, proposals: acceptedCut ? stripCut(editable.proposals.slice(0, end)) : editable.proposals.slice(0, end) },
+        { from: index, proposals: acceptedCut ? stripCut(editable.proposals.slice(0, end)) : editable.proposals.slice(0, end), ...signalOf(turn) },
       );
       if (!result.ok) {
         cancelAfter(turn, editable, index - 1, 'plan', prefix);
@@ -1494,6 +1601,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (outcome.status === 'applied') {
         index = end;
         continue;
+      }
+      if (outcome.status === 'stopped') {
+        cancelAfter(turn, editable, outcome.stoppedAt - 1, 'plan', prefix);
+        return { ok: false, cancelled: true, effect: completed.length > 0, completed, ...(undoGroupId === undefined ? {} : { undoGroupId }) };
       }
       const failedIndex = outcome.failedAt;
       const failed = editable.steps[failedIndex] as PlanStep;
@@ -1575,7 +1686,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const result = harness.executePlan(
       { steps: editable.steps },
       { turnId: turn.id, callId: prefix },
-      { from, proposals: acceptedCut ? stripCut(editable.proposals) : editable.proposals },
+      { from, proposals: acceptedCut ? stripCut(editable.proposals) : editable.proposals, ...signalOf(turn) },
     );
     if (!result.ok) return { ok: false, failedAt: from, effect: false, completed: [], askBack: askBackFor(result.error) };
     const outcome = result.value;
@@ -1602,6 +1713,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const completed = finished.map((done) => done.index);
     if (outcome.status === 'applied') {
       return { ok: true, ...(outcome.undoGroupId === undefined ? {} : { undoGroupId: outcome.undoGroupId }), effect: true, completed };
+    }
+    if (outcome.status === 'stopped') {
+      // The steps before the stop are applied and kept; the stopped step and the rest are not run (agent-harness §2).
+      cancelAfter(turn, editable, outcome.stoppedAt - 1, kind, prefix);
+      return { ok: false, cancelled: true, effect: completed.length > 0, completed, ...(outcome.undoGroupId === undefined ? {} : { undoGroupId: outcome.undoGroupId }) };
     }
     const failedIndex = outcome.failedAt;
     const failed = editable.steps[failedIndex] as PlanStep;
@@ -1722,6 +1838,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           moveCard(turn, id, 'cancelled');
           turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'cancelled' });
         }
+        // A note sent with the Cancel (agent-harness §2): the plan is cancelled as any is, and the turn goes back to the model with
+        // the note instead of ending. A stopped turn ends.
+        if (turn.converses && turn.signal?.aborted !== true && turn.notes.some((note) => note.deliveredAtCall === undefined)) {
+          flushWire(turn);
+          turn.messages.push({ role: 'user', content: PLAN_CANCELLED_MESSAGE });
+          return 'continue';
+        }
         return { status: 'cancelled' };
       }
       turn.cards.push({ kind, tools, decision: 'approved', edits, retries });
@@ -1791,12 +1914,30 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   }
 
   function phase(turn: Turn, to: TurnPhase): void {
+    turn.phase = to;
     emit({ type: 'turn', turnId: turn.id, phase: to });
+  }
+
+  /**
+   * Hands the model the notes the writer sent since its last request (agent-harness §2): one user message per note, after the
+   * previous reply's tool messages so the conversation stays valid on the native wire. A note a card is still waiting on is
+   * not here yet; it lands after the decision.
+   */
+  function deliverNotes(turn: Turn): void {
+    const waiting = turn.notes.filter((note) => note.deliveredAtCall === undefined);
+    if (waiting.length === 0) return;
+    if (turn.native) flushWire(turn);
+    for (const note of waiting) {
+      note.deliveredAtCall = turn.modelCalls + 1;
+      turn.messages.push({ role: 'user', content: steeringMessage(note.text) });
+      emit({ type: 'steer', turnId: turn.id, note: { noteId: note.noteId, text: note.text, deliveredAtCall: note.deliveredAtCall } });
+    }
   }
 
   /** The model conversation of one turn: a reply, parsed, with a bad one answered by the words it needs. */
   async function converse(turn: Turn): Promise<Settled> {
     for (;;) {
+      checkStop(turn);
       if (callsLeft(turn) < 1) return { status: 'failed', askBack: budgetAskBack(maxModelCalls) };
       phase(turn, 'planning');
       // The loaded-tools addendum is read for each request, not once per turn: a search earlier in this turn may have loaded
@@ -1806,6 +1947,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         turn.messages.push({ role: 'user', content: addendum });
         turn.addendumSent = addendum;
       }
+      deliverNotes(turn);
       const reply = await complete(plannerCall(turn), turn.messages, turn.native ? undefined : { jsonSchemaHint: REPLY_SCHEMA_HINT });
       turn.messages.push(assistantOf(reply));
 
@@ -1893,9 +2035,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         : settled.status === 'applied'
           ? `Applied: ${settled.summary ?? 'the turn'}.`
           : settled.status === 'cancelled'
-            ? writes.length === 0
-              ? 'Cancelled. Nothing was written.'
-              : `Cancelled. Written before the cancel: ${writes.join('; ')}.`
+            ? settled.stop !== undefined
+              ? writes.length === 0
+                ? 'Stopped by you. Nothing was written.'
+                : `Stopped by you. Written before the stop: ${writes.join('; ')}.`
+              : writes.length === 0
+                ? 'Cancelled. Nothing was written.'
+                : `Cancelled. Written before the cancel: ${writes.join('; ')}.`
             : `Stopped: ${settled.askBack?.reason ?? 'the turn did not finish'}${writes.length === 0 ? '' : ` Written before the stop: ${writes.join('; ')}.`}`;
     return {
       turnId: turn.id,
@@ -1910,6 +2056,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       tokens,
       dropped: turn.dropped,
       modelCalls: turn.modelCalls,
+      ...(settled.stop === undefined ? {} : { stop: settled.stop }),
+      ...(turn.notes.length === 0 ? {} : { steering: turn.notes.map((note): SteeringNote => ({ ...note })) }),
     };
   }
 
@@ -1919,6 +2067,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // model can take them, the JSON envelope otherwise. The system message states the protocol the call
     // speaks (protocol.ts `plannerSystem`/`plannerSystemNative` — same rules, different wording).
     turn.native = nativeTools() !== undefined;
+    turn.converses = true;
     // The planner's call is a `meta` call (context-assembly §3): the protocol and tool list as L0, the project
     // summary as L1, and the request as L7.
     const planner = context.assemble({
@@ -1963,7 +2112,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * One turn, from its record to its report. `first` runs the turn's steps. A failure it cannot recover from is reported in words
    * the user can act on: the turn is never left half-finished, and whatever it applied stays in its undo group.
    */
-  async function runTurn(intent: string, first: (turn: Turn) => Promise<Settled>): Promise<TurnReport> {
+  async function runTurn(intent: string, turnOptions: TurnOptions, first: (turn: Turn) => Promise<Settled>): Promise<TurnReport> {
     turnCounter += 1;
     const turn: Turn = {
       id: `${sessionName}.turn-${turnCounter}`,
@@ -1976,12 +2125,18 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // The turns before this one are what L6 may show; this turn's intent is recorded for the ones after it.
       priorTurns: [...started],
       modelCalls: 0,
+      signal: turnOptions.signal,
+      phase: 'started',
+      notes: [],
+      deciding: false,
+      converses: false,
       seq: 0,
       native: false,
       wireReplies: [],
       wireSteps: new Map(),
     };
     started.push({ turnId: turn.id, intent });
+    running.set(turn.id, turn);
     phase(turn, 'started');
 
     let settled: Settled;
@@ -1989,6 +2144,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       settled = await first(turn);
     } catch (error) {
       settled = stoppedBy(error, maxModelCalls);
+    }
+    running.delete(turn.id);
+    // A turn the writer stopped says so, and in the phase the stop took effect in. A card still waiting is cancelled with it.
+    if (settled.status === 'cancelled' && turn.signal?.aborted === true) {
+      settled = { ...settled, stop: { by: 'user', during: turn.phase } };
+      for (const card of [...turn.statusCards]) moveCard(turn, card.id, 'cancelled');
     }
 
     harness.endTurn(turn.id);
@@ -2013,14 +2174,26 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
   return {
     submit(intent: string, submitOptions: SubmitOptions = {}): Promise<TurnReport> {
-      return runTurn(intent, (turn) => plannedTurn(turn, intent, submitOptions.preload ?? []));
+      return runTurn(intent, submitOptions, (turn) => plannedTurn(turn, intent, submitOptions.preload ?? []));
     },
 
-    submitPlan(intent: string, plan: unknown): Promise<TurnReport> {
+    submitPlan(intent: string, plan: unknown, turnOptions: TurnOptions = {}): Promise<TurnReport> {
       const parsed = parsePlan(plan);
-      return runTurn(intent, (turn) =>
+      return runTurn(intent, turnOptions, (turn) =>
         parsed.ok ? givenPlanTurn(turn, parsed.value) : Promise.resolve<Settled>({ status: 'failed', askBack: askBackFor(parsed.error) }),
       );
+    },
+
+    steer(turnId: string, text: string): Result<SteerReceipt, CommandError> {
+      const turn = running.get(turnId);
+      if (turn === undefined) {
+        return err(refusal('not-found', `turn ${turnId} is not running, so a note cannot reach it`, { correctiveHint: 'send the note as a message of its own' }));
+      }
+      const trimmed = text.trim();
+      if (trimmed === '') return err(refusal('invalid-params', 'a steering note needs some text', { correctiveHint: 'write the note, or leave it unsent' }));
+      const note: NoteRecord = { noteId: `${turn.id}.note-${turn.notes.length + 1}`, text: trimmed };
+      turn.notes.push(note);
+      return ok({ noteId: note.noteId, lands: turn.deciding ? 'after-decision' : 'next-model-call' });
     },
 
     restore(turnId: string): Result<UndoOutcome, CommandError> {

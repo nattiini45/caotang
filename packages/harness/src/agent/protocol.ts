@@ -241,6 +241,17 @@ export function loadedToolsMessage(native: readonly ToolListing[], externals: re
   ].join('\n');
 }
 
+/**
+ * A note the writer sent while the turn ran (agent-harness §2, "Stop and steer"), as the planner reads it: one user message per
+ * note, worded so the model knows where it came from.
+ */
+export function steeringMessage(text: string): string {
+  return `Note from the writer, sent while you were working: ${text}`;
+}
+
+/** What the planner is told when the writer cancels its plan card and sends a note with the Cancel: the turn goes on with the note. */
+export const PLAN_CANCELLED_MESSAGE = 'The writer cancelled the plan you proposed, so the steps it had not run yet will not run.';
+
 /** A message that carries the results of the read steps that just ran. */
 export function resultsMessage(results: readonly { readonly tool: string; readonly ok: boolean; readonly body: unknown }[]): string {
   return [
