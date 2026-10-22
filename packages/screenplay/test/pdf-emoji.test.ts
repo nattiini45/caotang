@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import * as fontkitModule from '@pdf-lib/fontkit';
 import type { Font } from '@pdf-lib/fontkit';
-import { emojiPrint, isEmojiCluster } from '@caotang/pdf-fonts';
+import { emojiKey, emojiPrint, isEmojiCluster } from '@caotang/pdf-fonts';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { FlatBlock } from '../src/index.js';
 import {
@@ -32,7 +32,7 @@ import { LOADERS, sourceEmoji } from './fixtures/fonts.js';
 
 const fontkit = ((fontkitModule as unknown as { default?: typeof fontkitModule }).default ?? fontkitModule) as typeof fontkitModule;
 // Unicode's list is kept with the coverage tables it generates (packages/pdf-fonts/scripts/emoji-coverage.mjs).
-const EMOJI_TEST_PATH = new URL('../../pdf-fonts/test/fixtures/emoji-test-15.1.txt', import.meta.url);
+const EMOJI_TEST_PATH = new URL('../../pdf-fonts/test/fixtures/emoji-test-17.0.txt', import.meta.url);
 
 let font: Font;
 beforeAll(async () => {
@@ -54,15 +54,17 @@ async function pdfOf(source: string, title = 'T'): Promise<string> {
   return decode(new Uint8Array(await blob.arrayBuffer()));
 }
 
-/** Unicode's emoji list: each line's emoji and its status. */
-function emojiList(): { emoji: string; status: string }[] {
+/** Unicode's emoji list: each line's emoji, its status and its name. */
+function emojiList(): { emoji: string; status: string; name: string }[] {
   return readFileSync(EMOJI_TEST_PATH, 'utf8')
     .split('\n')
     .filter((line) => /^[0-9A-F]/.test(line))
     .map((line) => {
       const [points = '', rest = ''] = line.split(';');
       const emoji = String.fromCodePoint(...points.trim().split(/\s+/).map((hex) => parseInt(hex, 16)));
-      return { emoji, status: rest.split('#')[0]?.trim() ?? '' };
+      // After the "#": the emoji, its Emoji version, its name.
+      const name = (rest.split('#')[1] ?? '').trim().split(' ').slice(2).join(' ');
+      return { emoji, status: rest.split('#')[0]?.trim() ?? '', name };
     });
 }
 
@@ -115,6 +117,19 @@ function extract(pdf: string): string[] {
   return [...rows.values()].map((row) => row.sort((a, b) => a.x - b.x).map((run) => run.text).join(''));
 }
 
+/** Emoji 16.0 (🫩 … 🫟, the flag of Sark) and 17.0 (🫪, 🛘), which Noto Emoji 3.002 lacked. */
+const NEW_EMOJI = ['🫩', '🫆', '🪾', '🫜', '🪉', '🪏', '🫟', '🇨🇶', '🫪', '🛘'];
+
+/**
+ * The 36 fully-qualified emoji fontkit lays out as several glyphs: the woman and the man walking, kneeling and running,
+ * facing right, plain and in each of the five skin tones.
+ */
+const FACING_RIGHT = new Set(
+  ['🚶', '🧎', '🏃'].flatMap((person) =>
+    ['', '🏻', '🏼', '🏽', '🏾', '🏿'].flatMap((tone) => ['\u2640', '\u2642'].map((gender) => `${person}${tone}\u200D${gender}\uFE0F\u200D\u27A1\uFE0F`)),
+  ),
+);
+
 const SEQUENCES = ['👨‍👩‍👧', '👍🏽', '🧑🏽‍💻', '🇩🇪', '🇺🇳', '1️⃣', '#️⃣', '🏴󠁧󠁢󠁳󠁣󠁴󠁿', '❤️', '🏳️‍🌈', '🐦‍🔥', '🙂‍↔️', '🫱🏻‍🫲🏿'];
 
 describe('emoji as grapheme clusters', () => {
@@ -160,20 +175,44 @@ describe('the emoji fallback font', () => {
     expect(font.postscriptName).toBe('NotoEmoji-Regular');
   });
 
-  it('maps every fully-qualified emoji of Unicode 15.1, the version the font supports, to a glyph', () => {
+  it('maps every fully-qualified emoji of Unicode 17.0, the version the font supports, to glyphs and no .notdef', () => {
     const qualified = emojiList().filter((row) => row.status === 'fully-qualified');
-    expect(qualified.length).toBe(3773);
+    expect(qualified.length).toBe(3944);
     const base: string[] = [];
     for (const { emoji } of qualified) {
       const print = emojiPrint(emoji);
       expect(print, emoji).not.toBe('none');
-      const glyph = emojiGlyph(font, emoji);
-      expect(glyph?.id ?? 0, emoji).not.toBe(0);
-      if (print === 'base') base.push(emoji);
+      expect(emojiGlyph(font, emoji)?.id ?? 0, emoji).not.toBe(0);
+      expect(font.layout(emoji).glyphs.some((glyph) => glyph.id === 0), `${emoji} has a .notdef`).toBe(false);
+      if (print === 'whole') {
+        const forms = [emoji, emoji.replace(/\uFE0F/g, ''), emojiKey(emoji)];
+        expect(forms.some((form) => font.layout(form).glyphs.length === 1), `${emoji} is one glyph`).toBe(true);
+      } else base.push(emoji);
     }
-    // The ninety people "facing right" with a gender have no glyph of their own; they print as their first emoji.
-    expect(base.length).toBe(90);
-    for (const emoji of base) expect(emoji, emoji).toMatch(/\u200D\u27A1\uFE0F$/u);
+    // Everything is one glyph but the allow-list: fontkit does not lay the people "facing right" out as one, though the
+    // font has them (HarfBuzz does). They print as their first emoji until the PDFs lay them out another way.
+    expect(new Set(base)).toEqual(FACING_RIGHT);
+  });
+
+  it('prints a minimally-qualified or unqualified emoji as the glyph of its fully-qualified form', () => {
+    const list = emojiList();
+    const qualified = new Map(list.filter((row) => row.status === 'fully-qualified').map((row) => [row.name, row.emoji]));
+    const others = list.filter((row) => row.status === 'minimally-qualified' || row.status === 'unqualified');
+    expect(others.length).toBeGreaterThan(1000);
+    for (const { emoji, name } of others) {
+      const full = qualified.get(name);
+      expect(full, `${emoji} ${name} has a fully-qualified form`).toBeDefined();
+      expect(emojiPrint(emoji), emoji).toBe(emojiPrint(full ?? ''));
+      expect(emojiGlyph(font, emoji)?.id, emoji).toBe(emojiGlyph(font, full ?? '')?.id);
+    }
+  });
+
+  it('has the emoji of 16.0 and 17.0 as one glyph each', () => {
+    for (const emoji of NEW_EMOJI) {
+      expect(emojiPrint(emoji), emoji).toBe('whole');
+      expect(font.layout(emoji).glyphs.length, emoji).toBe(1);
+      expect(emojiGlyph(font, emoji)?.id ?? 0, emoji).not.toBe(0);
+    }
   });
 
   it('says of every emoji in the list what the drawing then does', () => {
@@ -243,12 +282,30 @@ describe('the PDF with emoji', () => {
     expect(pdf).toContain(`1 0 0 1 ${(LAYOUT.marginLeft + 2 * 7.2).toFixed(2)} `);
   });
 
-  it('prints an emoji the font does not have as "?" in its two columns, and the log names it', async () => {
-    const layout = layoutPdf(blocksOf(text('INT. A - DAY', '', 'A face newer than the font: 🫩 and ꙮ.')), { title: 'T' });
-    expect(layout.notes).toEqual(['pdf: neither Courier Prime nor the CJK or emoji fallback font can print these 2 characters, so they are printed as "?": 🫩 ꙮ']);
+  it('prints a character no font has as "?", and the log names it', async () => {
+    // U+E000 is private use and U+1FFFD is reserved for future pictographs: neither will be in a font.
+    const source = text('INT. A - DAY', '', 'Characters no font has: \uE000 and \u{1FFFD} and ꙮ.');
+    const layout = layoutPdf(blocksOf(source), { title: 'T' });
+    expect(layout.notes).toEqual(['pdf: neither Courier Prime nor the CJK or emoji fallback font can print these 3 characters, so they are printed as "?": \uE000 \u{1FFFD} ꙮ']);
     expect(layout.emojiCharacters).toEqual([]);
-    const lines = extract(await pdfOf(text('INT. A - DAY', '', 'A face newer than the font: 🫩 and ꙮ.')));
-    expect(lines).toContain('A face newer than the font: ? and ?.');
+    expect(extract(await pdfOf(source))).toContain('Characters no font has: ? and ? and ?.');
+  });
+
+  it('prints every fully-qualified emoji of Unicode 17.0 in one PDF with no "?" and no note, and a reader copies each back', async () => {
+    const all = emojiList().filter((row) => row.status === 'fully-qualified' && !FACING_RIGHT.has(row.emoji)).map((row) => row.emoji);
+    expect(all.length).toBe(3944 - FACING_RIGHT.size);
+    const source = text('INT. A - DAY', '', all.join(' '));
+    expect(layoutPdf(blocksOf(source), { title: 'T' }).notes).toEqual([]);
+    const lines = extract(await pdfOf(source));
+    expect(lines.some((line) => line.includes('?'))).toBe(false);
+    const copied = textUnits(lines.join(' ')).filter((unit) => isEmojiCluster(unit));
+    expect(copied.join(' ')).toBe(all.join(' '));
+  });
+
+  it('prints the 16.0 and 17.0 emoji as one glyph each, copied back as typed, with no note', async () => {
+    const source = text('INT. A - DAY', '', `New: ${NEW_EMOJI.join(' ')}.`);
+    expect(layoutPdf(blocksOf(source), { title: 'T' }).notes).toEqual([]);
+    expect(extract(await pdfOf(source))).toContain(`New: ${NEW_EMOJI.join(' ')}.`);
   });
 
   it('prints a sequence the font has no glyph for as its first emoji, and the log says so', () => {

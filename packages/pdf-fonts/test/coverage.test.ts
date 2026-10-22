@@ -21,8 +21,11 @@ import { loadFont } from '../src/fontkit.js';
 import { loadCjkFontInNode, loadEmojiFontInNode } from '../src/node-loader.js';
 
 const VENDOR = new URL('../../../vendor/', import.meta.url);
-const EMOJI_TEST_PATH = new URL('./fixtures/emoji-test-15.1.txt', import.meta.url);
-const EMOJI_TEST_SHA256 = 'd876ee249aa28eaa76cfa6dfaa702847a8d13b062aa488d465d0395ee8137ed9';
+const EMOJI_TEST_PATH = new URL('./fixtures/emoji-test-17.0.txt', import.meta.url);
+const EMOJI_TEST_SHA256 = '1d8a944f88d7952f7ef7c5167fef3c67995bcae24543949710231b03a201acda';
+
+/** The Unicode Emoji version Noto Emoji 3.006 supports (vendor/noto-emoji/README.md). Raise it with the font, never alone. */
+const FONT_EMOJI_VERSION = '17.0';
 
 const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 
@@ -87,7 +90,25 @@ describe('the emoji coverage tables', () => {
     }
   });
 
-  it('were generated from Unicode’s emoji list for 15.1, byte for byte the one kept here', () => {
+  it('were generated from Unicode’s emoji list for 17.0, byte for byte the one kept here', () => {
     expect(sha256(readFileSync(EMOJI_TEST_PATH))).toBe(EMOJI_TEST_SHA256);
+  });
+
+  it('move with the emoji list: the list is not newer than the Emoji version the font supports', () => {
+    const header = /^# Version: (\d+)\.(\d+)$/m.exec(readFileSync(EMOJI_TEST_PATH, 'utf8'));
+    const [major = 0, minor = 0] = (header?.slice(1) ?? []).map(Number);
+    const [fontMajor = 0, fontMinor = 0] = FONT_EMOJI_VERSION.split('.').map(Number);
+    const newer = major > fontMajor || (major === fontMajor && minor > fontMinor);
+    expect(
+      newer,
+      `test/fixtures/emoji-test-17.0.txt is Emoji ${major}.${minor}, newer than Emoji ${FONT_EMOJI_VERSION}, which ${font.version} supports: ` +
+        'vendor a font that supports it first (vendor/noto-emoji/README.md), then raise FONT_EMOJI_VERSION',
+    ).toBe(false);
+    expect(`${major}.${minor}`, 'the list is the Emoji version the font is declared to support').toBe(FONT_EMOJI_VERSION);
+  });
+
+  it('is Noto Emoji 3.006, which maps what Emoji 16.0 and 17.0 added', () => {
+    expect(font.version).toBe('Version 3.006');
+    for (const ch of ['🫩', '🫆', '🪾', '🫜', '🪉', '🪏', '🫟', '🫪', '🛘']) expect(emojiFontMaps(ch), ch).toBe(true);
   });
 });

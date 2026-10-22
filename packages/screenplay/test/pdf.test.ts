@@ -254,8 +254,8 @@ describe('createPdfRenderer', () => {
 
 describe('layoutPdf — what the fonts cannot print', () => {
   it('says which characters print as a question mark, once each', () => {
-    const { notes } = layoutPdf(blocksOf(text('INT. 草堂 - DAY', '', 'She reads 草堂 aloud: ꙮ 🫩 ꙮ.')), { title: 'T' });
-    expect(notes).toEqual(['pdf: neither Courier Prime nor the CJK or emoji fallback font can print these 2 characters, so they are printed as "?": ꙮ 🫩']);
+    const { notes } = layoutPdf(blocksOf(text('INT. 草堂 - DAY', '', 'She reads 草堂 aloud: ꙮ \uE000 ꙮ.')), { title: 'T' });
+    expect(notes).toEqual(['pdf: neither Courier Prime nor the CJK or emoji fallback font can print these 2 characters, so they are printed as "?": ꙮ \uE000']);
   });
 
   it('says nothing of the CJK characters the fallback font prints', () => {

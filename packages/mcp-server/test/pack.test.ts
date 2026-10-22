@@ -194,7 +194,7 @@ describe('staging and packing', () => {
   it('has exactly one CJK font and one emoji font to stage, from their packages, 7.8 MB together', () => {
     const require = createRequire(import.meta.url);
     const sizes = [`@caotang/font-noto-cjk/${CJK_FONT_FILE}`, `@caotang/font-noto-emoji/${EMOJI_FONT_FILE}`].map((specifier) => statSync(require.resolve(specifier)).size);
-    expect(sizes).toEqual([7219856, 566592]);
+    expect(sizes).toEqual([7219856, 579236]);
     // Against 25,065,212 bytes of four font files before the two PDFs shared one of each.
     expect(sizes[0]! + sizes[1]!).toBeLessThan(8_000_000);
   });
