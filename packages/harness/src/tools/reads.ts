@@ -92,6 +92,7 @@ export function prepareProjectOverview(_params: CallParams, context: PrepareCont
     totalWords,
     session: session === undefined ? null : { todayWords: session.todayWords, target: session.target ?? null },
     savedFilters: state.manifest.filters?.length ?? 0,
+    filters: (state.manifest.filters ?? []).map((filter) => ({ id: filter.id, name: filter.name })),
     goals,
   });
 

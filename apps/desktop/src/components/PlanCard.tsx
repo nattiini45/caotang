@@ -285,6 +285,26 @@ function ReviewPreviewBlock({ view, cost }: { view: ReviewPreviewView; cost?: Pl
  */
 function StepPreviewBlock({ view, cost }: { view: StepPreviewView; cost?: PlanStepCost }): ReactNode {
   if (view.kind === 'review') return <ReviewPreviewBlock view={view} cost={cost} />;
+  if (view.kind === 'notes') {
+    return (
+      <figure className="plan-draft" aria-label="Notes this step writes">
+        <figcaption>
+          The notes of “{view.doc}”, word by word from the old to the new ({view.wordsBefore} words to {view.wordsAfter}), shown before approval
+        </figcaption>
+        <p className="notes-diff">
+          {view.segments.map((segment, index) =>
+            segment.kind === 'added' ? (
+              <ins key={index}>{segment.text}</ins>
+            ) : segment.kind === 'removed' ? (
+              <del key={index}>{segment.text}</del>
+            ) : (
+              <span key={index}>{segment.text}</span>
+            ),
+          )}
+        </p>
+      </figure>
+    );
+  }
   if (view.kind === 'shots') {
     return (
       <figure className="plan-draft" aria-label="Shots this step creates">

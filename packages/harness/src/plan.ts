@@ -150,13 +150,18 @@ export function parsePlan(input: unknown): Result<Plan, CommandError> {
   return ok(checked.value as unknown as Plan);
 }
 
+/** What a lookup failure could not find: a node, or a status or label. */
+type LookupKind = 'node' | 'term';
+
 /**
- * Whether a step can create nodes that a later step may name.
+ * Whether a step can create something of `kind` that a later step may name.
  *
- * `doc.import` always creates one. `binder.restructure` does when one of its ops
- * is a create. Nothing else in the registry creates a node.
+ * `doc.import` always creates a node. `binder.restructure` does when one of its ops is a create. `vocabulary.upsert` creates a
+ * term when it names no id, and a `meta.set` or `filter.save` after it may name the term it makes. Nothing else in the registry
+ * creates anything a step names.
  */
-function mayCreate(step: PlanStep): boolean {
+function mayCreate(step: PlanStep, kind: LookupKind): boolean {
+  if (kind === 'term') return step.tool === 'vocabulary.upsert' && step.params['id'] === undefined;
   if (step.tool === 'doc.import') return true;
   if (step.tool !== 'binder.restructure') return false;
   const ops = step.params['ops'];
@@ -182,19 +187,23 @@ function isAmbiguousName(error: { readonly code?: CommandErrorCode; readonly det
 }
 
 /**
- * Whether a refusal is a name that did not resolve. A batch tool wraps its per-op
- * failures in `invalid-params`, so the lookup failure sits in `details.failures`,
- * and both shapes count. An ambiguous name counts too: `resolveNode` refuses it as
- * `invalid-params` carrying the `candidates` it matched, and a step earlier in the
- * plan may still create the document that makes the name exact by the time this
- * step runs.
+ * What a refusal could not find, as the kinds a creating step could supply. A batch tool wraps its per-op
+ * failures in `invalid-params`, so the lookup failure sits in `details.failures`, and both shapes count. An ambiguous name
+ * counts too: `resolveNode` refuses it as `invalid-params` carrying the `candidates` it matched, and a step earlier in the
+ * plan may still create the document that makes the name exact by the time this step runs. A status or label the project
+ * does not hold (`details.unknownVocabulary`) is a `term`, which an earlier `vocabulary.upsert` may add.
  */
-function isLookupFailure(error: CommandError): boolean {
-  if (error.code === 'not-found') return true;
-  if (isAmbiguousName(error)) return true;
+function lookupKinds(error: CommandError): readonly LookupKind[] {
+  const own: LookupKind[] = [];
+  if (error.code === 'not-found' || isAmbiguousName(error)) own.push('node');
+  if (error.details?.unknownVocabulary !== undefined) own.push('term');
   const failures = error.details?.['failures'];
-  if (!Array.isArray(failures)) return false;
-  return failures.some((failure) => failure.code === 'not-found' || isAmbiguousName(failure));
+  if (!Array.isArray(failures)) return own;
+  for (const failure of failures) {
+    if (failure.code === 'not-found' || isAmbiguousName(failure)) own.push('node');
+    if (failure.details?.['unknownVocabulary'] !== undefined) own.push('term');
+  }
+  return own;
 }
 
 /** Checks every step from the plan's start, in order, with no effect. */
@@ -219,8 +228,9 @@ export function preflight(plan: Plan, host: PlanHost, options: PlanOptions = {})
       steps.push({ ...base, status: 'ready', ...(checked.value.preview === undefined ? {} : { preview: checked.value.preview }) });
       continue;
     }
-    const creator = plan.steps.slice(0, index).findIndex((earlier) => mayCreate(earlier));
-    if (isLookupFailure(checked.error) && creator !== -1) {
+    const kinds = lookupKinds(checked.error);
+    const creator = plan.steps.slice(0, index).findIndex((earlier) => kinds.some((kind) => mayCreate(earlier, kind)));
+    if (creator !== -1) {
       steps.push({
         ...base,
         status: 'deferred',

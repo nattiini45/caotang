@@ -133,11 +133,12 @@ describe('notes.append', () => {
     );
   });
 
-  it('refuses text over 2000 characters, and says how to split it, naming notes.replace as not yet available', () => {
+  it('refuses text over 2000 characters, and says how to split it, naming notes.replace as the deferred tool that rewrites the notes', () => {
     const error = refusalOf(run(makeHarness(), 'notes.append', { doc: LANDING, text: 'x'.repeat(2001) }));
     expect(error.code).toBe('limit-exceeded');
     expect(error.correctiveHint).toContain('2000 characters');
-    expect(error.correctiveHint).toContain('v0.2');
+    expect(error.correctiveHint).toContain('notes.replace');
+    expect(error.correctiveHint).toContain('tool.search');
   });
 
   it('refuses a folder as its target, because notes.append names a document', () => {

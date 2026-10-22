@@ -24,6 +24,7 @@ import {
   isRecord,
   limitExceededError,
   requireDeclaredParams,
+  unknownTerm,
 } from './params.js';
 
 /** The two roots a saved filter may be scoped to (binder-filters §2). */
@@ -91,10 +92,10 @@ export type ProjectDeleteGoalParams = { readonly goalId: string };
 /** binder-filters §2: `name` ≤ 60 characters. */
 export const FILTER_NAME_MAX = 60;
 /** binder-filters §2: `text` ≤ 200 characters. */
-const TEXT_MAX = 200;
+export const FILTER_TEXT_MAX = 200;
 /** binder-filters §2 and project-format §2: each criteria array ≤ 32 entries, a tag ≤ 64 characters. */
-const CRITERIA_ARRAY_MAX = 32;
-const TAG_MAX = 64;
+export const FILTER_LIST_MAX = 32;
+export const FILTER_TAG_MAX = 64;
 /** binder-filters §2: ≤ 50 saved filters per project (the store checks the count). */
 export const SAVED_FILTERS_MAX = 50;
 /** goals-progress §2.2: ≤ 20 goals per project (the store checks the count). */
@@ -118,14 +119,14 @@ export const CRITERIA_KEYS: readonly string[] = [
   'modifiedWithinDays',
 ];
 
-const SEARCH_SURFACES: readonly string[] = ['title', 'synopsis', 'body'];
-const GOAL_COMPARATORS: readonly string[] = ['at-least', 'at-most', 'about'];
-const GOAL_METRICS: readonly string[] = ['words', 'chars'];
-const GOAL_KINDS: readonly string[] = ['project', 'weekly', 'monthly'];
+export const SEARCH_SURFACES: readonly string[] = ['title', 'synopsis', 'body'];
+export const GOAL_COMPARATORS: readonly string[] = ['at-least', 'at-most', 'about'];
+export const GOAL_METRICS: readonly string[] = ['words', 'chars'];
+export const GOAL_KINDS: readonly string[] = ['project', 'weekly', 'monthly'];
 const FILTER_KEYS: readonly string[] = ['id', 'name', 'root', 'criteria'];
 const GOAL_KEYS: readonly string[] = ['id', 'nodeId', 'metric', 'kind', 'resetDay', 'comparator', 'target', 'deadline', 'archived'];
 /** goals-progress §9.3: every month has a 28th, so a monthly goal resets on a day up to it, or on the month's last day. */
-const MONTHLY_RESET_MAX = 28;
+export const MONTHLY_RESET_MAX = 28;
 
 /**
  * Crockford base32, as the id generators draw it (`@caotang/ids`).
@@ -252,8 +253,8 @@ function checkCriterion(key: string, value: unknown, snapshot: ValidationSnapsho
   switch (key) {
     case 'text':
       if (typeof value !== 'string') return invalid('text must be a string', 'pass the words to search for', target);
-      if (codePoints(value) > TEXT_MAX) {
-        return invalid(`text is ${codePoints(value)} characters`, `text is at most ${TEXT_MAX} characters`, target);
+      if (codePoints(value) > FILTER_TEXT_MAX) {
+        return invalid(`text is ${codePoints(value)} characters`, `text is at most ${FILTER_TEXT_MAX} characters`, target);
       }
       return ok(value);
     case 'textIn': {
@@ -302,19 +303,19 @@ function vocabularyId(
     return invalid(`${kind} must be a vocabulary id`, `pick a ${kind} from this project's vocabulary`, target);
   }
   if (!terms.some((term) => term.id === value)) {
-    return invalid(`"${value}" is not a ${kind} in this project`, `pick a ${kind} from this project's vocabulary`, target);
+    return unknownTerm(kind, `"${value}" is not a ${kind} in this project`, `pick a ${kind} from this project's vocabulary`, target);
   }
   return ok(value);
 }
 
 /** A tag list: at most 32 entries, each a non-blank tag of at most 64 characters (project-format §2). */
 function tagList(value: unknown, target: string): Result<unknown, CommandError> {
-  if (!Array.isArray(value) || value.length > CRITERIA_ARRAY_MAX) {
-    return invalid(`${target.split('.').pop()} must be a list of at most ${CRITERIA_ARRAY_MAX} tags`, 'keep the tag list short', target);
+  if (!Array.isArray(value) || value.length > FILTER_LIST_MAX) {
+    return invalid(`${target.split('.').pop()} must be a list of at most ${FILTER_LIST_MAX} tags`, 'keep the tag list short', target);
   }
   for (const tag of value) {
-    if (typeof tag !== 'string' || tag.trim() === '' || codePoints(tag) > TAG_MAX) {
-      return invalid(`"${String(tag)}" is not a tag`, `a tag is a non-blank string of at most ${TAG_MAX} characters`, target);
+    if (typeof tag !== 'string' || tag.trim() === '' || codePoints(tag) > FILTER_TAG_MAX) {
+      return invalid(`"${String(tag)}" is not a tag`, `a tag is a non-blank string of at most ${FILTER_TAG_MAX} characters`, target);
     }
   }
   return ok([...value]);

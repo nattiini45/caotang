@@ -92,6 +92,7 @@ import {
   requireStringArray,
   showValue,
   toPerOpFailure,
+  unknownTerm,
 } from './params.js';
 import type { PerOpFailure } from './result.js';
 import { recipeNameMissing } from './recipe-names.js';
@@ -115,7 +116,7 @@ import {
 export const SYNOPSIS_MAX = 2000;
 export const KEYWORDS_MAX = 32;
 export const KEYWORD_CHARS_MAX = 64;
-const NOTES_MAX = 50_000;
+export const NOTES_MAX = 50_000;
 const NOTES_APPEND_MAX = 2000;
 const CODEX_BATCH_MAX = 20;
 
@@ -566,7 +567,8 @@ export const binderSetMeta: CommandDescriptor<BinderSetMetaParams> = {
     if (status.value !== undefined && status.value !== null) {
       const valid = snapshot.manifest.vocabulary.statuses.map((s) => s.id);
       if (!valid.includes(status.value)) {
-        return invalid(
+        return unknownTerm(
+          'status',
           `"${status.value}" is not a status in this project's vocabulary`,
           vocabularyHint('status', valid),
           'patch.status',
@@ -578,7 +580,8 @@ export const binderSetMeta: CommandDescriptor<BinderSetMetaParams> = {
     if (label.value !== undefined && label.value !== null) {
       const valid = snapshot.manifest.vocabulary.labels.map((l) => l.id);
       if (!valid.includes(label.value)) {
-        return invalid(
+        return unknownTerm(
+          'label',
           `"${label.value}" is not a label in this project's vocabulary`,
           vocabularyHint('label', valid),
           'patch.label',

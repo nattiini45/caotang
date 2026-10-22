@@ -211,6 +211,25 @@ describe('the tool surface', () => {
     }
   });
 
+  it('is described by the root README with the same write tools it lists', async () => {
+    const client = await connectClient(writable.url, writable.token);
+    try {
+      const { tools } = await client.listTools();
+      const writes = tools.filter((tool) => tool.annotations?.readOnlyHint === false);
+      const confirm = writes.filter((tool) => tool.description?.startsWith('Requires user confirmation.')).map((tool) => tool.name);
+      const auto = writes.filter((tool) => !confirm.includes(tool.name)).map((tool) => tool.name);
+      const readme = readFileSync(new URL('../../../README.md', import.meta.url), 'utf8');
+      const paragraph = readme.split('\n').find((line) => line.startsWith('The server is read-only unless'));
+      expect(paragraph).toBeDefined();
+      const names = (text: string) => [...text.matchAll(/`([a-z]+\.[A-Za-z]+)`/g)].map((match) => match[1]).sort();
+      const [autoText, confirmText] = paragraph!.split(', and ');
+      expect(names(autoText!)).toEqual([...auto].sort());
+      expect(names(confirmText!.split('Add `--create')[0]!)).toEqual([...confirm].sort());
+    } finally {
+      await client.close();
+    }
+  });
+
   it('marks write-confirm tools as needing confirmation, and reads as read-only', async () => {
     const client = await connectClient(writable.url, writable.token);
     try {
@@ -222,6 +241,17 @@ describe('the tool surface', () => {
       expect(overview?.annotations?.readOnlyHint).toBe(true);
       const metaSet = tools.find((tool) => tool.name === 'meta.set');
       expect(metaSet?.annotations?.idempotentHint).toBe(true);
+      // The allowlisted bus primitives carry the class of their command: two ask, three apply at once.
+      for (const name of ['notes.replace', 'vocabulary.upsert']) {
+        const tool = tools.find((candidate) => candidate.name === name);
+        expect(tool?.description?.startsWith('Requires user confirmation.'), name).toBe(true);
+        expect(tool?.annotations, name).toMatchObject({ readOnlyHint: false, destructiveHint: false, idempotentHint: false });
+      }
+      for (const name of ['synopsis.set', 'filter.save', 'goal.save']) {
+        const tool = tools.find((candidate) => candidate.name === name);
+        expect(tool?.description, name).toContain('Applies automatically within an approved turn.');
+        expect(tool?.annotations, name).toMatchObject({ readOnlyHint: false, destructiveHint: false });
+      }
     } finally {
       await client.close();
     }
@@ -362,6 +392,31 @@ describe('a write-confirm tool across the boundary', () => {
     } finally {
       await client.close();
       await fixture.close();
+    }
+  });
+
+  it('notes.replace is written when the host accepts, and not when it declines', async () => {
+    const accepted = await startFixture({ label: 'notes-ok', allowWrites: true, seed: true });
+    const yes = await connectClient(accepted.url, accepted.token, acceptConfirm);
+    try {
+      const result = await yes.callTool({ name: 'notes.replace', arguments: { doc: LANDING, notes: 'Rewritten from the host.' } });
+      expect(result.isError).not.toBe(true);
+      expect(accepted.session.state.manifest.tree.find((node) => node.id === LANDING)?.notes).toBe('Rewritten from the host.');
+    } finally {
+      await yes.close();
+      await accepted.close();
+    }
+
+    const declined = await startFixture({ label: 'notes-no', allowWrites: true, seed: true });
+    const no = await connectClient(declined.url, declined.token, declineConfirm);
+    try {
+      const before = folderBytes(declined.root);
+      const result = await no.callTool({ name: 'notes.replace', arguments: { doc: LANDING, notes: 'Never written.' } });
+      expect(JSON.stringify(result.structuredContent)).toContain('"written":false');
+      expect(folderBytes(declined.root)).toEqual(before);
+    } finally {
+      await no.close();
+      await declined.close();
     }
   });
 
@@ -768,11 +823,16 @@ describe('the registry seam', () => {
             'doc.import',
             'doc.read',
             'export.compile',
+            'filter.save',
+            'goal.save',
             'meta.set',
             'notes.append',
             'notes.read',
+            'notes.replace',
             'project.overview',
             'shots.annotate',
+            'synopsis.set',
+            'vocabulary.upsert',
           ]);
         } finally {
           await rwClient.close();

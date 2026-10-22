@@ -23,6 +23,8 @@ import { prepareCodexImport, codexImportParams } from './codex-import.js';
 import { prepareCodexWrite, codexWriteParams } from './codex-write.js';
 import { exportCompileParams, prepareExportCompile } from './export-compile.js';
 import { docImportParams, prepareDocImport } from './doc-import.js';
+import { PRIMITIVE_TOOLS } from './primitive-tools.js';
+import { PRIMITIVE_TOOL_NAMES, type PrimitiveToolName } from './primitive.js';
 import { prepareRestructure, restructureParams } from './restructure.js';
 import {
   docReadParams,
@@ -83,7 +85,16 @@ const DEFINITIONS: Readonly<Record<ToolName, Definition>> = {
   // The dialogue module's two tools (dialogue-narrative.md §7), read from the module's own entries.
   'dialogue.draft': extensionDefinition(DIALOGUE_TOOL_ENTRIES, 'dialogue.draft'),
   'dialogue.table': extensionDefinition(DIALOGUE_TOOL_ENTRIES, 'dialogue.table'),
+  // The allowlisted bus primitives, each built from its command's descriptor (tools/primitive.ts).
+  ...Object.fromEntries(PRIMITIVE_TOOL_NAMES.map((name) => [name, primitiveDefinition(name)])) as Record<PrimitiveToolName, Definition>,
 };
+
+/** An allowlisted primitive's definition: native, its prepare is the factory's, and its params are the spec's. */
+function primitiveDefinition(name: PrimitiveToolName): Definition {
+  const tool = PRIMITIVE_TOOLS.find((candidate) => candidate.meta.name === name);
+  if (tool === undefined) throw new Error(`no primitive tool for "${name}"`);
+  return { kind: 'native', params: tool.params, prepare: tool.prepare };
+}
 
 /** The fields of a module's registry entry that the registry reads. Each module declares its own, in the harness entry shape. */
 interface ExtensionEntry {

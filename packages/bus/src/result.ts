@@ -110,6 +110,8 @@ export interface CommandErrorDetails {
    * non-boolean under this name.
    */
   changesNothing?: boolean;
+  /** A status or label id the project does not hold (`unknownTerm`, params.ts): which vocabulary it was named in. */
+  unknownVocabulary?: 'status' | 'label';
   /** anything else the refusing command wants the model to see */
   [key: string]: unknown;
 }

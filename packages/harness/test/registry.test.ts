@@ -26,10 +26,10 @@ describe('the registry joins every tool to its metadata', () => {
   // the dialogue module's two (dialogue-narrative.md §7), which register because the module imports the bus and
   // not the harness. The spec's media-track count is twenty-three (14 + coherence 3 + storyboard 2 + prompt-pack 2 +
   // dialogue 2, agent-harness.md §10). The registry also carries doc.import, codex.import and tool.search, which that
-  // count leaves out, so it holds twenty-six.
-  it('lists all twenty-six rows, in the metadata table’s order', () => {
+  // count leaves out, and the five allowlisted bus primitives (issue #56), so it holds thirty-one.
+  it('lists all thirty-one rows, in the metadata table’s order', () => {
     expect(listing.map((item) => item.name)).toEqual([...TOOL_NAMES]);
-    expect(listing).toHaveLength(26);
+    expect(listing).toHaveLength(31);
   });
 
   // Two of the coherence tools are wired to the engine by default (coherence.scan and
@@ -91,6 +91,11 @@ describe('the registry joins every tool to its metadata', () => {
       'prompt.variant',
       'dialogue.draft',
       'dialogue.table',
+      'notes.replace',
+      'synopsis.set',
+      'vocabulary.upsert',
+      'filter.save',
+      'goal.save',
     ]);
     // A deferred row is found by name, description or keyword, so each carries a module word to be found by.
     for (const meta of TOOL_METADATA.filter((row) => row.load === 'deferred')) expect(meta.keywords?.length, meta.name).toBeGreaterThan(0);

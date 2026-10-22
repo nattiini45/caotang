@@ -126,3 +126,23 @@ test('a coherence review’s card shows what the review is estimated to cost, at
   await expect(card.locator('.plan-cost')).toContainText('About $');
   await expect(card.getByRole('button', { name: 'Approve', exact: true })).toBeEnabled();
 });
+
+test('a notes rewrite shows the new notes as added words in the card before Approve is clicked, and writes them once approved', async ({ page }) => {
+  const notes = 'Check the ferry timetable.\n\nKeeper’s log goes here.';
+  const plan = { steps: [{ tool: 'notes.replace', params: { doc: 'The Storm', notes }, expect: 'The Storm has new notes' }] };
+  await fakeEndpoint(page, planThenAnswer(plan, 'Rewritten.', FRIEND_PROSE));
+  await useFakeEndpoint(page);
+  await openSample(page);
+  await sendIntent(page, 'Rewrite the notes of The Storm.');
+
+  const card = page.getByTestId('plan-card');
+  const diff = card.getByRole('figure', { name: 'Notes this step writes' });
+  await expect(diff).toContainText('The notes of “The Storm”');
+  // The sample's notes are empty, so every word is an added one, set in an underlined run that does not rest on colour alone.
+  await expect(diff.locator('ins')).toContainText('Check the ferry timetable.');
+  await expect(diff.locator('del')).toHaveCount(0);
+  expect((await projectTrace(page)).filter((name) => name === 'notes.set')).toEqual([]);
+
+  await card.getByRole('button', { name: 'Approve', exact: true }).click();
+  await expect.poll(async () => (await projectTrace(page)).filter((name) => name === 'notes.set')).toEqual(['notes.set']);
+});
