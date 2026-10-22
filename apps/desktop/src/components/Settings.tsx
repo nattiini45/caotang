@@ -10,6 +10,7 @@
 import { useEffect, useReducer, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import {
   PRESETS,
+  isLocalBase,
   modelRowFor,
   presetFor,
   type ModelInfo,
@@ -251,6 +252,11 @@ function modelDetails(model: ModelInfo): string {
  */
 function capsLine(preset: PresetDef, model: string): string {
   if (model.trim() === '') return '';
+  // A local server's models are whatever the person pulled, so the row is a fallback and not a statement about this model.
+  if (preset.local !== undefined) {
+    const window = modelRowFor(preset, model.trim())?.contextWindow;
+    return `Until the server says more: ${window === undefined ? 'a small' : `${window.toLocaleString('en-US')}-token`} window, no native tools, no image input.`;
+  }
   const row = modelRowFor(preset, model.trim());
   if (row === undefined) {
     return 'Not a documented model for this provider — it is called with conservative defaults (no tools, no thinking level).';
@@ -270,6 +276,9 @@ function capsLine(preset: PresetDef, model: string): string {
 
 /** What the key field's label says, for this preset and this form. */
 function keyHint(preset: PresetDef | undefined, form: FormState, view: ProfileView | undefined, keyNeeded: boolean): string {
+  if (preset?.local !== undefined) {
+    return form.id === null ? '(optional — only if you set one on the server)' : '(optional — leave empty to keep the stored key)';
+  }
   if (preset?.keyOptional === true) {
     return form.id === null ? '(optional — this provider answers without one)' : '(optional — leave empty to keep the stored key)';
   }
@@ -324,10 +333,12 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
   const preset = form === null ? undefined : presetFor(form.preset);
   const isMock = form?.preset === 'mock';
   const isGeneric = form?.preset === 'generic';
+  // A server on this computer: its address is typed, within loopback, like a generic endpoint's (provider-gateway §2).
+  const isLocal = preset?.local !== undefined;
   // A saved endpoint whose origin the form moves to needs its key again: the gateway refuses to send the old one there.
   const original = form === null || form.id === null ? undefined : providers.get(form.id);
   const keyNeeded =
-    isGeneric === true && original !== undefined && form !== null && originOf(form.baseUrl) !== originOf(original.baseUrl);
+    (isGeneric === true || isLocal) && original !== undefined && form !== null && originOf(form.baseUrl) !== originOf(original.baseUrl);
 
   const run = async (work: () => Promise<void>): Promise<void> => {
     setBusy(true);
@@ -347,7 +358,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
   const choosePreset = (presetId: string): void => {
     if (form === null) return;
     const next = presetFor(presetId);
-    setForm({ ...form, preset: presetId, baseUrl: '', model: next?.defaultModel ?? '', fields: fieldDefaults(next), headers: [], headersTouched: false });
+    setForm({ ...form, preset: presetId, baseUrl: next?.local === undefined ? '' : next.baseUrl, model: next?.defaultModel ?? '', fields: fieldDefaults(next), headers: [], headersTouched: false });
   };
 
   const setField = (key: string, value: string): void => {
@@ -387,8 +398,8 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
           name: form.name,
           kind: 'endpoint',
           preset: form.preset,
-          // A named preset's URL is its own (built from its fields); only a generic endpoint types one.
-          ...(isGeneric === true ? { baseUrl: form.baseUrl } : {}),
+          // A named preset's URL is its own (built from its fields); only a generic endpoint or a local server types one.
+          ...(isGeneric === true || isLocal ? { baseUrl: form.baseUrl } : {}),
           ...(Object.keys(form.fields).length === 0 ? {} : { fields: form.fields }),
           ...(headers === undefined || headers === null ? {} : { customHeaders: headers }),
           defaultModel: form.model,
@@ -410,7 +421,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
         price.price ?? (priceClearedBy(form.promptPrice, form.completionPrice) && saved?.pricePer1k !== undefined ? null : undefined);
       const outcome = await providers.editProfile(form.id, {
         name: form.name,
-        ...(isMock === true ? {} : isGeneric === true ? { baseUrl: form.baseUrl } : {}),
+        ...(isMock === true ? {} : isGeneric === true || isLocal ? { baseUrl: form.baseUrl } : {}),
         // A fields patch on a templated preset rebuilds the profile's base URL from the new fields.
         ...(preset?.fields === undefined ? {} : { fields: form.fields }),
         ...(isGeneric === true ? { customHeaders: headers } : {}),
@@ -451,6 +462,8 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
                     : `${card?.name ?? 'OpenAI-compatible endpoint'} · ${profile.baseUrl} · ${profile.defaultModel}`}
                 </span>
                 {card?.cors === 'blocked' ? <span className="badge">Desktop app or hosted only</span> : null}
+                {/* Tied to the profile as it resolves: shown only while its address is this computer's. */}
+                {card?.local !== undefined && isLocalBase(profile.baseUrl) ? <span className="badge">Your text stays on this computer</span> : null}
                 {profile.responseFormat !== undefined ? (
                   <span className="muted">
                     {profile.responseFormat.supportsJsonObject ? 'Structured output accepted' : 'Structured output not accepted'}
@@ -512,11 +525,18 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
                 A saved profile's preset is fixed for its life — it is the record, not a preference. A preset whose API does
                 not answer a browser stays listed, disabled, with its honest label (provider-gateway §9). */}
             <select value={form.preset} disabled={form.id !== null} onChange={(event) => choosePreset(event.target.value)}>
-              {PRESETS.filter((entry) => entry.id !== 'mock' || form.preset === 'mock').map((entry) => (
+              {PRESETS.filter((entry) => entry.local === undefined && (entry.id !== 'mock' || form.preset === 'mock')).map((entry) => (
                 <option key={entry.id} value={entry.id} disabled={entry.cors === 'blocked'}>
                   {entry.cors === 'blocked' ? `${entry.name} — Desktop app or hosted only` : entry.name}
                 </option>
               ))}
+              <optgroup label="On this computer">
+                {PRESETS.filter((entry) => entry.local !== undefined).map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.name}
+                  </option>
+                ))}
+              </optgroup>
             </select>
           </label>
           {preset !== undefined && preset.cors === 'blocked' ? (
@@ -567,6 +587,32 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
                 onChange={(event) => setForm({ ...form, baseUrl: event.target.value })}
               />
             </label>
+          ) : preset?.local !== undefined ? (
+            <>
+              <label>
+                <span>Server address (on this computer, ending in /v1)</span>
+                <input
+                  type="url"
+                  placeholder={preset.baseUrl}
+                  value={form.baseUrl}
+                  onChange={(event) => setForm({ ...form, baseUrl: event.target.value })}
+                />
+              </label>
+              <p className="field-help">
+                {preset.local.setup}{' '}
+                {preset.docsUrl === undefined ? null : (
+                  <a href={preset.docsUrl} target="_blank" rel="noopener noreferrer">
+                    {preset.local.product} documentation
+                  </a>
+                )}
+              </p>
+              <p className="field-help">
+                {/* Said before the first request: Chrome and Edge ask for this permission themselves, in words that do not mention a model. */}
+                The first time, Chrome and Edge ask whether this site may connect to apps on your device. Choose Allow; if you decline,
+                requests are blocked until you allow them in the site settings. Safari is unverified.
+              </p>
+              {isLocalBase(form.baseUrl) ? <p className="field-help">Your text stays on this computer.</p> : null}
+            </>
           ) : preset !== undefined && preset.id !== 'mock' && preset.baseUrl !== '' ? (
             <p className="field-help">
               Endpoint: <code>{preset.baseUrlFor?.(form.fields) ?? preset.baseUrl}</code>
