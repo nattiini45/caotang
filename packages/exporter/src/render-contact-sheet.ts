@@ -256,7 +256,10 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
       return null;
     }
     try {
-      tools ??= { bidi: await import('@caotang/pdf-fonts/bidi'), shape: (await import('@caotang/pdf-fonts/shaper')).fontkitShape };
+      if (tools === undefined) {
+        const shaper = await import('@caotang/pdf-fonts/shaper');
+        tools = { bidi: await import('@caotang/pdf-fonts/bidi'), shape: shaper.shapeKeepingMarks(shaper.fontkitShape) };
+      }
       const face = new RtlFace(script, (await loadFont(load, `the ${name} font`)) as unknown as FontkitFont, tools.shape);
       const embedding = new RtlEmbedding(lib, pdf, face);
       rtl.set(script, embedding);

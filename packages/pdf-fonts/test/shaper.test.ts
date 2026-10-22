@@ -9,7 +9,7 @@ import type { Font } from '@pdf-lib/fontkit';
 import { openFont } from '../src/fontkit.js';
 import { loadArabicFontInNode, loadHebrewFontInNode } from '../src/node-loader.js';
 import { withoutMarks } from '../src/rtl-script.js';
-import { blankGlyphOf, clusterTexts, fontkitShape, withMarkGlyphs } from '../src/shaper.js';
+import { blankGlyphOf, clusterTexts, fontkitShape, shapeKeepingMarks, withMarkGlyphs } from '../src/shaper.js';
 
 interface Glyphs {
   glyphs: { id: number; advance: number; dx: number; dy: number }[];
@@ -182,6 +182,20 @@ describe('the text of the marks and joiners that are not drawn', () => {
   it('returns the glyphs as they were when their texts are not the letters of the source', () => {
     const drawn = [glyph(1, 'x')];
     expect(withMarkGlyphs(drawn, 'بَ', 'rtl', blank)).toBe(drawn);
+  });
+
+  it('is what an engine that takes a text with its marks does: the bare text shaped, the marks as glyphs that draw nothing', () => {
+    const keeping = shapeKeepingMarks(fontkitShape);
+    const text = 'بِسْمِ اللّٰهِ';
+    // fontkit throws on this text as typed; the marks are left out of what it shapes.
+    expect(fontkitShape(text, fonts.arabic, 'rtl', 'arabic').failed).toBeDefined();
+    const run = keeping(text, fonts.arabic, 'rtl', 'arabic');
+    expect(run.failed).toBeUndefined();
+    expect([...run.glyphs].reverse().map((entry) => entry.text).join('')).toBe(text);
+    expect(run.advance).toBe(fontkitShape(withoutMarks(text), fonts.arabic, 'rtl', 'arabic').advance);
+    // A text without marks is the engine's own result, and a failure is passed on.
+    expect(keeping('سلام', fonts.arabic, 'rtl', 'arabic')).toEqual(fontkitShape('سلام', fonts.arabic, 'rtl', 'arabic'));
+    expect(shapeKeepingMarks(() => ({ glyphs: [], advance: 0, failed: 'no' }))('بِ', fonts.arabic, 'rtl', 'arabic').failed).toBe('no');
   });
 
   it('borrows the glyph a font draws for a space', () => {

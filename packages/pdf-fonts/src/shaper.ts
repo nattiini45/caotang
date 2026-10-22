@@ -22,7 +22,7 @@
 
 import type { Font, GlyphRun } from '@pdf-lib/fontkit';
 
-import { isRtlMark, type RtlScript } from './rtl-script.js';
+import { isRtlMark, withoutMarks, type RtlScript } from './rtl-script.js';
 
 /** One glyph of a shaped run. Advance and offsets are in font units. */
 export interface ShapedGlyph {
@@ -150,6 +150,19 @@ export function withMarkGlyphs(glyphs: readonly ShapedGlyph[], source: string, d
   }
   const inLogicalOrder = [...lead, ...logical.flatMap((glyph, index) => [glyph, ...(after[index] ?? [])])];
   return direction === 'rtl' ? inLogicalOrder.reverse() : inLogicalOrder;
+}
+
+/**
+ * An engine that takes a text with its marks. The marks are left out of what the engine shapes (it cannot be shown to place them
+ * as HarfBuzz does, and fontkit 1.1.1 throws on some) and come back as glyphs that draw nothing and carry their text
+ * ({@link withMarkGlyphs}); the advance is the bare text's. A host that cannot import this module before it is needed (the
+ * contact sheet's emitter loads the shaper on demand) gets the marks' text through the one function it is handed.
+ */
+export function shapeKeepingMarks(shape: Shape): Shape {
+  return (text, font, direction, script) => {
+    const run = shape(withoutMarks(text), font, direction, script);
+    return run.failed === undefined && run.glyphs.length > 0 ? { ...run, glyphs: withMarkGlyphs(run.glyphs, text, direction, blankGlyphOf(font)) } : run;
+  };
 }
 
 /** The id of the glyph a font draws for a space: empty, so the glyph of a mark can borrow it ({@link withMarkGlyphs}). */
