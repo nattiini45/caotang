@@ -157,6 +157,13 @@ describe('the pdf-validate job in ci.yml', () => {
     expect(job).toContain('if: failure()');
   });
 
+  it('sets the corpus folder with a context a job-level env allows (runner exists only inside steps)', () => {
+    const env = job.slice(job.indexOf('\n    env:'), job.indexOf('\n    steps:'));
+    expect(env).toContain('CAOTANG_PDF_OUT');
+    expect(env).not.toContain('runner.');
+    expect(job).not.toContain('runner.temp');
+  });
+
   it('keeps the workflow-wide read-only token', () => {
     expect(ci).toContain('permissions:\n  contents: read');
     expect(job).not.toContain('permissions:');

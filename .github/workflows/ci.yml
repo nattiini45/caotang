@@ -83,7 +83,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      CAOTANG_PDF_OUT: ${{ runner.temp }}/pdfs
+      CAOTANG_PDF_OUT: ${{ github.workspace }}/pdfs
     steps:
       - uses: actions/checkout@v7
 
@@ -113,5 +113,5 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: pdf-corpus
-          path: ${{ runner.temp }}/pdfs/
+          path: ${{ env.CAOTANG_PDF_OUT }}/
           retention-days: 7
