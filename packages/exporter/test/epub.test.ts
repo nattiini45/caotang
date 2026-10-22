@@ -177,7 +177,7 @@ describe('the chapter files — one per section, well-formed by construction', (
 });
 
 describe('a section scene — an h2 in its chapter file (exporter.md §2, Per-scene styling)', () => {
-  const styled = (id: string): FlatBlock[] =>
+  const styled = (id: string): readonly FlatBlock[] =>
     flatten(withSceneStyle(makeProject(), id, 'section'), { includeRootIds: ['manuscript'] }, { titlePage: true }).blocks;
 
   it('writes the scene title as an h2 above its prose, inside its chapter', async () => {
