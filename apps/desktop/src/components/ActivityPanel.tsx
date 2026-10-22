@@ -32,14 +32,17 @@ export function ActivityPanel({ session, onExport }: { session: ProjectSession; 
   // (activity-window.ts): the log keeps every row, and the panel renders none of the ones behind
   // its window.
   const [limit, setLimit] = useState(ACTIVITY_PANEL_WINDOW);
+  // The newest group the undo store holds, read once: the window needs it, and the Undo the panel
+  // offers is the one on it. Reading it walks every live group and copies it, so asking twice would
+  // walk the whole undo stack twice on every render of the panel.
+  const newest = session.newestUndoGroupId();
   const panel = activityWindow(session.log.entries(), {
     showViews,
     groupOf: (id) => session.undo.group(id),
-    newestUndoGroupId: session.newestUndoGroupId(),
+    newestUndoGroupId: newest,
     limit,
   });
   const rows = panel.rows;
-  const newest = session.newestUndoGroupId();
 
   const undoGroup = (id: string, summary: string): void => {
     void session.undoGroup(id).then((done) => {
