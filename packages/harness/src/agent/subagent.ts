@@ -291,7 +291,8 @@ export function createSubagentRunner(host: SubagentHost): SubagentRunner {
           if (signal?.aborted === true) throw new TurnStopped();
           const last = call === spec.maxModelCalls;
           if (last && call > 1) messages.push({ role: 'user', content: FINAL_CALL_NOTICE });
-          const declared = native && !last && defs !== undefined && defs.length > 0 ? { ...base, tools: defs } : base;
+          // The last call keeps the tools declared, with calling them forbidden: its history holds tool calls and results, which a provider rejects without `tools`.
+          const declared: ModelCall = native && defs !== undefined && defs.length > 0 ? { ...base, tools: defs, toolChoice: last ? 'none' : 'auto' } : base;
           // Counted when the request is sent: one the writer's Stop cut short, or a provider failed, was still made.
           modelCalls += 1;
           const reply = await complete(declared, messages, native ? undefined : { jsonSchemaHint: REPLY_SCHEMA_HINT });

@@ -309,13 +309,14 @@ describe('the model calls an agent reserves', () => {
     expect(f.released).toEqual([0]);
   });
 
-  it('are not declared as tools on the native wire’s last call, so it can only answer', async () => {
+  it('stay declared on the native wire’s last call with tool choice none, so the replayed tool history is valid and it can only answer', async () => {
     const seen: ChatRequest[] = [];
     const call: MockResponse = { content: '', toolCalls: [{ id: 'c', name: 'doc.read', argumentsJson: JSON.stringify(READ.params) }], finishReason: 'tool_calls' };
     const f = await fixture([inOrder([call, call, reply(NOTES)], seen)], { native: true });
     const result = await f.go(READER);
     expect(result.status).toBe('done');
-    expect(seen.map((request) => (request.tools?.length ?? 0) > 0)).toEqual([true, true, false]);
+    expect(seen.map((request) => (request.tools?.length ?? 0) > 0)).toEqual([true, true, true]);
+    expect(seen.map((request) => request.toolChoice)).toEqual(['auto', 'auto', 'none']);
   });
 
   it('give every read a call id derived from the turn and the agent’s path, so the replay cache cannot answer one with another’s', async () => {

@@ -48,6 +48,8 @@ export interface ModelCall {
    * carry `toolCalls`.
    */
   readonly tools?: readonly ToolDef[];
+  /** `'none'` keeps `tools` declared and forbids calling them: a request that replays tool calls and results must still declare the tools. Default `'auto'`. */
+  readonly toolChoice?: 'auto' | 'none';
   /** The session's effort level, when it pins one — passed to the request as `thinking`. */
   readonly thinking?: ThinkingLevel;
   readonly onDelta?: (text: string) => void;
@@ -128,7 +130,7 @@ export async function complete(call: ModelCall, messages: readonly ChatMessage[]
     ...(call.profileId === undefined ? {} : { profileId: call.profileId }),
     ...(call.model === undefined ? {} : { model: call.model }),
     ...(responseFormat === undefined ? {} : { responseFormat }),
-    ...(call.tools === undefined || call.tools.length === 0 ? {} : { tools: call.tools, toolChoice: 'auto' as const }),
+    ...(call.tools === undefined || call.tools.length === 0 ? {} : { tools: call.tools, toolChoice: call.toolChoice ?? 'auto' }),
     ...(call.thinking === undefined ? {} : { thinking: call.thinking }),
   };
   const { signal } = call;
