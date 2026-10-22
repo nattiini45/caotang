@@ -1,11 +1,11 @@
-import { createHmac } from 'node:crypto';
+import { scryptSync } from 'node:crypto';
 import type { Kdf, RandomBytes } from '../src/index.js';
 
-/** A fast stand-in for Argon2id. It is not memory-hard and is never shipped. */
+/** A fast stand-in for Argon2id: scrypt at the smallest cost, so the tests stay quick. It is never shipped. */
 export const fastKdf: Kdf = {
-  id: 'test-hmac-sha256',
+  id: 'test-scrypt-n16',
   async derive(passphrase, salt) {
-    return new Uint8Array(createHmac('sha256', salt).update(passphrase).digest());
+    return new Uint8Array(scryptSync(passphrase, salt, 32, { N: 16, r: 1, p: 1 }));
   },
 };
 
