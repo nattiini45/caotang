@@ -213,8 +213,10 @@ describe('an internal copy mirrors what the state holds', () => {
     // The author's file is the one the load declined, and the copy leaves it out: the copy says so
     // once, for the one file, and not for two.
     expect(report.omitted).toEqual([`docs/${SCREENPLAY}.md`]);
-    // The author's file is left exactly as it is.
-    expect(await fs.readBytes(`docs/${SCREENPLAY}.md`)).toEqual(NOT_TEXT);
+    // The author's file is left exactly as it is: the copy does not write it, and the report does
+    // not name it among the files it wrote.
+    expect(report.written).not.toContain(`docs/${SCREENPLAY}.md`);
+    expect(await target.exists(`docs/${SCREENPLAY}.md`)).toBe(false);
   });
 
   it('leaves the author’s own file exactly as it is', async () => {
