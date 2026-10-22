@@ -32,6 +32,7 @@ import {
   UnknownSelectionNodeError,
 } from './errors.js';
 import { flatten, type FlattenResult } from './flatten.js';
+import { SCENE_STYLE_ROWS, droppedStyleNotes, type SceneStyleRow } from './scene-style.js';
 import { imageSizeOf } from './image-size.js';
 import { renderMedia, type MediaFile } from './media.js';
 import { renderDocx, DOCX_MIME } from './render-docx.js';
@@ -102,6 +103,11 @@ export interface ExporterOptions {
    * the compile log says so.
    */
   readonly loadEmojiFont?: FontLoader;
+  /**
+   * The scene styles and the formats that express them (exporter.md §2, Per-scene styling). Absent is the build's own rows
+   * (`section`, in all four prose formats); a test supplies a row a format lacks to reach the compile log's dropped-style note.
+   */
+  readonly sceneStyles?: readonly SceneStyleRow[];
 }
 
 /** A bus export command as a caller dispatches it: its name, and the params the bus validated for it. */
@@ -261,7 +267,8 @@ export function createExporter(options: ExporterOptions): ExporterService {
     const titlePage = request.options.titlePage ?? template.titlePage;
     const wantToc = request.options.toc ?? template.toc;
 
-    const flat = flatten(state, request.selection, { titlePage });
+    const styleRows = options.sceneStyles ?? SCENE_STYLE_ROWS;
+    const flat = flatten(state, request.selection, { titlePage, sceneStyles: styleRows });
     const chapterCount = flat.chapterCount;
     // EPUB always carries a contents document (nav.xhtml, §3a), so its flag is on
     // whenever it has a chapter to list; the other formats follow the recipe.
@@ -270,6 +277,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
 
     const notes: string[] = [...flat.notes];
     if (templateNote !== undefined) notes.push(templateNote);
+    notes.push(...droppedStyleNotes(flat.blocks, request.format, styleRows));
     let epub: EpubFacts | undefined;
     if (request.format === 'epub') {
       // Refused here, before anything is reserved or queued, so a refusal writes nothing.
@@ -415,7 +423,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
     },
 
     previewFlatten(selection): FlatBlock[] {
-      return [...flatten(options.readState(), selection, { titlePage: true }).blocks];
+      return [...flatten(options.readState(), selection, { titlePage: true, sceneStyles: options.sceneStyles ?? SCENE_STYLE_ROWS }).blocks];
     },
 
     listRecipes: () => [...recipesOf(options.readState())],

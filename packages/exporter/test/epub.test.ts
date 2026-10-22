@@ -18,7 +18,7 @@ import { EPUB_MIME, renderEpub, type EpubInput } from '../src/render-epub.js';
 import type { RenderInput } from '../src/render-input.js';
 import { DEFAULT_TEMPLATE } from '../src/template.js';
 import type { FlatBlock } from '../src/types.js';
-import { IDS, makeProject, PROJECT_NAME } from './fixture.js';
+import { IDS, makeProject, PROJECT_NAME, withSceneStyle } from './fixture.js';
 
 const IDENTIFIER = 'urn:uuid:3f2a9c1e-8b4d-4a5e-9c7f-2d1e0a9b8c7d';
 const MTIME = new Date('2026-10-08T09:30:00.000Z');
@@ -173,6 +173,31 @@ describe('the chapter files — one per section, well-formed by construction', (
     const chapter = (await pack(epubInput({}, blocks))).text['OEBPS/chapter-001.xhtml'] ?? '';
     expect(chapter).not.toContain('javascript:');
     expect(chapter).toContain('<p>click</p>');
+  });
+});
+
+describe('a section scene — an h2 in its chapter file (exporter.md §2, Per-scene styling)', () => {
+  const styled = (id: string): FlatBlock[] =>
+    flatten(withSceneStyle(makeProject(), id, 'section'), { includeRootIds: ['manuscript'] }, { titlePage: true }).blocks;
+
+  it('writes the scene title as an h2 above its prose, inside its chapter', async () => {
+    const { text } = await pack(epubInput({}, styled(IDS.landing)));
+    const chapter = text['OEBPS/chapter-002.xhtml'] ?? '';
+    expect(chapter).toContain('<h1>1. Chapter One</h1>');
+    expect(chapter).toMatch(/<h2>The Landing<\/h2>\s*<p>The ferry was late, as always\.<\/p>/);
+    expect(chapter.match(/<h2>/g)).toHaveLength(1);
+  });
+
+  it('leaves the navigation documents as the chapter list', async () => {
+    const { text } = await pack(epubInput({}, styled(IDS.landing)));
+    expect(text['OEBPS/nav.xhtml']).not.toContain('The Landing');
+    expect(text['OEBPS/toc.ncx']).not.toContain('The Landing');
+  });
+
+  it('does not repeat the title of a loose lead scene that already heads its section', async () => {
+    const chapter = (await pack(epubInput({}, styled(IDS.prologue)))).text['OEBPS/chapter-001.xhtml'] ?? '';
+    expect(chapter).toContain('<h1>Prologue</h1>');
+    expect(chapter).not.toContain('<h2>');
   });
 });
 

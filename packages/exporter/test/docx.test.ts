@@ -17,7 +17,7 @@ import { flatten } from '../src/flatten.js';
 import { DOCX_MIME, renderDocx } from '../src/render-docx.js';
 import type { RenderInput } from '../src/render-input.js';
 import { DEFAULT_TEMPLATE } from '../src/template.js';
-import { makeProject, PROJECT_NAME, IDS } from './fixture.js';
+import { makeProject, PROJECT_NAME, IDS, withSceneStyle } from './fixture.js';
 import type { FlatBlock } from '../src/types.js';
 
 function input(blocks?: readonly FlatBlock[], toc = true): RenderInput {
@@ -117,6 +117,43 @@ describe('the DOCX contents field — the TOC recipe', () => {
     const body = (await parts(await renderDocx(input(undefined, false))))['word/document.xml'] ?? '';
     expect(body).not.toContain('<w:sdt>');
     expect(body).not.toContain('TOC \\h');
+  });
+});
+
+describe('a section scene — Heading 2 (exporter.md §2, Per-scene styling)', () => {
+  const styled = (): RenderInput => {
+    const state = withSceneStyle(makeProject(), IDS.landing, 'section');
+    return input(flatten(state, { includeRootIds: ['manuscript'] }, { titlePage: true }).blocks);
+  };
+
+  it('gives the scene title paragraph the Heading 2 style, defined in styles.xml, with no page break', async () => {
+    const xml = await parts(await renderDocx(styled()));
+    expect(xml['word/styles.xml']).toMatch(/<w:style [^>]*w:styleId="Heading2"[\s\S]*?<w:name w:val="heading 2"\/>/i);
+    const body = xml['word/document.xml'] ?? '';
+    expect(body).toMatch(/<w:pStyle w:val="Heading2"\/>(?:(?!<\/w:p>)[\s\S])*The Landing/);
+    expect(body.split('<w:pStyle w:val="Heading2"/>')).toHaveLength(2); // the one section, and no other scene
+    expect(body).not.toContain('<w:pStyle w:val="Heading2"/><w:pageBreakBefore/>');
+  });
+
+  it('puts the section in the cached contents at level 2, after its chapter, while the field still asks for 1-2', async () => {
+    const body = (await parts(await renderDocx(styled())))['word/document.xml'] ?? '';
+    const field = body.slice(body.indexOf('<w:sdt>'), body.indexOf('</w:sdt>'));
+    expect(body).toContain('TOC \\h \\o &quot;1-2&quot;');
+    const chapterOne = field.indexOf('1. Chapter One');
+    const section = field.indexOf('The Landing');
+    const chapterTwo = field.indexOf('2. Chapter Two');
+    expect(chapterOne).toBeGreaterThanOrEqual(0);
+    expect(section).toBeGreaterThan(chapterOne);
+    expect(chapterTwo).toBeGreaterThan(section);
+    // The cache's paragraphs carry their level's TOC style (docx writes TOC{level}), and that style is defined.
+    expect(field).toMatch(/<w:pStyle w:val="TOC2"\/>(?:(?!<\/w:p>)[\s\S])*The Landing/);
+    expect((await parts(await renderDocx(styled())))['word/styles.xml']).toContain('w:styleId="TOC2"');
+  });
+
+  it('leaves a manuscript with no section scene with no Heading 2 and chapter entries only', async () => {
+    const xml = await parts(await renderDocx(input()));
+    expect(xml['word/document.xml']).not.toContain('Heading2');
+    expect(xml['word/document.xml']).not.toContain('TOC2');
   });
 });
 

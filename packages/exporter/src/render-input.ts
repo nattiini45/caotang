@@ -42,6 +42,28 @@ export function chapterHeadings(input: RenderInput): ChapterHeading[] {
   return out;
 }
 
+/** The heading a `section` scene prints, or `undefined` for any other scene or a section with a blank title. */
+export function sectionTitle(block: FlatBlock): string | undefined {
+  return block.kind === 'scene' && block.style === 'section' && block.title.trim() !== '' ? block.title.trim() : undefined;
+}
+
+export interface ContentsEntry {
+  readonly label: string;
+  /** 1 for a chapter, 2 for a `section` scene's heading. */
+  readonly level: 1 | 2;
+}
+
+/** The Word contents list's entries in document order: each chapter heading, and each section heading under it. */
+export function contentsEntries(input: RenderInput): ContentsEntry[] {
+  const out: ContentsEntry[] = [];
+  for (const block of input.blocks) {
+    if (block.kind === 'chapter') out.push({ label: chapterLabel(input.template, block.number, block.title), level: 1 });
+    const section = sectionTitle(block);
+    if (section !== undefined) out.push({ label: section, level: 2 });
+  }
+  return out;
+}
+
 export function hasTitlePage(input: RenderInput): boolean {
   return input.blocks.some((block) => block.kind === 'frontmatter' && block.fmKind === 'titlepage');
 }
