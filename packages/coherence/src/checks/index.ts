@@ -3,6 +3,7 @@
  * Adding a check is a spec change with fixtures, never a runtime plugin.
  */
 
+import { cueFactsOfScenes } from '../cues.js';
 import { DETERMINISTIC_CHECK_IDS, type DeterministicCheckId } from '../model.js';
 
 import type { CheckInput, CheckOutput, DraftFinding } from './common.js';
@@ -35,6 +36,9 @@ export const DETERMINISTIC_CHECKS: Readonly<Record<DeterministicCheckId, (input:
 /**
  * Runs the named checks, in registry order, so the same selection always yields
  * the same draft order. An unknown id is a caller bug and throws.
+ *
+ * The script checks read the same screenplay bodies, so a run that asks for one of them parses each body once and
+ * shares the read between them.
  */
 export function runChecks(input: CheckInput, ids: readonly DeterministicCheckId[]): CheckOutput {
   const wanted = new Set<string>(ids);
@@ -43,11 +47,15 @@ export function runChecks(input: CheckInput, ids: readonly DeterministicCheckId[
       throw new Error(`unknown deterministic check "${id}"`);
     }
   }
+  const shared: CheckInput =
+    input.cueFacts === undefined && ids.some((id) => id.startsWith('script.'))
+      ? { ...input, cueFacts: cueFactsOfScenes(input.scenes) }
+      : input;
   const drafts: DraftFinding[] = [];
   const notes: string[] = [];
   for (const id of DETERMINISTIC_CHECK_IDS) {
     if (!wanted.has(id)) continue;
-    const output = DETERMINISTIC_CHECKS[id](input);
+    const output = DETERMINISTIC_CHECKS[id](shared);
     drafts.push(...output.drafts);
     notes.push(...output.notes);
   }
