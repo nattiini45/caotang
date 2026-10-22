@@ -35,6 +35,8 @@ node dist/caotang-mcp.mjs serve --project ~/Writing/my-novel --stdio
 | `--token-env <VAR>` | Read the bearer token from this environment variable. Default `CAOTANG_MCP_TOKEN`. |
 | `--stdio` | Serve over stdin and stdout instead of HTTP. No port and no token: the host's process boundary stands in for both. |
 
+`caotang mcp serve ...` (the `caotang` command of `@caotang/cli`) takes the same flags and runs the same server; `caotang-mcp` stays the bin of this package and of the `.mcpb` bundle.
+
 Every line the server writes goes to **stderr**. In `--stdio` mode stdout carries only the protocol.
 
 At start one line says how `CAOTANG_MCP_ALLOW_WRITES` was set: `is unset`, `is "true"`, `is "false"` or `is other (not "true", so it does not turn writes on)`. It never prints the value itself, so a host that passes a template it did not fill in shows as `other`.

@@ -215,6 +215,38 @@ The server runs on your computer over stdio and opens no network port. Uninstall
 
 The bundle is not signed, and it has not been tested in a real host yet. [packages/mcp-server/HOST-CHECKS.md](packages/mcp-server/HOST-CHECKS.md) lists the checks and holds the results; it has none so far. The release lists the file's SHA-256 in `SHA256SUMS`.
 
+## Caotang from the command line
+
+`caotang agent` runs one turn of the agent on a project folder and exits, for a terminal, a Makefile, a cron job or CI. It is read-only unless you say otherwise: without `--write` nothing in the folder changes, and the files that would change are printed as a diff. Build it with `pnpm --filter @caotang/cli build`, which writes `packages/cli/dist/caotang.mjs` (one file; run it with `node`, and keep its `fonts/` folder beside it).
+
+```sh
+# The demo provider: no key, no network. Prints the reply, exits 0, writes nothing.
+node dist/caotang.mjs agent -p "Check the manuscript for continuity problems." --mock --project ~/Writing/my-novel
+
+# A review with your own key, read-only. The key comes from the environment, never from a flag.
+CAOTANG_API_KEY=... node dist/caotang.mjs agent -p "Check the manuscript for continuity problems." \
+  --provider openrouter --project ~/Writing/my-novel --output-format json
+
+# Approve every card the plan shows, save the folder, and print what changed.
+CAOTANG_API_KEY=... node dist/caotang.mjs agent -p "Fill in the synopses for Chapter 1." \
+  --provider openrouter --project ~/Writing/my-novel --permission approve-all --write
+```
+
+| Flag | Meaning |
+|---|---|
+| `-p <intent>` | What to ask. `-p -` reads it from stdin. |
+| `--project <dir>` | The project folder (default: the working directory). |
+| `--mock` or `--provider <preset>` | The demo provider, or a provider preset (`--base-url`, `--model` and `--thinking` refine it). |
+| `--key-env <VAR>` | The environment variable that holds the key (default `CAOTANG_API_KEY`). There is no flag for the key itself: it would show in `ps` and in your shell history. |
+| `--permission <mode>` | `read-only` (default): every card is cancelled. `auto`: a change that needs no card runs, every card is cancelled. `approve-all`: every card is approved as shown, and a draft the provider cut off never is. |
+| `--approve-tools <tool,...>` | With `approve-all`: approve a card only if every step is one of these tools. A card with any other step in it is cancelled, whole. |
+| `--write` | Save the folder after the turn. Needs `auto` or `approve-all`. |
+| `--plan-file <plan.json>` | Run a plan you wrote, `{ "steps": [{ "tool", "params", "expect" }] }`, with no planner call. |
+| `--output-format` | `text` (default), `json` (one object when the turn ends) or `stream-json` (one line per event, a `decision` line for each card, then the result). |
+| `--max-model-calls <n>` | The most model calls a turn may make (default 8). |
+
+Standard output carries only the chosen format; progress and notes go to standard error. The exit code is **0** when the turn is done, **1** for an internal error, **2** for a wrong command line or a folder that holds no project, **3** when another writer (the app, or `caotang-mcp serve`) holds the folder, **4** when the turn needs input (a card was cancelled by the permission mode, a bound was reached, or the provider failed), **5** for a conflict, **6** when verification failed, and **130** and **143** after SIGINT and SIGTERM. The undo history of a `--write` run ends with the command, so keep the folder in git. `caotang mcp serve` starts the MCP server with the same flags as `caotang-mcp serve`.
+
 ## Scripting Caotang
 
 The agent can also run from a Node script, a CLI or CI, against a project folder, with an approval policy in place of the cards. The package is `@caotang/sdk`, and its [README](packages/sdk/README.md) has three examples: the demo provider, a read-only review with your own key, and an approve-everything run that writes the folder. Changes stay in memory until you save, `diff()` shows them first, and the key is held in memory and sent only to your provider.

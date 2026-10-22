@@ -136,6 +136,10 @@ Look at `diff()` before you set `write: true` on a project you care about.
 
 `onSave(changes)` is called after each write of the folder with the files it changed, because `diff()` is empty once the folder is saved. `project.provider` names the preset and the model the turns run on.
 
+## The command line
+
+`caotang agent` in [`@caotang/cli`](../cli/README.md) is this package with flags: read-only by default, the diff printed without `--write`, the key from an environment variable, JSON out.
+
 ## How it is built
 
 | File | What it is |
