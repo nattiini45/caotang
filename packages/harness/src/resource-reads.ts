@@ -8,7 +8,7 @@
  */
 
 import { ok, type CommandError, type Result } from '@caotang/bus';
-import { codexRead } from '@caotang/codex';
+import { codexRead, sortCodex } from '@caotang/codex';
 import type { CodexEntry, ProjectState, TreeNode } from '@caotang/store';
 
 import { failure, notFound } from './errors.js';
@@ -60,4 +60,9 @@ export function readCodexEntry(state: ProjectState, id: string): Result<CodexEnt
   if (found !== undefined) return ok(found);
   const asked = codexRead({ id }, { entries });
   return failure(notFound(asked.note ?? `no codex entry with id "${id}"`, 'use the codex resource to list the entries, then pass one of its ids', 'id'));
+}
+
+/** The codex in its deterministic order (codex.md §6), which is the order `codex.read` lists it in. */
+export function codexInOrder(state: ProjectState): CodexEntry[] {
+  return sortCodex(state.manifest.codex ?? []);
 }

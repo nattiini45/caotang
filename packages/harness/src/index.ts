@@ -96,7 +96,7 @@ export {
 } from './agent/eval.js';
 export { createAgentPorts, draftModeRefusal, previewFor, codexReadPort, sceneDraftPort, synopsisFillPort, continuityScanPort } from './agent/ports.js';
 // The reads an MCP resource serves, whole, and the node lookups the server's prompts share with the tools (extensibility §9).
-export { readBody, readCodexEntry, readNotes, type BodyRead, type NotesRead } from './resource-reads.js';
+export { codexInOrder, readBody, readCodexEntry, readNotes, type BodyRead, type NotesRead } from './resource-reads.js';
 export { ANY_NODE, CONTAINER, DOCUMENT, childrenOf, descendantsOf, resolveNode } from './resolve.js';
 export { CONTINUITY_MAX_DOCS } from './tools/ports.js';
 export {
