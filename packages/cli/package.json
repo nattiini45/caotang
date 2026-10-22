@@ -1,0 +1,34 @@
+{
+  "name": "@caotang/cli",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "The caotang command line: run the agent on a project folder from a terminal, a script or CI (`caotang agent -p`), and the MCP server (`caotang mcp serve`)",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "bin": {
+    "caotang": "./dist/caotang.mjs"
+  },
+  "dependencies": {
+    "@caotang/font-noto-arabic": "workspace:*",
+    "@caotang/font-noto-cjk": "workspace:*",
+    "@caotang/font-noto-devanagari": "workspace:*",
+    "@caotang/font-noto-emoji": "workspace:*",
+    "@caotang/font-noto-hebrew": "workspace:*",
+    "@caotang/gateway": "workspace:*",
+    "@caotang/mcp-server": "workspace:*",
+    "@caotang/pdf-fonts": "workspace:*",
+    "@caotang/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@caotang/store": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "vite build --config vite.config.ts"
+  }
+}

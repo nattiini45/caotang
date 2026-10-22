@@ -64,6 +64,7 @@ packages/bus/            the command bus — every change goes through it
 packages/codex/          codex entries (characters, places, lore, subplots)
 packages/coherence/      findings and coherence checks
 packages/context/        context assembly for agent requests
+packages/crypto/         key hierarchy, file sealing and rollback marks for the hosted instance (specified, not built; nothing imports it)
 packages/dialogue/       branching dialogue (Ink)
 packages/editor/         the scene editor
 packages/editor-audit/   editor audit trail
@@ -75,6 +76,7 @@ packages/ids/           id helpers
 packages/mcp-client/     MCP client (Streamable HTTP)
 packages/mcp-server/     Caotang as an MCP server (@caotang/mcp-server)
 packages/pdf-fonts/      what both PDFs share for their fallback fonts (byte checks, fontkit, CID writer, emoji)
+packages/remote-store/   ArtifactFs over an encrypted remote blob store for the hosted instance (specified, not built; nothing imports it)
 packages/screenplay/     Fountain screenplay model
 packages/sdk/            run the agent from Node against a project folder (@caotang/sdk); owns the Node folder session the MCP server shares
 packages/skills/         Agent Skills folders: the SKILL.md reader, the caps, the review pin, the model's catalog

@@ -5,8 +5,8 @@
  * Run: `node tools/third-party-notices.mjs --write` (writes ./THIRD-PARTY-NOTICES.md). The file is not edited by hand: the test in
  * packages/mcp-server/test/third-party-notices.test.ts regenerates it and fails when the committed copy has drifted from the lockfile.
  *
- * What it covers. The shipped artefacts are the desktop build (apps/desktop, Vite into dist/) and the MCP server bundle
- * (packages/mcp-server, one file, with its dependencies inlined). Their production dependencies are read from
+ * What it covers. The shipped artefacts are the desktop build (apps/desktop, Vite into dist/), the MCP server bundle
+ * (packages/mcp-server, one file, with its dependencies inlined) and the `caotang` command-line bundle (packages/cli, the same). Their production dependencies are read from
  * `pnpm list --prod`, which walks the same lockfile the build uses, so the list cannot name a package the build does not
  * contain. Development tools are not shipped, so they are not listed. Caotang's own packages are MIT, under LICENSE, and
  * are not repeated here, except the workspace packages that hold third-party work under its own license
@@ -27,7 +27,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** The workspace packages whose production closure ships. Paths are relative to the repository root. */
-export const SHIPPED_FILTERS = ['./apps/desktop', './packages/mcp-server'];
+export const SHIPPED_FILTERS = ['./apps/desktop', './packages/mcp-server', './packages/cli'];
 
 /** The file name the notices take, in the repository and beside every build that ships them. */
 export const NOTICES_FILE = 'THIRD-PARTY-NOTICES.md';

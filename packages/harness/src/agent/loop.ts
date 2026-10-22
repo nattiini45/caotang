@@ -167,6 +167,7 @@ export interface AgentSessionOptions {
   /** Asked for a decision on every card. The loop does not act until it answers. */
   readonly decide: (pending: PendingCard) => Promise<Decision>;
   readonly emit?: (event: AgentEvent) => void;
+  /** The profile and model every turn runs on unless its own `TurnOptions` pin another (the app pins per turn; a background task's session pins here). */
   readonly profileId?: string;
   readonly model?: string;
   /**
@@ -176,7 +177,7 @@ export interface AgentSessionOptions {
    */
   readonly role?: TaskRole;
   /**
-   * The effort level every model request of the session is sent with (`ChatRequest.thinking`). Absent,
+   * The effort level a model request is sent with (`ChatRequest.thinking`) unless the turn pins its own. Absent,
    * the provider's own default applies.
    */
   readonly thinking?: ThinkingLevel;
@@ -186,7 +187,8 @@ export interface AgentSessionOptions {
   readonly maxRetries?: number;
   /**
    * Names this session's turns: a turn is `<session>.turn-<n>`, so two sessions on one gateway or one
-   * harness never share a turn id. Defaults to a random name. An eval pins one, so its runs are the same bytes.
+   * harness never share a turn id. Defaults to a random name. The app pins one for the life of its panel, and an eval pins
+   * one so its runs are the same bytes.
    */
   readonly sessionId?: string;
   /**
@@ -241,6 +243,14 @@ export interface TurnOptions {
    * and a bus command that has started is never interrupted. The turn ends as `cancelled` with `stop.by === 'user'`.
    */
   readonly signal?: AbortSignal;
+  /**
+   * The profile, model and thinking level this turn's model calls run on, over the session's own. A session outlives a provider
+   * change, so a writer who switches between turns keeps the conversation (context-assembly §2, L6): the pins are the turn's,
+   * never the session's. Absent, the session's pin applies.
+   */
+  readonly profileId?: string;
+  readonly model?: string;
+  readonly thinking?: ThinkingLevel;
 }
 
 /** What a UI action can tell a planner turn before it starts. */
@@ -351,6 +361,13 @@ interface NoteRecord {
   deliveredAtCall?: number;
 }
 
+/** Where a turn's calls go: `TurnOptions`' pins over `AgentSessionOptions`'. */
+interface Pins {
+  readonly profileId: string | undefined;
+  readonly model: string | undefined;
+  readonly thinking: ThinkingLevel | undefined;
+}
+
 interface Turn {
   readonly id: string;
   readonly messages: ChatMessage[];
@@ -364,6 +381,8 @@ interface Turn {
   modelCalls: number;
   /** The writer's stop (`TurnOptions.signal`). */
   readonly signal: AbortSignal | undefined;
+  /** The profile, model and thinking level this turn's calls run on: its own pins over the session's. */
+  readonly pins: Pins;
   /** The phase the turn last reported: what a stop says it happened during. */
   phase: TurnPhase;
   /** The notes the writer sent, in order; one without `deliveredAtCall` has not reached the model. */
@@ -542,12 +561,25 @@ export function sceneTask(
   };
 }
 
+/** continuity.scan's task (context-assembly §2): the documents to check, and the aspects asked for, if any. */
+export function continuityTask(scope: readonly string[], aspects: readonly string[]): AgentTask {
+  return {
+    tool: 'continuity.scan',
+    instruction:
+      aspects.length === 0
+        ? 'Check these documents for continuity problems.'
+        : `Check these documents for continuity problems in these aspects: ${aspects.join(', ')}.`,
+    params: { aspects },
+    scope,
+  };
+}
+
 /**
  * synopsis.fill's task text for one document (L7). The notes are in it for `notes` and `both`. For `notes` the
  * text is not sent, and the task says so: the focus layer lists an empty body as empty, and it has no stand-in
  * for a full document, so the model is told in words that the synopsis is drafted from the notes alone.
  */
-function synopsisInstruction(node: TreeNode, source: 'text' | 'notes' | 'both'): string {
+export function synopsisInstruction(node: TreeNode, source: 'text' | 'notes' | 'both'): string {
   const notes = source !== 'text' && node.notes.trim() !== '' ? `\nNotes:\n${node.notes.trim()}` : '';
   const withheld = source === 'notes' ? '\nThe text of this document is not sent: write the synopsis from the notes alone.' : '';
   return `Document "${node.title}":${notes}${withheld}\nBrief: write the synopsis of this document.`;
@@ -660,15 +692,30 @@ function stoppedBy(error: unknown, limit: number): Settled {
   return { status: 'failed', askBack: { code: 'needs_input', reason: `the model call failed: ${messageOf(error)}`, options: PROVIDER_OPTIONS } };
 }
 
+/** The longest outcome a turn keeps for L6 (context-assembly §2): the layer clips its own line, this bounds what the session holds. */
+const OUTCOME_KEPT_CHARS = 240;
+
+/** A turn's summary as one line of at most `OUTCOME_KEPT_CHARS`, cut with an ellipsis and never inside a surrogate pair. */
+function clipOutcome(text: string): string {
+  const flat = text.split(/\s+/).filter((word) => word !== '').join(' ');
+  if (flat.length <= OUTCOME_KEPT_CHARS) return flat;
+  let end = OUTCOME_KEPT_CHARS - 1;
+  const last = flat.charCodeAt(end - 1);
+  if (last >= 0xd800 && last <= 0xdbff) end -= 1;
+  return `${flat.slice(0, end)}…`;
+}
+
 export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const { harness, gateway } = options;
   // The project is read at each call, so a session follows the project as the writer changes it. The model's
   // limits are read at each call too, so they follow the profile and model the session is calling (context-assembly §5).
+  // The pins of the turn that started last: the default port has no turn to read them from.
+  let latestPins: Pins = { profileId: options.profileId, model: options.model, thinking: options.thinking };
   const context =
     options.context ??
     createContextPort({
       state: () => harness.state,
-      config: () => ({ model: gateway.modelLimits(options.profileId, options.model, options.thinking) }),
+      config: () => ({ model: gateway.modelLimits(latestPins.profileId, latestPins.model, latestPins.thinking) }),
     });
   const emit = (event: AgentEvent): void => options.emit?.(event);
   const now = options.clock ?? Date.now;
@@ -751,11 +798,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     },
     turnId: turn.id,
     ...signalOf(turn),
-    // The session's pins apply to its own role only: a call under another role resolves that role's
+    // The turn's pins apply to the session's own role only: a call under another role resolves that role's
     // profile, model and thinking at the gateway instead of borrowing the session's.
-    ...(options.profileId === undefined || role !== options.role ? {} : { profileId: options.profileId }),
-    ...(options.model === undefined || role !== options.role ? {} : { model: options.model }),
-    ...(options.thinking === undefined || role !== options.role ? {} : { thinking: options.thinking }),
+    ...(turn.pins.profileId === undefined || role !== options.role ? {} : { profileId: turn.pins.profileId }),
+    ...(turn.pins.model === undefined || role !== options.role ? {} : { model: turn.pins.model }),
+    ...(turn.pins.thinking === undefined || role !== options.role ? {} : { thinking: turn.pins.thinking }),
     // A draft's deltas go to its scene's ghost region (`draft.delta`), and every other call's to the panel's stream tail.
     onDelta: onDelta ?? ((delta) => emit({ type: 'model.delta', turnId: turn.id, delta })),
     // Reasoning has one sink on every call — the panel's collapsed "Thinking" block. A draft's reasoning is the
@@ -765,11 +812,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
   /**
    * The tool declarations a native planner call may send, or `undefined` on the JSON wire: the model
-   * behind this session's profile and model must report `tools` in its capabilities, and there must be
+   * behind this turn's profile and model must report `tools` in its capabilities, and there must be
    * tools to declare. A gateway with no `modelCaps` reports nothing, which is the fallback either way.
    */
-  const nativeTools = (): ToolDef[] | undefined => {
-    if (gateway.modelCaps?.(options.profileId, options.model)?.tools !== true) return undefined;
+  const nativeTools = (turn: Turn): ToolDef[] | undefined => {
+    if (gateway.modelCaps?.(turn.pins.profileId, turn.pins.model)?.tools !== true) return undefined;
     const tools = plannerToolDefs(harness.tools(), harness.loadedNativeTools(), harness.loadedExternalTools(), loadEvery());
     return tools.length === 0 ? undefined : tools;
   };
@@ -850,7 +897,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const promptModel = (turn: Turn) =>
     promptModelOf(
       async (messages, jsonSchemaHint) => (await complete(modelCall(turn, undefined, 'drafting'), messages, { jsonSchemaHint })).text,
-      options.model ?? '',
+      turn.pins.model ?? '',
     );
 
   const nextCallPrefix = (turn: Turn, letter: string): string => {
@@ -1081,7 +1128,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // active model's price applied to the plan (cards.ts `reviewCostAt`, which the Findings tab reads too); an unpriced model adds nothing to the proposal.
       const planned = harness.reviewPlan(step.params);
       if (!planned.ok) return refusedDraft(planned.error.message);
-      const cost = reviewCostAt(planned.value, gateway, options.profileId, options.model, options.thinking);
+      const cost = reviewCostAt(planned.value, gateway, turn.pins.profileId, turn.pins.model, turn.pins.thinking);
       return { ok: true, proposal: cost === undefined ? planned.value : { ...planned.value, cost } };
     }
     if (step.tool === 'dialogue.draft') {
@@ -1128,15 +1175,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const aspects = Array.isArray(step.params['aspects']) ? (step.params['aspects'] as readonly string[]) : [];
     const call = context.assemble({
       ...history,
-      task: {
-        tool: 'continuity.scan',
-        instruction:
-          aspects.length === 0
-            ? 'Check these documents for continuity problems.'
-            : `Check these documents for continuity problems in these aspects: ${aspects.join(', ')}.`,
-        params: { aspects },
-        scope: scope.map((node) => node.id),
-      },
+      task: continuityTask(scope.map((node) => node.id), aspects),
       role: continuityRole(aspects),
     });
     turn.dropped.push(...dropLinesOf(call.prompt));
@@ -2176,7 +2215,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // The wire is picked here, once per turn, from the model's capabilities: native tool calls when the
     // model can take them, the JSON envelope otherwise. The system message states the protocol the call
     // speaks (protocol.ts `plannerSystem`/`plannerSystemNative` — same rules, different wording).
-    turn.native = nativeTools() !== undefined;
+    turn.native = nativeTools(turn) !== undefined;
     turn.converses = true;
     // The planner's call is a `meta` call (context-assembly §3): the protocol and tool list as L0, the project
     // summary as L1, and the request as L7.
@@ -2268,7 +2307,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    */
   async function stageSteps(stepsIn: readonly PlanStep[], turnOptions: TurnOptions): Promise<StageOnlyResult> {
     const parsed = parsePlan({ steps: stepsIn });
-    const turn = newTurn(turnOptions.signal, []);
+    const turn = newTurn(turnOptions, []);
     const steps = parsed.ok ? parsed.value.steps : [];
     const proposals: unknown[] = stepsIn.map(() => undefined);
     const revisions: StepRevisions[] = stepsIn.map(() => ({}));
@@ -2312,8 +2351,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * One turn, from its record to its report. `first` runs the turn's steps. A failure it cannot recover from is reported in words
    * the user can act on: the turn is never left half-finished, and whatever it applied stays in its undo group.
    */
-  function newTurn(signal: AbortSignal | undefined, priorTurns: readonly RecentTurn[]): Turn {
+  function newTurn(turnOptions: TurnOptions, priorTurns: readonly RecentTurn[]): Turn {
     turnCounter += 1;
+    const pins: Pins = {
+      profileId: turnOptions.profileId ?? options.profileId,
+      model: turnOptions.model ?? options.model,
+      thinking: turnOptions.thinking ?? options.thinking,
+    };
+    latestPins = pins;
     return {
       id: `${sessionName}.turn-${turnCounter}`,
       messages: [],
@@ -2324,7 +2369,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       dropped: [],
       priorTurns,
       modelCalls: 0,
-      signal,
+      signal: turnOptions.signal,
+      pins,
       phase: 'started',
       notes: [],
       deciding: false,
@@ -2338,8 +2384,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
   async function runTurn(intent: string, turnOptions: TurnOptions, first: (turn: Turn) => Promise<Settled>): Promise<TurnReport> {
     // The turns before this one are what L6 may show; this turn's intent is recorded for the ones after it.
-    const turn = newTurn(turnOptions.signal, [...started]);
-    started.push({ turnId: turn.id, intent });
+    const turn = newTurn(turnOptions, [...started]);
+    const slot = started.push({ turnId: turn.id, intent }) - 1;
     running.set(turn.id, turn);
     phase(turn, 'started');
 
@@ -2360,6 +2406,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const totals = gateway.ledger.turnTotals(turn.id);
     const report = reportOf(turn, settled, { promptTokens: totals.promptTokens, completionTokens: totals.completionTokens, requests: totals.requests });
     finished.push(report);
+    // What L6 reads for this turn once its activity rows are gone, or when it wrote none: a reply's own answer is its outcome.
+    started[slot] = {
+      turnId: turn.id,
+      intent,
+      outcome: clipOutcome(report.summary),
+      ...(report.undoGroupId === undefined ? {} : { undoGroupId: report.undoGroupId }),
+    };
     // A turn that called an external tool carries the scope note on its checkpoint: the undo can reverse Caotang's changes only.
     const mixed = turn.trace.some((row) => row.tool.startsWith('mcp__'));
     if (report.undoGroupId !== undefined) {

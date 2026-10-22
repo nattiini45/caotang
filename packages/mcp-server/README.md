@@ -1,6 +1,6 @@
 # `@caotang/mcp-server` — Caotang as an MCP server
 
-Caotang's tool registry, served to an outside agent over MCP: the same tools, under the same names, descriptions and schemas, through the same command bus and the same permission gate. The design is [extensibility.md §9](../../docs/architecture/extensibility.md). The tool list is in [The tools](#the-tools) below, and it is the list a host sees.
+Caotang's tool registry, served to an outside agent over MCP, with the project's text as resources and the writer's workflows as prompts: the same tools, under the same names, descriptions and schemas, through the same command bus and the same permission gate. The design is [extensibility.md §9](../../docs/architecture/extensibility.md). The tool list is in [The tools](#the-tools) below, and it is the list a host sees.
 
 It is **read-only by default**. Writes are exposed only when the project is opened with `--allow-writes` (or `CAOTANG_MCP_ALLOW_WRITES=true`). Then fourteen tools write: seven apply their change at once, and seven ask the user to confirm each call in the host before anything is written. The tables under [The tools](#the-tools) say which is which.
 
@@ -34,6 +34,8 @@ node dist/caotang-mcp.mjs serve --project ~/Writing/my-novel --stdio
 | `--port <n>` | The loopback port for Streamable HTTP. Default `7433`; `0` picks a free one and prints it. |
 | `--token-env <VAR>` | Read the bearer token from this environment variable. Default `CAOTANG_MCP_TOKEN`. |
 | `--stdio` | Serve over stdin and stdout instead of HTTP. No port and no token: the host's process boundary stands in for both. |
+
+`caotang mcp serve ...` (the `caotang` command of `@caotang/cli`) takes the same flags and runs the same server; `caotang-mcp` stays the bin of this package and of the `.mcpb` bundle.
 
 Every line the server writes goes to **stderr**. In `--stdio` mode stdout carries only the protocol.
 
@@ -122,6 +124,44 @@ These are the tools a host lists, measured from `tools/list` on a server started
 - `tool.search` is not listed. It searches the tool servers Caotang's own MCP client connects to, and this server connects to none, so the tool could only report that.
 - The eight tools that need a model are not listed, because the server holds no provider key: `scene.draft`, `synopsis.fill`, `continuity.scan`, `coherence.review`, `shots.derive`, `prompt.draft`, `prompt.variant` and `dialogue.draft`.
 
+## Resources
+
+The project's text, for a host that lets the writer attach it: `@caotang:caotang://doc/…` in Claude Code, the resource picker in Cursor and VS Code. A resource is something the writer chose, so it is the **whole** body; the 25,000-token cap of `doc.read` is for what a model is handed on its own. The design is [extensibility.md §9](../../docs/architecture/extensibility.md).
+
+| URI | MIME | What |
+|---|---|---|
+| `caotang://project` | `text/markdown` | The overview: title, size, and the binder's first two levels with the ids to read by. |
+| `caotang://binder` | `application/json` | The `binder.read_tree` data, root to depth 3, with word counts. |
+| `caotang://codex` | `application/json` | The codex index: id, name, type, aliases, include policy. |
+| `caotang://doc/{id}` | `text/markdown`, `text/x-fountain` (a screenplay), `text/plain` (a dialogue container's Ink) | A document's body, whole. |
+| `caotang://notes/{id}` | `text/markdown` | A node's synopsis, notes and keywords. |
+| `caotang://codex/{id}` | `text/markdown` | A codex entry, with its whole description. |
+
+- **Ids only.** A URI names a node or an entry by its id, never by a file name or a title.
+- **Listed in a fixed order.** `resources/list` gives the three fixed URIs, then the documents in binder order and the codex entries in codex order; two lists of one project are byte-identical. Notes are read by the id of a listed node and are not listed. The templates complete on a title or a name and return ids.
+- **Never cut.** A body over 2 MiB (`RESOURCE_MAX_BYTES`) is refused with its size named. An unknown id, or a folder where a document is wanted, is refused with `-32602` and the words `doc.read` uses.
+- **Cached privately, not at all.** Results carry `cacheScope: "private"` and `ttlMs: 0`.
+- **Reading never writes.** A resource read saves nothing, with or without `--allow-writes`, and writes no log row.
+- **Subscriptions, with `--allow-writes` only.** A read-only server reports `resources.subscribe` and `resources.listChanged` as `false`, because its resources cannot change while it runs. With writes on, a `notes.append` sends `notifications/resources/updated` for `caotang://notes/{id}` to a host that subscribed (a `subscriptions/listen` stream on 2026-07-28, `resources/subscribe` on a 2025-era connection or over stdio), and a create, move or rename sends `list_changed`. The notice is sent after the save. **The server does not watch the folder:** a change another program makes stops the server's writes, and the server says so once with a `list_changed`, so a subscribed host reads again.
+- **No findings resource yet.** Open coherence findings wait for the server to serve them in a form a host can attach.
+
+## Prompts
+
+Five prompts, listed in every mode. Each runs Caotang's own context assembly ([context-assembly.md](../../docs/architecture/context-assembly.md)) on the same task the in-app tool builds, and returns it as a prompt for the host's model: the codex entries the scene mentions, the structure, the story so far and the focus text, within budget. **Nothing on this server calls a model, and it holds no key:** the host's own model does the writing.
+
+| Prompt | Arguments | What it asks the host's model |
+|---|---|---|
+| `draft-scene` | `doc`, `instruction`, `mode?` (`draft`, `continue`, `rewrite_selection`) | To draft, continue or rewrite a scene. `draft` needs an empty document, as `scene.draft` does. |
+| `fill-synopsis` | `doc` | To write the document's synopsis. |
+| `continuity-check` | `scope?` (a part or folder; else the manuscript; at most 20 documents) | To report continuity problems. |
+| `codex-from-doc` | `doc` | To list the codex entries the document introduces that the codex lacks. |
+| `revise-with-codex` | `doc`, `instruction` | To rewrite the whole text to a brief, with the codex it mentions. |
+
+- **A closing line says what to do with the result.** With `--allow-writes` it names the tool that stores it (`doc.import` into a new document, `synopsis.set`, `codex.write`), and the host's own confirmation applies as for any write; on a read-only server it says the server is read-only and the result is shown to the writer.
+- **A prompt refuses what the tool would refuse**, in the tool's words: a folder where a document is wanted, or `mode: draft` on a document that has text.
+- **The budgets are the defaults.** The writer's in-app context budgets live in the browser, not in the project folder, so the server uses `ContextConfig`'s defaults.
+- **Manuscript text goes to the host's model.** That is the writer's own host and choice, as it is when a model calls `doc.read`.
+
 ## Write-confirm across the boundary
 
 A write-confirm call is not run on the first request. The server asks with an elicitation whose schema is exactly `{ confirmed: boolean }`: a 2026-07-28 host gets it as an `input_required` result, and a 2025-era host gets it as an elicitation request on its connection. The host shows that as a dialog, and the call runs only when the user accepts it:
@@ -161,7 +201,8 @@ Every other tool is refused as a tool result: "this project could not be opened;
 - **A recovery is the host's word, with the folder checked.** `project.recoverApply` exists only with `--allow-writes`, asks through the same confirmation round trip as every other write, and writes only the store's ladder (the new manifest and the kept original), after the drift check above. A degraded server runs no other tool, so it has no general file access.
 - **Hard-deny is server-side.** `project.deleteNode` is refused by the guard before the SDK sees the request, so the refusal does not depend on what the host allows.
 - **Saves check the folder first.** Before a save the folder must hold the `caotang.json`, document and codex files this server last loaded or saved (The save guard). A change by another program stops writes, and nothing it wrote is overwritten or removed.
-- **Every external row is tagged** `source: "mcp"` in the activity log, including confirmed writes.
+- **Every external row is tagged** `source: "mcp"` in the activity log, including confirmed writes. A resource read or a prompt writes no row.
+- **No key, no model call.** The prompts and resources are text built from the project. The server never sends the manuscript anywhere itself: a host reads it and passes it to the model the writer chose.
 - **Atomic writes, contained paths.** Every file write is a temp file, an fsync and a rename. A path that would leave the project folder, including through a symlink or a junction, is refused.
 - **The confirmation is the host's word.** The server cannot see a person click accept. It checks that the answer is for these arguments and that it was not replayed. On a 2025-era connection the question waits 60 seconds, and the dialog text and the `initialize` instructions say so. After that the call returns an error result from the SDK ("Fulfilling input required by 'tools/call' failed: Request timed out"), nothing is written, and calling again asks a new question; an answer that comes late has no question to answer and is dropped. A host that keeps sending progress while its dialog is open keeps the wait alive. The 2026-07-28 path and stdio hold no connection open and keep the SDK's own wait. The bearer token is the boundary; the dialog is the host's promise to the user.
 - **The bundle has no network listener.** Installed as a `.mcpb`, the server runs over stdio, and the host's process boundary stands in for the token.
@@ -172,6 +213,8 @@ These are stated, not hidden. Each is a behaviour a reader of the code could oth
 
 The real-host runs that would settle the two bundle gaps below are listed in [HOST-CHECKS.md](HOST-CHECKS.md); none has been run.
 
+- **The server does not watch the folder.** A subscribed host hears of the writes this server made. A file another program changed is found only when the server next tries to save or to ask for a confirmation: the writes stop, and the server says so once. Until then the server, and a host that holds a resource open, still show the project as it was loaded.
+- **A listening 2025-era connection is idle.** A connection that holds a subscription and an open stream has no request in flight, so the table can close it to make room for a new one, or after 30 idle minutes; the host has to `initialize` and subscribe again.
 - **Model-backed tools are not listed.** The eight tools named under The tools need a provider key, and this server holds none. They return in a build that wires them to a provider.
 - **A 2025-era connection ends with the server.** The connections live in this process. A restart closes every one of them, and any confirmation open on one ends with it, with nothing written; the host has to `initialize` again and ask again. A host that never sends a session id is served statelessly, and it cannot be asked a question, so it is refused the writes that ask. A 2026-07-28 host has no connection to keep, so nothing changes for it.
 - **The `.mcpb` bundle has not been run in a real host.** The manifest is checked by the pinned MCPB CLI, the pack is tested end to end, and the write setting is read from `CAOTANG_MCP_ALLOW_WRITES`, where only the exact value `true` turns writes on. The step that depends on the host is the substitution of `${user_config.allow_writes}` into that variable. A host that substitutes something else leaves writes off, which is the safe direction.
@@ -194,6 +237,9 @@ The real-host runs that would settle the two bundle gaps below are listed in [HO
 | `src/recovery.ts` | A folder whose `caotang.json` will not load: the degraded session that holds the lock and the store's offer, `project.recover` and `project.recoverApply`, the drift check, and the words of the refusals, the question and the instructions. |
 | `src/confirm.ts` | The round state, the argument digest, the dialog text, the replay ledger. |
 | `src/guard.ts` | Refusals before the SDK: hard-deny, read-only writes, and every other tool on a degraded server. |
+| `src/resources.ts`, `src/uris.ts` | The resources: their URIs, lists, completions, whole-body reads, and which resources a log row changes. |
+| `src/prompts.ts` | The five prompts: their tasks (the harness's own task builders), the assembly, and the closing line. |
+| `src/changes.ts`, `src/subscriptions.ts` | The change feed the session announces to after a save, and its delivery to a `subscriptions/listen` stream or a 2025-era subscriber. |
 | `src/tools.ts` | The harness registry as MCP tools, and the confirmation round trip (`confirmRound`, shared with the recovery). The one presentation rule is that `tool.search` is not listed. |
 | `src/server.ts` | The HTTP listener (guards, token, the SDK's handler), the stdio transport, and the instructions the host reads at initialize. |
 | `src/auth.ts` | The bearer token: minted or supplied, its length rule, and the constant-time comparison. |

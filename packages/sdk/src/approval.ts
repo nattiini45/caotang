@@ -8,24 +8,60 @@
 
 import { metadataFor, type AskBack, type Decision, type Harness, type PendingCard, type ToolOutcome, type TurnReport } from '@caotang/harness';
 
-/** Who answers the cards. A string is a built-in policy; a function is the caller's own `decide`. */
+/**
+ * `approve-all`, narrowed to a list of tools: a card is approved only when every step still to run calls one of them, so the policy
+ * filters whole cards and is not a per-primitive toggle. A card with any other step in it is cancelled, whole.
+ */
+export interface ApproveToolsPolicy {
+  readonly approveTools: readonly string[];
+}
+
+/** Who answers the cards. A string or an `approveTools` object is a built-in policy; a function is the caller's own `decide`. */
 export type ApprovalPolicy =
   | 'read-only' // default: every card is cancelled and a write-auto call is refused, so only reads run
   | 'auto' // write-auto calls run (they never show a card); every write-confirm card is cancelled
   | 'approve-all' // every card is approved as shown; a cut draft is still never accepted
+  | ApproveToolsPolicy // approve-all for the cards whose every step is a listed tool; any other card is cancelled
   | ((pending: PendingCard) => Decision | Promise<Decision>);
+
+/** One answer to one card, for the audit trail a host keeps (`OpenOptions.onDecision`). */
+export interface DecisionRecord {
+  readonly turnId: string;
+  readonly kind: 'plan' | 'confirm';
+  readonly action: Decision['action'];
+  /** Why, in a sentence: the policy's rule that applied. */
+  readonly reason: string;
+}
 
 const CANCEL: Decision = { action: 'cancel' };
 const APPROVE: Decision = { action: 'approve' };
 
+/** The tools of the steps a card still has to run. */
+function pendingTools(pending: PendingCard): string[] {
+  return [...new Set(pending.card.steps.filter((step) => step.status !== 'done').map((step) => step.tool))];
+}
+
 /**
- * The decision a built-in policy gives a card. `approve-all` approves what the card says it can run. A card that cannot be approved as
- * shown (a draft the provider cut at its output limit, a step the preflight refused) is cancelled, so the loop is not asked the same
- * question again, and `acceptTruncated` is never sent: nobody has read the cut text.
+ * The decision a built-in policy gives a card, and why. `approve-all` approves what the card says it can run. A card that cannot be
+ * approved as shown (a draft the provider cut at its output limit, a step the preflight refused) is cancelled, so the loop is not asked
+ * the same question again, and `acceptTruncated` is never sent: nobody has read the cut text.
  */
+export function explainDecision(policy: NamedPolicy, pending: PendingCard): { readonly decision: Decision; readonly reason: string } {
+  const name = typeof policy === 'string' ? policy : 'approve-tools';
+  if (policy === 'read-only' || policy === 'auto') return { decision: CANCEL, reason: `the "${policy}" policy approves no card` };
+  if (pending.card.cut) return { decision: CANCEL, reason: `a draft was cut off at the model’s output limit, and the "${name}" policy does not keep cut text` };
+  if (!pending.card.approvable) return { decision: CANCEL, reason: 'the card could not be approved as shown' };
+  if (policy === 'approve-all') return { decision: APPROVE, reason: 'the "approve-all" policy approves a card as shown' };
+  const outside = pendingTools(pending).filter((tool) => !policy.approveTools.includes(tool));
+  if (outside.length > 0) {
+    return { decision: CANCEL, reason: `${outside.join(', ')} ${outside.length === 1 ? 'is' : 'are'} not in the approved tools (${policy.approveTools.join(', ')})` };
+  }
+  return { decision: APPROVE, reason: `every step is in the approved tools (${policy.approveTools.join(', ')})` };
+}
+
+/** The decision a built-in policy gives a card (see `explainDecision`). */
 export function decisionFor(policy: NamedPolicy, pending: PendingCard): Decision {
-  if (policy === 'approve-all') return pending.card.approvable ? APPROVE : CANCEL;
-  return CANCEL;
+  return explainDecision(policy, pending).decision;
 }
 
 /** The built-in policies, by name. */
@@ -36,14 +72,10 @@ export type NamedPolicy = Exclude<ApprovalPolicy, (pending: PendingCard) => unkn
  * the report says which step and why. Without it a cancelled turn reads as one the writer stopped (agent-harness §2 step 4).
  */
 export function askBackFor(policy: NamedPolicy, cancelled: readonly PendingCard[]): AskBack {
-  const tools = [...new Set(cancelled.flatMap((pending) => pending.card.steps.filter((step) => step.status !== 'done').map((step) => step.tool)))];
+  const tools = [...new Set(cancelled.flatMap(pendingTools))];
   const cut = cancelled.some((pending) => pending.card.cut);
   const what = tools.length === 0 ? 'a step' : tools.join(', ');
-  const why = cut
-    ? `a draft was cut off at the model’s output limit, and the "${policy}" policy does not keep cut text`
-    : policy === 'approve-all'
-      ? 'the card could not be approved as shown'
-      : `the "${policy}" policy approves no card`;
+  const why = [...new Set(cancelled.map((pending) => explainDecision(policy, pending).reason))].join('; ');
   return {
     code: 'needs_input',
     reason: `the turn needs an approval before ${what} can run, and ${why}. Nothing was written for it.`,

@@ -13,8 +13,8 @@
  * The public surface is `openProject` and the types around it. Nothing from an internal package is re-exported as a value.
  */
 
-export { openProject, type CaotangProject, type OpenOptions } from './open.js';
-export type { ApprovalPolicy } from './approval.js';
+export { openProject, type CaotangProject, type OpenOptions, type RunOptions } from './open.js';
+export type { ApprovalPolicy, ApproveToolsPolicy, DecisionRecord } from './approval.js';
 export type { ProviderConfig } from './providers.js';
 export type { AgentRun } from './run.js';
 export type { FileChange } from './diff.js';

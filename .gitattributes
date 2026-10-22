@@ -28,3 +28,6 @@ pnpm-lock.yaml binary
 # pinned SHA-256. Checked in as LF, restored as LF on every platform.
 packages/pdf-fonts/test/fixtures/emoji-test-17.0.txt text eol=lf
 packages/pdf-fonts/test/fixtures/bidi-character-test-13.0.0-slice.txt text eol=lf
+
+# Golden prompts: compared byte for byte with what the server builds.
+packages/mcp-server/test/golden/*.txt text eol=lf

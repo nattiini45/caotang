@@ -693,6 +693,103 @@ describe('the turns a session has run are L6 (context-assembly §2)', () => {
   });
 });
 
+describe('the outcome a turn leaves for L6 does not depend on the activity log (context-assembly §2)', () => {
+  /** Every request the session sends, in order. */
+  function recording(gateway: Gateway): { readonly gateway: Gateway; readonly sent: ChatRequest[] } {
+    const sent: ChatRequest[] = [];
+    return {
+      sent,
+      gateway: {
+        ...gateway,
+        complete: (request, signal) => {
+          sent.push(request);
+          return gateway.complete(request, signal);
+        },
+      },
+    };
+  }
+
+  const draftIntent = 'Draft the lamp.';
+  const draftScripts = [
+    transcript(draftIntent, [
+      steps({ tool: 'scene.draft', params: { doc: 'The Storm', instruction: 'The lamp fails.', mode: 'continue' }, expect: 'The Storm continues' }),
+      answer('Drafted.'),
+    ]),
+    prose('Brief: The lamp fails.', 'It fails.'),
+  ];
+  const draftText = (sent: readonly ChatRequest[]): string => {
+    const draft = sent.find((request) => request.responseFormat === 'text' && userTextOf(request).includes('Brief: The lamp fails.'));
+    expect(draft).toBeDefined();
+    return userTextOf(draft!);
+  };
+
+  it('a turn that only replied leaves its clipped answer as the outcome, since a reply writes no activity row', async () => {
+    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const { gateway, sent } = recording(await mockGateway([transcript('Who rows the ferry?', [answer('Oren rows the ferry.\n\nHe has done so for years.')]), ...draftScripts]));
+    const session = createAgentSession({ harness, gateway, decide: async () => ({ action: 'approve' }) });
+    for (const intent of ['Who rows the ferry?', draftIntent]) await session.submit(intent);
+
+    const text = draftText(sent);
+    expect(text).toContain('Intent: Who rows the ferry?');
+    expect(text).toContain('Outcome: Oren rows the ferry. He has done so for years.');
+    expect(text).toContain('Undo group: none');
+  });
+
+  it('a long answer is held to one clipped line', async () => {
+    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const { gateway, sent } = recording(await mockGateway([transcript('Tell me everything.', [answer('word '.repeat(200))]), ...draftScripts]));
+    const session = createAgentSession({ harness, gateway, decide: async () => ({ action: 'approve' }) });
+    for (const intent of ['Tell me everything.', draftIntent]) await session.submit(intent);
+
+    const outcome = draftText(sent)
+      .split('\n')
+      .find((line) => line.startsWith('  Outcome: '));
+    expect(outcome).toBeDefined();
+    expect(outcome!.length).toBeLessThanOrEqual('  Outcome: '.length + 240);
+    expect(outcome!.endsWith('…')).toBe(true);
+  });
+
+  it('turn ids follow the session id, in order', async () => {
+    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const gateway = await mockGateway([transcript('One.', [answer('A.')]), transcript('Two.', [answer('B.')])]);
+    const session = createAgentSession({ harness, gateway, decide: async () => ({ action: 'approve' }), sessionId: 'panel' });
+    const first = await session.submit('One.');
+    const second = await session.submit('Two.');
+
+    expect([first.turnId, second.turnId]).toEqual(['panel.turn-1', 'panel.turn-2']);
+  });
+});
+
+describe('a turn’s own pins, over the session’s (agent-harness §2)', () => {
+  it('each turn’s model calls carry that turn’s model and thinking level, and the session keeps its conversation across them', async () => {
+    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const gateway = await mockGateway([transcript('Name the ferryman.', [answer('Named.')]), transcript('Name the lamp.', [answer('Named.')]), transcript('Name the storm.', [answer('Named.')])]);
+    const sent: ChatRequest[] = [];
+    const recording: Gateway = {
+      ...gateway,
+      complete: (request, signal) => {
+        sent.push(request);
+        return gateway.complete(request, signal);
+      },
+    };
+    const profileId = gateway.profiles.active()?.id;
+    const session = createAgentSession({ harness, gateway: recording, decide: async () => ({ action: 'approve' }), model: 'session-model' });
+    await session.submit('Name the ferryman.', { profileId, model: 'first-model', thinking: 'low' });
+    await session.submit('Name the lamp.', { profileId, model: 'second-model', thinking: 'high' });
+    await session.submit('Name the storm.');
+
+    const planner = sent.filter((request) => isPlannerCall(request));
+    expect(planner.map((request) => [request.model, request.thinking])).toEqual([
+      ['first-model', 'low'],
+      ['second-model', 'high'],
+      ['session-model', undefined],
+    ]);
+    expect(planner[0]?.profileId).toBe(profileId);
+    // The third turn's planner reads the same one session: its turn is the third, not a new session's first.
+    expect(session.reports().map((report) => report.turnId.split('.').pop())).toEqual(['turn-1', 'turn-2', 'turn-3']);
+  });
+});
+
 describe('the prompt a card shows, and the budgets it is held to (context-assembly §3, §5)', () => {
   it('a codex entry dropped for budget appears on the card with its reason, and the included entries say why they are there', async () => {
     const intent = 'Draft the storm with Elena and Kestrel in it.';

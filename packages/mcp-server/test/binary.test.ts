@@ -202,6 +202,26 @@ describe('the built caotang-mcp binary', () => {
     }
   }, 120_000);
 
+  it('serves the resources and prompts from the bundle too: the context assembly is in the single file', async () => {
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [BUNDLE, 'serve', '--project', join(root, 'stdio-resources'), '--create', 'Resource Book', '--stdio'],
+      env: { PATH: process.env['PATH'] ?? '', SystemRoot: process.env['SystemRoot'] ?? '' },
+      stderr: 'pipe',
+    });
+    const client = new Client({ name: 'caotang-stdio-resources', version: '0.0.0' }, { capabilities: {} });
+    await client.connect(transport);
+    try {
+      const { resources } = await client.listResources();
+      expect(resources.map((resource) => resource.uri)).toEqual(['caotang://project', 'caotang://binder', 'caotang://codex']);
+      const { prompts } = await client.listPrompts();
+      expect(prompts.map((prompt) => prompt.name)).toContain('continuity-check');
+      expect(client.getServerCapabilities()?.resources?.subscribe).toBeFalsy();
+    } finally {
+      await client.close();
+    }
+  }, 120_000);
+
   it('ends with exit 0 when the host closes stdin, and writes nothing to stdout', async () => {
     const child = spawn(process.execPath, [BUNDLE, 'serve', '--project', join(root, 'stdio-eof'), '--create', 'Eof Book', '--stdio'], {
       stdio: ['pipe', 'pipe', 'pipe'],

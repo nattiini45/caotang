@@ -1,0 +1,16 @@
+{
+  "name": "@caotang/crypto",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "Key hierarchy, file sealing, path hashing, recovery key and rollback marks for the hosted instance (hosted.md, specified, not built); WebCrypto only",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

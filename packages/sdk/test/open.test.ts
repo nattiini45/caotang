@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DEMO_INTENTS } from '@caotang/gateway/mock';
 import type { AgentEvent, TurnReport } from '@caotang/harness';
 
-import { LOCK_FILE, ProjectLockedError, openProject, type ApprovalPolicy, type CaotangProject, type OpenOptions } from '../src/index.js';
+import { LOCK_FILE, ProjectLockedError, openProject, type ApprovalPolicy, type CaotangProject, type DecisionRecord, type OpenOptions } from '../src/index.js';
 import { DRAFT_THE_FRIEND, TEST_PROFILE, endpoint } from './endpoint.js';
 import { FRIEND, LANDING, folderBytes, seedProject } from './fixture.js';
 import { removeDir, tempDir } from './support.js';
@@ -393,5 +393,83 @@ describe('turns run one at a time', () => {
     const [a, b] = await Promise.all([first.report, second.report]);
     expect(a.turnId).not.toBe(b.turnId);
     expect(b.status).toBe('applied');
+  });
+});
+
+describe('onDecision and a given plan', () => {
+  const MIXED_PLAN = {
+    steps: [
+      { tool: 'synopsis.fill', params: { docs: ['The Landing', 'The Storm'], source: 'text', max_words: 30 }, expect: 'both scenes have a synopsis' },
+      { tool: 'binder.restructure', params: { ops: [{ action: 'rename', node: FRIEND, title: 'The Guest' }] }, expect: 'The Friend is renamed' },
+    ],
+  };
+
+  it('records the answer of a built-in policy to each card, and why', async () => {
+    const records: DecisionRecord[] = [];
+    await using project = await open({ onDecision: (record) => records.push(record) });
+    await project.run(DEMO_INTENTS.draftScene).report;
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({ kind: 'confirm', action: 'cancel', reason: 'the "read-only" policy approves no card' });
+  });
+
+  it('records the answer of a policy function too', async () => {
+    const records: DecisionRecord[] = [];
+    await using project = await open({ approval: () => ({ action: 'cancel' }), onDecision: (record) => records.push(record) });
+    await project.run(DEMO_INTENTS.draftScene).report;
+    expect(records.map((record) => record.action)).toEqual(['cancel']);
+  });
+
+  it('runs a plan the caller wrote with no planner call, and cancels a card approveTools does not cover whole', async () => {
+    const records: DecisionRecord[] = [];
+    const before = folderBytes(root);
+    const project = await open({ approval: { approveTools: ['synopsis.fill'] }, write: true, onDecision: (record) => records.push(record) });
+    const report = await project.run('Fill the synopses and rename.', { plan: MIXED_PLAN }).report;
+    await project.close();
+    expect(report.status).toBe('cancelled');
+    expect(report.askBack?.code).toBe('needs_input');
+    expect(records).toHaveLength(1);
+    expect(records[0]?.action).toBe('cancel');
+    expect(records[0]?.reason).toContain('binder.restructure is not in the approved tools');
+    expect(folderBytes(root)).toEqual(before);
+  });
+
+  it('approves the same card when both tools are listed', async () => {
+    await using project = await open({ approval: { approveTools: ['synopsis.fill', 'binder.restructure'] } });
+    const report = await project.run('Fill the synopses and rename.', { plan: MIXED_PLAN }).report;
+    expect(report.status).toBe('applied');
+    expect((await project.diff()).map((change) => change.path)).toContain('caotang.json');
+  });
+
+  it('refuses a plan that does not parse as a failed report, not a throw', async () => {
+    await using project = await open({ approval: 'approve-all' });
+    const report = await project.run('Nothing.', { plan: { steps: [] } }).report;
+    expect(report.status).toBe('failed');
+  });
+});
+
+describe('onSave and provider', () => {
+  it('hands onSave the files a write changed, which diff() no longer holds afterwards', async () => {
+    const saved: string[][] = [];
+    await using project = await open({ approval: 'approve-all', write: true, onSave: (changes) => saved.push(changes.map((change) => change.path)) });
+    await project.run(DEMO_INTENTS.draftScene).report;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toContain(`docs/${FRIEND}.md`);
+    expect(await project.diff()).toEqual([]);
+  });
+
+  it('is not called for a turn that changed nothing, or when the project is not open for writing', async () => {
+    const saved: unknown[] = [];
+    await using project = await open({ approval: 'approve-all', onSave: (changes) => saved.push(changes) });
+    await project.run(DEMO_INTENTS.draftScene).report;
+    await project.run(DEMO_INTENTS.continuity).report;
+    expect(saved).toEqual([]);
+  });
+
+  it('names the preset and the model', async () => {
+    const demo = await open();
+    expect(demo.provider.preset).toBe('mock');
+    await demo.close();
+    await using real = await open({ provider: { profile: TEST_PROFILE, apiKey: 'sk-test-0123456789', model: 'my-model' } });
+    expect(real.provider).toEqual({ preset: 'generic', model: 'my-model' });
   });
 });

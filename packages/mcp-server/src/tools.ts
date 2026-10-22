@@ -46,14 +46,17 @@ import {
 } from './confirm.js';
 import { FolderChangedError } from '@caotang/sdk/folder';
 
+import type { ChangeFeed } from './changes.js';
 import { notMadeError, type ProjectSession } from './session.js';
 import { projectFileLabel, projectFileTitles } from '@caotang/store';
 
-/** Everything a tool needs to run: the open project, and the confirmation machinery. */
+/** Everything a tool needs to run: the open project, the confirmation machinery, and the feed of changes the project's writes announce. */
 export interface ToolRuntime {
   readonly session: ProjectSession;
   readonly codec: RequestStateCodec<RoundState>;
   readonly ledger: ConfirmLedger;
+  /** One per process, the session's own, shared by every per-request `McpServer` (changes.ts). */
+  readonly changes: ChangeFeed;
 }
 
 /** A value the harness can return in the tool result, as the MCP `structuredContent` object. */
