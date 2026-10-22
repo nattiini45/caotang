@@ -202,6 +202,18 @@ Three things to know before you connect:
 
 The tools that need a model, `scene.draft`, `synopsis.fill`, `continuity.scan`, `coherence.review`, `shots.derive`, `prompt.draft`, `prompt.variant` and `dialogue.draft`, are not available over MCP, because the server holds no provider key. [Bringing existing writing into Caotang](docs/USER-GUIDE.md#bringing-existing-writing-in-through-the-mcp-server) explains the import tools, `doc.import` and `codex.import`, which are available. With writes allowed, `export.compile` compiles the manuscript, one item or a saved recipe in any export format, EPUB included, once the host confirms it.
 
+### Install the bundle
+
+1. Build `caotang-mcp-0.1.0.mcpb` with the `pack` command above, or download it from the latest release.
+2. Drag the file onto an MCPB host such as Claude Desktop, or open it with the host. The host shows a dialog with the bundle's name, its description and two settings.
+3. Under **Project folder**, choose a folder that already holds a Caotang project.
+4. Leave **Allow changes** off unless you want the assistant to change the project. Off, the assistant can only read it. On, some changes still ask you to confirm them in the host first.
+5. The host may warn that the bundle is not signed and offer **Install Anyway**. The warning means the host cannot name a publisher for the file, because the signing tool today produces bundles that hosts refuse. The code is open, and you can build the same file from source with the `pack` command. Install it only if you built it or took it from this project's release.
+
+The server runs on your computer over stdio and opens no network port. Uninstalling the bundle removes the server and leaves your project folder as it was. The wording of the dialog differs between hosts and versions.
+
+The bundle is not signed, and it has not been tested in a real host yet. [packages/mcp-server/HOST-CHECKS.md](packages/mcp-server/HOST-CHECKS.md) lists the checks and holds the results; it has none so far. The release lists the file's SHA-256 in `SHA256SUMS`.
+
 ## Documents
 
 - [docs/USER-GUIDE.md](docs/USER-GUIDE.md): the guide for writers.
