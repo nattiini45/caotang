@@ -12,7 +12,7 @@
  * **So this function does three things and delegates the fourth.**
  *
  * 1. **Resolve** the anchor, after awaiting the lazy library so step 3 is available
- *    (§4's lazy boundary — the apply path is the only caller for which "one rung
+ *    (§4's lazy boundary — the apply path is the only caller for which "two rungs
  *    short" would be a real product defect).
  * 2. **Refuse or dispatch.** An `unresolvable` resolution becomes the §3 step 5
  *    ask-back payload and **dispatches nothing at all** — §3's zero-partial-effects
@@ -163,7 +163,7 @@ export type AnchoredEditOutcome =
  * **The library load happens before the resolution, not inside it**, so
  * `resolveAnchor` stays the synchronous function §3 declares and the one rung that
  * needs 30 KB is the only thing that pays for it. A caller who resolves without
- * awaiting the preload gets step 5's *named* one-rung-short refusal instead of a
+ * awaiting the preload gets step 5's *named* two-rungs-short refusal instead of a
  * silent downgrade — and this function is the reason a product caller never sees it.
  */
 export const applyAnchoredEdit = async (

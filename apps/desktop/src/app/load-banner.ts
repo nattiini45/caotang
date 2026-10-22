@@ -18,6 +18,7 @@ const CONSTRUCTS: Readonly<Record<string, readonly [string, string]>> = {
   linkReference: ['reference link', 'reference links'],
   imageReference: ['reference image', 'reference images'],
   listItem: ['task-list item', 'task-list items'],
+  code: ['code block', 'code blocks'],
   emphasis: ['nested emphasis', 'nested emphasis'],
   strong: ['nested bold', 'nested bold'],
   delete: ['nested strikethrough', 'nested strikethrough'],

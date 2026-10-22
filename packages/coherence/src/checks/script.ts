@@ -11,7 +11,7 @@ import { characterCueNames, cueKey, type LocatedElement } from '@caotang/screenp
 
 import { EVIDENCE_QUOTE_LIMIT, type Evidence } from '../model.js';
 import { bodyOffsetsOf, resolveAnchor, type BodyRange } from '../anchors.js';
-import { cueFactsOf, entryForCue, isScreenplayDocument } from '../cues.js';
+import { cueFactsOf, entryForCue, isScreenplayDocument, type CueFacts } from '../cues.js';
 import { headEvidence, type ScannedScene, type ShotFact } from '../scope.js';
 import { codePointPrefix } from '../text.js';
 
@@ -19,6 +19,14 @@ import { groupKey, type CheckInput, type CheckOutput, type DraftFinding } from '
 
 /** The parse elements a shot can cover: a character cue and the dialogue under it (storyboard.md §2.2). */
 const COVERABLE_TYPES: ReadonlySet<string> = new Set(['character', 'dialogue']);
+
+/**
+ * The screenplay read of a scene: the read the run shared, when it has one, and a read of its own otherwise. A check
+ * called on its own reads the body itself, so the findings are the same either way.
+ */
+function factsOf(input: CheckInput, scene: ScannedScene): CueFacts {
+  return input.cueFacts?.get(scene.docId) ?? cueFactsOf(scene.body);
+}
 
 /**
  * A passage of a scene, quoted verbatim at the body's own offsets. The offsets given are the normalised text's (the parse
@@ -49,7 +57,7 @@ export function checkCueCollision(input: CheckInput): CheckOutput {
   const drafts: DraftFinding[] = [];
   for (const scene of input.scenes) {
     if (!isScreenplayDocument(scene.kind)) continue;
-    for (const element of cueFactsOf(scene.body).elements) {
+    for (const element of factsOf(input, scene).elements) {
       if (element.type !== 'character') continue;
       const [name] = characterCueNames([element]);
       if (name === undefined || entryForCue(input.entries, name) !== undefined) continue;
@@ -78,7 +86,7 @@ export function checkCueConsistency(input: CheckInput): CheckOutput {
   const usedBy = new Map<string, Map<string, { readonly scene: ScannedScene; readonly forms: string[] }>>();
   for (const scene of input.scenes) {
     if (!isScreenplayDocument(scene.kind)) continue;
-    for (const name of cueFactsOf(scene.body).names) {
+    for (const name of factsOf(input, scene).names) {
       const key = cueKey(name);
       if (key === '') continue;
       const forms = spellings.get(key) ?? [];
@@ -177,7 +185,7 @@ export function checkShotCoverage(input: CheckInput): CheckOutput {
       const covered = coveredByDoc.get(scene.docId) ?? [];
       // The n-th element of a given text in a scene is the same element for every run, whatever sits above it.
       const occurrences = new Map<string, number>();
-      for (const element of cueFactsOf(scene.body).elements) {
+      for (const element of factsOf(input, scene).elements) {
         if (!COVERABLE_TYPES.has(element.type)) continue;
         const slot = `${element.type}|${contentOf(element)}`;
         const ordinal = occurrences.get(slot) ?? 0;

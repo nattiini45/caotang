@@ -49,10 +49,25 @@
  *
  * ## What is not in the schema, and why it is not a gap
  *
- * The interactive extensions — history, the list keymap, drop and gap cursors, the
- * placeholder and the character count — contribute behaviour and no node or mark.
- * The read-only ghost preview (§8) takes the same schema without them: it shares
- * the document model, not the keymap, and it has no undo lane for anything to enter.
+ * The interactive extensions — history, the list keymap, drop and gap cursors and
+ * the placeholder — contribute behaviour and no node or mark. The read-only ghost
+ * preview (§8) takes the same schema without them: it shares the document model,
+ * not the keymap, and it has no undo lane for anything to enter.
+ *
+ * **And the one that is not here at all: the character count.** §10 named
+ * "CharacterCount (feeds §9)", and nothing fed §9 from it. §9's counts are
+ * computed by the store's `countBody` over the body projection — one rule, with
+ * one implementation, which `test/tiptap-adapter.test.ts` pins ("wordCount is
+ * the store's count of the body, not a second copy of its rule") and
+ * `packages/store`'s own tests pin again.
+ *
+ * CharacterCount was the **second** rule and a different one: it counts the PM
+ * text, so it misses the body projection's blockquote marker that §9's reading
+ * counts (`> quoted` → 2 words). Its storage was never read, so the number on
+ * screen was `countBody`'s and the plugin's was discarded — while it
+ * recomputed both figures over the whole document on every transaction, on the
+ * hot path, for a value nobody displayed. §10's parenthetical is the one line
+ * of the spec this change leaves to be corrected.
  *
  * Node names in the list are §3.1's. Lane 1's history is `UndoRedo` from
  * `@tiptap/extensions` (extension name `undoRedo`), and its depth and coalescing
@@ -80,7 +95,7 @@ import OrderedList from '@tiptap/extension-ordered-list';
 import Paragraph from '@tiptap/extension-paragraph';
 import Strike from '@tiptap/extension-strike';
 import Text from '@tiptap/extension-text';
-import { CharacterCount, Dropcursor, Gapcursor, Placeholder, UndoRedo } from '@tiptap/extensions';
+import { Dropcursor, Gapcursor, Placeholder, UndoRedo } from '@tiptap/extensions';
 import { plainPasteHtml } from './paste.js';
 
 /** §3.1's list item name. Tiptap's list extensions look it up by option, not by name. */
@@ -215,7 +230,6 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
     Gapcursor,
     Placeholder.configure({ placeholder: options.placeholder ?? 'Begin the scene…' }),
     UndoRedo,
-    CharacterCount,
     CaotangPaste,
   ];
 };

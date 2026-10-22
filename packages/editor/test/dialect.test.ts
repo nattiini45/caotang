@@ -42,7 +42,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { unified } from 'unified';
 import remarkGfm from 'remark-gfm';
 import remarkStringify from 'remark-stringify';
@@ -74,6 +74,8 @@ import {
   renderSaveRecorded,
   saveSideOwnTexts,
 } from '../src/dialect.js';
+import { compiledBlockSpan } from '../src/handlers.js';
+import type * as EditorHandlers from '../src/handlers.js';
 import type { OwnTexts, Rendered } from '../src/dialect.js';
 import type { DialectNotice, LossWarning } from '../src/index.js';
 
@@ -327,6 +329,185 @@ describe('the dialect channel and the loss channel do not overlap', () => {
     // flattening once as "you lost the table" and once as "this will be
     // re-spelled", and a reader would have no way to tell which one to act on.
     expect((await parseWithDiagnostics(TABLE)).dialect).toEqual([]);
+  });
+});
+
+/**
+ * The two sides of §5's comparison are two different lists, and the pairing
+ * between them is the whole of the rule.
+ *
+ * `blocks` are the *parse tree*'s top-level blocks; `boundaries` are the
+ * *compiled document*'s. A degrade can turn one parse block into several
+ * compiled blocks — §3.3's table becomes a paragraph per row — or into none at
+ * all, and a pairing by **index** then compares every later block with the
+ * wrong bytes.
+ *
+ * **The failure this describe exists for is not loud.** The notice it produced
+ * was about a block that had not changed, carrying a canonical form that
+ * belonged to a different block entirely. The §13 corpus could not see it,
+ * because every corpus entry is a single construct: the table is alone in its
+ * document, so there is no *later* block to misalign. The defect needs a
+ * second block.
+ */
+describe('§5 dialect contract — the parse blocks and the compiled blocks are paired', () => {
+  it('does not report a canonical paragraph that follows a table', async () => {
+    // The false positive. A table compiles into a paragraph per row, so the
+    // compiled document has **three** blocks where the parse tree has **two**,
+    // and the paragraph after the table is the compiled document's *third*
+    // block. A pairing by index compares it with the second — the table's
+    // second row — and reports a re-spelling of a paragraph that saves
+    // byte-for-byte.
+    const { dialect } = await parseWithDiagnostics(
+      ['| a | b |', '| --- | --- |', '| 1 | 2 |', '', 'Plain canonical paragraph.'].join('\n'),
+    );
+    expect(dialect).toEqual([]);
+  });
+
+  it('reports a foreign paragraph after a table with its own canonical form', async () => {
+    // The other direction, and the half that says the pairing is right rather
+    // than merely quiet: the paragraph *does* re-spell, so it must be
+    // reported — and the canonical form in the notice has to be **this**
+    // paragraph's canonical form. A pairing by index reports it too, with the
+    // table's second row as its canonical form, which is a claim about a block
+    // the writer never wrote.
+    const { dialect } = await parseWithDiagnostics(
+      ['| a | b |', '| --- | --- |', '| 1 | 2 |', '', '&amp; stays literal'].join('\n'),
+    );
+    expect(spellings(dialect)).toEqual([['&amp; stays literal', '& stays literal']]);
+  });
+
+  it('reports a foreign paragraph that follows a link definition', async () => {
+    // The other way the two lists come to differ, and the one that loses a
+    // notice rather than inventing one. A `definition` compiles to **no**
+    // block at all — it is the URL a reference resolves against, and the
+    // reference is what the document keeps — so the compiled document has one
+    // block fewer than the parse tree. A pairing by index stops at the
+    // shorter list and never reaches the paragraph, so the re-spelling is
+    // never reported at all.
+    const { dialect } = await parseWithDiagnostics(
+      ['[ref]: http://example.com', '', '&amp; stays literal'].join('\n'),
+    );
+    expect(spellings(dialect)).toEqual([['&amp; stays literal', '& stays literal']]);
+  });
+
+  it('the span rule accounts for every compiled block of every corpus document', async () => {
+    // **The guard on the rule itself.** The pairing advances by the number of
+    // blocks each parse block produced, and that number comes from the
+    // handler table. If it is wrong for any construct, the two totals stop
+    // adding up and the sniffer refuses the document — which is safe, but a
+    // refusal nobody sees is a channel that has stopped working. So the rule
+    // is measured against the compiled document, over the whole corpus.
+    const mismatched: string[] = [];
+    for (const entry of CORPUS) {
+      const tree = unified().use(remarkParse).use(remarkGfm).parse(entry.input) as MdastRoot;
+      // The two bodies the loader answers before it compiles anything: an empty
+      // body, and a body that holds nothing but link definitions. Both are
+      // filled with an empty paragraph, so neither has a compiled block to
+      // account for.
+      if (tree.children.length === 0) continue;
+      if (tree.children.every((child) => child.type === 'definition')) continue;
+      const doc = await parse(entry.input);
+      const spans = tree.children.reduce((total, child) => total + compiledBlockSpan(child), 0);
+      if (spans !== doc.childCount) {
+        mismatched.push(`${entry.name}: rule says ${spans}, document has ${doc.childCount}`);
+      }
+    }
+    expect(mismatched).toEqual([]);
+  });
+
+  it('every block that compiles to zero blocks is a block the comparison skips', () => {
+    // The pairing's per-block invariant, pinned over the corpus. A zero span is
+    // only safe for a type the comparison skips as a degrade — a zero-span
+    // block of any other type would leave the compiled index standing still
+    // while the walk moved on, and every later block would be compared with a
+    // neighbour's bytes. Today both zero-span types (`definition` and
+    // `footnoteDefinition`) are in the skip set, and the sniffer enforces the
+    // rule per block rather than resting on that coincidence.
+    const offenders: string[] = [];
+    for (const entry of CORPUS) {
+      const tree = unified().use(remarkParse).use(remarkGfm).parse(entry.input) as MdastRoot;
+      for (const child of tree.children) {
+        if (
+          compiledBlockSpan(child) === 0 &&
+          !(DEGRADE_MDAST_TYPES as readonly string[]).includes(child.type)
+        ) {
+          offenders.push(`${entry.name}: ${child.type}`);
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('refuses a document whose per-block spans mispair, even when the totals add up — and says so', async () => {
+    // Two offsetting span errors: the heading over-claims and the paragraph
+    // under-claims, so `spanTotal === boundaries.length` still holds while the
+    // pairing is exactly the misalignment the walk exists to prevent — the
+    // heading would be compared with the paragraph's canonical text and the
+    // paragraph would emit an empty canonical form. The aggregate check cannot
+    // see this; the per-block rule can, because a paragraph that compiles to
+    // zero blocks is not a type the comparison skips. And the refusal is
+    // **warned**: a refusal nobody sees is a channel that has stopped working.
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      vi.resetModules();
+      vi.doMock('../src/handlers.js', async (importOriginal) => {
+        const actual = await importOriginal<typeof EditorHandlers>();
+        const mispaired = (node: { type: string }): number => {
+          if (node.type === 'paragraph') return 0;
+          if (node.type === 'heading') return 2;
+          return actual.compiledBlockSpan(node as never);
+        };
+        return { ...actual, compiledBlockSpan: mispaired };
+      });
+      const { sniffDialect } = await import('../src/dialect.js');
+      const body = ['# T', '', '&amp; stays literal', ''].join('\n');
+      const tree = unified().use(remarkParse).use(remarkGfm).parse(body) as MdastRoot;
+      const doc = await parse(body);
+      expect(sniffDialect(body, tree, doc, [])).toEqual([]);
+      expect(warned, 'the refusal is silent').toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('../src/handlers.js');
+      vi.resetModules();
+      warned.mockRestore();
+    }
+  });
+
+  it('refuses a document whose span total does not add up, and names the disagreement rather than a zero', async () => {
+    // **The other half of the same refusal**, and the one the fixture above
+    // cannot reach: that one forces the zero-span half with the totals equal,
+    // so the aggregate message — the branch a handler table that over-claims a
+    // block takes — was never asserted by anything.
+    //
+    // The fixture mocks **one** block's span and leaves no zero anywhere: the
+    // paragraph claims two compiled blocks and the document has one, so the
+    // totals disagree and the per-block half has nothing to say. The refusal
+    // has to name the disagreement it found, and must not blame a zero that is
+    // not there.
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      vi.resetModules();
+      vi.doMock('../src/handlers.js', async (importOriginal) => {
+        const actual = await importOriginal<typeof EditorHandlers>();
+        const overclaimed = (node: { type: string }): number => {
+          if (node.type === 'paragraph') return 2;
+          return actual.compiledBlockSpan(node as never);
+        };
+        return { ...actual, compiledBlockSpan: overclaimed };
+      });
+      const { sniffDialect } = await import('../src/dialect.js');
+      const body = 'A single paragraph.\n';
+      const tree = unified().use(remarkParse).use(remarkGfm).parse(body) as MdastRoot;
+      const doc = await parse(body);
+      expect(sniffDialect(body, tree, doc, [])).toEqual([]);
+      expect(warned, 'the refusal is silent').toHaveBeenCalled();
+      const message = warned.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(message).toMatch(/the parse blocks claim 2 compiled blocks and the document has 1/);
+      expect(message).not.toMatch(/compiles to zero blocks/);
+    } finally {
+      vi.doUnmock('../src/handlers.js');
+      vi.resetModules();
+      warned.mockRestore();
+    }
   });
 });
 
@@ -642,6 +823,55 @@ describe('§5 dialect contract — the rule is a comparison, not a list', () => 
     // class later is a red test rather than a silent hole.
     expect('unified().use(remarkStringify, { bullet: \'-\' })').not.toMatch(
       /remarkStringify,\s*(SAVE_STRINGIFY_OPTIONS|RECORDED_STRINGIFY_OPTIONS)/,
+    );
+  });
+
+  it('builds the save chain once, not on every save', () => {
+    // **The other half of the chain claim, and the one that is about cost.**
+    //
+    // `dialect.ts` builds its chains once, at module level, and says why: *"A
+    // processor is immutable once built, so one module-level instance is safe
+    // to reuse."* `pipeline.ts`'s `serialize` did not: it built a fresh
+    // `unified()` chain and a fresh handler table on **every call**, and
+    // `serialize` is what a keystroke calls.
+    //
+    // Measured on a 15 kB document, 30 calls each: a fresh chain per call costs
+    // 4.448 ms against 3.671 ms for the shared one — **17.5 % of the cost of
+    // every keystroke's serialization**, paid to re-freeze a chain that cannot
+    // have changed. The chain is the *only* thing that is rebuilt; the
+    // `fromProseMirror` pass and the stringification are the document's own
+    // cost and are unavoidable.
+    //
+    // The claim is about the **source**, because the cost is not observable in
+    // the output: two chains with the same options write the same bytes, so
+    // every behavioural test in this file is blind to it — and a guard that
+    // cannot see the mutation it is cited for is the green lie this file is
+    // about.
+    const source = readFileSync(resolve(__dirname, '../src', 'pipeline.ts'), 'utf8');
+    const start = source.indexOf('export const serialize');
+    expect(start, 'pipeline.ts has no serialize').toBeGreaterThan(-1);
+    // The end of the slice is guarded explicitly: an `indexOf` that answered -1
+    // would slice to *almost the whole file* — which does contain `unified(`,
+    // in `parseWithDiagnostics` — and fail pointing at code that is not
+    // `serialize` at all.
+    const end = source.indexOf('\n};', start);
+    expect(end, 'serialize has no column-0 closer — the slice bound moved').toBeGreaterThan(start);
+    const body = source.slice(start, end);
+    // And the slice really is the whole of `serialize`: a `\n};` appearing
+    // early inside the body would truncate it and let both `not.toMatch`
+    // assertions below pass vacuously. The shared chain is what `serialize`
+    // stringifies through, so a body that reaches it was not cut short.
+    expect(body, 'the slice is not the whole serialize body').toContain('SAVE_CHAIN.stringify');
+    // The two things `serialize` used to build per call.
+    expect(body, 'serialize builds a chain per call').not.toMatch(/unified\(/);
+    expect(body, 'serialize builds a handler table per call').not.toMatch(/createSerializeHandlers\(/);
+    // And the module does build them, once, at the top level — so the
+    // assertions above are not satisfied by a file that renders nothing.
+    expect(source, 'pipeline.ts has no module-level save chain').toMatch(
+      /^const SAVE_CHAIN = unified\(\)/m,
+    );
+    expect(source, 'pipeline.ts has no module-level save handlers').toMatch(
+      /^const SAVE_HANDLERS = createSerializeHandlers\(\)/m,
     );
   });
 

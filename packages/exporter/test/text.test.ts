@@ -90,6 +90,23 @@ describe('renderMarkdown', () => {
       expect(heading, `no heading for #${anchor}`).toBeDefined();
     }
   });
+
+  it('keeps an underscore in an anchor, so a chapter title with _ links to the heading a reader generates', () => {
+    // GitHub's slug rule keeps `_`, so the anchor for `Draft_2` is `1-draft_2`, not `1-draft2`. The expectation is
+    // written out rather than computed with anchorOf, so the two cannot drift together and hide the bug.
+    expect(anchorOf('1. Draft_2')).toBe('1-draft_2');
+    expect(anchorOf('Draft_2')).toBe('draft_2');
+  });
+
+  it('keeps the indentation of a body that opens with an indented code block', () => {
+    const blocks = input().blocks.map((block) =>
+      block.kind === 'scene' && block.docId === 'n_MORNING01' ? { ...block, body: '    const x = 1;\n' } : block,
+    );
+    const out = renderMarkdown(input({ blocks }));
+    // `.trim()` would drop the four spaces and turn the code block into a paragraph.
+    expect(out).toContain('    const x = 1;');
+    expect(out).not.toMatch(/^const x = 1;/m);
+  });
 });
 
 describe('renderText', () => {

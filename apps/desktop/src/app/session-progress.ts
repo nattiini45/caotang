@@ -56,6 +56,27 @@ export async function sessionsEverywhere(store: RuntimeStore): Promise<SessionRe
   return records;
 }
 
+/**
+ * How long the reading of the sessions log waits between reads.
+ *
+ * The log only moves when a sitting is recorded, which is not a keystroke. Reading it on every
+ * change of the session read every project's log on every keystroke, so the reading waits for this
+ * window instead: a burst of changes costs one reading, not one per change.
+ */
+export const SESSIONS_RELOAD_MS = 1000;
+
+/**
+ * How long the next reading of the sessions log waits.
+ *
+ * `lastReadAt` is when the last reading started, and `null` when there has been none: then the
+ * reading runs now. Otherwise it waits out the window that the last reading started, so a change
+ * that arrives inside the window waits for it and a change that arrives after it reads at once.
+ */
+export function nextReadDelay(lastReadAt: number | null, now: number, window: number = SESSIONS_RELOAD_MS): number {
+  if (lastReadAt === null) return 0;
+  return Math.max(0, window - (now - lastReadAt));
+}
+
 /** The ring's reading: the words, the target if one is set, the share of the target reached (capped at 1), and whether it is met. */
 export interface TargetProgress {
   readonly words: number;

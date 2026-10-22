@@ -137,10 +137,11 @@ interface ShotBoardProps {
 }
 
 export function ShotBoard({ session, folder, ports, focus = null, zoom: zoomProp, onZoom, onAgentIntent }: ShotBoardProps): ReactNode {
-  const version = useSession(session);
+  useSession(session);
   const report = useReport();
   const cards = shotCardsOf(session.state, folder.id);
-  const pictureList = useAssetListing(ports?.assets, version);
+  // The images are listed when they can have changed, not on every change of the session (media/hooks.ts).
+  const pictureList = useAssetListing(ports?.assets, session.assetsVersion());
   const assetRecords = pictureList.records;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);

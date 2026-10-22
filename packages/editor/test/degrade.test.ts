@@ -411,6 +411,38 @@ describe('§3.3 degrade class — a GFM task item', () => {
   });
 });
 
+describe('§3.3 degrade class — a fence info string', () => {
+  it('warns `lossy-attribute` when the fence carries more than its language', async () => {
+    // The same shape as the task item's row, one row over. A fence's info
+    // string is `language meta` — remark parses `js title=x` as
+    // `lang: 'js', meta: 'title=x'` — and §3.1's `code_block` has a slot for
+    // the language and none for the rest, so `title=x` is dropped on load.
+    //
+    // The *code* survives byte for byte: the loss is the attribute, and the
+    // warning says which. It is the same row shape as the task item's, and
+    // the preflight measures the same deletion from the other side — a round
+    // trip of this fence reads `degrade`, because the shape it compares
+    // carries the meta and the shape that comes back does not.
+    const { doc, warnings } = await parseWithDiagnostics('```js title=x\nconst a = 1;\n```\n');
+    expect(warnings.map((w) => [w.code, w.mdastType, w.position])).toEqual([
+      ['lossy-attribute', 'code', { line: 1, column: 1 }],
+    ]);
+    // The language is kept and the meta is not — which is what §3.1's
+    // `code_block` has a slot for, and what the warning is about.
+    expect(serialize(doc)).toBe('```js\nconst a = 1;\n```\n');
+  });
+
+  it('CONTROL: a fence with only a language warns nothing', async () => {
+    // The other direction, and the one that keeps the warning from crying
+    // wolf: a code fence is §3.3's *exact-content* row, so a warning on every
+    // fence would train a writer to ignore the banner — which is the 08:0x
+    // decision's rejected option one level down. The warning is about the
+    // part that is dropped, not about fences.
+    const { warnings } = await parseWithDiagnostics('```js\nconst a = 1;\n```\n');
+    expect(warnings).toEqual([]);
+  });
+});
+
 describe('§3.3 degrade class — a link reference', () => {
   it('warns `lossy-attribute` for the reference and the definition, and expands to a direct link', async () => {
     const { doc, warnings } = await parseWithDiagnostics(LINK_REF);

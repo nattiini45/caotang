@@ -739,6 +739,57 @@ describe('the registry seam', () => {
     expect(exposed).not.toContain('agent.plan');
     expect(metadataFor('doc.import')?.surface).toBe('extension');
   });
+
+  it('lists exactly the read tools on a read-only server, and the write tools only with --allow-writes', async () => {
+    // The tool list is the server's whole outward contract, and a statement of what a read-only
+    // server exposes. It is pinned here so a new row cannot change `tools/list` without the
+    // README's tables (and extensibility §9) being updated with it. The list is the one a client
+    // reads off the wire, from a server started with and without --allow-writes: a copy of the
+    // gate in this file would go green when the gate in tools.ts changes.
+    const readOnly = await startFixture({ label: 'listed-ro', allowWrites: false, seed: true });
+    let writable: Fixture | undefined;
+    try {
+      writable = await startFixture({ label: 'listed-rw', allowWrites: true, seed: true });
+      let roClient: Client | undefined;
+      try {
+        roClient = await connectClient(readOnly.url, readOnly.token);
+        const rwClient = await connectClient(writable.url, writable.token);
+        try {
+          expect(await listedNames(roClient)).toEqual(['binder.read_tree', 'codex.read', 'coherence.scan', 'dialogue.table', 'doc.read', 'notes.read', 'project.overview']);
+          expect(await listedNames(rwClient)).toEqual([
+            'binder.read_tree',
+            'binder.restructure',
+            'codex.import',
+            'codex.read',
+            'codex.write',
+            'coherence.scan',
+            'coherence.setFindingStatus',
+            'dialogue.table',
+            'doc.import',
+            'doc.read',
+            'export.compile',
+            'meta.set',
+            'notes.append',
+            'notes.read',
+            'project.overview',
+            'shots.annotate',
+          ]);
+        } finally {
+          await rwClient.close();
+        }
+      } finally {
+        await roClient?.close();
+      }
+    } finally {
+      // Each fixture is closed on its own: a close that fails must not skip the other one, or the
+      // server and the temp dir of the first fixture are left behind.
+      try {
+        await writable?.close();
+      } finally {
+        await readOnly.close();
+      }
+    }
+  }, 30_000);
 });
 
 describe('the confirmation round trip on the wire', () => {

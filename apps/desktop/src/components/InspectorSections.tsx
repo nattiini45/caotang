@@ -4,13 +4,14 @@
  * day offsets, the `after` and `expected present` lists, and the timeline mode). Each change is one bus command.
  */
 
-import { useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { TIMELINE_MODES, type ScenePatch } from '@caotang/bus';
 import type { CodexEntry, TreeNode } from '@caotang/store';
 
 import { attachEntry, explain } from './actions.js';
 import { afterCandidates, modeLabel, povCandidates, sceneMetaOf } from '../app/findings-model.js';
 import type { ProjectSession } from '../app/session.js';
+import { useStoreDraft } from './store-draft.js';
 import { useReport, useSession } from './shared.js';
 
 /* ------------------------------------------------------------------ *
@@ -197,18 +198,25 @@ export function SceneMetaSection({ session, node }: { session: ProjectSession; n
   );
 }
 
-/** A whole-number day field: committed on blur or Enter, and cleared to "not declared" when left empty. */
+/**
+ * A whole-number day field: committed on blur or Enter, and cleared to "not declared" when left
+ * empty.
+ *
+ * The draft follows the project's value, so a value the project took back — an undo — leaves the
+ * field showing what the project holds. Leaving the field then writes nothing, because the draft
+ * is the project's value and the commit only writes a value the project does not hold.
+ */
 function NumberField({ label, value, onCommit }: { label: string; value: number | undefined; onCommit: (value: number | null) => void }): ReactNode {
-  const [draft, setDraft] = useState(value === undefined ? '' : String(value));
+  const draft = useStoreDraft(value === undefined ? '' : String(value));
   const commit = (): void => {
-    const trimmed = draft.trim();
+    const trimmed = draft.value.trim();
     if (trimmed === '') {
       if (value !== undefined) onCommit(null);
       return;
     }
     const parsed = Number(trimmed);
     if (!Number.isInteger(parsed) || parsed < 0) {
-      setDraft(value === undefined ? '' : String(value));
+      draft.reset();
       return;
     }
     if (parsed !== value) onCommit(parsed);
@@ -221,8 +229,8 @@ function NumberField({ label, value, onCommit }: { label: string; value: number 
         min={0}
         step={1}
         aria-label={label}
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
+        value={draft.value}
+        onChange={(event) => draft.change(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {
           if (event.key === 'Enter') commit();

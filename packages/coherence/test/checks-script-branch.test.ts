@@ -18,13 +18,11 @@ import {
 import { compileCodex, countMentions, type DocumentTerm } from '@caotang/codex';
 import type { CodexEntry, ProjectState } from '@caotang/store';
 
-import { LATER, NOW, buildState, detect, entry } from './fixtures.js';
+import { LATER, NOW, addShot, buildState, detect, entry, type Anchor } from './fixtures.js';
 
 const SCRIPT = 'sScript';
 const ALICE = 'c_ALICE00001';
 const BOB = 'c_BOB0000001';
-
-type Tree = ProjectState['manifest']['tree'];
 
 /** A screenplay document: the node is marked with the screenplay kind, which is how the parse is chosen (screenplay.md §2.1). */
 function screenplayState(
@@ -41,39 +39,6 @@ function screenplayState(
     else if (node !== undefined) Object.assign(node, { kind: 'screenplay' });
   }
   return state;
-}
-
-/** One dialogue anchor as a shot stores it (edit-anchors §2). */
-type Anchor = { from: number; to: number; exact: string; prefix: string; suffix: string; capturedRevision: number };
-
-/** A storyboard shot node in the tree, as the storyboard writes one: a node of type `shot` with its metadata under `shot`. */
-function addShot(
-  state: ProjectState,
-  id: string,
-  shot: { readonly durationSec?: number; readonly dialogue?: readonly { docId: string; anchor: Anchor }[] },
-): void {
-  const tree: Tree = state.manifest.tree;
-  const node = {
-    id,
-    parentId: 'manuscript',
-    type: 'shot',
-    title: `Shot ${id}`,
-    order: 10 * (tree.length + 1),
-    status: null,
-    label: null,
-    keywords: [],
-    synopsis: '',
-    notes: '',
-  } as Tree[number];
-  Object.assign(node, {
-    shot: {
-      ...(shot.durationSec !== undefined ? { durationSec: shot.durationSec } : {}),
-      ...(shot.dialogue !== undefined
-        ? { dialogue: shot.dialogue.map((entry) => ({ kind: 'fountain-element', docId: entry.docId, anchor: entry.anchor })) }
-        : {}),
-    },
-  });
-  tree.push(node);
 }
 
 function anchorOver(body: string, needle: string): Anchor {

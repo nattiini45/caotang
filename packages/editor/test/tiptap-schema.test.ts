@@ -201,3 +201,43 @@ describe('the live Tiptap schema is §3’s schema', () => {
     expect(report.some((line) => line.startsWith('mark order:'))).toBe(true);
   });
 });
+
+describe('the focus extension set — what each entry is for', () => {
+  it('mounts no character counter, because nothing reads one', () => {
+    // §10 named "CharacterCount (feeds §9)", and §9's counts are computed by
+    // the store's `countBody` over the body projection — one rule, pinned by
+    // `test/tiptap-adapter.test.ts` ("wordCount is the store's count of the
+    // body, not a second copy of its rule").
+    //
+    // CharacterCount was the **second** rule, and a different one: it counts
+    // the PM text, so it misses the body projection's blockquote marker that
+    // §9's pinned reading counts (`> quoted` → 2 words). Nothing ever read
+    // its storage, so the number on screen was `countBody`'s and the plugin's
+    // was discarded — while it recomputed both figures over the whole
+    // document on every transaction, on the hot path, for a value no one
+    // displayed.
+    //
+    // The claim is on the **mounted set**, not on a grep: an extension that is
+    // imported but not mounted costs nothing, and one that is mounted and read
+    // nowhere costs the transaction it runs on.
+    const names = caotangExtensions({ role: 'focus' }).map((extension) => extension.name);
+    expect(names).not.toContain('characterCount');
+  });
+
+  it('still mounts the extensions §10 does name, so the removal is not a shortcut', () => {
+    // The control for the assertion above: a set that mounted *nothing* would
+    // satisfy it. The interactive half of §10's list is named here so the
+    // removal of one entry cannot be a removal of several.
+    const names = caotangExtensions({ role: 'focus' }).map((extension) => extension.name);
+    for (const expected of [
+      'listKeymap',
+      'dropCursor',
+      'gapCursor',
+      'placeholder',
+      'undoRedo',
+      'caotangPaste',
+    ]) {
+      expect(names, expected).toContain(expected);
+    }
+  });
+});
