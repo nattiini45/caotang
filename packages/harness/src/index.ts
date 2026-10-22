@@ -30,6 +30,8 @@ export { createHarness, type ExternalHarness, type Harness, type HarnessOptions,
 export { createProductHarness, type ProductHarnessOptions } from './product.js';
 // The coherence module's two ports the agent's scan and review read through, and the gateway as the review's model.
 export { DIALOGUE_CONTAINER_TYPE, containersOf, dialogueFactsOf } from './coherence-facts.js';
+// The Ink compiler loads on demand (dialogue ink-loader.ts); a Node host awaits this before it opens a project, so every dialogue tool and check can compile.
+export { loadInkCompiler } from '@caotang/dialogue';
 export { gatewayCoherenceModel, reviewContextOf } from './coherence-review-context.js';
 export {
   askBackFor,

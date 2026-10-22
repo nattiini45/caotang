@@ -31,6 +31,7 @@ import { resolve } from 'node:path';
 import { ApplyRefusal } from '@caotang/bus';
 import { COHERENCE_FILE } from '@caotang/coherence';
 import { assetRecordsOf, createExporter, exportMetadataOf, type ExporterService } from '@caotang/exporter';
+import { loadInkCompiler } from '@caotang/harness';
 import { isIdWithPrefix } from '@caotang/ids';
 import { loadArabicFontInNode, loadCjkFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
 import {
@@ -284,6 +285,8 @@ export interface OpenFolder {
 }
 
 export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder> {
+  // The dialogue checks compile Ink synchronously, so the compiler is loaded before any project is (dialogue ink-loader.ts).
+  await loadInkCompiler();
   const { voice } = options;
   const now = options.now ?? (() => new Date());
   const root = resolve(options.root);

@@ -65,7 +65,7 @@ export function testToken(): string {
 export async function seedProject(
   root: string,
   name: string,
-  options: { readonly shot?: boolean; readonly shotAction?: string } = {},
+  options: { readonly shot?: boolean; readonly shotAction?: string; readonly dialogue?: boolean } = {},
 ): Promise<void> {
   mkdirSync(root, { recursive: true });
   const fs = new NodeArtifactFs(root);
@@ -73,8 +73,14 @@ export async function seedProject(
   addFolder(state, { parentId: 'manuscript', title: 'Chapter 1', now: OPENED, id: CHAPTER_ONE });
   addDocument(state, { parentId: CHAPTER_ONE, title: 'The Landing', body: LANDING_BODY, now: OPENED, id: LANDING, synopsis: 'Elena returns.' });
   if (options.shot === true) addShot(state, options.shotAction);
+  if (options.dialogue === true) {
+    addDocument(state, { parentId: 'manuscript', title: 'The Tavern', type: 'dialogue', body: TAVERN_INK, now: OPENED, id: TAVERN });
+  }
   await writeProject(fs, state, { now: OPENED });
 }
+
+export const TAVERN = 'n_TAVERN0001';
+const TAVERN_INK = ['-> tavern', '=== tavern ===', 'Innkeeper: Ah, a traveller.', '* [Order an ale] -> END', '* [Leave] -> END', ''].join('\n');
 
 export const SHOTS_FOLDER = 'n_SH0TS00001';
 export const SHOT_ONE = 'n_SH0T0NE001';

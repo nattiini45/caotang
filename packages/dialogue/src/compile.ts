@@ -4,10 +4,11 @@
  * inkjs (`inkjs/full`, the build that carries the compiler) is the validator. Caotang adds no
  * bespoke graph checks (§2.3): an Ink body is valid when the reference compiler accepts it,
  * and its warnings are the loose ends the findings inbox shows. Compiling is in-process,
- * zero network, and the same in a browser and in tests.
+ * zero network, and the same in a browser and in tests. The compiler loads on demand (`ink-loader.ts`):
+ * until `loadInkCompiler()` has resolved, `compileInk` throws `InkCompilerNotLoaded`.
  */
 
-import { Compiler, CompilerOptions } from 'inkjs/full';
+import { inkCompiler } from './ink-loader.js';
 
 /**
  * inkjs's `ErrorType` values. The enum itself is not exported at runtime by `inkjs/full`,
@@ -43,9 +44,11 @@ function messageOf(text: string): InkMessage {
 /**
  * Compiles an Ink body and reports every message. A compile that throws (inkjs throws
  * "Compilation failed" once it has errors, and a file-resolution error for `INCLUDE`)
- * is reported as errors, never rethrown: the caller is a gate, and a gate reports.
+ * is reported as errors, never rethrown: the caller is a gate, and a gate reports. The one throw is
+ * `InkCompilerNotLoaded`: no compiler means no verdict, and a gate with no verdict fails closed.
  */
 export function compileInk(body: string): InkCompileResult {
+  const { Compiler, CompilerOptions } = inkCompiler();
   const errors: InkMessage[] = [];
   const warnings: InkMessage[] = [];
   const options = new CompilerOptions(null, [], false, (message: string, type: number) => {
