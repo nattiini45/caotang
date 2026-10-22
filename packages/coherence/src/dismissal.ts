@@ -48,6 +48,14 @@ export type DismissalReasonId = (typeof DISMISSAL_REASONS)[number]['id'];
 /** The line the dialog shows when a technique reason is picked. Spec wording, quoted from §6.3. */
 export const MODE_CROSS_LINK_COPY = 'Declare this as a scene mode instead.';
 
+/** The line a `timeline.gap` finding's dialog adds under any reason: the mode that silences it is a time skip (§5.2.1). */
+export const GAP_CROSS_LINK_COPY = 'Declare a time skip on one of these scenes instead.';
+
+/** The check-specific line the dismissal dialog shows for a finding of this check, or `undefined` where there is none. */
+export function checkCrossLinkFor(checkId: string): string | undefined {
+  return checkId === 'timeline.gap' ? GAP_CROSS_LINK_COPY : undefined;
+}
+
 export function isDismissalReason(value: unknown): value is DismissalReasonId {
   return DISMISSAL_REASONS.some((reason) => reason.id === value);
 }

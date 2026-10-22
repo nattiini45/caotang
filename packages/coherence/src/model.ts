@@ -66,10 +66,10 @@ export type WorldRuleOrigin = (typeof WORLD_RULE_ORIGINS)[number];
 
 /**
  * The deterministic registry, closed (§5.4: adding a check is a spec change with fixtures). The first eight are §5.1's.
- * The last six come from the media-track specs, which each say they ride this rule: screenplay.md §4 adds two
+ * Six more come from the media-track specs, which each say they ride this rule: screenplay.md §4 adds two
  * (`script.cue-*`), storyboard.md §5 adds one (`script.shot-coverage`), and dialogue-narrative.md §5 adds three
- * (`branch.*` and `dialogue.speaker-unknown`). The count is 8 + 2 + 1 + 3 = 14. New ids are appended, so the order
- * of the first eight, which the run report and the check order depend on, does not move.
+ * (`branch.*` and `dialogue.speaker-unknown`). `timeline.gap` (§5.1) is the last. The count is 8 + 2 + 1 + 3 + 1 = 15.
+ * New ids are appended, so the order of the first eight, which the run report and the check order depend on, does not move.
  */
 export const DETERMINISTIC_CHECK_IDS = [
   'codex.alias-collisions',
@@ -86,6 +86,7 @@ export const DETERMINISTIC_CHECK_IDS = [
   'branch.loose-end',
   'branch.dead-end',
   'dialogue.speaker-unknown',
+  'timeline.gap',
 ] as const;
 export type DeterministicCheckId = (typeof DETERMINISTIC_CHECK_IDS)[number];
 
@@ -112,13 +113,14 @@ export const DETERMINISTIC_CHECK_LABELS: Readonly<Record<DeterministicCheckId, s
   'branch.loose-end': 'A dialogue branch runs out without an ending',
   'branch.dead-end': 'A dialogue knot can never be reached',
   'dialogue.speaker-unknown': 'A dialogue speaker matches no codex entry',
+  'timeline.gap': 'A scene is days after the scene before it',
 };
 
 /** §5.3's five ConStory categories. The enum is closed; subtypes are model-proposed strings. */
 export const LLM_CATEGORIES = ['timeline-plot', 'characterization', 'world-building', 'factual', 'narrative-style'] as const;
 export type LlmCategory = (typeof LLM_CATEGORIES)[number];
 
-/** §5.2.1: `timelineMode`. Absent means `linear`. `time-skip` is deferred until a `timeline.gap` check consumes it (§11 D12), so it is not here. */
+/** §5.2.1: `timelineMode`. Absent means `linear`. `time-skip` exempts `timeline.gap` and no other check (§11 D12). */
 export const TIMELINE_MODES = [
   'linear',
   'flashback',
@@ -130,6 +132,7 @@ export const TIMELINE_MODES = [
   'backstory',
   'simultaneous',
   'circular',
+  'time-skip',
 ] as const;
 export type TimelineMode = (typeof TIMELINE_MODES)[number];
 

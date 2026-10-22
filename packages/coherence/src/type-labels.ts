@@ -15,6 +15,7 @@ export const FINDING_TYPE_LABELS: Readonly<Record<string, string>> = {
   'after-violated': 'Placed before a scene it follows',
   'outside-span': 'Outside the folder’s days',
   'sibling-overlap': 'Overlapping scenes',
+  'time-gap': 'A gap in time',
   'pov-unresolved': 'Unknown point of view',
   'pov-not-named': 'Point of view not named',
   'expected-absent': 'Expected character missing',

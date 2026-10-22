@@ -93,7 +93,7 @@ The panel on the right shows the selected item:
 - **Goals**: for a folder, or for the manuscript. Choose the **Comparison** (**At least**, **At most** or **About**) and the **Measure** (**Words** or **Characters**), type the target, and choose an optional **By** date for a project goal. On the manuscript, **Kind** also offers **Weekly** and **Monthly**. A weekly or monthly goal counts the words of the sessions that ended in the current week or month, across all your projects in this browser. Choose when it starts with **Week starts on** (the first day of the week where you live, unless you pick another day) or **Month starts on** (the 1st, unless you pick a day up to the 28th or the last day of the month). Choose **Add goal**, then **Edit** or **Remove** beside a goal to change or delete it.
 - **Status and label**: the menus described above.
 - **Codex**: the codex entries attached to the item, with **Attach a codex entry**. The **Mentioned in this document** list shows the codex names the text contains.
-- **Scene declarations**: for a scene, its **Point of view**, **Day offset**, **Duration in days** and **Timeline mode**, the scenes listed under **Follows these scenes**, and the codex entries listed under **Expected to appear**. The continuity checks read these.
+- **Scene declarations**: for a scene, its **Point of view**, **Day offset**, **Duration in days** and **Timeline mode** (Linear, Flashback, Flash-forward, Parallel, Frame, Dream, Mythic, Backstory, Simultaneous, Circular or Time skip), the scenes listed under **Follows these scenes**, and the codex entries listed under **Expected to appear**. The continuity checks read these.
 - **Container settings**: for a dialogue container, described in [Writing dialogue](#writing-dialogue).
 
 ## The editor
@@ -225,6 +225,8 @@ The **Findings** tab checks the manuscript. It has two kinds of check:
 - **Review with agent** reads the story for plot and character problems with your provider. It first shows a plan: which documents it reads, about how many model calls and tokens it needs, the first prompt it sends, and a cost when your provider profile has a price. It runs only after you choose **Start the review**. **Stop the review** ends it. The demo provider cannot do this review, so connect a provider first. The review sends each scene only the codex entries its include policies select for that scene, so an entry marked **Never** is not sent.
 
 Choose the **Scope**: **This document**, **Changed since the last scan**, or **Whole manuscript**. A scope of more than 20 documents asks first: the status line asks, and the panel shows **Scan it anyway**. **Scan it anyway** runs the scope that asked, and **Run again** on a large scope asks the same way.
+
+A scan also notes two scenes whose day offsets are a week or more apart, one after the other in day order. If the jump is meant, set the later or earlier scene's **Timeline mode** to **Time skip** (a **Dream** or **Mythic** scene also silences it), or dismiss the note.
 
 Findings are grouped as **Errors**, **Warnings** and **Notes**. **Show** filters them to **Open**, **Dismissed**, **Marked fixed** or **All**. Each finding quotes the passages it is about. Choose a quote to see that passage in its scene. On an open finding:
 
