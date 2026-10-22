@@ -119,6 +119,10 @@ export {
   type ToolSearchValue,
 } from './search.js';
 
+// The excerpt clip is shared with the harness's planner protocol, so the model-facing excerpt of an
+// external tool's description is one rule with one implementation.
+export { clipChars } from './util.js';
+
 export {
   EXTERNAL_RESULT_TOKEN_CAP,
   MCP_INVOKE_NAME,

@@ -407,8 +407,20 @@ interface SpellingSegment {
  * overwhelmingly common case is unchanged: the §13 corpus's 76 runs and its
  * 72/4/0 split are the same after this as before.
  */
-const segmentsOf = (spelling: string): SpellingSegment[] => {
+const segmentsOf = (spelling: string, text: string): SpellingSegment[] => {
   const out: SpellingSegment[] = [];
+  // **A spelling that IS the text consumed no escapes.** §5's backslash is a
+  // Markdown *inline* escape, and remark writes fenced content literally: a regex
+  // or a Windows path inside a fence keeps its backslashes in both the body and
+  // the text, so the two strings are equal. Splitting there would consume a body
+  // character with no text character, so every run after the backslash would map
+  // one character to the left — a self-consistent wrong range the anchor ladder's
+  // own verification cannot catch, because it verifies the anchor against the same
+  // shifted map. The identity is exact and needs no `fenced` flag: an escape the
+  // walk did consume lengthens the spelling, so equality holds only when none did.
+  if (spelling === text) {
+    return spelling.length === 0 ? out : [{ bodyFrom: 0, pmFrom: 0, length: spelling.length }];
+  }
   let i = 0;
   let pm = 0;
   let start = 0;
@@ -672,7 +684,7 @@ const blockSpans = (doc: PmNode, nodes: readonly { node: PmNode; from: number }[
  * this).
  *
  * The three locators, in order, because the first two are exact and the third is
- * a measured fallback rather than a guess — over the §13 corpus: 72 leaves
+ * a measured fallback rather than a guess — over the §13 corpus: 77 runs
  * located by their own serialization, 4 by raw text, 0 by the escape-tolerant
  * search, 0 blocks degraded.
  */
@@ -687,6 +699,10 @@ export const buildProjectionMap = (doc: PmNode): ProjectionMap => {
     const slice = body.slice(blocks[i]!.bodyStart, blocks[i]!.bodyEnd);
     let cursor = 0;
     let complete = true;
+    // The initial `fenced` stays `false`: `walkTextLeaves` only *or*s the flag in
+    // as it descends, so a fence nested in another block is marked, while the
+    // arm-1 wrapper for a top-level fence stays the paragraph — the wrapper that
+    // the corpus's measured 77/4/0 split was pinned against.
     walkTextLeaves(node, from, false, (leaf, pos, fenced) => {
       const text = leaf.text ?? '';
       if (text.length === 0) return;
@@ -700,7 +716,7 @@ export const buildProjectionMap = (doc: PmNode): ProjectionMap => {
       // by `text.length` against a body that holds `text` plus its escapes would
       // start every leaf after the first escaped one inside the previous leaf's tail.
       const base = blocks[i]!.bodyStart + hit.at;
-      for (const segment of segmentsOf(hit.spelling)) {
+      for (const segment of segmentsOf(hit.spelling, text)) {
         runs.push({
           bodyStart: base + segment.bodyFrom,
           bodyEnd: base + segment.bodyFrom + segment.length,

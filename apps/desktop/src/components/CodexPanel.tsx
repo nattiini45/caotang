@@ -655,9 +655,10 @@ function VisualRefsField({
   entry: CodexEntry;
   onChange: (visualRefs: string[]) => boolean;
 }): ReactNode {
-  const version = useSession(session);
+  useSession(session);
   const assets = session.assets.artifactFs();
-  const records = useAssetRecords(assets, version);
+  // The images are listed when they can have changed, not on every change of the session (media/hooks.ts).
+  const records = useAssetRecords(assets, session.assetsVersion());
   const chosen = entry.visualRefs ?? [];
   const choices = [...records.values()].filter((record) => !chosen.includes(record.id));
   return (

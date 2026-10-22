@@ -34,7 +34,12 @@ import { createAutosave, domFlushSignals, RevisionConflictError } from '@caotang
 import type { Autosave, DocumentWriter } from '@caotang/store';
 import type { EditorApi, EditorInstance } from '../src/index.js';
 import { groupLossWarnings, parseWithDiagnostics, resolveAnchor } from '../src/index.js';
-import { createTiptapEditorApi, StaleMountError, UnsavedEditsError } from '../src/tiptap/index.js';
+import {
+  createTiptapEditorApi,
+  StaleMountError,
+  UnreadablePendingBodyError,
+  UnsavedEditsError,
+} from '../src/tiptap/index.js';
 import {
   focusDom,
   ghostDom,
@@ -675,6 +680,37 @@ describe('a mount does not show a body the store has moved past', () => {
     await expect(remount).rejects.toBeInstanceOf(StaleMountError);
     expect(write).toHaveBeenCalledTimes(1);
   });
+
+  it('a remount over a pending body the store could not read is refused with the failure that caused it', async () => {
+    // The store holds the editor's text as a producer, and the producer fails:
+    // the text could not be read. The mount cannot show a body it could not
+    // read — mounting over it would replace the store's work with a body that
+    // does not have it — so it is refused. But not with the refusal that blames
+    // a store that has not moved: this one names the failure.
+    const write = acceptingWriter();
+    const { autosave } = scheduler(write);
+    const { instance } = await mountInto('Hello.\n', { revision: 4, autosave });
+    instance.destroy();
+    await settle();
+
+    // The editor's text could not be read: the producer the store holds fails.
+    autosave.noteEdit('doc-under-test', () => {
+      throw new Error('the editor is gone');
+    });
+
+    const remount = createTiptapEditorApi().mount(document.createElement('div'), {
+      docId: 'doc-under-test',
+      initialBody: 'Hello.\n',
+      revision: 4,
+      autosave,
+    });
+
+    await expect(remount).rejects.toBeInstanceOf(UnreadablePendingBodyError);
+    await expect(remount).rejects.toThrow('the editor is gone');
+    // The store keeps the text: nothing was written, and the body still waits.
+    expect(write).not.toHaveBeenCalled();
+    expect(autosave.status('doc-under-test')).toMatchObject({ state: 'pending', dirty: true });
+  });
 });
 
 describe('the view is the source of the selection (§6)', () => {
@@ -869,6 +905,103 @@ describe('autosave (§9): the store’s clock, and the editor forwards to it', (
     vi.advanceTimersByTime(10_000);
     expect(instance.getContent()).toBe('Howdy.\n');
     expect(write).not.toHaveBeenCalled();
+  });
+
+  it('an agent apply inside the window does not become the user’s write', async () => {
+    // The measured failure: the body belongs to the *write*, so the editor's text is
+    // read when the window flushes — and an agent apply that landed inside that window
+    // was read as if the user had typed it, and written under the user's revision.
+    // The user's text is taken before the agent's change lands, so the write carries
+    // the user's text and the revision it was typed against.
+    const { autosave, write } = scheduler();
+    const { instance } = await mountInto('Hello.\n', { revision: 4, autosave });
+    instance.revealRange({ from: 0, to: 0 });
+    instance.insertAtSelection('Mine ');
+    // The agent's text lands in the editor while the user's keystroke is still waiting
+    // for its window.
+    instance.insertAtSelection('Agent ', { historyExcluded: true });
+    expect(instance.getContent()).toBe('Mine Agent Hello.\n');
+
+    vi.advanceTimersByTime(800);
+
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(write).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      docId: 'doc-under-test',
+      body: 'Mine Hello.\n',
+      expectedRevision: 4,
+    });
+    // The write settled and nothing was left waiting, so no second write follows.
+    await settle();
+    vi.advanceTimersByTime(10_000);
+    expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  it('an undo inside the window is the user’s edit, and it is what the write sends', async () => {
+    // What this proves: an undo inside the first window coalesces into one write of
+    // the text the undo left behind, at the revision the edit was typed against, and
+    // the agent's text survives the undo (§7 rule 1 — the agent's text is not in the
+    // user's undo stack, so it stays in the document).
+    //
+    // It does not prove the capture: the undo is itself a user edit, and its own
+    // `noteEdit` replaces the pending source before the flush. The capture is what
+    // the previous test covers.
+    const { autosave, write } = scheduler();
+    const { instance } = await mountInto('Hello.\n', { revision: 4, autosave });
+    instance.revealRange({ from: 0, to: 0 });
+    instance.insertAtSelection('Mine ');
+    instance.insertAtSelection('Agent ', { historyExcluded: true });
+    instance.undo();
+    expect(instance.getContent()).toBe('Agent Hello.\n');
+
+    vi.advanceTimersByTime(800);
+
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(write).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      docId: 'doc-under-test',
+      body: 'Agent Hello.\n',
+      expectedRevision: 4,
+    });
+    // The write settled and nothing was left waiting, so no second write follows.
+    await settle();
+    vi.advanceTimersByTime(10_000);
+    expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  it('a burst of keystrokes is one body, produced once', async () => {
+    // The body belongs to the write, so the editor's text is rendered when the write
+    // needs it: twelve keystrokes, one rendering. The window is where the work is
+    // amortized.
+    const { autosave, write } = scheduler();
+    let produced = 0;
+    const counted: Autosave = {
+      ...autosave,
+      noteEdit: (docId, body) =>
+        autosave.noteEdit(
+          docId,
+          typeof body === 'function'
+            ? () => {
+                produced += 1;
+                return body();
+              }
+            : body,
+        ),
+    };
+    const { instance } = await mountInto('Hello.\n', { revision: 4, autosave: counted });
+    instance.revealRange({ from: 0, to: 0 });
+    for (let i = 0; i < 12; i += 1) {
+      instance.insertAtSelection('x');
+      vi.advanceTimersByTime(50);
+    }
+
+    vi.advanceTimersByTime(800);
+
+    expect(produced).toBe(1);
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(write).toHaveBeenLastCalledWith(
+      expect.objectContaining({ body: 'xxxxxxxxxxxxHello.\n', expectedRevision: 4 }),
+    );
   });
 
   it('a user undo is the user’s edit, and is written as one', async () => {

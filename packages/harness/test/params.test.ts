@@ -128,7 +128,7 @@ describe('the closed-set validator', () => {
     expect(over.ok).toBe(false);
     if (over.ok) return;
     expect(over.error.code).toBe('limit-exceeded');
-    expect(over.error.message).toBe('params.tags has 3 entries, limit 2');
+    expect(over.error.message).toBe('params.tags has 3 entries, at most 2 allowed');
     expect(over.error.correctiveHint).toContain('split the rest into another call');
 
     const under = checkParams('test.tool', SPEC, { name: 'ok', tags: [] });

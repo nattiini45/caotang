@@ -56,6 +56,13 @@ export interface PerOpFailure {
   code: CommandErrorCode;
   message: string;
   correctiveHint?: string;
+  /**
+   * The op's own details, when it has any — the candidates an ambiguous name
+   * matched, for instance. A per-op failure that dropped them would lose what
+   * the op's refusal said as data, and a caller that has to recover that by
+   * reading the prose cannot build the retry loop §7 is meant to enable.
+   */
+  details?: CommandErrorDetails;
 }
 
 export interface CommandErrorDetails {

@@ -30,7 +30,7 @@
  *      caller's own check and before this write is not overwritten either.
  */
 
-import type { ArtifactFs } from './artifact-fs.js';
+import { ArtifactNotFoundError, type ArtifactFs } from './artifact-fs.js';
 import { serializeManifest } from './manifest-json.js';
 import { PRODUCTION_FORMAT, type FormatContext } from './migrations.js';
 import { serializeDocumentFile } from './document-file.js';
@@ -103,6 +103,32 @@ export interface WriteOptions {
    */
   report?: WriteReport;
   /**
+   * Who this copy is for, which decides what the write does with a file the
+   * load declined because its bytes are not UTF-8 text — a `codex/<id>.md`
+   * file, or a document body.
+   *
+   * A **`user`** copy (the default) is one the writer takes home, so it has to
+   * be able to carry the whole project: such a file has no text to write, so a
+   * copy that cannot hold it refuses rather than shipping a project without it.
+   * A save in place is never affected — the folder holds the file, and the
+   * write leaves it exactly as it is.
+   *
+   * An **`internal`** copy is one the app keeps for itself: the desktop's
+   * safety bundle, which holds a browser's copy in memory so that a failed
+   * adopt can put it back. It is not the writer's backup, so it mirrors what
+   * the state holds rather than refusing: a codex file the load could not read
+   * has no entry and no text, so the copy leaves it out; a document the load
+   * held has no body, so the copy writes the empty body it shows. Both are
+   * named in the report — the codex file as one the copy leaves out, and the
+   * document as one the copy holds empty, but only when the file the load
+   * declined is the document's own file. When the load declined an older name
+   * beside it and never read the document's own file, the copy leaves the
+   * declined name out and writes the document's own file instead, which the
+   * report names among the files it wrote. The author's own file is never
+   * touched.
+   */
+  copyFor?: 'user' | 'internal';
+  /**
    * Which version this build writes — the same context the project was loaded
    * with. Defaults to the production one, and nothing in this package passes
    * anything else; it is here so a test can drive the writer at a version above
@@ -118,6 +144,21 @@ export interface WriteReport {
   rotated: string[];
   /** Snapshot paths that fell off the end of the ladder. */
   dropped: string[];
+  /**
+   * Files whose text this copy does not carry, because the load declined them
+   * and their bytes are not text, and which this copy does not hold at all.
+   * Only an `internal` copy has any (`WriteOptions.copyFor`); a `user` copy
+   * refuses instead of making one.
+   */
+  omitted?: string[];
+  /**
+   * Files this copy holds as an empty shell in place of the author's text: the
+   * load declined them because their bytes are not text, and a copy that left
+   * them out would name a document it does not hold. The text is not carried —
+   * the file is there, and empty, so a save of this copy writes that empty text
+   * over the file it was opened from.
+   */
+  emptied?: string[];
   /** `codex/<id>.md` files removed because no manifest entry owns them any more. */
   pruned: string[];
 }
@@ -184,18 +225,31 @@ function codexFrontMatterFor(entry: CodexEntry): CodexFrontMatter {
  * Rotate the manifest snapshots one generation down and put the current
  * manifest in `bak.1`. The oldest generation falls off — depth 3 is a
  * deliberate bound, not an oversight.
+ *
+ * **Only a manifest that is genuinely absent means "first write".** Every other
+ * read failure — a locked file, a permission error, a broken disk — is not
+ * evidence that there is nothing to rotate, and reading it that way overwrote
+ * `caotang.json` with no snapshot of it: the one loss the §5 recovery ladder
+ * exists to prevent, caused by the ladder's own first step. A read that fails
+ * for any other reason therefore **refuses the save**: the manifest on disk is
+ * still there, and the caller is told why the save did not happen.
  */
 async function rotateManifest(
   fs: ArtifactFs,
   depth: number,
   report: WriteReport,
 ): Promise<void> {
-  let previous: string | undefined;
+  let previous: string;
   try {
     previous = await fs.read(MANIFEST_FILE);
-  } catch {
-    // First write into this folder: no previous manifest to rotate.
-    return;
+  } catch (cause) {
+    // `ArtifactNotFoundError` is the port's one "there is no such file" signal,
+    // and every backend raises it for an absent path (artifact-fs.ts).
+    if (cause instanceof ArtifactNotFoundError) {
+      // First write into this folder: no previous manifest to rotate.
+      return;
+    }
+    throw cause;
   }
 
   const oldest = snapshotFile(depth);
@@ -240,6 +294,7 @@ export async function writeProject(
   const depth = options.snapshotCount ?? SNAPSHOT_COUNT;
   const newline = options.newline ?? '\n';
   const format = options.format ?? PRODUCTION_FORMAT;
+  const copyFor = options.copyFor ?? 'user';
   const report: WriteReport = options.report ?? { written: [], rotated: [], dropped: [], pruned: [] };
   const expected = options.expectedDigests;
   const readDigest: DigestReader = options.readDigest ?? ((path) => digestOfFile(fs, path));
@@ -271,6 +326,31 @@ export async function writeProject(
       const declined = bodyNamesOf(node).find((name) => state.declinedDocFiles.has(name));
       if (declined !== undefined) {
         if (await fs.exists(`${DOCS_DIR}/${declined}`)) continue;
+        if (copyFor === 'internal') {
+          // An internal copy mirrors what the state holds (write.ts
+          // `WriteOptions.copyFor`): the load held this document, so the copy
+          // writes the empty body the browser's own copy shows. Without a file
+          // at all the copy would name a document it does not hold, and the
+          // next load of it would be a fatal one. The author's file stays where
+          // it is.
+          const target = bodyFile(node);
+          const declinedPath = `${DOCS_DIR}/${declined}`;
+          const text = node.type === 'dialogue' ? '' : serializeDocumentFile(frontMatterFor(node), '', { newline });
+          await guard(target);
+          await fs.writeAtomic(target, text);
+          report.written.push(target);
+          // The file the load declined is the author's own, and it is left where it is. Where that file
+          // is the copy's own file, the copy holds it (empty), so there is nothing left out and the copy
+          // says it holds the file empty; where it is the older name beside it, the copy does not hold
+          // that one at all, and the copy says it leaves that one out.
+          //
+          // The two are told apart by the name the load declined, not by the file the copy writes: the
+          // file the copy writes is the node's own, and in the older-name case that file was never read
+          // and never declined, so it is not a file the copy holds empty in place of the author's text.
+          if (declinedPath === target) (report.emptied ??= []).push(target);
+          else (report.omitted ??= []).push(declinedPath);
+          continue;
+        }
         // Named by title, in the writer's words: the file is the writer's, and the project folder still holds it.
         throw new Error(
           `the document “${node.title}” is not UTF-8 text, so Caotang cannot write it into this copy, and it will not write an empty document in its place. The file it was opened from still holds its text, and Caotang has not changed it.`,
@@ -337,6 +417,39 @@ export async function writeProject(
     report.written.push(path);
   }
 
+  // 2c. A codex file the load declined *because its bytes are not UTF-8*.
+  //
+  //     The case above cannot cover it: there is no text to record for a file
+  //     that is not text, so nothing travels with the state and a target that
+  //     does not hold the file would simply not get it. The document refusal in
+  //     step 1 is the same hole closed for `docs/`, and the export is where it
+  //     bit: `exportProjectZip` assembles into a *fresh* folder, so the bundle
+  //     left the file out with no error at all — the one loss codex.md §3 calls
+  //     "the direct countermeasure to the Manuskript corpus".
+  //
+  //     So the codex case refuses the same way the document case does: a save
+  //     in place leaves the author's file exactly as it is, and a copy that
+  //     cannot hold the file refuses rather than losing it quietly.
+  for (const name of state.declinedCodexFiles) {
+    const path = codexFile(name.slice(0, -3));
+    // Its text travels with the state (step 2b), so this copy can hold it.
+    if (state.declinedText.has(path)) continue;
+    // The target already holds the file: a save in place never rewrites one.
+    if (await fs.exists(path)) continue;
+    if (copyFor === 'internal') {
+      // An internal copy (write.ts `WriteOptions.copyFor`) is not the writer's
+      // backup, so it mirrors what the state holds: the load could not read
+      // this file, so the copy has no entry for it and no text to write, and
+      // it says so in the report rather than refusing. The author's file stays
+      // where it is.
+      (report.omitted ??= []).push(path);
+      continue;
+    }
+    throw new Error(
+      `the codex file “${path}” is not UTF-8 text, so Caotang cannot write it into this copy, and it will not leave it out of it. The file it was opened from still holds its text, and Caotang has not changed it.`,
+    );
+  }
+
   // 3. `.gitignore` — created only when absent. An artifact that a writer has
   //    customized is the author's file, and silently replacing it is the one
   //    thing this whole module must never do.
@@ -376,6 +489,7 @@ export async function writeProject(
   report.rotated.sort();
   report.dropped.sort();
   report.pruned.sort();
+  report.omitted?.sort();
   return report;
 }
 
@@ -424,16 +538,18 @@ export async function writeProject(
  * §5.4 rebuild import it a second time, as a duplicate of the entry that owns
  * its text. The load notice says so before it happens.
  *
- * ⚠ **What this skip buys is a file in *this* folder, and that is the whole of
- * it**. It is not a guarantee that
- * survives an export: `exportProjectZip` assembles into a *fresh*
- * `MemoryArtifactFs`, so a declined file is in neither the folder the export
- * reads nor the state the export writes from, and a zip round-trip returns
- * `codex/` empty. The bytes exist only where the load found them. The own
- * test comment called the export case "cannot lose it"; it loses it, and since
- * this file is codex.md §3's "direct countermeasure to the Manuskript corpus" a
- * backup that drops it is the shape of loss that matters most. Changing that is a
- * behaviour change, and it is deliberately not made here.
+ * ⚠ **What this skip buys is a file in *this* folder, and it is not by itself a
+ * guarantee that survives an export.** `exportProjectZip` assembles into a
+ * *fresh* `MemoryArtifactFs`, so a declined file is in neither the folder the
+ * export reads nor the state the export writes from. What the export does with
+ * it is decided by the write path itself (`writeProject`, steps 2b and 2c): a
+ * file whose text the load could read travels with the state and is carried
+ * into the bundle, and a file whose bytes are not UTF-8 — the one case with no
+ * text to carry — is where the copy's reader decides (`WriteOptions.copyFor`).
+ * A copy the writer takes home **refuses** rather than shipping a bundle that
+ * quietly left the file out; a copy the app keeps for itself records the
+ * omission in its report and goes on, because it mirrors what the state holds
+ * rather than backing the writer up.
  */
 async function pruneCodexFiles(
   fs: ArtifactFs,

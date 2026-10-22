@@ -7,7 +7,7 @@
  * prefix (the union carries these three, rather than
  * borrowing `c` and swapping the prefix afterwards). The body is ten Crockford
  * characters from the family's randomness, and the spec's uniqueness rule still
- * applies: `taken` re-rolls on collision, and an exhausted re-roll is a throw.
+ * applies: a minted id is never one `taken` already holds.
  */
 
 import { ID_BODY_PATTERN, newId, type RandomBytes } from '@caotang/ids';
@@ -38,20 +38,16 @@ export function isCoherenceId(prefix: CoherenceIdPrefix, value: unknown): value 
 }
 
 /**
- * Mint an id not already in `taken`. `newId` re-rolls on collision itself — up
- * to twice `maxAttempts` draws — and **throws** once the draws are exhausted:
- * an exhausted mint is a bug in the randomness source, and it surfaces as that
- * throw rather than as a duplicate or a fallback of another shape. The id that
- * comes back is therefore always taken-free and always the ten-character shape
- * the spec fixes, so there is nothing left to re-check here.
- *
- * @throws {Error} when `newId`'s draws are exhausted (its message, naming the
- * prefix and the attempt count).
+ * Mint an id not already in `taken`. A coherence id has to be the ten-character
+ * shape the spec fixes, so whatever the ids package hands back, a candidate that
+ * `taken` holds or {@link isCoherenceId} rejects is a throw, never a returned id.
  */
 export function mintCoherenceId(
   prefix: CoherenceIdPrefix,
   taken: ReadonlySet<string>,
   randomBytes?: RandomBytes,
 ): string {
-  return newId(prefix, { taken, ...(randomBytes ? { randomBytes } : {}), maxAttempts: 8 });
+  const candidate = newId(prefix, { taken, ...(randomBytes ? { randomBytes } : {}), maxAttempts: 8 });
+  if (!taken.has(candidate) && isCoherenceId(prefix, candidate)) return candidate;
+  throw new Error(`could not mint a unique ${prefix}_ id after 8 attempts`);
 }

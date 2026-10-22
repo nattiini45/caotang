@@ -161,7 +161,7 @@ export class MockProvider implements ProviderGateway {
   /**
    * The capability row a caller reads to pick native-vs-fallback mode. The mock reports
    * the conservative empty row unless `capsTools` was set, in which case `{tools: true}`.
-   * MockProvider-only — `ProviderGateway` has no `modelCaps`; the concrete `Gateway` does.
+   * The gateway reads this for a mock profile; `ProviderGateway` itself has no `modelCaps`.
    */
   modelCaps(_profileId?: string, _model?: string): ModelCaps {
     return this.capsTools ? { tools: true } : {};

@@ -19,10 +19,10 @@
 
 import { err, ok, type CommandError, type Result } from '@caotang/bus';
 import type { ToolDef } from '@caotang/gateway';
-import type { ExternalToolDescriptor } from '@caotang/mcp-client';
+import { clipChars, EXCERPT_CHARS, type ExternalToolDescriptor } from '@caotang/mcp-client';
 
 import { checkParams } from '../validate.js';
-import { planParams, type AskBack, type Plan, type PlanPreflight } from '../plan.js';
+import { PLAN_STEPS_MAX, planParams, type AskBack, type Plan, type PlanPreflight } from '../plan.js';
 import type { ToolListing } from '../runtime.js';
 import { isRecord } from '../util.js';
 
@@ -43,6 +43,7 @@ export const REPLY_SCHEMA_HINT = {
         steps: {
           type: 'array',
           minItems: 1,
+          maxItems: PLAN_STEPS_MAX,
           items: {
             type: 'object',
             required: ['tool', 'params', 'expect'],
@@ -76,6 +77,16 @@ const SHAPE_HINT =
   'Reply with exactly one JSON object and nothing else: {"steps": [{"tool": "<name>", "params": {...}, "expect": "<effect>"}]} to call tools, or {"reply": "<text>"} to answer.';
 
 /**
+ * A reply whose steps the plan schema refused, as the words the model reads next. Both wires send this
+ * same text — the JSON wire as its parse error, the native wire after the calls' tool results — so a
+ * refusal reads the same however the model spoke.
+ */
+export function stepsRefusalMessage(error: CommandError): string {
+  const hint = error.correctiveHint === undefined ? '' : ` ${error.correctiveHint}`;
+  return `Your steps were refused: ${error.message}.${hint}`;
+}
+
+/**
  * A reply, parsed and checked against the plan schema. A malformed reply comes back as the words the
  * model should read next, because the loop sends them back as a message rather than failing the turn.
  */
@@ -90,10 +101,7 @@ export function parseReply(content: string): Result<Reply, string> {
 
   if (value['steps'] !== undefined) {
     const checked = checkParams('agent.plan', planParams, { steps: value['steps'] });
-    if (!checked.ok) {
-      const hint = checked.error.correctiveHint === undefined ? '' : ` ${checked.error.correctiveHint}`;
-      return err(`Your steps were refused: ${checked.error.message}.${hint}`);
-    }
+    if (!checked.ok) return err(stepsRefusalMessage(checked.error));
     return ok({ kind: 'steps', plan: checked.value as unknown as Plan });
   }
   if (typeof value['reply'] === 'string') {
@@ -117,15 +125,30 @@ export function plannerTools(tools: readonly ToolListing[]): readonly ToolListin
 }
 
 /**
+ * An external tool's description as it reaches the model in the planner prompt or the native tools
+ * declaration. The full text remains in the approval card (extensibility §4 rule 5); the excerpt
+ * shrinks the ambient poisoning surface to the budget the spec sets for the model-facing side
+ * (extensibility §4 rule 4).
+ */
+function clipExternalDescription(description: string): string {
+  // The one clipping rule, shared with `tool.search`'s excerpt (mcp-client `clipChars`): at most
+  // EXCERPT_CHARS UTF-16 units including the ellipsis, cut on a code-point boundary, so the model
+  // reads the same excerpt before and after a tool is loaded and never a lone surrogate.
+  return clipChars(description, EXCERPT_CHARS);
+}
+
+/**
  * The tools a native-mode request declares: the planner's callable set, then the external tools the
  * turn has loaded. A native tool goes by its registry name, an external one by the qualified name
- * `tool.search` returned; each carries its description and its JSON Schema verbatim. The list is
- * built fresh for each request, so a tool a mid-turn search loaded joins the next request.
+ * `tool.search` returned; a native tool's description is Caotang's own text (in full) and an
+ * external tool's is clipped to the spec's excerpt budget so the model's ambient context stays
+ * bounded. The list is built fresh for each request, so a tool a mid-turn search loaded joins the
+ * next request.
  */
 export function plannerToolDefs(tools: readonly ToolListing[], externals: readonly ExternalToolDescriptor[]): ToolDef[] {
   return [
     ...plannerTools(tools).map((tool) => ({ name: tool.name, description: tool.description, parameters: tool.schema })),
-    ...externals.map((tool) => ({ name: tool.qualifiedName, description: tool.description, parameters: tool.inputSchema })),
+    ...externals.map((tool) => ({ name: tool.qualifiedName, description: clipExternalDescription(tool.description), parameters: tool.inputSchema })),
   ];
 }
 
@@ -183,13 +206,14 @@ export function plannerSystemNative(tools: readonly ToolListing[], loaded?: stri
 
 /**
  * The external tools a search loaded this turn, as the model reads them (extensibility §5): each tool's qualified name,
- * its risk, its description verbatim and its input schema. A read runs at once; a write asks the writer on a
- * one-step confirm card of its own, per call. A description is the server's own text, and the model reads it as data.
+ * its risk, its description as the spec's model-facing excerpt (rule 4), and its input schema. The full description still
+ * reaches the writer on the approval card (rule 5); here the model only sees the excerpt so the ambient poisoning surface
+ * stays bounded. A read runs at once; a write asks the writer on a one-step confirm card of its own, per call.
  */
 export function loadedToolsMessage(tools: readonly ExternalToolDescriptor[]): string {
   return [
     'External tools loaded for this turn. Call a read by its qualified name, with params that match its schema. A write asks the writer to confirm each call before it runs.',
-    ...tools.map((tool) => `- ${tool.qualifiedName} [${tool.effectiveRisk === 'read-auto' ? 'read' : 'write'}] — ${tool.description}\n  params: ${JSON.stringify(tool.inputSchema)}`),
+    ...tools.map((tool) => `- ${tool.qualifiedName} [${tool.effectiveRisk === 'read-auto' ? 'read' : 'write'}] — ${clipExternalDescription(tool.description)}\n  params: ${JSON.stringify(tool.inputSchema)}`),
   ].join('\n');
 }
 

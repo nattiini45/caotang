@@ -57,7 +57,7 @@ describe('meta.set', () => {
     const targets = Array.from({ length: 51 }, () => LANDING);
     const error = refusalOf(run(makeHarness(), 'meta.set', { targets, status: 'draft' }));
     expect(error.code).toBe('limit-exceeded');
-    expect(error.message).toBe('params.targets has 51 entries, limit 50');
+    expect(error.message).toBe('params.targets has 51 entries, at most 50 allowed');
     expect(error.correctiveHint).toContain('split the rest into another call');
   });
 

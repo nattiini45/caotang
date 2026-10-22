@@ -29,6 +29,7 @@ import {
   NoPersistentIdentifierError,
   UnknownExportFormatError,
   UnknownRecipeError,
+  UnknownSelectionNodeError,
 } from './errors.js';
 import { flatten, type FlattenResult } from './flatten.js';
 import { imageSizeOf } from './image-size.js';
@@ -376,6 +377,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
     async compile(selection, format, templateId) {
       if (!isExportFormat(format)) throw new UnknownExportFormatError(format);
       const state = options.readState();
+      requireKnownNodes(state, selection.includeRootIds);
       const label = selection.includeRootIds.includes('manuscript') ? 'manuscript' : 'selection';
       const base = fileStem(outputTitle(state, selection.includeRootIds, state.manifest.project.name));
       const compiled = plan(state, {
@@ -458,6 +460,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
         : recipe !== undefined
           ? recipe.includeRootIds
           : ['manuscript'];
+    requireKnownNodes(state, includeRootIds);
     const label = request.recipeName ?? (request.selection.kind === 'manuscript' ? 'manuscript' : 'selection');
     // A whole-manuscript compile under a named recipe is named by the recipe, except the default one: that recipe is the book itself,
     // so its file is the book's title, which is what a compile without a recipe has always been named. A part is named for what it
@@ -549,6 +552,7 @@ async function renderEpubArtifactFor(compiled: ProsePlan): Promise<{ readonly co
   // plan() refuses an EPUB with no identifier, so reaching here without one is a defect.
   if (compiled.epub === undefined) throw new Error('an EPUB reached the renderer without its planned identifier');
   const at = new Date(compiled.at);
+  const named = compiled.epub.cover !== undefined;
   const cover = compiled.epub.cover === undefined ? undefined : await compiled.epub.cover.read();
   const input: EpubInput = {
     ...compiled.input,
@@ -559,7 +563,11 @@ async function renderEpubArtifactFor(compiled: ProsePlan): Promise<{ readonly co
     modified: at.toISOString().replace(/\.\d{3}Z$/, 'Z'),
     mtime: at,
   };
-  return { contents: await renderEpub(input), notes: cover === undefined ? [] : coverNotesFor(cover.bytes) };
+  // A cover the project names but the store does not hold is left out of the book (an EPUB is valid without one), and
+  // the log says so: the writer set a cover, so a silent drop would look like the cover was never read. This is the
+  // named-but-missing case; a project that names no cover (`named` false) is epub-metadata.md's "no cover, no warning".
+  const notes = cover === undefined ? (named ? ['epub: the project has a cover asset on record but its file is not in assets/, so the book has no cover'] : []) : coverNotesFor(cover.bytes);
+  return { contents: await renderEpub(input), notes };
 }
 
 /** The short side a cover is asked to reach for the big retailers (epub-metadata.md, the retail-distribution gap). */
@@ -696,6 +704,17 @@ export function localDayOf(at: Date): string {
   const month = String(at.getMonth() + 1).padStart(2, '0');
   const day = String(at.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+/**
+ * Refuses a selection that names a node the tree does not hold. The recipe path refuses an unknown node as `not-found`
+ * before the plan, and the selection path agrees here: an id that resolves to nothing would otherwise compile a
+ * title-page-only artifact and report success. A fixed root (`root`, `manuscript`, `research`) is always a node.
+ */
+function requireKnownNodes(state: ProjectState, includeRootIds: readonly string[]): void {
+  const known = new Set(state.manifest.tree.map((node) => node.id));
+  const unknown = includeRootIds.filter((id) => !known.has(id));
+  if (unknown.length > 0) throw new UnknownSelectionNodeError(unknown);
 }
 
 /**

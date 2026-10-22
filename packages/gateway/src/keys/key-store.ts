@@ -104,7 +104,9 @@ export function createKeyStore(port: KeyVaultPort, options: KeyStoreOptions = {}
 
   // Resolved at most once per store, so two concurrent first saves in one tab share one key.
   // Across tabs the vault arbitrates: a candidate is generated, and `putWrappingKeyIfAbsent`
-  // returns whichever key is stored, so every tab converges on the same one.
+  // returns whichever key is stored, so every tab converges on the same one. A lookup that
+  // failed is not kept: the vault may only have been briefly unavailable, so the next call
+  // tries again.
   let ensuring: Promise<CryptoKey> | undefined;
   const ensureWrappingKey = (): Promise<CryptoKey> => {
     ensuring ??= (async () => {
@@ -112,7 +114,10 @@ export function createKeyStore(port: KeyVaultPort, options: KeyStoreOptions = {}
       if (existing !== undefined) return existing;
       const candidate = await subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
       return port.putWrappingKeyIfAbsent(candidate);
-    })();
+    })().catch((error: unknown) => {
+      ensuring = undefined;
+      throw error;
+    });
     return ensuring;
   };
 

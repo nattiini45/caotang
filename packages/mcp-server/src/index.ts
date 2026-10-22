@@ -9,7 +9,7 @@
 
 export { VERSION, MCP_PATH } from './version.js';
 export { ArtifactPathError, NodeArtifactFs, byteArtifactsOver, resolveWithin } from './node-fs.js';
-export { LOCK_FILE, ProjectLockedError, acquireProjectLock, type ProjectLock } from './lock.js';
+export { LOCK_FILE, LOCK_TAKEOVER_FILE, ProjectLockedError, acquireProjectLock, type ProjectLock } from './lock.js';
 export {
   FolderChangedError,
   NoProjectError,

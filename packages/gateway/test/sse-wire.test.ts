@@ -70,6 +70,11 @@ describe('SSE parser', () => {
     expect(parseIn(['data:\n\n\n\ndata: real\n\n'])).toEqual([{ data: 'real' }]);
   });
 
+  it('clears the event name on a blank line that dispatches nothing, as the spec does', () => {
+    // The name belongs to the event it was declared in: the next event is unnamed.
+    expect(parseIn(['event: response.completed\n\ndata: {"a":1}\n\n'])).toEqual([{ data: '{"a":1}' }]);
+  });
+
   it('keeps an event that a truncated stream left open, so the caller can call it malformed', () => {
     expect(parseIn(['data: {"partial": tru'])).toEqual([{ data: '{"partial": tru' }]);
   });
