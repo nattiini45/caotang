@@ -2,6 +2,12 @@
 
 All notable changes to Caotang are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the version follows the `version` field in each package's `package.json`.
 
+## Unreleased
+
+### Added
+
+- **Agent.** A live task list for multi-step turns, in the agent header and at the top of the turn, with the model-call budget. The header says "Step 3 of 5 · Drafting “The Landing”", or "Waiting for you · Plan, 3 steps", with the drawer open or closed. The list is worked out from the plan and the tool calls, so it costs no model tokens and shows only work that ran.
+
 ## 0.1.0
 
 The first public version: a free, local-first writing studio for novels, scripts and story worlds, with an agent that works through the app's own commands on the writer's own provider key. The version is 0.1.0 rather than 1.0 because the project file format may still change.

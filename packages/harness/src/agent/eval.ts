@@ -32,6 +32,7 @@ import { canonicalJson } from '../util.js';
 import { createAgentSession } from './loop.js';
 import { createAgentPorts } from './ports.js';
 import { createContextPort, type ContextPortOptions } from './context.js';
+import { emptyTaskList, reduceTaskList, type TaskState } from './progress.js';
 import type { AgentEvent, CardRecord, Decision, PendingCard, TraceEntry, TurnReport, TurnStatus } from './events.js';
 
 export type ScenarioCategory =
@@ -73,6 +74,13 @@ export interface RequestExpect {
   readonly systemExcludes?: readonly string[];
 }
 
+/** One item of the turn's final task list (agent-harness §8): its line, its state and, for a failed item, words its reason carries. */
+export interface TaskExpect {
+  readonly content: string;
+  readonly state: TaskState;
+  readonly reason?: string;
+}
+
 export interface Expectation {
   readonly status: TurnStatus;
   readonly askBack?: AskBackCode;
@@ -83,6 +91,8 @@ export interface Expectation {
   readonly summaryIncludes?: readonly string[];
   readonly cards?: { readonly matcher: Matcher; readonly items: readonly CardExpect[] };
   readonly trace?: { readonly matcher: Matcher; readonly calls: readonly CallExpect[] };
+  /** The task list the turn's events fold to, in strict order, planner row included. Every run is also held to the list's invariants. */
+  readonly tasks?: readonly TaskExpect[];
   /** Each request expected must be matched, in order, by a request the gateway received. */
   readonly requests?: readonly RequestExpect[];
   /** Each string must appear in some reason the context assembly recorded. */
@@ -301,6 +311,39 @@ function matchRequests(expected: readonly RequestExpect[], actual: readonly Chat
   return failures;
 }
 
+/**
+ * The task list of a run, checked: never two items in progress, one in progress while the model is asked or a step runs, and
+ * nothing left unfinished once the turn has reported. With `expected`, the final list must be those items, in that order.
+ */
+export function taskListFailures(events: readonly AgentEvent[], report: TurnReport, expected?: readonly TaskExpect[]): string[] {
+  const failures: string[] = [];
+  let list = emptyTaskList(report.turnId);
+  for (const [index, event] of events.entries()) {
+    list = reduceTaskList(list, event);
+    const active = list.items.filter((item) => item.state === 'in_progress').length;
+    const where = `after event ${index + 1} (${event.type}${event.type === 'turn' ? ` ${event.phase}` : ''})`;
+    if (active > 1) failures.push(`tasks: ${active} items in progress ${where}`);
+    const asking = list.phase === 'planning' || list.phase === 'retrying';
+    if (asking && event.type === 'turn' && active !== 1) failures.push(`tasks: ${active} items in progress ${where}, and the model is being asked`);
+    if (event.type === 'turn' && list.phase === 'running' && list.items.some((item) => item.state === 'waiting')) failures.push(`tasks: an item still waits for a decision ${where}`);
+  }
+  const open = list.items.filter((item) => item.state === 'in_progress' || item.state === 'pending' || item.state === 'waiting');
+  if (open.length > 0) failures.push(`tasks: ${open.map((item) => `${item.content} is ${item.state}`).join('; ')} after the report`);
+  if (expected === undefined) return failures;
+  const actual = list.items;
+  if (actual.length !== expected.length) failures.push(`tasks: expected ${expected.length} items, got ${actual.length} (${actual.map((item) => `${item.content}: ${item.state}`).join('; ')})`);
+  for (const [index, want] of expected.entries()) {
+    const item = actual[index];
+    if (item === undefined) continue;
+    if (item.content !== want.content || item.state !== want.state) {
+      failures.push(`tasks: item ${index + 1} should be ${want.content} (${want.state}), got ${item.content} (${item.state})`);
+    } else if (want.reason !== undefined && !(item.reason ?? '').includes(want.reason)) {
+      failures.push(`tasks: item ${index + 1} should fail with ${JSON.stringify(want.reason)}, got ${JSON.stringify(item.reason ?? '')}`);
+    }
+  }
+  return failures;
+}
+
 /** The restore, checked: it ran, and the project after it is the project before the turn, byte for byte. */
 function restoreFailures(run: ScenarioRun): string[] {
   if (run.restored === undefined) return ['restore: the scenario asked for a restore, and none ran'];
@@ -330,6 +373,7 @@ export function checkRun(scenario: Scenario, run: ScenarioRun): string[] {
   }
   if (expect.cards !== undefined) failures.push(...matchCards(expect.cards.items, report.cards, expect.cards.matcher));
   if (expect.trace !== undefined) failures.push(...matchTrace(expect.trace.calls, report.trace, expect.trace.matcher));
+  failures.push(...taskListFailures(run.events, report, expect.tasks));
   if (expect.requests !== undefined) failures.push(...matchRequests(expect.requests, run.requests));
   for (const reason of expect.dropped ?? []) {
     if (!report.dropped.some((entry) => entry.includes(reason))) failures.push(`dropped: no reason includes ${JSON.stringify(reason)}`);

@@ -88,11 +88,16 @@ export interface PendingCard {
   readonly card: PlanCardView;
 }
 
+/** How many model requests a turn may make unless the session says otherwise (agent-harness §2). */
+export const DEFAULT_MAX_MODEL_CALLS = 8;
+
 export type TurnPhase = 'started' | 'planning' | 'awaiting-approval' | 'running' | 'retrying' | 'done' | 'failed' | 'cancelled';
 
 export type AgentEvent =
   | { readonly type: 'turn'; readonly turnId: string; readonly phase: TurnPhase }
   | { readonly type: 'model.delta'; readonly turnId: string; readonly delta: string }
+  /** A model request is about to be sent: how many the turn has made, this one included, and its bound. The task list's footer reads it (§8). */
+  | { readonly type: 'model.call'; readonly turnId: string; readonly used: number; readonly limit: number }
   /**
    * Reasoning text as the model streams it (the provider's thinking channel). The panel folds it into a collapsed
    * "Thinking" block (ui-modules §1); the replayable blocks a reply carries on its terminal chunk are context for the

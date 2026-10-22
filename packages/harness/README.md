@@ -156,10 +156,11 @@ write itself carries the revision the draft was staged against, so a draft the u
 
 ## Events and the status-card lifecycle
 
-The session emits `AgentEvent`s in order: `turn`, `model.delta` (streamed text), `context`, `card` (each status
+The session emits `AgentEvent`s in order: `turn`, `model.delta` (streamed text), `model.call` (a model request is about to go out: the count so far and the bound), `context`, `card` (each status
 card's lifecycle: `pending-approval`, `running`, `done`, `cancelled`, `failed`), `plan`, `ghost` (a draft handed
 to the ghost preview, with its words, its title and whether it was cut), `findings`, `ladder`, `checkpoint` (the
-label and the undo group), and `report`. `groupCards` groups consecutive calls of one turn, open while any is running.
+label and the undo group), and `report`. `groupCards` groups consecutive calls of one turn, open while any is running. `reduceTaskList` folds the same events into the turn's task list
+(agent-harness §8), and `headerLineOf` words the line the agent header shows.
 
 ## Turn identity and tokens
 

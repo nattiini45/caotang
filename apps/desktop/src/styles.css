@@ -2414,6 +2414,84 @@ dialog.confirm::backdrop {
   color: var(--muted);
 }
 
+/* The turn's task list (agent-harness §8). The state is also written as text, so colour is never the only signal. */
+.agent-tasks {
+  margin: 6px 0;
+  font-size: 12.5px;
+}
+
+.agent-tasks summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.task-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.task-item {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  color: var(--ink-soft);
+}
+
+.task-glyph {
+  width: 1.2em;
+  text-align: center;
+  color: var(--muted);
+}
+
+.task-state {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.task-item.is-in_progress {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.task-item.is-in_progress .task-glyph,
+.task-item.is-done .task-glyph {
+  color: var(--accent);
+}
+
+.task-item.is-skipped .task-content {
+  text-decoration: line-through;
+}
+
+.task-item.is-failed .task-glyph,
+.task-item.is-failed .task-state {
+  color: var(--danger);
+}
+
+.task-reason {
+  flex-basis: 100%;
+  padding-left: calc(1.2em + 8px);
+  color: var(--danger);
+}
+
+.task-calls {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.task-calls.is-near {
+  color: var(--warn);
+}
+
+.task-calls.is-limit {
+  color: var(--danger);
+  font-weight: 600;
+}
+
 .status-cards {
   list-style: none;
   margin: 8px 0;

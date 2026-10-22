@@ -6,12 +6,16 @@
 
 import {
   CHECKPOINT_LABEL,
+  emptyTaskList,
+  reduceTaskList,
   type AgentEvent,
   type AskBack,
   type PreviewLayer,
   type Finding,
+  type NameOf,
   type PlanCardView,
   type StatusCard,
+  type TaskList,
   type TurnPhase,
   type TurnReport,
 } from '@caotang/harness';
@@ -72,6 +76,8 @@ export interface TurnView {
   /** The reasoning the model has streamed this turn, in full — the collapsed "Thinking" block's text. */
   readonly reasoning: string;
   readonly context: ContextView | null;
+  /** The checklist of the turn, folded from the same events (agent-harness §8). Never sent to the model. */
+  readonly tasks: TaskList;
 }
 
 /** A turn that has been submitted and has not yet reported its id. */
@@ -98,15 +104,22 @@ export function newTurnView(
     streamed: '',
     reasoning: '',
     context: null,
+    tasks: emptyTaskList(turnId),
   };
 }
 
 /**
- * Folds one event into a turn. An event for another turn is returned unchanged, so a caller may pass every event through
- * every turn it holds.
+ * Folds one event into a turn, and into the turn's task list beside it. An event for another turn is returned unchanged, so a
+ * caller may pass every event through every turn it holds. `nameOf` shows a document reference by its title in the task list.
  */
-export function reduceTurn(turn: TurnView, event: AgentEvent): TurnView {
+export function reduceTurn(turn: TurnView, event: AgentEvent, nameOf?: NameOf): TurnView {
   if (event.turnId !== turn.turnId) return turn;
+  const tasks = reduceTaskList(turn.tasks, event, nameOf);
+  const next = reduceView(turn, event);
+  return tasks === next.tasks ? next : { ...next, tasks };
+}
+
+function reduceView(turn: TurnView, event: AgentEvent): TurnView {
   switch (event.type) {
     case 'turn':
       return { ...turn, phase: event.phase };

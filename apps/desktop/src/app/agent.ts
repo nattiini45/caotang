@@ -368,7 +368,9 @@ export class AgentController {
     }
     // A card is shown again after every edit and redraft, and each showing brings its own drafts, which follow its steps.
     if (event.type === 'plan') this.clearGhosts();
-    this.turns = this.turns.map((turn) => reduceTurn(turn, event));
+    const tree = this.session.state.manifest.tree;
+    const nameOf = (ref: string): string => tree.find((node) => node.id === ref)?.title ?? ref;
+    this.turns = this.turns.map((turn) => reduceTurn(turn, event, nameOf));
     if (event.type === 'ghost') this.addGhost(event);
     if (event.type === 'draft.delta') this.streamDraft(event);
     if (event.type === 'report') this.clearGhosts();

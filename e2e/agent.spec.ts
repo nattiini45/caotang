@@ -230,3 +230,50 @@ test('a draft addressed by a title in another case reaches its scene, and the ca
   await expect(page.getByTestId('checkpoint')).toBeVisible();
   await expect.poll(async () => (await bodyOf(page, friend)) ?? '').toContain(FRIEND_PROSE.slice(0, 20));
 });
+
+test('a multi-step turn shows its step in the header with the drawer open or closed, and its checklist ticks to done and folds', async ({ page }) => {
+  await fakeEndpoint(page, planThenAnswer(NOTE_THEN_SYNOPSIS, 'Both steps are in.', 'A storm takes the lamp.'));
+  await useFakeEndpoint(page);
+  await openSample(page);
+
+  // The model's first answer is held, so the turn stays in its first step long enough to be read.
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('https://127.0.0.1:5999/**', async (route) => {
+    if (route.request().method() === 'POST') await held;
+    await route.fallback();
+  });
+  await sendIntent(page, 'Add a note to The Landing and a synopsis for The Storm.');
+
+  const step = page.getByTestId('agent-step');
+  await expect(step).toHaveText('Step 1 of 1 · Planning');
+  release();
+
+  // The plan card waits for the writer, and the header says so with the drawer open and closed.
+  await expect(page.getByTestId('plan-card').getByRole('heading', { name: 'Plan, 2 steps' })).toBeVisible();
+  await expect(step).toHaveText('Waiting for you · Plan, 2 steps');
+  await page.getByRole('button', { name: 'Hide the agent' }).click();
+  await expect(page.getByTestId('agent-panel')).not.toHaveClass(/is-open/);
+  await expect(step).toHaveText('Waiting for you · Plan, 2 steps');
+  await page.getByRole('button', { name: 'Agent', exact: true }).click();
+
+  const list = page.getByRole('list', { name: 'Task list' });
+  await expect(list.getByRole('listitem')).toHaveCount(3);
+  await expect(list.locator('[data-state="waiting"]')).toHaveCount(2);
+  await expect(list).toContainText('Add to the notes of “The Landing”');
+  await expect(list).toContainText('Fill the synopsis of “The Storm”');
+
+  await page.getByTestId('plan-card').getByRole('button', { name: 'Approve plan', exact: true }).click();
+  await expect(page.getByTestId('checkpoint')).toBeVisible();
+
+  // The turn settled: the header says nothing more, every item reads Done as text, and the list is folded but still in the turn.
+  await expect(step).toHaveCount(0);
+  const tasks = page.locator('.agent-turn').last().getByTestId('agent-tasks');
+  await expect(tasks.locator('details')).not.toHaveAttribute('open', '');
+  await tasks.getByText(/Task list/).click();
+  await expect(tasks.locator('.task-item[data-state="done"]')).toHaveCount(3);
+  await expect(tasks.locator('.task-item').first()).toContainText('Done');
+  await expect(tasks.locator('.task-calls')).toContainText(/Model calls: \d of 8/);
+});

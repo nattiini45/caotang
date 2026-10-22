@@ -244,6 +244,7 @@ Type what you want in **Intent**, then choose **Send**. With a provider you have
 
 Reading the agent's work:
 
+- **Progress.** While the agent works, the header of the agent panel says where it is: "Step 3 of 5 · Drafting “The Landing”", or "Waiting for you · Plan, 3 steps" when a card needs you. It shows with the panel open or closed. At the top of the turn, a checklist lists the steps with one in progress, each marked in words as Queued, Waiting for you, In progress, Done, Skipped or Failed (a failed step gives its reason). A step you drop from the card is Skipped, and so is a step that did not run after a failure or a cancel. The checklist folds when the turn ends and stays in the turn. Under it, **Model calls: 3 of 8** counts the requests the turn has made to the model; at 7 and 8 it turns to a warning, and at 8 the turn stops and asks you how to go on. The list is built from the agent's plan and its calls, not by asking the model, so it never shows a step as done that did not run.
 - **Plan card.** The agent lists its steps. Move a step up or down, drop a step, or change the settings of a drafted step. Then choose **Approve plan**, or **Cancel**. Nothing in the plan is written until you approve it.
 - **One-step card.** A single change shows a card with **Approve**.
 - **Coherence review.** The agent can plan a model review as one step. It shows the plan on a card, and it reads the manuscript only after you approve.
