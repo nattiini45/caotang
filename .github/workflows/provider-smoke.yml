@@ -1,0 +1,93 @@
+# The real-key round (e2e/provider-smoke.spec.ts) in CI: a manual dispatch on main, from the `provider-smoke` environment's secrets.
+#
+# Run it with:  gh workflow run provider-smoke.yml -f presets="anthropic deepseek"   (blank `presets` = every preset with a secret)
+#
+# What it guards against: a provider changing its API, model ids, thinking parameters or tool-call shapes without notice.
+# CI otherwise runs the demo and mock providers only (docs/architecture/providers-browser-cors.md section 3).
+#
+# Details that are load-bearing rather than tidy:
+#   - Dispatch is the only trigger. No pull request, push, timer or other workflow starts it, and the guard test
+#     test/provider-smoke.test.ts fails if one is added. Never use pull_request_target to "test PRs with keys".
+#   - Secrets are set on the one step that runs the spec. The install step runs dependency lifecycle scripts and gets none.
+#   - `presets` reaches the spec through the environment, never through the shell command line, and the spec rejects any
+#     value outside lowercase letters, digits, hyphens, spaces and commas.
+#   - Nothing is uploaded: no artifact, no trace, no report. The log and the job summary name the preset, the stage and
+#     the HTTP status of a failure, never a response body or a key.
+#   - With no secret set the spec skips and the run is green; an unset secret expands to an empty string, which counts as unset.
+#   - Informational only: never make this a required status check. A provider outage fails the run.
+#
+# Cost: each preset sends a handful of one-line prompts on its default model (a model list, one streamed reply, a tool call
+# where the model claims tools, one reply per thinking level). A full round costs cents; use keys with a spend cap.
+#
+# Setup (repository owner): create the environment `provider-smoke` (Settings > Environments) with deployment branches limited
+# to `main` and, while it is new, a required reviewer. Add one environment secret per provider, named
+# CAOTANG_SMOKE_<PRESET_ID_UPPERCASE_WITH_UNDERSCORES> (the ids are in packages/gateway/src/presets/registry.ts).
+name: provider-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      presets:
+        description: 'Preset ids to run, separated by spaces (blank = every preset with a secret)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provider-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: provider-smoke
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable corepack (pnpm from packageManager)
+        run: corepack enable
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium for Playwright
+        run: pnpm exec playwright install chromium
+
+      - name: Real-key round
+        run: pnpm exec playwright test e2e/provider-smoke.spec.ts --project=chromium --retries=0 --reporter=list --trace off
+        env:
+          CAOTANG_E2E_NO_SERVER: '1'
+          CAOTANG_ONLY_PRESETS: ${{ inputs.presets }}
+          CAOTANG_SMOKE_ANTHROPIC: ${{ secrets.CAOTANG_SMOKE_ANTHROPIC }}
+          CAOTANG_SMOKE_OPENAI: ${{ secrets.CAOTANG_SMOKE_OPENAI }}
+          CAOTANG_SMOKE_GEMINI: ${{ secrets.CAOTANG_SMOKE_GEMINI }}
+          CAOTANG_SMOKE_XAI: ${{ secrets.CAOTANG_SMOKE_XAI }}
+          CAOTANG_SMOKE_MUSE: ${{ secrets.CAOTANG_SMOKE_MUSE }}
+          CAOTANG_SMOKE_MISTRAL: ${{ secrets.CAOTANG_SMOKE_MISTRAL }}
+          CAOTANG_SMOKE_COHERE: ${{ secrets.CAOTANG_SMOKE_COHERE }}
+          CAOTANG_SMOKE_DEEPSEEK: ${{ secrets.CAOTANG_SMOKE_DEEPSEEK }}
+          CAOTANG_SMOKE_ALIBABA: ${{ secrets.CAOTANG_SMOKE_ALIBABA }}
+          CAOTANG_SMOKE_TENCENT_HUNYUAN: ${{ secrets.CAOTANG_SMOKE_TENCENT_HUNYUAN }}
+          CAOTANG_SMOKE_BYTEPLUS_ARK: ${{ secrets.CAOTANG_SMOKE_BYTEPLUS_ARK }}
+          CAOTANG_SMOKE_MOONSHOT: ${{ secrets.CAOTANG_SMOKE_MOONSHOT }}
+          CAOTANG_SMOKE_ZHIPU_ZAI: ${{ secrets.CAOTANG_SMOKE_ZHIPU_ZAI }}
+          CAOTANG_SMOKE_MINIMAX: ${{ secrets.CAOTANG_SMOKE_MINIMAX }}
+          CAOTANG_SMOKE_XIAOMI_MIMO: ${{ secrets.CAOTANG_SMOKE_XIAOMI_MIMO }}
+          CAOTANG_SMOKE_NANOGPT: ${{ secrets.CAOTANG_SMOKE_NANOGPT }}
+          CAOTANG_SMOKE_OPENROUTER: ${{ secrets.CAOTANG_SMOKE_OPENROUTER }}
+          CAOTANG_SMOKE_OPENCODE: ${{ secrets.CAOTANG_SMOKE_OPENCODE }}
+          CAOTANG_SMOKE_PERPLEXITY: ${{ secrets.CAOTANG_SMOKE_PERPLEXITY }}
+          CAOTANG_SMOKE_TOGETHER: ${{ secrets.CAOTANG_SMOKE_TOGETHER }}
+          CAOTANG_SMOKE_FIREWORKS: ${{ secrets.CAOTANG_SMOKE_FIREWORKS }}
+          CAOTANG_SMOKE_DEEPINFRA: ${{ secrets.CAOTANG_SMOKE_DEEPINFRA }}
+          CAOTANG_SMOKE_GROQ: ${{ secrets.CAOTANG_SMOKE_GROQ }}
+          CAOTANG_SMOKE_HUGGINGFACE: ${{ secrets.CAOTANG_SMOKE_HUGGINGFACE }}
+          CAOTANG_SMOKE_CEREBRAS: ${{ secrets.CAOTANG_SMOKE_CEREBRAS }}

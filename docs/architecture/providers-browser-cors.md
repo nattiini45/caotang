@@ -25,26 +25,33 @@ The registry's `cors` field records the swept answer; presets that cannot answer
 
 ## 3. The real-key round
 
-Preflights prove reachability, not that a provider actually answers a real account. `e2e/provider-smoke.spec.ts` is the credential check — env-gated, never run in CI, and skipped silently without its variables.
+Preflights prove reachability, not that a provider actually answers a real account. `e2e/provider-smoke.spec.ts` is the credential check — env-gated, skipped silently without its variables, and run only locally or by a maintainer's manual dispatch in CI, never on a pull request.
 
 ```sh
-CAOTANG_SMOKE_ANTHROPIC=sk-ant-... \
-CAOTANG_SMOKE_OPENAI=sk-... \
-pnpm exec playwright test e2e/provider-smoke.spec.ts
+CAOTANG_SMOKE_ANTHROPIC=sk-ant-... CAOTANG_SMOKE_OPENAI=sk-... pnpm exec playwright test e2e/provider-smoke.spec.ts
 ```
 
-One `CAOTANG_SMOKE_<PRESET>` variable per provider, named by preset id uppercased (`CAOTANG_SMOKE_OPENROUTER`, `CAOTANG_SMOKE_DEEPSEEK`, …). For each variable present, the round checks, in order:
+One `CAOTANG_SMOKE_<PRESET>` variable per provider, named by preset id uppercased with `-` as `_` (`CAOTANG_SMOKE_OPENROUTER`, `CAOTANG_SMOKE_ZHIPU_ZAI`, …); an empty value counts as unset. `CAOTANG_ONLY_PRESETS="anthropic deepseek"` (ids separated by spaces or commas, lowercase letters, digits and hyphens only; anything else is refused) limits the round to those presets. The spec runs in the Node worker, so it tests credentials and wire formats, not CORS. `CAOTANG_E2E_NO_SERVER=1` makes `playwright.config.ts` start no web server, which this spec does not need. For each preset with a key, the round checks, in order:
 
-1. **Listing** — `GET {baseUrl}/models` answers with the key in the preset's auth header; the parsed list is non-empty.
-2. **Plain completion** — a one-line prompt streams to `stop` on the preset's default model.
-3. **Native tool call** — on models whose capability row claims `tools`: a forced tool call (`toolChoice` equivalent) returns a `tool_calls` finish with a well-formed call; its result is sent back and the follow-up completes.
-4. **Thinking** — on models whose row lists effort levels: the lowest and highest offered levels are sent and accepted (a 400 naming the effort field is a row bug, not a provider quirk — fix the table).
-5. **Reasoning replay** — on rows with a replay style: a tool-call turn's reasoning blocks are resent verbatim and the provider accepts the multi-turn body.
-6. **JSON mode** — a structured `responseFormat` request returns parseable JSON where the row claims `jsonObject`/`jsonSchema`.
-7. **Vision** — rows claiming `vision` get a one-pixel PNG and must not error on format grounds.
-8. **Privacy** — the request log shows the call; the key appears nowhere in log entries, error details, or the page's accessible storage beyond the sealed vault.
+1. **Model list** — `GET {baseUrl}/models` answers with the key in the preset's auth header and the parsed list is non-empty; a preset with no listing route passes on its table.
+2. **Streamed completion** — a one-line prompt streams to `stop` on the preset's default model and writes text.
+3. **Native tools** — on models whose capability row claims `tools`: a one-line prompt with a `lookup` tool declared comes back with at least one tool call. The result is not sent back.
+4. **Thinking** — on models whose row lists effort levels: every level but `off` is sent and accepted with a reply (a 400 naming the effort field is a row bug, not a provider quirk — fix the table). On Anthropic's `low`, a streamed reply must also be logged as accepted and return a readable thinking summary.
+5. **Key redaction** — the request log shows the calls, and the key appears in no log entry.
 
-Keys live only in `caotang.env` (gitignored) or the shell. The spec never prints them; failures print the provider and the stage, never the credential.
+Reasoning replay, JSON mode and vision are not checked here.
+
+Keys live only in `caotang.env` (gitignored), the shell, or the `provider-smoke` environment's secrets. The spec never prints them; a local failure prints the provider and the stage, never the credential.
+
+### In CI
+
+`.github/workflows/provider-smoke.yml` runs the same spec by manual dispatch only, on `main`, from the `provider-smoke` environment's secrets (one `CAOTANG_SMOKE_<PRESET>` secret per provider, set on the one step that runs the spec):
+
+```sh
+gh workflow run provider-smoke.yml -f presets="anthropic deepseek"   # blank presets = every preset with a secret
+```
+
+With no secret set the spec skips and the run is green. Under GitHub Actions a failure names only the preset, the stage and the HTTP status, never a response body or model text, because a provider's error body can echo part of a key that Actions does not mask; each preset appends its stage table (pass, fail, not claimed, not reached) to the job summary. The workflow has no pull-request, push, schedule or workflow-run trigger, uploads nothing, and is never a required check. A guard test (`test/provider-smoke.test.ts`) holds that shape.
 
 ## 4. What the round does not cover
 

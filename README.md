@@ -115,6 +115,8 @@ The end-to-end suite starts its own dev server, or, outside CI and when `CAOTANG
 
 Continuous integration (`.github/workflows/ci.yml`) runs `pnpm verify`, `pnpm build`, packs the MCP server bundle, and runs `pnpm test:e2e`, all on Node 24 in one job. A nightly workflow (`.github/workflows/e2e-browsers.yml`, also runnable by hand) runs the suite in Firefox and WebKit in shards: set `CAOTANG_E2E_BROWSERS=all` to get those projects locally, as in `CAOTANG_E2E_BROWSERS=all pnpm exec playwright test --project=webkit`. The specs that need a project folder skip outside Chromium; `e2e/non-chromium-storage.spec.ts` covers the bundle-only path those browsers use.
 
+A real-key check of the provider presets, `e2e/provider-smoke.spec.ts`, runs only with `CAOTANG_SMOKE_<PRESET>` keys set, on your machine or by a maintainer's manual dispatch of the `provider-smoke` workflow (`gh workflow run provider-smoke.yml -f presets="anthropic deepseek"`); it never runs on a pull request. See [providers-browser-cors.md](docs/architecture/providers-browser-cors.md#3-the-real-key-round).
+
 The scripted demo is [`e2e/demo.spec.ts`](e2e/demo.spec.ts). It builds a three-chapter story, has the agent draft a scene and approve the draft, reorders the story on the corkboard, and compiles it to Word. Then it unzips the file and checks its structure. The demo runs on the built-in demo provider, with no key.
 
 ## Your key and your privacy

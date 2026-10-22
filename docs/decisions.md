@@ -195,7 +195,7 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - Claude models that think adaptively get `output_config.effort`, never `budget_tokens`; the output cap always exceeds any thinking budget. Why: the old shape is a 400 on Claude 5 models, and a budget above `max_tokens` is rejected. [delegated]
 - Providers a browser cannot reach (CORS) show disabled as "Desktop app or hosted only"; the reachability sweep is a committed spec re-run before each release. [owner]
 - OpenCode presets cover Zen and the keyless free models, sending `User-Agent: caotang` on runtimes that allow the header (browsers drop it); Go is left out until general-app use is confirmed. [owner]
-- Real-key smoke tests are an env-gated Playwright spec (`CAOTANG_SMOKE_*`), skipped by default and never run in CI. [owner]
+- Real-key smoke tests are an env-gated Playwright spec (`CAOTANG_SMOKE_*`), skipped by default; CI runs it only by manual dispatch on `main` from `provider-smoke` environment secrets, never on pull requests, pushes or a schedule, and its logs and summary name only the preset and stage. Why: a broken preset is caught before a writer meets it, and no key a contributor can reach is ever used. [delegated]
 
 ## Codex
 
