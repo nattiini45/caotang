@@ -256,9 +256,23 @@ export interface Harness {
  * The bus's `mcp.invoke` entry, built from the client. The client's descriptor validates a call against the live
  * server (its pin, its loaded set, its schema), and its apply awaits the server. The cast is the one the store's port
  * type needs: its apply takes the normalized call, which only the client's own validate produces.
+ *
+ * `stop` names the signal of the external read in flight, if any: the transport hands it to the server call, so the writer's
+ * Stop ends the wait. `callExternal` sets it for a read only; a write the bus has started is never interrupted.
  */
-function mcpInvokeInjection(client: McpClient, loaded: LoadedTools): McpInvokeCommandPort {
-  const registration = mcpInvokeRegistration({ client, loaded, transport: createMcpTransport(client) });
+function mcpInvokeInjection(client: McpClient, loaded: LoadedTools, stop: () => AbortSignal | undefined): McpInvokeCommandPort {
+  const transport = createMcpTransport(client);
+  const registration = mcpInvokeRegistration({
+    client,
+    loaded,
+    transport: {
+      relist: (serverKey) => transport.relist(serverKey),
+      callTool: (serverKey, toolName, args, options) => {
+        const signal = stop();
+        return transport.callTool(serverKey, toolName, args, signal === undefined ? options : { ...options, signal });
+      },
+    },
+  });
   return { descriptor: registration.descriptor, apply: registration.apply as CommandApply<unknown, unknown> };
 }
 
@@ -546,7 +560,8 @@ export function createHarness(options: HarnessOptions): Harness {
   const index = (): IndexedTools => mcpClient?.indexedTools() ?? NO_SERVERS;
   // The MCP client's half of `mcp.invoke` exists only when there is a client. The storyboard module's half of the shot
   // commands is always wanted, since the planner they serve is always here (see completeRegistry).
-  const mcpInvoke = mcpClient === undefined ? undefined : mcpInvokeInjection(mcpClient, loaded);
+  let externalStop: AbortSignal | undefined;
+  const mcpInvoke = mcpClient === undefined ? undefined : mcpInvokeInjection(mcpClient, loaded, () => externalStop);
   const registry = completeRegistry(options.registry, clock, mcpInvoke);
   // The coherence engine answers its two synchronous tools by default (tools/coherence.ts), and its review, which awaits a
   // model, is the default async port (`asyncPorts`). A caller's port of the same name replaces the default, so the app can
@@ -741,6 +756,7 @@ export function createHarness(options: HarnessOptions): Harness {
       ...(call.proposal === undefined ? {} : { proposal: call.proposal }),
       // The writer's approvals reach the port the way they reach the gate: none for an external caller.
       ...(permission === undefined ? {} : { permission }),
+      ...(turn.signal === undefined ? {} : { signal: turn.signal }),
       // A change to held state outside the bus counts as an effect, so the answer is cached by callId and a
       // replay is not run again (command-bus §6). The port says so; the runtime cannot see the change.
       recordEffect: () => {
@@ -930,7 +946,7 @@ export function createHarness(options: HarnessOptions): Harness {
     }
 
     const outcome = runPlan(plan, turn, host, options);
-    const reached = outcome.status === 'applied' || (outcome.status === 'failed' && outcome.completed.length > 0);
+    const reached = outcome.status === 'applied' || ((outcome.status === 'failed' || outcome.status === 'stopped') && outcome.completed.length > 0);
     if (reached) planCache.record(turn.turnId, turn.callId, fingerprint, outcome);
     return ok(outcome);
   }
@@ -1025,6 +1041,8 @@ export function createHarness(options: HarnessOptions): Harness {
     // server's hash now, and a mismatch is refused, so a tool the server changed (even if re-approved) is not called
     // under a description this turn never read (extensibility §4 rule 3, §6 expectedPins).
     const shown = loaded.hashOf(call.name);
+    // Only a read can be stopped in flight: a write that has reached the server is left to finish (command-bus §5).
+    externalStop = tool.effectiveRisk === 'read-auto' ? turn.signal : undefined;
     // Whether the call reached the bus's apply is read from the log, which the apply's row grows: a call the bus
     // refused before the apply (not loaded, pin changed, a schema violation, a gate) wrote no row, and is not recorded.
     const before = log.length;
@@ -1040,7 +1058,9 @@ export function createHarness(options: HarnessOptions): Harness {
       },
       busFor(confirmedOnly(turn)),
       registry,
-    );
+    ).finally(() => {
+      externalStop = undefined;
+    });
     let outcome: ToolOutcome;
     if (dispatched.ok) {
       const result = dispatched.value.result as UntrustedCallResult;

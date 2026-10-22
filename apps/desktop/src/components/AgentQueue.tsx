@@ -1,0 +1,188 @@
+/**
+ * The messages typed while a turn runs (agent-harness §8, "Stop and steer"): the notes sent to the running turn that it has not read
+ * yet, and the queue of future turns. Each queued message is a chip the writer can edit, remove, move (with the arrow buttons or by
+ * dragging) and promote to a note for the running turn. "Queued messages" here are foreground turns typed behind the running one; a
+ * background task list is a different thing and is named differently.
+ */
+
+import { useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
+
+import type { AgentController, AgentSnapshot, QueuedMessage } from '../app/agent.js';
+import { QUEUE_PAUSED } from '../app/agent.js';
+
+/** The note the writer wrote while a card waits. The card is neither approved nor dropped by it: the writer chooses what happens to both. */
+export interface HeldNote {
+  readonly text: string;
+  /** The queued message the note came from, when it was promoted from a chip. */
+  readonly queuedId?: string;
+  /** The showing of the card the note waits on: the note is dropped from view when that card is decided. */
+  readonly cardKey: string;
+}
+
+export function AgentQueue({
+  agent,
+  snapshot,
+  held,
+  cardKey,
+  onHold,
+  onRelease,
+}: {
+  agent: AgentController;
+  snapshot: AgentSnapshot;
+  held: HeldNote | null;
+  /** The card that waits now, as the panel keys it, or null. */
+  cardKey: string | null;
+  onHold: (note: HeldNote) => void;
+  onRelease: () => void;
+}): ReactNode {
+  const { queue, notes } = snapshot;
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const [dragging, setDragging] = useState<string | null>(null);
+
+  const startEdit = (entry: QueuedMessage): void => {
+    setEditing(entry.id);
+    setDraft(entry.intent);
+  };
+  // Escape saves the field it is in, then leaves it (decisions.md: Escape saves the focused field first), and the key stops here:
+  // it must not reach the panel, where it would stop the turn.
+  const finishEdit = (id: string): void => {
+    if (draft.trim() !== '') agent.editQueued(id, draft);
+    setEditing(null);
+  };
+  const onEditKey = (event: KeyboardEvent<HTMLInputElement>, id: string): void => {
+    if (event.key !== 'Enter' && event.key !== 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+    finishEdit(id);
+  };
+
+  const steerNow = (entry: QueuedMessage): void => {
+    if (agent.steerQueued(entry.id) === 'card-waiting' && cardKey !== null) onHold({ text: entry.intent, queuedId: entry.id, cardKey });
+  };
+
+  const onDrop = (event: DragEvent<HTMLLIElement>, to: number): void => {
+    event.preventDefault();
+    if (dragging !== null) agent.moveQueued(dragging, to);
+    setDragging(null);
+  };
+
+  return (
+    <>
+      {held !== null ? (
+        <div className="agent-held" role="group" aria-label="A note while a card waits">
+          <p>
+            A card is waiting for your decision. Your note: <q>{held.text}</q>
+          </p>
+          <div className="agent-held-actions">
+            <button
+              type="button"
+              className="button is-primary"
+              onClick={() => {
+                agent.sendWithCancel(held.text);
+                if (held.queuedId !== undefined) agent.removeQueued(held.queuedId);
+                onRelease();
+              }}
+            >
+              Send with Cancel
+            </button>
+            <button
+              type="button"
+              className="button"
+              onClick={() => {
+                // A note promoted from a chip is queued already.
+                if (held.queuedId === undefined) agent.enqueue(held.text);
+                onRelease();
+              }}
+            >
+              Queue as next turn
+            </button>
+            <button type="button" className="button is-quiet" onClick={onRelease}>
+              Keep waiting
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {notes.length > 0 ? (
+        <ul className="agent-notes" aria-label="Notes sent to the agent">
+          {notes.map((note) => (
+            <li key={note.noteId}>
+              <span className="muted">{note.lands === 'after-decision' ? 'Note, read after your decision' : 'Note, read at the next step'}:</span> {note.text}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {queue.length > 0 ? (
+        <section className="agent-queue" aria-label="Queued messages" data-testid="agent-queue">
+          <h4>Queued messages</h4>
+          {snapshot.queuePaused ? (
+            <p className="agent-queue-paused">
+              {QUEUE_PAUSED}{' '}
+              <button type="button" className="button" onClick={() => agent.runQueue()}>
+                Run the queue
+              </button>
+            </p>
+          ) : null}
+          <ol className="agent-queue-list">
+            {queue.map((entry, index) => (
+              <li
+                key={entry.id}
+                className={`agent-chip${dragging === entry.id ? ' is-dragging' : ''}`}
+                data-queued={entry.id}
+                draggable={editing !== entry.id}
+                onDragStart={() => setDragging(entry.id)}
+                onDragEnd={() => setDragging(null)}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => onDrop(event, index)}
+              >
+                {editing === entry.id ? (
+                  <input
+                    type="text"
+                    className="agent-chip-edit"
+                    aria-label={`Edit queued message ${index + 1}`}
+                    value={draft}
+                    autoFocus
+                    onChange={(event) => setDraft(event.target.value)}
+                    onKeyDown={(event) => onEditKey(event, entry.id)}
+                    onBlur={() => finishEdit(entry.id)}
+                  />
+                ) : (
+                  <span className="agent-chip-text">
+                    {entry.fromUndeliveredNote === true ? <span className="badge is-warn">Note not read in time</span> : null} {entry.intent}
+                  </span>
+                )}
+                <span className="agent-chip-actions">
+                  <button type="button" className="button is-quiet" disabled={index === 0} aria-label={`Move queued message ${index + 1} up`} onClick={() => agent.moveQueued(entry.id, index - 1)}>
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="button is-quiet"
+                    disabled={index === queue.length - 1}
+                    aria-label={`Move queued message ${index + 1} down`}
+                    onClick={() => agent.moveQueued(entry.id, index + 1)}
+                  >
+                    ↓
+                  </button>
+                  <button type="button" className="button is-quiet" aria-label={`Edit queued message ${index + 1}`} onClick={() => startEdit(entry)}>
+                    Edit
+                  </button>
+                  {snapshot.busy ? (
+                    <button type="button" className="button is-quiet" aria-label={`Steer now with queued message ${index + 1}`} onClick={() => steerNow(entry)}>
+                      Steer now
+                    </button>
+                  ) : null}
+                  <button type="button" className="button is-quiet is-danger" aria-label={`Remove queued message ${index + 1}`} onClick={() => agent.removeQueued(entry.id)}>
+                    Remove
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
+    </>
+  );
+}

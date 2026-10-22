@@ -28,7 +28,10 @@ export type KeyAction =
   | 'reparent-out'
   | 'reparent-in'
   | 'select-card'
-  | 'open-menu';
+  | 'open-menu'
+  | 'agent-send'
+  | 'agent-steer'
+  | 'agent-stop';
 
 export interface KeyFacts {
   /** `KeyboardEvent.key`, e.g. `'n'`, `'Enter'`, `'F2'`, `'ArrowUp'`. */
@@ -46,6 +49,12 @@ export interface KeyContext {
   readonly inBinder: boolean;
   /** True when the focus is on a corkboard card, where the Alt+arrow reorder keys apply (ui-modules §3.2). */
   readonly inCorkboard?: boolean;
+  /** True when the focus is inside the agent panel, where Escape stops a running turn. */
+  readonly inAgent?: boolean;
+  /** True when the agent's Intent box has no text, so Escape is not a half-typed message's to lose. */
+  readonly agentIntentEmpty?: boolean;
+  /** True when the focus is in the agent's Intent box, where Enter sends or queues and Ctrl+Enter steers. */
+  readonly inAgentIntent?: boolean;
 }
 
 /** Ctrl on Windows and Linux, Cmd on macOS — either counts as the command modifier. */
@@ -69,9 +78,15 @@ export function resolveKey(facts: KeyFacts, context: KeyContext): KeyAction | nu
   // binder-filters §5: Ctrl+Alt+F focuses the filter field. Ctrl+Shift+F stays focus mode, which the toolbar and the user
   // guide name, so the filter chord is the one that moves (the decision is recorded in docs/decisions.md).
   if (cmd && facts.alt && !facts.shift && key === 'f') return 'focus-filter';
+  // The agent's Intent box (agent-harness §8): Enter sends, or queues while a turn runs, and Ctrl+Enter steers the running turn.
+  if (context.inAgentIntent === true && !facts.alt && key === 'Enter') {
+    if (cmd) return 'agent-steer';
+    if (!facts.shift) return 'agent-send';
+  }
   // Ctrl+Enter inside a field is a line break the writer may mean, so it yields.
   if (cmd && !facts.alt && key === 'Enter') return context.inTextField ? null : 'open-in-editor';
-  if (key === 'Escape') return 'escape';
+  // Escape in the agent panel stops the turn, but only with the Intent box empty: a message half typed is never lost to it.
+  if (key === 'Escape') return context.inAgent === true && context.agentIntentEmpty === true ? 'agent-stop' : 'escape';
 
   // Everything below is a bare key, so it is meaningless while the user is typing.
   if (context.inTextField) return null;
@@ -144,6 +159,12 @@ export function shortcutLabel(action: KeyAction): string {
       return 'Enter or Space';
     case 'open-menu':
       return 'Shift+F10';
+    case 'agent-send':
+      return 'Enter';
+    case 'agent-steer':
+      return 'Ctrl+Enter';
+    case 'agent-stop':
+      return 'Esc';
     case 'undo':
       return 'Ctrl+Z';
     case 'escape':
