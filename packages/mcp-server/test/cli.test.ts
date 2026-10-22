@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { acquireProjectLock, DEFAULT_PORT, parseServeArgs, runCli, UsageError, type RunIo } from '../src/index.js';
-import { HAND_WRITTEN_DOC, HAND_WRITTEN_DOC_NAME, removeDir, seedProject, tempDir } from './support.js';
+import { HAND_WRITTEN_DOC, HAND_WRITTEN_DOC_NAME, brokenFolder, removeDir, seedProject, tempDir } from './support.js';
 
 function captureIo(env: NodeJS.ProcessEnv = {}): { io: RunIo; out: string[]; err: string[] } {
   const out: string[] = [];
@@ -189,6 +189,73 @@ describe('runCli', () => {
       const log = err.join('');
       expect(log).toContain('caotang-mcp: CAOTANG_MCP_ALLOW_WRITES is unset');
       expect(log).toContain('writes are off');
+    } finally {
+      removeDir(root);
+    }
+  });
+});
+
+describe('runCli on a folder whose caotang.json will not load', () => {
+  it('starts without a project instead of exiting 1, says what the ladder found, the way forward and the lock, and releases the lock on stop', async () => {
+    const root = await brokenFolder('cli-degraded', 'snapshot');
+    try {
+      const before = readFileSync(join(root, 'caotang.json'), 'utf8');
+      const { io, err } = captureIo({});
+      expect(await runCli(['serve', '--project', root, '--port', '0'], io)).toBe(0);
+      const log = err.join('');
+      expect(log).toContain('no project is open');
+      expect(log).toContain('caotang.json.bak.1');
+      expect(log).toContain('restart caotang-mcp with --allow-writes');
+      expect(log).toContain("holds the folder's lock");
+      expect(log).toMatch(/MCP endpoint http:\/\/127\.0\.0\.1:\d+\/mcp/);
+      expect(log).not.toContain('could not open the project');
+      expect(log).toContain('stopped');
+      expect(existsSync(join(root, '.caotang-mcp.lock'))).toBe(false);
+      expect(readFileSync(join(root, 'caotang.json'), 'utf8')).toBe(before);
+    } finally {
+      removeDir(root);
+    }
+  });
+
+  it('with --allow-writes it points at project.recoverApply, and --create does not replace the manifest', async () => {
+    const root = await brokenFolder('cli-degraded-writes', 'rebuild');
+    try {
+      const before = readFileSync(join(root, 'caotang.json'), 'utf8');
+      const { io, err } = captureIo({});
+      expect(await runCli(['serve', '--stdio', '--project', root, '--create', 'Not Used', '--allow-writes'], io)).toBe(0);
+      const log = err.join('');
+      expect(log).toContain('project.recoverApply');
+      expect(log).toContain('a rebuild');
+      expect(log).toContain('writes are on');
+      expect(readFileSync(join(root, 'caotang.json'), 'utf8')).toBe(before);
+    } finally {
+      removeDir(root);
+    }
+  });
+
+  it('states the honest bound for a folder with nothing to recover from, and offers no write', async () => {
+    const root = await brokenFolder('cli-degraded-bare', 'bare');
+    try {
+      const { io, err } = captureIo({});
+      expect(await runCli(['serve', '--project', root, '--allow-writes', '--port', '0'], io)).toBe(0);
+      const log = err.join('');
+      expect(log).toContain('Caotang could not find a readable copy of this project');
+      expect(log).not.toContain('project.recoverApply');
+    } finally {
+      removeDir(root);
+    }
+  });
+
+  it('still refuses a manifest of another app outright: exit 1, nothing offered, no lock left', async () => {
+    const root = tempDir('cli-refused');
+    try {
+      await seedProject(root, 'Other');
+      const path = join(root, 'caotang.json');
+      writeFileSync(path, JSON.stringify({ ...(JSON.parse(readFileSync(path, 'utf8')) as object), app: 'other' }));
+      const { io, err } = captureIo({});
+      expect(await runCli(['serve', '--project', root, '--port', '0'], io)).toBe(1);
+      expect(err.join('')).toContain('could not open the project');
+      expect(existsSync(join(root, '.caotang-mcp.lock'))).toBe(false);
     } finally {
       removeDir(root);
     }
