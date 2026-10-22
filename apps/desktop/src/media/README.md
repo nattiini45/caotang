@@ -52,8 +52,10 @@ binder makes their nodes (`media/create-menu.ts`, through `binder.create`).
 - **Give a shot a picture.** Choose a PNG, JPEG or WebP file in the shot's *Image* section, drop one on a card, or paste one
   while the card is selected. The file is kept in the project's images and the shot names it, as one undo step
   (`shot.importImage`). The section can also point the shot at an image the project already holds, or remove the picture. A
-  picture opens larger in the lightbox, and Escape closes it. A picture whose file has gone is dropped when the storyboard
-  opens, with a notice on the board.
+  picture opens larger in the lightbox, and Escape closes it. A picture whose file has gone is dropped when the project
+  opens, with a notice on the open and on the board. Nothing is dropped against a list that cannot be trusted (no browser copy
+  and no folder listed, or a listing that failed). A folder whose attach was refused is still read for its pictures, and a
+  folder file that differs from the browser's copy counts as present, with the browser's copy shown.
 - **Cover script text.** The *Script coverage* section shows a scene's or a prose document's stored text. Select words in it and
   cover them: the words are captured against the stored text, and the coverage is one `shot.setMeta`.
 - **Write a shot's prompt.** The *Prompt* section writes one target model's record for the shot: its camera, subject, action,
@@ -121,20 +123,15 @@ One exception is open: `ScreenplayPreview.tsx` imports `paginate` and `LAYOUT` f
 
 ## What is not wired
 
-1. **Images of a folder that cannot be attached.** A project opened from a folder whose attach is refused does not see that
-   folder's pictures when the project opens, so a reference to one may be dropped with a notice. The notice names it; the
-   file stays in the folder.
-2. **The dangling check** runs when the storyboard first opens, not when the project opens: the project-list open does not
-   settle the session (lifecycle.ts), and the board is the place a picture is shown.
-3. **Shot images, drop and paste, are tested through synthetic events.** The OS drag and the clipboard are not driven.
-4. **Dialogue table and container settings.** The dialogue table's character limit (`charLimit`) is a recipe option, set in the
+1. **Shot images, drop and paste, are tested through synthetic events.** The OS drag and the clipboard are not driven.
+2. **Dialogue table and container settings.** The dialogue table's character limit (`charLimit`) is a recipe option, set in the
    export dialog's Character limit field when the dialogue table is chosen, so a `dialogue-csv` or `dialogue-xlsx` export from the app carries it.
    The engine target and the locale reach the exports (*What a writer can do*, *Container settings*). The agent's
    `dialogue.table` tool does not read them: it returns §6's columns.
-5. **Screenplay source affordances.** The element menu offers no section or synopsis: a section is a binder folder, and a
+3. **Screenplay source affordances.** The element menu offers no section or synopsis: a section is a binder folder, and a
    scene's synopsis is the binder's (screenplay.md §2.2). Its digits work while the menu is open; there is no chord for each
    element outside it.
-6. **Coverage of a repeated passage.** The text area shows the stored text with line feeds, so a selection is always located
+4. **Coverage of a repeated passage.** The text area shows the stored text with line feeds, so a selection is always located
    by its words in the stored text, whatever its line endings. A passage that appears more than once is refused in every
    file, with how many places; the writer selects more words around the one meant.
 7. **Page preview.** The Pages tab is `paginate()`'s output, read only, and it is not the PDF. The PDF is the `pdf` export

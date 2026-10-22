@@ -400,7 +400,11 @@ export async function openOrCreateSample(
   return { session: await createSampleProject(store), created: true };
 }
 
-/** An existing project from the runtime store. Its shadow is the state it was just read from. */
+/**
+ * An existing project from the runtime store. Its shadow is the state it was just read from. The session is settled before it is
+ * handed back, which runs the image check (storyboard.md §2.2): a reference to a file the project does not hold is dropped, and
+ * named by `imageDropNotice`, when the project opens and not when the storyboard does.
+ */
 export async function openProject(store: RuntimeStore, projectId: string): Promise<ProjectSession> {
   // The lease comes first: the state is read only once no other tab can write it, so the shadow is never behind a write.
   const lease = await leaseFor(projectId);
@@ -411,7 +415,26 @@ export async function openProject(store: RuntimeStore, projectId: string): Promi
     lease.release();
     throw error;
   }
-  return sessionFor(store, state, shadowOf(state), lease);
+  const session = await sessionFor(store, state, shadowOf(state), lease);
+  // A session that fails to settle is closed, which gives the lease back: no caller holds it.
+  try {
+    await session.settle();
+  } catch (error) {
+    await session.close().catch(() => undefined);
+    throw error;
+  }
+  return session;
+}
+
+/** The open's sentence for image references the check dropped (`ProjectSession.imageNotices`), or none. The storyboard names them. */
+export function imageDropNotice(session: ProjectSession): string[] {
+  const dropped = session.imageNotices().length;
+  if (dropped === 0) return [];
+  return [
+    dropped === 1
+      ? 'A shot lost its picture because the file is not in the project. The storyboard names it.'
+      : `${dropped} shots lost their pictures because the files are not in the project. The storyboard names them.`,
+  ];
 }
 
 /**
@@ -612,6 +635,7 @@ async function adopt(
       }
     }
     await session.settle();
+    noticesOut.push(...imageDropNotice(session));
     if (copiedFrom !== null) await rememberCopiedFrom(session.projectId, copiedFrom);
     return { session, notices: noticesOut, droppedFields: [...droppedFields], copiedFrom };
   } catch (error) {
@@ -837,6 +861,7 @@ async function openStored(
       noticesOut.push(exportsKeptHere(error));
     }
     await session.settle();
+    noticesOut.push(...imageDropNotice(session));
     return { session, notices: noticesOut, droppedFields: [...load.droppedFields], copiedFrom: null };
   } catch (error) {
     await session.close().catch(() => undefined);
