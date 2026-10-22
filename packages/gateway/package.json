@@ -9,6 +9,7 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./loopback": "./src/loopback.ts",
     "./mock": "./src/mock/index.ts"
   },
   "dependencies": {

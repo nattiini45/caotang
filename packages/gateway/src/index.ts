@@ -51,7 +51,8 @@ export {
   type ProfileStore,
   type ProfileStoreOptions,
 } from './profiles.js';
-export { normalizeBaseUrl, MOCK_BASE_URL, isLoopbackBase } from './base-url.js';
+export { normalizeBaseUrl, normalizeLocalBaseUrl, MOCK_BASE_URL, isLoopbackBase, isLocalBase } from './base-url.js';
+export { isLoopbackHost, isLoopbackLiteral } from './loopback.js';
 
 export {
   PRESETS,
@@ -62,6 +63,7 @@ export {
   type PresetField,
   type ModelRow,
   type CorsStatus,
+  type LocalServer,
 } from './presets/index.js';
 
 export {

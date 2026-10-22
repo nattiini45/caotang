@@ -36,6 +36,9 @@ const EXPECTED_IDS = [
   'groq',
   'cerebras',
   'huggingface',
+  'ollama',
+  'lmstudio',
+  'llamacpp',
   'generic',
   'mock',
 ] as const;
@@ -56,10 +59,11 @@ describe('the registry', () => {
     }
   });
 
-  it('gives every shipped provider an https base URL — the contract is https-only', () => {
+  it('gives every shipped provider an https base URL — the contract is https-only, except a local server on loopback', () => {
     for (const preset of PRESETS) {
       if (preset.id === 'generic') continue; // the hand-rolled endpoint supplies its own
       if (preset.id === 'mock') continue; // the local seam — 'mock://caotang' is not an address
+      if (preset.local !== undefined) continue; // a server on this computer: pinned in the local presets block below
       if (preset.baseUrlFor !== undefined) {
         expect(preset.baseUrl, preset.id).toMatch(/^https:\/\//);
       } else {
@@ -69,8 +73,8 @@ describe('the registry', () => {
     }
   });
 
-  it('marks keys optional only where calls can run keyless: opencode, generic, and the mock', () => {
-    expect(PRESETS.filter((p) => p.keyOptional === true).map((p) => p.id).sort()).toEqual(['generic', 'mock', 'opencode']);
+  it('marks keys optional only where calls can run keyless: opencode, generic, the mock and the local servers', () => {
+    expect(PRESETS.filter((p) => p.keyOptional === true).map((p) => p.id).sort()).toEqual(['generic', 'llamacpp', 'lmstudio', 'mock', 'ollama', 'opencode']);
   });
 
   it('says which presets have no /models route to call (the table is their catalogue)', () => {
@@ -83,9 +87,10 @@ describe('the registry', () => {
     expect(cors.get('mock')).toBe('ok'); // the local seam is not a network call
     expect(cors.get('zhipu-zai')).toBe('ok'); // the sweep read a 401 through a browser preflight
     expect(cors.get('opencode')).toBe('ok'); // the sweep read a 401 through a browser preflight
+    for (const id of ['ollama', 'lmstudio', 'llamacpp']) expect(cors.get(id), id).toBe('local'); // the server's own setting decides
     // Everything else is 'unknown' — never claimed reachable without documentation.
     for (const preset of PRESETS) {
-      if (!['anthropic', 'mock', 'zhipu-zai', 'opencode'].includes(preset.id)) {
+      if (!['anthropic', 'mock', 'zhipu-zai', 'opencode', 'ollama', 'lmstudio', 'llamacpp'].includes(preset.id)) {
         expect(preset.cors, preset.id).toBe('unknown');
       }
       if (preset.cors === 'blocked') expect(preset.corsNote, preset.id).toBeTruthy();
@@ -207,5 +212,52 @@ describe('preset lookups', () => {
     expect(presetFor('generic')?.adapter).toBe('openai-chat');
     expect(presetFor(undefined)?.id).toBe('generic');
     expect(presetFor('not-real')).toBeUndefined();
+  });
+});
+
+describe('the local model presets (Ollama, LM Studio, llama.cpp)', () => {
+  const LOCAL = [
+    ['ollama', 'http://127.0.0.1:11434/v1'],
+    ['lmstudio', 'http://127.0.0.1:1234/v1'],
+    ['llamacpp', 'http://127.0.0.1:8080/v1'],
+  ] as const;
+
+  it.each(LOCAL)('%s: the Chat route on a literal loopback address, with the setting that fixes a CORS refusal named', (id, baseUrl) => {
+    const preset = presetFor(id)!;
+    expect(preset.adapter).toBe('openai-chat');
+    expect(preset.baseUrl).toBe(baseUrl);
+    expect(new URL(preset.baseUrl).hostname).toBe('127.0.0.1');
+    expect(preset.keyOptional).toBe(true);
+    expect(preset.cors).toBe('local');
+    expect(preset.local?.corsFix).toBeTruthy();
+    expect(preset.local?.setup).toBeTruthy();
+    expect(preset.local?.product).toBeTruthy();
+  });
+
+  it('names each product’s own fix', () => {
+    expect(presetFor('ollama')!.local!.corsFix).toContain('OLLAMA_ORIGINS');
+    expect(presetFor('lmstudio')!.local!.corsFix).toContain('Enable CORS');
+    expect(presetFor('llamacpp')!.local!.corsFix).toContain('--cors-origins');
+  });
+
+  it('carries the longer deadlines: 180 s to the first token, 120 s between chunks, and a connect that waits for the model', () => {
+    for (const [id] of LOCAL) {
+      expect(presetFor(id)!.timeouts, id).toEqual({ connectMs: 180_000, firstTokenMs: 180_000, idleMs: 120_000 });
+    }
+    // No hosted preset overrides the deadlines.
+    expect(PRESETS.filter((p) => p.timeouts !== undefined).map((p) => p.id).sort()).toEqual(['llamacpp', 'lmstudio', 'ollama']);
+  });
+
+  it('claims no native tools and no images for any model, and a conservative window', () => {
+    for (const [id] of LOCAL) {
+      const route = resolveRoute({ preset: id, baseUrl: presetFor(id)!.baseUrl }, 'any-pulled-model');
+      expect(route.adapter, id).toBe('openai-chat');
+      expect(route.caps, id).toEqual({});
+      expect(modelRowFor(presetFor(id)!, 'any-pulled-model')?.contextWindow, id).toBe(4_096);
+    }
+  });
+
+  it('is the only kind of preset with a local block', () => {
+    expect(PRESETS.filter((p) => p.local !== undefined).map((p) => p.id).sort()).toEqual(['llamacpp', 'lmstudio', 'ollama']);
   });
 });

@@ -467,3 +467,57 @@ describe('the cached response-format probe (§5)', () => {
     expect(rekeyed.responseFormat).toBeUndefined();
   });
 });
+
+describe('local model presets (Ollama, LM Studio, llama.cpp)', () => {
+  const local = (preset: string, extra: Record<string, unknown> = {}) => ({ name: `Local ${preset}`, kind: 'endpoint' as const, preset, ...extra });
+
+  it.each([
+    ['ollama', 'http://127.0.0.1:11434/v1'],
+    ['lmstudio', 'http://127.0.0.1:1234/v1'],
+    ['llamacpp', 'http://127.0.0.1:8080/v1'],
+  ])('saves %s with no key and no address typed: the preset’s loopback http default, a model, no key', async (preset, baseUrl) => {
+    const { profiles, keys } = store();
+    const view = await profiles.create(local(preset));
+    expect(view).toMatchObject({ preset, baseUrl, hasKey: false });
+    expect(view.defaultModel).not.toBe('');
+    expect(await keys.revealPayload(view.id)).toBeUndefined();
+  });
+
+  it('lets the writer change the port or the host within loopback, and normalises it', async () => {
+    const { profiles } = store();
+    const view = await profiles.create(local('ollama', { baseUrl: 'http://localhost:9999/v1/' }));
+    expect(view.baseUrl).toBe('http://localhost:9999/v1');
+    const moved = await profiles.update(view.id, { baseUrl: 'http://[::1]:11500/v1' });
+    expect(moved.baseUrl).toBe('http://[::1]:11500/v1');
+  });
+
+  it.each(['http://192.168.1.20:11434/v1', 'http://box.local:11434/v1', 'http://127.evil.example/v1', 'http://127.0.0.1@evil.example/v1', 'https://api.openai.com/v1'])(
+    'refuses %s on a create and on an edit, naming the base URL',
+    async (baseUrl) => {
+      const { profiles } = store();
+      await expect(profiles.create(local('lmstudio', { baseUrl }))).rejects.toMatchObject({ code: 'invalid', field: 'baseUrl' });
+      const view = await profiles.create(local('lmstudio'));
+      await expect(profiles.update(view.id, { baseUrl })).rejects.toMatchObject({ code: 'invalid', field: 'baseUrl' });
+      expect(profiles.get(view.id)?.baseUrl).toBe('http://127.0.0.1:1234/v1');
+    },
+  );
+
+  it('keeps the generic endpoint and every hosted preset https only, loopback included', async () => {
+    const { profiles } = store();
+    await expect(profiles.create(endpoint('Generic', { baseUrl: 'http://127.0.0.1:11434/v1', apiKey: '' }))).rejects.toThrow(/https/);
+    await expect(profiles.create(endpoint('Hosted', { preset: 'openai', baseUrl: 'http://127.0.0.1:11434/v1' }))).rejects.toThrow(/https/);
+  });
+
+  it('seals a key the writer sets on the server, and refuses to carry it to another origin', async () => {
+    const { profiles, keys } = store();
+    const view = await profiles.create(local('lmstudio', { apiKey: KEY }));
+    expect(view.hasKey).toBe(true);
+    expect((await keys.revealPayload(view.id))?.apiKey).toBe(KEY);
+    await expect(profiles.update(view.id, { baseUrl: 'http://127.0.0.1:1235/v1' })).rejects.toMatchObject({ code: 'invalid', field: 'apiKey' });
+  });
+
+  it('takes no custom headers: those belong to the generic endpoint', async () => {
+    const { profiles } = store();
+    await expect(profiles.create(local('ollama', { customHeaders: { 'x-a': 'b' } }))).rejects.toMatchObject({ field: 'customHeaders' });
+  });
+});
