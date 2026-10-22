@@ -1,18 +1,63 @@
 /**
- * The inspector's two sections that reach beyond the node's own fields: the codex (codex.md §8: the attach picker, the entries
+ * The inspector's sections that reach beyond the node's own fields: the codex (codex.md §8: the attach picker, the entries
  * attached here, and the mention chips detected in this document) and the scene declarations (coherence.md §5.2, §8: POV,
- * day offsets, the `after` and `expected present` lists, and the timeline mode). Each change is one bus command.
+ * day offsets, the `after` and `expected present` lists, and the timeline mode), and the export style (exporter.md §2, Per-scene styling).
+ * Each change is one bus command.
  */
 
 import { type ReactNode } from 'react';
-import { TIMELINE_MODES, type ScenePatch } from '@caotang/bus';
+import { SCENE_STYLES, TIMELINE_MODES, type ScenePatch } from '@caotang/bus';
 import type { CodexEntry, TreeNode } from '@caotang/store';
 
-import { attachEntry, explain } from './actions.js';
+import { attachEntry, explain, setSceneStyle } from './actions.js';
 import { afterCandidates, modeLabel, povCandidates, sceneMetaOf } from '../app/findings-model.js';
 import type { ProjectSession } from '../app/session.js';
 import { useStoreDraft } from './store-draft.js';
 import { useReport, useSession } from './shared.js';
+
+/* ------------------------------------------------------------------ *
+ * Export style
+ * ------------------------------------------------------------------ */
+
+const STYLE_LABELS: Readonly<Record<string, string>> = { normal: 'Normal', section: 'Section' };
+
+/**
+ * The scene's export style: Normal, or Section, which prints the scene's title as a heading in the exports. Choosing Normal clears the
+ * style. A value this build does not know shows as itself, disabled, and exports as Normal until the writer chooses another.
+ */
+export function SceneStyleSection({ session, node }: { session: ProjectSession; node: TreeNode }): ReactNode {
+  useSession(session);
+  const report = useReport();
+  const stored = node.style ?? 'normal';
+  const known = (SCENE_STYLES as readonly string[]).includes(stored);
+  return (
+    <section className="inspector-section" aria-label="Export style" data-testid="scene-style">
+      <label className="scene-field">
+        <span className="field-label">Export style</span>
+        <select
+          aria-label="Export style"
+          value={stored}
+          onChange={(event) => {
+            const outcome = setSceneStyle(session, node.id, event.target.value);
+            if (!outcome.ok) report({ text: explain(outcome.error), tone: 'error' });
+          }}
+        >
+          {known ? null : (
+            <option value={stored} disabled>
+              {stored} (unknown, exported as Normal)
+            </option>
+          )}
+          {SCENE_STYLES.map((style) => (
+            <option key={style} value={style}>
+              {STYLE_LABELS[style] ?? style}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="field-note">Section prints this scene’s title as a heading above it in Word, EPUB, Markdown and plain-text files.</p>
+    </section>
+  );
+}
 
 /* ------------------------------------------------------------------ *
  * Codex

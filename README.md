@@ -160,7 +160,7 @@ This writes `packages/mcp-server/dist/caotang-mcp.mjs`, one file that runs with 
 pnpm --filter @caotang/mcp-server run pack
 ```
 
-This writes `packages/mcp-server/dist/caotang-mcp-0.1.0.mcpb`. The bundle has the server, its manifest, the notices and the license. The manifest is checked by the MCPB CLI that this package pins. The host asks for a project folder and an **Allow changes** setting, which is off by default. The bundle is not signed, and it has not been run in a real MCPB host; it has been checked and run over stdio.
+This writes `packages/mcp-server/dist/caotang-mcp-0.1.0.mcpb`. Or download `caotang-mcp-<version>.mcpb` from the [latest release](https://github.com/nattiini45/caotang/releases/latest), where `SHA256SUMS` holds its SHA-256. The bundle has the server, its manifest, the notices and the license. The manifest is checked by the MCPB CLI that this package pins. The host asks for a project folder and an **Allow changes** setting, which is off by default. The bundle is not signed, and it has not been run in a real MCPB host; it has been checked and run over stdio.
 
 Serve a project folder over HTTP, on `127.0.0.1` only:
 

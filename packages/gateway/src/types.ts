@@ -113,7 +113,7 @@ export type ChatRole = 'system' | 'user' | 'assistant' | 'tool';
 export type FinishReason = 'stop' | 'length' | 'error' | 'tool_calls';
 
 /** The normalised thinking levels. A model's capability row says which of these it can be sent. */
-export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high' | 'max';
+export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 /** The task roles requests are attributed to — provider-gateway §6 records usage per role. */
 export type TaskRole = 'chat' | 'drafting' | 'background';
@@ -204,6 +204,11 @@ export interface ModelLimits {
   readonly contextWindow?: number;
   /** The output cap a request is sent with: the profile's, else the documented default (provider-gateway §2). */
   readonly maxOutputTokens: number;
+  /**
+   * The thinking tokens one call may add to the reply at the level asked for: the effective budget on a budget route, the
+   * level's nominal share on an adaptive one. Absent when no level was asked for or the row lists none. Display-only.
+   */
+  readonly thinkingTokens?: number;
   /** The price in USD per 1,000 tokens: the profile's, else the provider's. Display-only (provider-gateway §6, D4). */
   readonly pricePer1k?: { readonly prompt: number; readonly completion: number };
 }
@@ -226,6 +231,11 @@ export interface ChatRequest {
   toolChoice?: 'auto' | 'none';
   /** The normalised thinking level for this call. The adapter maps it through the model's capability row. */
   thinking?: ThinkingLevel;
+  /**
+   * A thinking budget in tokens. Sent as a number only where the row's style takes one; elsewhere mapped to the
+   * nearest listed level by `levelForBudget`. Ignored when `thinking` is 'off'.
+   */
+  reasoningBudget?: number;
   /** default: the profile that resolved for the request's role, else the active profile */
   profileId?: string;
   /** the agent turn this request belongs to; keys the per-turn ledger row (§6) */
@@ -254,6 +264,13 @@ export interface ModelCaps {
   readonly effortStyle?: string;
   /** How the model's reasoning is replayed on tool turns (the adapter reads this). */
   readonly replayStyle?: string;
+  /**
+   * How a Messages-route model takes thinking: 'adaptive' = `thinking.type: 'adaptive'` + `output_config.effort`
+   * (no budget_tokens); 'budget' = `thinking.type: 'enabled'` + `budget_tokens`. Absent on a Messages row = 'budget'.
+   */
+  readonly thinkingShape?: 'adaptive' | 'budget';
+  /** Whether the route returns readable thinking text when asked (`display: 'summarized'`). */
+  readonly thinkingDisplay?: 'summarized' | 'omitted';
   /** The route requires streaming when thinking is enabled. */
   readonly streamRequired?: boolean;
   /** Request fields this route rejects and the adapter must omit (e.g. 'temperature'). */

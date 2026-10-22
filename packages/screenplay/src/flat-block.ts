@@ -12,6 +12,7 @@ export type FlatBlock =
   // `synopsis` is the section's `=` line (screenplay.md §2.2): present only when the folder has one, so a section with none
   // has the same block it always had.
   | { readonly kind: 'chapter'; readonly title: string; readonly level: number; readonly number: number; readonly synopsis?: string }
-  | { readonly kind: 'scene'; readonly docId: string; readonly body: string; readonly title: string; readonly number: number }
+  // `style` is the scene's export style (exporter.md §2), present only when it is not `normal`.
+  | { readonly kind: 'scene'; readonly docId: string; readonly body: string; readonly title: string; readonly number: number; readonly style?: string }
   | { readonly kind: 'separator' }
   | { readonly kind: 'backmatter'; readonly bmKind: 'about-author' | 'custom'; readonly docId?: string };

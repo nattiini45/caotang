@@ -159,8 +159,14 @@ describe('planning: each dialogue quote becomes an anchor against the scene, or 
   it('writes a tree diff the plan card can show: the folder, then one line per shot with its spec row', () => {
     const plan = planOf(buildFixture());
     expect(plan.treeDiff[0]).toBe('+ folder "Harbour — Shots" (storyboard) under "Act 1"');
-    expect(plan.treeDiff[1]).toBe('  + shot 1 "Elena crosses the empty quay." · WS · eye · static · 4 s');
-    expect(plan.treeDiff[2]).toBe('  + shot 2 "ELENA speaks." · CU');
+    expect(plan.treeDiff[1]).toBe('  + shot 1 "Elena crosses the empty quay." · Wide shot (WS) · Eye level · Static · 4 s');
+    expect(plan.treeDiff[2]).toBe('  + shot 2 "ELENA speaks." · Close-up (CU)');
+  });
+
+  it('words the tree diff but keeps the tokens in each shot’s stored fields', () => {
+    const plan = planOf(buildFixture());
+    expect(plan.shots[0]?.stored).toMatchObject({ shotSize: 'WS', cameraAngle: 'eye', cameraMovement: 'static' });
+    expect(plan.treeDiff.join(' | ')).not.toContain('static ·');
   });
 
   it('names a shot from the first line of its action, cut to 40 code points', () => {

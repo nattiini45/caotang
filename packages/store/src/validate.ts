@@ -31,7 +31,7 @@ import {
   type AppliedMigration,
   type FormatContext,
 } from './migrations.js';
-import { CHAR_LIMIT_MAX, CRITERIA_KEYS, SCENE_NUMBER_OPTIONS, filterNameFits } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, CRITERIA_KEYS, SCENE_NUMBER_OPTIONS, SCENE_STYLES, filterNameFits } from '@caotang/bus';
 // The shapes the bus names for the furniture commands. The *values* the bus
 // refuses at the command boundary are restated below, for the load; the types
 // are the bus's own, so a value the bus does not know cannot be listed here.
@@ -571,6 +571,16 @@ function validateFields(
     if (node.kind !== undefined && typeof node.kind !== 'string') {
       warn(`${at}.kind`, 'expected a string; ignoring field');
       delete node.kind;
+    }
+    // The scene style (exporter.md §2): a string is kept as written, even one this build does not know, and named once so
+    // the writer learns it will print as a normal scene; anything that is not a string cannot be one and goes.
+    if (node.style !== undefined) {
+      if (typeof node.style !== 'string') {
+        warn(`${at}.style`, 'expected a string; ignoring field');
+        delete node.style;
+      } else if (!(SCENE_STYLES as readonly string[]).includes(node.style)) {
+        warn(`${at}.style`, `unknown scene style "${node.style}"; kept as-is, and exports render the scene as normal`);
+      }
     }
     for (const key of ['shot', 'dialogue'] as const) {
       const value = node[key];

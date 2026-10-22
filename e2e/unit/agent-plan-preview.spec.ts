@@ -315,6 +315,12 @@ test.describe('the cost estimate is dollars, and absent when the profile has no 
     expect(costLineOf({ promptUsd: 0.01, completionUsd: 0.02, totalUsd: 0.03 })).toBe('About $0.0300 (prompt $0.0100, reply $0.0200).');
   });
 
+  test('a cost that counts thinking says so on its reply side', () => {
+    expect(costLineOf({ promptUsd: 0.01, completionUsd: 0.02, totalUsd: 0.03, includesThinking: true })).toBe(
+      'About $0.0300 (prompt $0.0100, reply $0.0200 including thinking).',
+    );
+  });
+
   test('the plan total adds the priced steps only, and is absent when no step is priced', () => {
     expect(planCostOf([0.01, undefined, 0.02])).toBeCloseTo(0.03, 10);
     expect(planCostOf([undefined, undefined])).toBeUndefined();

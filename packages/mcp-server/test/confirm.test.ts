@@ -10,6 +10,7 @@ import {
   argsDigest,
   codexEntryNameOf,
   CONFIRMATION_SCHEMA,
+  confirmationMessage,
   confirmationSummary,
   createConfirmLedger,
   createRoundCodec,
@@ -141,6 +142,16 @@ describe('the confirmation form', () => {
     expect(Object.keys(CONFIRMATION_SCHEMA.properties)).toEqual(['confirmed']);
     expect(CONFIRMATION_SCHEMA.properties.confirmed.type).toBe('boolean');
     expect(CONFIRMATION_SCHEMA.required).toEqual(['confirmed']);
+  });
+});
+
+describe('confirmationMessage', () => {
+  it('names the change and that nothing changes unless accepted, and the wait only when the connection has one', () => {
+    const plain = confirmationMessage('import "A"');
+    expect(plain).toBe('Caotang needs your confirmation to import "A". Nothing changes unless you accept.');
+    const waits = confirmationMessage('import "A"', 60);
+    expect(waits).toContain(plain);
+    expect(waits).toContain('This question waits 60 seconds; after that the call fails, nothing changes');
   });
 });
 

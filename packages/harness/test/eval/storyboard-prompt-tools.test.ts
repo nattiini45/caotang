@@ -72,6 +72,7 @@ const scenarios: Scenario[] = [
     name: 'shots.derive: the scene’s shots are proposed by the model, approved on one card, and written as a storyboard folder',
     category: 'single-op',
     intent: 'Derive the shots of the lamp scene.',
+    preload: ['shots.derive'],
     project: sceneState,
     gateway: () =>
       mockGateway([
@@ -84,6 +85,8 @@ const scenarios: Scenario[] = [
       status: 'applied',
       cards: { matcher: 'strict', items: [{ kind: 'confirm', tools: ['shots.derive'], decision: 'approved' }] },
       trace: { matcher: 'strict', calls: [{ tool: 'shots.derive', outcome: 'ok' }] },
+      // A storyboard scene is open, so the app preloads the module's rows (PRELOAD_BY_CONTEXT).
+      reached: { 'shots.derive': 'preload' },
       state: (state) => {
         const folder = state.manifest.tree.find((node) => node.type === 'folder' && node.title === SHOT_FOLDER_TITLE);
         if (folder === undefined) return [`no folder "${SHOT_FOLDER_TITLE}" was written`];
@@ -108,6 +111,7 @@ const scenarios: Scenario[] = [
     expect: {
       status: 'replied',
       trace: { matcher: 'strict', calls: [{ tool: 'prompt.variant', outcome: 'ok' }] },
+      reached: { 'prompt.variant': 'preflight' },
       requests: [{ includes: ['Hand-held drift.', 'Crane up slowly.'] }],
       // The fixture holds one vendor record, and a read leaves it as it was.
       state: (state) => {
@@ -133,6 +137,7 @@ const scenarios: Scenario[] = [
       status: 'applied',
       cards: { matcher: 'strict', items: [{ kind: 'confirm', tools: ['prompt.draft'], decision: 'approved' }] },
       trace: { matcher: 'strict', calls: [{ tool: 'prompt.draft', outcome: 'ok' }] },
+      reached: { 'prompt.draft': 'preflight' },
       state: (state) => {
         const node = state.manifest.tree.find((candidate) => candidate.id === SHOT);
         const refs = (node === undefined ? undefined : (shotFieldOf(node) as { vendorRefs?: { vendor?: unknown }[] } | undefined)?.vendorRefs) ?? [];

@@ -10,8 +10,11 @@
  * (`message_start`, `content_block_*`, `message_delta`, `message_stop`, `error`),
  * where `error` can arrive after HTTP 200 and must be raised as a provider failure.
  *
- * Thinking is `thinking` + `output_config.effort` (effort style 'anthropic'). With
- * thinking enabled Anthropic does not accept `temperature`, so the field is omitted.
+ * Thinking is `thinking` + `output_config.effort` (effort style 'anthropic'), in the shape the
+ * row's `thinkingShape` names: 'adaptive' (every 5.x model) sends the effort and never a token
+ * budget; 'budget' (the default for a Messages row that says nothing) sends
+ * `thinking.type: 'enabled'` with the budget `effectiveOutput` settled under `max_tokens`. With
+ * thinking on Anthropic does not accept `temperature`, so the field is omitted.
  */
 
 import type { SseEvent } from '../sse.js';
@@ -29,8 +32,6 @@ import type {
   StreamParser,
   StreamPiece,
 } from './types.js';
-
-const BUDGETS = { low: 1_024, medium: 4_096, high: 16_384, max: 32_768 } as const;
 
 function mapStopReason(raw: unknown): FinishReason | undefined {
   if (typeof raw !== 'string') return undefined;
@@ -127,7 +128,7 @@ function wireMessages(req: BodyInput['req']): { system?: string; messages: unkno
 }
 
 function anthropicEffort(body: Record<string, unknown>, input: BodyInput): void {
-  const level = input.req.thinking;
+  const { level, budget } = input.effective;
   if (level === undefined) return;
   // Another style on the row means the model doesn't take the Messages thinking fields.
   if (input.ctx.caps.effortStyle !== undefined && input.ctx.caps.effortStyle !== 'anthropic') return;
@@ -137,8 +138,13 @@ function anthropicEffort(body: Record<string, unknown>, input: BodyInput): void 
     body.thinking = { type: 'disabled' };
     return;
   }
-  body.thinking = { type: 'enabled', budget_tokens: BUDGETS[level] };
-  body.output_config = { effort: level === 'max' ? 'max' : level };
+  if (input.ctx.caps.thinkingShape === 'adaptive') {
+    body.thinking = { type: 'adaptive', display: input.ctx.caps.thinkingDisplay ?? 'summarized' };
+  } else {
+    if (budget === undefined) return;
+    body.thinking = { type: 'enabled', budget_tokens: budget };
+  }
+  body.output_config = { effort: level };
 }
 
 interface BlockAcc {
@@ -314,13 +320,13 @@ export const anthropicMessagesAdapter: ProviderAdapter = {
   },
 
   buildBody(input: BodyInput): Record<string, unknown> {
-    const { req, ctx, temperature, maxTokens, jsonObject } = input;
+    const { req, ctx, temperature, effective, jsonObject } = input;
     const { system, messages } = wireMessages(req);
     const deny = new Set(ctx.caps.denylist ?? []);
     const body: Record<string, unknown> = {
       model: ctx.model,
       messages,
-      max_tokens: maxTokens,
+      max_tokens: effective.maxTokens,
       stream: true,
     };
     if (system !== undefined) body.system = system;

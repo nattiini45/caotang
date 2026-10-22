@@ -37,7 +37,8 @@ function layerOf(assembled: AssembledPrompt, id: LayerId): LayerReport {
 export function buildPreview(assembled: AssembledPrompt): PromptPreview {
   const payload = toChatMessages(assembled);
   const promptTokens = assembled.estimate.promptTokens;
-  const completionTokens = assembled.model.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
+  const thinkingTokens = assembled.model.thinkingTokens ?? 0;
+  const completionTokens = (assembled.model.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS) + thinkingTokens;
 
   // Every layer's drops and notes reach the preview, not only L2's and L4's: a cut in any layer is
   // part of what the writer approves (§5, D8).
@@ -93,7 +94,12 @@ export function buildPreview(assembled: AssembledPrompt): PromptPreview {
       : (() => {
           const promptUsd = (promptTokens / 1_000) * price.prompt;
           const completionUsd = (completionTokens / 1_000) * price.completion;
-          return { promptUsd, completionUsd, totalUsd: promptUsd + completionUsd };
+          return {
+            promptUsd,
+            completionUsd,
+            totalUsd: promptUsd + completionUsd,
+            ...(thinkingTokens > 0 ? { includesThinking: true as const } : {}),
+          };
         })();
 
   return {

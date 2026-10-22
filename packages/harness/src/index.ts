@@ -21,6 +21,7 @@ export {
   capOf,
   isToolName,
   metadataFor,
+  type ToolLoad,
   type ToolMetadata,
   type ToolName,
   type ToolRisk,
@@ -42,7 +43,8 @@ export {
   type PlanStepPreflight,
   type StepResult,
 } from './plan.js';
-export { createAgentSession, type AgentSession, type AgentSessionOptions } from './agent/loop.js';
+export { createAgentSession, type AgentSession, type AgentSessionOptions, type SubmitOptions } from './agent/loop.js';
+export { PRELOAD_BY_CONTEXT, preloadContextOf, preloadFor, type PreloadContext } from './agent/preload.js';
 export {
   checkRun,
   evaluate,
@@ -139,6 +141,7 @@ export {
   plannerToolDefs,
   plannerTools,
   refusalSentence,
+  MORE_TOOLS_LINE,
   type Reply,
 } from './agent/protocol.js';
 export {

@@ -288,6 +288,20 @@ describe('binder.setMeta — §9: "Vocabulary-validated"', () => {
     expect(validate('binder.setMeta', { nodeId: THE_LANDING, patch: { label: 'act-2' } }).ok).toBe(true);
   });
 
+  it('accepts a scene style on a document, null to clear it, and refuses an unknown one with the valid styles', () => {
+    expect(validate('binder.setMeta', { nodeId: THE_LANDING, patch: { style: 'section' } }).ok).toBe(true);
+    expect(validate('binder.setMeta', { nodeId: THE_LANDING, patch: { style: 'normal' } }).ok).toBe(true);
+    expect(validate('binder.setMeta', { nodeId: THE_LANDING, patch: { style: null } }).ok).toBe(true);
+    const e = refusal(validate('binder.setMeta', { nodeId: THE_LANDING, patch: { style: 'verse' } }));
+    expect(e.code).toBe('invalid-params');
+    expect(e.correctiveHint).toContain('normal, section');
+  });
+
+  it('refuses a scene style on a folder, which is not exported as a scene', () => {
+    const e = refusal(validate('binder.setMeta', { nodeId: CHAPTER_ONE, patch: { style: 'section' } }));
+    expect(e.message).toContain('only a document has a scene style');
+  });
+
   it('refuses an unknown status and lists the valid ids in the hint', () => {
     // agent-harness §3 row 5: "Invalid status/label → lists vocabulary".
     const e = refusal(validate('binder.setMeta', { nodeId: THE_LANDING, patch: { status: 'polished' } }));

@@ -4,6 +4,7 @@
  * lines are both read from that record. Nothing re-derives the wording.
  */
 
+import { formatCount } from './text.js';
 import type { DropReason, DropRecord } from './types.js';
 
 export function describeDrop(reason: DropReason): string {
@@ -22,6 +23,8 @@ export function describeDrop(reason: DropReason): string {
       return `dropped budget (${reason.layer}, ${reason.budget} tokens, rank ${reason.rank})`;
     case 'total-budget':
       return `dropped total budget (${reason.total} tokens, ${reason.layer}, rank ${reason.rank})`;
+    case 'reserve-overflow':
+      return `the codex's always entries need ${formatCount(reason.need)} tokens; the layer's budget is ${formatCount(reason.budget)}`;
   }
 }
 

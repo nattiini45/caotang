@@ -24,6 +24,7 @@ import { loadZipEngine } from '@caotang/store';
 import { CHAR_LIMIT_MAX, SCENE_NUMBER_OPTIONS, type SceneNumbersOption } from '@caotang/bus';
 
 import { downloadBytes } from '../app/download.js';
+import { PACK_TEMPLATES } from '../media/prompt-pack-model.js';
 import { recipeChoicesOf } from '../app/recipe-choices.js';
 import type { ProjectSession } from '../app/session.js';
 import { compileManuscript, compileSelection, explain, saveRecipe } from './actions.js';
@@ -52,8 +53,6 @@ const FORMAT_GROUPS: readonly { readonly name: string; readonly formats: readonl
       { format: 'epub', label: 'EPUB (.epub)', help: 'A reading-system book, one file per chapter.' },
     ],
   },
-  // The prompt pack is not offered here: it is written for one vendor template, which the storyboard's prompt-pack tab
-  // chooses and exports. From this dialog it would only ever be refused.
   {
     name: 'Media',
     formats: [
@@ -65,6 +64,11 @@ const FORMAT_GROUPS: readonly { readonly name: string; readonly formats: readonl
       { format: 'shot-list-csv', label: 'Shot list (.csv)', help: 'Each shot in order, with its size, angle, movement and duration.' },
       { format: 'dialogue-xlsx', label: 'Dialogue table (.xlsx)', help: 'The dialogue table as a spreadsheet, for Excel, Numbers or LibreOffice.' },
       { format: 'shot-list-xlsx', label: 'Shot list (.xlsx)', help: 'The shot list as a spreadsheet, with shot numbers and durations as numbers.' },
+      {
+        format: 'promptpack',
+        label: 'Prompt pack (video)',
+        help: 'The JSON, Markdown and CSV packs for one video model, written together and downloaded as one zip.',
+      },
       {
         format: 'contact-sheet-pdf',
         label: 'Storyboard contact sheet (.pdf)',
@@ -116,6 +120,15 @@ function pdfOptionsOf(shown: ShownOptions): { sceneNumbers?: SceneNumbersOption;
 /** The papers a contact sheet is drawn on. */
 type PageSize = 'A4' | 'Letter';
 
+/**
+ * The vendor template a recipe names, or empty. A recipe's `templateId` is a layout template for every format but the prompt pack
+ * (the seeded Manuscript recipe carries `default`), so it is a vendor only when it is one of the installed vendor templates.
+ */
+function vendorOf(recipe: ExportRecipe | undefined): string {
+  const id = recipe?.templateId;
+  return id !== undefined && PACK_TEMPLATES.some((template) => template.id === id) ? id : '';
+}
+
 function shownOptionsOf(recipe: ExportRecipe | undefined): ShownOptions {
   return {
     titlePage: recipe?.options?.titlePage ?? DEFAULT_TEMPLATE.titlePage,
@@ -143,6 +156,8 @@ export function ExportDialog({
   const [recipeName, setRecipeName] = useState<string | null>(recipes[0]?.name ?? null);
   const recipe = recipes.find((candidate) => candidate.name === recipeName);
   const [format, setFormat] = useState<ExportFormat>(recipe?.format ?? 'docx');
+  // The vendor template a prompt pack is written for. Empty until chosen, and a compile of the pack without one is refused.
+  const [vendor, setVendor] = useState(vendorOf(recipe));
   // The whole manuscript unless the writer chooses a part: a selection is a choice to make, not a default.
   const [scope, setScope] = useState<'manuscript' | 'selection'>('manuscript');
   const [newName, setNewName] = useState('');
@@ -193,11 +208,16 @@ export function ExportDialog({
       setNotice({ text: 'Name the recipe first.', tone: 'error' });
       return;
     }
+    if (format === 'promptpack' && vendor === '') {
+      setNotice({ text: 'Choose a vendor template first: a prompt pack recipe is written for one.', tone: 'error' });
+      return;
+    }
     const author = shown.author.trim();
     const outcome = saveRecipe(session, {
       name,
       includeRootIds: ['manuscript'],
       format,
+      ...(format === 'promptpack' ? { templateId: vendor } : {}),
       options: {
         titlePage: shown.titlePage,
         toc: shown.toc,
@@ -226,10 +246,15 @@ export function ExportDialog({
       // as failed because an earlier compile of the same name failed.
       const priorFailures = session.exportFailures().length;
       const useSelection = scope === 'selection' && selection !== null;
+      // The pack's vendor is sent on the command, never read from the recipe: a recipe's templateId may be a layout template.
+      // With none chosen the recipe is left off too, so the refusal is the bus's one about the vendor and not about the layout id.
+      const pack = format === 'promptpack';
+      const templateId = pack && vendor !== '' ? vendor : undefined;
+      const recipeFor = pack && vendor === '' ? undefined : recipe?.name;
       // A part compiles with the recipe's options too, so the title page, the contents and the author apply to one item.
       const outcome = useSelection
-        ? compileSelection(session, [selection.id], format, recipe?.name)
-        : compileManuscript(session, format, recipe?.name);
+        ? compileSelection(session, [selection.id], format, recipeFor, templateId)
+        : compileManuscript(session, format, recipeFor, templateId);
       if (!outcome.ok) {
         // A refusal keeps the dialog open, so the reason is said here, next to Compile, and not on the status line under the dialog.
         setNotice({ text: explain(outcome.error), tone: 'error' });
@@ -295,7 +320,10 @@ export function ExportDialog({
             onChange={(event) => {
               const next = recipes.find((candidate) => candidate.name === event.target.value);
               setRecipeName(event.target.value);
-              if (next !== undefined) setFormat(next.format);
+              if (next !== undefined) {
+                setFormat(next.format);
+                setVendor(vendorOf(next));
+              }
               // A refusal was about the compile as it was set; another recipe is another compile.
               setNotice(null);
             }}
@@ -332,6 +360,26 @@ export function ExportDialog({
             ))}
           </fieldset>
         ))}
+
+        {format === 'promptpack' ? (
+          <label className="export-field">
+            <span className="field-label">Vendor template</span>
+            <select
+              value={vendor}
+              onChange={(event) => {
+                setVendor(event.target.value);
+                setNotice(null);
+              }}
+            >
+              <option value="">Choose a vendor template</option>
+              {PACK_TEMPLATES.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.displayName}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
 
         <fieldset className="export-group">
           <legend className="field-label">What to export</legend>

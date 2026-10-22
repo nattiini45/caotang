@@ -70,6 +70,20 @@ describe('the role text is the system message, and L0 is measured on it (context
   });
 });
 
+describe('the port is the product assembler: a scene draft carries L3 and L4 (context-assembly §2)', () => {
+  it('assembles the structure and the story so far, from @caotang/context and not from a local assembler', () => {
+    const call = createContextPort({ state: makeState() }).assemble({
+      task: { tool: 'scene.draft', instruction: 'Brief: the lamp fails.', focus: STORM, mode: 'continue' },
+      role: ROLE,
+    });
+    const layers = call.prompt.layers;
+    expect(layers.filter((layer) => layer.included).map((layer) => layer.id)).toEqual(['L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7']);
+    expect(layers.find((layer) => layer.id === 'L3')?.kept.length).toBeGreaterThan(0);
+    expect(layers.find((layer) => layer.id === 'L4')?.kept.map((item) => item.label)).toContain('The Landing');
+    expect(call.messages[1]?.content).toContain('Elena returns to the island.');
+  });
+});
+
 describe('the earlier turns are L6 (context-assembly §2)', () => {
   it('the last two earlier turns reach the call with their intents, and an older one does not', () => {
     const turns = [
@@ -161,6 +175,17 @@ describe('the project is read as it is at each call, and the model’s limits re
     expect(call.preview.window?.warning).toContain('model window');
     expect(call.preview.completionTokens).toBe(100);
     expect(call.preview.cost?.completionUsd).toBeCloseTo((100 / 1000) * 2);
+  });
+
+  it('a thinking allowance in the limits reaches the card’s reply estimate and its cost', () => {
+    const port = createContextPort({
+      state: makeState(),
+      config: { model: { pricePer1k: { prompt: 0, completion: 2 }, maxOutputTokens: 100, thinkingTokens: 400 } },
+    });
+    const call = port.assemble({ task: meta('Request: hello'), role: ROLE });
+    expect(call.preview.completionTokens).toBe(500);
+    expect(call.preview.cost?.completionUsd).toBeCloseTo((500 / 1000) * 2);
+    expect(call.preview.cost?.includesThinking).toBe(true);
   });
 
   it('with no limits in the config the card has no window and no price, and no guessed number', () => {

@@ -45,6 +45,10 @@ export interface PromptPackToolMeta {
   readonly descriptionVersion: number;
   readonly description: string;
   readonly surface: 'extension';
+  /** Every module row is deferred: the planner declares it only once `tool.search` or a preload loads it (agent-harness §3). */
+  readonly load: 'deferred';
+  /** Extra search terms for `tool.search`; never shown to the model. */
+  readonly keywords: readonly string[];
 }
 
 /** The subset of the harness's `ParamSpec` these tools use. The kinds and their fields match `packages/harness/src/schema.ts`. */
@@ -102,6 +106,8 @@ export const PROMPT_PACK_TOOL_ENTRIES: readonly PromptPackToolEntry[] = [
       descriptionVersion: 1,
       description: DRAFT_DESCRIPTION,
       surface: 'extension',
+      load: 'deferred',
+      keywords: ['prompt pack', 'video', 'prompt', 'shots', 'vendor'],
     },
     params: {
       kind: 'object',
@@ -133,6 +139,8 @@ export const PROMPT_PACK_TOOL_ENTRIES: readonly PromptPackToolEntry[] = [
       descriptionVersion: 1,
       description: VARIANT_DESCRIPTION,
       surface: 'extension',
+      load: 'deferred',
+      keywords: ['prompt pack', 'video', 'prompt', 'variant', 'vendor'],
     },
     params: {
       kind: 'object',

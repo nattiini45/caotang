@@ -58,6 +58,44 @@ describe('the registry joins every tool to its metadata', () => {
     );
   });
 
+  // Deferral is about context: the planner declares the core rows on every request and a deferred row once a search or a preload
+  // loads it (agent-harness §3). Each module declares its own rows' class, so this pins the registry's sum of them.
+  it('gives every row a load class: the 13 callable v0.1 rows, agent.plan and tool.search are core, and every other extension row is deferred', () => {
+    for (const meta of TOOL_METADATA) expect(['core', 'deferred'], meta.name).toContain(meta.load);
+    expect(TOOL_METADATA.filter((meta) => meta.load === 'core').map((meta) => meta.name)).toEqual([
+      'project.overview',
+      'binder.read_tree',
+      'doc.read',
+      'notes.read',
+      'meta.set',
+      'notes.append',
+      'synopsis.fill',
+      'scene.draft',
+      'binder.restructure',
+      'continuity.scan',
+      'export.compile',
+      'codex.read',
+      'codex.write',
+      'agent.plan',
+      'tool.search',
+    ]);
+    expect(TOOL_METADATA.filter((meta) => meta.load === 'deferred').map((meta) => meta.name)).toEqual([
+      'doc.import',
+      'codex.import',
+      'coherence.scan',
+      'coherence.review',
+      'coherence.setFindingStatus',
+      'shots.derive',
+      'shots.annotate',
+      'prompt.draft',
+      'prompt.variant',
+      'dialogue.draft',
+      'dialogue.table',
+    ]);
+    // A deferred row is found by name, description or keyword, so each carries a module word to be found by.
+    for (const meta of TOOL_METADATA.filter((row) => row.load === 'deferred')) expect(meta.keywords?.length, meta.name).toBeGreaterThan(0);
+  });
+
   it('gives every tool a closed, object-rooted JSON Schema derived from its params', () => {
     for (const item of listing) {
       expect(item.schema['type'], item.name).toBe('object');

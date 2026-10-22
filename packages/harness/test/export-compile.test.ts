@@ -211,6 +211,18 @@ describe('export.compile through a saved recipe, and the prompt pack’s vendor 
     expect(error.correctiveHint).toContain(VIDEO_TEMPLATE_IDS.join(', '));
   });
 
+  it('sends a prompt pack’s vendor template on the command, for the whole manuscript and for a part', () => {
+    const vendor = VIDEO_TEMPLATE_IDS[1] ?? VIDEO_TEMPLATE_IDS[0] ?? '';
+    const captured: Captured[] = [];
+    const harness = createHarness({ state: makeState(), registry: recordingRegistry(captured), clock: clock.now });
+    valueOf(run(harness, 'export.compile', { selection: { root: 'manuscript' }, format: 'promptpack', template: vendor }, { permission: CONFIRMED }));
+    valueOf(run(harness, 'export.compile', { selection: { root: CHAPTER_ONE }, format: 'promptpack', template: vendor }, { permission: CONFIRMED }));
+    expect(captured.map((call) => [call.name, call.params['templateId']])).toEqual([
+      ['export.compile', vendor],
+      ['export.compileSelection', vendor],
+    ]);
+  });
+
   it('takes a prompt pack’s vendor template from the recipe when the call names none', () => {
     const state = makeState();
     state.manifest.recipes = [{ name: 'Pack', includeRootIds: ['manuscript'], format: 'promptpack', templateId: VIDEO_TEMPLATE_IDS[0] }];

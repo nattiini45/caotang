@@ -68,7 +68,7 @@ test('the derive card shows the shot list and the storyboard folder it creates, 
   // Each shot carries its number and its spec row: the first is shot 1, a medium shot of four seconds.
   const first = shots.getByRole('listitem').first();
   await expect(first).toHaveAttribute('value', '1');
-  await expect(first).toContainText('Elena asks the question at the rail. (MS · 4 s)');
+  await expect(first).toContainText('Elena asks the question at the rail. (Medium shot (MS) · 4 s)');
   await expect(shots.getByRole('listitem').nth(1)).toHaveAttribute('value', '2');
   await expect(card.getByLabel('Target tree')).toContainText('+ folder "Untitled scene — Shots"');
   await expect(card.getByLabel('Target tree')).toContainText('+ shot 2');

@@ -69,6 +69,7 @@ import { refusal } from '../errors.js';
 import { askBackFor, parsePlan, type AskBack, type Plan, type PlanPreflight, type PlanStep } from '../plan.js';
 import { DOCUMENT, descendantsOf, resolveNode } from '../resolve.js';
 import type { Harness, ToolListing } from '../runtime.js';
+import type { ToolName } from '../metadata.js';
 import type { CallParams, ToolCall, ToolOutcome } from '../types.js';
 import { isRecord } from '../util.js';
 import { CONTINUITY_MAX_DOCS, SYNOPSIS_MAX_DOCS } from '../tools/ports.js';
@@ -177,11 +178,22 @@ export interface AgentSessionOptions {
    * timer reads (agent-harness §8). Display only, so no check reads it. Default `Date.now`.
    */
   readonly clock?: () => number;
+  /**
+   * Whether every callable tool is declared on every request, as before deferral (agent-harness §3): Settings › Agent "Load every
+   * tool on every request", for a model that searches poorly. Read at each request, so a change applies to the next one.
+   */
+  readonly loadEveryTool?: () => boolean;
+}
+
+/** What a UI action can tell a planner turn before it starts. */
+export interface SubmitOptions {
+  /** Deferred native rows the turn is about, loaded before the first request as if the planner had searched for them. */
+  readonly preload?: readonly ToolName[];
 }
 
 export interface AgentSession {
   /** Runs one turn for one intent. Resolves when the turn has ended, after any card was decided. */
-  submit(intent: string): Promise<TurnReport>;
+  submit(intent: string, options?: SubmitOptions): Promise<TurnReport>;
   /**
    * Runs one turn whose plan the app built, rather than the model: the drafts it needs are staged, and its card is decided like
    * any other. The "Fix with agent" entry of a coherence finding is the caller (coherence.md §6.3). The plan is checked as a
@@ -531,7 +543,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     options.context ??
     createContextPort({
       state: () => harness.state,
-      config: () => ({ model: gateway.modelLimits(options.profileId, options.model) }),
+      config: () => ({ model: gateway.modelLimits(options.profileId, options.model, options.thinking) }),
     });
   const emit = (event: AgentEvent): void => options.emit?.(event);
   const now = options.clock ?? Date.now;
@@ -542,6 +554,22 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   /** Every turn this session has started, oldest first, with its intent: what L6 is built from (context-assembly §2). */
   const started: RecentTurn[] = [];
   let turnCounter = 0;
+
+  const loadEvery = (): boolean => options.loadEveryTool?.() === true;
+
+  /**
+   * A refusal's hint for a deferred native row the turn has not loaded: its params failed against a schema the model has not
+   * seen, so the hint names the search that loads them. Deferral is context, not trust — the step was preflighted, not refused
+   * for being unloaded (agent-harness §3).
+   */
+  const withLoadHint = (tool: string, error: CommandError): CommandError => {
+    if (error.code !== 'invalid-params' || loadEvery()) return error;
+    const deferred = harness.tools().some((listing) => listing.name === tool && listing.load === 'deferred');
+    if (!deferred || harness.loadedNativeTools().some((listing) => listing.name === tool)) return error;
+    const earlier = error.correctiveHint?.trim() ?? '';
+    const ended = earlier === '' || earlier.endsWith('.') ? earlier : `${earlier}.`;
+    return { ...error, correctiveHint: `${ended}${ended === '' ? '' : ' '}Call tool.search with '${tool}' to load its parameters.` };
+  };
 
   /** The external tool a name is, when the turn has loaded it (extensibility §5). Undefined for a native name. */
   const loadedExternal = (tool: string) => harness.loadedExternalTools().find((candidate) => candidate.qualifiedName === tool);
@@ -614,7 +642,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    */
   const nativeTools = (): ToolDef[] | undefined => {
     if (gateway.modelCaps?.(options.profileId, options.model)?.tools !== true) return undefined;
-    const tools = plannerToolDefs(harness.tools(), harness.loadedExternalTools());
+    const tools = plannerToolDefs(harness.tools(), harness.loadedNativeTools(), harness.loadedExternalTools(), loadEvery());
     return tools.length === 0 ? undefined : tools;
   };
 
@@ -626,7 +654,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const plannerCall = (turn: Turn): ModelCall => {
     const call = modelCall(turn);
     if (!turn.native) return call;
-    const tools = plannerToolDefs(harness.tools(), harness.loadedExternalTools());
+    const tools = plannerToolDefs(harness.tools(), harness.loadedNativeTools(), harness.loadedExternalTools(), loadEvery());
     return tools.length === 0 ? call : { ...call, tools };
   };
 
@@ -915,7 +943,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // active model's price applied to the plan (cards.ts `reviewCostAt`, which the Findings tab reads too); an unpriced model adds nothing to the proposal.
       const planned = harness.reviewPlan(step.params);
       if (!planned.ok) return refusedDraft(planned.error.message);
-      const cost = reviewCostAt(planned.value, gateway, options.profileId, options.model);
+      const cost = reviewCostAt(planned.value, gateway, options.profileId, options.model, options.thinking);
       return { ok: true, proposal: cost === undefined ? planned.value : { ...planned.value, cost } };
     }
     if (step.tool === 'dialogue.draft') {
@@ -1010,7 +1038,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
       return { tool: step.tool, ok: true, body: outcome.value.data };
     }
-    const reason = errorSummary(outcome.error);
+    const reason = errorSummary(withLoadHint(step.tool, outcome.error));
     turn.trace.push({ tool: step.tool, callId, outcome: 'refused', code: outcome.error.code, params: step.params });
     turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'failed', error: reason });
     moveCard(turn, callId, 'failed', { error: reason });
@@ -1065,18 +1093,21 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
     }
     const loadedNow = harness.loadedExternalTools().filter((tool) => surfaced.has(tool.qualifiedName));
+    // With every tool declared, a native row a search loads is already in front of the model, so only external descriptors follow.
+    const nativeNow = loadEvery() ? [] : harness.loadedNativeTools().filter((tool) => surfaced.has(tool.name));
+    const loadedAny = loadedNow.length > 0 || nativeNow.length > 0;
     if (turn.native) {
       // On the native wire each call is answered by its own tool message, keyed by its id; a search that
       // surfaced tools still puts their descriptors in a user note after the results, as the JSON wire does.
       flushWire(turn);
-      if (loadedNow.length > 0) turn.messages.push({ role: 'user', content: loadedToolsMessage(loadedNow) });
+      if (loadedAny) turn.messages.push({ role: 'user', content: loadedToolsMessage(nativeNow, loadedNow) });
     } else {
-      const sections = [resultsMessage(results), ...(loadedNow.length === 0 ? [] : [loadedToolsMessage(loadedNow)])];
+      const sections = [resultsMessage(results), ...(loadedAny ? [loadedToolsMessage(nativeNow, loadedNow)] : [])];
       turn.messages.push({ role: 'user', content: sections.join('\n\n') });
     }
     // The descriptors just sent name every tool the search loaded, so the planner's one-line addendum for the same set is not
     // sent again in the next request: the same names would reach the model twice (context-assembly §2).
-    if (loadedNow.length > 0) turn.addendumSent = harness.loadedAddendum();
+    if (loadedAny) turn.addendumSent = harness.loadedAddendum();
     return undefined;
   }
 
@@ -1112,7 +1143,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     );
     const preflight: PlanPreflight = {
       ok: checked.value.ok,
-      steps: [...checked.value.steps.map((entry) => ({ ...entry, index: nativeAt[entry.index] ?? entry.index })), ...external].sort(
+      steps: [
+        ...checked.value.steps.map((entry) => ({
+          ...entry,
+          index: nativeAt[entry.index] ?? entry.index,
+          ...(entry.error === undefined ? {} : { error: withLoadHint(entry.tool, entry.error) }),
+        })),
+        ...external,
+      ].sort(
         (a, b) => a.index - b.index,
       ),
     };
@@ -1876,7 +1914,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   }
 
   /** The planner's turn: the request goes to the model, which answers or proposes steps (agent-harness §2). */
-  async function plannedTurn(turn: Turn, intent: string): Promise<Settled> {
+  async function plannedTurn(turn: Turn, intent: string, preload: readonly ToolName[]): Promise<Settled> {
     // The wire is picked here, once per turn, from the model's capabilities: native tool calls when the
     // model can take them, the JSON envelope otherwise. The system message states the protocol the call
     // speaks (protocol.ts `plannerSystem`/`plannerSystemNative` — same rules, different wording).
@@ -1885,7 +1923,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // summary as L1, and the request as L7.
     const planner = context.assemble({
       task: { tool: 'meta', instruction: `Request: ${intent}` },
-      role: turn.native ? plannerSystemNative(harness.tools(), harness.loadedAddendum()) : plannerSystem(harness.tools(), harness.loadedAddendum()),
+      // L0 is the core rows and nothing the turn loads, so it is the same bytes before and after a load (context-assembly §2).
+      role: turn.native ? plannerSystemNative(harness.tools(), loadEvery()) : plannerSystem(harness.tools(), loadEvery()),
       turns: turn.priorTurns,
       activity: harness.log.entries(),
     });
@@ -1893,6 +1932,16 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     turn.dropped.push(...dropped);
     emit({ type: 'context', turnId: turn.id, layers: planner.prompt.layers.map((layer) => ({ id: layer.id, tokens: layer.tokens })), dropped });
     turn.messages.push(...planner.messages);
+    // A preload loads the rows as a search would have, and their descriptors follow the request in the same slot a search's do
+    // (`loadedToolsMessage`), so the cached prefix is untouched. Nothing is preloaded when every tool is declared already.
+    if (preload.length > 0 && !loadEvery()) {
+      harness.preload(turn.id, preload);
+      const rows = harness.loadedNativeTools();
+      if (rows.length > 0) {
+        turn.messages.push({ role: 'user', content: loadedToolsMessage(rows) });
+        turn.addendumSent = harness.loadedAddendum();
+      }
+    }
     return converse(turn);
   }
 
@@ -1963,8 +2012,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   }
 
   return {
-    submit(intent: string): Promise<TurnReport> {
-      return runTurn(intent, (turn) => plannedTurn(turn, intent));
+    submit(intent: string, submitOptions: SubmitOptions = {}): Promise<TurnReport> {
+      return runTurn(intent, (turn) => plannedTurn(turn, intent, submitOptions.preload ?? []));
     },
 
     submitPlan(intent: string, plan: unknown): Promise<TurnReport> {

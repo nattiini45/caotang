@@ -197,8 +197,14 @@ export function confirmationSummary(
   }
 }
 
-export function confirmationMessage(summary: string): string {
-  return `Caotang needs your confirmation to ${summary}. Nothing changes unless you accept.`;
+/**
+ * The question a host shows. `waitSeconds` is how long a 2025-era connection holds the question open (server.ts,
+ * LEGACY_ROUND_TIMEOUT_MS), given only when this server has such a deadline: the 2026-07-28 path holds nothing open.
+ */
+export function confirmationMessage(summary: string, waitSeconds?: number): string {
+  const head = `Caotang needs your confirmation to ${summary}. Nothing changes unless you accept.`;
+  if (waitSeconds === undefined) return head;
+  return `${head} This question waits ${waitSeconds} seconds; after that the call fails, nothing changes, and the call can be made again.`;
 }
 
 /** The embedded form: one boolean, named in its own schema, so a host can render it as a plain yes or no. */

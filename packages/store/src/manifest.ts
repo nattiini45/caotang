@@ -100,6 +100,11 @@ export interface TreeNode {
    */
   kind?: string;
   /**
+   * The scene's export style (exporter.md §2, Per-scene styling): `normal` or `section`. Absent is `normal`. Typed as a string
+   * because a later style must load as a kept, unknown value; the exporter renders one it does not know as `normal`.
+   */
+  style?: string;
+  /**
    * A shot's stored metadata (storyboard.md §2.2). The store carries it as an object and does not read its fields:
    * `@caotang/storyboard` owns the vocabulary, and it checks what it reads.
    */

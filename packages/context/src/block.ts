@@ -54,6 +54,8 @@ export interface Block {
   budget: number | undefined;
   /** Why each dropped item was dropped, keyed by its rank index. */
   readonly cuts: Map<number, DropReason>;
+  /** Set by `fitReserved` when the protected entries alone are over the budget: what they need, in tokens. */
+  overflow: { readonly need: number; readonly budget: number } | undefined;
 }
 
 export interface BlockInput {
@@ -74,6 +76,7 @@ export function newBlock(input: BlockInput): Block {
     kept: input.items.length,
     budget: undefined,
     cuts: new Map(),
+    overflow: undefined,
   };
 }
 
@@ -147,13 +150,34 @@ export function fitBlock(block: Block, budget: number): number {
   const limit = charsFor(budget);
   let kept = 0;
   while (kept < block.lengths.length && (table[kept + 1] ?? Number.POSITIVE_INFINITY) <= limit) kept += 1;
+  return keepPrefix(block, budget, kept);
+}
+
+function keepPrefix(block: Block, budget: number, kept: number): number {
   block.budget = budget;
   block.kept = kept;
   block.cuts.clear();
+  block.overflow = undefined;
   for (let rank = kept; rank < block.items.length; rank += 1) {
     block.cuts.set(rank, { kind: 'budget', layer: block.id, budget, rank: rank + 1 });
   }
   return kept;
+}
+
+/**
+ * Fit a block in two phases (context-assembly A3): the protected entries, which rank first, are
+ * reserved; the rest are fitted into what they leave. When the reservation fits, the result is
+ * `fitBlock`'s exactly. When it does not, every protected entry is kept whole, every other entry
+ * is cut for the budget, and `overflow` records what the protected entries need.
+ */
+export function fitReserved(block: Block, budget: number): number {
+  let reserved = 0;
+  while (block.items[reserved]?.protected === true) reserved += 1;
+  const need = charTable(block)[reserved] ?? 0;
+  if (reserved === 0 || need <= charsFor(budget)) return fitBlock(block, budget);
+  keepPrefix(block, budget, reserved);
+  block.overflow = { need: tokensForChars(need), budget };
+  return reserved;
 }
 
 /** Cut the rank entries from `kept` down to `floor`, one at a time, each for the total-budget pass. */

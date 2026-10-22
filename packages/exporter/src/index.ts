@@ -45,6 +45,7 @@ export {
 export { createExporter, EXPORT_MIME, recipesOf, type ExportDispatch, type ExporterOptions, type ExporterService } from './exporter.js';
 // The metadata and the stored images an export reads, the same for every host that compiles (epub-metadata.md).
 export { assetRecordsOf, exportMetadataOf } from './export-metadata.js';
+export { SCENE_STYLE_ROWS, type SceneStyleRow } from './scene-style.js';
 export { flatten, documentLabel, type FlattenOptions, type FlattenResult } from './flatten.js';
 export { CONTACT_SHEET_HEADER, renderMedia, type MediaFile, type MediaOutput, type MediaRequest } from './media.js';
 // The storyboard contact sheet's PDF emitter (storyboard.md §6), over pdf-lib, loaded lazily.

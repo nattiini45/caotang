@@ -114,16 +114,30 @@ export function parseReply(content: string): Result<Reply, string> {
 }
 
 /**
- * The planner's callable surface this turn: the tools the model may call — callable and wired, with
- * the superseded read hidden once the review is wired (see `plannerSystem`). The system message and
- * the native tool declarations are both built from this one set, so the two can never disagree about
- * what is offered.
+ * What a planner call declares beyond the core rows (agent-harness §3). `loaded` is the deferred native rows the turn has loaded
+ * by `tool.search` or a preload; `all` declares every callable, wired row, which is Settings › Agent "Load every tool on every
+ * request" (the escape hatch for a model that searches poorly).
  */
-export function plannerTools(tools: readonly ToolListing[]): readonly ToolListing[] {
+export interface PlannerSurface {
+  readonly loaded?: readonly ToolListing[];
+  readonly all?: boolean;
+}
+
+/**
+ * The planner's callable surface this turn: the tools the model may call — callable and wired, with
+ * the superseded read hidden once the review is wired (see `plannerSystem`), and a deferred row only
+ * once the turn has loaded it. The system message lists the core rows alone (`plannerSystem`); the
+ * native tool declarations add the rows loaded this turn, so a load never changes the cached prefix.
+ */
+export function plannerTools(tools: readonly ToolListing[], surface: PlannerSurface = {}): readonly ToolListing[] {
   // continuity.scan is superseded by the coherence review once the review is wired (agent-harness §3, tool 10's note): the review
   // writes its findings to the inbox, where continuity.scan's stay in the transcript. The tool stays callable for older turns.
   const reviewWired = tools.some((tool) => tool.name === 'coherence.review' && tool.callable && tool.wired);
-  return tools.filter((tool) => tool.callable && tool.wired && !(reviewWired && tool.name === 'continuity.scan'));
+  const loaded = new Set(surface.loaded?.map((tool) => tool.name));
+  return tools.filter(
+    (tool) =>
+      tool.callable && tool.wired && !(reviewWired && tool.name === 'continuity.scan') && (surface.all === true || tool.load === 'core' || loaded.has(tool.name)),
+  );
 }
 
 /**
@@ -140,16 +154,21 @@ function clipExternalDescription(description: string): string {
 }
 
 /**
- * The tools a native-mode request declares: the planner's callable set, then the external tools the
- * turn has loaded. A native tool goes by its registry name, an external one by the qualified name
+ * The tools a native-mode request declares: the core rows, then the deferred native rows the turn has loaded, then the external
+ * tools it has loaded. A native tool goes by its registry name, an external one by the qualified name
  * `tool.search` returned; a native tool's description is Caotang's own text (in full) and an
  * external tool's is clipped to the spec's excerpt budget so the model's ambient context stays
  * bounded. The list is built fresh for each request, so a tool a mid-turn search loaded joins the
  * next request.
  */
-export function plannerToolDefs(tools: readonly ToolListing[], externals: readonly ExternalToolDescriptor[]): ToolDef[] {
+export function plannerToolDefs(
+  tools: readonly ToolListing[],
+  loadedNative: readonly ToolListing[],
+  externals: readonly ExternalToolDescriptor[],
+  all = false,
+): ToolDef[] {
   return [
-    ...plannerTools(tools).map((tool) => ({ name: tool.name, description: tool.description, parameters: tool.schema })),
+    ...plannerTools(tools, { loaded: loadedNative, all }).map((tool) => ({ name: tool.name, description: tool.description, parameters: tool.schema })),
     ...externals.map((tool) => ({ name: tool.qualifiedName, description: clipExternalDescription(tool.description), parameters: tool.inputSchema })),
   ];
 }
@@ -168,10 +187,12 @@ const NATIVE_WIRE_RULES = [
   '- A call that is refused comes back with the reason. Correct it and call again.',
 ] as const;
 
-function plannerPrompt(tools: readonly ToolListing[], loaded: string | undefined, wire: { readonly hint?: string; readonly rules: readonly string[] }): string {
-  const lines = plannerTools(tools).map(
-    (tool) => `- ${tool.name} [${tool.risk}] — ${tool.description}\n  params: ${JSON.stringify(tool.schema)}`,
-  );
+/** The one L0 line that tells the model deferred tools exist (context-assembly §2). Worded without a count, so it never changes. */
+export const MORE_TOOLS_LINE = 'More tools exist; call tool.search with a word from the task to load them.';
+
+function plannerPrompt(tools: readonly ToolListing[], all: boolean, wire: { readonly hint?: string; readonly rules: readonly string[] }): string {
+  const offered = plannerTools(tools, { all });
+  const lines = offered.map((tool) => `- ${tool.name} [${tool.risk}] — ${tool.description}\n  params: ${JSON.stringify(tool.schema)}`);
   return [
     `${PLANNER_SYSTEM_PREFIX} You act on the user's project only through the tools below.`,
     '',
@@ -181,20 +202,19 @@ function plannerPrompt(tools: readonly ToolListing[], loaded: string | undefined
     '',
     'Tools:',
     ...lines,
-    // The external tools loaded for this turn (extensibility §5), by name, as the one-line addendum (context-assembly §2).
-    // Their descriptors reach the planner after the search that loaded them, in `loadedToolsMessage`, because the planner
-    // request is built once per turn and a search runs within it.
-    ...(loaded === undefined ? [] : ['', loaded]),
+    // L0 lists the core rows only and is built once per turn, so it is the same bytes whatever the turn loads. The tools a turn
+    // loads (extensibility §5) reach the planner after the system prompt, in `loadedToolsMessage`, never here.
+    ...(offered.some((tool) => tool.name === 'tool.search') ? ['', MORE_TOOLS_LINE] : []),
   ].join('\n');
 }
 
 /**
- * The planner's system message: the protocol, and the tools that can be called in this build, each
- * with its risk, its description and its schema. Built from the registry, so a tool the registry does
- * not list cannot be offered to the model.
+ * The planner's system message: the protocol, and the core tools that can be called in this build, each
+ * with its risk, its description and its schema, then the line that more tools load through `tool.search`. Built from
+ * the registry, so a tool the registry does not list cannot be offered to the model. `all` lists every callable row.
  */
-export function plannerSystem(tools: readonly ToolListing[], loaded?: string): string {
-  return plannerPrompt(tools, loaded, { hint: SHAPE_HINT, rules: JSON_WIRE_RULES });
+export function plannerSystem(tools: readonly ToolListing[], all = false): string {
+  return plannerPrompt(tools, all, { hint: SHAPE_HINT, rules: JSON_WIRE_RULES });
 }
 
 /**
@@ -202,20 +222,22 @@ export function plannerSystem(tools: readonly ToolListing[], loaded?: string): s
  * same rules worded for calls instead of the JSON envelope — there is no reply shape to state,
  * because the calls themselves are the reply.
  */
-export function plannerSystemNative(tools: readonly ToolListing[], loaded?: string): string {
-  return plannerPrompt(tools, loaded, { rules: NATIVE_WIRE_RULES });
+export function plannerSystemNative(tools: readonly ToolListing[], all = false): string {
+  return plannerPrompt(tools, all, { rules: NATIVE_WIRE_RULES });
 }
 
 /**
- * The external tools a search loaded this turn, as the model reads them (extensibility §5): each tool's qualified name,
- * its risk, its description as the spec's model-facing excerpt (rule 4), and its input schema. The full description still
- * reaches the writer on the approval card (rule 5); here the model only sees the excerpt so the ambient poisoning surface
- * stays bounded. A read runs at once; a write asks the writer on a one-step confirm card of its own, per call.
+ * The tools a search or a preload loaded this turn, as the model reads them (extensibility §5), in the message slot after the
+ * system prompt. A native row goes by its registry name with its risk, Caotang's own description in full, and its schema. An
+ * external tool goes by its qualified name with its risk, its description as the spec's model-facing excerpt (rule 4), and
+ * its input schema. The full description still reaches the writer on the approval card (rule 5); here the model only sees the
+ * excerpt so the ambient poisoning surface stays bounded. A read runs at once; a write asks the writer on a card, per call.
  */
-export function loadedToolsMessage(tools: readonly ExternalToolDescriptor[]): string {
+export function loadedToolsMessage(native: readonly ToolListing[], externals: readonly ExternalToolDescriptor[] = []): string {
   return [
-    'External tools loaded for this turn. Call a read by its qualified name, with params that match its schema. A write asks the writer to confirm each call before it runs.',
-    ...tools.map((tool) => `- ${tool.qualifiedName} [${tool.effectiveRisk === 'read-auto' ? 'read' : 'write'}] — ${clipExternalDescription(tool.description)}\n  params: ${JSON.stringify(tool.inputSchema)}`),
+    'Tools loaded for this turn. Call each by the name shown, with params that match its schema. A write asks the writer to confirm each call before it runs.',
+    ...native.map((tool) => `- ${tool.name} [${tool.risk}] — ${tool.description}\n  params: ${JSON.stringify(tool.schema)}`),
+    ...externals.map((tool) => `- ${tool.qualifiedName} [${tool.effectiveRisk === 'read-auto' ? 'read' : 'write'}] — ${clipExternalDescription(tool.description)}\n  params: ${JSON.stringify(tool.inputSchema)}`),
   ].join('\n');
 }
 

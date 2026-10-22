@@ -34,7 +34,7 @@
  */
 
 import type { ZipOptions } from 'fflate/browser';
-import { hasTitlePage, type RenderInput } from './render-input.js';
+import { hasTitlePage, sectionTitle, type RenderInput } from './render-input.js';
 import { parseProse, type ProseBlock, type Run } from './prose.js';
 import type { FlatBlock } from './types.js';
 import { chapterLabel } from './template.js';
@@ -73,6 +73,8 @@ interface Section {
   readonly file: string;
   readonly id: string;
   readonly heading: string;
+  /** Set when the section's heading is a scene's own title (a loose lead scene), so a `section` style does not print it twice. */
+  readonly headedBy?: string;
   readonly blocks: readonly FlatBlock[];
 }
 
@@ -117,8 +119,8 @@ export async function renderEpub(input: EpubInput): Promise<Uint8Array> {
  * dropped nor given the book's title as a heading it does not have.
  */
 function buildSections(input: RenderInput): Section[] {
-  const sections: { heading: string; blocks: FlatBlock[] }[] = [];
-  let current: { heading: string; blocks: FlatBlock[] } | undefined;
+  const sections: { heading: string; headedBy?: string; blocks: FlatBlock[] }[] = [];
+  let current: { heading: string; headedBy?: string; blocks: FlatBlock[] } | undefined;
   for (const block of input.blocks) {
     if (block.kind === 'frontmatter') continue;
     if (block.kind === 'chapter') {
@@ -127,7 +129,10 @@ function buildSections(input: RenderInput): Section[] {
       continue;
     }
     if (current === undefined) {
-      current = { heading: block.kind === 'scene' ? block.title : input.title, blocks: [] };
+      current =
+        block.kind === 'scene'
+          ? { heading: block.title, headedBy: block.docId, blocks: [] }
+          : { heading: input.title, blocks: [] };
       sections.push(current);
     }
     current.blocks.push(block);
@@ -138,6 +143,7 @@ function buildSections(input: RenderInput): Section[] {
     file: `chapter-${String(index + 1).padStart(3, '0')}.xhtml`,
     id: `chapter-${String(index + 1).padStart(3, '0')}`,
     heading: section.heading,
+    ...(section.headedBy === undefined ? {} : { headedBy: section.headedBy }),
     blocks: section.blocks,
   }));
 }
@@ -271,9 +277,12 @@ function sectionXhtml(input: EpubInput, section: Section): string {
   const body: string[] = [`  <h1>${escapeXml(section.heading)}</h1>`];
   for (const block of section.blocks) {
     switch (block.kind) {
-      case 'scene':
+      case 'scene': {
+        const title = block.docId === section.headedBy ? undefined : sectionTitle(block);
+        if (title !== undefined) body.push(`  <h2>${escapeXml(title)}</h2>`);
         for (const prose of parseProse(block.body)) body.push(...indent(proseXhtml(prose, input.template.separator.plain)));
         break;
+      }
       case 'separator':
         body.push(`  <p class="scene-break">${escapeXml(input.template.separator.plain)}</p>`);
         break;

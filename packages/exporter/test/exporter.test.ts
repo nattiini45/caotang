@@ -31,7 +31,9 @@ import {
   NoPersistentIdentifierError,
   type ByteArtifacts,
   type ExportMetadataInput,
+  SCENE_STYLE_ROWS,
   type ExporterService,
+  type SceneStyleRow,
 } from '../src/index.js';
 import { BODIES, COMPILED_AT, IDS, makeProject, PROJECT_NAME } from './fixture.js';
 import { pngHeaderOf } from './epub-fixtures.js';
@@ -61,6 +63,7 @@ function rig(options: {
   bytes?: boolean;
   metadata?: ExportMetadataInput;
   readAsset?: (path: string) => Promise<Uint8Array | null>;
+  sceneStyles?: readonly SceneStyleRow[];
 } = {}): Rig {
   const state = makeProject();
   const fs = new MemoryArtifactFs();
@@ -79,6 +82,7 @@ function rig(options: {
     ...(binding === undefined ? {} : { bytes: binding }),
     clock,
     metadata: () => options.metadata ?? {},
+    ...(options.sceneStyles === undefined ? {} : { sceneStyles: options.sceneStyles }),
     ...(options.readAsset === undefined ? {} : { readAsset: options.readAsset }),
   });
   const registry = createProjectCommandRegistry({ clock, exporter: exporter.commandPort() });
@@ -607,5 +611,33 @@ describe('recipes — the named selections', () => {
     const r = rig();
     holdRecipe(r, { name: 'X', includeRootIds: ['manuscript'], format: 'rtf', templateId: 'default', options: {} });
     expect(r.exporter.listRecipes().map((recipe) => recipe.name)).toEqual(['Manuscript']);
+  });
+});
+
+describe('the compile log names a scene style a format dropped (exporter.md §2, Per-scene styling)', () => {
+  // `section` is expressible in all four prose formats, so no live style is dropped yet: the test supplies a row that Word has and plain text lacks.
+  const rows: readonly SceneStyleRow[] = [...SCENE_STYLE_ROWS, { id: 'verse', formats: ['docx'] }];
+
+  async function notesOf(format: 'txt' | 'docx', sceneStyles?: readonly SceneStyleRow[]): Promise<string[]> {
+    const r = rig(sceneStyles === undefined ? {} : { sceneStyles });
+    r.state.manifest.tree.find((node) => node.id === IDS.landing)!.style = 'verse';
+    r.state.manifest.tree.find((node) => node.id === IDS.storm)!.style = 'verse';
+    r.state.manifest.tree.find((node) => node.id === IDS.morning)!.style = 'section';
+    const result = await r.exporter.compile({ includeRootIds: ['manuscript'] }, format);
+    return [...result.log.notes];
+  }
+
+  it('says the style was dropped, once, when the format has no row for it', async () => {
+    const notes = await notesOf('txt', rows);
+    expect(notes.filter((note) => note.includes('`verse`'))).toEqual(['the `verse` style has no meaning in the plain-text format, so it was dropped']);
+    expect(notes.some((note) => note.includes('`section`'))).toBe(false);
+  });
+
+  it('says nothing when the format expresses the style', async () => {
+    expect((await notesOf('docx', rows)).some((note) => note.includes('style'))).toBe(false);
+  });
+
+  it('says nothing for a stored style the build has no row for: it is a normal scene, and the load notice told the writer', async () => {
+    expect((await notesOf('txt')).some((note) => note.includes('style'))).toBe(false);
   });
 });

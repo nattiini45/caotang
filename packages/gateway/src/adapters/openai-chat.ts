@@ -250,7 +250,7 @@ export const openaiChatAdapter: ProviderAdapter = {
     };
   },
 
-  buildBody({ req, ctx, temperature, maxTokens, jsonObject }): Record<string, unknown> {
+  buildBody({ req, ctx, temperature, effective, jsonObject }): Record<string, unknown> {
     const deny = new Set(ctx.caps.denylist ?? []);
     const body: Record<string, unknown> = {
       model: ctx.model,
@@ -259,6 +259,7 @@ export const openaiChatAdapter: ProviderAdapter = {
     };
     if (!deny.has('stream_options')) body.stream_options = { include_usage: true };
     if (temperature !== undefined && !deny.has('temperature')) body.temperature = temperature;
+    const maxTokens = effective.maxTokens;
     if (maxTokens > 0) {
       body[ctx.quirks.maxTokensField ?? (ctx.caps.denylist?.includes('max_tokens') ? 'max_completion_tokens' : 'max_tokens')] =
         maxTokens;
@@ -270,7 +271,7 @@ export const openaiChatAdapter: ProviderAdapter = {
       body.tools = tools;
       body.tool_choice = req.toolChoice === 'none' ? 'none' : 'auto';
     }
-    applyEffort(body, ctx.caps.effortStyle, req.thinking, ctx.caps);
+    applyEffort(body, ctx.caps.effortStyle, effective.level, ctx.caps, effective.budget);
     return body;
   },
 

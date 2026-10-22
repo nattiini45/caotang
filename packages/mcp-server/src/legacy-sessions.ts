@@ -15,7 +15,9 @@
  *
  * The table is bounded in two ways. It holds at most `limit` connections, and a connection idle for `idleMs` is closed.
  * A connection with a POST still in flight is neither expired nor evicted, because that POST may be waiting for a
- * person to answer a confirmation. When every connection is busy and the table is full, a new `initialize` is refused.
+ * person to answer a confirmation. That wait ends at the server's round timeout (server.ts, LEGACY_ROUND_TIMEOUT_MS,
+ * 60 seconds), when the POST is answered with a failed result and the connection is idle again. When every connection is
+ * busy and the table is full, a new `initialize` is refused with a 503 that names the limit, the busy count and the wait.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -50,7 +52,8 @@ interface Connection {
 /** The connections a 2025-era host holds with this server, keyed by `Mcp-Session-Id`. */
 export class LegacySessions {
   private readonly connections = new Map<string, Connection>();
-  private readonly limit: number;
+  /** Most connections held at once. */
+  readonly limit: number;
   private readonly idleMs: number;
   private readonly now: () => number;
 
@@ -66,6 +69,14 @@ export class LegacySessions {
   get size(): number {
     this.sweep();
     return this.connections.size;
+  }
+
+  /** How many connections have a POST in flight now, after the idle ones are closed. */
+  get busyCount(): number {
+    this.sweep();
+    let busy = 0;
+    for (const connection of this.connections.values()) if (connection.busy > 0) busy += 1;
+    return busy;
   }
 
   /** Whether a live connection holds this session id. */

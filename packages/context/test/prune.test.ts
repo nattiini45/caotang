@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { assemble, type AgentTask, type AppSnapshot, type AssembledPrompt, type ContextConfig, type LayerId } from '../src/index.js';
-import { buildApp, CODEX, FOCUS_ID } from './fixtures.js';
+import { buildApp, CODEX, FOCUS_ID, heavyAlwaysApp } from './fixtures.js';
 
 const CONTINUE: AgentTask = {
   tool: 'scene.draft',
@@ -137,5 +137,57 @@ describe('the total-budget pass (§2): what goes first when the whole prompt is 
     }
     expect(layer(assembled, 'L6').included).toBe(true);
     expect(layer(assembled, 'L2').kept).toHaveLength(layer(full, 'L2').kept.length);
+  });
+});
+
+describe('the reserved fit is the flat prune when the always entries fit (context-assembly A3)', () => {
+  it('keeps the same entries, drop list and prompt bytes as the flat fit at every budget where Harbor fits', () => {
+    // 25 tokens is the fewest the layer can hold with Harbor in it; below that the always entry overflows.
+    for (const budget of [25, 30, 40, 60, 90, 130, 200, 1_000, 2_500]) {
+      const assembled = assemble(CONTINUE, buildApp(), { layerBudgets: { L2: budget } });
+      const codex = layer(assembled, 'L2');
+      expect(codex.drops.some((drop) => drop.reason.kind === 'reserve-overflow'), `budget ${budget}`).toBe(false);
+      expect(codex.tokens, `budget ${budget}`).toBeLessThanOrEqual(budget);
+      // The flat prune keeps the longest rank prefix that fits: every cut entry ranks below every kept one.
+      const cuts = codex.drops.filter((drop) => drop.reason.kind === 'budget');
+      const ranks = cuts.map((drop) => (drop.reason.kind === 'budget' ? drop.reason.rank : 0));
+      expect(ranks, `budget ${budget}`).toEqual(Array.from({ length: ranks.length }, (_, index) => codex.kept.length + index + 1));
+    }
+  });
+
+  it('fits the detected and manual entries into what the always entries leave', () => {
+    const app = () => heavyAlwaysApp(1, 400);
+    // A budget of one token cannot hold the always entries, so the layer is exactly the reservation.
+    const reserved = layer(assemble(CONTINUE, app(), { layerBudgets: { L2: 1 } }), 'L2');
+    expect(reserved.kept.map((item) => item.reason)).toEqual(['always', 'always']);
+    const budget = reserved.tokens + 30;
+    const fitted = layer(assemble(CONTINUE, app(), { layerBudgets: { L2: budget } }), 'L2');
+    expect(fitted.kept.slice(0, 2)).toEqual(reserved.kept);
+    expect(fitted.kept.length).toBeGreaterThan(2);
+    expect(fitted.tokens).toBeLessThanOrEqual(budget);
+    expect(fitted.drops.some((drop) => drop.reason.kind === 'reserve-overflow')).toBe(false);
+  });
+});
+
+describe('the overflow case is deterministic', () => {
+  const heavy = (rotate = 0) => heavyAlwaysApp(4, 1_200, rotate);
+
+  it('gives the same kept set, notes and prompt bytes on every run', () => {
+    const first = assemble(CONTINUE, heavy());
+    const again = assemble(CONTINUE, heavy());
+    expect(again.messages).toEqual(first.messages);
+    expect(layer(again, 'L2').notes).toEqual(layer(first, 'L2').notes);
+    expect(layer(again, 'L2').dropped).toEqual(layer(first, 'L2').dropped);
+  });
+
+  it('gives the same result however the codex was written', () => {
+    const expected = assemble(CONTINUE, heavy());
+    for (const by of [1, 2, 5, 9]) {
+      const rotated = assemble(CONTINUE, heavy(by));
+      expect(rotated.messages).toEqual(expected.messages);
+      expect(layer(rotated, 'L2').notes).toEqual(layer(expected, 'L2').notes);
+      expect(layer(rotated, 'L2').dropped).toEqual(layer(expected, 'L2').dropped);
+      expect(layer(rotated, 'L2').kept).toEqual(layer(expected, 'L2').kept);
+    }
   });
 });

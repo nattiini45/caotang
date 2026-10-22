@@ -9,6 +9,8 @@ import { createSseParser, type SseEvent } from '../src/sse.js';
 import { mapFinishReason, openaiChatAdapter, wireMessages } from '../src/adapters/openai-chat.js';
 import { parseModels } from '../src/adapters/models.js';
 import type { StreamPiece } from '../src/adapters/types.js';
+import type { ChatRequest } from '../src/types.js';
+import { bodyInput } from './helpers.js';
 
 /** Feeds `text` through a parser in pieces and returns every event it produced. */
 function parseIn(pieces: readonly string[]): SseEvent[] {
@@ -168,7 +170,7 @@ describe('request body and structured output (§5)', () => {
   });
 
   it('streams with usage requested, and omits response_format unless the probe allowed it', () => {
-    const base = { req: { messages: [] }, ctx, temperature: 0.7, maxTokens: 4096, jsonObject: false };
+    const base = bodyInput({ messages: [] }, ctx);
     const body = openaiChatAdapter.buildBody(base);
     expect(body.stream).toBe(true);
     expect(body.stream_options).toEqual({ include_usage: true });
@@ -178,25 +180,22 @@ describe('request body and structured output (§5)', () => {
   });
 
   it('sends stop sequences only when there are some', () => {
-    const base = { req: { messages: [] }, ctx, temperature: 0, maxTokens: 1, jsonObject: false };
-    expect(openaiChatAdapter.buildBody(base)).not.toHaveProperty('stop');
-    expect(
-      openaiChatAdapter.buildBody({ ...base, req: { messages: [], stop: [] } }),
-    ).not.toHaveProperty('stop');
-    expect(openaiChatAdapter.buildBody({ ...base, req: { messages: [], stop: ['END'] } }).stop).toEqual(['END']);
+    const of = (req: ChatRequest) => bodyInput(req, ctx, { temperature: 0, maxTokens: 1 });
+    expect(openaiChatAdapter.buildBody(of({ messages: [] }))).not.toHaveProperty('stop');
+    expect(openaiChatAdapter.buildBody(of({ messages: [], stop: [] }))).not.toHaveProperty('stop');
+    expect(openaiChatAdapter.buildBody(of({ messages: [], stop: ['END'] })).stop).toEqual(['END']);
   });
 
   it('writes tools in the nested function shape with tool_choice auto', () => {
-    const body = openaiChatAdapter.buildBody({
-      req: {
-        messages: [],
-        tools: [{ name: 'binder.create', description: 'make', parameters: { type: 'object' } }],
-      },
-      ctx,
-      temperature: 0.7,
-      maxTokens: 4096,
-      jsonObject: false,
-    });
+    const body = openaiChatAdapter.buildBody(
+      bodyInput(
+        {
+          messages: [],
+          tools: [{ name: 'binder.create', description: 'make', parameters: { type: 'object' } }],
+        },
+        ctx,
+      ),
+    );
     expect(body.tools).toEqual([
       { type: 'function', function: { name: 'binder.create', description: 'make', parameters: { type: 'object' } } },
     ]);

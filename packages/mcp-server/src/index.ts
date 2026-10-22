@@ -37,12 +37,14 @@ export {
 export { guardBatch, guardMessage, hardDeniedError, refusalResponse, type GuardPolicy, type RefusalResponse } from './guard.js';
 export { advertisedSchema, registerCaotangTools, toCallResult, type ToolRuntime } from './tools.js';
 export {
+  LEGACY_ROUND_TIMEOUT_MS,
   MAX_BODY_BYTES,
   buildMcpServer,
   createToolRuntime,
   startHttpServer,
   startStdioServer,
   type HttpServerOptions,
+  type McpServerOptions,
   type RunningHttpServer,
 } from './server.js';
 export { LEGACY_SESSION_IDLE_MS, LEGACY_SESSION_LIMIT, LegacySessions, type LegacySessionOptions } from './legacy-sessions.js';

@@ -55,6 +55,14 @@ export const BODIES = {
   timetable: 'Ferry at nine.',
 } as const;
 
+/** Declares a scene's export style on its binder node, as the Inspector's `binder.setMeta` does (exporter.md §2). */
+export function withSceneStyle(state: ProjectState, id: string, style: string): ProjectState {
+  const node = state.manifest.tree.find((entry) => entry.id === id);
+  if (node === undefined) throw new Error(`the fixture has no node ${id}`);
+  node.style = style;
+  return state;
+}
+
 export function makeProject(): ProjectState {
   const state = createProjectState(createEmptyManifest(PROJECT_NAME, OPENED));
   state.manifest.project.id = 'p_9XK2M4Q7RZ';

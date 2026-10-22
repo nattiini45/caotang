@@ -8,12 +8,13 @@
  * the v0.1 contract is fixed, whichever renderer is used, and
  * `test/docx.test.ts` unzips the output and asserts each clause:
  *
- * - paragraph styles `Title`, `Heading 1` (the chapter style) and `Normal`;
+ * - paragraph styles `Title`, `Heading 1` (the chapter style) and `Normal`, and `Heading 2` for a `section` scene's title
+ *   (exporter.md §2, Per-scene styling);
  * - a page break before each chapter (`pageBreakBefore` on the Heading 1);
  * - a TOC **field** anchored on Heading 1, with `updateFields` in the settings so
  *   Word offers to refresh it on open;
- * - `cachedEntries` built from the binder's chapter list, so the contents are
- *   visible in every viewer before anything is updated (the §2 TOC recipe).
+ * - `cachedEntries` built from the binder's chapter list, and the section headings at level 2, so the contents are
+ *   visible in every viewer before anything is updated (the §2 TOC recipe) and agree with the field's `1-2` range.
  *
  * ## Why `cachedEntries` and why the field is left dirty
  *
@@ -43,7 +44,7 @@
  */
 
 import type * as Docx from 'docx';
-import { chapterHeadings, hasTitlePage, type RenderInput } from './render-input.js';
+import { chapterHeadings, contentsEntries, hasTitlePage, sectionTitle, type RenderInput } from './render-input.js';
 import { parseProse, plainRuns, type ProseBlock, type Run } from './prose.js';
 import { chapterLabel } from './template.js';
 import { stripXmlIllegal } from './xml-text.js';
@@ -85,10 +86,10 @@ export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
     children.push(
       new docx.TableOfContents('Contents', {
         hyperlink: true,
-        // exporter.md §2's recipe: `TableOfContents(alias, { hyperlink: true, headingStyleRange: '1-2' })`. Only Heading 1 is
-        // emitted today, so the range changes no output; it is the recipe's value, and a Heading 2 added later is listed.
+        // exporter.md §2's recipe: `TableOfContents(alias, { hyperlink: true, headingStyleRange: '1-2' })`. Heading 1 is a
+        // chapter and Heading 2 a `section` scene, so the cached entries list both, in document order, as the field would.
         headingStyleRange: '1-2',
-        cachedEntries: headings.map((heading) => ({ title: stripXmlIllegal(heading.label), level: 1 })),
+        cachedEntries: contentsEntries(input).map((entry) => ({ title: stripXmlIllegal(entry.label), level: entry.level })),
       }),
     );
   }
@@ -106,9 +107,16 @@ export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
           }),
         );
         break;
-      case 'scene':
+      case 'scene': {
+        const section = sectionTitle(block);
+        if (section !== undefined) {
+          children.push(
+            new docx.Paragraph({ heading: docx.HeadingLevel.HEADING_2, children: [new docx.TextRun(stripXmlIllegal(section))] }),
+          );
+        }
         for (const prose of parseProse(block.body)) children.push(...proseParagraphs(docx, prose, 0));
         break;
+      }
       case 'separator':
         children.push(centred(docx, input.template.separator.plain));
         break;
@@ -132,8 +140,8 @@ export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
 }
 
 /**
- * The three named styles the contract requires, and the one the field's entries
- * are formatted with. `docx` writes `TOC1` only when it is defined, so it is.
+ * The named styles the contract requires (`Heading 2` for a section scene included), and the one the field's entries
+ * are formatted with. `docx` writes `TOC1` and `TOC2` only when they are defined, so they are.
  */
 function styleDefinitions(docx: DocxModule): Docx.IStylesOptions {
   return {
@@ -149,6 +157,10 @@ function styleDefinitions(docx: DocxModule): Docx.IStylesOptions {
       heading1: {
         run: { font: BODY_FONT, size: 32, bold: true },
         paragraph: { spacing: { before: 240, after: 360 } },
+      },
+      heading2: {
+        run: { font: BODY_FONT, size: 28, bold: true },
+        paragraph: { spacing: { before: 240, after: 240 } },
       },
     },
     paragraphStyles: [
@@ -166,6 +178,14 @@ function styleDefinitions(docx: DocxModule): Docx.IStylesOptions {
         next: 'Normal',
         run: { font: BODY_FONT, size: BODY_SIZE },
         paragraph: { spacing: { after: 100 } },
+      },
+      {
+        id: 'TOC2',
+        name: 'toc 2',
+        basedOn: 'Normal',
+        next: 'Normal',
+        run: { font: BODY_FONT, size: BODY_SIZE },
+        paragraph: { spacing: { after: 100 }, indent: { left: 240 } },
       },
     ],
   };

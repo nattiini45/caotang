@@ -85,6 +85,9 @@ test.describe('settings: the provider.roles record (ui-modules §5.2)', () => {
     // A bad sub-field is dropped but a good one is kept, and an unknown profile id is tolerated as-is.
     const partial = normalizeSettings({ provider: { roles: { drafting: { profileId: 'gone', thinking: 'loud' } } } });
     expect(partial.provider.roles).toEqual({ drafting: { profileId: 'gone' } });
+    // Extra high is a level a stored role may carry.
+    const extra = normalizeSettings({ provider: { roles: { chat: { profileId: 'p_a', thinking: 'xhigh' } } } });
+    expect(extra.provider.roles).toEqual({ chat: { profileId: 'p_a', thinking: 'xhigh' } });
   });
 
   test('a patch writes the routing, a role set back to follow is kept, and null clears the record', () => {

@@ -127,7 +127,26 @@ test.describe('real-key round', () => {
         expect(reply.content.length, `thinking level ${level}`).toBeGreaterThan(0);
       }
 
-      // 5. The request log carries the calls — and never the key.
+      // 5. Adaptive thinking at the lowest level: Claude 5 models reject the old budget shape, so this is the call that proves the
+      // body the adapter sends is accepted, and that the summarised thinking comes back readable. Run by hand, never in CI.
+      if (presetId === 'anthropic' && (caps?.effortLevels ?? []).includes('low')) {
+        const reasoning: string[] = [];
+        let reply = '';
+        for await (const chunk of service.gateway.complete({
+          profileId: view.id,
+          model: view.defaultModel,
+          messages: [{ role: 'user', content: 'What is 17 times 23? Answer with the number only.' }],
+          thinking: 'low',
+        })) {
+          if (chunk.delta !== undefined) reply += chunk.delta;
+          if (chunk.reasoningDelta !== undefined) reasoning.push(chunk.reasoningDelta);
+        }
+        expect(reply.length, 'thinking: low answers').toBeGreaterThan(0);
+        expect(service.requests.entries().at(-1)?.outcome, 'thinking: low is accepted').toBe('ok');
+        expect(reasoning.join('').length, 'thinking: low returns a readable summary').toBeGreaterThan(0);
+      }
+
+      // 6. The request log carries the calls — and never the key.
       const entries = service.requests.entries();
       expect(entries.length, 'requests were logged').toBeGreaterThan(0);
       expect(JSON.stringify(entries).includes(apiKey), 'the key appears in no log entry').toBe(false);

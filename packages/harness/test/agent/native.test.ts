@@ -194,6 +194,8 @@ interface NativeOptions {
   readonly decisions?: readonly Decision[];
   readonly decide?: (card: PendingCard) => Promise<Decision> | Decision;
   readonly thinking?: ThinkingLevel;
+  /** Record the thinking level each `modelLimits` read asked for, and let the session build its own context port. */
+  readonly limitsAsked?: (ThinkingLevel | undefined)[];
   /** Connect the story-bible server, so `tool.search` has tools to load. */
   readonly mcp?: boolean;
   readonly state?: ProjectState;
@@ -205,14 +207,25 @@ async function nativeFixture(scripts: readonly MockScript[], options: NativeOpti
   // The ports the product wires in — scene.draft and friends are callable only through them.
   const harness = makeHarness({ ports: createAgentPorts(), ...(options.mcp === true ? { mcp: { client: await connectedClient(calls) } } : {}) }, state);
   const seen: ChatRequest[] = [];
-  const gateway = await nativeGateway(scripts, seen);
+  const base = await nativeGateway(scripts, seen);
+  const asked = options.limitsAsked;
+  const gateway: Gateway =
+    asked === undefined
+      ? base
+      : {
+          ...base,
+          modelLimits: (profileId, model, thinking) => {
+            asked.push(thinking);
+            return base.modelLimits(profileId, model, thinking);
+          },
+        };
   const queue = [...(options.decisions ?? [])];
   const pending: PendingCard[] = [];
   const events: AgentEvent[] = [];
   const session = createAgentSession({
     harness,
     gateway,
-    context: createContextPort({ state: () => state }),
+    ...(asked === undefined ? { context: createContextPort({ state: () => state }) } : {}),
     decide: async (card) => {
       if (options.decide !== undefined) return options.decide(card);
       pending.push(card);
@@ -239,7 +252,7 @@ describe('the planner on the native tool-call wire', () => {
     const intent = 'Find the lore tools, read the bible, and label The Friend.';
     const fixture = await nativeFixture(
       nativeTranscript(intent, [
-        { calls: [{ id: 'call_s', name: 'tool.search', args: { query: '' } }] },
+        { calls: [{ id: 'call_s', name: 'tool.search', args: { query: '', limit: 20 } }] },
         {
           content: 'The bible is loaded; reading it and labelling.',
           calls: [
@@ -279,7 +292,7 @@ describe('the planner on the native tool-call wire', () => {
     expect(surfaced).toContain(SEARCH);
     expect(surfaced).toContain(WRITE);
     const resultsAt = second?.messages.findIndex((m) => m.role === 'tool' && m.toolCallId === 'call_s') ?? -1;
-    const loadedAt = second?.messages.findIndex((m) => m.role === 'user' && m.content.includes('External tools loaded for this turn')) ?? -1;
+    const loadedAt = second?.messages.findIndex((m) => m.role === 'user' && m.content.includes('Tools loaded for this turn')) ?? -1;
     expect(loadedAt).toBeGreaterThan(resultsAt);
     // And the freshly loaded tools are declared on that very request, by qualified name.
     expect(namesOf(second as ChatRequest)).toEqual(expect.arrayContaining([SEARCH, WRITE]));
@@ -445,6 +458,21 @@ describe('the planner on the native tool-call wire', () => {
     await fixture.session.submit(intent);
     expect(fixture.seen.length).toBeGreaterThan(0);
     for (const req of fixture.seen) expect(req.thinking).toBe('high');
+  });
+
+  it('reads the model limits at the session’s thinking level, so a prompt-preview card counts the thinking', async () => {
+    const intent = 'Draft The Friend.';
+    const limitsAsked: (ThinkingLevel | undefined)[] = [];
+    const fixture = await nativeFixture(
+      [
+        ...nativeTranscript(intent, [{ calls: [{ id: 'c1', name: 'scene.draft', args: { doc: 'The Friend', instruction: 'Open.', mode: 'draft' } }] }]),
+        prose('Brief: Open.', 'The ferry came in.'),
+      ],
+      { thinking: 'high', limitsAsked },
+    );
+    await fixture.session.submit(intent);
+    expect(limitsAsked.length).toBeGreaterThan(0);
+    for (const level of limitsAsked) expect(level).toBe('high');
   });
 
   it('answers a failed step’s tool message and its corrective, then runs the corrected call it is sent', async () => {

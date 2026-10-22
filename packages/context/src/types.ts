@@ -101,6 +101,8 @@ export interface ModelLimits {
   readonly pricePer1k?: { readonly prompt: number; readonly completion: number };
   /** The tool's default output cap. The completion estimate on the plan card uses it. */
   readonly maxOutputTokens?: number;
+  /** What one call may spend on thinking at the level the caller asked for; the completion estimate adds it to the cap. */
+  readonly thinkingTokens?: number;
 }
 
 export interface ContextConfig {
@@ -140,7 +142,9 @@ export type DropReason =
   /** The layer's own budget was full. `budget` is the effective budget in tokens. */
   | { readonly kind: 'budget'; readonly layer: LayerId; readonly budget: number; readonly rank: number }
   /** The whole prompt was over `contextBudget`, and this item was in the prune order (§2). */
-  | { readonly kind: 'total-budget'; readonly layer: LayerId; readonly total: number; readonly rank: number };
+  | { readonly kind: 'total-budget'; readonly layer: LayerId; readonly total: number; readonly rank: number }
+  /** The codex's `always` entries alone need more than the layer's budget; they are sent whole. */
+  | { readonly kind: 'reserve-overflow'; readonly layer: LayerId; readonly need: number; readonly budget: number };
 
 export interface DropRecord {
   /** The entry's name or the document's title, or a summary label. */
@@ -249,5 +253,11 @@ export interface PromptPreview {
   readonly focus?: { readonly head: string; readonly summary: string };
   readonly window?: { readonly contextWindow: number; readonly warning?: string };
   /** Display-only estimate from `pricePer1k` (provider-gateway §6). */
-  readonly cost?: { readonly promptUsd: number; readonly completionUsd: number; readonly totalUsd: number };
+  readonly cost?: {
+    readonly promptUsd: number;
+    readonly completionUsd: number;
+    readonly totalUsd: number;
+    /** The reply side counts the thinking a set level can spend as well as the output cap; the card says "including thinking". */
+    readonly includesThinking?: true;
+  };
 }

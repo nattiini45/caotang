@@ -18,7 +18,7 @@ import { hasDivider, splitNotes } from '../app/notes-model.js';
 import { InspectorGoals } from './InspectorGoals.js';
 import { SynopsisField } from './SynopsisField.js';
 import { openDialog } from './dialog-requests.js';
-import { CodexSection, SceneMetaSection } from './InspectorSections.js';
+import { CodexSection, SceneMetaSection, SceneStyleSection } from './InspectorSections.js';
 import { DialogueMetaSection } from './InspectorDialogue.js';
 import { addKeyword, explain, removeKeyword, setLabel, setNotes, setStatus } from './actions.js';
 import {
@@ -120,6 +120,8 @@ function InspectorContent({
           <MetaPicker session={session} node={node} kind="label" />
         </div>
       </section>
+
+      {node.type === 'document' ? <SceneStyleSection session={session} node={node} /> : null}
 
       <CodexSection session={session} node={node} onOpenCodex={onOpenCodex} />
       {node.type === 'document' ? <SceneMetaSection session={session} node={node} /> : null}
