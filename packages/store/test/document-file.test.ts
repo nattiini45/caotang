@@ -242,4 +242,11 @@ describe('folded block scalars', () => {
   it('handles an empty block', () => {
     expect(fold('synopsis: >-\n')).toBe('');
   });
+
+  it('folds a line with a long run of inner spaces in linear time', () => {
+    const run = ' '.repeat(80_000);
+    const started = performance.now();
+    expect(fold(`synopsis: >-\n  a${run}b\n  c${run}\n`)).toBe(`a${run}b c`);
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
 });
