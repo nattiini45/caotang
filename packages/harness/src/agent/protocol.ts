@@ -69,8 +69,10 @@ export type Reply = { readonly kind: 'reply'; readonly text: string } | { readon
 /** Removes a Markdown code fence some models wrap their JSON in. Anything else is left as it is. */
 function unfence(content: string): string {
   const trimmed = content.trim();
-  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/.exec(trimmed);
-  return fenced?.[1] ?? trimmed;
+  // A scan, not one regex: the lazy body between two `\s*` runs went quadratic on a long run of spaces.
+  if (trimmed.length < 6 || !trimmed.startsWith('```') || !trimmed.endsWith('```')) return trimmed;
+  const body = trimmed.slice(3, -3);
+  return (body.startsWith('json') ? body.slice(4) : body).trim();
 }
 
 const SHAPE_HINT =

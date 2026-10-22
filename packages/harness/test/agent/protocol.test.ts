@@ -29,6 +29,30 @@ describe('parseReply: the two reply shapes', () => {
     const parsed = parseReply('```json\n{"reply":"ok"}\n```');
     expect(parsed).toEqual({ ok: true, value: { kind: 'reply', text: 'ok' } });
   });
+
+  it('unwraps fences the way the old pattern did, whatever whitespace sits around the body', () => {
+    const reply = { ok: true, value: { kind: 'reply', text: 'ok' } };
+    expect(parseReply('```{"reply":"ok"}```')).toEqual(reply);
+    expect(parseReply('```json{"reply":"ok"}```')).toEqual(reply);
+    expect(parseReply('  ```json \r\n {"reply":"ok"} \r\n ```  ')).toEqual(reply);
+    const odd = String.fromCharCode(0xa0, 0x2028);
+    expect(parseReply(`${'`'.repeat(3)}${odd}{"reply":"ok"}${odd}${'`'.repeat(3)}`)).toEqual(reply);
+  });
+
+  it('leaves what is not a whole fence as it is', () => {
+    for (const content of ['', '   ', '``````', '```json```', '`````', '```{"reply":"ok"}', '{"reply":"ok"}```']) {
+      const parsed = parseReply(content);
+      expect(parsed.ok).toBe(false);
+    }
+  });
+
+  it('reads a long run of blanks after an opening fence in linear time', () => {
+    const started = performance.now();
+    const parsed = parseReply('```' + ' '.repeat(50_000) + 'x');
+    expect(parsed.ok).toBe(false);
+    expect(parseReply('```json' + ' '.repeat(50_000) + '{"reply":"ok"}' + ' '.repeat(50_000) + '```').ok).toBe(true);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
 });
 
 describe('parseReply: refusals name the shape the reply should have had', () => {
