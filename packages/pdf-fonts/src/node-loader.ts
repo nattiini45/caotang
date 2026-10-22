@@ -3,10 +3,11 @@
  * (apps/desktop/src/app/fallback-fonts.ts), so this file is a subpath of its own (`@caotang/pdf-fonts/node-loader`) and the
  * package's index never imports it: the browser bundle never sees `node:fs`.
  *
- * Two fonts, each a {@link FontLoader}: Noto Sans Mono CJK SC (`@caotang/font-noto-cjk`) and Noto Emoji
- * (`@caotang/font-noto-emoji`). Where each loader looks, in order:
+ * Four fonts, each a {@link FontLoader}: Noto Sans Mono CJK SC (`@caotang/font-noto-cjk`), Noto Emoji
+ * (`@caotang/font-noto-emoji`), Noto Sans Arabic (`@caotang/font-noto-arabic`) and Noto Sans Hebrew (`@caotang/font-noto-hebrew`).
+ * Where each loader looks, in order:
  *
- * 1. `fonts/<file>` beside the running module. The MCPB bundle stages both files there, beside `caotang-mcp.mjs`, so the
+ * 1. `fonts/<file>` beside the running module. The MCPB bundle stages the files there, beside `caotang-mcp.mjs`, so the
  *    installed server needs no `node_modules`.
  * 2. The font's package, resolved from the running module: a checkout, and the built bundle run in place.
  */
@@ -17,10 +18,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { FontLoader } from './font-bytes.js';
-import { CJK_FONT_FILE, EMOJI_FONT_FILE } from './font-files.js';
+import { ARABIC_FONT_FILE, CJK_FONT_FILE, EMOJI_FONT_FILE, HEBREW_FONT_FILE } from './font-files.js';
 
 const CJK_PACKAGE = '@caotang/font-noto-cjk';
 const EMOJI_PACKAGE = '@caotang/font-noto-emoji';
+const ARABIC_PACKAGE = '@caotang/font-noto-arabic';
+const HEBREW_PACKAGE = '@caotang/font-noto-hebrew';
 
 /** The places a font file is read from, in the order they are tried. */
 function fontCandidates(file: string, pkg: string, moduleUrl: string): string[] {
@@ -60,3 +63,19 @@ export const loadCjkFontInNode: FontLoader = async () => readFirst(CJK_FONT_FILE
 
 /** Reads Noto Emoji, the fallback for emoji. */
 export const loadEmojiFontInNode: FontLoader = async () => readFirst(EMOJI_FONT_FILE, emojiFontCandidates());
+
+/** The places {@link loadArabicFontInNode} reads, in the order it tries them. */
+export function arabicFontCandidates(moduleUrl: string = import.meta.url): string[] {
+  return fontCandidates(ARABIC_FONT_FILE, ARABIC_PACKAGE, moduleUrl);
+}
+
+/** The places {@link loadHebrewFontInNode} reads, in the order it tries them. */
+export function hebrewFontCandidates(moduleUrl: string = import.meta.url): string[] {
+  return fontCandidates(HEBREW_FONT_FILE, HEBREW_PACKAGE, moduleUrl);
+}
+
+/** Reads Noto Sans Arabic, the font for Arabic, Persian and Urdu text. */
+export const loadArabicFontInNode: FontLoader = async () => readFirst(ARABIC_FONT_FILE, arabicFontCandidates());
+
+/** Reads Noto Sans Hebrew, the font for Hebrew text. */
+export const loadHebrewFontInNode: FontLoader = async () => readFirst(HEBREW_FONT_FILE, hebrewFontCandidates());

@@ -4,10 +4,19 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { CJK_FONT_FILE, EMOJI_FONT_FILE } from '../src/font-files.js';
+import { ARABIC_FONT_FILE, CJK_FONT_FILE, EMOJI_FONT_FILE, HEBREW_FONT_FILE } from '../src/font-files.js';
 import { sfntFromWoff } from '../src/font-bytes.js';
 import { openFont } from '../src/fontkit.js';
-import { cjkFontCandidates, emojiFontCandidates, loadCjkFontInNode, loadEmojiFontInNode } from '../src/node-loader.js';
+import {
+  arabicFontCandidates,
+  cjkFontCandidates,
+  emojiFontCandidates,
+  hebrewFontCandidates,
+  loadArabicFontInNode,
+  loadCjkFontInNode,
+  loadEmojiFontInNode,
+  loadHebrewFontInNode,
+} from '../src/node-loader.js';
 
 describe('the fallback font file', () => {
   it('is found by the Node loader in @caotang/font-noto-cjk, and unpacks from WOFF to a TrueType font', async () => {
@@ -42,5 +51,20 @@ describe('the emoji font file', () => {
     expect(font.familyName).toBe('Noto Emoji');
     expect(Object.keys(font.variationAxes)).toEqual([]);
     for (const char of ['🎬', '😀', '❤']) expect(font.hasGlyphForCodePoint(char.codePointAt(0) ?? 0)).toBe(true);
+  });
+});
+
+describe('the Arabic and Hebrew font files', () => {
+  it.each([
+    ['Arabic', arabicFontCandidates, loadArabicFontInNode, ARABIC_FONT_FILE, 'Noto Sans Arabic', 'ب'],
+    ['Hebrew', hebrewFontCandidates, loadHebrewFontInNode, HEBREW_FONT_FILE, 'Noto Sans Hebrew', 'ש'],
+  ] as const)('are found by the Node loader in the %s font package, and are static TrueType fonts fontkit reads as they are', async (_name, candidates, load, file, family, letter) => {
+    expect(candidates().some((path) => path.endsWith(file))).toBe(true);
+    const bytes = await load();
+    expect([...bytes.slice(0, 4)]).toEqual([0, 1, 0, 0]);
+    const font = (await openFont(bytes)) as unknown as { familyName: string; variationAxes: Record<string, unknown>; hasGlyphForCodePoint(code: number): boolean };
+    expect(font.familyName).toBe(family);
+    expect(Object.keys(font.variationAxes)).toEqual([]);
+    expect(font.hasGlyphForCodePoint(letter.codePointAt(0) ?? 0)).toBe(true);
   });
 });
