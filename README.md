@@ -25,7 +25,7 @@ Caotang is free and MIT-licensed. There are no accounts, no subscriptions, no cr
 - **Export.** Markdown, plain text, Word (`.docx`) and EPUB, for the whole manuscript or one part of it. For screenplays, dialogue and storyboards: Fountain, Final Draft (`.fdx`, not yet checked in Final Draft itself), a paginated screenplay PDF, an Ink story, a dialogue table, a shot list and a storyboard contact sheet (PDF). Also a coherence report. Recipes keep your export settings.
 - **Settings.** Provider profiles, the agent's context budgets, the daily target and autosave delay, coherence checks, light and dark themes, checkpoint limits, **MCP & tools**, and data.
 - **MCP & tools.** Settings can connect external [Model Context Protocol](https://modelcontextprotocol.io) servers over Streamable HTTP. Each server's tool list is reviewed before its tools are used, and a tool can be switched off. The agent calls an enabled tool at once only when its server is trusted for reads and the tool is read-only. Any other call waits for your approval.
-- **Caotang as an MCP server.** Other AI tools can read a project folder. With writes allowed, they can change it, and each change that asks is confirmed in the host. See [Caotang as an MCP server](#caotang-as-an-mcp-server).
+- **Caotang as an MCP server.** Other AI tools can read a project folder, attach its documents, notes and codex as resources, and run prompts that carry the context Caotang gathers for a scene. With writes allowed, they can change it, and each change that asks is confirmed in the host. See [Caotang as an MCP server](#caotang-as-an-mcp-server).
 
 Not in this build yet: the desktop wrapper. [docs/USER-GUIDE.md](docs/USER-GUIDE.md#what-is-not-in-this-build-yet) lists it with the rest, and [docs/ROADMAP.md](docs/ROADMAP.md) has the order.
 
@@ -194,6 +194,8 @@ node packages/mcp-server/dist/caotang-mcp.mjs serve --project ~/Writing/my-novel
   }
 }
 ```
+
+Besides the tools, the server offers the project's text as **resources**, which you attach on purpose (in Claude Code, `@caotang:caotang://doc/…`; in Cursor, the resource picker), and five **prompts** that hand your host's model the context Caotang builds for a job: `draft-scene`, `fill-synopsis`, `continuity-check`, `codex-from-doc` and `revise-with-codex`. A resource carries a whole document, and one over 2 MiB is refused, never cut. The prompts run on your host's model, so the text they carry goes to that model, as it does when the host reads a document through a tool; Caotang calls no model and holds no key. See the server's README, Resources and Prompts.
 
 Three things to know before you connect:
 
