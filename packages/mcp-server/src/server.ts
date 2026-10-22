@@ -39,6 +39,7 @@ import { createConfirmLedger, createRoundCodec } from './confirm.js';
 import { guardBatch, guardMessage, type GuardPolicy, type RefusalResponse } from './guard.js';
 import { LegacySessions, type LegacySessionOptions } from './legacy-sessions.js';
 import { degradedInstructions, guardDegraded, registerRecoveryTools, type DegradedSession, type RecoveryRuntime } from './recovery.js';
+import { registerCaotangPrompts } from './prompts.js';
 import { registerCaotangResources } from './resources.js';
 import { forwardChanges, forwardToListeners } from './subscriptions.js';
 import { registerCaotangTools, type ToolRuntime } from './tools.js';
@@ -64,6 +65,8 @@ export const LEGACY_ROUND_TIMEOUT_MS = 60_000;
 const INSTRUCTIONS =
   'Caotang is a writing project. Its text is served as resources, which the writer attaches on purpose: caotang://binder lists the structure with the ids, ' +
   'caotang://doc/{id} is a document whole, caotang://notes/{id} its synopsis and notes, caotang://codex lists the codex and caotang://codex/{id} is one entry. ' +
+  'It also serves prompts (draft-scene, fill-synopsis, continuity-check, codex-from-doc, revise-with-codex) that carry the context of Caotang’s own agent for that job; ' +
+  'they are written for your model, and nothing on this server calls one. ' +
   'A host that reads through tools reads it first with project.overview for the summary, then binder.read_tree for the structure, and doc.read for a document. ' +
   'Writes are exposed only when the project was started with --allow-writes. A write tool whose description starts with "Requires user confirmation." ' +
   'asks the user to confirm it in the host before it changes anything. The other write tools apply at once. ' +
@@ -123,7 +126,7 @@ export function buildMcpServer(runtime: ServerRuntime, options: McpServerOptions
       // changes during a session and no list-changed notice is ever sent. A degraded server's list is fixed too: after a recovery
       // its tools answer that the server must be restarted, rather than the list changing under the host. The 2025 initialize result says so, and the SDK's
       // default of `true` would promise a notice this server never sends.
-      // The resources are the project's, so a degraded server has none. A server that cannot write never changes the project
+      // The resources and prompts are the project's, so a degraded server has none. A server that cannot write never changes the project
       // while it runs, so it neither lists a change nor takes a subscription; with --allow-writes it does both (changes.ts).
       capabilities: {
         tools: { listChanged: false },
@@ -131,6 +134,7 @@ export function buildMcpServer(runtime: ServerRuntime, options: McpServerOptions
           ? {}
           : {
               resources: { listChanged: runtime.session.allowWrites, subscribe: runtime.session.allowWrites },
+              prompts: { listChanged: false },
               completions: {},
             }),
       },
@@ -144,6 +148,7 @@ export function buildMcpServer(runtime: ServerRuntime, options: McpServerOptions
   } else {
     registerCaotangTools(server, runtime, roundTimeoutMs);
     registerCaotangResources(server, runtime);
+    registerCaotangPrompts(server, runtime);
     if (options.live === true && runtime.session.allowWrites) forwardChanges(server, runtime);
   }
   return server;
