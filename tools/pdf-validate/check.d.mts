@@ -45,6 +45,8 @@ export function compareFonts(expected: readonly FontFact[], actual: readonly Fon
 /** The file through pdf.js. */
 export function checkWithPdfjs(bytes: Uint8Array, expected: ExpectedFile): Promise<string[]>;
 
+/** The `error:` and `warning:` lines of mutool output that are about the file, not the MuPDF build. */
+export function mutoolComplaints(output: string): string[];
 /** Poppler's pdffonts table as fonts. */
 export function parsePdffonts(output: string): FontFact[];
 

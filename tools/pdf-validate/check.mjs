@@ -235,6 +235,20 @@ function run(command, args) {
 }
 
 /** Poppler's pdffonts table as fonts: name, then (from the right) object id, generation, uni, sub, emb. */
+/**
+ * Lines a MuPDF build prints about itself, not about the file: Ubuntu's mupdf-tools is built without LittleCMS and says so on every
+ * draw. Matched whole, so a warning about the file is never mistaken for one.
+ */
+const MUTOOL_BUILD_NOTES = new Set(['warning: ICC support is not available']);
+
+/** The `error:` and `warning:` lines of mutool's output that are about the file. */
+export function mutoolComplaints(output) {
+  return output
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => /^(error|warning):/i.test(line) && !MUTOOL_BUILD_NOTES.has(line));
+}
+
 export function parsePdffonts(output) {
   return output
     .split('\n')
@@ -301,7 +315,7 @@ function externalCheck(tool, file, expected, tmp, log) {
       log(out(result));
       if (result.missing) return ['mutool is not installed'];
       const problems = result.status === 0 ? [] : [`mutool draw exited ${result.status}`];
-      if (out(result).split('\n').some((line) => /^(error|warning):/i.test(line.trim()))) problems.push('mutool printed an error or warning');
+      if (mutoolComplaints(out(result)).length > 0) problems.push('mutool printed an error or warning');
       return problems;
     }
     default:

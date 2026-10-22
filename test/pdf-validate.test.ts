@@ -12,6 +12,7 @@ import {
   checkWithPdfjs,
   compareFonts,
   fontsOf,
+  mutoolComplaints,
   parsePdffonts,
   unsubset,
   type ExpectedFile,
@@ -167,5 +168,17 @@ describe('the pdf-validate job in ci.yml', () => {
   it('keeps the workflow-wide read-only token', () => {
     expect(ci).toContain('permissions:\n  contents: read');
     expect(job).not.toContain('permissions:');
+  });
+});
+
+describe('mutoolComplaints', () => {
+  it('ignores the line a MuPDF build without LittleCMS prints on every draw, and keeps every warning about the file', () => {
+    expect(mutoolComplaints('warning: ICC support is not available\n')).toEqual([]);
+    expect(mutoolComplaints('warning: ICC support is not available\nwarning: unknown cmap\nerror: syntax error in content stream\n')).toEqual([
+      'warning: unknown cmap',
+      'error: syntax error in content stream',
+    ]);
+    expect(mutoolComplaints('warning: ICC support is not available for this page\n')).toEqual(['warning: ICC support is not available for this page']);
+    expect(mutoolComplaints('page 1 drawn\n')).toEqual([]);
   });
 });
