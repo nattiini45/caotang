@@ -3,6 +3,7 @@
  * preview and execution", and the strongest test of it sends the preview's payload through
  * the gateway's mock provider and checks what the provider recorded.
  */
+import { modelRowFor, presetFor } from '@caotang/gateway';
 import { createMockProvider } from '@caotang/gateway/mock';
 import { describe, expect, it } from 'vitest';
 
@@ -110,6 +111,19 @@ describe('the window warning (§7)', () => {
   it('does not warn when the prompt fits, and says the window it was measured against', () => {
     const preview = buildPreview(assemble(CONTINUE, buildApp(), { model: { contextWindow: 128_000 } }));
     expect(preview.window).toEqual({ contextWindow: 128_000 });
+  });
+
+  it('measures a Claude profile’s prompt against the 1M window its preset row states, and warns past it with the numbers', () => {
+    const row = modelRowFor(presetFor('anthropic')!, 'claude-sonnet-5-5');
+    const config: ContextConfig = { model: { contextWindow: row?.contextWindow } };
+    expect(buildPreview(assemble(CONTINUE, buildApp(), config)).window).toEqual({ contextWindow: 1_000_000 });
+
+    // The instruction is not a budgeted layer, so a long one is what carries a prompt past the window.
+    const oversize: AgentTask = { ...CONTINUE, instruction: 'word '.repeat(900_000) };
+    const assembled = assemble(oversize, buildApp(), config);
+    const expected = `prompt ≈ ${kTokens(assembled.estimate.promptTokens)} tokens; model window 1000k — trim codex or raise budget`;
+    expect(assembled.estimate.promptTokens).toBeGreaterThan(1_000_000);
+    expect(buildPreview(assembled).window).toEqual({ contextWindow: 1_000_000, warning: expected });
   });
 
   it('has no window section when the model reports no window', () => {

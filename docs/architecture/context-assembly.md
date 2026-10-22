@@ -85,7 +85,7 @@ First-run Caotang launches with the **mock provider active** and a first-run wiz
 
 ## 7. Failure behavior
 
-- Pre-flight estimate exceeds model context window (from `listModels` contextWindow, when known): assembly proceeds at layer-budget level but the plan card warns with numbers ("prompt ≈ 8.1k tokens; model window 4k — trim codex or raise budget"). Never auto-truncate below the layer guarantees.
+- Pre-flight estimate exceeds model context window (from `listModels` contextWindow, else the preset row's published window, when known; the Claude presets state theirs without a listing): assembly proceeds at layer-budget level but the plan card warns with numbers ("prompt ≈ 8.1k tokens; model window 4k — trim codex or raise budget"). Never auto-truncate below the layer guarantees.
 - Gateway `context_length` error post-flight (window unknown): surfaced verbatim (provider-gateway §4) + activity-log link; harness retry ladder may re-run with `compact: true` (halves L2/L4 budgets) before asking the user.
 - Missing inputs degrade with reasons: empty synopsis → L4 entry rendered as `(no synopsis — Chapter 4)` rather than silently skipped (visibility over polish; the "never silent" posture).
 
