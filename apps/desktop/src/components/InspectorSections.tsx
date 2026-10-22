@@ -10,7 +10,7 @@ import { SCENE_STYLES, THREAD_ID_LIMIT, THREAD_NOTE_LIMIT, TIMELINE_MODES, type 
 import type { CodexEntry, TreeNode } from '@caotang/store';
 
 import { attachEntry, explain, setSceneStyle } from './actions.js';
-import { afterCandidates, modeLabel, povCandidates, sceneMetaOf } from '../app/findings-model.js';
+import { afterCandidates, dialogueContainerChoices, modeLabel, povCandidates, sceneMetaOf } from '../app/findings-model.js';
 import { characterCandidates, pairWords } from '../app/knowledge-model.js';
 import type { ProjectSession } from '../app/session.js';
 import { useStoreDraft } from './store-draft.js';
@@ -179,6 +179,8 @@ export function SceneMetaSection({ session, node }: { session: ProjectSession; n
   const afterTitles = (meta.after ?? []).map((id) => ({ id, title: documents.find((doc) => doc.id === id)?.title ?? 'a document that is gone' }));
   const expected = (meta.expectedPresent ?? []).map((id) => ({ id, name: entries.find((entry) => entry.id === id)?.name ?? 'an entry that is gone' }));
 
+  const dialogue = dialogueContainerChoices(session.state, meta.dialogueContainer);
+
   const apply = (patch: ScenePatch): void => {
     const outcome = session.dispatch('coherence.setSceneMeta', { docId: node.id, patch });
     if (!outcome.ok) report({ text: explain(outcome.error), tone: 'error' });
@@ -218,6 +220,35 @@ export function SceneMetaSection({ session, node }: { session: ProjectSession; n
           ))}
         </select>
       </label>
+
+      <label className="scene-field">
+        <span>Dialogue container</span>
+        <select
+          aria-label="Dialogue container"
+          value={meta.dialogueContainer ?? ''}
+          onChange={(event) => apply({ dialogueContainer: event.target.value === '' ? null : event.target.value })}
+        >
+          <option value="">No dialogue container linked</option>
+          {dialogue.missing && meta.dialogueContainer !== undefined ? (
+            <option value={meta.dialogueContainer}>A container that is missing</option>
+          ) : null}
+          {dialogue.containers.map((container) => (
+            <option key={container.id} value={container.id}>
+              {container.title}
+            </option>
+          ))}
+        </select>
+      </label>
+      {dialogue.missing ? (
+        <p className="field-note" data-testid="dialogue-container-missing">
+          The linked dialogue container is archived, outside the manuscript or gone, so this scene is not compared with it.{' '}
+          <button type="button" onClick={() => apply({ dialogueContainer: null })}>
+            Clear the link
+          </button>
+        </p>
+      ) : (
+        <p className="field-note">A screenplay scene is compared with its linked dialogue on speakers only.</p>
+      )}
 
       <ChipList
         label="Follows these scenes"

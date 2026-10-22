@@ -83,6 +83,8 @@ export interface SceneMetaRecord {
   learns?: KnowledgeLinkRecord[];
   /** §4.4: characters who act on a fact in this scene. */
   knows?: KnowledgeLinkRecord[];
+  /** §5.1 `medium.speaker-parity`: the dialogue container (a `dialogue` node id) this scene's speakers are compared with. */
+  dialogueContainer?: string;
 }
 
 /** §7.1's `patch`. `null` on a scalar clears it; `timelineMode` has no clear form (`linear` is the clear). */
@@ -106,6 +108,8 @@ export interface ScenePatch {
   /** §4.4: characters who act on a fact here. */
   knows_add?: KnowledgeLinkRecord[];
   knows_remove?: KnowledgeLinkRecord[];
+  /** §5.1: the dialogue container to compare this scene's speakers with. `null` clears the link. */
+  dialogueContainer?: string | null;
 }
 
 /** The closed set of `patch` keys (§7.1). A key outside it is refused with the list of keys that are valid. */
@@ -124,6 +128,7 @@ export const SCENE_PATCH_KEYS = [
   'learns_remove',
   'knows_add',
   'knows_remove',
+  'dialogueContainer',
 ] as const;
 
 /** What a patch is checked against: the codex entries by id, and the documents a dependency may name. */
@@ -134,6 +139,8 @@ export interface SceneMetaContext {
   readonly facts?: readonly { readonly id: string; readonly text: string }[];
   /** Document ids a dependency may name. Omitted means no check is made. */
   readonly documentIds?: ReadonlySet<string>;
+  /** Ids of the project's dialogue containers, of any status, so an undo can restore a link to one that was archived since. Omitted means no check is made. */
+  readonly dialogueIds?: ReadonlySet<string>;
 }
 
 export type ScenePatchResult =
@@ -235,6 +242,16 @@ export function applySceneMetaPatch(
     if (!links.ok) return links;
     if (links.links.length > 0) next[field] = links.links;
     else delete next[field];
+  }
+
+  if (patch.dialogueContainer !== undefined) {
+    const id = patch.dialogueContainer;
+    if (id === null) delete next.dialogueContainer;
+    else if (typeof id !== 'string' || id.trim() === '') {
+      return { ok: false, error: `dialogueContainer must be the id of a dialogue container, or null to clear it; got ${String(id)}` };
+    } else if (context.dialogueIds !== undefined && !context.dialogueIds.has(id)) {
+      return { ok: false, error: `dialogueContainer names "${id}", which is not a dialogue container in this project` };
+    } else next.dialogueContainer = id;
   }
 
   return { ok: true, meta: next };
@@ -387,6 +404,7 @@ export function inverseScenePatch(before: SceneMetaRecord | undefined, forward: 
   if (forward.dayOffset !== undefined) inverse.dayOffset = prior.dayOffset ?? null;
   if (forward.durationDays !== undefined) inverse.durationDays = prior.durationDays ?? null;
   if (forward.timelineMode !== undefined) inverse.timelineMode = prior.timelineMode ?? 'linear';
+  if (forward.dialogueContainer !== undefined) inverse.dialogueContainer = prior.dialogueContainer ?? null;
   if (forward.after_add !== undefined || forward.after_remove !== undefined) {
     const { added, removed } = membershipChange(prior.after ?? [], after.after ?? []);
     inverse.after_add = removed;

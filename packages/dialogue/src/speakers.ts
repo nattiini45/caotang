@@ -11,6 +11,8 @@
 import { canonical, caseFold } from '@caotang/codex';
 import type { CodexEntry } from '@caotang/store';
 
+import { parseInk } from './ink-parse.js';
+
 export type SpeakerResolution =
   | { readonly kind: 'resolved'; readonly entry: CodexEntry }
   | { readonly kind: 'ambiguous'; readonly entries: readonly CodexEntry[] }
@@ -37,4 +39,30 @@ export function resolveSpeakerName(entries: readonly CodexEntry[], name: string)
 /** A default speaker: a codex entry id, of any type, as container metadata names it. */
 export function resolveSpeakerId(entries: readonly CodexEntry[], id: string): CodexEntry | undefined {
   return entries.find((entry) => entry.id === id);
+}
+
+/** One speaker a container's lines name: the typed spelling, and the codex character it resolves to when it does. */
+export interface ContainerSpeaker {
+  readonly name: string;
+  readonly entryId?: string;
+}
+
+/**
+ * The speakers a container's body names, in body order, once each: a `Name:` prefix resolved as {@link resolveSpeakerName}
+ * resolves it. Two spellings of one codex character are one speaker, the first spelling kept; an ambiguous or unknown name
+ * keeps its typed spelling and no entry. The container's default speaker is metadata, not a line, and is not read.
+ */
+export function speakersOf(body: string, entries: readonly CodexEntry[]): ContainerSpeaker[] {
+  const speakers: ContainerSpeaker[] = [];
+  const seen = new Set<string>();
+  for (const line of parseInk(body).lines) {
+    if (line.speaker === null) continue;
+    const resolution = resolveSpeakerName(entries, line.speaker);
+    const entryId = resolution.kind === 'resolved' ? resolution.entry.id : undefined;
+    const key = entryId ?? `name:${line.speaker.trim().toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    speakers.push(entryId === undefined ? { name: line.speaker } : { name: line.speaker, entryId });
+  }
+  return speakers;
 }

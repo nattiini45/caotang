@@ -39,6 +39,8 @@ export interface DeterministicResult {
 
 const EMPTY_DOC_NAMING = 10;
 
+const SPEAKER_PARITY = 'medium.speaker-parity';
+
 function toUpsertDraft(draft: DraftFinding): UpsertDraft {
   return {
     class: 'deterministic',
@@ -75,7 +77,12 @@ export function runDeterministic(state: ProjectState, file: CoherenceFile, optio
   const branchReads = branchIds.length > 0 && options.scope.mode === 'full' && assembled.input.dialogue !== undefined;
   if (branchReads) for (const id of assembled.input.dialogue?.containerIds ?? []) scopeDocIds.add(id);
 
-  const output = runChecks(assembled.input, requested);
+  // `medium.speaker-parity` compares a scene with a container the scene points at. Like the branch checks it runs on a full scan
+  // only: a scan of some documents would raise or clear findings for scenes whose container it did not read.
+  const parityRequested = requested.includes(SPEAKER_PARITY);
+  const parityReads = parityRequested && options.scope.mode === 'full' && assembled.input.dialogue?.speakersByContainer !== undefined;
+
+  const output = runChecks(assembled.input, requested.filter((id) => id !== SPEAKER_PARITY || parityReads));
   // A draft is kept when the run reads at least one of its quoted documents, or when it quotes none.
   const drafts = output.drafts.filter(
     (draft) => draft.evidence.length === 0 || draft.evidence.some((passage) => scopeDocIds.has(passage.docId)),
@@ -84,7 +91,10 @@ export function runDeterministic(state: ProjectState, file: CoherenceFile, optio
   // Without a full count for every scanned document, a codex-wide total is not a fact, so that check does not run.
   const neverEvaluated = assembled.snapshot.scanned.length === 0 || unavailable.size > 0;
   const ranIds = requested.filter(
-    (id) => !(id === 'codex.never-mentioned' && neverEvaluated) && !((BRANCH_CHECK_IDS as readonly string[]).includes(id) && !branchReads),
+    (id) =>
+      !(id === 'codex.never-mentioned' && neverEvaluated) &&
+      !((BRANCH_CHECK_IDS as readonly string[]).includes(id) && !branchReads) &&
+      !(id === SPEAKER_PARITY && !parityReads),
   );
 
   const next = structuredClone(file);
@@ -117,6 +127,9 @@ export function runDeterministic(state: ProjectState, file: CoherenceFile, optio
         ? 'they run on a full scan'
         : 'the dialogue containers were not read for this run';
     notes.push(`dialogue checks not run: ${reason}`);
+  }
+  if (parityRequested && !parityReads) {
+    notes.push(`speaker parity not run: ${options.scope.mode !== 'full' ? 'it runs on a full scan' : 'the dialogue speakers were not read for this run'}`);
   }
   if (scope.length === 0) notes.push('no documents in scope');
   if (assembled.snapshot.emptyDocIds.length > 0) {

@@ -95,6 +95,37 @@ describe('the scene-metadata patch rule (coherence.md §5.2, §5.2.1)', () => {
   });
 });
 
+describe('dialogueContainer in the scene-metadata patch (coherence.md §5.1 medium.speaker-parity)', () => {
+  const withDialogue = { ...context, dialogueIds: new Set(['n_COURT00001']) };
+
+  it('sets the link, clears it with null, and names the field when the id is not a dialogue container', () => {
+    const set = applySceneMetaPatch(SCENE, undefined, { dialogueContainer: 'n_COURT00001' }, withDialogue);
+    expect(set).toEqual({ ok: true, meta: { dialogueContainer: 'n_COURT00001' } });
+    expect(applySceneMetaPatch(SCENE, set.ok ? set.meta : undefined, { dialogueContainer: null }, withDialogue)).toEqual({ ok: true, meta: {} });
+    const unknown = applySceneMetaPatch(SCENE, undefined, { dialogueContainer: SCENE }, withDialogue);
+    expect(!unknown.ok && unknown.error).toContain('dialogueContainer names');
+    const blank = applySceneMetaPatch(SCENE, undefined, { dialogueContainer: '  ' }, withDialogue);
+    expect(!blank.ok && blank.error).toContain('dialogueContainer must be the id of a dialogue container');
+  });
+
+  it('makes no check of the id when the caller supplied no dialogue ids, as for documentIds', () => {
+    expect(applySceneMetaPatch(SCENE, undefined, { dialogueContainer: 'n_ANY0000000' }, context).ok).toBe(true);
+  });
+
+  it('undoes a set to the prior link, or to a clear when there was none', () => {
+    const prior = { dialogueContainer: 'n_COURT00001' };
+    expect(inverseScenePatch(undefined, { dialogueContainer: 'n_COURT00001' }, prior)).toEqual({ dialogueContainer: null });
+    expect(inverseScenePatch(prior, { dialogueContainer: null }, {})).toEqual({ dialogueContainer: 'n_COURT00001' });
+  });
+
+  it('is one of the closed patch keys, and the descriptor refuses it on a folder', () => {
+    expect(SCENE_PATCH_KEYS).toContain('dialogueContainer');
+    const validate = COMMAND_REGISTRY['coherence.setSceneMeta'].descriptor.validate;
+    const folder = validate({ docId: 'manuscript', patch: { dialogueContainer: 'n_COURT00001' } }, snapshot());
+    expect(!folder.ok && folder.error.message).toContain('a dialogue container is linked to a scene, not a folder');
+  });
+});
+
 describe('threads in the scene-metadata patch (coherence.md §5.5)', () => {
   const OTHER = 'n_OTHER00001';
   const lamp = { id: 'the lamp', payoff: OTHER, note: 'it is lit again' };

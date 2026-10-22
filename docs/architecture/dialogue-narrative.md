@@ -79,6 +79,8 @@ Rides coherence.md §5.4's spec-change rule; all three are pure graph arithmetic
 
 VO/loc completeness ("every line has an id when the table is exported") is a **validator at export**, not a finding class (§6).
 
+**Cross-medium.** A screenplay scene may declare the container it is compared with (`SceneMeta.dialogueContainer`, coherence.md §5.6); `medium.speaker-parity` then compares the scene's cue names with the container's speakers, which the app reads with `speakersOf` (resolved as §2.2 resolves a `Name:` line). The pointer is one way: the container's metadata carries no link back to a scene, and a container no scene points at is never compared.
+
 ## 6. Line-ID & localization contract (the early-specced discipline)
 
 - **Shape:** `lineId, speaker, text, context, charLimit` (CSV; UTF-8, RFC 4180 quoting). One row per speakable line (dialogue lines + choice labels — choice labels carry their own ids, suffixed `_c`).

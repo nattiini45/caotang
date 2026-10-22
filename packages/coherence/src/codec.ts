@@ -84,7 +84,7 @@ const FINDING_KEYS = [
 const RUN_KEYS = [
   'id', 'at', 'kind', 'checkIds', 'scope', 'findingsUpserted', 'tokens', 'model', 'status', 'notes',
 ] as const;
-const SCENE_META_KEYS = ['pov', 'dayOffset', 'durationDays', 'after', 'expectedPresent', 'timelineMode', 'threads', 'learns', 'knows'] as const;
+const SCENE_META_KEYS = ['pov', 'dayOffset', 'durationDays', 'after', 'expectedPresent', 'timelineMode', 'threads', 'learns', 'knows', 'dialogueContainer'] as const;
 const KNOWLEDGE_LINK_KEYS = ['entryId', 'factId'] as const;
 const KNOWLEDGE_KEYS = ['id', 'text', 'ruleId', 'entryId', 'createdAt', 'updatedAt'] as const;
 const THREAD_KEYS = ['id', 'payoff', 'note'] as const;
@@ -387,6 +387,10 @@ export function readSceneMeta(raw: unknown, notices: LoadNotice[], key: string, 
       const links = readKnowledgeLinks(raw[field], notices, key, field);
       if (links.length > 0) meta[field] = links;
     } else dropped(field);
+  }
+  if (raw.dialogueContainer !== undefined) {
+    if (isNonEmptyString(raw.dialogueContainer)) meta.dialogueContainer = raw.dialogueContainer;
+    else dropped('dialogueContainer');
   }
   return meta;
 }

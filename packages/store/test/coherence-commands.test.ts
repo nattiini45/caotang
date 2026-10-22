@@ -236,6 +236,61 @@ describe('coherence.setSceneMeta (coherence.md §5.2, §7.1)', () => {
   });
 });
 
+describe('coherence.setSceneMeta dialogueContainer (coherence.md §5.1 medium.speaker-parity)', () => {
+  const COURT = 'n_COURT00001';
+
+  /** A project with a dialogue container beside the scenes. The store writes a body only for a document, so the node is retyped. */
+  function withContainer(): ProjectState {
+    const state = fixture();
+    addDocument(state, { parentId: 'manuscript', title: 'The court', body: 'Zed: Hello.', now: OPENED, id: COURT });
+    const node = state.manifest.tree.find((candidate) => candidate.id === COURT);
+    if (node === undefined) throw new Error('fixture: the container was not added');
+    Object.assign(node, { type: 'dialogue' });
+    return state;
+  }
+
+  it('links a scene to a dialogue container, clears the link with null, and undo restores the prior link', () => {
+    const h = harness(withContainer());
+    expectOk(h.send('coherence.setSceneMeta', { docId: STORM, patch: { dialogueContainer: COURT } }));
+    expect(h.state.coherence?.sceneMeta[STORM]).toEqual({ dialogueContainer: COURT });
+
+    const cleared = expectOk(h.send('coherence.setSceneMeta', { docId: STORM, patch: { dialogueContainer: null } }));
+    expect(h.state.coherence?.sceneMeta[STORM]).toBeUndefined();
+    expect(h.undo.undo(cleared.undoGroupId!).ok).toBe(true);
+    expect(h.state.coherence?.sceneMeta[STORM]).toEqual({ dialogueContainer: COURT });
+  });
+
+  it('undoes a first link by clearing it, byte for byte', () => {
+    const h = harness(withContainer());
+    const before = snapshotOf(h.state);
+    const linked = expectOk(h.send('coherence.setSceneMeta', { docId: STORM, patch: { dialogueContainer: COURT } }));
+    expect(h.undo.undo(linked.undoGroupId!).ok).toBe(true);
+    expect(snapshotOf(h.state)).toBe(before);
+  });
+
+  it('refuses an id the tree does not hold and an id that is not a dialogue container, and changes nothing', () => {
+    const h = harness(withContainer());
+    const before = snapshotOf(h.state);
+    const unknown = h.send('coherence.setSceneMeta', { docId: STORM, patch: { dialogueContainer: 'n_NOPE000000' } });
+    expect(!unknown.ok && unknown.error.message).toContain('not a dialogue container');
+    const document = h.send('coherence.setSceneMeta', { docId: STORM, patch: { dialogueContainer: LETTER } });
+    expect(!document.ok && document.error.message).toContain('not a dialogue container');
+    const blank = h.send('coherence.setSceneMeta', { docId: STORM, patch: { dialogueContainer: ' ' } });
+    expect(blank.ok).toBe(false);
+    expect(snapshotOf(h.state)).toBe(before);
+  });
+
+  it('refuses a link on a folder, and still lets a link to an archived container be set and undone', () => {
+    const h = harness(withContainer());
+    const folder = h.send('coherence.setSceneMeta', { docId: CHAPTER, patch: { dialogueContainer: COURT } });
+    expect(!folder.ok && folder.error.message).toContain('linked to a scene, not a folder');
+    const node = h.state.manifest.tree.find((candidate) => candidate.id === COURT);
+    if (node !== undefined) Object.assign(node, { status: 'archived' });
+    expectOk(h.send('coherence.setSceneMeta', { docId: STORM, patch: { dialogueContainer: COURT } }));
+    expect(h.state.coherence?.sceneMeta[STORM]?.dialogueContainer).toBe(COURT);
+  });
+});
+
 describe('coherence.setFindingStatus (coherence.md §6.3, §7.1)', () => {
   it('dismisses with a reason, and undo restores the open finding with no stale reason', () => {
     const h = harness();

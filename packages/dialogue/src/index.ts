@@ -73,7 +73,7 @@ export {
   type UnplaceableLine,
 } from './line-ids.js';
 
-export { resolveSpeakerId, resolveSpeakerName, type SpeakerResolution } from './speakers.js';
+export { resolveSpeakerId, resolveSpeakerName, speakersOf, type ContainerSpeaker, type SpeakerResolution } from './speakers.js';
 
 export {
   BRANCH_CHECK_IDS,

@@ -30,6 +30,9 @@ export const FINDING_TYPE_LABELS: Readonly<Record<string, string>> = {
   unreachable: 'Unreachable knot',
   'unresolved-speaker': 'Unknown speaker',
   'ambiguous-speaker': 'Speaker matches two entries',
+  'speaker-differs': 'Speaker spelled differently',
+  'speaker-screenplay-only': 'Only the screenplay has this speaker',
+  'speaker-dialogue-only': 'Only the dialogue has this speaker',
 };
 
 /** A finding's type in the writer's words: its row, or the key itself with its dashes as spaces and a capital first letter. */

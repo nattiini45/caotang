@@ -316,6 +316,7 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - A screenplay cue counts as a mention: the larger of cue count and detector count, never their sum. Why: no double counting. [delegated]
 - Who knows what is declared on scenes (a character learns a fact here, acts on it there) and the ledger is derived from the declarations, not stored per character; the quick scan reports a character who knows a fact before any scene at or before it teaches them. Why: one source of truth, and a check that fires only on what the writer declared. [delegated]
 - Story order for knowledge follows declared days when both scenes have them and binder order only where it is reliable; a scene in a mode with no reliable order exempts the pair, and a dream or mythic scene neither teaches nor is checked. Why: a flashback that teaches a secret must not make chapter 3 look wrong, and an order nobody declared is not guessed. [delegated]
+- A screenplay scene is paired with a dialogue container only by a writer-declared optional `SceneMeta.dialogueContainer` id in `coherence.json`; the first cross-medium check, `medium.speaker-parity`, compares speakers only, at info severity, screenplay to dialogue, and never matches by title or content; a scene with no link is counted in the run note, not compared. Why: the deterministic class fires only on what the writer declared, and a guessed pairing would stop running silently; storyboard to dialogue stays open. [delegated]
 
 ## Furniture and goals
 

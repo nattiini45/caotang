@@ -10,6 +10,7 @@ import {
   openFindingCount,
   povCandidates,
   afterCandidates,
+  dialogueContainerChoices,
   modeLabel,
   sceneMetaOf,
   severitySections,
@@ -260,6 +261,20 @@ test.describe('the scene declarations model (coherence.md §5.2, §8)', () => {
     expect(after).not.toContain('Scene A');
     expect(after).toEqual(expect.arrayContaining(['Scene B', 'Scene D']));
     expect(after).not.toContain('Chapter 1');
+  });
+
+  test('a scene may be compared with a dialogue container a scan reads, and a link to any other is missing', () => {
+    const state = project();
+    for (const [id, status, parentId] of [['d_COURT00001', null, 'manuscript'], ['d_OLD0000001', 'archived', 'manuscript'], ['d_NOTE000001', null, 'research']] as const) {
+      addDocument(state, { parentId, title: `Dialogue ${id}`, id, body: 'Zed: hi', now: new Date(NOW) });
+      const node = state.manifest.tree.find((candidate) => candidate.id === id);
+      if (node !== undefined) Object.assign(node, { type: 'dialogue', status });
+    }
+    expect(dialogueContainerChoices(state, undefined)).toEqual({ containers: [{ id: 'd_COURT00001', title: 'Dialogue d_COURT00001' }], missing: false });
+    expect(dialogueContainerChoices(state, 'd_COURT00001').missing).toBe(false);
+    expect(dialogueContainerChoices(state, 'd_OLD0000001').missing).toBe(true);
+    expect(dialogueContainerChoices(state, 'd_NOTE000001').missing).toBe(true);
+    expect(dialogueContainerChoices(state, 'n_GONE000000').missing).toBe(true);
   });
 
   test('timeline modes read in words, and linear is the default', () => {

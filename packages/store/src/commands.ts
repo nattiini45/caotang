@@ -346,18 +346,20 @@ function requireCoherenceFile(state: ProjectState): CoherenceState {
 }
 
 /**
- * What a scene-declaration patch is checked against: the codex entries by id and name, and the
- * documents a dependency may name. The same two lists `coherenceSetSceneMeta`'s validate reads.
+ * What a scene-declaration patch is checked against: the codex entries by id and name, the
+ * documents a dependency may name, and the dialogue containers a scene may be compared with. The same two lists `coherenceSetSceneMeta`'s validate reads.
  */
 function sceneMetaContextOf(state: ProjectState): {
   entries: { id: string; name: string; type: string }[];
   facts: { id: string; text: string }[];
   documentIds: Set<string>;
+  dialogueIds: Set<string>;
 } {
   return {
     entries: (state.manifest.codex ?? []).map((entry) => ({ id: entry.id, name: entry.name, type: entry.type })),
     facts: (state.coherence?.knowledge ?? []).map((fact) => ({ id: fact.id, text: fact.text })),
     documentIds: new Set(state.manifest.tree.filter((node) => node.type === 'document').map((node) => node.id)),
+    dialogueIds: new Set(state.manifest.tree.filter((node) => node.type === 'dialogue').map((node) => node.id)),
   };
 }
 
