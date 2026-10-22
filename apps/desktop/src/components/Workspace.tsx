@@ -52,6 +52,7 @@ import { openFindingCount } from '../app/findings-model.js';
 import { ExportDialog, type ExportSelection } from './ExportDialog.js';
 import { openDialog } from './dialog-requests.js';
 import { ProjectPanel } from './ProjectPanel.js';
+import { SkillsPanel } from './SkillsPanel.js';
 import { VocabularyEditor } from './VocabularyEditor.js';
 import { Inspector } from './Inspector.js';
 import { Settings, type SettingsSection } from './Settings.js';
@@ -672,6 +673,9 @@ export function Workspace({
             >
               Focus
             </button>
+            <button type="button" className="button" title="Reusable writing instructions for the agent" onClick={() => openDialog({ kind: 'skills' })}>
+              Skills
+            </button>
             <button type="button" className="button" onClick={() => setExporting(true)}>
               Compile…
             </button>
@@ -887,6 +891,7 @@ export function Workspace({
           <ExportDialog session={session} selection={exportSelection} onClose={() => setExporting(false)} />
         ) : null}
         <ProjectPanel session={session} />
+        <SkillsPanel session={session} />
         <VocabularyEditor session={session} />
 
 
