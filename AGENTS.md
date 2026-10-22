@@ -76,6 +76,7 @@ packages/mcp-client/     MCP client (Streamable HTTP)
 packages/mcp-server/     Caotang as an MCP server (@caotang/mcp-server)
 packages/pdf-fonts/      what both PDFs share for their fallback fonts (byte checks, fontkit, CID writer, emoji)
 packages/screenplay/     Fountain screenplay model
+packages/sdk/            run the agent from Node against a project folder (@caotang/sdk); owns the Node folder session the MCP server shares
 packages/skills/         Agent Skills folders: the SKILL.md reader, the caps, the review pin, the model's catalog
 packages/store/          the project store and the manifest
 packages/storyboard/     shot cards and animatics
