@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.nattiini45/caotang",
+  "title": "Caotang",
+  "description": "Serve a Caotang writing project to an MCP host: read it, and, when you allow it, change it.",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/nattiini45/caotang",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/nattiini45/caotang/releases/download/v0.1.0/caotang-mcp-0.1.0.mcpb",
+      "fileSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

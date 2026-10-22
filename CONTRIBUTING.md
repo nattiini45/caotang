@@ -72,6 +72,16 @@ Not "Fix bug" or "Update exporter". Use the body for the reason, when the subjec
 
 For a large change, open an issue first so the design can be agreed before you build it.
 
+## Releasing
+
+Only maintainers release. A release is a tag; a workflow builds everything else.
+
+1. Set the same version in `packages/mcp-server/package.json`, `packages/mcp-server/manifest.json` and `server.json` (including the version in its `identifier` URL), and give `CHANGELOG.md` a section with that version as its heading. The release notes are that section.
+2. Tag the commit `v<version>` and push the tag. `.github/workflows/release.yml` stops unless the tag matches those three versions, then runs `pnpm verify`, packs the bundle and creates the release with `caotang-mcp-<version>.mcpb` and `SHA256SUMS`.
+3. Put the hash from `SHA256SUMS` in `fileSha256` in `server.json`, which holds a zero placeholder until then, and commit it. Then publish the entry with `mcp-publisher login github` and `mcp-publisher publish`. The registry does not check the hash; clients do, before they install.
+
+The bundle is not signed.
+
 ## Security
 
 Do not report vulnerabilities in public issues. See [SECURITY.md](SECURITY.md).

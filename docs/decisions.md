@@ -333,6 +333,7 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 
 - The product is named Caotang (草堂, Du Fu's thatched cottage). Why: the earlier working name collided with existing products. [owner]
 - Licence MIT, "Copyright (c) 2026 The Caotang Authors". Why: the least friction for forks and contributors. [owner]
+- The landing page, its JSON-LD and the MCP bundle's manifest name the maker as "@nattiini45 and contributors", with the handle linked and no real name; the licence holder stays "The Caotang Authors". Why: a handle is enough credit for a personal project, and the licence stays friendly to contributors. [owner]
 - Caotang is completely free: no meters, gates, paid tiers or subscriptions; the writer's own provider is the only cost. Why: the free, local, agent quadrant is the product. [owner]
 - Never per-module pricing and never a commercial-use-gated free tier. Why: the two named anti-patterns. [owner]
 - The public repository is `nattiini45/caotang`, started from one clean snapshot. It moved there from `caotang-app/caotang` on 2026-10-18. Why: a clean public history; the move lets the owner's personal Kilo Code reviewer cover the repo without paying for Kilo Code's organization plan. [owner]
