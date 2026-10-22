@@ -134,6 +134,19 @@ function trimEndSpaces(text: string): string {
   return text.slice(0, end);
 }
 
+/** Drops the white space at the end of a value held as parts; only the trailing parts are touched, so a run of breaks stays linear. */
+function trimEndSpacesOfParts(parts: string[]): void {
+  while (parts.length > 0) {
+    const last = parts[parts.length - 1]!;
+    const trimmed = trimEndSpaces(last);
+    if (trimmed !== '') {
+      parts[parts.length - 1] = trimmed;
+      return;
+    }
+    parts.pop();
+  }
+}
+
 /**
  * Reads a quoted scalar whose opening quote is at `column` of `lines[at]`. Returns the value, the line it ended on, and the column just
  * past the closing quote. A line break inside folds to a space, a blank line to a newline, and an escaped break joins with neither.
@@ -141,7 +154,7 @@ function trimEndSpaces(text: string): string {
 function readQuoted(lines: readonly Line[], at: number, column: number): { value: string; last: number; after: number } {
   const quote = lines[at]!.text[column]!;
   const double = quote === '"';
-  let out = '';
+  const out: string[] = [];
   let row = at;
   let i = column + 1;
   let breaks = 0;
@@ -150,7 +163,7 @@ function readQuoted(lines: readonly Line[], at: number, column: number): { value
     if (i >= text.length) {
       // A break inside the string: white space before it goes, and so does the next line's indentation.
       if (row + 1 >= lines.length) fail('a quoted value is not closed');
-      out = trimEndSpaces(out);
+      trimEndSpacesOfParts(out);
       row += 1;
       i = 0;
       breaks += 1;
@@ -159,16 +172,16 @@ function readQuoted(lines: readonly Line[], at: number, column: number): { value
     }
     const ch = text[i]!;
     if (breaks > 0) {
-      out += breaks === 1 ? ' ' : '\n'.repeat(breaks - 1);
+      out.push(breaks === 1 ? ' ' : '\n'.repeat(breaks - 1));
       breaks = 0;
     }
     if (ch === quote) {
       if (!double && text[i + 1] === "'") {
-        out += "'";
+        out.push("'");
         i += 2;
         continue;
       }
-      return { value: out, last: row, after: i + 1 };
+      return { value: out.join(''), last: row, after: i + 1 };
     }
     if (double && ch === '\\') {
       const next = text[i + 1];
@@ -182,17 +195,17 @@ function readQuoted(lines: readonly Line[], at: number, column: number): { value
       }
       if (next === 'x' || next === 'u' || next === 'U') {
         const width = next === 'x' ? 2 : next === 'u' ? 4 : 8;
-        out += codePoint(text.slice(i + 2, i + 2 + width), width);
+        out.push(codePoint(text.slice(i + 2, i + 2 + width), width));
         i += 2 + width;
         continue;
       }
       const simple = SIMPLE_ESCAPES[next];
       if (simple === undefined) fail('a quoted value has a bad escape');
-      out += simple;
+      out.push(simple);
       i += 2;
       continue;
     }
-    out += ch;
+    out.push(ch);
     i += 1;
   }
 }

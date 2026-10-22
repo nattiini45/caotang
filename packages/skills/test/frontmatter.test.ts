@@ -156,4 +156,14 @@ describe('the front matter reader: nothing backtracks', () => {
     readFrontMatter(doc(`description: "${'\\ '.repeat(50_000)}"`));
     expect(Date.now() - started).toBeLessThan(3000);
   });
+
+  it('folds a quoted value of many short lines in linear time, dropping the white space before each break', () => {
+    expect(scalar(doc('a: "one  ', '  two \\t ', '', '  three"'), 'a')).toBe('one two\nthree');
+    expect(scalar(doc("a: 'x   ", "   ", "  y'"), 'a')).toBe('x\ny');
+    const started = Date.now();
+    const lines = (line: string): string => Array.from({ length: 125_000 }, () => line).join('\n');
+    expect(scalar(doc('q: "', lines('a '), '"'), 'q')).toBe(` ${'a '.repeat(125_000)}`);
+    expect(refused(doc("q: '", lines('a')))).toMatch(/not closed/);
+    expect(Date.now() - started).toBeLessThan(1500);
+  });
 });
