@@ -16,11 +16,15 @@ export type {
   CodexSourceCitation,
   CodexUpsertOp,
   CodexUpsertParams,
+  CoherenceAddKnowledgeFactParams,
   CoherenceDiscardRunParams,
+  CoherenceEditKnowledgeFactParams,
+  CoherenceRemoveKnowledgeFactParams,
   CoherenceSetFindingStatusParams,
   CoherenceSetSceneMetaParams,
   CommandProvenance,
   ValidationCoherence,
+  ValidationKnowledgeFact,
   ValidationFinding,
   Command,
   CommandApply,
@@ -181,6 +185,7 @@ export type {
   ScenePatch,
   ScenePatchResult,
   SceneMetaContext,
+  KnowledgeLinkRecord,
   SceneMetaRecord,
   SceneThread,
   TimelineModeName,
@@ -201,8 +206,18 @@ export {
   isEmptySceneMeta,
   trimCoherenceNote,
 } from './coherence.js';
-// The run discard's descriptor (descriptors-coherence.ts). The store imports it for its registry row.
-export { coherenceDiscardRun } from './descriptors-coherence.js';
+// The run discard's and the knowledge facts' descriptors (descriptors-coherence.ts). The store imports them for its registry rows.
+export {
+  coherenceAddKnowledgeFact,
+  coherenceDiscardRun,
+  coherenceEditKnowledgeFact,
+  coherenceRemoveKnowledgeFact,
+} from './descriptors-coherence.js';
+export {
+  KNOWLEDGE_TEXT_LIMIT,
+  knowledgeTextProblem,
+  type KnowledgeFactRecord,
+} from './knowledge.js';
 // The import and container-settings params and limits (descriptors-script.ts), named by the store, the desktop and
 // the dialogue package's parity test.
 export type {

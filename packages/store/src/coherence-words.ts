@@ -71,6 +71,7 @@ const CHECK_LABELS: Readonly<Record<string, string>> = {
   'dialogue.speaker-unknown': 'A dialogue speaker matches no codex entry',
   'timeline.gap': 'A scene is days after the scene before it',
   'plot.unresolved-thread': 'A thread’s declared payoff is not in the manuscript',
+  'knowledge.leak': 'A character knows something before they learn it',
 };
 
 /**

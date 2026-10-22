@@ -24,10 +24,11 @@ describe('the check registry', () => {
     expect(Object.keys(DETERMINISTIC_CHECKS)).toEqual([...DETERMINISTIC_CHECK_IDS]);
   });
 
-  it('holds sixteen checks, the last of them plot.unresolved-thread, and gives each a label', () => {
-    expect(DETERMINISTIC_CHECK_IDS).toHaveLength(16);
-    expect(DETERMINISTIC_CHECK_IDS.at(-1)).toBe('plot.unresolved-thread');
+  it('holds seventeen checks, the last of them knowledge.leak, and gives each a label', () => {
+    expect(DETERMINISTIC_CHECK_IDS).toHaveLength(17);
+    expect(DETERMINISTIC_CHECK_IDS.at(-1)).toBe('knowledge.leak');
     for (const id of DETERMINISTIC_CHECK_IDS) expect(DETERMINISTIC_CHECK_LABELS[id], id).not.toBe('');
     expect(DETERMINISTIC_CHECK_LABELS['plot.unresolved-thread']).toBe('A thread’s declared payoff is not in the manuscript');
+    expect(DETERMINISTIC_CHECK_LABELS['knowledge.leak']).toBe('A character knows something before they learn it');
   });
 });

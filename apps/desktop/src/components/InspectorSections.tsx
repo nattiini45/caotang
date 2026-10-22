@@ -1,16 +1,17 @@
 /**
  * The inspector's sections that reach beyond the node's own fields: the codex (codex.md §8: the attach picker, the entries
  * attached here, and the mention chips detected in this document) and the scene declarations (coherence.md §5.2, §8: POV,
- * day offsets, the `after` and `expected present` lists, the timeline mode and the setup → payoff threads), and the export style (exporter.md §2, Per-scene styling).
+ * day offsets, the `after` and `expected present` lists, the timeline mode, the setup → payoff threads and who learns and knows each fact), and the export style (exporter.md §2, Per-scene styling).
  * Each change is one bus command.
  */
 
 import { useState, type ReactNode } from 'react';
-import { SCENE_STYLES, THREAD_ID_LIMIT, THREAD_NOTE_LIMIT, TIMELINE_MODES, type ScenePatch, type SceneThread } from '@caotang/bus';
+import { SCENE_STYLES, THREAD_ID_LIMIT, THREAD_NOTE_LIMIT, TIMELINE_MODES, type KnowledgeLinkRecord, type ScenePatch, type SceneThread } from '@caotang/bus';
 import type { CodexEntry, TreeNode } from '@caotang/store';
 
 import { attachEntry, explain, setSceneStyle } from './actions.js';
 import { afterCandidates, modeLabel, povCandidates, sceneMetaOf } from '../app/findings-model.js';
+import { characterCandidates, pairWords } from '../app/knowledge-model.js';
 import type { ProjectSession } from '../app/session.js';
 import { useStoreDraft } from './store-draft.js';
 import { useReport, useSession } from './shared.js';
@@ -240,7 +241,148 @@ export function SceneMetaSection({ session, node }: { session: ProjectSession; n
         removeLabel={(title) => `Stop expecting ${title}`}
       />
       <ThreadsEditor key={node.id} threads={meta.threads ?? []} documents={documents} apply={apply} />
+      <KnowledgeEditor
+        learns={meta.learns ?? []}
+        knows={meta.knows ?? []}
+        entries={entries}
+        facts={session.coherenceFile()?.knowledge ?? []}
+        apply={apply}
+      />
     </details>
+  );
+}
+
+/**
+ * Who learns and who knows a fact in this scene (coherence.md §4.4): two rows, each a list of declared pairs and a character and
+ * a fact to add. A fact is stated once, in the Knowledge list of the Findings tab. The scan reports a character who is shown
+ * knowing a fact in a scene before any scene at or before it teaches them.
+ */
+function KnowledgeEditor({
+  learns,
+  knows,
+  entries,
+  facts,
+  apply,
+}: {
+  learns: readonly KnowledgeLinkRecord[];
+  knows: readonly KnowledgeLinkRecord[];
+  entries: readonly CodexEntry[];
+  facts: readonly { readonly id: string; readonly text: string }[];
+  apply: (patch: ScenePatch) => void;
+}): ReactNode {
+  const characters = characterCandidates(entries);
+  const readyToDeclare = characters.length > 0 && facts.length > 0;
+  return (
+    <div className="scene-chips scene-knowledge" data-testid="scene-knowledge">
+      <p className="field-label">Knowledge</p>
+      {readyToDeclare ? null : (
+        <p className="field-note">
+          {facts.length === 0 ? 'Add a fact in the Knowledge list of the Findings tab first.' : 'Add a character to the codex first.'}
+        </p>
+      )}
+      <KnowledgeRowEditor
+        label="Learns"
+        who="Character who learns"
+        what="Fact learned"
+        links={learns}
+        characters={characters}
+        entries={entries}
+        facts={facts}
+        enabled={readyToDeclare}
+        onAdd={(link) => apply({ learns_add: [link] })}
+        onRemove={(link) => apply({ learns_remove: [link] })}
+      />
+      <KnowledgeRowEditor
+        label="Knows"
+        who="Character who knows"
+        what="Fact known"
+        links={knows}
+        characters={characters}
+        entries={entries}
+        facts={facts}
+        enabled={readyToDeclare}
+        onAdd={(link) => apply({ knows_add: [link] })}
+        onRemove={(link) => apply({ knows_remove: [link] })}
+      />
+    </div>
+  );
+}
+
+function KnowledgeRowEditor({
+  label,
+  who,
+  what,
+  links,
+  characters,
+  entries,
+  facts,
+  enabled,
+  onAdd,
+  onRemove,
+}: {
+  label: string;
+  who: string;
+  what: string;
+  links: readonly KnowledgeLinkRecord[];
+  characters: readonly CodexEntry[];
+  entries: readonly CodexEntry[];
+  facts: readonly { readonly id: string; readonly text: string }[];
+  enabled: boolean;
+  onAdd: (link: KnowledgeLinkRecord) => void;
+  onRemove: (link: KnowledgeLinkRecord) => void;
+}): ReactNode {
+  const [entryId, setEntryId] = useState('');
+  const [factId, setFactId] = useState('');
+  return (
+    <div className="knowledge-row">
+      <p className="field-label">{label}</p>
+      <ul className="keyword-list" aria-label={label}>
+        {links.length === 0 ? <li className="field-note">None declared.</li> : null}
+        {links.map((link) => {
+          const words = pairWords(link, entries, facts);
+          return (
+            <li key={`${link.entryId}:${link.factId}`} className="chip chip-keyword">
+              <span>{words}</span>
+              <button type="button" className="chip-remove" aria-label={`Stop declaring ${words} under ${label}`} onClick={() => onRemove(link)}>
+                ×
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {enabled ? (
+        <div className="knowledge-pick">
+          <select aria-label={who} value={entryId} onChange={(event) => setEntryId(event.target.value)}>
+            <option value="">Choose a character…</option>
+            {characters.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.name}
+              </option>
+            ))}
+          </select>
+          <select aria-label={what} value={factId} onChange={(event) => setFactId(event.target.value)}>
+            <option value="">Choose a fact…</option>
+            {facts.map((fact) => (
+              <option key={fact.id} value={fact.id}>
+                {fact.text}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={entryId === '' || factId === ''}
+            aria-label={`Add to ${label}`}
+            onClick={() => {
+              onAdd({ entryId, factId });
+              setEntryId('');
+              setFactId('');
+            }}
+          >
+            Add
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

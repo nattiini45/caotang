@@ -30,6 +30,7 @@ interface CoherenceFile {          // one per project; written atomically like c
   runs: CoherenceRun[];            // append-only history, capped (§6)
   sceneMeta: Record<docId, SceneMeta>;   // per-document check inputs (§5)
   worldRules: WorldRule[];         // non-entity canon facts (§4.3) — manual rules are writer canon
+  knowledge?: KnowledgeFact[];     // facts whose spread through the cast is tracked (§4.4); absent = []
   reviewState: Record<docId, { lastReviewedRevision: number; lastReviewedAt: string }>;
 }
 
@@ -59,8 +60,8 @@ interface Evidence {               // body-projection coordinates (edit-anchors.
 ```
 
 - **Artifact placement:** `coherence.json` sits beside `caotang.json`. project-format §1's "no other files — loaders ignore unknown files" rule is what makes this **additive with no formatVersion bump**: an older Caotang ignores the file, a newer Caotang reads it. Manifest stays untouched (findings are derived + curation state, not structure).
-- **Recovery posture:** before a changed save replaces `coherence.json`, the previous file rotates into `coherence.json.bak.1` down to `.bak.3` — project-format §4's depth for `caotang.json`. If the live file is unparseable, the corrupt file is preserved as `coherence.json.corrupt-<timestamp>` (project-format §5 pattern) and the newest snapshot that reads is restored; findings are always **recomputable** (deterministic re-run; LLM re-review is user-triggered). Only when no snapshot reads are the writer's parts lost — **dismissals, scene declarations (§5.2) and manual world rules (§4.3)** — and the load notice says exactly which. Scene declarations, dismissals and world rules are hand-authored, so a snapshot is cheap insurance. The bundle carries only the live file.
-- **Reconciled on open:** the file is brought into line with the project it is opened with, before anything reads it. A scene declaration on a node that is gone is dropped, and so is a finding that quotes a node that is gone, since its quote is no longer in the project; a dropped finding has a load notice. A *body* is a document or a dialogue container (dialogue-narrative.md §2.1), so a finding on a dialogue container is kept, with its dismissal, and no notice is shown for it. A found world rule whose source is gone, or whose passage no longer matches the text, goes back to review; a manual rule stays canon.
+- **Recovery posture:** before a changed save replaces `coherence.json`, the previous file rotates into `coherence.json.bak.1` down to `.bak.3` — project-format §4's depth for `caotang.json`. If the live file is unparseable, the corrupt file is preserved as `coherence.json.corrupt-<timestamp>` (project-format §5 pattern) and the newest snapshot that reads is restored; findings are always **recomputable** (deterministic re-run; LLM re-review is user-triggered). Only when no snapshot reads are the writer's parts lost — **dismissals, scene declarations (§5.2), manual world rules (§4.3) and knowledge facts (§4.4)** — and the load notice says exactly which. Scene declarations, dismissals, world rules and knowledge facts are hand-authored, so a snapshot is cheap insurance. The bundle carries only the live file.
+- **Reconciled on open:** the file is brought into line with the project it is opened with, before anything reads it. A scene declaration on a node that is gone is dropped, and so is a finding that quotes a node that is gone, since its quote is no longer in the project; a dropped finding has a load notice. A *body* is a document or a dialogue container (dialogue-narrative.md §2.1), so a finding on a dialogue container is kept, with its dismissal, and no notice is shown for it. A found world rule whose source is gone, or whose passage no longer matches the text, goes back to review; a manual rule stays canon. A knowledge pair whose codex entry or fact is gone is dropped, with a notice (§4.4).
 - **No secrets rule** (project-format §2): findings quote manuscript prose only; no provider keys/URLs ever.
 
 ## 4. Findings: grouping, runs, fact boundary
@@ -111,7 +112,64 @@ interface WorldRule {
 
 Semantics: rules join `factGroup` as an additional source (an LLM finding may cite `{ruleId}` as its entity-side key; deterministic assembly normalizes rule ids into the same grouping key); `origin:'found'` rules with no clean source span **stay in review, never dressed up as cited proof** (PlotLens's honesty rule); correcting a found rule (manual edit or anchor attach) flips it to `manual` — nothing is silently overwritten (Bunsho's semantics, adopted verbatim). UI: a Rules list beside the findings inbox in the coherence panel (v0.2-of-track polish); `coherence.review` Stage 1's category-guided prompt may propose found rules in its output schema (additive field, dropped by older stage-4 code under the tolerance rule).
 
-**Still deferred (recorded, not built):** Bunsho's knowledge ledger ("what they know" per character over time) — a per-character `knowsAt[chapter → fact-id]` ledger feeding a deterministic `knowledge.leak` check is the one checkable class Caotang doesn't yet cover. It needs the fact store + chapter scoping to exist first; **v0.2-of-track candidate** (backlog).
+Bunsho's knowledge ledger ("what they know" per character over time) is built on this boundary as §4.4.
+
+### 4.4 Knowledge facts
+
+Bunsho's ledger, a per-character `knowsAt[chapter → fact-id]`, feeds the one checkable class the rest of the module did not cover: a character who acts on a fact before they could have learned it. The fact store §4.3 asked for exists (codex entries for what a thing *is*, `worldRules[]` for non-entity canon), so the ledger is declared on top of it. The module's rule holds: the writer declares who learns and who knows, and nothing is inferred from the prose.
+
+**Field shapes (additive; no `formatVersion` bump):**
+
+```ts
+interface KnowledgeFact {          // a secret or piece of information whose spread through the cast matters
+  id: string;                      // "k_" + 10 chars Crockford base32 (the same generator family)
+  text: string;                    // one sentence, ≤ 300 chars ("Mara is the heir")
+  ruleId?: string;                 // optional link to the WorldRule it restates
+  entryId?: string;                // optional link to the codex entry it is about
+  createdAt: string; updatedAt: string;
+}
+interface SceneMeta {
+  // … §5.2, §5.2.1 and §5.5 fields unchanged …
+  learns?: { entryId: string; factId: string }[];   // characters who come to know a fact in this scene
+  knows?:  { entryId: string; factId: string }[];   // characters who act on, or reveal, knowledge of a fact in this scene
+}
+// CoherenceFile.knowledge: KnowledgeFact[]   (§3)
+```
+
+- **The ledger is derived, not stored.** "ANNA knows F from scene S on" is a projection: walk the scenes in story order (below) and accumulate `learns`. One declaration is one source of truth, and the ledger view (§8) cannot disagree with the check. Storing `knowsAt` on the codex entry was rejected: it would move knowledge into the manifest's codex, which is an ownable file, and split the declaration from the scene where it happens.
+- **A character is a codex entry of type `character`.** The patch refuses any other entry. A group or faction that knows something is a gap the writer fills by declaring its members.
+- **A scene is a document.** `learns` and `knows` are declared on a document and refused on a folder. A dialogue container does not carry them in this build, and the line a speaker says is not read from the prose or the branches.
+- **Field contract (project-format §2 discipline):** a file without `knowledge`, or a scene without `learns` and `knows`, loads unchanged, as none, with no notice. A fact whose id is not a `k_` id, whose text is blank or over the limit, or whose id repeats is dropped on load with a notice that names its text. A pair that is not `{entryId, factId}` of strings, or repeats, is dropped with a notice that names the scene. An empty `knowledge` list is not written, so a build that predates the field shows no unknown-field notice for a file that holds no fact.
+- **Reconciled on open (§3):** a `learns` or `knows` pair whose codex entry or fact is gone is dropped with a notice that says what was dropped. A fact whose `ruleId` or `entryId` is gone is kept, minus the link, with a notice.
+- **Recovery:** the declarations are the writer's parts of the file, so the recovery notice names them with the scene declarations and manual world rules (§3).
+
+**Story order.** "Earlier" is what the writer declared, in this order:
+
+1. Both scenes declare `dayOffset`: story time wins, by `(dayOffset, binder position)`. A flashback in chapter 9 that shows a character learning something on day 1 is before chapter 3's scene on day 100.
+2. Otherwise, two in-sequence scenes (`linear`, `simultaneous`, `time-skip`) are ordered by binder position.
+3. Otherwise, two `parallel` scenes, or two `frame` scenes, are ordered by binder position within their strand.
+4. Otherwise the order is **unknown**. Binder order says nothing about when a flashback, a flash-forward, a backstory or a circular scene happens, or how a scene in one strand sits against a scene in another.
+
+**Exemption table** (its own type, `KnowledgeTreatment`, in `knowledge.ts`: `timeline.ts`'s table is keyed to the timeline checks and cannot hold this one):
+
+| `timelineMode` | A `learns` in the scene | A `knows` in the scene |
+|---|---|---|
+| `linear`, `simultaneous`, `time-skip` | counts | checked |
+| `flashback`, `flash-forward`, `backstory`, `circular` | counts, ordered by days only (rule 1; otherwise unknown) | checked, ordered by days only |
+| `parallel`, `frame` | counts, ordered by days or within its strand (rules 1 and 3; otherwise unknown) | checked, ordered the same way |
+| `dream`, `mythic` | **does not count**: the scene teaches the reader, not the character | **exempt**: nothing said there is a claim about what the character knows |
+
+**The ledger rule, for each `knows` pair `(E, F)` in a checked scene `S`:**
+
+1. Collect the scenes that declare `learns` of the same pair and count (the table). `S` is one of them when it declares both: a scene may teach a character a fact and show them act on it.
+2. Any of them at or before `S` in story order → fine.
+3. Else, any of them in an unknown order to `S` → **exempt**: the order cannot be judged, and a finding would claim more than the writer declared.
+4. Else, one or more after `S` → finding, naming the earliest: `ANNA knows that "Mara is the heir" in "Scene 3", but learns it only in "Scene 7"`.
+5. Else, no scene counts → finding: `ANNA knows that "Mara is the heir" in "Scene 3", but never learns it`. "Never learned" is the same check and the same finding family, not a second id: one declaration, one reason, one dismissal.
+
+A scene that is not scanned (empty, archived, outside the Manuscript) declares nothing the check reads. The check resolves `entryId` and `factId` against the codex and `knowledge`; a pair whose entry or fact is gone is counted in the run note and not compared.
+
+**Fixtures (the build inherits them):** knows before learns in binder order (finding), learn then know (none), the same scene teaching and acting (none); a learning flashback with an earlier `dayOffset` than the knowing scene (none, the positive control) and the same flashback without `dayOffset` (exempt); a dream that teaches (does not count, so a finding) and a dream that knows (exempt); never learned (finding, the other message); a parallel strand against the main one (exempt without days); two scenes that know one pair (two findings, one fact group); the same finding after the text around it is edited and after a second scan (one finding, same id); a dismissal with a reason that stands across a scan; a pair whose character or fact is gone (noted, not compared); a file written before the field existed (loads unchanged, no notice); a malformed fact and a malformed pair (dropped with a notice); the removal of a fact (its pairs go with it, and one undo brings them back).
 
 ## 5. Check definitions
 
@@ -129,6 +187,7 @@ All deterministic checks share inputs from three already-specced sources: the **
 | `timeline.overlap` | sibling scene windows intersect | info | dayOffset, durationDays | Sibling scenes (same parent) with overlapping windows → info ("may be intentional — parallel POVs; dismiss to record that"). | Default info, one-click dismiss; **not** an error because multi-POV simultaneity is normal. |
 | `timeline.gap` | a jump in story time | info | SceneMeta.dayOffset, timelineMode | Sort scheduled scenes by dayOffset (binder order breaks ties); each adjacent pair whose later dayOffset is **7 or more days** past the earlier one's (start to start) → info finding citing both scenes and the day count, with "declare a time skip on one of the scenes, or accept the gap". `parallel` and `frame` scenes are compared within their own strand. | A pair is skipped when **either** scene is `time-skip`, `dream` or `mythic` (§5.2.1); scenes without an offset are counted as unscheduled, never compared. Info, one-click dismiss. |
 | `plot.unresolved-thread` | declared payoff missing | warning · info | SceneMeta.threads, the binder tree | For each thread a scanned scene declares (§5.5): `payoff` names no document in the project → **warning**; it names a document the scan did not read (empty, archived, outside the Manuscript, or Research not named) → **info**; it names a scanned scene → no finding. The message says what the scene *declares*, never that the thread is open. | Fires only on a declared thread; it never judges whether the payoff works. A scene with no thread is counted in the run note, never compared. |
+| `knowledge.leak` | a character knows before they learn | error | SceneMeta.knows, SceneMeta.learns, `knowledge[]`, dayOffset, timelineMode | For each `knows` pair in a scanned scene (§4.4): no scene at or before it in story order declares `learns` of the same pair → **error**, type `knows-before-learns` when a later scene teaches it ("learns it only in …"), `never-learns` when none does. | Fires only on a declared pair. Story order is the declared one: days when both scenes have them, binder order only where it is reliable; a learning scene whose order against the knowing scene is unknown exempts the pair, and a `dream` or `mythic` scene neither teaches nor is checked (§4.4 exemption table). One finding per scene and pair; the fact group is the character and the fact, so a re-run updates it and a dismissal (`intentional`, `false-positive`, `unreliable-narrator`) stands. |
 | `pov.coverage` | declared POV not named | info | SceneMeta.pov, mention cache | Scene with declared POV whose entry has 0 hits in the scene text → info "POV never named in scene" (normal in deep/first-person POV). | Info severity; dismissal records "deep POV" convention. Unresolvable POV names (not a codex entry) → separate info finding prompting codex creation. |
 | `presence.expected` | declared presence violated | error | SceneMeta.expectedPresent, mention cache | Each expected entry must have ≥1 hit in the scene text; 0 hits → error naming entry + scene. | Only fires on writer-declared expectations — the deterministic analog of a saved-search collection (Scrivener's manual baseline), not a guess. |
 
@@ -144,6 +203,8 @@ interface SceneMeta {
   after?: string[];                // declared dependencies: this scene happens after these docIds (order guarantee, no exact timing — Aeon dependency shape, simplified)
   expectedPresent?: string[];      // codex entry ids that must be mentioned in this scene
   threads?: { id: string; payoff: string; note?: string }[];   // §5.5: threads this scene sets up
+  learns?: { entryId: string; factId: string }[];              // §4.4: characters who learn a fact here
+  knows?: { entryId: string; factId: string }[];               // §4.4: characters who act on a fact here
 }
 ```
 
@@ -199,7 +260,7 @@ Severity defaults by category: Factual/Detail + Timeline/Plot → `error`; Chara
 
 ### 5.4 Check registry (closed for the first landing)
 
-Deterministic: **16 checks** (`packages/coherence/src/checks/index.ts` holds the closed registry, `DETERMINISTIC_CHECK_IDS` in `model.ts` the ids). The eight of §5.1, with their severities: `codex.alias-collisions` (warning), `codex.never-mentioned` (info), `timeline.order-drift` (info), `timeline.relation` (error), `timeline.window` (warning), `timeline.overlap` (info), `pov.coverage` (info), `presence.expected` (error). Then `timeline.gap` (info, §5.1 and §5.2.1), appended so the order of the eight does not move, then the six the screen and media track adds, which the registry runs as their own rows, and `plot.unresolved-thread` (warning or info, §5.5) last:
+Deterministic: **17 checks** (`packages/coherence/src/checks/index.ts` holds the closed registry, `DETERMINISTIC_CHECK_IDS` in `model.ts` the ids). The eight of §5.1, with their severities: `codex.alias-collisions` (warning), `codex.never-mentioned` (info), `timeline.order-drift` (info), `timeline.relation` (error), `timeline.window` (warning), `timeline.overlap` (info), `pov.coverage` (info), `presence.expected` (error). Then `timeline.gap` (info, §5.1 and §5.2.1), appended so the order of the eight does not move, then the six the screen and media track adds, which the registry runs as their own rows, `plot.unresolved-thread` (warning or info, §5.5), and `knowledge.leak` (error, §4.4) last:
 
 - **Screenplay cues** (`script.cue-collision`, info; `script.cue-consistency`, warning) and **storyboard shot coverage** (`script.shot-coverage`, info). They sit inside the coherence module because both packages are leaves below it (screenplay.md §4; storyboard.md §5).
 - **Dialogue branch facts**: `branch.loose-end` (warning), `branch.dead-end` (info) and `dialogue.speaker-unknown` (info). The dialogue package depends on this module, so the app computes these over each container and passes the findings in; each id takes only its own findings. Branch checks run on full scans, and a narrower scan says in its run record that they were not run.
@@ -293,9 +354,12 @@ The v0.1 registry is frozen (agent-harness §3); these three land with the modul
 
 | Command | Params | agentRisk | undo | Notes |
 |---|---|---|---|---|
-| `coherence.setSceneMeta` | `{docId, patch: {pov?, dayOffset?, durationDays?, after_add?, after_remove?, expectedPresent_add?, expectedPresent_remove?, timelineMode?, threads_add?, threads_remove?}}` | write-auto | inverse | Validates pov/expected ids against codex (unknown id → error lists codex entries); dayOffset ≥ 0 integer; `timelineMode` validated against the §5.2.1 enum (unknown → error lists valid values); `threads_add` entries validated as §5.5 says (blank handle, a payoff that is not a document, a handle already on the scene → error names the field), and refused on a folder. |
+| `coherence.setSceneMeta` | `{docId, patch: {pov?, dayOffset?, durationDays?, after_add?, after_remove?, expectedPresent_add?, expectedPresent_remove?, timelineMode?, threads_add?, threads_remove?, learns_add?, learns_remove?, knows_add?, knows_remove?}}` | write-auto | inverse | Validates pov/expected ids against codex (unknown id → error lists codex entries); dayOffset ≥ 0 integer; `timelineMode` validated against the §5.2.1 enum (unknown → error lists valid values); `threads_add` entries validated as §5.5 says (blank handle, a payoff that is not a document, a handle already on the scene → error names the field), and refused on a folder; `learns_add`/`knows_add` pairs validated as §4.4 says (a character entry and a fact of `knowledge[]`; an unknown one → error lists the valid characters or facts), and refused on a folder. |
 | `coherence.setFindingStatus` | `{findingId, status: 'open'\|'dismissed'\|'fixed', reason?, note?}` | write-confirm (agent: only `'fixed'`, per tool 17) | inverse | `dismissed` from the agent side is hard-refused at the gate. |
 | `coherence.discardRun` | `{runId}` | write-confirm | compensable (puts back the run and its untouched findings; undo is by compensation, not an exact inverse) | Removes a run and findings it created **that the user never touched** (no status change, no dismissal); touched findings survive with their history. |
+| `coherence.addKnowledgeFact` | `{text, ruleId?, entryId?}` | write-confirm | compensable (removes the fact) | Mints the `k_` id. `text` is one non-blank sentence of at most 300 characters; `ruleId` must be a world rule and `entryId` a codex entry (an unknown one → error lists the valid ones). |
+| `coherence.editKnowledgeFact` | `{factId, text?, ruleId?, entryId?}` | write-confirm | compensable (puts the fact back as it was) | Changes the fields it names; `null` clears a link. A call that names no field is refused. |
+| `coherence.removeKnowledgeFact` | `{factId}` | write-confirm | compensable (puts back the fact and every `learns`/`knows` pair it took, in one undo group) | Removes the fact and, in the same command, every pair that names it. Never a tool the agent holds. |
 
 `coherence.upsertFindings` exists only as an internal primitive (never a bus command; composed inside scan/review applies — grant inheritance, command-bus §4).
 
@@ -303,7 +367,8 @@ The v0.1 registry is frozen (agent-harness §3); these three land with the modul
 
 - **Findings panel** — third left-rail peer beside Binder and Codex: tab badge = open-finding count (Aeon's badge pattern); group cards (factGrouped) with type chip, severity dot, status; expanding a card shows both passages **side-by-side** (click a quote → `revealRange` in the editor); per-card actions: *Fix with agent* (§6.3), *Dismiss* (reason picker), *Mark fixed*, *Re-open*. A quoted passage's button is named by the passage, and its document is its description. The reason picker takes focus when it opens; Escape or Cancel closes it and returns focus to the card's *Dismiss* control; a dismissal moves focus to the next open card, or to the panel heading when none is open. A scope over the document guard (§6.2) asks in the panel, with *Scan it anyway* beside the scan, for a scan and for *Run again* alike; approving runs the scope that asked.
 - **Run history** section: last N runs (kind, scope, date, findings upserted, tokens for llm runs), actions: re-run same scope, discard run.
-- **Inspector extension:** SceneMeta editor on document nodes — POV picker (codex characters), dayOffset/duration number fields, `after`/`expectedPresent` chip pickers, and a thread list (handle, the scene that pays it off, an optional note; add, edit, remove). Declared-but-unresolvable values flagged inline.
+- **Inspector extension:** SceneMeta editor on document nodes — POV picker (codex characters), dayOffset/duration number fields, `after`/`expectedPresent` chip pickers, a thread list (handle, the scene that pays it off, an optional note; add, edit, remove), and a **Knowledge** section with a *Learns* row and a *Knows* row (a character and a fact each, from pickers). Declared-but-unresolvable values flagged inline.
+- **Knowledge list** beside the findings inbox: add, edit and remove a fact; each fact shows its derived ledger ("ANNA learns in *Scene 7*; BEN learns in *Scene 2*"), each scene name a button that opens the scene. A removal says how many declarations it takes with it.
 - **Settings:** deterministic-check toggles (default all on), default review scope, per-run `maxFindings`.
 - Out of scope first landing: cross-medium consistency (script ↔ storyboard ↔ cutscene — requires the screenplay, dialogue and storyboard artifacts to exist; noted in media-track's plot-coherence item), inline finding marks in prose, Director-Mode-style canon-constrained drafting (backlog — the plan-card context assembly may suffice, a `coherence.preflight` step is the v0.2 option).
 
@@ -345,10 +410,11 @@ Failure modes at each seam: codex caches stale → checks read `docRevision`-sta
 | A1 | Codex mention caches + SceneMeta are sufficient inputs for the deterministic class | Explicit; a richer timeline constraint model (D10) may add shapes; findings model is shape-stable under that upgrade. |
 | A2 | ConStory 5-category taxonomy transfers to fiction long-form | Evidence-class (Microsoft/SUTD 2026, prose benchmarks); subtypes remain model-proposed strings, validated against the category enum. |
 | D13 | Foreshadowing joins the model review as a timeline-plot subtype, not a sixth category (§5.5) | **Delegated default**, the option the proposal recommended: the deterministic half is what makes a thread trackable (an id, a dismissal, survival across edits); the model only judges whether a payoff works, and a category that fires on every declared thread would flood the finding budget. The enum stays five, so no saved finding changes. A sixth category stays open for a later, larger change (A2). |
+| D14 | The knowledge ledger is declared on scenes and derived, not stored per character (§4.4) | **Delegated default**, the issue's recommendation: characters only, scenes only, "never learned" folded into `knowledge.leak`, and the text-matching variant (`knowledge.leak-text`, speaker-aware) left as its own change. Story order follows the declared days over binder position, and a scene in a mode with no reliable order exempts the pair rather than guessing. |
 | A3 | LLM review cost stays acceptable at per-chapter/changed scoping | Estimate-gated at plan time (§5.3); full-manuscript runs are opt-in with the 20-doc guard. Real-cost feedback lands with usage; revisit if extract-call volume dominates. |
 | A4 | Cross-medium consistency (script ↔ storyboard ↔ branches) deferred until the screenplay, dialogue and storyboard artifacts exist | Explicit; the findings model already carries it (`checkId` namespace is open). |
 | A5 | Timeline-mode exemptions are a v0.2 upgrade path | **Resolved** — the exemption table is in §5.2.1 with its evidence complete: StoryLine's Validator source captures the full set membership — `EXEMPT_FROM_DATE_ORDER` = flashback/flash-forward/dream/mythic/**circular**/simultaneous; `EXEMPT_FROM_CONTINUITY` (all continuity) = dream/mythic; `EXEMPT_FROM_GAP` = timeskip/dream/mythic; `timeskip` stays IN the main-timeline order group (it is a gap legitimizer, not a date-order exemption). **`circular` adopted into the §5.2.1 enum (same row as flashback — third exemption set captured, second vendor precedent obtained); `time-skip` adopted with `timeline.gap`** (its only consumer is a gap-magnitude check, which §5.1 now has; the two landed together). StoryLine's doubly-exempt `simultaneous` row recorded, not adopted (Caotang stays conservative). Until the v0.2 landing, writers express the same intent via dismiss-with-reason (`flashback`, §6.3). |
-| D9 | Fact store = codex entries; `worldRules[]` additive for non-entity facts | **Resolved:** both continuity vendors partition facts under entity types the codex already has — no free-floating fact table exists in either; codex entries confirmed as the v0.1-of-track fact boundary; `WorldRule {id, text, origin: manual\|found, source?, verified?}` joins `coherence.json` additively (§4.3). Knowledge ledger (`knowledge.leak`) = v0.2-of-track candidate (backlog). |
+| D9 | Fact store = codex entries; `worldRules[]` additive for non-entity facts | **Resolved:** both continuity vendors partition facts under entity types the codex already has — no free-floating fact table exists in either; codex entries confirmed as the v0.1-of-track fact boundary; `WorldRule {id, text, origin: manual\|found, source?, verified?}` joins `coherence.json` additively (§4.3). The knowledge ledger (`knowledge.leak`) is built on this boundary (§4.4, D14). |
 | D10 | SceneMeta stays day-offsets; Aeon constraint model rejected for v0.1-of-track | **Resolved:** Aeon's effective dependency usage reduces to Finish-to-Start chaining (forum-evidenced), which `after:[]` provides; full dependency-type tail = backlog (v0.2); dual-ordered views (binder = narrative, dayOffset-sort = chronology) confirmed Aeon-native; `timelineMode: 'backstory'` gains a second precedent; fantasy calendars stay display-only epoch labels (v0.3). |
 | D11 | Dismissal-reason picker kept as specced; one tooltip line added | **Resolved:** no vendor publishes a dismissal taxonomy or analytics; the five-reason set covers the craft-literature + mode-list classes; `in-world-lie`/`unreliable-narrator` tooltip distinction added (§6.3); technique-declarations vs don't-ask-again split maps onto the per-scene declaration path (A5). Verdict honestly evidence-thin ("keep as specced", not "validated by data"). |
 | D12 | `timelineMode` enum finalized: `circular` and `time-skip` in | **Resolved:** StoryLine's Validator source gives the second precedent for `circular` (date-order-exempt only). `time-skip` has no consumer without a gap-magnitude check (StoryLine's `checkTimelineGaps` is the class's only shipped implementation), so it landed together with `timeline.gap` (§5.1): threshold 7 story days, info, start to start, either side exempt; the threshold is one constant, and a story-relative or project-set threshold is not built. |

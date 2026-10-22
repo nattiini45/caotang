@@ -94,7 +94,7 @@ The panel on the right shows the selected item:
 - **Status and label**: the menus described above.
 - **Export style**: for a scene, **Normal** or **Section**. A scene marked **Section** prints its title as a heading above it when you export (see [Export](#export)). **Normal** clears it. Undo puts the last choice back.
 - **Codex**: the codex entries attached to the item, with **Attach a codex entry**. The **Mentioned in this document** list shows the codex names the text contains.
-- **Scene declarations**: for a scene, its **Point of view**, **Day offset**, **Duration in days** and **Timeline mode** (Linear, Flashback, Flash-forward, Parallel, Frame, Dream, Mythic, Backstory, Simultaneous, Circular or Time skip), the scenes listed under **Follows these scenes**, and the codex entries listed under **Expected to appear**. The continuity checks read these. Under **Threads this scene sets up** you can name something this scene plants (a **Thread name**, for example "the lamp"), choose the scene it is **Paid off in**, and add a line on **What the payoff is for**. Choose **Edit** to change a thread and **×** to remove it.
+- **Scene declarations**: for a scene, its **Point of view**, **Day offset**, **Duration in days** and **Timeline mode** (Linear, Flashback, Flash-forward, Parallel, Frame, Dream, Mythic, Backstory, Simultaneous, Circular or Time skip), the scenes listed under **Follows these scenes**, and the codex entries listed under **Expected to appear**. The continuity checks read these. Under **Threads this scene sets up** you can name something this scene plants (a **Thread name**, for example "the lamp"), choose the scene it is **Paid off in**, and add a line on **What the payoff is for**. Choose **Edit** to change a thread and **×** to remove it. Under **Knowledge** you can say which character **Learns** a fact in this scene and which is shown to **Know** it. Pick a character and a fact and choose **Add**; **×** takes a pair off. The facts are kept in the Knowledge list of the Findings tab, and a character is a codex entry of type character.
 - **Container settings**: for a dialogue container, described in [Writing dialogue](#writing-dialogue).
 
 ## The editor
@@ -241,6 +241,19 @@ Findings are grouped as **Errors**, **Warnings** and **Notes**. **Show** filters
 - **Fix with agent** starts a turn in the agent to rewrite one passage. The passage is the first quote in the binder: the one in the document that sits higher in the binder, and in that document the earlier one. A finding whose first quote is in a dialogue container has no Fix, so edit that passage in the Ink text. The agent drafts prose and screenplay scenes, not dialogue. On the demo provider, Fix with agent rewrites only the demo's own sample passages, and it refuses any other.
 - **Mark fixed** closes the finding.
 - **Dismiss…** asks you why, and its picker takes focus. Cancel returns focus to the **Dismiss…** button. Dismissing is your call.
+
+### Knowledge
+
+Something a reader is told is not always something a character knows. The **Knowledge** list, under the findings, holds the facts you want to track through the cast, such as "Mara is the heir". Type a fact under **New fact** and choose **Add fact**. **Edit** changes its words and **Remove** takes it away together with every declaration of who learns or knows it (the list says how many), and Undo puts all of it back. Under each fact the list shows where a character learns it and where one is shown knowing it; each scene is a button that opens it.
+
+You say who learns and who knows a fact on the scene, in its **Scene declarations** under **Knowledge**. A scan then reports a character who knows a fact in a scene before any scene at or before it teaches them. It names both scenes, or says that the character never learns it. The check reads only what you declared:
+
+- The order is the binder's, unless both scenes have a **Day offset**, and then the days decide. A flashback that teaches a secret on an earlier day counts as before a present-day scene.
+- A scene whose place in the story is not known, such as a flashback with no **Day offset**, is left out, and the scan report counts it as not compared.
+- A **Dream** or **Mythic** scene teaches no one, and what it shows a character know is not checked.
+- A scene that is empty or archived is not read.
+
+The scan does not look for the fact in a character's lines or in the prose. Dismiss a finding with a reason when the early knowledge is meant, for example a character who guessed.
 
 The **Run history** lists each run. **Run again** repeats a run with the same scope and the checks you have on now. **Discard run** removes a run, and Undo puts it back. The Export dialog's Review group writes the findings and runs as a coherence report, in Markdown or JSON.
 

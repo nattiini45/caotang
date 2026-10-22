@@ -20,6 +20,9 @@ export const EVIDENCE_QUOTE_LIMIT = 300;
 /** §3 `WorldRule.text`: "≤ 300 chars". */
 export const WORLD_RULE_TEXT_LIMIT = 300;
 
+/** §4.4 `KnowledgeFact.text`: "one sentence, ≤ 300 chars". */
+export const KNOWLEDGE_TEXT_LIMIT = 300;
+
 /**
  * Engine assumption, not a spec value: §3 says run history is "capped (§6)" and §6
  * names no number. Fifty keeps the Run history section short and the file small.
@@ -68,7 +71,7 @@ export type WorldRuleOrigin = (typeof WORLD_RULE_ORIGINS)[number];
  * The deterministic registry, closed (§5.4: adding a check is a spec change with fixtures). The first eight are §5.1's.
  * Six more come from the media-track specs, which each say they ride this rule: screenplay.md §4 adds two
  * (`script.cue-*`), storyboard.md §5 adds one (`script.shot-coverage`), and dialogue-narrative.md §5 adds three
- * (`branch.*` and `dialogue.speaker-unknown`). `timeline.gap` (§5.1) and `plot.unresolved-thread` (§5.5) are the last two. The count is 8 + 2 + 1 + 3 + 1 + 1 = 16.
+ * (`branch.*` and `dialogue.speaker-unknown`). `timeline.gap` (§5.1), `plot.unresolved-thread` (§5.5) and `knowledge.leak` (§4.4) are the last three. The count is 8 + 2 + 1 + 3 + 1 + 1 + 1 = 17.
  * New ids are appended, so the order of the first eight, which the run report and the check order depend on, does not move.
  */
 export const DETERMINISTIC_CHECK_IDS = [
@@ -88,6 +91,7 @@ export const DETERMINISTIC_CHECK_IDS = [
   'dialogue.speaker-unknown',
   'timeline.gap',
   'plot.unresolved-thread',
+  'knowledge.leak',
 ] as const;
 export type DeterministicCheckId = (typeof DETERMINISTIC_CHECK_IDS)[number];
 
@@ -116,6 +120,7 @@ export const DETERMINISTIC_CHECK_LABELS: Readonly<Record<DeterministicCheckId, s
   'dialogue.speaker-unknown': 'A dialogue speaker matches no codex entry',
   'timeline.gap': 'A scene is days after the scene before it',
   'plot.unresolved-thread': 'A thread’s declared payoff is not in the manuscript',
+  'knowledge.leak': 'A character knows something before they learn it',
 };
 
 /** §5.3's five ConStory categories. The enum is closed; subtypes are model-proposed strings. */
@@ -237,7 +242,13 @@ export interface SceneThread {
   note?: string;
 }
 
-/** §5.2 plus §5.2.1 and §5.5. Keys of `sceneMeta` are binder node ids: documents, and folders for window spans. */
+/** §4.4: a character (a codex entry id) and a knowledge fact (a `k_` id). The unit `learns` and `knows` are lists of. */
+export interface KnowledgeLink {
+  entryId: string;
+  factId: string;
+}
+
+/** §5.2 plus §5.2.1, §5.5 and §4.4. Keys of `sceneMeta` are binder node ids: documents, and folders for window spans. */
 export interface SceneMeta {
   /** A codex entry id (§5.2). Free text is accepted and reported as an unanchored finding. */
   pov?: string;
@@ -253,6 +264,10 @@ export interface SceneMeta {
   timelineMode?: TimelineMode;
   /** §5.5. Additive: absent and an empty list both mean the scene declares no thread. */
   threads?: SceneThread[];
+  /** §4.4. Additive: absent and an empty list both mean the scene teaches no one anything. */
+  learns?: KnowledgeLink[];
+  /** §4.4. Additive: absent and an empty list both mean the scene shows no one acting on a fact. */
+  knows?: KnowledgeLink[];
 }
 
 export interface WorldRule {
@@ -264,6 +279,20 @@ export interface WorldRule {
   origin: WorldRuleOrigin;
   source?: Evidence;
   verified?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** §4.4: a fact whose spread through the cast is tracked. Which characters know it, and since when, is derived from the scenes' `learns`. */
+export interface KnowledgeFact {
+  /** "k_" + 10 base32. */
+  id: string;
+  /** One sentence, at most {@link KNOWLEDGE_TEXT_LIMIT} characters. */
+  text: string;
+  /** The world rule this fact restates, when the writer linked one. */
+  ruleId?: string;
+  /** The codex entry this fact is about, when the writer linked one. */
+  entryId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -280,6 +309,8 @@ export interface CoherenceFile {
   runs: CoherenceRun[];
   sceneMeta: Record<string, SceneMeta>;
   worldRules: WorldRule[];
+  /** §4.4. Additive: a file without the key loads as an empty list. */
+  knowledge: KnowledgeFact[];
   reviewState: Record<string, ReviewStateEntry>;
 }
 
@@ -290,6 +321,7 @@ export function emptyCoherenceFile(): CoherenceFile {
     runs: [],
     sceneMeta: {},
     worldRules: [],
+    knowledge: [],
     reviewState: {},
   };
 }

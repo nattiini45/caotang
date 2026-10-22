@@ -134,7 +134,7 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - Subscribers re-render from the store, never from command params. Why: one source of truth. [delegated]
 - Every executed command is logged with human titles, issuer, turn and undo group; the log exports as Markdown. Why: an auditable trail in the writer's words. [delegated]
 - Every agent write is named in the writer's words on the Undo button and in the activity log. Why: the writer can tell what will be undone. [delegated]
-- The registry is the single declaration seam: 46 command names, tabulated in command-bus §9. Why: one place to add a command, enforced by the compiler and a parity test. [delegated]
+- The registry is the single declaration seam: 49 command names, tabulated in command-bus §9. Why: one place to add a command, enforced by the compiler and a parity test. [delegated]
 - Whole-manuscript and partial compiles are two commands: `export.compile` (manuscript or a saved recipe) and `export.compileSelection` (named nodes). Why: an omitted scope must never silently mean "everything". [owner]
 - `project.deleteNode` is UI-only with a confirm dialog; codex deletion is UI-only too. Why: destructive operations stay with the writer. [delegated]
 - The fixed roots (root, manuscript, research) cannot be moved or deleted; the project root is refused as a parent; the manuscript and research roots cannot be renamed. Why: the binder shows them under fixed names. [delegated]
@@ -307,6 +307,8 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - Dismissal is a writer verdict; the agent may set a finding only to fixed. Why: judgment calls stay with the writer. [delegated]
 - Codex entries are the fact store; non-entity facts go in additive `worldRules[]`. Why: no free-floating fact table. [delegated]
 - A screenplay cue counts as a mention: the larger of cue count and detector count, never their sum. Why: no double counting. [delegated]
+- Who knows what is declared on scenes (a character learns a fact here, acts on it there) and the ledger is derived from the declarations, not stored per character; the quick scan reports a character who knows a fact before any scene at or before it teaches them. Why: one source of truth, and a check that fires only on what the writer declared. [delegated]
+- Story order for knowledge follows declared days when both scenes have them and binder order only where it is reliable; a scene in a mode with no reliable order exempts the pair, and a dream or mythic scene neither teaches nor is checked. Why: a flashback that teaches a secret must not make chapter 3 look wrong, and an order nobody declared is not guessed. [delegated]
 
 ## Furniture and goals
 

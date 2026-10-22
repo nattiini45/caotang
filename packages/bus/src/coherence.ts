@@ -63,7 +63,13 @@ export interface SceneThread {
   note?: string;
 }
 
-/** §5.2 plus §5.2.1 and §5.5: one document's declarations. Absent keys are "not declared". */
+/** §4.4: a character (a codex entry id) and a knowledge fact (a `k_` id). The unit `learns` and `knows` are lists of. */
+export interface KnowledgeLinkRecord {
+  entryId: string;
+  factId: string;
+}
+
+/** §5.2 plus §5.2.1, §5.5 and §4.4: one document's declarations. Absent keys are "not declared". */
 export interface SceneMetaRecord {
   pov?: string;
   dayOffset?: number;
@@ -73,6 +79,10 @@ export interface SceneMetaRecord {
   timelineMode?: string;
   /** Kept sorted by handle, so an add and the undo of a remove leave the list as it was. */
   threads?: SceneThread[];
+  /** §4.4: characters who learn a fact in this scene. Kept in the order they were declared. */
+  learns?: KnowledgeLinkRecord[];
+  /** §4.4: characters who act on a fact in this scene. */
+  knows?: KnowledgeLinkRecord[];
 }
 
 /** §7.1's `patch`. `null` on a scalar clears it; `timelineMode` has no clear form (`linear` is the clear). */
@@ -89,6 +99,13 @@ export interface ScenePatch {
   threads_add?: SceneThread[];
   /** §5.5: handles to remove, matched without regard to case. Applied before `threads_add`, so the two together edit a thread. */
   threads_remove?: string[];
+  /** §4.4: characters who learn a fact here. A character and a fact that the codex and the knowledge list hold; a pair already declared is left as it is. */
+  learns_add?: KnowledgeLinkRecord[];
+  /** §4.4: pairs to remove. A pair that is not declared is ignored. Applied before `learns_add`. */
+  learns_remove?: KnowledgeLinkRecord[];
+  /** §4.4: characters who act on a fact here. */
+  knows_add?: KnowledgeLinkRecord[];
+  knows_remove?: KnowledgeLinkRecord[];
 }
 
 /** The closed set of `patch` keys (§7.1). A key outside it is refused with the list of keys that are valid. */
@@ -103,11 +120,18 @@ export const SCENE_PATCH_KEYS = [
   'timelineMode',
   'threads_add',
   'threads_remove',
+  'learns_add',
+  'learns_remove',
+  'knows_add',
+  'knows_remove',
 ] as const;
 
 /** What a patch is checked against: the codex entries by id, and the documents a dependency may name. */
 export interface SceneMetaContext {
-  readonly entries: readonly { readonly id: string; readonly name: string }[];
+  /** The codex entries. `type` is read for `learns` and `knows`, which take a character (§4.4). */
+  readonly entries: readonly { readonly id: string; readonly name: string; readonly type?: string }[];
+  /** The knowledge facts a `learns` or `knows` may name (§4.4). Omitted means there is none. */
+  readonly facts?: readonly { readonly id: string; readonly text: string }[];
   /** Document ids a dependency may name. Omitted means no check is made. */
   readonly documentIds?: ReadonlySet<string>;
 }
@@ -205,7 +229,80 @@ export function applySceneMetaPatch(
     else delete next.threads;
   }
 
+  for (const field of ['learns', 'knows'] as const) {
+    if (patch[`${field}_add`] === undefined && patch[`${field}_remove`] === undefined) continue;
+    const links = applyKnowledgeLinks(field, next[field] ?? [], patch, context);
+    if (!links.ok) return links;
+    if (links.links.length > 0) next[field] = links.links;
+    else delete next[field];
+  }
+
   return { ok: true, meta: next };
+}
+
+function linkKey(link: KnowledgeLinkRecord): string {
+  return JSON.stringify([link.entryId, link.factId]);
+}
+
+function listCharacters(entries: SceneMetaContext['entries']): string {
+  const characters = entries.filter((entry) => entry.type === 'character');
+  if (characters.length === 0) return 'the codex has no character; create the entry first';
+  return `valid characters are ${characters.map((e) => `${e.name} (${e.id})`).join(', ')}`;
+}
+
+function listFacts(facts: NonNullable<SceneMetaContext['facts']>): string {
+  if (facts.length === 0) return 'there is no knowledge fact; add one first';
+  return `valid facts are ${facts.map((f) => `"${f.text}" (${f.id})`).join(', ')}`;
+}
+
+/**
+ * §4.4: removes the named pairs, then adds the new ones, keeping the order declared. A pair names a character of the codex and a
+ * fact of the knowledge list, and every refusal names the field and lists what would have been valid.
+ */
+function applyKnowledgeLinks(
+  field: 'learns' | 'knows',
+  current: readonly KnowledgeLinkRecord[],
+  patch: ScenePatch,
+  context: SceneMetaContext,
+): { readonly ok: true; readonly links: KnowledgeLinkRecord[] } | { readonly ok: false; readonly error: string } {
+  const readPair = (raw: unknown, where: string): KnowledgeLinkRecord | string => {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return `${where} must be an object with an entryId and a factId`;
+    const { entryId, factId } = raw as Partial<Record<keyof KnowledgeLinkRecord, unknown>>;
+    if (typeof entryId !== 'string' || entryId.trim() === '') return `${where}.entryId must be the id of a character in the codex`;
+    if (typeof factId !== 'string' || factId.trim() === '') return `${where}.factId must be the id of a knowledge fact`;
+    return { entryId, factId };
+  };
+  const removing = new Set<string>();
+  const removed = patch[`${field}_remove`];
+  if (removed !== undefined && !Array.isArray(removed)) return { ok: false, error: `${field}_remove must be a list of pairs` };
+  for (const [index, raw] of (removed ?? []).entries()) {
+    const pair = readPair(raw, `${field}_remove[${index}]`);
+    if (typeof pair === 'string') return { ok: false, error: pair };
+    removing.add(linkKey(pair));
+  }
+  const kept = new Map<string, KnowledgeLinkRecord>();
+  for (const link of current) if (!removing.has(linkKey(link))) kept.set(linkKey(link), link);
+
+  const added = patch[`${field}_add`];
+  if (added !== undefined && !Array.isArray(added)) return { ok: false, error: `${field}_add must be a list of pairs` };
+  for (const [index, raw] of (added ?? []).entries()) {
+    const where = `${field}_add[${index}]`;
+    const pair = readPair(raw, where);
+    if (typeof pair === 'string') return { ok: false, error: pair };
+    const entry = context.entries.find((candidate) => candidate.id === pair.entryId);
+    if (entry === undefined) {
+      return { ok: false, error: `${where}.entryId "${pair.entryId}" is not a codex entry; ${listCharacters(context.entries)}` };
+    }
+    if (entry.type !== 'character') {
+      return { ok: false, error: `${where}.entryId names ${entry.name}, which is not a character; ${listCharacters(context.entries)}` };
+    }
+    const facts = context.facts ?? [];
+    if (!facts.some((fact) => fact.id === pair.factId)) {
+      return { ok: false, error: `${where}.factId "${pair.factId}" is not a knowledge fact; ${listFacts(facts)}` };
+    }
+    if (!kept.has(linkKey(pair))) kept.set(linkKey(pair), pair);
+  }
+  return { ok: true, links: [...kept.values()] };
 }
 
 /** The key two handles are compared by: trimmed, and without regard to case, as the finding's fact group lowercases it. */
@@ -308,6 +405,13 @@ export function inverseScenePatch(before: SceneMetaRecord | undefined, forward: 
     // A thread the patch edited is in both lists: it is removed as it is now, and added as it was.
     inverse.threads_add = [...was].filter(([key, thread]) => !same(thread, now.get(key))).map(([, thread]) => thread);
     inverse.threads_remove = [...now].filter(([key, thread]) => !same(thread, was.get(key))).map(([, thread]) => thread.id);
+  }
+  for (const field of ['learns', 'knows'] as const) {
+    if (forward[`${field}_add`] === undefined && forward[`${field}_remove`] === undefined) continue;
+    const was = new Map((prior[field] ?? []).map((link) => [linkKey(link), link] as const));
+    const now = new Map((after[field] ?? []).map((link) => [linkKey(link), link] as const));
+    inverse[`${field}_add`] = [...was].filter(([key]) => !now.has(key)).map(([, link]) => link);
+    inverse[`${field}_remove`] = [...now].filter(([key]) => !was.has(key)).map(([, link]) => link);
   }
   return inverse;
 }

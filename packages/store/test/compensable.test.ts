@@ -851,7 +851,8 @@ describe('the registration refusal is never reached, because the captures are co
     // project.deleteGoal): 26 + 4 = 30. The run history adds the run discard (compensable undo, coherence.md §7.1): 30 + 1 = 31.
     // The script imports add the two imports and the container settings, all compensable and needing no port: 31 + 3 = 34.
     // The skill commands add `skill.write`, `skill.delete` and `skill.setEnabled` (`skill.import` needs the host's staging): 34 + 3 = 37.
-    expect(implemented).toHaveLength(37);
+    // The three knowledge commands are compensable and need no port: 37 + 3 = 40.
+    expect(implemented).toHaveLength(40);
   });
 
   it('the sink is not consulted for notes, and a notes undo needs no store', () => {

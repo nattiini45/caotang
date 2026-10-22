@@ -3,7 +3,7 @@
  *
  * One generator family for every id in the system:
  *   `p_` project · `n_` tree node · `c_` codex entry · `cmd_` command
- *   · `f_` coherence finding · `r_` coherence run · `w_` world rule (coherence.md §3, §4.1, §4.3)
+ *   · `f_` coherence finding · `r_` coherence run · `w_` world rule · `k_` knowledge fact (coherence.md §3, §4.1, §4.3, §4.4)
  *   · `prv_` provider profile (provider-gateway.md — the gateway mints its own today)
  *
  * 10 chars of Crockford base32 = 32^10 ≈ 10^15. The alphabet omits I, L, O and U
@@ -34,12 +34,12 @@ export const CROCKFORD_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 export const CROCKFORD_ALPHABET_ESCAPED = CROCKFORD_ALPHABET.replace(/[\\^\]-]/g, '\\$&');
 
 /**
- * Every prefix the family uses. `f`, `r` and `w` are the coherence module's
- * (coherence.md §3, §4.1, §4.3): a finding, a run and a world rule are minted by
+ * Every prefix the family uses. `f`, `r`, `w` and `k` are the coherence module's
+ * (coherence.md §3, §4.1, §4.3, §4.4): a finding, a run, a world rule and a knowledge fact are minted by
  * this generator, not by a caller that borrows another family's prefix and swaps it.
  * `prv` is the provider profile's (the gateway's `prv_` ids, PROFILE_ID_PATTERN).
  */
-export type IdPrefix = 'p' | 'n' | 'c' | 'cmd' | 'f' | 'r' | 'w' | 'prv';
+export type IdPrefix = 'p' | 'n' | 'c' | 'cmd' | 'f' | 'r' | 'w' | 'k' | 'prv';
 
 /**
  * The number of characters an id's body carries, after its prefix.

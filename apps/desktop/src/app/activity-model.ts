@@ -39,6 +39,9 @@ export const COMMAND_TITLES: Readonly<Record<CommandName, string>> = {
   'coherence.setSceneMeta': 'Scene declarations changed',
   'coherence.setFindingStatus': 'Finding status changed',
   'coherence.discardRun': 'Check run discarded',
+  'coherence.addKnowledgeFact': 'Knowledge fact added',
+  'coherence.editKnowledgeFact': 'Knowledge fact changed',
+  'coherence.removeKnowledgeFact': 'Knowledge fact removed',
   // The external call, and the storyboard shot commands (command-bus §9, the closed set's additions).
   'mcp.invoke': 'External tool called',
   'storyboard.create': 'Storyboard created',

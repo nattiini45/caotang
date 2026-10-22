@@ -25,7 +25,12 @@ import { COMMAND_NAMES, type CommandName, type CommandRegistry } from './command
 import * as descriptors from './descriptors.js';
 import * as projectDescriptors from './descriptors-project.js';
 import * as furnitureDescriptors from './descriptors-furniture.js';
-import { coherenceDiscardRun } from './descriptors-coherence.js';
+import {
+  coherenceAddKnowledgeFact,
+  coherenceDiscardRun,
+  coherenceEditKnowledgeFact,
+  coherenceRemoveKnowledgeFact,
+} from './descriptors-coherence.js';
 import * as shotImageDescriptors from './descriptors-shot-image.js';
 import * as scriptDescriptors from './descriptors-script.js';
 import * as skillDescriptors from './descriptors-skills.js';
@@ -88,6 +93,10 @@ export function buildRegistry(): CommandRegistry {
     'coherence.setFindingStatus': { descriptor: descriptors.coherenceSetFindingStatus },
     // The run history's removal. Its descriptor is in descriptors-coherence.ts, its apply in the store (commands-coherence.ts).
     'coherence.discardRun': { descriptor: coherenceDiscardRun },
+    // The knowledge facts. Descriptors in descriptors-coherence.ts, applies in the store (commands-coherence.ts).
+    'coherence.addKnowledgeFact': { descriptor: coherenceAddKnowledgeFact },
+    'coherence.editKnowledgeFact': { descriptor: coherenceEditKnowledgeFact },
+    'coherence.removeKnowledgeFact': { descriptor: coherenceRemoveKnowledgeFact },
     // The external-call command. Descriptor only: its apply reaches a server, so the store
     // registry injects it with the client's own descriptor (`ProjectCommandOptions.mcpInvoke`).
     'mcp.invoke': { descriptor: descriptors.mcpInvoke },
