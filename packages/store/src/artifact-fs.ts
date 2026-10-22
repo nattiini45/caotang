@@ -178,12 +178,22 @@ export class MemoryArtifactFs implements ArtifactFs {
       if (rest === '' || rest.includes('/')) continue;
       names.add(rest);
     }
+    // A file written without `ensureDir` still has a directory, as it does on a real file system.
+    for (const path of this.files.keys()) {
+      if (!path.startsWith(prefix)) continue;
+      const slash = path.indexOf('/', prefix.length);
+      if (slash > prefix.length) names.add(path.slice(prefix.length, slash));
+    }
     return [...names].sort();
   }
 
   async exists(path: string): Promise<boolean> {
     assertContained(path);
-    return this.files.has(path) || this.dirs.has(path);
+    if (this.files.has(path) || this.dirs.has(path)) return true;
+    // A directory that holds a file exists, whether or not `ensureDir` was called for it.
+    const prefix = `${path}/`;
+    for (const key of this.files.keys()) if (key.startsWith(prefix)) return true;
+    return false;
   }
 
   async ensureDir(dir: string): Promise<void> {

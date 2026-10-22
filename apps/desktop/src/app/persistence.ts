@@ -42,6 +42,7 @@ import {
   RuntimeStoreStaleError,
   commitProject,
   writeDocumentBody,
+  writeProjectSkills,
   writeProjectState,
   type ProjectState,
   type RuntimeStore,
@@ -211,6 +212,7 @@ export class Persistence {
         );
       }
     }
+    if (plan.skills !== null) await writeProjectSkills(this.store, this.projectId, plan.skills);
     if (plan.manifest !== null) {
       await commitProject(this.store, {
         projectId: this.projectId,

@@ -60,6 +60,11 @@ export const COMMAND_TITLES: Readonly<Record<CommandName, string>> = {
   'screenplay.import': 'Script imported',
   'dialogue.importInk': 'Ink story imported',
   'dialogue.setMeta': 'Dialogue settings changed',
+  // The project's skills (extensibility.md §10).
+  'skill.import': 'Skill imported',
+  'skill.write': 'Skill saved',
+  'skill.delete': 'Skill deleted',
+  'skill.setEnabled': 'Skill turned on or off',
 };
 
 export function titleOf(command: string): string {

@@ -1169,7 +1169,8 @@ describe('the three view commands, through the shipped registry with no fakes', 
     // The run history adds `coherence.discardRun`, a descriptor here with its apply in the store: 37 + 1 = 38.
     // The storyboard's image import adds `shot.importImage`, a descriptor here with its apply in the store: 38 + 1 = 39. The
     // script imports add `screenplay.import`, `dialogue.importInk` and `dialogue.setMeta`, descriptors here and applies in the store: 39 + 3 = 42.
-    expect(COMMAND_NAMES.length).toBe(42);
+    // The project's skills add `skill.import`, `skill.write`, `skill.delete` and `skill.setEnabled`, descriptors here and applies in the store: 42 + 4 = 46.
+    expect(COMMAND_NAMES.length).toBe(46);
   });
 
   it('an agent may emit a view command, and it is granted as a read', () => {

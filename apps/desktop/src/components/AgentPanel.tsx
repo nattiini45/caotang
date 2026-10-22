@@ -32,6 +32,7 @@ import type { ProjectSession } from '../app/session.js';
 import { useAssetRecords } from '../media/hooks.js';
 import { ConfirmDialog, EmptyState, useReport, useSession } from './shared.js';
 import { AgentQueue, type HeldNote } from './AgentQueue.js';
+import { openDialog } from './dialog-requests.js';
 import { PlanCard } from './PlanCard.js';
 import { TaskChecklist } from './TaskChecklist.js';
 
@@ -60,6 +61,7 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
   // The images are listed when they can have changed, not on every change of the session (media/hooks.ts).
   const pictures = useAssetRecords(session.assets.artifactFs(), session.assetsVersion());
   const pictureNames = useMemo(() => new Map([...pictures.values()].map((picture) => [picture.id, picture.fileName] as const)), [pictures]);
+  const waitingSkills = session.skills().waiting;
   const [intent, setIntent] = useState('');
   const [restoring, setRestoring] = useState<PendingRestore | null>(null);
   // A note the writer wrote while a card waits, until they choose what happens to it and the card.
@@ -208,6 +210,16 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
               </button>
             ) : null}
           </form>
+
+          {/* Skills the writer has not read and approved are not offered to the agent (extensibility.md §10). The panel says how many wait. */}
+          {waitingSkills > 0 ? (
+            <p className="agent-skills-note" data-testid="agent-skills-note">
+              {waitingSkills === 1 ? '1 skill is waiting for you to approve it, so the agent cannot use it yet. ' : `${waitingSkills} skills are waiting for you to approve them, so the agent cannot use them yet. `}
+              <button type="button" className="status-link" onClick={() => openDialog({ kind: 'skills' })}>
+                Review skills
+              </button>
+            </p>
+          ) : null}
 
           <AgentQueue agent={agent} snapshot={snapshot} held={heldNow} cardKey={cardKey} onHold={setHeld} onRelease={() => setHeld(null)} />
 

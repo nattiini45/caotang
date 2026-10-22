@@ -256,6 +256,9 @@ importers:
       '@caotang/screenplay':
         specifier: workspace:*
         version: link:../../packages/screenplay
+      '@caotang/skills':
+        specifier: workspace:*
+        version: link:../../packages/skills
       '@caotang/store':
         specifier: workspace:*
         version: link:../../packages/store
@@ -279,7 +282,11 @@ importers:
         specifier: ^19.3.0
         version: 19.3.0(@types/react@19.3.0)
 
-  packages/bus: {}
+  packages/bus:
+    dependencies:
+      '@caotang/skills':
+        specifier: workspace:*
+        version: link:../skills
 
   packages/codex:
     dependencies:
@@ -614,6 +621,9 @@ importers:
       '@caotang/mcp-client':
         specifier: workspace:*
         version: link:../mcp-client
+      '@caotang/skills':
+        specifier: workspace:*
+        version: link:../skills
       '@caotang/store':
         specifier: workspace:*
         version: link:../store
@@ -727,6 +737,12 @@ importers:
         specifier: 1.1.1
         version: 1.1.1
 
+  packages/skills:
+    dependencies:
+      '@caotang/ids':
+        specifier: workspace:*
+        version: link:../ids
+
   packages/store:
     dependencies:
       '@caotang/bus':
@@ -738,6 +754,9 @@ importers:
       '@caotang/screenplay':
         specifier: workspace:*
         version: link:../screenplay
+      '@caotang/skills':
+        specifier: workspace:*
+        version: link:../skills
       fflate:
         specifier: 0.8.3
         version: 0.8.3

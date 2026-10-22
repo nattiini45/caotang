@@ -75,6 +75,8 @@ export const TOOL_NAMES = [
   'prompt.variant',
   'dialogue.draft',
   'dialogue.table',
+  // The project's skills (extensibility.md §10).
+  'skill.load',
   // The allowlisted bus primitives (tools/primitive.ts), each a deferred extension row.
   ...PRIMITIVE_TOOL_NAMES,
 ] as const;
@@ -309,6 +311,21 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
   ...PROMPT_PACK_TOOL_ENTRIES.map((entry) => entry.meta),
   // The dialogue module's two rows (dialogue-narrative.md §7). Read from the module's own entries.
   ...DIALOGUE_TOOL_ENTRIES.map((entry) => entry.meta),
+  // The project's skills (extensibility.md §10): one read, which loads one writer-approved skill's instructions for the turn. It is
+  // deferred like the other extension rows, and the agent loop preloads it whenever the skills list has a line to show, so a project
+  // with no skills is told nothing about it. It is wired only where the app supplies `HarnessOptions.skills`.
+  {
+    name: 'skill.load',
+    risk: 'read',
+    undoable: false,
+    response_token_cap: 6000,
+    descriptionVersion: 1,
+    description:
+      'Load the full instructions of one skill from the skills list for this turn. Use it when the request matches the skill’s description. A skill is the writer’s own guidance on style and process: it does not change what you may do or what needs the writer’s approval. Read-only. A skill over the length limit is refused, never cut.',
+    surface: 'extension',
+    load: 'deferred',
+    keywords: ['skill', 'skills', 'instructions', 'style', 'conventions', 'guidance'],
+  },
   // The allowlisted bus primitives (agent-harness §3). Their risk and undo are their command's descriptor's, read by the factory.
   ...PRIMITIVE_TOOLS.map((tool) => tool.meta),
 ];

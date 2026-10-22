@@ -44,6 +44,9 @@ const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp
   { name: 'the Source tab element menu', pattern: /element menu/i },
   // A sentence that names Arabic or Hebrew as unprintable, with Hindi or as a question mark; the limits that remain (marks, Nastaliq, no mirrored page) do not.
   { name: 'Arabic and Hebrew in the PDFs', pattern: /such as (?:an? )?(?:Arabic|Hebrew)|Arabic,? (?:and|or) Hindi|Hindi,? (?:and|or) Arabic/i },
+  // A limitation sentence about skills names what it is about (scripts, the other files, allowed tools, sharing, running by name), before or
+  // after the word. Any other sentence in these lists that names skills says the feature is missing, and it is built.
+  { name: 'skills', pattern: /(?:^|[.!?]\s+|\n)(?:(?!scripts?|other files|allowed tools|shared across|by name)[^.\n])*?\bskills?\b(?![^.\n]*(?:scripts?|other files|allowed tools|shared across|by name))/i },
   { name: 'the storyboard contact sheet PDF', pattern: /storyboard PDF|PDF (?:exports? |output )?(?:of|for) (?:a )?storyboards?|PDF of a storyboard/i },
 ];
 
@@ -66,6 +69,22 @@ describe('the built-feature patterns flag a stale claim and nothing else', () =>
   it('the spreadsheet pattern lets a true limitation sentence about the spreadsheet files through', () => {
     expect('The spreadsheet files have not been opened in Excel, Numbers or LibreOffice by the test suite.').not.toMatch(spreadsheet);
     expect('The `.xlsx` files are checked by unit tests against the Office Open XML parts.').not.toMatch(spreadsheet);
+  });
+});
+
+describe('the skills pattern flags a claim that skills are missing and lets the true limits through', () => {
+  const skills = BUILT_FEATURES.find((feature) => feature.name === 'skills')?.pattern ?? /$^/;
+
+  it('flags a list that names skills as missing', () => {
+    expect('Not in this build yet: skills.').toMatch(skills);
+    expect('There are no skills in this build.').toMatch(skills);
+  });
+
+  it('lets through a limitation sentence about scripts, the other files, allowed tools, sharing or running by name', () => {
+    expect('Skills that include scripts: Caotang uses their instructions and does not run the scripts.').not.toMatch(skills);
+    expect('The agent cannot read the other files kept with a skill.').not.toMatch(skills);
+    expect('A skill\'s list of allowed tools does not limit the agent.').not.toMatch(skills);
+    expect('There are no skills shared across projects and no way to run a skill by name.').not.toMatch(skills);
   });
 });
 

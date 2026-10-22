@@ -120,6 +120,13 @@ export const COMMAND_NAMES = [
   'screenplay.import',
   'dialogue.importInk',
   'dialogue.setMeta',
+  // The project's skills (extensibility.md §10): the writer's own instructions for the agent. All four are `issuedBy: 'user'` only
+  // (`agentRisk: 'never'`), so an agent never installs, edits, enables or removes a skill. Their applies are the store's
+  // (`commands-skills.ts`), and `skill.import` needs the staged files the host holds.
+  'skill.import',
+  'skill.write',
+  'skill.delete',
+  'skill.setEnabled',
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
@@ -245,10 +252,20 @@ export interface ValidationSnapshot {
     readonly recipes?: readonly { readonly name: string; readonly includeRootIds?: readonly string[] }[];
     /** The project title and identity, read by `project.setMetadata`'s refusals. Optional, like the rest of the block. */
     readonly project?: { readonly name?: string };
+    /** The skills the writer turned off (extensibility.md §10), by name. Additive, so absent means every skill is on. */
+    readonly disabledSkills?: readonly string[];
   };
   readonly documents: ReadonlyMap<string, ValidationDocument>;
   /** The coherence file, when one is open. Additive, like `codex` — absent means no file. */
   readonly coherence?: ValidationCoherence;
+  /** The project's skills, by folder name (extensibility.md §10). Additive — absent means none. */
+  readonly skills?: ReadonlyMap<string, readonly ValidationSkillFile[]>;
+}
+
+/** One file of a skill as a validate reads it: its path inside the skill folder and how long its bytes are. */
+export interface ValidationSkillFile {
+  readonly path: string;
+  readonly bytes: { readonly length: number };
 }
 
 export interface CommandDescriptor<P = Record<string, unknown>> {
@@ -540,6 +557,10 @@ export interface CommandParams {
   'screenplay.import': ScreenplayImportParams;
   'dialogue.importInk': DialogueImportInkParams;
   'dialogue.setMeta': DialogueSetMetaParams;
+  'skill.import': SkillImportParams;
+  'skill.write': SkillWriteParams;
+  'skill.delete': SkillDeleteParams;
+  'skill.setEnabled': SkillSetEnabledParams;
 }
 
 /**
@@ -828,6 +849,21 @@ export type ProjectSetMetadataParams = {
  * would travel as JSON and be copied into the undo group), so the host stages them and names the staging id here.
  */
 export type ProjectImportAssetParams = { stagingId: string; target: 'cover' };
+
+/**
+ * `skill.import` (extensibility.md §10): take one skill folder the writer chose into the project. The files are not params. The host
+ * stages them and names the staging id, as it does an image, and the apply refuses a name that is taken or a folder over a cap.
+ */
+export type SkillImportParams = { stagingId: string };
+
+/** `skill.write`: one text file of a skill, created or replaced. A new skill starts with its `SKILL.md`. */
+export type SkillWriteParams = { name: string; path: string; text: string };
+
+/** `skill.delete`: the whole skill, every file of it. */
+export type SkillDeleteParams = { name: string };
+
+/** `skill.setEnabled`: whether the agent may be told about the skill. The skill's files are not touched. */
+export type SkillSetEnabledParams = { name: string; enabled: boolean };
 
 /** The two vocabularies (project-format.md §2). */
 export type VocabularyKind = 'status' | 'label';

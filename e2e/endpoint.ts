@@ -18,6 +18,8 @@ export interface FakeRequest {
   readonly system: string;
   readonly assistantTurns: number;
   readonly user: string;
+  /** The text of the tool results the request carries (the native wire answers each call with a message of its own). */
+  readonly tool: string;
   /**
    * The tool names the request declared, when it is a native-wire call. The generic preset's capability row reports
    * `tools`, so the app's planner speaks tool calls to the fake — a reply that wants a plan must send `toolCalls`,
@@ -64,6 +66,10 @@ function parse(route: Route): FakeRequest {
     assistantTurns: messages.filter((message) => message.role === 'assistant').length,
     user: messages
       .filter((message) => message.role === 'user')
+      .map((message) => message.content)
+      .join('\n'),
+    tool: messages
+      .filter((message) => message.role === 'tool')
       .map((message) => message.content)
       .join('\n'),
     ...(tools === undefined ? {} : { tools }),

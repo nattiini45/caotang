@@ -111,6 +111,7 @@ import {
 } from './integrity-model.js';
 import { sampleProjectState } from './demo.js';
 import { dropHistoryOf } from './history-store.js';
+import { SkillReviews, dropReviewsOf } from './skill-reviews.js';
 import { recoverPending, recoveryNotice } from './pending-journal.js';
 import { copyState, shadowOf, type Shadow } from './persistence-plan.js';
 import { acquireProjectLease, ProjectOpenElsewhereError, type ProjectLease } from './project-lease.js';
@@ -204,6 +205,8 @@ async function sessionFor(
       projectId: state.manifest.project.id,
       state,
       shadow,
+      // The writer's reviews of this project's skills are kept in the app database, and never in the project (skill-reviews.ts).
+      skillReviews: await SkillReviews.open(state.manifest.project.id),
       assets: assetsFor(state.manifest.project.id),
       // The agent's image check reads the project's images at each call (storyboard.md §4).
       presentAssets: () => assetsFor(state.manifest.project.id).presentIds(),
@@ -460,6 +463,8 @@ export async function removeProject(store: RuntimeStore, projectId: string): Pro
     await forgetBrowserAssets(projectId);
     // The folder the project remembered goes too: the list no longer has a project to reopen it for (folder-memory.ts).
     await forgetFolder(projectId);
+    // The writer's reviews of its skills go too (skill-reviews.ts).
+    await dropReviewsOf(projectId);
   } finally {
     lease.release();
   }
@@ -1521,8 +1526,11 @@ export async function saveFolder(
   // holding a different file under one of those names is refused here, before anything is written (project-assets.ts).
   await session.assets.copyTo(root);
   const report = emptyReport();
+  const toWrite = copyState(session.state);
+  // As with documents, only the copy's own folder can hold skill files this session removed. Any other folder keeps every file it has.
+  if (held === null) toWrite.removedSkillFiles.clear();
   try {
-    await writeProject(fs, copyState(session.state), {
+    await writeProject(fs, toWrite, {
       now: new Date(),
       // Only the copy's own folder can hold documents this session deleted. Any other folder keeps every file it has.
       pruneDocumentIds: held === null ? [] : deletedSince(held, session.state),
@@ -1538,6 +1546,8 @@ export async function saveFolder(
     const changed = { changed: [...error.paths], removed: [], added: [] };
     return { kind: 'refused', reason: 'files', files: folderChanges(changed, session.state, held?.titles ?? new Map()), partial: true };
   }
+  // The skill files the folder no longer holds are no longer owed a removal.
+  if (held !== null) for (const path of [...session.state.removedSkillFiles]) if (!toWrite.removedSkillFiles.has(path)) session.state.removedSkillFiles.delete(path);
   // What is on disk now is what the next save is checked against, so it is read back rather than assumed. The digests are the ones the folder
   // held before this save, with the files this save wrote digested again (digestsAfterWrite).
   holdFolderCopy(session, root, (await readManifestText(fs)) ?? '', await digestsAfterWrite(fs, before, report));

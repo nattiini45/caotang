@@ -14,13 +14,22 @@
 
 /** The database name. No project uses it, and the project store has its own. */
 export const APP_DB_NAME = 'caotang-app';
-/** Version 2 adds the editor's history journals (`STORE_HISTORY`); the `kv` records are untouched by the upgrade. */
-const APP_DB_VERSION = 2;
+/**
+ * Version 2 adds the editor's history journals (`STORE_HISTORY`); version 3 adds the writer's reviews of a project's skills
+ * (`STORE_SKILL_REVIEWS`). Each upgrade only adds a store, so the `kv` records and the journals are untouched by it.
+ */
+const APP_DB_VERSION = 3;
 const STORE_KV = 'kv';
 /** Per-document undo journals (history-store.ts), keyed `<projectId>:<docId>`. Per-viewer state: no export, bundle or agent reads it. */
 const STORE_HISTORY = 'editor-history';
 /** One small row for each journal (project, document, when it was last written), so a sweep reads these and not the journals. */
 const STORE_HISTORY_META = 'editor-history-meta';
+
+/**
+ * The writer's review of each skill, keyed `<projectId>:<skill name>` (skill-reviews.ts). Kept here and never in a project, a bundle or an
+ * export, so a shared project cannot ship its own approval (extensibility.md §10).
+ */
+const STORE_SKILL_REVIEWS = 'skill-reviews';
 
 /** The record keys. One value per key, so a save replaces a whole record at once. */
 export const APP_KEYS = {
@@ -54,6 +63,24 @@ export interface HistoryDb {
   list(): Promise<readonly HistoryMeta[]>;
 }
 
+/** One review: the writer read the skill `name` of project `projectId` as it was when its pin was `pin`, at `reviewedAt` (ISO-8601). */
+export interface SkillReviewRecord {
+  readonly key: string;
+  readonly projectId: string;
+  readonly name: string;
+  readonly pin: string;
+  readonly reviewedAt: string;
+}
+
+/** The writer's skill reviews, in the database's `skill-reviews` store. */
+export interface SkillReviewDb {
+  /** Every review kept for a project. */
+  list(projectId: string): Promise<readonly SkillReviewRecord[]>;
+  put(record: SkillReviewRecord): Promise<void>;
+  /** Removes the reviews kept under these keys. */
+  delete(keys: readonly string[]): Promise<void>;
+}
+
 export interface AppDb {
   /** The value stored under `key`, or `undefined` when nothing has been stored there. */
   get<T>(key: string): Promise<T | undefined>;
@@ -61,6 +88,8 @@ export interface AppDb {
   put(key: string, value: unknown): Promise<void>;
   /** The editor's undo journals. Absent on a stand-in that keeps only settings; the editor then keeps no undo across a reload. */
   readonly history?: HistoryDb;
+  /** The writer's skill reviews. Absent on a stand-in that keeps only settings; no skill is then reviewed across a reload. */
+  readonly reviews?: SkillReviewDb;
   close(): void;
 }
 
@@ -99,6 +128,9 @@ export function openAppDb(factory: IDBFactory, name: string = APP_DB_NAME): Prom
       if (!db.objectStoreNames.contains(STORE_KV)) db.createObjectStore(STORE_KV, { keyPath: 'key' });
       if (!db.objectStoreNames.contains(STORE_HISTORY)) db.createObjectStore(STORE_HISTORY, { keyPath: 'key' });
       if (!db.objectStoreNames.contains(STORE_HISTORY_META)) db.createObjectStore(STORE_HISTORY_META, { keyPath: 'key' });
+      if (!db.objectStoreNames.contains(STORE_SKILL_REVIEWS)) {
+        db.createObjectStore(STORE_SKILL_REVIEWS, { keyPath: 'key' }).createIndex('byProject', 'projectId');
+      }
     };
     request.onsuccess = () => {
       const db = request.result;
@@ -140,6 +172,23 @@ export function openAppDb(factory: IDBFactory, name: string = APP_DB_NAME): Prom
           async list(): Promise<readonly HistoryMeta[]> {
             const tx = db.transaction(STORE_HISTORY_META, 'readonly');
             return requestOf(tx.objectStore(STORE_HISTORY_META).getAll() as IDBRequest<HistoryMeta[]>, tx);
+          },
+        },
+        reviews: {
+          async list(projectId: string): Promise<readonly SkillReviewRecord[]> {
+            const tx = db.transaction(STORE_SKILL_REVIEWS, 'readonly');
+            return requestOf(tx.objectStore(STORE_SKILL_REVIEWS).index('byProject').getAll(projectId) as IDBRequest<SkillReviewRecord[]>, tx);
+          },
+          async put(record: SkillReviewRecord): Promise<void> {
+            const tx = db.transaction(STORE_SKILL_REVIEWS, 'readwrite');
+            tx.objectStore(STORE_SKILL_REVIEWS).put(record);
+            await committed(tx);
+          },
+          async delete(keys: readonly string[]): Promise<void> {
+            if (keys.length === 0) return;
+            const tx = db.transaction(STORE_SKILL_REVIEWS, 'readwrite');
+            for (const key of keys) tx.objectStore(STORE_SKILL_REVIEWS).delete(key);
+            await committed(tx);
           },
         },
         close(): void {

@@ -269,6 +269,20 @@ Reading the agent's work:
 - **Restore to before this turn.** This takes the project back to where it was before that turn. It also takes back the edits you made since then, and the later changes the dialog lists. The dialog says so before it does it.
 - **Activity.** The **Activity** tab lists every change, marked **You** or **Agent**, and a call to an outside tool carries an **MCP** badge. **Undo** takes one back.
 
+## Skills
+
+A skill is a set of instructions you write once and the agent follows when your request fits it: "draft in close third person, past tense, no adverbs in dialogue tags", or "fill synopses in three beats", or "use these slug-line conventions". The codex holds facts about your story; a skill holds how you want the agent to work. Choose **Skills** in the toolbar to open the panel.
+
+- **New skill…** asks for a name (lower-case letters, digits and hyphens) and opens its instructions. The first lines, between two lines of dashes, give the skill its name and say when to use it in a sentence or two (the **description**, which is what the agent reads to decide). Everything after them is what the agent follows. The editor says at once if the text cannot be used, and **Save** waits until it can.
+- **Import a folder…** and **Import a zip…** take skills someone else wrote. A skill is a folder of text files with its instructions file in it; a zip can hold one skill, or a folder of skills. A skill that is too large is refused, and the message names the limit: 50 skills in a project, 64 files in a skill, 256 KB for a file and 2 MB for a skill.
+- **Turn on / Turn off** decides whether the agent may be told about a skill. **Delete** takes a skill out of the project, and **Undo** brings it back.
+
+**The agent sees a skill only after you have approved it.** A skill is text the agent will follow, and a project someone shares with you may carry skills you have not read. **Read and approve…** shows everything in the skill as plain text, exactly as it is: the instructions and every other file. A character that cannot be seen on screen is shown as its code in brackets, such as ⟦U+200B⟧, and the review counts them, so a hidden instruction cannot slip through. A comment is shown as written. If the skill includes scripts, the review names them and says that Caotang reads the instructions and does not run them, and that other programs reading the same folder, such as Claude Code or Codex, may. **Approve this skill** is your decision. Change any file of the skill, in Caotang or in another program, and it needs your approval again; until then the agent is not told about it, and the agent panel says how many skills are waiting. Your approvals are kept in this browser and are not part of the project, a bundle or an export.
+
+When a skill is approved and on, the agent is told its name and description. It loads the skill when your request fits, and the instructions guide that turn's drafts. A skill changes how the agent works and nothing else: every change that needs your approval still shows its card, whatever a skill says. A skill whose instructions you keep for yourself (`disable-model-invocation: true` in its first lines) is listed as **Only you use it**, and the agent is never told about it.
+
+Skills are kept in the project, in the folder `.agents/skills/`, so a project folder, a `.caotang` bundle and this browser's copy all carry them, and other programs that read that folder use them too. The agent can suggest a skill in its answer, and it cannot create, change, import or turn on a skill; only you can.
+
 ## Export
 
 Choose **Compile…** in the toolbar. Then choose a recipe, a format and what to export.
@@ -421,4 +435,5 @@ The server runs on your computer and opens no network port. Uninstalling it leav
 - **Local models, checked.** The three local model servers have been tried against test servers that imitate their browser settings, not against the real Ollama, LM Studio and llama-server. Firefox has not been tried, and Safari is not verified. A server on another computer on your network is not supported: plain http is allowed only to this computer.
 - **What a local server reports.** Caotang does not yet ask a local server about the model it runs, so it assumes a small context window and no native tools or images.
 - **The MCP bundle.** The `.mcpb` bundle is not signed, so a host asks you to confirm the install, and it has not been tested in a real host.
+- **Skill scripts and files.** Skills that include scripts: Caotang uses their instructions and does not run the scripts. The agent cannot read the other files kept with a skill, a skill's list of allowed tools does not limit the agent, and there are no skills shared across projects and no way to run a skill by name. Only the project's `.agents/skills` folder is read.
 - **The desktop app.** Caotang runs in the browser. A desktop wrapper is not in this build.

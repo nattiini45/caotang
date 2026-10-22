@@ -50,6 +50,10 @@ export function makeSnapshot(overrides: {
   recipes?: { name: string; includeRootIds?: string[] }[];
   /** The coherence file (coherence.md §3), for the rows whose refusals read its findings, scene declarations or runs. */
   coherence?: ValidationCoherence;
+  /** The project's skills (extensibility.md §10) by folder, each file as its path and the length of its bytes, for the skill rows. Absent means none. */
+  skills?: Record<string, { path: string; length: number }[]>;
+  /** The skills the writer turned off. Absent means every skill is on. */
+  disabledSkills?: string[];
 } = {}): ValidationSnapshot {
   const tree =
     overrides.tree ??
@@ -86,9 +90,13 @@ export function makeSnapshot(overrides: {
       },
       codex: overrides.codex ?? [{ id: CODEX_ENTRY, name: 'Elena' }],
       ...(overrides.recipes === undefined ? {} : { recipes: overrides.recipes }),
+      ...(overrides.disabledSkills === undefined ? {} : { disabledSkills: overrides.disabledSkills }),
     },
     documents,
     ...(overrides.coherence === undefined ? {} : { coherence: overrides.coherence }),
+    ...(overrides.skills === undefined
+      ? {}
+      : { skills: new Map(Object.entries(overrides.skills).map(([folder, files]) => [folder, files.map((f) => ({ path: f.path, bytes: { length: f.length } }))])) }),
   };
 }
 

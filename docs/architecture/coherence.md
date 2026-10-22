@@ -275,7 +275,7 @@ Per run, per produced finding, match against existing findings by `checkId` (or 
   - **Only a passage in a scene the agent drafts is offered a fix.** A prose or screenplay document qualifies; a dialogue container does not (the agent appends its beats and does not rewrite a passage), and nor does any other node. A plan for a finding that fails the test is refused in words, by the same predicate the button is gated on.
   - **The note under the card promises no card.** The turn's answer (a card, or the provider's refusal) shows in the agent panel, and the note under the finding says where it shows, since the note is written before that answer is known.
 
-## 7. Harness tools (rows 15–17 of the 26-row registry, agent-harness §10)
+## 7. Harness tools (rows 15–17 of the 32-row registry, agent-harness §10)
 
 The v0.1 registry is frozen (agent-harness §3); these three land with the module, and all three are in the registry as extension rows. Same metadata discipline (`{name, risk, undoable, response_token_cap, description}`), callId dedupe, model-facing errors:
 

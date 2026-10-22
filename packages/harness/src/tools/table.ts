@@ -45,6 +45,7 @@ import {
   sceneDraftParams,
   synopsisFillParams,
 } from './ports.js';
+import { skillLoadParams } from './skills.js';
 import type { CallParams } from '../types.js';
 import type { CommandError } from '@caotang/bus';
 
@@ -85,6 +86,8 @@ const DEFINITIONS: Readonly<Record<ToolName, Definition>> = {
   // The dialogue module's two tools (dialogue-narrative.md §7), read from the module's own entries.
   'dialogue.draft': extensionDefinition(DIALOGUE_TOOL_ENTRIES, 'dialogue.draft'),
   'dialogue.table': extensionDefinition(DIALOGUE_TOOL_ENTRIES, 'dialogue.table'),
+  // The project's skills (extensibility.md §10).
+  'skill.load': { kind: 'port', port: 'skill.load', params: skillLoadParams },
   // The allowlisted bus primitives, each built from its command's descriptor (tools/primitive.ts).
   ...Object.fromEntries(PRIMITIVE_TOOL_NAMES.map((name) => [name, primitiveDefinition(name)])) as Record<PrimitiveToolName, Definition>,
 };

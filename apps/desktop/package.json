@@ -29,6 +29,7 @@
     "@caotang/mcp-client": "workspace:*",
     "@caotang/pdf-fonts": "workspace:*",
     "@caotang/screenplay": "workspace:*",
+    "@caotang/skills": "workspace:*",
     "@caotang/storyboard": "workspace:*",
     "@caotang/store": "workspace:*",
     "@caotang/video-prompt-pack": "workspace:*",

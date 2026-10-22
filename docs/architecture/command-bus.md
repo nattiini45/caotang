@@ -1,6 +1,6 @@
 # Command bus & undo — the spine every module talks through (v1)
 
-> Status: built. §9 lists every one of the registry's 42 command names (`packages/bus/src/command.ts` `COMMAND_NAMES`).
+> Status: built. §9 lists every one of the registry's 46 command names (`packages/bus/src/command.ts` `COMMAND_NAMES`).
 > Cross-refs: tool registry = [agent-harness.md](agent-harness.md) §3 · write-ahead snapshots = [project-format.md](project-format.md) §4 · edit anchors = [edit-anchors.md](edit-anchors.md) · usage ledger = [provider-gateway.md](provider-gateway.md) §6.
 
 ## 1. Purpose
@@ -14,7 +14,7 @@ Non-goals: no network in the bus (the gateway owns transport); no cross-worker b
 ```ts
 interface Command {
   id: string;                 // "cmd_" + 10 chars Crockford base32 (same generator family as node ids)
-  name: CommandName;          // from the registry (§9; 42 names)
+  name: CommandName;          // from the registry (§9; 46 names)
   params: object;             // flat, enum-constrained, schema-validated
   issuedBy: 'user' | 'agent';
   turnId?: string;            // agent turn this command belongs to (agent-issued only)
@@ -59,7 +59,7 @@ validate → permission gate (§4) → apply → postconditions → undo-group r
   - `write-confirm` → allowed only inside an **approved plan** or a **one-step confirm card** (agent-harness §2); mid-plan new confirm-class calls pause with a delta card.
   - `never` → refused with a model-facing error naming the corrective path (e.g. deletion → "propose it in your report; deletion is UI-only").
 - **Grant inheritance (compound tools):** compound tools execute their sub-mutations *inside their own apply step*, not as separate bus dispatches — internal primitives (`editor.replaceRange` inside `scene.draft`) inherit the compound tool's granted permission and are never individually gated. Direct agent emission of a `never`-class command is refused even inside approved plans.
-- **Allowlisted primitives (agent-harness §3, "Primitives as deferred tools"):** a short set of primitives is exposed as tools of their own, each gated *as its command is*: the tool's risk is the descriptor's `agentRisk`, so a `write-confirm` primitive still needs the approved plan or the confirm card and a `write-auto` one applies at once. They dispatch as ordinary agent commands and never under an inherited grant. The set is the harness's `PRIMITIVE_TOOLS`; the commands that may never be on it (every delete, `doc.write`, `editor.insert`, `editor.replaceRange`, `view.*`, `project.importAsset`, `shot.importImage`, `mcp.invoke`) are `NeverExposed` in the harness types, so naming one does not compile.
+- **Allowlisted primitives (agent-harness §3, "Primitives as deferred tools"):** a short set of primitives is exposed as tools of their own, each gated *as its command is*: the tool's risk is the descriptor's `agentRisk`, so a `write-confirm` primitive still needs the approved plan or the confirm card and a `write-auto` one applies at once. They dispatch as ordinary agent commands and never under an inherited grant. The set is the harness's `PRIMITIVE_TOOLS`; the commands that may never be on it (every delete, `doc.write`, `editor.insert`, `editor.replaceRange`, `view.*`, `project.importAsset`, `shot.importImage`, `mcp.invoke`, the four `skill.*` commands) are `NeverExposed` in the harness types, so naming one does not compile.
 - **Hard-deny, non-approvable by any flow** (mirrors Claude Code's "actions no mode auto-approves" list): network egress beyond the configured provider endpoint; deleting nodes or codex entries; mutating provider profiles; leaving project scope.
 
 ## 5. Undo & the checkpoint framing
@@ -133,7 +133,7 @@ The log keeps every row it is given. The Activity panel shows a 200-row window o
 
 ## 9. v0.1 command registry (closed set)
 
-The heading keeps the name the v0.1 table had. The table lists all 42 of the registry's names: the v0.1 rows and those each module added (their owning specs are named in the notes). Reads are **not commands** — modules read the store directly; only mutations route through the bus. Provider/settings mutation is app-level state, never a project command (agentRisk `never`, hard-deny §4). `sessions.jsonl` appends are session-tracker side-effects of doc writes, not commands.
+The heading keeps the name the v0.1 table had. The table lists all 46 of the registry's names: the v0.1 rows and those each module added (their owning specs are named in the notes). Reads are **not commands** — modules read the store directly; only mutations route through the bus. Provider/settings mutation is app-level state, never a project command (agentRisk `never`, hard-deny §4). `sessions.jsonl` appends are session-tracker side-effects of doc writes, not commands.
 
 | Command | Params (essentials) | agentRisk | undo | Notes |
 |---|---|---|---|---|
@@ -177,6 +177,10 @@ The heading keeps the name the v0.1 table had. The table lists all 42 of the reg
 | `screenplay.import` | `{format: 'fountain'\|'fdx', text, parentId?}` | write-confirm | compensable | Maps a whole Fountain or FDX file onto the binder: sections become folders and scenes become screenplay documents, in one undo group. The store parses the text. `parentId` defaults to the manuscript, and a parent that is the project root, cannot hold children, or is a storyboard is refused (screenplay.md §2.2). Into the manuscript, the scenes the file puts before any section go into one chapter the import makes, "Imported scenes", and a notice says so. |
 | `dialogue.importInk` | `{containers: {title, body}[], parentId?}` | write-confirm | compensable | Creates one dialogue container per container of an Ink plan, in one undo group. The caller plans the file with `planInkImport` (`@caotang/dialogue`), so the command takes the planned containers. At most 200 containers and 1,000,000 characters of Ink per call (dialogue-narrative.md §4). `parentId` defaults to the manuscript, and there the containers go into one chapter the import makes, "Imported dialogue". |
 | `dialogue.setMeta` | `{nodeId, patch: {speaker?, engineTarget?, autoLineIds?, locBaseline?}}` | write-auto | compensable | A dialogue container's settings: its default speaker (a codex entry, or `null` to clear it), its engine target, the line-id opt-in and its locale. The patch carries only those four keys, and at least one (dialogue-narrative.md §2.1). |
+| `skill.import` | `{stagingId}` | **never** | compensable | Takes one skill folder the writer chose into the project (extensibility.md §10). The files are not params. The host stages them and names the staging id, and the apply refuses a name that is taken, a name that is not a skill name, a path that leaves the folder, a folder with no `SKILL.md`, and a folder over a cap (50 skills, 64 files per skill, 256 KB per file, 2 MB per skill), naming the cap. One undo removes it. User-only: an agent never installs a skill. |
+| `skill.write` | `{name, path, text}` | **never** | compensable | One text file of a skill, created or replaced: `SKILL.md`, or a file beside it such as `references/style.md`. A new skill starts with its `SKILL.md`; the caps are the import's. The text is not checked as a skill: a `SKILL.md` that does not parse is listed with the reason and is not offered. User-only. |
+| `skill.delete` | `{name}` | **never** | compensable | The whole skill, every file of it. A folder save removes those files and no others. One undo brings the skill back. User-only. |
+| `skill.setEnabled` | `{name, enabled}` | **never** | inverse | Whether the agent may be told about the skill. Kept in the manifest's `disabledSkills`, so the skill's files are not touched. A skill that is on is still not offered until the writer has reviewed it. User-only. |
 
 The `agentRisk` and `undo` columns are the descriptors' own (`packages/bus/src/descriptors*.ts`), and the owning spec for each is named in its notes.
 

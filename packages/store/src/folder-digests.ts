@@ -14,6 +14,8 @@ import { isIdWithPrefix } from '@caotang/ids';
 
 import { ArtifactNotFoundError, type ArtifactFs } from './artifact-fs.js';
 import { CODEX_DIR, DOCS_DIR, bodyStemOf, isBodyFileName, isBodyType } from './paths.js';
+import { isSkillFilePath, listSkillFilePaths } from './skills-fs.js';
+import { SKILLS_DIR } from './paths.js';
 import type { ProjectState } from './state.js';
 
 /**
@@ -29,10 +31,11 @@ export async function digestOfBytes(bytes: Uint8Array): Promise<string> {
 }
 
 /**
- * Whether `path` is a project file: a document body whose stem is a document id, or a codex redundancy file whose stem is a codex id.
- * Anything else in `docs/` or `codex/` is the author's, and no save writes or removes it (project-format §1).
+ * Whether `path` is a project file: a document body whose stem is a document id, a codex redundancy file whose stem is a codex id, or a file of
+ * a skill (`.agents/skills/<name>/…`). Anything else in `docs/` or `codex/` is the author's, and no save writes or removes it (project-format §1).
  */
 export function isProjectFile(path: string): boolean {
+  if (isSkillFilePath(path)) return true;
   const slash = path.lastIndexOf('/');
   if (slash < 0) return false;
   const dir = path.slice(0, slash);
@@ -50,7 +53,7 @@ export async function projectFilePaths(fs: ArtifactFs): Promise<string[]> {
   const codex = (await fs.listFiles(CODEX_DIR))
     .filter((name) => name.endsWith('.md') && isIdWithPrefix('c', name.slice(0, -3)))
     .map((name) => `${CODEX_DIR}/${name}`);
-  return [...documents, ...codex].sort();
+  return [...documents, ...codex, ...(await listSkillFilePaths(fs))].sort();
 }
 
 /** The codes a file system reports for a brief hold by another program (a sync client, or the Caotang MCP server, on Windows). */
@@ -177,6 +180,7 @@ export function projectFileLabel(
   held: ReadonlyMap<string, string>,
   holder: string,
 ): string {
+  if (isSkillFilePath(path)) return `the skill “${path.slice(SKILLS_DIR.length + 1, path.indexOf('/', SKILLS_DIR.length + 1))}”`;
   const id = path.slice(path.lastIndexOf('/') + 1).replace(/\.[^.]+$/, '');
   const title = current.get(id) ?? held.get(id);
   const codex = path.startsWith(`${CODEX_DIR}/`);
@@ -196,11 +200,13 @@ export function projectFileChanges(
 ): ProjectFileChange[] {
   const current = projectFileTitles(state);
   const label = (path: string): string => projectFileLabel(path, current, heldTitles, holder);
-  return [
+  const all = [
     ...drift.changed.map((path) => ({ label: label(path), change: 'changed' as const })),
     ...drift.removed.map((path) => ({ label: label(path), change: 'removed' as const })),
     ...drift.added.map((path) => ({ label: label(path), change: 'added' as const })),
   ];
+  // A skill is several files, and the writer is told about the skill once.
+  return all.filter((item, index) => all.findIndex((other) => other.label === item.label && other.change === item.change) === index);
 }
 
 /** Items joined for a sentence: `a`, `a and b`, `a, b and c`. */
