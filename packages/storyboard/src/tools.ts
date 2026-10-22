@@ -55,6 +55,10 @@ export interface StoryboardToolMeta {
   readonly descriptionVersion: number;
   readonly description: string;
   readonly surface: 'extension';
+  /** Every module row is deferred: the planner declares it only once `tool.search` or a preload loads it (agent-harness §3). */
+  readonly load: 'deferred';
+  /** Extra search terms for `tool.search`; never shown to the model. */
+  readonly keywords: readonly string[];
 }
 
 /**
@@ -124,6 +128,8 @@ export const STORYBOARD_TOOL_ENTRIES: readonly StoryboardToolEntry[] = [
       descriptionVersion: 1,
       description: DERIVE_DESCRIPTION,
       surface: 'extension',
+      load: 'deferred',
+      keywords: ['storyboard', 'shots', 'screenplay', 'scene', 'camera'],
     },
     params: {
       kind: 'object',
@@ -160,6 +166,8 @@ export const STORYBOARD_TOOL_ENTRIES: readonly StoryboardToolEntry[] = [
       descriptionVersion: 1,
       description: ANNOTATE_DESCRIPTION,
       surface: 'extension',
+      load: 'deferred',
+      keywords: ['storyboard', 'shots', 'camera', 'framing', 'image'],
     },
     params: {
       kind: 'object',

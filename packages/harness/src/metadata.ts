@@ -34,6 +34,11 @@ import { PROMPT_PACK_TOOL_ENTRIES } from '@caotang/video-prompt-pack';
  * §7). Its helpers (`refusal`, `param`, `toJsonSchema`) come from the bus, so the module does not import the harness
  * and the registry can join its rows without a cycle.
  *
+ * **`load` says what the planner declares on every request.** The 13 callable v0.1 rows, `agent.plan` (not a tool) and `tool.search`
+ * are `core`. Every other extension row is `deferred`: the planner declares it only once `tool.search` or a preload has loaded it
+ * for the turn (agent-harness §3). Each module declares its own rows' class, as it declares their risk, and
+ * `test/spec-parity.test.ts` reads the core rows back out of §3.
+ *
  * **`response_token_cap` values.** agent-harness.md states three caps: ~8k for
  * `binder.read_tree`, 25k for `doc.read` and 8k for `codex.read`. The rest are
  * this module's choices, sized from the data each response carries. They are not
@@ -80,6 +85,13 @@ export type ToolName = (typeof TOOL_NAMES)[number];
  */
 export type ToolRisk = 'read' | 'write-auto' | 'write-confirm' | 'meta';
 
+/**
+ * Whether the planner declares a row on every request (`core`), or only after `tool.search` or a preload loads it for the turn
+ * (`deferred`). Deferral is about context, not trust: a deferred native row is still preflighted and gated like any other
+ * (agent-harness §3, extensibility §5).
+ */
+export type ToolLoad = 'core' | 'deferred';
+
 export interface ToolMetadata {
   readonly name: ToolName;
   readonly risk: ToolRisk;
@@ -93,6 +105,9 @@ export interface ToolMetadata {
   readonly descriptionVersion: number;
   readonly description: string;
   readonly surface: 'v0.1' | 'extension';
+  readonly load: ToolLoad;
+  /** Extra search terms for a deferred row (its module, synonyms). Matched by `tool.search`, never shown to the model. */
+  readonly keywords?: readonly string[];
 }
 
 export const TOOL_METADATA: readonly ToolMetadata[] = [
@@ -105,6 +120,7 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
     description:
       'Summary of the open project: title, a two-level tree with types and statuses, the status and label vocabulary, total word count, session progress when the app supplies it, the saved-filter count and goals. Read-only. An empty project returns a skeleton that says it has no chapters yet.',
     surface: 'v0.1',
+    load: 'core',
   },
   {
     name: 'binder.read_tree',
@@ -115,6 +131,7 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
     description:
       'Read part of the binder tree: ids, titles, order, status and label, plus a synopsis or word counts as asked. Read-only. Start from root (the default), manuscript, research or any node id; depth counts levels below the start node. A long response is truncated and says so: narrow root or lower depth.',
     surface: 'v0.1',
+    load: 'core',
   },
   {
     name: 'doc.read',
@@ -125,6 +142,7 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
     description:
       "Read one document's body, or a character range of it, in the coordinate system the edit anchors use. response_format 'detailed' (the default) returns the text; 'concise' returns structure and a lead. Read-only. Pass a title or an id; an ambiguous title lists its candidates. A document over the cap comes back concise.",
     surface: 'v0.1',
+    load: 'core',
   },
   {
     name: 'notes.read',
@@ -135,6 +153,7 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
     description:
       'Read the inspector fields of one document: synopsis, notes and keywords. Read-only. Pass a title or an id; an ambiguous title lists its candidates.',
     surface: 'v0.1',
+    load: 'core',
   },
   {
     name: 'meta.set',
@@ -145,6 +164,7 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
     description:
       'Set status, label or keywords on up to 50 documents or folders, using the project vocabulary. Applies automatically within an approved turn. Idempotent. Undo restores the prior values.',
     surface: 'v0.1',
+    load: 'core',
   },
   {
     name: 'notes.append',
@@ -155,6 +175,7 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
     description:
       "Append text, at most 2000 characters, to a document's inspector notes under an agent date divider. Applies automatically within an approved turn. Undo restores the prior notes.",
     surface: 'v0.1',
+    load: 'core',
   },
   {
     name: 'synopsis.fill',
@@ -165,6 +186,7 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
     description:
       'For each document, draft a synopsis from its text and notes and propose the batch in a plan card before anything is written. At most 20 documents per call, and the call must fit the turn’s model-call budget. Requires user confirmation.',
     surface: 'v0.1',
+    load: 'core',
   },
   {
     name: 'scene.draft',
@@ -175,6 +197,7 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
     description:
       'Draft, continue or rewrite part of one document from a creative brief, with the project context assembled for the call. Never touches other documents. Requires user confirmation.',
     surface: 'v0.1',
+    load: 'core',
   },
   {
     name: 'binder.restructure',
@@ -185,6 +208,7 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
     description:
       'Create, move and rename binder nodes in one ordered batch of at most 30 operations, naming existing node ids. Every operation is validated before any of them runs, and the batch is one undo group. Requires user confirmation.',
     surface: 'v0.1',
+    load: 'core',
   },
   {
     name: 'continuity.scan',
@@ -195,6 +219,7 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
     description:
       'Read-only consistency check across documents for timeline, characters, props or custom aspects, returning findings with quoted spans and a severity. At most 20 documents per call, each read from its last 1,000 characters.',
     surface: 'v0.1',
+    load: 'core',
   },
   {
     name: 'export.compile',
@@ -205,6 +230,7 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
     description:
       'Compile the manuscript, or one part of it, to any format in the format list, or through a saved recipe (recipeName), into the exports folder. Requires user confirmation. Undo removes the exported file. A prompt pack needs its vendor template; an EPUB needs the project identifier, so offer md, txt or docx if it is refused for want of one.',
     surface: 'v0.1',
+    load: 'core',
   },
   {
     name: 'codex.read',
@@ -215,6 +241,7 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
     description:
       'Read codex entries: names, aliases, type, policy, a description preview and attachments. Read-only. An empty result is a result: use codex.write to create an entry.',
     surface: 'v0.1',
+    load: 'core',
   },
   {
     name: 'codex.write',
@@ -225,6 +252,7 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
     description:
       'Create or update up to 20 codex entries in one batch validated before anything runs, and attach or detach them from binder nodes. Requires user confirmation. A description over 2000 characters is refused with a proposed truncation; it is never cut silently.',
     surface: 'v0.1',
+    load: 'core',
   },
   {
     name: 'agent.plan',
@@ -235,6 +263,7 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
     description:
       'Protocol, not a tool. A multi-step plan of tool calls, shown as a card for approval. The approved card runs as one undoable turn.',
     surface: 'v0.1',
+    load: 'core',
   },
   {
     name: 'doc.import',
@@ -245,6 +274,8 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
     description:
       'Import an existing document verbatim under a folder, with an optional synopsis, keywords, status and label. The body is stored exactly as given and read back to prove it. Requires user confirmation. One undo removes the whole import. Extension beyond the v0.1 surface, for migrating existing writing into Caotang.',
     surface: 'extension',
+    load: 'deferred',
+    keywords: ['import', 'migrate', 'paste', 'existing'],
   },
   {
     // Codex.import (codex.md §2 provenance). A create-only batch whose entries are the writer's own
@@ -258,6 +289,8 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
     description:
       'Import up to 20 codex entries that are the writer’s own writing, each attached to the document its full text was imported into. Create-only: a name or alias that already exists is refused, never merged. Each entry is stamped as imported, not as drafted by the agent, and cites a passage of its document. Requires user confirmation. One undo removes the whole import. Extension beyond the v0.1 surface, for migrating existing worldbuilding into Caotang.',
     surface: 'extension',
+    load: 'deferred',
+    keywords: ['import', 'migrate', 'worldbuilding', 'codex', 'canon'],
   },
   // The coherence module's three tools, declared in the coherence package and joined here
   // (coherence.md §7). They are the module's rows, so the registry takes them as written there.

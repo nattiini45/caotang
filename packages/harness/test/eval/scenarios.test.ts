@@ -40,13 +40,10 @@ const scenarios: Scenario[] = [
         { content: 'Plan', state: 'done' },
         { content: `Update ${quote(FRIEND)}`, state: 'done' },
       ],
-      // The planner lists every wired tool's description and schema on each call, so the ceiling tracks the wired set:
-      // tool.search and shots.annotate (about 550 tokens), dialogue.table (about 200), the three drafting tools
-      // shots.derive, prompt.draft and prompt.variant (about 810), dialogue.draft wired to the agent ports (about 350),
-      // codex.write's `visualRefs` (video-prompt-pack §3, about 70), and export.compile's description with its recipeName
-      // parameter (a saved recipe, with the selection optional when one names the nodes) and the prompt pack's template
-      // text. Measured at 7952 with all of them, so the ceiling is 8000.
-      maxTokens: 8000,
+      // The planner lists the core rows on each call and loads the deferred ones on demand (agent-harness §3), so the ceiling
+      // tracks the core band: 13 rows and tool.search, with export.compile's recipeName parameter and codex.write's
+      // `visualRefs`. Measured at 4767, so the ceiling is 4800 (it was 8000 when every wired tool was listed).
+      maxTokens: 4800,
       state: (state) => (state.manifest.tree.find((node) => node.id === FRIEND)?.label === 'act-2' ? [] : ['The Friend is not labelled act-2']),
     },
   },
@@ -118,12 +115,10 @@ const scenarios: Scenario[] = [
         { content: `Update ${quote(STORM)}`, state: 'done' },
         { content: `Fill the synopsis of ${quote(STORM)}`, state: 'done' },
       ],
-      // Three model calls (a read's planner, a plan's planner, a synopsis), each carrying the tool schemas. Each wired tool
-      // adds its description and schema to both planner calls: tool.search and shots.annotate, dialogue.table, the three
-      // drafting tools (about 810 tokens a planner call), the longer export.compile, project.overview and coherence
-      // descriptions, dialogue.draft (about 290 tokens a planner call), export.compile's recipeName parameter, and
-      // codex.write's `visualRefs`. Measured at 16223 with all of them, so the ceiling is 16300.
-      maxTokens: 16300,
+      // Three model calls (a read's planner, a plan's planner, a synopsis), each carrying the core tool schemas; the deferred
+      // rows are not listed, so the planner calls are about 3000 tokens lighter than when every wired tool was. Measured at 9852,
+      // so the ceiling is 9900 (it was 16300 when every wired tool was listed).
+      maxTokens: 9900,
       maxModelCalls: 3,
       state: (state) => {
         const node = state.manifest.tree.find((candidate) => candidate.id === STORM);

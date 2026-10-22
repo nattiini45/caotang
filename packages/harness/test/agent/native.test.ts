@@ -239,7 +239,7 @@ describe('the planner on the native tool-call wire', () => {
     const intent = 'Find the lore tools, read the bible, and label The Friend.';
     const fixture = await nativeFixture(
       nativeTranscript(intent, [
-        { calls: [{ id: 'call_s', name: 'tool.search', args: { query: '' } }] },
+        { calls: [{ id: 'call_s', name: 'tool.search', args: { query: '', limit: 20 } }] },
         {
           content: 'The bible is loaded; reading it and labelling.',
           calls: [
@@ -279,7 +279,7 @@ describe('the planner on the native tool-call wire', () => {
     expect(surfaced).toContain(SEARCH);
     expect(surfaced).toContain(WRITE);
     const resultsAt = second?.messages.findIndex((m) => m.role === 'tool' && m.toolCallId === 'call_s') ?? -1;
-    const loadedAt = second?.messages.findIndex((m) => m.role === 'user' && m.content.includes('External tools loaded for this turn')) ?? -1;
+    const loadedAt = second?.messages.findIndex((m) => m.role === 'user' && m.content.includes('Tools loaded for this turn')) ?? -1;
     expect(loadedAt).toBeGreaterThan(resultsAt);
     // And the freshly loaded tools are declared on that very request, by qualified name.
     expect(namesOf(second as ChatRequest)).toEqual(expect.arrayContaining([SEARCH, WRITE]));

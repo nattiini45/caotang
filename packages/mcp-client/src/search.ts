@@ -9,9 +9,12 @@
  * spec, and a handler. The JSON Schema is derived from `params` by the harness's own
  * `toJsonSchema` at registration, so this package does not import the harness.
  *
- * Determinism (§5, eval 2): the index lists servers in their configured order and tools by name,
- * so the same configuration gives the same answer on every run. There is no fuzzy or semantic
- * layer. Substring matching over the name and the description is adequate at twenty servers.
+ * Determinism (§5, eval 2): the index lists the harness's deferred native rows first, in registry order, then servers in
+ * their configured order and tools by name, so the same configuration gives the same answer on every run. There is no fuzzy
+ * or semantic layer. Substring matching over the name, the description and a native row's keywords is adequate at this size.
+ *
+ * Deferral is about context, not trust (agent-harness §3): a native match is loaded for the turn so the planner declares it,
+ * and an external match is loaded under its candidate hash, which is where its pin is bound.
  */
 
 import type { CommandError, Result } from '@caotang/bus';
@@ -41,6 +44,8 @@ export interface ExtensionToolMeta {
   readonly descriptionVersion: number;
   readonly description: string;
   readonly surface: 'extension';
+  /** The gateway is always declared: the planner must always be able to search. */
+  readonly load: 'core';
 }
 
 export const TOOL_SEARCH_META: ExtensionToolMeta = {
@@ -48,10 +53,11 @@ export const TOOL_SEARCH_META: ExtensionToolMeta = {
   risk: 'read',
   undoable: false,
   response_token_cap: 2000,
-  descriptionVersion: 1,
+  descriptionVersion: 2,
   description:
-    'Search the tools of connected external servers that are enabled and reviewed, by name or description. Read-only. A matched tool is loaded for this turn and can then be called by its qualified name. An empty query lists the first matches in a fixed order. At most 20 matches per call, each with a short excerpt.',
+    "Search the tools that are not listed up front: Caotang's own deferred tools by name, and the tools of connected external servers that are enabled and reviewed. Read-only. A matched tool is loaded for this turn and can then be called by its name (an external tool by its qualified name). Caotang's own tools come first. An empty query lists the first matches in a fixed order. At most 20 matches per call, each with a short excerpt.",
   surface: 'extension',
+  load: 'core',
 };
 
 /**
@@ -89,12 +95,12 @@ export const TOOL_SEARCH_PARAMS: ToolParamsObject = {
   properties: {
     query: {
       kind: 'string',
-      description: 'A word or phrase to match against tool names and descriptions. Empty lists the first matches.',
+      description: 'A word or phrase to match against tool names, descriptions and topics. Empty lists the first matches.',
       maxLength: QUERY_MAX,
     },
     server: {
       kind: 'string',
-      description: 'Limit the search to one server, by its key (the s_ form shown in the server list).',
+      description: 'Limit the search to one external server, by its key (the s_ form shown in the server list). Native tools are then left out.',
       nonBlank: true,
     },
     risk: {
@@ -121,35 +127,42 @@ export const TOOL_SEARCH_ENTRY: ToolSearchEntry = {
 };
 
 /**
- * A loaded tool, and the candidate hash it was shown under. `tool.search` loads with the hash, so the call that follows
- * can be bound to the definition the turn saw (extensibility §4 rule 3, §6 `expectedPins`). A name loaded alone has none.
+ * A loaded tool. An external tool is loaded with the candidate hash it was shown under, so the call that follows can be bound
+ * to the definition the turn saw (extensibility §4 rule 3, §6 `expectedPins`); a name loaded alone has none. A native row
+ * is loaded by its registry name and has no pin: it is trusted code behind the same bus gate.
  */
-export interface LoadedTool {
-  readonly qualifiedName: string;
-  readonly candidateHash?: string;
-}
+export type LoadedTool =
+  | { readonly source?: 'external'; readonly qualifiedName: string; readonly candidateHash?: string }
+  | { readonly source: 'native'; readonly name: string };
+
+const loadedKey = (tool: LoadedTool): string => (tool.source === 'native' ? tool.name : tool.qualifiedName);
 
 /** Which tools a turn has loaded. One active turn at a time; `beginTurn` clears the set, as a turn ends with `endTurn`. */
 export interface LoadedTools {
   beginTurn(turnId: string): void;
   endTurn(): void;
   /**
-   * Loads tools for the turn. A search passes each match with the hash it showed; a bare name loads it without one.
-   * A name loaded again takes the newer entry, and a bare name keeps the hash it already has.
+   * Loads tools for the turn. A search passes each external match with the hash it showed, and each native match as a native
+   * entry; a bare string loads an external name without a hash. A name loaded again takes the newer entry, and a bare name
+   * keeps the hash it already has.
    */
   load(tools: readonly (LoadedTool | string)[]): void;
-  isLoaded(qualifiedName: string): boolean;
-  /** The candidate hash the tool was shown under when it was loaded, or undefined when it was loaded by name alone. */
-  hashOf(qualifiedName: string): string | undefined;
-  /** The loaded tools, sorted by qualified name. */
+  isLoaded(name: string): boolean;
+  /** The candidate hash the tool was shown under when it was loaded, or undefined when it was loaded by name alone (or is native). */
+  hashOf(name: string): string | undefined;
+  /** The loaded tools, native and external, sorted by name. */
   entries(): readonly LoadedTool[];
+  /** The loaded names, native and external, sorted. */
   names(): readonly string[];
+  /** The registry names of the native rows loaded, sorted. */
+  nativeNames(): readonly string[];
   readonly turnId: string | undefined;
 }
 
 export function createLoadedTools(): LoadedTools {
   let turn: string | undefined;
   let loaded = new Map<string, LoadedTool>();
+  const sorted = (): LoadedTool[] => [...loaded.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, tool]) => tool);
   return {
     beginTurn(turnId) {
       turn = turnId;
@@ -162,31 +175,53 @@ export function createLoadedTools(): LoadedTools {
     load(tools) {
       for (const tool of tools) {
         const entry: LoadedTool = typeof tool === 'string' ? { qualifiedName: tool } : tool;
-        const previous = loaded.get(entry.qualifiedName);
-        loaded.set(entry.qualifiedName, entry.candidateHash === undefined && previous !== undefined ? previous : entry);
+        const key = loadedKey(entry);
+        const previous = loaded.get(key);
+        const bare = entry.source !== 'native' && entry.candidateHash === undefined;
+        loaded.set(key, bare && previous !== undefined ? previous : entry);
       }
     },
-    isLoaded: (qualifiedName) => loaded.has(qualifiedName),
-    hashOf: (qualifiedName) => loaded.get(qualifiedName)?.candidateHash,
-    entries: () => [...loaded.values()].sort((a, b) => (a.qualifiedName < b.qualifiedName ? -1 : a.qualifiedName > b.qualifiedName ? 1 : 0)),
-    names: () => [...loaded.keys()].sort(),
+    isLoaded: (name) => loaded.has(name),
+    hashOf(name) {
+      const tool = loaded.get(name);
+      return tool === undefined || tool.source === 'native' ? undefined : tool.candidateHash;
+    },
+    entries: sorted,
+    names: () => sorted().map(loadedKey),
+    nativeNames: () => sorted().flatMap((tool) => (tool.source === 'native' ? [tool.name] : [])),
     get turnId() {
       return turn;
     },
   };
 }
 
-/** The one-line L0 addendum (context-assembly §2) naming the external tools loaded this turn. Undefined when none are. */
+/** The one-line L0 addendum (context-assembly §2) naming the tools loaded this turn. Undefined when none are. */
 export function loadedAddendum(names: readonly string[]): string | undefined {
   if (names.length === 0) return undefined;
-  return `External tools loaded this turn, callable by their qualified name: ${names.join(', ')}.`;
+  return `Tools loaded this turn, callable by name: ${names.join(', ')}.`;
+}
+
+export type SearchSource = 'native' | 'external';
+
+/** A deferred native row as the index sees it: the harness builds these from its registry, so this package does not import it. */
+export interface NativeIndexRow {
+  readonly source: 'native';
+  /** The registry name, e.g. `shots.derive`. No `mcp__` prefix. */
+  readonly name: string;
+  readonly description: string;
+  /** The row's extra search terms (its module, synonyms). Matched, never shown. */
+  readonly keywords: readonly string[];
+  /** The same badge {@link riskBadge} gives an external tool. */
+  readonly risk: 'read' | 'write';
 }
 
 export interface SearchMatch {
-  readonly qualifiedName: string;
-  readonly serverKey: string;
-  readonly serverName: string;
-  readonly toolName: string;
+  readonly source: SearchSource;
+  /** The registry name of a native match, the qualified name of an external one. */
+  readonly name: string;
+  readonly serverKey?: string;
+  readonly serverName?: string;
+  readonly toolName?: string;
   readonly excerpt: string;
   readonly risk: 'read' | 'write';
 }
@@ -197,16 +232,23 @@ export interface ToolSearchValue {
   readonly summary: string;
   readonly notes: readonly string[];
   /**
-   * The full descriptors of the matches (§5). They are the loaded set's entries, and the harness reads them back from
-   * the index (`loadedExternalTools`) to put each one's name, description and schema in front of the model for this turn.
+   * The full descriptors of the external matches (§5). They are the loaded set's entries, and the harness reads them back from
+   * the index (`loadedExternalTools`) to put each one's name, description and schema in front of the model for this turn. A
+   * native match is read back from the registry (`loadedNativeTools`).
    */
   readonly surfaced: readonly ExternalToolDescriptor[];
 }
 
 export interface ToolSearchContext {
   readonly index: () => IndexedTools;
+  /** The deferred native rows that can be called now, in registry order. Absent: none, so only external tools are searched. */
+  readonly native?: () => readonly NativeIndexRow[];
   readonly loaded: LoadedTools;
 }
+
+type Candidate =
+  | { readonly source: 'native'; readonly row: NativeIndexRow }
+  | { readonly source: 'external'; readonly tool: ExternalToolDescriptor };
 
 /** The handler. Refusals are `invalid-params`; an empty result, a server that is off, and an unhealthy server are results with notes. */
 export function toolSearch(params: unknown, context: ToolSearchContext): Result<ToolSearchValue, CommandError> {
@@ -215,13 +257,24 @@ export function toolSearch(params: unknown, context: ToolSearchContext): Result<
   const { query, server, risk, limit } = parsed.value;
 
   const index = context.index();
-  let candidates = index.tools.filter((tool) => server === undefined || tool.serverKey === server);
-  if (risk !== undefined) candidates = candidates.filter((tool) => riskBadge(tool) === risk);
+  // Fixed order (§5, eval 2): native rows in registry order, then servers in connect order, then tool name. A server filter
+  // names an external server, so it leaves the native rows out.
+  const natives = server === undefined ? (context.native?.() ?? []) : [];
+  let candidates: Candidate[] = [
+    ...natives.map((row): Candidate => ({ source: 'native', row })),
+    ...index.tools.filter((tool) => server === undefined || tool.serverKey === server).map((tool): Candidate => ({ source: 'external', tool })),
+  ];
+  if (risk !== undefined) candidates = candidates.filter((item) => (item.source === 'native' ? item.row.risk : riskBadge(item.tool)) === risk);
   const needle = query.trim().toLowerCase();
   if (needle !== '') {
-    candidates = candidates.filter((tool) =>
-      [tool.qualifiedName, tool.toolName, tool.description].some((text) => text.toLowerCase().includes(needle)),
-    );
+    // Every word of the query must appear somewhere in the name, the description or a native row's keywords.
+    const words = needle.split(/\s+/);
+    candidates = candidates.filter((item) => {
+      const haystack = (item.source === 'native' ? [item.row.name, item.row.description, ...item.row.keywords] : [item.tool.qualifiedName, item.tool.toolName, item.tool.description])
+        .join('\n')
+        .toLowerCase();
+      return words.every((word) => haystack.includes(word));
+    });
   }
 
   const picked = candidates.slice(0, limit);
@@ -233,27 +286,36 @@ export function toolSearch(params: unknown, context: ToolSearchContext): Result<
     notes.push(`no searchable tool on server ${server}`);
   }
 
-  // Each match is loaded under the candidate hash it is shown with, so a call that follows is bound to this definition.
-  context.loaded.load(picked.map((tool) => ({ qualifiedName: tool.qualifiedName, candidateHash: tool.candidateHash })));
-  const matches: SearchMatch[] = picked.map((tool) => ({
-    qualifiedName: tool.qualifiedName,
-    serverKey: tool.serverKey,
-    serverName: tool.serverName,
-    toolName: tool.toolName,
-    excerpt: clipChars(tool.description, EXCERPT_CHARS),
-    risk: riskBadge(tool),
-  }));
+  // An external match is loaded under the candidate hash it is shown with, so a call that follows is bound to this definition.
+  // A native match is loaded by its registry name.
+  context.loaded.load(
+    picked.map((item): LoadedTool => (item.source === 'native' ? { source: 'native', name: item.row.name } : { qualifiedName: item.tool.qualifiedName, candidateHash: item.tool.candidateHash })),
+  );
+  const matches: SearchMatch[] = picked.map((item) =>
+    item.source === 'native'
+      ? { source: 'native', name: item.row.name, excerpt: clipChars(item.row.description, EXCERPT_CHARS), risk: item.row.risk }
+      : {
+          source: 'external',
+          name: item.tool.qualifiedName,
+          serverKey: item.tool.serverKey,
+          serverName: item.tool.serverName,
+          toolName: item.tool.toolName,
+          excerpt: clipChars(item.tool.description, EXCERPT_CHARS),
+          risk: riskBadge(item.tool),
+        },
+  );
+  const surfaced = matches.map((match) => match.name);
 
   const summary =
     picked.length === 0
-      ? `no external tool matched${needle === '' ? '' : ` '${query.trim()}'`}; re-search with terms from the task`
-      : `loaded ${picked.length} external tool${picked.length === 1 ? '' : 's'} for this turn: ${picked.map((tool) => tool.qualifiedName).join(', ')}`;
+      ? `no tool matched${needle === '' ? '' : ` '${query.trim()}'`}; re-search with terms from the task`
+      : `loaded ${picked.length} tool${picked.length === 1 ? '' : 's'} for this turn: ${surfaced.join(', ')}`;
 
   return ok({
-    data: { matches, surfaced: picked.map((tool) => tool.qualifiedName) },
+    data: { matches, surfaced },
     summary,
     notes,
-    surfaced: picked,
+    surfaced: picked.flatMap((item) => (item.source === 'external' ? [item.tool] : [])),
   });
 }
 

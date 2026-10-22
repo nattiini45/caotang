@@ -47,6 +47,10 @@ export interface CoherenceToolMeta {
   readonly descriptionVersion: number;
   readonly description: string;
   readonly surface: 'extension';
+  /** Every module row is deferred: the planner declares it only once `tool.search` or a preload loads it (agent-harness §3). */
+  readonly load: 'deferred';
+  /** Extra search terms for `tool.search`; never shown to the model. */
+  readonly keywords: readonly string[];
 }
 
 /**
@@ -144,6 +148,8 @@ export const COHERENCE_TOOL_ENTRIES: readonly CoherenceToolEntry[] = [
       descriptionVersion: 1,
       description: SCAN_DESCRIPTION,
       surface: 'extension',
+      load: 'deferred',
+      keywords: ['coherence', 'continuity', 'consistency', 'check', 'findings'],
     },
     params: {
       kind: 'object',
@@ -172,6 +178,8 @@ export const COHERENCE_TOOL_ENTRIES: readonly CoherenceToolEntry[] = [
       descriptionVersion: 1,
       description: REVIEW_DESCRIPTION,
       surface: 'extension',
+      load: 'deferred',
+      keywords: ['coherence', 'continuity', 'consistency', 'review', 'findings', 'contradiction'],
     },
     params: {
       kind: 'object',
@@ -206,6 +214,8 @@ export const COHERENCE_TOOL_ENTRIES: readonly CoherenceToolEntry[] = [
       descriptionVersion: 1,
       description: SET_STATUS_DESCRIPTION,
       surface: 'extension',
+      load: 'deferred',
+      keywords: ['coherence', 'finding', 'fixed', 'inbox'],
     },
     params: {
       kind: 'object',

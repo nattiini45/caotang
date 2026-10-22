@@ -6,7 +6,16 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { EXCERPT_CHARS, TOOL_SEARCH_META, TOOL_SEARCH_NAME, TOOL_SEARCH_PARAMS, createLoadedTools, loadedAddendum, toolSearch } from '../src/index.js';
+import {
+  EXCERPT_CHARS,
+  TOOL_SEARCH_META,
+  TOOL_SEARCH_NAME,
+  TOOL_SEARCH_PARAMS,
+  createLoadedTools,
+  loadedAddendum,
+  toolSearch,
+  type NativeIndexRow,
+} from '../src/index.js';
 import { LONG_DESCRIPTION, SHELF_KEY, STORY_KEY, openClient, qualified } from './fixtures.js';
 
 async function standardIndex() {
@@ -16,7 +25,9 @@ async function standardIndex() {
 describe('the tool definition', () => {
   it('is a read tool outside the closed registry, with a parameter spec the harness can derive a schema from', () => {
     expect(TOOL_SEARCH_NAME).toBe('tool.search');
-    expect(TOOL_SEARCH_META).toMatchObject({ name: 'tool.search', risk: 'read', undoable: false, surface: 'extension' });
+    expect(TOOL_SEARCH_META).toMatchObject({ name: 'tool.search', risk: 'read', undoable: false, surface: 'extension', load: 'core' });
+    // The description now covers the registry's own deferred tools, so its version moved (agent-harness §9).
+    expect(TOOL_SEARCH_META.descriptionVersion).toBe(2);
     expect(TOOL_SEARCH_PARAMS.kind).toBe('object');
     expect(TOOL_SEARCH_PARAMS.required).toEqual(['query']);
     expect(Object.keys(TOOL_SEARCH_PARAMS.properties).sort()).toEqual(['limit', 'query', 'risk', 'server']);
@@ -105,7 +116,7 @@ describe('matching, browse and filters', () => {
     const result = toolSearch({ query: 'zzz' }, { index: () => client.indexedTools(), loaded: createLoadedTools() });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error('a miss is a result');
-    expect(result.value.summary).toBe("no external tool matched 'zzz'; re-search with terms from the task");
+    expect(result.value.summary).toBe("no tool matched 'zzz'; re-search with terms from the task");
     expect(result.value.data.surfaced).toEqual([]);
   });
 });
@@ -172,7 +183,81 @@ describe('the per-turn loaded set', () => {
   it('describes the loaded tools in one L0 line, and nothing when none are loaded', () => {
     expect(loadedAddendum([])).toBeUndefined();
     expect(loadedAddendum([qualified(STORY_KEY, 'lore_lookup')])).toBe(
-      `External tools loaded this turn, callable by their qualified name: mcp__${STORY_KEY}__lore_lookup.`,
+      `Tools loaded this turn, callable by name: mcp__${STORY_KEY}__lore_lookup.`,
     );
+  });
+});
+
+const NATIVE: readonly NativeIndexRow[] = [
+  { source: 'native', name: 'dialogue.table', description: 'Read the lines of one dialogue container as a table.', keywords: ['cutscene', 'ink'], risk: 'read' },
+  { source: 'native', name: 'shots.derive', description: 'x'.repeat(EXCERPT_CHARS * 2), keywords: ['storyboard'], risk: 'write' },
+];
+
+describe('the registry’s deferred rows in the same index', () => {
+  const search = async (params: unknown, loaded = createLoadedTools()) => {
+    const { client } = await standardIndex();
+    return { result: toolSearch(params, { index: () => client.indexedTools(), native: () => NATIVE, loaded }), loaded };
+  };
+
+  it('lists native rows first, in the order given, then servers in config order and tools by name', async () => {
+    const { result } = await search({ query: '', limit: 20 });
+    if (!result.ok) throw new Error('expected matches');
+    const sources = result.value.data.matches.map((match) => match.source);
+    expect(sources).toEqual(['native', 'native', ...Array.from({ length: sources.length - 2 }, () => 'external')]);
+    expect(result.value.data.surfaced.slice(0, 2)).toEqual(['dialogue.table', 'shots.derive']);
+    expect(result.value.data.surfaced.slice(2).every((name) => name.startsWith('mcp__'))).toBe(true);
+    // Only the external matches have a descriptor to read back from the index.
+    expect(result.value.surfaced.every((tool) => tool.qualifiedName.startsWith('mcp__'))).toBe(true);
+  });
+
+  it('gives a native match its bare name, its badge and an excerpt of at most the cap, and loads it by name for the turn', async () => {
+    const { result, loaded } = await search({ query: 'shots' });
+    if (!result.ok) throw new Error('expected matches');
+    const [match] = result.value.data.matches;
+    expect(match).toMatchObject({ source: 'native', name: 'shots.derive', risk: 'write' });
+    expect(match?.serverKey).toBeUndefined();
+    expect(match?.excerpt.length).toBeLessThanOrEqual(EXCERPT_CHARS);
+    expect(loaded.isLoaded('shots.derive')).toBe(true);
+    expect(loaded.hashOf('shots.derive')).toBeUndefined();
+    expect(loaded.nativeNames()).toEqual(['shots.derive']);
+  });
+
+  it('matches a native row by its keyword, by every word of the query, and by risk', async () => {
+    expect((await search({ query: 'cutscene' })).result).toMatchObject({ value: { data: { surfaced: ['dialogue.table'] } } });
+    expect((await search({ query: 'dialogue container' })).result).toMatchObject({ value: { data: { surfaced: ['dialogue.table'] } } });
+    expect((await search({ query: 'dialogue storyboard' })).result).toMatchObject({ value: { data: { surfaced: [] } } });
+    expect((await search({ query: '', risk: 'write', limit: 1 })).result).toMatchObject({ value: { data: { surfaced: ['shots.derive'] } } });
+  });
+
+  it('leaves the native rows out of a search that names an external server', async () => {
+    const { result } = await search({ query: '', server: SHELF_KEY });
+    if (!result.ok) throw new Error('expected matches');
+    expect(result.value.data.matches.every((match) => match.source === 'external')).toBe(true);
+  });
+
+  it('keeps an external match bound to its candidate hash beside a native one', async () => {
+    const { result, loaded } = await search({ query: '', limit: 20 });
+    if (!result.ok) throw new Error('expected matches');
+    const external = result.value.surfaced[0];
+    expect(external?.candidateHash).toBeDefined();
+    expect(loaded.hashOf(external?.qualifiedName ?? '')).toBe(external?.candidateHash);
+    expect(loaded.names()).toEqual([...loaded.names()].sort());
+    expect(loaded.entries().map((entry) => (entry.source === 'native' ? entry.name : entry.qualifiedName))).toEqual(loaded.names());
+  });
+
+  it('names native and external tools alike in the one-line addendum', () => {
+    expect(loadedAddendum(['dialogue.table', 'mcp__s_X__lookup'])).toBe('Tools loaded this turn, callable by name: dialogue.table, mcp__s_X__lookup.');
+  });
+
+  it('keeps a restored native entry, so a load put back after an external search is still loaded', () => {
+    const loaded = createLoadedTools();
+    loaded.beginTurn('t');
+    loaded.load([{ source: 'native', name: 'shots.derive' }, { qualifiedName: 'mcp__s_X__lookup', candidateHash: 'h1' }]);
+    const before = loaded.entries();
+    loaded.beginTurn('t');
+    loaded.load(before);
+    expect(loaded.entries()).toEqual(before);
+    loaded.load(['mcp__s_X__lookup']);
+    expect(loaded.hashOf('mcp__s_X__lookup')).toBe('h1');
   });
 });
