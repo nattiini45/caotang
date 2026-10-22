@@ -21,6 +21,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Fixed
 
+- **Storyboards.** A shot's picture whose file has gone is dropped when the project opens, from the projects list too, with a notice on the open and on the board, and not when the storyboard opens. A folder Caotang cannot attach (a different file under a picture's name, or a compile log it cannot read) is still read for its pictures, so a shot keeps one that only the folder holds. A folder file that differs from the browser's copy counts as present, and the board shows the browser's copy. Nothing is dropped when the project's pictures could not be listed.
 - **Providers.** A thinking level on an Anthropic profile no longer makes every request fail; Claude 5 models get adaptive thinking with the chosen effort, and the Thinking block shows their summary. On routes that take a thinking budget, the output cap is raised so it always exceeds the budget.
 
 ## 0.1.0

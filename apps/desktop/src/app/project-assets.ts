@@ -17,6 +17,20 @@
  * Where the browser has no asset store (a headless test, or a browser that refuses IndexedDB), the bytes last as long as
  * the page does, and {@link ProjectAssets.durable} says so, so the caller can tell the writer what is kept.
  *
+ * ## A folder that is read but not attached
+ *
+ * Attaching a folder can be refused (it holds a different file under one of the store's paths, or its compile log cannot be read),
+ * and the refusal says nothing about which pictures the folder holds. {@link ProjectAssets.listFolder} lists `assets/` apart from
+ * the attach and keeps the folder as a read-only source, so a refused folder's pictures are still present and still shown; a file
+ * that differs from the browser's copy counts as present, and the browser's copy is the one read for it. Writes go only to an
+ * attached folder.
+ *
+ * ## When the list can be trusted
+ *
+ * A reference is dropped only for a file the project is sure is absent. {@link ProjectAssets.listingAuthoritative} is true when
+ * the browser's copy was bound and listed, or a folder's `assets/` was listed, and no listing that was tried failed: an
+ * unreadable store, or a page with nothing but its own memory, is not an empty project.
+ *
  * ## A folder file is never overwritten
  *
  * An asset id is random, so a clash is not expected. A folder that holds a different file under a path this store holds is
@@ -102,6 +116,13 @@ export class ProjectAssets {
   private folder: DirectoryHandleLike | null = null;
   /** The folder's `assets/` paths as listed when it was attached. The agent's image check reads them synchronously. */
   private folderPaths = new Set<string>();
+  /** A folder read for its pictures that is not (or not yet) the one writes go to: the folder of an attach that was refused. */
+  private readFolder: DirectoryHandleLike | null = null;
+  /** Whether a folder's `assets/` was listed, and whether the last attempt to list one failed. */
+  private folderListed = false;
+  private folderListFailed = false;
+  /** Whether the browser's copy could not be listed, so its paths are not known to be all of them. */
+  private durableListFailed = false;
   /** The browser's copy for this project, once {@link persistFor} has bound it. */
   private backend: DurableAssets | null = null;
   /** The project the browser's copy was last bound to, so a second bind of that project is the same binding. */
@@ -124,6 +145,15 @@ export class ProjectAssets {
       if (name !== undefined) ids.add(name.assetId);
     }
     return ids;
+  }
+
+  /**
+   * Whether the asset list is complete enough to say a file is absent: the browser's copy or a folder was listed, and no listing
+   * failed. The session drops no image reference until this holds (storyboard.md §2.2).
+   */
+  listingAuthoritative(): boolean {
+    if (this.durableListFailed || this.folderListFailed) return false;
+    return this.backend !== null || this.folderListed;
   }
 
   /** Whether writes go through to a project folder, or the bytes are held in this page only. */
@@ -155,7 +185,9 @@ export class ProjectAssets {
     try {
       for (const path of await backend.list()) this.durablePaths.add(path);
       this.backend = backend;
+      this.durableListFailed = false;
     } catch {
+      this.durableListFailed = true;
       // A list that fails leaves the copy unbound for reading: an unreadable store must not look like an empty one, so the
       // images are then held in memory and the folder only, and `durable()` says so.
     }
@@ -192,6 +224,11 @@ export class ProjectAssets {
     this.held.set(path, bytes.slice());
   }
 
+  /** The folder asset reads go to when memory and the browser's copy lack a file: the attached folder, else the one only read. */
+  private readable(): DirectoryHandleLike | null {
+    return this.folder ?? this.readFolder;
+  }
+
   /** The bytes of one asset file, or `null` when no place holds it: the memory, the browser's copy, or the folder. */
   async readBytes(path: string): Promise<Uint8Array | null> {
     await this.binding;
@@ -201,15 +238,17 @@ export class ProjectAssets {
       const stored = await this.backend.get(path);
       if (stored !== undefined) return stored.slice();
     }
-    if (this.folder === null) return null;
-    return folderBytes(this.folder).readBytes(path);
+    const folder = this.readable();
+    if (folder === null) return null;
+    return folderBytes(folder).readBytes(path);
   }
 
   /** Whether one asset file is held, without reading it. */
   async has(path: string): Promise<boolean> {
     await this.binding;
     if (this.held.has(path) || this.durablePaths.has(path)) return true;
-    return this.folder !== null && (await folderArtifactFs(this.folder).exists(path));
+    const folder = this.readable();
+    return folder !== null && (await folderArtifactFs(folder).exists(path));
   }
 
   /** Every asset file, by path, as the bytes a bundle carries. */
@@ -277,15 +316,38 @@ export class ProjectAssets {
   async attach(root: DirectoryHandleLike): Promise<void> {
     await this.copyTo(root);
     this.folder = root;
-    this.folderPaths = new Set((await folderArtifactFs(root).listFiles(ASSETS_DIR)).map((name) => `${ASSETS_DIR}/${name}`));
+    this.readFolder = null;
+    this.folderPaths = await assetPathsOf(root);
+    this.folderListed = true;
+    this.folderListFailed = false;
+  }
+
+  /**
+   * Lists a folder's `assets/` and reads from it from now on, without attaching it: the session does this before it tries the
+   * attach, so a refusal leaves the folder's pictures present. A listing that fails is recorded (the list is then not
+   * authoritative) and does not throw. Does nothing once a folder is attached, which is already read.
+   */
+  async listFolder(root: DirectoryHandleLike): Promise<void> {
+    if (this.folder !== null) return;
+    try {
+      this.folderPaths = await assetPathsOf(root);
+      this.readFolder = root;
+      this.folderListed = true;
+      this.folderListFailed = false;
+    } catch {
+      this.folderPaths = new Set();
+      this.readFolder = null;
+      this.folderListFailed = true;
+    }
   }
 
   /** Every asset path the store can read: the held ones, the browser's and the folder's, sorted, without repeats. */
   async listPaths(): Promise<string[]> {
     await this.binding;
     const names = new Set([...this.held.keys(), ...this.durablePaths]);
-    if (this.folder !== null) {
-      for (const name of await folderArtifactFs(this.folder).listFiles(ASSETS_DIR)) names.add(`${ASSETS_DIR}/${name}`);
+    const folder = this.readable();
+    if (folder !== null) {
+      for (const name of await folderArtifactFs(folder).listFiles(ASSETS_DIR)) names.add(`${ASSETS_DIR}/${name}`);
     }
     return [...names].sort();
   }
@@ -330,6 +392,11 @@ export async function coverFileHeld(assets: ProjectAssets, coverAssetId: string 
     if (await assets.has(`${ASSETS_DIR}/${coverAssetId}.${extension}`)) return true;
   }
   return false;
+}
+
+/** The paths of the files a folder holds under `assets/`. */
+async function assetPathsOf(root: DirectoryHandleLike): Promise<Set<string>> {
+  return new Set((await folderArtifactFs(root).listFiles(ASSETS_DIR)).map((name) => `${ASSETS_DIR}/${name}`));
 }
 
 /**

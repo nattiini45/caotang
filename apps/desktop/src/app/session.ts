@@ -332,7 +332,7 @@ export class ProjectSession {
   /** The project as it stood when the writer last had a copy of it (`markExported`), as a signature (`changedSinceExport`). */
   /** The images the open dropped because `assets/` does not hold them, one line each. Shown on the storyboard. */
   private imageDropNotes: readonly string[] = [];
-  /** The open's image check runs once, at the first settle, after the bundle's images and the folder are in. */
+  /** The image check runs once, at the first settle (or attach) at which the asset list can be trusted (`ProjectAssets.listingAuthoritative`). */
   private imagesChecked = false;
   private exportBaseline: string | null = null;
   /** What the open folder's copy said when this session last loaded it or saved to it, and the folder it was in (`setFolderBaseline`). */
@@ -863,6 +863,8 @@ export class ProjectSession {
    * `exports/` includes the folder's files and a new export cannot take a name one of them holds.
    */
   async attachFolder(root: DirectoryHandleLike): Promise<void> {
+    // The folder's pictures are listed before anything can refuse the attach, so a refused folder's pictures are still present.
+    await this.assets.listFolder(root);
     // Each store refuses before it writes, and the images are checked first, so a folder refused for its compile log keeps no image.
     await this.assets.checkAttach(root);
     await this.exports.attach(root);
@@ -871,6 +873,8 @@ export class ProjectSession {
     await this.refreshAssetRecords();
     await this.exporterService.ready();
     this.bump();
+    // A check that waited for a folder's list (the project had no browser copy) runs now that the list is in.
+    await this.checkImageReferences();
   }
 
   /* ------------------------------------------------------------------ *
@@ -1171,14 +1175,16 @@ export class ProjectSession {
 
   /**
    * The open's image check (storyboard.md §2.2): an image reference whose file `assets/` does not hold is dropped, with one notice
-   * per drop, and the save that follows writes the manifest without it. It runs once per session. Settle runs it, and so does the
-   * storyboard board when it first opens: by then the open has loaded the bundle's images and attached the folder, so the list it
-   * checks against is complete. (The project-list open does not settle the session, so the board is where that open checks.)
+   * per drop, and the save that follows writes the manifest without it. It runs once per session, at the first call that finds the
+   * asset list authoritative: every open settles the session, which runs it, so the notices are on the session before any view
+   * opens, and the storyboard's own call is then a no-op. A list that is not authoritative (no browser copy and no folder listed, or
+   * a listing that failed) drops nothing and leaves the check to run when a later listing is (`attachFolder`).
    */
   async checkImageReferences(): Promise<void> {
     if (this.imagesChecked) return;
-    this.imagesChecked = true;
     await this.assets.ready();
+    if (this.imagesChecked || !this.assets.listingAuthoritative()) return;
+    this.imagesChecked = true;
     const notices = dropDanglingImages(this.state, this.assets.presentIds());
     if (notices.length === 0) return;
     this.imageDropNotes = notices;
