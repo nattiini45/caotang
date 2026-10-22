@@ -7,6 +7,7 @@
 import {
   CHECKPOINT_LABEL,
   emptyTaskList,
+  phraseFor,
   reduceTaskList,
   type AgentEvent,
   type AskBack,
@@ -14,6 +15,7 @@ import {
   type Finding,
   type NameOf,
   type PlanCardView,
+  type PlanStepView,
   type SteeringNote,
   type StatusCard,
   type TaskList,
@@ -229,6 +231,60 @@ export function formatElapsed(milliseconds: number): string {
 export function elapsedOf(card: StatusCard, now: number): number | undefined {
   if (card.startedAt === undefined) return undefined;
   return (card.finishedAt ?? now) - card.startedAt;
+}
+
+/**
+ * A delegated agent's call as the panel words it (agent-harness §8): no new card kind, the `agent.delegate` call's own card with the
+ * agent's name, the calls reserved for it, how it stands in words (never colour alone), its brief and notes to open, and its own trace
+ * rows. `undefined` for any other call.
+ */
+export interface DelegationCardView {
+  readonly title: string;
+  readonly reserved: string;
+  /** How the agent stands, in words: the status pill says the call's state, and this says what the agent did. */
+  readonly standing: string;
+  readonly brief: string;
+  readonly scope: readonly string[];
+  readonly result: string | undefined;
+  readonly proposed: string | undefined;
+  readonly trace: readonly { readonly key: string; readonly text: string }[];
+}
+
+const TRACE_OUTCOME: Readonly<Record<'ok' | 'refused' | 'not-run', string>> = { ok: 'done', refused: 'refused', 'not-run': 'proposed, not run' };
+
+export function delegationViewOf(card: StatusCard): DelegationCardView | undefined {
+  const { delegation } = card;
+  if (delegation === undefined) return undefined;
+  const calls = delegation.reserved;
+  const standing =
+    delegation.outcome === 'running'
+      ? 'Working'
+      : delegation.outcome === 'done'
+        ? 'Finished'
+        : delegation.outcome === 'partial'
+          ? 'Stopped before it finished'
+          : 'Failed';
+  const proposed = delegation.proposed ?? 0;
+  const scope = card.args['scope'];
+  return {
+    title: `${delegation.agent.charAt(0).toUpperCase()}${delegation.agent.slice(1)} agent`,
+    reserved: `${calls} model ${calls === 1 ? 'call' : 'calls'} reserved`,
+    standing,
+    brief: typeof card.args['brief'] === 'string' ? card.args['brief'] : '',
+    scope: Array.isArray(scope) ? scope.filter((entry): entry is string => typeof entry === 'string') : [],
+    result: delegation.result,
+    proposed:
+      proposed === 0 ? undefined : `${proposed} ${proposed === 1 ? 'step' : 'steps'} proposed. None has run: a step only runs if it is in a plan you approve.`,
+    trace: delegation.trace.map((row, index) => ({
+      key: `${row.callId}:${index}`,
+      text: `${phraseFor(row.tool, row.params).content} — ${TRACE_OUTCOME[row.outcome]}`,
+    })),
+  };
+}
+
+/** The words a plan step carries when a delegated agent proposed it, or `undefined` for a step the agent did not propose (or the writer edited). */
+export function proposedByWords(step: PlanStepView): string | undefined {
+  return step.proposedBy === undefined ? undefined : `Proposed by the ${step.proposedBy} agent`;
 }
 
 /** Whether a status card is still moving: waiting for a decision, or running. Grouping opens while any card is. */

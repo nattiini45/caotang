@@ -7,10 +7,13 @@ import { addDocument } from '../../packages/store/src/index.js';
 import {
   STREAM_TAIL_CHARS,
   askBackOptions,
+  delegationViewOf,
   documentIdFor,
   draftCheckOf,
+  elapsedOf,
   newTurnView,
   phaseLabel,
+  proposedByWords,
   reduceTurn,
   type GhostView,
 } from '../../apps/desktop/src/app/agent-model.js';
@@ -318,4 +321,64 @@ test('the task list is folded with the turn, shows documents by their titles, an
   const other = reduceTurn(turn, { type: 'turn', turnId: 'sess.turn-2', phase: 'running' }, nameOf);
   expect(other).toBe(turn);
   expect(other.tasks).toBe(turn.tasks);
+});
+
+test('a delegated agent’s call shows its agent, its reserved calls, how it stands in words, and its own rows, as its card is updated in place', () => {
+  const id = `${TURN}:r1`;
+  const path = `${TURN}/reader#1`;
+  const args = { agent: 'reader', brief: 'Who knows the lamp failed?', scope: ['The Storm'] };
+  const running = card(id, 'running', {
+    tool: 'agent.delegate',
+    risk: 'read',
+    args,
+    startedAt: 10,
+    delegation: { agent: 'reader', agentPath: path, reserved: 3, outcome: 'running', trace: [] },
+  });
+  const read = { tool: 'doc.read', callId: `${path}:r1`, outcome: 'ok' as const, params: { doc: 'The Storm' }, agentPath: path };
+  const refused = { tool: 'agent.delegate', callId: `${path}:r2`, outcome: 'refused' as const, params: {}, agentPath: path };
+  const staged = { tool: 'codex.write', callId: `${path}:r3`, outcome: 'not-run' as const, params: {}, agentPath: path };
+  const done = card(id, 'done', {
+    tool: 'agent.delegate',
+    risk: 'read',
+    args,
+    startedAt: 10,
+    finishedAt: 4_010,
+    summary: 'The reader agent read 1 document.',
+    delegation: { agent: 'reader', agentPath: path, reserved: 3, outcome: 'done', result: 'Only the keeper knows.', proposed: 2, trace: [read, refused, staged] },
+  });
+
+  const turn = fold([
+    { type: 'card', turnId: TURN, card: running },
+    { type: 'card', turnId: TURN, card: done },
+  ]);
+  // One card, replaced in place: the call keeps its place and carries the agent's latest view.
+  expect(turn.cards).toHaveLength(1);
+  const live = delegationViewOf(running);
+  expect(live).toMatchObject({ title: 'Reader agent', reserved: '3 model calls reserved', standing: 'Working', brief: 'Who knows the lamp failed?', scope: ['The Storm'], trace: [] });
+  expect(live?.result).toBeUndefined();
+
+  const finished = delegationViewOf(turn.cards[0] as StatusCard);
+  expect(finished?.standing).toBe('Finished');
+  expect(finished?.result).toBe('Only the keeper knows.');
+  // The state is in words, and a proposal says plainly that it has not run.
+  expect(finished?.proposed).toBe('2 steps proposed. None has run: a step only runs if it is in a plan you approve.');
+  expect(finished?.trace.map((row) => row.text)).toEqual(['Read “The Storm” — done', 'Hand work to a helper agent — refused', 'Write codex entries — proposed, not run']);
+  expect(new Set(finished?.trace.map((row) => row.key)).size).toBe(3);
+  expect(elapsedOf(turn.cards[0] as StatusCard, 99_999)).toBe(4_000);
+});
+
+test('an agent that ended early or failed says so, one call is not “calls”, and an ordinary call has no delegation view', () => {
+  const base = { agent: 'general' as const, agentPath: `${TURN}/general#1`, reserved: 1, trace: [] };
+  const withOutcome = (outcome: 'partial' | 'failed') => card('x', 'done', { tool: 'agent.delegate', args: {}, delegation: { ...base, outcome } });
+  expect(delegationViewOf(withOutcome('partial'))?.standing).toBe('Stopped before it finished');
+  expect(delegationViewOf(withOutcome('failed'))?.standing).toBe('Failed');
+  expect(delegationViewOf(withOutcome('partial'))?.reserved).toBe('1 model call reserved');
+  expect(delegationViewOf(withOutcome('partial'))?.proposed).toBeUndefined();
+  expect(delegationViewOf(card('y', 'done'))).toBeUndefined();
+});
+
+test('a plan step names the agent that proposed it, and a step without one says nothing', () => {
+  const proposed = { ...stepOf(0, 'codex.write', {}), proposedBy: 'general' };
+  expect(proposedByWords(proposed)).toBe('Proposed by the general agent');
+  expect(proposedByWords(stepOf(1, 'codex.write', {}))).toBeUndefined();
 });
