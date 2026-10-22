@@ -179,11 +179,25 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(pdfSection).toContain('are left out of the print');
     expect(pdfSection).toContain('Nastaliq');
     const render = read('packages/screenplay/src/render-pdf.ts');
-    expect(render).toContain('if (layout.rtlScripts.length === 0 || support === undefined) return undefined;');
+    expect(render).toContain('if (layout.shapedScripts.length === 0 || support === undefined) return undefined;');
     expect(render).toContain("await import('./rtl-font.js')");
     expect(read('packages/pdf-fonts/src/bidi.ts')).toContain("const RTL_LANGUAGES: ReadonlySet<string> = new Set(['ar', 'fa', 'ur', 'he', 'yi']);");
     expect(read('packages/screenplay/src/paginate.ts')).toContain('\\u061f\\u06d4\\u061b');
     expect(changelog).toContain('machine-verified, not reader-verified');
+  });
+
+  it('says the screenplay PDF prints Hindi, Marathi, Nepali and Sanskrit in Noto Sans Devanagari, shaped, broken between syllables, split after the danda, with a @ for a cue', () => {
+    const pdfSection = guide.slice(guide.indexOf('### The screenplay PDF'), guide.indexOf('## Writing dialogue'));
+    expect(pdfSection).toContain('Hindi, Marathi, Nepali and Sanskrit print in Noto Sans Devanagari, which is loaded only for a file that has Devanagari');
+    expect(pdfSection).toContain('a word wider than the column breaks only between syllables, never inside a conjunct');
+    expect(pdfSection).toContain('needs a `@` in front, as in `@राम`');
+    expect(pdfSection).toContain('only Devanagari has a font so far');
+    const render = read('packages/screenplay/src/render-pdf.ts');
+    expect(render).toContain("devanagariFontPrints(base) ? 'devanagari' : undefined");
+    expect(read('packages/screenplay/src/paginate.ts')).toContain('\\u0964\\u0965');
+    expect(read('packages/pdf-fonts/package.json')).toContain('"fontkit": "2.0.4"');
+    expect(read('packages/pdf-fonts/package.json')).toContain('"harfbuzzjs": "1.6.3"');
+    expect(guide).toContain('Characters that none of its fonts has, such as Tamil, print as `?`');
   });
 
   it('says the screenplay PDF prints CJK in its fallback font, two columns a character, loaded only when needed', () => {

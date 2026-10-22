@@ -44,6 +44,8 @@ const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp
   { name: 'the Source tab element menu', pattern: /element menu/i },
   // A sentence that names Arabic or Hebrew as unprintable, with Hindi or as a question mark; the limits that remain (marks, Nastaliq, no mirrored page) do not.
   { name: 'Arabic and Hebrew in the PDFs', pattern: /such as (?:an? )?(?:Arabic|Hebrew)|Arabic,? (?:and|or) Hindi|Hindi,? (?:and|or) Arabic/i },
+  // A sentence that names Hindi or Devanagari as unprintable; a limit on another Indic script (Tamil, Bengali) does not.
+  { name: 'Devanagari in the PDFs', pattern: /such as (?:an? )?(?:Hindi|Devanagari)\b|\b(?:Hindi|Devanagari)(?: (?:text|letters?|characters?|words?))?(?: is| are)? (?:printed|prints?) as (?:a )?(?:`\?`|question marks?)/i },
   // A limitation sentence about skills names what it is about (scripts, the other files, allowed tools, sharing, running by name), before or
   // after the word. Any other sentence in these lists that names skills says the feature is missing, and it is built.
   { name: 'skills', pattern: /(?:^|[.!?]\s+|\n)(?:(?!scripts?|other files|allowed tools|shared across|by name)[^.\n])*?\bskills?\b(?![^.\n]*(?:scripts?|other files|allowed tools|shared across|by name))/i },
@@ -127,5 +129,20 @@ describe('the Arabic and Hebrew pattern', () => {
   it('lets the limits that remain through', () => {
     expect('Characters that none of its fonts has (Noto Sans Arabic, Noto Sans Hebrew), such as Hindi, print as `?`.').not.toMatch(pattern);
     expect('Arabic marks and Hebrew points are left out of the print.').not.toMatch(pattern);
+  });
+});
+
+describe('the Devanagari pattern', () => {
+  const pattern = BUILT_FEATURES.find((feature) => feature.name === 'Devanagari in the PDFs')?.pattern ?? /$^/;
+
+  it('flags the old claims that Hindi does not print', () => {
+    expect('Characters that none of its fonts has, such as Hindi, print as `?`.').toMatch(pattern);
+    expect('A character no font covers, such as a Devanagari letter, prints as a question mark.').toMatch(pattern);
+    expect('Hindi text prints as a question mark.').toMatch(pattern);
+  });
+
+  it('lets the limits that remain through', () => {
+    expect('Characters that none of its fonts has, such as Tamil, print as `?`.').not.toMatch(pattern);
+    expect('Bengali, Tamil and Sinhala print as question marks until each has a font.').not.toMatch(pattern);
   });
 });
