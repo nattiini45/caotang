@@ -51,16 +51,8 @@ describe('parseFdxParagraphs — the typed paragraphs of an FDX file', () => {
 
   it('reads a file whose closing tags are missing in linear time', () => {
     const truncated = (count: number): string => '<Paragraph Type="Action">'.repeat(count);
-    // The best of three runs: the minimum is the measurement a GC pause or a busy CI runner distorted least, so the
-    // bounds below fail on a real complexity regression, not on wall-clock noise.
-    //
-    // **The bound is measured, not asserted.** Measured on this machine, on 2026-10-21: the linear scan costs 2.6 ms
-    // for 20 000 paragraphs and 4.8 ms for 40 000 — a ratio of 2 (2.15 was the worst of twenty rounds with every core
-    // of the machine busy). The scan this PR replaced, the regex that looked for a closing tag from every opening tag,
-    // cost 493 ms and 2 545 ms on the same two files — a ratio of 5. The relative bound is 3: loose enough that a
-    // loaded machine passes it, tight enough that the quadratic fails it. The bound is a ratio and carries no absolute
-    // term, so a scan that turned quadratic again is caught however fast the machine ran it; the absolute bound beside
-    // it catches a scan that is slow in itself.
+    // Best of three runs per size. Doubling the input roughly doubles a linear scan's time and quadruples a quadratic
+    // one's, so a ratio bound of 3 separates them.
     const timed = (count: number): number => {
       const source = truncated(count);
       let best = Number.POSITIVE_INFINITY;
@@ -77,8 +69,6 @@ describe('parseFdxParagraphs — the typed paragraphs of an FDX file', () => {
     const ratio = large / small;
     expect(ratio, `${Math.round(large)} ms for 40 000 paragraphs against ${Math.round(small)} ms for 20 000`).toBeLessThan(3);
     expect(large, `40 000 paragraphs took ${Math.round(large)} ms`).toBeLessThan(1000);
-    // The ratio is asserted first, so a scan that turned quadratic again reports the ratio above instead of the
-    // absolute bound. The timeout is generous, so it fails an assertion instead of timing out.
   }, 30_000);
 });
 
