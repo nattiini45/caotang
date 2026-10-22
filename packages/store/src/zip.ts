@@ -196,6 +196,19 @@ export interface ExportZipOptions {
    * A key outside `assets/` is refused, because an asset is the one binary file the bundle is defined to carry.
    */
   assets?: Readonly<Record<string, Uint8Array>>;
+  /**
+   * Who this bundle is for, which decides what it does with a file the load
+   * declined because its bytes are not UTF-8 text — `write.ts`
+   * `WriteOptions.copyFor`, and the same rule.
+   *
+   * A **`user`** bundle (the default) is the one the writer takes home, so it
+   * refuses rather than leaving such a file out of it.
+   *
+   * An **`internal`** bundle is the one the app keeps for itself: the desktop's
+   * safety bundle, which holds a browser's copy in memory so that a failed
+   * adopt can put it back. It leaves the file out and says so in the report.
+   */
+  copyFor?: 'user' | 'internal';
 }
 
 export interface ExportZipResult {
@@ -211,6 +224,12 @@ export interface ExportZipResult {
   rotated: string[];
   /** Manifest snapshots deliberately left out of the bundle — see below. */
   excluded: string[];
+  /**
+   * Files whose text this bundle does not carry, because the load declined them
+   * and their bytes are not text. Only an `internal` bundle has any; a `user`
+   * bundle refuses instead of making one.
+   */
+  omitted: string[];
 }
 
 /**
@@ -338,6 +357,7 @@ export async function exportProjectZip(
     now,
     snapshotCount: options.snapshotCount,
     newline: options.newline,
+    copyFor: options.copyFor,
   });
 
   // The assets go in before the snapshot is taken, so they are archived with the rest of the folder. Only `assets/` is
@@ -399,6 +419,7 @@ export async function exportProjectZip(
     fs,
     rotated: report.rotated,
     excluded,
+    omitted: report.omitted ?? [],
   };
 }
 
