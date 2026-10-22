@@ -339,6 +339,8 @@ importers:
         specifier: workspace:*
         version: link:../store
 
+  packages/crypto: {}
+
   packages/dialogue:
     dependencies:
       '@caotang/bus':
