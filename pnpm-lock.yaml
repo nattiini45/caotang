@@ -373,6 +373,8 @@ importers:
         specifier: workspace:*
         version: link:../store
 
+  packages/crypto: {}
+
   packages/dialogue:
     dependencies:
       '@caotang/bus':
@@ -786,6 +788,15 @@ importers:
       harfbuzzjs:
         specifier: 1.6.3
         version: 1.6.3
+
+  packages/remote-store:
+    dependencies:
+      '@caotang/crypto':
+        specifier: workspace:*
+        version: link:../crypto
+      '@caotang/store':
+        specifier: workspace:*
+        version: link:../store
 
   packages/screenplay:
     dependencies:
