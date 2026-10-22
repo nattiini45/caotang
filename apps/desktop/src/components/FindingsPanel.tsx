@@ -30,7 +30,7 @@ import {
   type ReasonView,
 } from '../app/findings-model.js';
 import { DEFAULT_COHERENCE_SETTINGS, type CoherenceSettings, type ReviewScope } from '../app/settings.js';
-import { gatewayCoherenceModel, planCoherenceReview, reviewCostFor, runCoherenceReview } from '../app/coherence-review.js';
+import { gatewayCoherenceModel, planCoherenceReview, reviewCostDetailFor, runCoherenceReview } from '../app/coherence-review.js';
 import { formatUsd } from '../app/plan-preview.js';
 import type { ProjectSession } from '../app/session.js';
 import { explain } from './actions.js';
@@ -259,8 +259,11 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
   const running = review !== null && review.controller !== null;
   const plan = review !== null && !running ? review.plan : null;
   // The same figure the agent's plan card shows for this review: one function, reading the gateway's limits for the profile as the agent's loop does (coherence-review.ts).
-  const cost =
-    plan === null || providers === undefined || chatProfile === undefined ? undefined : reviewCostFor(plan, providers.gateway, chatProfile.id, chatResolution?.model);
+  const costDetail =
+    plan === null || providers === undefined || chatProfile === undefined
+      ? undefined
+      : reviewCostDetailFor(plan, providers.gateway, chatProfile.id, chatResolution?.model, chatResolution?.thinking);
+  const cost = costDetail?.totalUsd;
 
   return (
     <div className="findings" data-testid="findings-panel">
@@ -328,7 +331,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
             About {plan.estimate.extractCalls} model {plan.estimate.extractCalls === 1 ? 'call' : 'calls'} to read them, then up to{' '}
             {plan.estimate.verifyCallsAtMost} to check the pairs they raise; about {plan.estimate.totalTokensAtMost.toLocaleString('en-US')} tokens
             at most (an estimate).
-            {cost === undefined ? '' : ` About ${formatUsd(cost)} for the whole plan, at this profile’s prices.`}
+            {cost === undefined ? '' : ` About ${formatUsd(cost)} for the whole plan${costDetail?.includesThinking === true ? ', including thinking' : ''}, at this profile’s prices.`}
           </p>
           {plan.documents.some((doc) => doc.truncated || doc.codexDropped.length > 0 || doc.storyDropped.length > 0) ? (
             <p className="field-note">

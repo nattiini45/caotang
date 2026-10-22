@@ -26,7 +26,7 @@ import {
 } from '@caotang/coherence';
 import { detect, selectCandidates } from '@caotang/codex';
 import { type ProfileView, type ProviderGateway, type TaskRole, type ThinkingLevel } from '@caotang/gateway';
-import { reviewCostAt, type ReviewLimitsSource } from '@caotang/harness';
+import { reviewCostAt, type ReviewLimitsSource, type StepCost } from '@caotang/harness';
 import { getBody, type ProjectState, type TreeNode } from '@caotang/store';
 
 /** The manuscript's documents in binder order, the order the story-so-far layer reads them in. */
@@ -165,8 +165,25 @@ export function planCoherenceReview(state: ProjectState, file: CoherenceFile, ch
  * review): the role's model when it pins one, else the profile's default — the one a review call under it is sent with. So the
  * Findings tab and the card cannot disagree.
  */
-export function reviewCostFor(plan: ReviewPlan, gateway: ReviewLimitsSource, profileId: string, model?: string): number | undefined {
-  return reviewCostAt(plan, gateway, profileId, model)?.totalUsd;
+export function reviewCostFor(
+  plan: ReviewPlan,
+  gateway: ReviewLimitsSource,
+  profileId: string,
+  model?: string,
+  thinking?: ThinkingLevel,
+): number | undefined {
+  return reviewCostDetailFor(plan, gateway, profileId, model, thinking)?.totalUsd;
+}
+
+/** The same figure with its parts, so the Findings tab can say when it counts the thinking the role's level asks for. */
+export function reviewCostDetailFor(
+  plan: ReviewPlan,
+  gateway: ReviewLimitsSource,
+  profileId: string,
+  model?: string,
+  thinking?: ThinkingLevel,
+): StepCost | undefined {
+  return reviewCostAt(plan, gateway, profileId, model, thinking);
 }
 
 /**

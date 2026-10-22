@@ -332,9 +332,12 @@ export function formatUsd(value: number): string {
 }
 
 /** The cost estimate of one step, as the card's line, or undefined when the profile has no price (provider-gateway §6). */
-export function costLineOf(cost: { readonly promptUsd: number; readonly completionUsd: number; readonly totalUsd: number } | undefined): string | undefined {
+export function costLineOf(
+  cost: { readonly promptUsd: number; readonly completionUsd: number; readonly totalUsd: number; readonly includesThinking?: true } | undefined,
+): string | undefined {
   if (cost === undefined) return undefined;
-  return `About ${formatUsd(cost.totalUsd)} (prompt ${formatUsd(cost.promptUsd)}, reply ${formatUsd(cost.completionUsd)}).`;
+  const reply = `reply ${formatUsd(cost.completionUsd)}${cost.includesThinking === true ? ' including thinking' : ''}`;
+  return `About ${formatUsd(cost.totalUsd)} (prompt ${formatUsd(cost.promptUsd)}, ${reply}).`;
 }
 
 /**

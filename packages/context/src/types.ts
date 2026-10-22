@@ -101,6 +101,8 @@ export interface ModelLimits {
   readonly pricePer1k?: { readonly prompt: number; readonly completion: number };
   /** The tool's default output cap. The completion estimate on the plan card uses it. */
   readonly maxOutputTokens?: number;
+  /** What one call may spend on thinking at the level the caller asked for; the completion estimate adds it to the cap. */
+  readonly thinkingTokens?: number;
 }
 
 export interface ContextConfig {

@@ -14,6 +14,7 @@ import type { PlanPreflight, PlanStep } from '../plan.js';
 import type { CallParams } from '../types.js';
 import { isRecord } from '../util.js';
 import { DEFAULT_MAX_OUTPUT_TOKENS, type ModelLimits, type PromptPreview } from '@caotang/context';
+import type { ThinkingLevel } from '@caotang/gateway';
 import type { ReviewPlan } from '@caotang/coherence';
 
 /* ------------------------------------------------------------------ *
@@ -349,37 +350,48 @@ export function applyEdit(state: EditableSteps, edit: PlanEdit): Result<Editable
  * A step's estimated cost at the profile's price (provider-gateway §6, display only): the shape a prompt preview's `cost` has,
  * so a card totals a step's cost the same way whether the step drafted a prompt or staged a review.
  */
-export type StepCost = NonNullable<PromptPreview['cost']>;
+export type StepCost = NonNullable<PromptPreview['cost']> & {
+  /** The reply side counts the thinking the level asked for as well as the output cap; the card says "including thinking". */
+  readonly includesThinking?: true;
+};
 
 /**
  * What a coherence review's plan is estimated to cost at the active model's price (coherence.md §5.3: the card shows the cost
  * "before running"; context-assembly §5 gives the same rule for a prompt). The prompt side is the plan's own token estimate. The
  * reply side is the output cap of each call the plan makes, which the plan does not estimate, so the card shows the bound the
- * spec names: `maxOutputTokens` (the model's, or the default) per call, extraction and verification alike. Undefined when the model
- * has no price, so an unpriced profile shows no cost.
+ * spec names: `maxOutputTokens` (the model's, or the default) per call, extraction and verification alike. When the limits carry
+ * `thinkingTokens` (a thinking level is set), each call's bound adds them and the cost says it includes thinking. Undefined when
+ * the model has no price, so an unpriced profile shows no cost.
  */
 export function reviewCostOf(plan: ReviewPlan, model: ModelLimits | undefined): StepCost | undefined {
   const price = model?.pricePer1k;
   if (price === undefined) return undefined;
   const calls = plan.estimate.extractCalls + plan.estimate.verifyCallsAtMost;
-  const replyTokens = calls * (model?.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS);
+  const thinking = model?.thinkingTokens ?? 0;
+  const replyTokens = calls * ((model?.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS) + thinking);
   const promptUsd = (plan.estimate.totalTokensAtMost / 1000) * price.prompt;
   const completionUsd = (replyTokens / 1000) * price.completion;
-  return { promptUsd, completionUsd, totalUsd: promptUsd + completionUsd };
+  return { promptUsd, completionUsd, totalUsd: promptUsd + completionUsd, ...(thinking > 0 ? { includesThinking: true as const } : {}) };
 }
 
 /** Where a review's cost reads its limits: the gateway's `modelLimits`, which carries the model's price and output cap. */
 export interface ReviewLimitsSource {
-  modelLimits(profileId?: string, model?: string): ModelLimits;
+  modelLimits(profileId?: string, model?: string, thinking?: ThinkingLevel): ModelLimits;
 }
 
 /**
  * A review plan's cost at the gateway's limits for a profile and model: the one place the agent's plan card and the Findings tab
  * read the limits from, so the two surfaces show one figure for one plan. `model` undefined is the profile's default model, which
- * is the model an agent session runs on when it names none.
+ * is the model an agent session runs on when it names none. `thinking` is the level the review's calls run at, when one is set.
  */
-export function reviewCostAt(plan: ReviewPlan, gateway: ReviewLimitsSource, profileId?: string, model?: string): StepCost | undefined {
-  return reviewCostOf(plan, gateway.modelLimits(profileId, model));
+export function reviewCostAt(
+  plan: ReviewPlan,
+  gateway: ReviewLimitsSource,
+  profileId?: string,
+  model?: string,
+  thinking?: ThinkingLevel,
+): StepCost | undefined {
+  return reviewCostOf(plan, gateway.modelLimits(profileId, model, thinking));
 }
 
 /** What a staged proposal shows a card: whether the provider cut it, the prompt behind it, and the step's cost when it has one. */
@@ -394,7 +406,7 @@ function costOf(value: unknown): StepCost | undefined {
   if (!isRecord(value)) return undefined;
   const { promptUsd, completionUsd, totalUsd } = value;
   if (typeof promptUsd !== 'number' || typeof completionUsd !== 'number' || typeof totalUsd !== 'number') return undefined;
-  return { promptUsd, completionUsd, totalUsd };
+  return { promptUsd, completionUsd, totalUsd, ...(value['includesThinking'] === true ? { includesThinking: true as const } : {}) };
 }
 
 /** The card's view of one staged proposal. A step with nothing staged shows neither a cut nor a prompt. */

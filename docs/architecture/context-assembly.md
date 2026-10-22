@@ -77,7 +77,7 @@ Every confirm-class tool's plan card renders the **assembled context**, not just
 - Focus text: first 120 chars of the tail slice + "… (3,000 chars)".
 - Budget bar: per-layer token estimates vs layer budget.
 
-Preview is computed by the same `assemble()` — **zero drift between preview and execution** (preview artifacts = eval fixtures). Token/cost **estimate on the plan card before approval** (the answer to credit anxiety: BYOK users see `~1.9k prompt + ~1.2k completion tokens` before approving; completion estimate = tool-default `maxOutputTokens`), computed locally from the ledger's model prices when the user fills an optional per-profile `pricePer1k` field (display-only, provider-gateway §6 and §9 — no quota logic).
+Preview is computed by the same `assemble()` — **zero drift between preview and execution** (preview artifacts = eval fixtures). Token/cost **estimate on the plan card before approval** (the answer to credit anxiety: BYOK users see `~1.9k prompt + ~1.2k completion tokens` before approving; completion estimate = tool-default `maxOutputTokens`, plus the thinking a set level can spend — the effective budget, or an adaptive level's nominal share — and labelled "including thinking"), computed locally from the ledger's model prices when the user fills an optional per-profile `pricePer1k` field (display-only, provider-gateway §6 and §9 — no quota logic).
 
 ## 6. Onboarding default (mock provider first)
 
