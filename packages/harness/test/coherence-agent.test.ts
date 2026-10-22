@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import { BRANCH_CHECK_IDS, DETERMINISTIC_CHECK_IDS, type CoherenceModel, type DeterministicCheckId, type ModelReply, type ModelRequest } from '@caotang/coherence';
 import { plannerSystem } from '../src/agent/protocol.js';
+import { portPreflights } from '../src/agent/ports.js';
 import { STORM, makeHarness, makeState, refusalOf, run, valueOf } from './fixtures.js';
 import { createAgentPorts, type Harness, type ToolListing } from '../src/index.js';
 
@@ -210,6 +211,27 @@ describe('coherence.review as an async port (coherence.md §5.3, §7 tool 16)', 
     const plan = stagedPlan(harness, [STORM]);
     await harness.callAsync({ name: 'coherence.review', callId: 'c-5', params: { scope: { mode: 'doc', docIds: [STORM] } }, proposal: plan }, APPROVED);
     expect(harness.state.coherence?.findings ?? []).toEqual([]);
+  });
+
+  it('runs the port state check before an async call, so a plan and its call refuse alike', async () => {
+    const { model, calls } = scriptedModel('{"spans": []}');
+    const harness = makeHarness({ coherence: { model: () => model } });
+    const held = { message: 'the state refuses this review' };
+    portPreflights['coherence.review'] = () => ({
+      code: 'invalid-params',
+      message: held.message,
+      correctiveHint: 'check the scope and call again',
+    });
+    try {
+      const plan = stagedPlan(harness, [STORM]);
+      const outcome = await harness.callAsync({ name: 'coherence.review', callId: 'c-state', params: { scope: { mode: 'doc', docIds: [STORM] } }, proposal: plan }, APPROVED);
+      expect(outcome.ok).toBe(false);
+      if (outcome.ok) return;
+      expect(outcome.error.message).toBe(held.message);
+      expect(calls).toHaveLength(0);
+    } finally {
+      delete portPreflights['coherence.review'];
+    }
   });
 });
 

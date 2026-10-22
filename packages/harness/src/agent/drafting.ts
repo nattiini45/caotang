@@ -368,7 +368,9 @@ export function asSynopsisProposal(value: unknown): SynopsisProposal | undefined
     if (!isRecord(item) || typeof item['docId'] !== 'string' || typeof item['synopsis'] !== 'string') return undefined;
     items.push({ docId: item['docId'], synopsis: item['synopsis'] });
   }
-  return { items };
+  // The cut flag travels with the batch, as it does with a scene proposal: the port reads it to refuse
+  // a batch the writer has not accepted as truncated.
+  return value['cut'] === true ? { items, cut: true } : { items };
 }
 
 export function asFindingsProposal(value: unknown): FindingsProposal | undefined {
