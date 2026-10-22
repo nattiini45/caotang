@@ -13,6 +13,7 @@ import { mcpExposure, metadataFor, TOOL_METADATA } from '@caotang/harness';
 import { NodeArtifactFs, manifestOnDisk } from '@caotang/sdk/folder';
 import { ArtifactNotFoundError, parseDocumentFile } from '@caotang/store';
 
+import { webpFixture } from '../../exporter/test/webp-fixtures.js';
 import { createRoundCodec, createToolRuntime, LEGACY_ROUND_TIMEOUT_MS, ROUND_TTL_SECONDS, LegacySessions, startHttpServer, type RunningHttpServer } from '../src/index.js';
 import { openProject, ProjectContentError, type ProjectSession } from '../src/index.js';
 import {
@@ -1219,6 +1220,32 @@ describe('the confirmation round trip on the wire', () => {
       // The subset font is embedded as a TrueType program; Helvetica alone would embed none.
       expect(bytes.toString('latin1')).toContain('/FontFile2');
       expect(bytes.byteLength).toBeLessThan(40_000);
+    } finally {
+      await client.close();
+      await fixture.close();
+    }
+  }, 30_000);
+
+  it('export.compile draws a contact sheet with a WebP picture, decoded by @jsquash/webp and embedded as a PNG', async () => {
+    const asset = 'a_7WEBP4K2QX';
+    const fixture = await startFixture({ label: 'export-webp', allowWrites: true, seed: true, shot: true, shotImage: asset });
+    const client = await connectClient(fixture.url, fixture.token, () => ({ action: 'accept', content: { confirmed: true } }));
+    try {
+      mkdirSync(join(fixture.root, 'assets'), { recursive: true });
+      writeFileSync(join(fixture.root, 'assets', `${asset}.webp`), webpFixture('lossy'));
+      const result = await client.callTool({
+        name: 'export.compile',
+        arguments: { selection: { root: SHOTS_FOLDER, includeSubtrees: true }, format: 'contact-sheet-pdf' },
+      });
+      expect(result.isError).not.toBe(true);
+      expect(JSON.stringify(result.content)).not.toContain('WebP');
+      const pdf = readdirSync(join(fixture.root, 'exports')).filter((name) => name.endsWith('.pdf'));
+      expect(pdf).toHaveLength(1);
+      const bytes = readFileSync(join(fixture.root, 'exports', pdf[0] ?? '')).toString('latin1');
+      // One picture, 96 × 64 pixels as stored: the decoder's pixels, written as a PNG and embedded.
+      expect(bytes.match(/\/Subtype \/Image/g)).toHaveLength(1);
+      expect(bytes).toMatch(/\/Width 96\b/);
+      expect(bytes).toMatch(/\/Height 64\b/);
     } finally {
       await client.close();
       await fixture.close();

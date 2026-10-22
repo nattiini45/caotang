@@ -37,8 +37,11 @@ import {
   renderMedia,
   type ByteArtifacts,
   type ExporterService,
+  type PictureTranscoder,
 } from '../src/index.js';
+import { transcodePictureInNode } from '../src/picture-transcoder-node.js';
 import { PNG_1X1 } from './epub-fixtures.js';
+import { webpFixture, type WebpFixture } from './webp-fixtures.js';
 import { COMPILED_AT } from './fixture.js';
 import { ASSET_FILE, ASSET_ID, ASSETS, MEDIA_IDS, OPENED, PROJECT_NAME, makeMediaProject } from './media-fixture.js';
 
@@ -55,6 +58,7 @@ function rig(
     loadArabicFont?: FontLoader;
     loadHebrewFont?: FontLoader;
     loadDevanagariFont?: FontLoader;
+    transcodePicture?: PictureTranscoder;
     readAsset?: (path: string) => Promise<Uint8Array | null>;
   } = {},
 ): { exporter: ExporterService; reads: string[] } {
@@ -76,6 +80,7 @@ function rig(
     ...(options.loadArabicFont === undefined ? {} : { loadArabicFont: options.loadArabicFont }),
     ...(options.loadHebrewFont === undefined ? {} : { loadHebrewFont: options.loadHebrewFont }),
     ...(options.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: options.loadDevanagariFont }),
+    ...(options.transcodePicture === undefined ? {} : { transcodePicture: options.transcodePicture }),
   });
   return { exporter, reads };
 }
@@ -277,15 +282,6 @@ describe('contact-sheet-pdf — the storyboard as a PDF of shot cards', () => {
     const { result } = await compileSheet(exporter);
     expect(reads).toEqual([]);
     expect(result.log.notes).toContain(`image ${ASSET_ID} is not in assets/, so its cards show the caption`);
-  });
-
-  it('shows the caption for a WebP picture, which the PDF cannot embed', async () => {
-    const webp = new Map([[ASSET_ID, { id: ASSET_ID, fileName: `${ASSET_ID}.webp` }]]);
-    const { exporter, reads } = rig({ assets: webp });
-    const { pdf, result } = await compileSheet(exporter);
-    expect(reads).toEqual([]);
-    expect(imageCount(pdf)).toBe(0);
-    expect(result.log.notes).toContain(`image ${ASSET_ID} is a WebP file, which the PDF cannot embed, so its cards show the caption`);
   });
 
   it('shows the caption when the stored bytes are not an image the engine can read', async () => {
@@ -1141,6 +1137,163 @@ describe('fitToWidth and containIn', () => {
   });
 });
 
+/** The pictures the file embeds, as drawn: each image XObject that is no soft mask, with its size and whether it carries alpha. */
+function embeddedPictures(pdf: PDFDocument): { width: number; height: number; alpha: boolean }[] {
+  const images = pdf.context
+    .enumerateIndirectObjects()
+    .filter((entry): entry is [(typeof entry)[0], PDFRawStream] => entry[1] instanceof PDFRawStream && entry[1].dict.get(PDFName.of('Subtype')) === PDFName.of('Image'));
+  const masks = new Set(images.map(([, object]) => String(object.dict.get(PDFName.of('SMask')))));
+  return images
+    .filter(([ref]) => !masks.has(String(ref)))
+    .map(([, object]) => ({
+      width: Number(String(object.dict.get(PDFName.of('Width')))),
+      height: Number(String(object.dict.get(PDFName.of('Height')))),
+      alpha: object.dict.get(PDFName.of('SMask')) !== undefined,
+    }));
+}
+
+/** A project whose one picture is the stored WebP file `bytes`, under the file name `fileName`. */
+function webpRig(bytes: Uint8Array, options: { fileName?: string; state?: ProjectState; transcodePicture?: PictureTranscoder | null } = {}) {
+  const fileName = options.fileName ?? `${ASSET_ID}.webp`;
+  return rig({
+    ...(options.state === undefined ? {} : { state: options.state }),
+    assets: new Map([[ASSET_ID, { id: ASSET_ID, fileName }]]),
+    files: { [`assets/${fileName}`]: bytes },
+    ...(options.transcodePicture === null ? {} : { transcodePicture: options.transcodePicture ?? transcodePictureInNode }),
+  });
+}
+
+/** The pixel cap the sheet holds a picture to: its card's box at 300 dpi, on the longer side. */
+function cardPictureCap(): number {
+  const card = planContactSheet(makeMediaProject(), ['manuscript'], () => ({ drawn: true })).plan.pages[0]?.cards.find((placed) => placed.hasImage);
+  const box = card?.image ?? { width: 0, height: 0 };
+  return Math.ceil((Math.max(box.width, box.height) / 72) * 300);
+}
+
+describe('contact-sheet-pdf — WebP pictures', () => {
+  it.each<[string, WebpFixture, number, number, boolean]>([
+    ['a lossy WebP', 'lossy', 96, 64, false],
+    ['a lossless WebP', 'lossless', 80, 48, false],
+    ['a WebP with alpha', 'alpha', 64, 64, true],
+  ])('draws %s as an image at its own size, with no caption and no note about it', async (_label, file, width, height, alpha) => {
+    const { exporter, reads } = webpRig(webpFixture(file));
+    const { pdf, result } = await compileSheet(exporter);
+    expect(reads).toEqual([`assets/${ASSET_ID}.webp`]);
+    expect(embeddedPictures(pdf)).toEqual([{ width, height, alpha }]);
+    expect(result.log.notes.some((note) => note.includes('caption') || note.includes('WebP'))).toBe(false);
+    expect(pageContent(pdf, 0)).toMatch(/\/Image\S* Do/);
+  });
+
+  it('judges a picture by its bytes: a .png file that holds a WebP is transcoded too', async () => {
+    const { exporter } = webpRig(webpFixture('lossless'), { fileName: ASSET_FILE });
+    const { pdf, result } = await compileSheet(exporter);
+    expect(embeddedPictures(pdf)).toEqual([{ width: 80, height: 48, alpha: false }]);
+    expect(result.log.notes.some((note) => note.includes('WebP'))).toBe(false);
+  });
+
+  it('shows the caption and the old note for a .webp file when the compile has no transcoder', async () => {
+    const { exporter, reads } = webpRig(webpFixture('lossy'), { transcodePicture: null });
+    const { pdf, result } = await compileSheet(exporter);
+    expect(reads).toEqual([]);
+    expect(imageCount(pdf)).toBe(0);
+    expect(result.log.notes).toContain(`image ${ASSET_ID} is a WebP file, which the PDF cannot embed, so its cards show the caption`);
+  });
+
+  it('says so, once, for a .png file that holds a WebP when the compile has no transcoder', async () => {
+    const { exporter } = webpRig(webpFixture('lossy'), { fileName: ASSET_FILE, transcodePicture: null });
+    const { pdf, result } = await compileSheet(exporter);
+    expect(imageCount(pdf)).toBe(0);
+    expect(result.log.notes.filter((note) => note.includes('WebP'))).toEqual([
+      `contact sheet: image ${ASSET_ID} is a WebP file, which the PDF cannot embed, so its cards show the caption`,
+    ]);
+  });
+
+  it('shows the caption, with the reason, for a WebP that is damaged', async () => {
+    const { exporter } = webpRig(webpFixture('corrupt'));
+    const { pdf, result } = await compileSheet(exporter);
+    expect(imageCount(pdf)).toBe(0);
+    expect(result.log.notes).toContain(
+      `contact sheet: image ${ASSET_ID} could not be embedded (the WebP data could not be decoded), so its cards show the caption`,
+    );
+    const card = planContactSheet(makeMediaProject(), ['manuscript'], () => ({ drawn: true })).plan.pages[0]?.cards.find((placed) => placed.hasImage);
+    expect(pageContent(pdf, 0)).toContain(`<${hexOf(card?.placeholder?.text ?? card?.fallback.text ?? '')}> Tj`);
+  });
+
+  it('transcodes a picture once, however many cards draw it', async () => {
+    const state = makeMediaProject();
+    addShotNode(state, { parentId: MEDIA_IDS.shots, title: 'Again', id: 'n_AGAIN00001', now: OPENED, stored: { image: ASSET_ID } });
+    let calls = 0;
+    const transcodePicture: PictureTranscoder = async (bytes, format, maxPixels) => {
+      calls += 1;
+      return transcodePictureInNode(bytes, format, maxPixels);
+    };
+    const { exporter, reads } = webpRig(webpFixture('lossy'), { state, transcodePicture });
+    const { pdf } = await compileSheet(exporter);
+    expect(calls).toBe(1);
+    expect(reads).toEqual([`assets/${ASSET_ID}.webp`]);
+    expect(embeddedPictures(pdf)).toHaveLength(1);
+    expect(pageContent(pdf, 0).match(/\/Image\S* Do/g)).toHaveLength(2);
+  });
+
+  it('never calls the transcoder for a PNG', async () => {
+    let calls = 0;
+    const { exporter } = rig({
+      transcodePicture: async () => {
+        calls += 1;
+        return PNG_1X1;
+      },
+    });
+    const { pdf } = await compileSheet(exporter);
+    expect(calls).toBe(0);
+    expect(imageCount(pdf)).toBe(1);
+  });
+
+  it('asks for at most 300 dpi of the card’s box, and a large WebP is embedded no wider', async () => {
+    const asked: (number | undefined)[] = [];
+    const transcodePicture: PictureTranscoder = async (bytes, format, maxPixels) => {
+      asked.push(maxPixels);
+      return transcodePictureInNode(bytes, format, maxPixels);
+    };
+    const cap = cardPictureCap();
+    expect(cap).toBeGreaterThan(500);
+    expect(cap).toBeLessThan(1500);
+    const { exporter } = webpRig(webpFixture('large'), { transcodePicture });
+    const { pdf, result } = await compileSheet(exporter);
+    expect(asked).toEqual([cap]);
+    // 4096 × 2304 is scaled by one ratio on both sides, to the cap on the longer.
+    expect(embeddedPictures(pdf)).toEqual([{ width: cap, height: Math.round((cap * 2304) / 4096), alpha: false }]);
+    expect(result.log.notes.some((note) => note.includes('WebP'))).toBe(false);
+  });
+
+  it('draws an animated WebP’s first frame and says so, when the transcoder reads it', async () => {
+    const { exporter } = webpRig(webpFixture('animated'), { transcodePicture: async () => PNG_1X1 });
+    const { pdf, result } = await compileSheet(exporter);
+    expect(imageCount(pdf)).toBe(1);
+    expect(result.log.notes).toContain(`contact sheet: image ${ASSET_ID} is an animated WebP; its first frame is drawn`);
+  });
+
+  it('shows the caption for an animated WebP the Node decoder cannot read, and says why', async () => {
+    const { exporter } = webpRig(webpFixture('animated'));
+    const { pdf, result } = await compileSheet(exporter);
+    expect(imageCount(pdf)).toBe(0);
+    expect(result.log.notes).toContain(
+      `contact sheet: image ${ASSET_ID} could not be embedded (the WebP is animated, and this decoder reads a still image only), so its cards show the caption`,
+    );
+  });
+
+  it('shows the caption when the transcoder rejects, and draws the rest of the sheet', async () => {
+    const { exporter } = webpRig(webpFixture('lossy'), {
+      transcodePicture: async () => {
+        throw new Error('out of memory');
+      },
+    });
+    const { pdf, result } = await compileSheet(exporter);
+    expect(pdf.getPageCount()).toBe(1);
+    expect(imageCount(pdf)).toBe(0);
+    expect(result.log.notes).toContain(`contact sheet: image ${ASSET_ID} could not be embedded (out of memory), so its cards show the caption`);
+  });
+});
+
 describe('pdf-lib is loaded lazily', () => {
   it('is imported in the emitter with a dynamic import() and as types only, so the editor bundle never pays for it', () => {
     const source = readFileSync(resolve(__dirname, '../src/render-contact-sheet.ts'), 'utf8');
@@ -1166,6 +1319,7 @@ describe('pdf-lib is loaded lazily', () => {
       expect(text).not.toMatch(/from '\.\/fallback-fonts-node\.js'/);
       expect(text).not.toMatch(/^import (?!type )[^\n]*from 'pdf-lib'/m);
       expect(text).not.toMatch(/from 'node:/);
+      expect(text).not.toMatch(/^import [^\n]*from '[^']*(?:picture-transcoder-node|@jsquash)/m);
     }
   });
 });

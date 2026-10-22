@@ -26,14 +26,14 @@ export function removeDir(path: string): void {
 }
 
 /** A project with the three scenes the demo provider's intents name (The Landing, The Storm, The Friend), written by the store. */
-export async function seedProject(root: string, shotAction?: string): Promise<void> {
+export async function seedProject(root: string, shotAction?: string, shotImage?: string): Promise<void> {
   const state = createProjectState(createEmptyManifest('The Lighthouse Keeper', OPENED));
   addFolder(state, { parentId: 'manuscript', title: 'Chapter 1', now: OPENED, id: CHAPTER_ONE });
   addFolder(state, { parentId: 'manuscript', title: 'Chapter 2', now: OPENED, id: CHAPTER_TWO });
   addDocument(state, { parentId: CHAPTER_ONE, title: 'The Landing', body: 'The ferry was late, as always.', now: OPENED, id: LANDING });
   addDocument(state, { parentId: CHAPTER_ONE, title: 'The Storm', body: 'Rain.\n\n***\n\nThe lamp failed.', now: OPENED, id: STORM });
   addDocument(state, { parentId: CHAPTER_TWO, title: 'The Friend', now: OPENED, id: FRIEND });
-  if (shotAction !== undefined) addShot(state, shotAction);
+  if (shotAction !== undefined) addShot(state, shotAction, shotImage);
   mkdirSync(root, { recursive: true });
   await writeProject(new NodeArtifactFs(root), state, { now: OPENED });
 }
@@ -41,7 +41,7 @@ export async function seedProject(root: string, shotAction?: string): Promise<vo
 export const SHOTS_FOLDER = 'n_SH0TS00001';
 
 /** A storyboard folder holding one shot, as the storyboard package writes them (storyboard.md 2.1), written by hand so these tests do not depend on that package. */
-function addShot(state: ProjectState, action: string): void {
+function addShot(state: ProjectState, action: string, image?: string): void {
   const folder = addFolder(state, { parentId: 'manuscript', title: 'Shots', now: OPENED, id: SHOTS_FOLDER });
   Object.assign(folder, { kind: 'storyboard' });
   const stamp = OPENED.toISOString();
@@ -58,7 +58,7 @@ function addShot(state: ProjectState, action: string): void {
     notes: '',
     createdAt: stamp,
     updatedAt: stamp,
-    shot: { shotSize: 'WS', action, durationSec: 6 },
+    shot: { shotSize: 'WS', action, durationSec: 6, ...(image === undefined ? {} : { image }) },
   };
   state.manifest.tree.push(shot as unknown as (typeof state.manifest.tree)[number]);
 }

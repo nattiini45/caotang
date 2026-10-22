@@ -6,6 +6,8 @@ export const BUNDLE_NOTICES: string;
 export const BUNDLE_LICENSE: string;
 /** The folder of the PDF fallback fonts in the bundle, beside the server entry point. */
 export const BUNDLE_FONTS: string;
+/** The folder of the files the server reads beside its bundle (the WebP decoder), which is the folder of the entry point. */
+export const BUNDLE_SERVER: string;
 export const BUNDLE_CJK_FONT: string;
 export const BUNDLE_EMOJI_FONT: string;
 export const WRITE_SETTING: string;
@@ -23,6 +25,8 @@ export interface StageInput {
   readonly license: string;
   /** Font files to stage in BUNDLE_FONTS, each under its own name: the PDF fallback fonts. */
   readonly fonts?: readonly string[];
+  /** Files to stage in BUNDLE_SERVER, each under its own name: `webp_dec.wasm`, the contact sheet's WebP decoder. */
+  readonly serverFiles?: readonly string[];
   /** The CJK fallback font the build put beside the bundle, staged as `server/fonts/`. Absent: the bundle has no font. */
   readonly cjkFont?: string;
   /** The emoji fallback font the build put beside the bundle, staged as `server/fonts/`. Absent: the bundle has no emoji font. */

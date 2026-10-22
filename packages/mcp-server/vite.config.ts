@@ -12,7 +12,8 @@ import { defineConfig } from 'vite';
  * be run directly as the `caotang-mcp` bin. Minification is off, so a reviewer can read
  * what is shipped. The PDFs' fallback fonts are not part of the build: the pack script
  * stages them in `fonts/` beside the bundle from their packages (scripts/pack-mcpb.mjs),
- * and `@caotang/pdf-fonts/node-loader` reads them from there.
+ * and `@caotang/pdf-fonts/node-loader` reads them from there. So is the WebP decoder's `webp_dec.wasm`, staged beside the bundle,
+ * where `@caotang/exporter/picture-transcoder-node` reads it; the build emits no asset of its own.
  */
 export default defineConfig({
   build: {

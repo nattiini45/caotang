@@ -106,6 +106,7 @@ import type { McpClient } from '@caotang/mcp-client';
 import type { SkillFile } from '@caotang/skills';
 
 import { loadArabicFontOverHttp, loadCjkFontOverHttp, loadDevanagariFontOverHttp, loadEmojiFontOverHttp, loadHebrewFontOverHttp } from './fallback-fonts.js';
+import { transcodePictureInBrowser } from './picture-transcoder.js';
 import { CodexMentions } from './codex-model.js';
 import { ExportStore } from './exports.js';
 import { inkCompilerStatus, requestInkCompiler, requestInkCompilerFor } from './ink-compiler.js';
@@ -1414,6 +1415,8 @@ function exporterFor(
     loadArabicFont: loadArabicFontOverHttp,
     loadHebrewFont: loadHebrewFontOverHttp,
     loadDevanagariFont: loadDevanagariFontOverHttp,
+    // A WebP picture on the contact sheet, drawn on a canvas: the PDF embeds PNG and JPEG only, and the CSP refuses WebAssembly.
+    transcodePicture: transcodePictureInBrowser,
   });
 }
 

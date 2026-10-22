@@ -29,7 +29,8 @@
     "@caotang/ids": "workspace:*",
     "@caotang/pdf-fonts": "workspace:*",
     "@caotang/sdk": "workspace:*",
-    "@caotang/store": "workspace:*"
+    "@caotang/store": "workspace:*",
+    "@jsquash/webp": "1.5.0"
   },
   "devDependencies": {
     "@anthropic-ai/mcpb": "2.1.2",

@@ -11,7 +11,8 @@ import { defineConfig, type Plugin } from 'vite';
  *
  * The PDFs' fallback fonts are not code, so they sit beside the bundle in `fonts/`, where `@caotang/pdf-fonts/node-loader` looks first
  * (packages/pdf-fonts/src/node-loader.ts). Without them a screenplay PDF with Chinese, Japanese, Korean, emoji, Arabic, Hebrew or
- * Devanagari text fails to compile from this command.
+ * Devanagari text fails to compile from this command. The WebP decoder's `webp_dec.wasm` sits beside the bundle too, where
+ * `@caotang/exporter/picture-transcoder-node` looks first; without it a contact sheet shows a WebP picture as its caption.
  */
 const FONT_FILES = [
   '@caotang/font-noto-cjk/NotoSansMonoCJKsc-Regular.woff',
@@ -21,6 +22,8 @@ const FONT_FILES = [
   '@caotang/font-noto-devanagari/NotoSansDevanagari-Regular.ttf',
 ];
 
+const WEBP_DECODER = '@jsquash/webp/codec/dec/webp_dec.wasm';
+
 function fallbackFonts(): Plugin {
   return {
     name: 'caotang-fallback-fonts',
@@ -29,6 +32,7 @@ function fallbackFonts(): Plugin {
       for (const font of FONT_FILES) {
         this.emitFile({ type: 'asset', fileName: `fonts/${basename(font)}`, source: readFileSync(resolve(font)) });
       }
+      this.emitFile({ type: 'asset', fileName: basename(WEBP_DECODER), source: readFileSync(resolve(WEBP_DECODER)) });
     },
   };
 }

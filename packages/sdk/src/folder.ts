@@ -31,6 +31,7 @@ import { resolve } from 'node:path';
 import { ApplyRefusal } from '@caotang/bus';
 import { COHERENCE_FILE } from '@caotang/coherence';
 import { assetRecordsOf, createExporter, exportMetadataOf, type ExporterService } from '@caotang/exporter';
+import { transcodePictureInNode } from '@caotang/exporter/picture-transcoder-node';
 import { loadInkCompiler } from '@caotang/harness';
 import { isIdWithPrefix } from '@caotang/ids';
 import { loadArabicFontInNode, loadCjkFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
@@ -358,6 +359,8 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
       loadArabicFont: loadArabicFontInNode,
       loadHebrewFont: loadHebrewFontInNode,
       loadDevanagariFont: loadDevanagariFontInNode,
+      // A WebP picture on the contact sheet: decoded with @jsquash/webp, whose webp_dec.wasm is beside the bundle or in its package.
+      transcodePicture: transcodePictureInNode,
     });
     await exporter.ready();
 
