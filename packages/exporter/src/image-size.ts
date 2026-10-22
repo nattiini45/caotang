@@ -106,3 +106,9 @@ function u24le(bytes: Uint8Array, at: number): number {
 function u32le(bytes: Uint8Array, at: number): number {
   return ((bytes[at] ?? 0) | ((bytes[at + 1] ?? 0) << 8) | ((bytes[at + 2] ?? 0) << 16) | ((bytes[at + 3] ?? 0) << 24)) >>> 0;
 }
+
+/** Whether a WebP is an animation: an extended file (`VP8X`) whose flags set the animation bit. A still, or not a WebP, is not. */
+export function isAnimatedWebp(bytes: Uint8Array): boolean {
+  if (bytes.length < 21 || asciiAt(bytes, 0, 4) !== 'RIFF' || asciiAt(bytes, 8, 4) !== 'WEBP' || asciiAt(bytes, 12, 4) !== 'VP8X') return false;
+  return ((bytes[20] ?? 0) & 0x02) !== 0;
+}

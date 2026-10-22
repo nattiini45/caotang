@@ -23,6 +23,7 @@ import { ArtifactNotFoundError, identifierUrn, type ArtifactFs, type ProjectStat
 import { PDF_MIME } from '@caotang/screenplay';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
 import type { FontLoader } from '@caotang/pdf-fonts';
+import type { PictureTranscoder } from './render-contact-sheet.js';
 import { createEmitter, splitRendered, type ByteArtifacts, type Emitter, type EmitFailure, type RenderedContents } from './emit.js';
 import {
   ExportUnavailableError,
@@ -111,6 +112,12 @@ export interface ExporterOptions {
   readonly loadArabicFont?: FontLoader;
   readonly loadHebrewFont?: FontLoader;
   readonly loadDevanagariFont?: FontLoader;
+  /**
+   * Decodes a WebP picture to PNG for the contact sheet, whose PDF embeds only PNG and JPEG: the app draws it on a canvas, Node
+   * decodes it with `@jsquash/webp` (`@caotang/exporter/picture-transcoder-node`). It is called once per picture, and only for a
+   * WebP. Without it, a WebP picture's cards show the caption, and the compile log says so.
+   */
+  readonly transcodePicture?: PictureTranscoder;
   /**
    * The scene styles and the formats that express them (exporter.md §2, Per-scene styling). Absent is the build's own rows
    * (`section`, in all four prose formats); a test supplies a row a format lacks to reach the compile log's dropped-style note.
@@ -367,6 +374,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
       ...(options.loadArabicFont === undefined ? {} : { loadArabicFont: options.loadArabicFont }),
       ...(options.loadHebrewFont === undefined ? {} : { loadHebrewFont: options.loadHebrewFont }),
       ...(options.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: options.loadDevanagariFont }),
+      ...(options.transcodePicture === undefined ? {} : { transcodePicture: options.transcodePicture }),
       ...(common.language === undefined ? {} : { language: common.language }),
       at: request.at,
     });
