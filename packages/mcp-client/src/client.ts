@@ -149,6 +149,14 @@ export interface McpClientOptions {
   readonly callTimeoutMs?: number;
   /** Called with the whole slice after every change to it, so the app can persist it. */
   readonly onChange?: (settings: McpSettings) => void;
+  /**
+   * Called with the reference of a bearer token that a change dropped, so the vault can take it
+   * out. A token that nothing names any more is a token that is kept for ever, so the reference
+   * is named twice over: when a change drops it, and when the server that named it is removed.
+   * The client awaits it: a vault that cannot be written is then the caller's to see, and not a
+   * rejection that vanishes.
+   */
+  readonly onTokenDropped?: (tokenRef: string) => void | Promise<void>;
 }
 
 export interface McpClient {
@@ -267,6 +275,9 @@ class McpClientImpl implements McpClient {
   private readonly listTimeoutMs: number;
   private readonly callTimeoutMs: number;
   private readonly onChange: ((settings: McpSettings) => void) | undefined;
+  private readonly onTokenDropped: (tokenRef: string) => void | Promise<void>;
+  /** The hand-back of a reference that is under way, so one reference is handed back once. */
+  private readonly drops = new Map<string, Promise<void>>();
 
   constructor(options: McpClientOptions) {
     this.config = { enabled: options.settings.enabled, servers: options.settings.servers.map(cloneServer) };
@@ -279,6 +290,7 @@ class McpClientImpl implements McpClient {
     this.listTimeoutMs = options.listTimeoutMs ?? LIST_TIMEOUT_MS;
     this.callTimeoutMs = options.callTimeoutMs ?? CALL_TIMEOUT_MS;
     this.onChange = options.onChange;
+    this.onTokenDropped = options.onTokenDropped ?? (() => undefined);
     for (const server of this.config.servers) {
       this.runtimes.set(server.key, freshRuntime(server.key, 'not connected this session'));
     }
@@ -515,12 +527,21 @@ class McpClientImpl implements McpClient {
       addedAt: this.clock(),
     };
     if (selection !== undefined) server.enabledTools = selection;
+    if (input.auth.kind === 'bearer') this.drops.delete(input.auth.tokenRef);
     this.config = { ...this.config, servers: [...this.config.servers, server] };
     this.runtimes.set(key, freshRuntime(key, 'not connected this session'));
     this.persist();
     return ok(cloneServer(server));
   }
 
+  /**
+   * Changes one server. The result says whether the change was refused.
+   *
+   * One failure is not a refusal but a rejection: the change was made and written, and the
+   * credential it dropped could not be handed back to the vault. The promise rejects then, so the
+   * caller is told about a sealed token that nothing names any more, instead of being told that
+   * the change did not happen — it did happen, and the record says so.
+   */
   async updateServer(key: string, patch: UpdateServerPatch): Promise<Result<McpServerConfig, string>> {
     const server = this.config.servers.find((candidate) => candidate.key === key);
     if (server === undefined) return err(`no MCP server with key ${key} is configured`);
@@ -550,17 +571,24 @@ class McpClientImpl implements McpClient {
 
     // The change that applies last names the reason, as it always has: address, then credentials, then the switch.
     let reason: string | undefined;
+    const before = server.auth;
     if (name !== undefined) server.name = name;
     if (address !== undefined) {
-      // A new address is a new server to the pins: whatever was reviewed belonged to the old one.
+      // A new address is a new server to the pins: whatever was reviewed belonged to the old one,
+      // and so did the bearer token. It is dropped with them, so a credential is never sent to a
+      // host it was not issued for. The token was issued for the old host too, so the person is
+      // told that it is gone rather than asked for one: nothing asks them for it.
       server.url = address;
       server.pinnedTools = {};
       server.trustReads = false;
       delete server.enabledTools;
-      reason = 'the address changed — connect to review its tool list';
+      server.auth = { kind: 'none' };
+      reason = 'the address changed — its credential was dropped with it; connect to review its tool list';
     }
     if (patch.auth !== undefined) {
       server.auth = { ...patch.auth };
+      // A reference that is named again holds a token again, so its earlier hand-back is forgotten.
+      if (patch.auth.kind === 'bearer') this.drops.delete(patch.auth.tokenRef);
       reason = 'the credentials changed — connect to check the tool list';
     }
     if (patch.enabled !== undefined && patch.enabled !== server.enabled) {
@@ -570,16 +598,40 @@ class McpClientImpl implements McpClient {
     // A selection narrows what is searched and called; it never changes a pin or a trust grant, so it demotes nothing.
     if (selection !== undefined) server.enabledTools = selection;
     if (reason !== undefined) await this.demote(key, reason);
+    // The record is written before the credential is handed back: a record that still named a
+    // token that is gone would leave the server without the credential its own settings name.
     this.persist();
+    // A credential the change dropped is handed back, so the vault does not keep a sealed token
+    // that nothing names any more. A reference another server still names is not handed back:
+    // the settings do not make a reference unique, and that server would lose a credential its
+    // own settings name.
+    if (before.kind === 'bearer' && (server.auth.kind !== 'bearer' || server.auth.tokenRef !== before.tokenRef)) {
+      if (!this.tokenRefNamed(before.tokenRef, key)) await this.handBack(before.tokenRef);
+    }
     return ok(cloneServer(server));
   }
 
+  /**
+   * Removes one server, its tools and its token. The promise rejects when the token could not be
+   * handed back to the vault: the server is gone by then and the record no longer names the
+   * reference, so the failure is the caller's to see, and not a sealed token that is kept for ever
+   * with nothing left to name it.
+   */
   async removeServer(key: string): Promise<void> {
     const closed = this.dropConnection(key);
-    this.config = { ...this.config, servers: this.config.servers.filter((server) => server.key !== key) };
+    const server = this.config.servers.find((candidate) => candidate.key === key);
+    this.config = { ...this.config, servers: this.config.servers.filter((candidate) => candidate.key !== key) };
     this.runtimes.delete(key);
+    // The record is written before the credential is handed back, so a record that still named
+    // a token that is gone is never left behind.
     this.persist();
     await closed;
+    // The server is gone, so nothing names its token any more: the reference is handed back, so
+    // the vault does not keep a sealed token for ever. A reference another server still names is
+    // not handed back.
+    if (server?.auth.kind === 'bearer' && !this.tokenRefNamed(server.auth.tokenRef, key)) {
+      await this.handBack(server.auth.tokenRef);
+    }
   }
 
   /**
@@ -807,6 +859,44 @@ class McpClientImpl implements McpClient {
 
   private persist(): void {
     this.onChange?.(this.settings());
+  }
+
+  /**
+   * Whether a server other than this one still names the reference. The settings do not make a
+   * reference unique: the loader checks the keys and the addresses, and hand-edited or synced
+   * settings can put one reference on two servers. A token that is handed back while another
+   * server names it is a credential that server loses.
+   */
+  private tokenRefNamed(ref: string, exceptKey: string): boolean {
+    return this.config.servers.some(
+      (other) => other.key !== exceptKey && other.auth.kind === 'bearer' && other.auth.tokenRef === ref,
+    );
+  }
+
+  /**
+   * Hands a reference back to the vault, once. Two servers can name one reference, and both can
+   * drop it in the same moment: each has switched its own credentials off, so neither sees the
+   * other naming the token any more, and both would hand it back. The hand-back is therefore made
+   * once, and a second caller joins the first one instead of writing to the vault twice: a vault
+   * that is asked to take back a token that is already gone may refuse, and the caller would hear
+   * about a failure that never happened.
+   *
+   * A hand-back that failed is not remembered as done: the token is still in the vault, and a
+   * later attempt has to be able to try again.
+   */
+  private handBack(ref: string): Promise<void> {
+    const underWay = this.drops.get(ref);
+    if (underWay !== undefined) return underWay;
+    const drop = (async (): Promise<void> => {
+      await this.onTokenDropped(ref);
+    })();
+    this.drops.set(ref, drop);
+    // The rejection is the caller's to see; this handler only forgets the attempt, so a later
+    // one can try again. The promise it handles is the one returned above.
+    void drop.catch(() => {
+      this.drops.delete(ref);
+    });
+    return drop;
   }
 }
 

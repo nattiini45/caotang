@@ -145,6 +145,19 @@ describe('scene.draft', () => {
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) expect(outcome.error.code).toBe('permission-denied');
   });
+
+  it('refuses a draft the provider cut at its output limit, unless the call carries the acceptance', () => {
+    const state = makeState();
+    const harness = harnessFor(state);
+    const before = snapshotOf(state);
+    const cut = harness.call(writeCall('scene.draft', { doc: FRIEND, mode: 'draft', instruction: 'Open.' }, { text: 'The ferry came in', words: 3, revision: 0, cut: true }), {
+      turnId: 'draft-cut',
+      permission: { confirmed: true },
+    });
+    expect(cut.ok).toBe(false);
+    if (!cut.ok) expect(cut.error.message).toContain('cut off');
+    expect(snapshotOf(state)).toBe(before);
+  });
 });
 
 describe('the mode rule at a plan preflight (agent-harness §2, §3)', () => {
@@ -231,6 +244,19 @@ describe('synopsis.fill', () => {
     if (!outcome.ok) expect(outcome.error.code).toBe('limit-exceeded');
     expect(snapshotOf(state)).toBe(before);
   });
+
+  it('refuses a batch the provider cut at its output limit, unless the call carries the acceptance', () => {
+    const state = makeState();
+    const harness = harnessFor(state);
+    const before = snapshotOf(state);
+    const cut = harness.call(
+      writeCall('synopsis.fill', { docs: [LANDING] }, { items: [{ docId: LANDING, synopsis: 'Elena returns.' }], cut: true }),
+      { turnId: 'syn-cut', permission: { confirmed: true } },
+    );
+    expect(cut.ok).toBe(false);
+    if (!cut.ok) expect(cut.error.message).toContain('cut off');
+    expect(snapshotOf(state)).toBe(before);
+  });
 });
 
 describe('continuity.scan', () => {
@@ -249,5 +275,124 @@ describe('continuity.scan', () => {
     const harness = harnessFor();
     const outcome = harness.call(writeCall('continuity.scan', {}, { findings: [{ aspect: 'weather' }] }), { turnId: 'scan-2' });
     expect(outcome.ok).toBe(false);
+  });
+});
+
+describe('a plan step that targets a node deleted between planning and apply (bus-05-agent)', () => {
+  it('refuses a `scene.draft` step on a removed document at preflight, so the plan card never promises a step that cannot run', () => {
+    const harness = harnessFor();
+    const checked = harness.previewPlan({
+      steps: [{ tool: 'scene.draft', params: { doc: 'The Ghost Chapter', mode: 'draft', instruction: 'Open.' }, expect: 'drafted' }],
+    });
+    expect(checked.ok).toBe(true);
+    if (!checked.ok) return;
+    expect(checked.value.ok).toBe(false);
+    const step = checked.value.steps[0];
+    expect(step?.status).toBe('refused');
+    expect(step?.error?.code).toBe('not-found');
+    expect(step?.error?.message).toContain('The Ghost Chapter');
+  });
+
+  it('refuses a `shots.derive` step on a removed scene at preflight, so the scene card never promises a step that cannot run', () => {
+    const harness = harnessFor();
+    const checked = harness.previewPlan({
+      steps: [{ tool: 'shots.derive', params: { doc: 'The Ghost Chapter', granularity: 'key-shots' }, expect: 'derived' }],
+    });
+    expect(checked.ok).toBe(true);
+    if (!checked.ok) return;
+    expect(checked.value.ok).toBe(false);
+    const step = checked.value.steps[0];
+    expect(step?.status).toBe('refused');
+    expect(step?.error?.code).toBe('not-found');
+    expect(step?.error?.message).toContain('The Ghost Chapter');
+  });
+
+  it('still defers a step that targets a scene an earlier step of the same plan may create, so the card may be approved', () => {
+    const harness = harnessFor();
+    const checked = harness.previewPlan({
+      steps: [
+        // The first step is the creator (doc.import): it always creates a node and resolves the second step's name.
+        {
+          tool: 'doc.import',
+          params: { parent: 'Chapter 2', title: 'The Ghost Chapter', body: 'A new scene.' },
+          expect: 'imported',
+        },
+        // The second step targets the new chapter; its preflight fails because the scene is gone at preflight time,
+        // but `mayCreate` finds the doc.import step that names it, so the step is deferred (plan §2).
+        { tool: 'scene.draft', params: { doc: 'The Ghost Chapter', mode: 'draft', instruction: 'Open.' }, expect: 'drafted' },
+      ],
+    });
+    expect(checked.ok).toBe(true);
+    if (!checked.ok) return;
+    expect(checked.value.ok).toBe(true);
+    const steps = checked.value.steps;
+    expect(steps[0]?.status).toBe('ready');
+    expect(steps[1]?.status).toBe('deferred');
+  });
+
+  it('defers an ambiguous name the same way when an earlier step may create, and refuses it when none does', () => {
+    const harness = harnessFor();
+    // "The" prefix-matches every fixture document, so the lookup is refused as ambiguous — a lookup
+    // failure like a not-found, which a creating step earlier in the plan defers (plan §2).
+    const ambiguous = { tool: 'scene.draft', params: { doc: 'The', mode: 'draft', instruction: 'Open.' }, expect: 'drafted' };
+    const withCreator = harness.previewPlan({
+      steps: [
+        { tool: 'doc.import', params: { parent: 'Chapter 2', title: 'The Ghost Chapter', body: 'A new scene.' }, expect: 'imported' },
+        ambiguous,
+      ],
+    });
+    expect(withCreator.ok).toBe(true);
+    if (!withCreator.ok) return;
+    expect(withCreator.value.ok).toBe(true);
+    expect(withCreator.value.steps[1]?.status).toBe('deferred');
+    expect(withCreator.value.steps[1]?.error?.code).toBe('invalid-params');
+
+    const withoutCreator = harness.previewPlan({ steps: [ambiguous] });
+    expect(withoutCreator.ok).toBe(true);
+    if (!withoutCreator.ok) return;
+    expect(withoutCreator.value.ok).toBe(false);
+    expect(withoutCreator.value.steps[0]?.status).toBe('refused');
+    expect(withoutCreator.value.steps[0]?.error?.code).toBe('invalid-params');
+  });
+
+  it('defers an ambiguous name a batch tool names too, and refuses it when none does', () => {
+    const harness = harnessFor();
+    // `meta.set` is a batch, so its refusal wraps the per-op failure in `invalid-params`.
+    // The ambiguity has to survive that wrapping, or the deferral cannot reach it and
+    // the step is refused where the same name on a flat tool is deferred (plan §2).
+    const ambiguous = { tool: 'meta.set', params: { targets: ['The'], keywords_add: ['night'] }, expect: 'marked' };
+    const withCreator = harness.previewPlan({
+      steps: [
+        { tool: 'doc.import', params: { parent: 'Chapter 2', title: 'The Ghost Chapter', body: 'A new scene.' }, expect: 'imported' },
+        ambiguous,
+      ],
+    });
+    expect(withCreator.ok).toBe(true);
+    if (!withCreator.ok) return;
+    expect(withCreator.value.ok).toBe(true);
+    expect(withCreator.value.steps[1]?.status).toBe('deferred');
+
+    const withoutCreator = harness.previewPlan({ steps: [ambiguous] });
+    expect(withoutCreator.ok).toBe(true);
+    if (!withoutCreator.ok) return;
+    expect(withoutCreator.value.ok).toBe(false);
+    expect(withoutCreator.value.steps[0]?.status).toBe('refused');
+    expect(withoutCreator.value.steps[0]?.error?.code).toBe('invalid-params');
+  });
+});
+
+describe('the cut rule of the model-backed write ports (agent-harness §8)', () => {
+  it('refuses Ink the provider cut at its output limit on a direct dialogue.draft call, and writes nothing', () => {
+    const state = makeState();
+    const harness = harnessFor(state);
+    const before = snapshotOf(state);
+    const ink = ['=== reply ===', 'Thanks for the drink.', '-> END'].join('\n');
+    const outcome = harness.call(writeCall('dialogue.draft', { doc: STORM, instruction: 'A thank-you.' }, { ink, revision: 0, cut: true }), {
+      turnId: 'dialogue-cut',
+      permission: { approvedPlan: true },
+    });
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(outcome.error.message).toContain('cut off');
+    expect(snapshotOf(state)).toBe(before);
   });
 });

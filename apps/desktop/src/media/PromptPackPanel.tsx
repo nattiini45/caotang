@@ -32,8 +32,9 @@ export interface PromptPackPanelProps {
 }
 
 export function PromptPackPanel({ session, folder, ports, onFix }: PromptPackPanelProps): ReactNode {
-  const version = useSession(session);
-  const assets = useAssetRecords(ports?.assets, version);
+  useSession(session);
+  // The images are listed when they can have changed, not on every change of the session (media/hooks.ts).
+  const assets = useAssetRecords(ports?.assets, session.assetsVersion());
   const [templateId, setTemplateId] = useState(PACK_TEMPLATES[0]?.id ?? '');
   const [message, setMessage] = useState<string | null>(null);
   const preview = packPreviewOf(session.state, folder.id, templateId, assets);

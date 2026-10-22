@@ -927,9 +927,19 @@ export function createHarness(options: HarnessOptions): Harness {
     return ok(outcome);
   }
 
-  /** Every tool in the table, with what the caller needs to decide whether to call it. */
+  /**
+   * Every tool in the table, with what the caller needs to decide whether to call it.
+   * Memoized on first read: the registry is built once at harness creation
+   * (`TOOL_METADATA` is a static array, `entries`/`ports`/`asyncPorts` are closed
+   * at creation and never reassigned), and a plan with many steps reads the listing
+   * for every step's `riskOf`/`awaited`. The cached array and its row objects are
+   * shared by reference, so a downstream call that mutates them would corrupt every
+   * reader; nothing in the harness does.
+   */
+  let cachedTools: readonly ToolListing[] | undefined;
   function listTools(): readonly ToolListing[] {
-    return TOOL_METADATA.map((meta) => {
+    if (cachedTools !== undefined) return cachedTools;
+    cachedTools = TOOL_METADATA.map((meta) => {
       const entry = entries.get(meta.name);
       if (entry === undefined) throw new Error(`no entry for tool "${meta.name}"`);
       return {
@@ -940,6 +950,7 @@ export function createHarness(options: HarnessOptions): Harness {
         schema: entry.schema,
       };
     });
+    return cachedTools;
   }
 
   /** Clears every per-turn cache and the turn's undo grouping (command-bus §5, §6). */
@@ -1059,6 +1070,9 @@ export function createHarness(options: HarnessOptions): Harness {
     if (!grant.ok) return failure(grant.error) as ToolOutcome;
     const port = asyncPorts[prep.value.entry.port];
     if (port === undefined) return failure(notWired(call.name)) as ToolOutcome;
+    // The gate has answered (above), so a state refusal is named only to a caller that may run the tool (callAsync's plan approval).
+    const held = portStateRefusal(prep.value, call.proposal);
+    if (held !== undefined) return failure(held) as ToolOutcome;
     const { outcome, applied } = await runAsyncPort(call, turn, prep.value.entry, prep.value.params, port);
     if (applied) callCache.record(turn.turnId, call.callId, fingerprint, outcome);
     return outcome;

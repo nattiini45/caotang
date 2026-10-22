@@ -24,9 +24,11 @@ import {
   HAND_WRITTEN_DOC_NAME,
   removeDir,
   resultJson,
+  seedProject,
   tempDir,
   testToken,
 } from './support.js';
+import { LOCK_FILE } from '../src/index.js';
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 const BUNDLE = join(PACKAGE, 'dist', 'caotang-mcp.mjs');
@@ -302,4 +304,44 @@ describe('the built caotang-mcp binary', () => {
     expect(readFileSync(orphan, 'utf8')).toBe(HAND_WRITTEN_DOC);
     expect(existsSync(join(folder, 'caotang.json'))).toBe(false);
   }, 120_000);
+
+  it('gives a stale lock to exactly one of the servers that start on the folder at once', async () => {
+    const folder = join(root, 'contended');
+    await seedProject(folder, 'Contended');
+    // A lock whose holder has exited: the case every writer is entitled to take over.
+    const gone = spawn(process.execPath, ['-e', '']);
+    const pid = gone.pid;
+    if (pid === undefined) throw new Error('could not start a child process');
+    await new Promise<void>((done) => gone.once('exit', () => done()));
+    writeFileSync(join(folder, LOCK_FILE), JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() }));
+
+    const running = Array.from({ length: 8 }, () =>
+      spawn(process.execPath, [BUNDLE, 'serve', '--project', folder, '--port', '0'], {
+        env: { ...process.env, CAOTANG_MCP_TOKEN: testToken() },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }),
+    );
+    // The line a server writes once it holds the folder and has its endpoint. A server
+    // the lock refuses says so and exits 3, and never writes one.
+    const outcomes = await Promise.all(
+      running.map(async (child) => {
+        try {
+          await waitForStderr(child, /MCP endpoint http:\/\/127\.0\.0\.1:\d+/, 60_000);
+          return { held: true, reason: 'it took the folder' };
+        } catch (error) {
+          return { held: false, reason: error instanceof Error ? error.message : String(error) };
+        }
+      }),
+    );
+    for (const child of running) {
+      child.kill();
+      await exited(child);
+    }
+    // The count is what this test is about. The reasons say which of the eight servers took the
+    // folder and which refused it, and why, when the count is not one.
+    expect(
+      outcomes.filter((outcome) => outcome.held).length,
+      `every server that took the folder is a writer of it: ${outcomes.map((outcome) => outcome.reason).join('; ')}`,
+    ).toBe(1);
+  }, 180_000);
 });

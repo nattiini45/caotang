@@ -221,6 +221,10 @@ export function ExportDialog({
     setNotice(null);
     try {
       await session.exportsReady();
+      // Failures are cumulative for the life of the exporter, and a path a later compile re-used may carry an older
+      // failure. Only the entries this compile adds are matched, so a path that wrote successfully now is not reported
+      // as failed because an earlier compile of the same name failed.
+      const priorFailures = session.exportFailures().length;
       const useSelection = scope === 'selection' && selection !== null;
       // A part compiles with the recipe's options too, so the title page, the contents and the author apply to one item.
       const outcome = useSelection
@@ -235,8 +239,9 @@ export function ExportDialog({
       // The files are written by the exporter's queue, after the command has returned. Wait for them, then download.
       await session.exportsIdle();
       const paths = digest.outputs ?? [digest.output];
+      const thisCompile = session.exportFailures().slice(priorFailures);
       for (const path of paths) {
-        const failure = session.exportFailures().find((candidate) => candidate.path === path);
+        const failure = thisCompile.find((candidate) => candidate.path === path);
         if (failure !== undefined) {
           setNotice({ text: `The ${format} file could not be made: ${failure.message}`, tone: 'error' });
           return;
