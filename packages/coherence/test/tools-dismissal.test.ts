@@ -9,6 +9,7 @@ import {
   DETERMINISTIC_CHECK_IDS,
   DISMISSAL_REASONS,
   MODE_CROSS_LINK_COPY,
+  checkCrossLinkFor,
   emptyCoherenceFile,
   executeReviewTool,
   groupFindings,
@@ -62,6 +63,13 @@ describe('dismissal picker (§6.3, as data)', () => {
       expect(reason.modeCrossLink).toBe(reason.kind === 'technique');
     }
     expect(MODE_CROSS_LINK_COPY).toBe('Declare this as a scene mode instead.');
+  });
+
+  it('gives a timeline.gap finding a line about declaring a time skip, and no other check one', () => {
+    expect(checkCrossLinkFor('timeline.gap')).toBe('Declare a time skip on one of these scenes instead.');
+    for (const id of DETERMINISTIC_CHECK_IDS.filter((candidate) => candidate !== 'timeline.gap')) {
+      expect(checkCrossLinkFor(id), id).toBeUndefined();
+    }
   });
 
   it('maps flashback to its timeline mode, and no other reason to one', () => {

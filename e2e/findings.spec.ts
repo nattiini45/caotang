@@ -24,7 +24,8 @@ async function chapterWithScenes(page: Page): Promise<void> {
 
 /** The inspector's scene declarations, opened (the disclosure starts closed for each scene). */
 async function openDeclarations(page: Page): Promise<void> {
-  await page.getByTestId('scene-meta').locator('summary').click();
+  const meta = page.getByTestId('scene-meta');
+  if ((await meta.getAttribute('open')) === null) await meta.locator('summary').click();
 }
 
 /** Opens a project from the projects screen, after a reload. */
@@ -208,4 +209,50 @@ test('the scene declarations: point of view, duration, timeline mode and an expe
   await page.getByRole('button', { name: 'Stop expecting Elena' }).click();
   await expect(page.getByRole('list', { name: 'Expected to appear' })).toContainText('None declared.');
   await expect.poll(() => traceNames(page)).toContain('coherence.setSceneMeta');
+});
+
+test('two scenes a week or more apart raise a gap finding whose dismissal points at the Time skip mode, which is kept across a reload', async ({
+  page,
+}) => {
+  await chapterWithScenes(page);
+
+  const surface = page.getByRole('textbox', { name: 'Document text' });
+  for (const [scene, day] of [
+    ['Scene A', '2'],
+    ['Scene B', '14'],
+  ] as const) {
+    await binderTitle(page, scene).click();
+    await openDeclarations(page);
+    await page.getByRole('spinbutton', { name: 'Day offset' }).fill(day);
+    await page.getByRole('spinbutton', { name: 'Day offset' }).press('Enter');
+    await surface.click();
+    await page.keyboard.type(`The ferry on day ${day}.`);
+    await waitForSaved(page);
+  }
+
+  await page.getByRole('tab', { name: 'Findings' }).click();
+  await page.getByRole('button', { name: 'Scan the manuscript' }).click();
+  const notes = page.getByRole('region', { name: 'Notes' });
+  const gap = notes.locator('article.finding').filter({ hasText: '12 days after' });
+  await expect(gap).toHaveCount(1);
+  await expect(gap).toContainText('"Scene B" happens 12 days after "Scene A"');
+
+  // The dismissal dialog says what to declare instead, whichever reason is picked.
+  await gap.getByRole('button', { name: 'Dismiss…' }).click();
+  const picker = page.getByRole('dialog', { name: /Dismiss the finding/ });
+  await expect(picker.getByTestId('dismiss-check-cross-link')).toHaveText('Declare a time skip on one of these scenes instead.');
+  await picker.getByRole('button', { name: 'Cancel' }).click();
+  await expect(picker).toHaveCount(0);
+
+  // The mode the line points at is in the Inspector's dropdown, and it is kept.
+  await page.getByRole('tab', { name: 'Binder' }).click();
+  await binderTitle(page, 'Scene B').click();
+  await openDeclarations(page);
+  await page.getByRole('combobox', { name: 'Timeline mode' }).selectOption({ label: 'Time skip' });
+  await expect.poll(() => traceNames(page)).toContain('coherence.setSceneMeta');
+  await waitForSaved(page);
+  await reopen(page, 'Findings Book');
+  await binderTitle(page, 'Scene B').click();
+  await openDeclarations(page);
+  await expect(page.getByRole('combobox', { name: 'Timeline mode' })).toHaveValue('time-skip');
 });

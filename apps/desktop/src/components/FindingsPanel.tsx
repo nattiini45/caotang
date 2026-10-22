@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { SCAN_DOC_GUARD, validateDismissal, type CoherenceFile, type DeterministicCheckId, type ReviewPlan, type ScopeSpec } from '@caotang/coherence';
+import { SCAN_DOC_GUARD, checkCrossLinkFor, validateDismissal, type CoherenceFile, type DeterministicCheckId, type ReviewPlan, type ScopeSpec } from '@caotang/coherence';
 import { agentFor } from '../app/agent.js';
 import type { ProviderService } from '../app/providers.js';
 
@@ -617,7 +617,7 @@ function FindingCard({
 
 /**
  * The dismissal picker (coherence.md §6.3): one of five reasons, with the one-line tooltip the spec gives two of them, the
- * cross-link line for the technique reasons, and an optional note. The reason is required; a dismissal is never anonymous.
+ * cross-link line for the technique reasons, a line for the check that has its own mode (`timeline.gap`), and an optional note. The reason is required; a dismissal is never anonymous.
  */
 export function DismissPicker({
   finding,
@@ -633,6 +633,7 @@ export function DismissPicker({
   const [complaint, setComplaint] = useState<string | null>(null);
   const reasons: ReasonView[] = dismissalReasons();
   const chosen = reasons.find((candidate) => candidate.id === reason);
+  const checkLine = checkCrossLinkFor(finding.checkId);
   // The picker opens at a distance from its card, so the keyboard is moved into it: the first reason takes focus when it opens.
   const firstReason = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -672,6 +673,11 @@ export function DismissPicker({
         ))}
       </fieldset>
       {chosen?.crossLink !== undefined ? <p className="field-note">{chosen.crossLink}</p> : null}
+      {checkLine !== undefined ? (
+        <p className="field-note" data-testid="dismiss-check-cross-link">
+          {checkLine}
+        </p>
+      ) : null}
       <label className="dismiss-note">
         <span>Note (optional)</span>
         <textarea
