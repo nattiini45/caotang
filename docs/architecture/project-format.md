@@ -173,7 +173,7 @@ Loader steps when `caotang.json` is unparseable:
 
 ## 7. Portable deliverables
 
-- **Zip bundle:** `<project-name>.caotang`, a zip with `caotang.json` at zip-root (never nested under a directory). Import accepts zip or directory; export is lossless both ways. The extension is `.caotang`, not `.zip`, so an OS opens it with Caotang rather than an archive tool.
+- **Zip bundle:** `<project-name>.caotang`, a zip with `caotang.json` at zip-root (never nested under a directory). Import accepts zip or directory; export is lossless both ways. A file the load could not read because its bytes are not UTF-8 — a document body or a codex redundancy file — is the one thing an export refuses rather than leaves out: there is no text to carry, and a bundle that dropped it would ship a project without it. A save in place is never affected, because the folder holds that file already. The extension is `.caotang`, not `.zip`, so an OS opens it with Caotang rather than an archive tool.
 - **ToC.md** (generated on export): human-readable map `order — title — status — filename`, so an opaque-id folder is navigable without Caotang. Cheap, addresses the hex-name ergonomic cost; goes in `exports/`, not the tree.
 
 ## 8. Runtime store vs artifact (explicit split)

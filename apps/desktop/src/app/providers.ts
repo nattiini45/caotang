@@ -14,9 +14,11 @@
  *
  * ## The probes
  *
- * The gateway's egress guard compares every request with the *active* profile's endpoint (provider-gateway §4). So the
- * list-models probe at save time is a trial activation: the profile is made active for the one call and the previous
- * profile is restored either way. The response-format probe runs after a real activation (provider-gateway §5).
+ * The gateway's egress guard compares every request with the endpoint of the profile it *resolved to*
+ * (provider-gateway §4), so a named profile is reachable whether or not it is the active one. Both save-time
+ * probes are still trial activations: the profile is made active for the one call and the previous profile is
+ * restored either way. The response-format probe runs again on a real activation, and only when the profile
+ * has no cached answer (provider-gateway §5).
  */
 
 import {

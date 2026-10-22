@@ -47,6 +47,10 @@ Steps in order; first match wins:
 
 Context check (used by methods 2–4): ≥ 80% of prefix and suffix characters match at the corresponding positions, case-insensitive.
 
+**Case-insensitive** is a lower-case fold that also maps a final sigma (`ς`) to `σ` and the long s (`ſ`) to `s`, because Unicode's Final_Sigma rule is contextual and a fold that lowers one character at a time would otherwise keep the two spellings of one word apart. The occurrence search (methods 2 and 4) applies it one code point at a time; the context check applies it one UTF-16 code unit at a time. Neither is a full casefold: `ß` does not match `ss`.
+
+**A caller that resolves an anchor directly awaits `preloadAnchorLibraries()` first.** Step 3 needs the fuzzy locator, and a ladder that reaches it with the locator unbound refuses and names the reason rather than skipping to step 4, so an unprepared caller gets one rung short of the ladder. The apply path awaits the preload, so in the product step 3 is always available.
+
 ## 4. Application path (never raw string surgery)
 
 - The resolved range is applied through the command bus `editor.replaceRange` primitive **inside `scene.draft`'s compound apply** (command-bus.md §4 grant inheritance); the whole turn is one undo group (agent-harness §5), and the doc body snapshot (project-format §8 write-ahead) is taken before the mutation.
