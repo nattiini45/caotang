@@ -291,6 +291,40 @@ importers:
         specifier: workspace:*
         version: link:../skills
 
+  packages/cli:
+    dependencies:
+      '@caotang/font-noto-arabic':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-arabic
+      '@caotang/font-noto-cjk':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-cjk
+      '@caotang/font-noto-devanagari':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-devanagari
+      '@caotang/font-noto-emoji':
+        specifier: workspace:*
+        version: link:../../vendor/noto-emoji
+      '@caotang/font-noto-hebrew':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-hebrew
+      '@caotang/gateway':
+        specifier: workspace:*
+        version: link:../gateway
+      '@caotang/mcp-server':
+        specifier: workspace:*
+        version: link:../mcp-server
+      '@caotang/pdf-fonts':
+        specifier: workspace:*
+        version: link:../pdf-fonts
+      '@caotang/sdk':
+        specifier: workspace:*
+        version: link:../sdk
+    devDependencies:
+      '@caotang/store':
+        specifier: workspace:*
+        version: link:../store
+
   packages/codex:
     dependencies:
       '@caotang/screenplay':
