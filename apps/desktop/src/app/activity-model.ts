@@ -208,7 +208,8 @@ export function activityMarkdown(input: ActivityMarkdownInput): string {
         String(index + 1),
         new Date(entry.at).toISOString(),
         titleOf(entry.command),
-        oneLine(entry.summary).replace(/\|/g, '\\|'),
+        // Backslash first: a summary ending in `\` would otherwise escape the pipe that closes its cell.
+        oneLine(entry.summary).replace(/\\/g, '\\\\').replace(/\|/g, '\\|'),
         issuerLabel(entry.issuedBy),
         sourceBadge(entry.source),
         entry.undoGroupId ?? '',
