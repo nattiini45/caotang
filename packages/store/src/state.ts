@@ -18,7 +18,7 @@ import { FIXED_ROOT_IDS, type Manifest, type NodeType, type TreeNode } from './m
 import type { CoherenceState } from './coherence-state.js';
 import { newId } from '@caotang/ids';
 import { nextSiblingOrder } from './create.js';
-import { countBody } from './word-count.js';
+import { countBody, WORD_RULE_VERSION, wordRuleInUse } from './word-count.js';
 import { isBodyType } from './paths.js';
 import type { SkillFile } from '@caotang/skills';
 
@@ -125,7 +125,11 @@ export type { CoherenceState, CoherenceFindingState } from './coherence-state.js
  */
 export function createProjectState(manifest: Manifest, options: CreateStateOptions = {}): ProjectState {
   if (!isDerived(manifest.derived)) {
-    manifest.derived = { wordCounts: {}, computedAt: isoNow(options.now) };
+    manifest.derived = {
+      wordCounts: {},
+      computedAt: isoNow(options.now),
+      ...(wordRuleInUse() === WORD_RULE_VERSION ? { ruleVersion: WORD_RULE_VERSION } : {}),
+    };
   }
   return {
     manifest,
@@ -178,28 +182,36 @@ function isoNow(now: Date | undefined): string {
 /**
  * §2's "loader recomputes on open if absent" — the rebuild, as one function.
  *
- * **Rebuilds when the map is absent OR empty, and leaves a non-empty one alone.**
- * The `empty` half is not a widening of the spec's word "absent"; it is what
- * "absent" *means in this tree*. Measured before this slice: with no producer,
- * **every** manifest the writer emitted serialized `"wordCounts": {}` — so a
- * hand-written or pre-slice project is the ordinary case, not the rare one, and
- * an absent-only test would have been green against a field no project ever
- * populated. Rebuilding on an empty map cannot be wrong: an empty map is not a
- * truthful count of a project holding documents, and §2 makes the whole block
- * rebuildable, so there is no history here to overwrite.
+ * **Rebuilds when the map is empty, or when it was counted with an older words
+ * rule than this engine uses, and otherwise leaves it alone.** The `empty` half
+ * is not a widening of the spec's word "absent"; it is what "absent" *means in
+ * this tree*. Measured before this slice: with no producer, **every** manifest the
+ * writer emitted serialized `"wordCounts": {}` — so a hand-written or pre-slice
+ * project is the ordinary case, not the rare one. Rebuilding on an empty map
+ * cannot be wrong: an empty map is not a truthful count of a project holding
+ * documents, and §2 makes the whole block rebuildable.
  *
- * **A non-empty map is left exactly as it is.** §2 says the field is *"allowed
- * stale"* and *"never a reason to reject a manifest"* — a rebuild that ran on
- * every open would make the cache a second source of truth and would make every
- * open rewrite `computedAt` for a project nobody edited.
+ * **The rule version only ever moves up.** `ruleVersion` (absent = 1) is what the
+ * counts were made with; a cache older than `wordRuleInUse()` is recomputed once
+ * and stamped. A newer cache read by an engine without `Intl.Segmenter` is left
+ * as it is, so opening a project there neither rewrites it nor ping-pongs. The
+ * rebuild is in memory (`modifiedAt` is untouched) and never rejects a manifest.
+ *
+ * **Otherwise a non-empty map is left exactly as it is.** §2 says the field is
+ * *"allowed stale"* — a rebuild that ran on every open would make the cache a
+ * second source of truth and would make every open rewrite `computedAt` for a
+ * project nobody edited.
  */
 export function rebuildDerived(state: ProjectState, options: { now?: Date } = {}): void {
-  const counts = state.manifest.derived.wordCounts;
-  if (Object.keys(counts).length > 0) return;
+  const derived = state.manifest.derived;
+  const rule = wordRuleInUse();
+  if (Object.keys(derived.wordCounts).length > 0 && (derived.ruleVersion ?? 1) >= rule) return;
   for (const record of state.documents.values()) {
-    counts[record.id] = countBody(record.body).words;
+    derived.wordCounts[record.id] = countBody(record.body).words;
   }
-  state.manifest.derived.computedAt = isoNow(options.now);
+  if (rule === WORD_RULE_VERSION) derived.ruleVersion = rule;
+  else delete derived.ruleVersion;
+  derived.computedAt = isoNow(options.now);
 }
 
 /**

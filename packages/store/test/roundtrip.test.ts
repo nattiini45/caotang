@@ -23,6 +23,7 @@ import {
   readProject,
   setBody,
   writeProject,
+  WORD_RULE_VERSION,
   type ProjectState,
 } from '../src/index.js';
 
@@ -125,6 +126,8 @@ function buildProject(): ProjectState {
   state.manifest.derived = {
     wordCounts: { n_3W8RN2TQ6C: 2143, n_7K2QX9M4A1: 512, n_5H8QK2M9RT: 88 },
     computedAt: OPENED.toISOString(),
+    // Counted with the current words rule, so the open does not recompute these invented numbers.
+    ruleVersion: WORD_RULE_VERSION,
   };
   return state;
 }

@@ -1263,6 +1263,8 @@ export function createProjectCommandRegistry(
     readonly had: boolean;
     /** §2's `computedAt` before this write — restored verbatim. */
     readonly computedAt: string;
+    /** §2's `ruleVersion` before this write; absent stays absent. */
+    readonly ruleVersion: number | undefined;
     /** The document's node `updatedAt` before this write, restored verbatim (absent stays absent). */
     readonly updatedAt: string | undefined;
   }
@@ -1335,6 +1337,7 @@ export function createProjectCommandRegistry(
       count: derived.wordCounts[params.docId] ?? 0,
       had,
       computedAt: derived.computedAt,
+      ruleVersion: derived.ruleVersion,
       updatedAt: nodeById(state, params.docId)?.updatedAt,
     };
   }
@@ -1356,6 +1359,8 @@ export function createProjectCommandRegistry(
       if (captured.had) derived.wordCounts[docId] = captured.count;
       else delete derived.wordCounts[docId];
       derived.computedAt = captured.computedAt;
+      if (captured.ruleVersion === undefined) delete derived.ruleVersion;
+      else derived.ruleVersion = captured.ruleVersion;
       // The node's stamp is the body write's own change to the node, so the undo puts back the one it replaced.
       const node = nodeById(state, docId);
       if (node !== undefined) node.updatedAt = captured.updatedAt;

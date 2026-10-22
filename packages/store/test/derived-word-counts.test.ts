@@ -51,6 +51,7 @@ import {
   countBody,
   createEmptyManifest,
   createProjectState,
+  WORD_RULE_VERSION,
   openRuntimeStore,
   readProject,
   readProjectState,
@@ -419,3 +420,107 @@ function harness(state: ProjectState) {
     },
   };
 }
+
+// ---------------------------------------------------------------------------
+// 6. The words rule version — an older cache is rebuilt once, a newer one never
+// ---------------------------------------------------------------------------
+
+describe('derived.ruleVersion', () => {
+  const CJK = '我喜欢在海边的灯塔里写作';
+
+  /** A saved project holding a CJK document whose cache was counted by the whitespace rule. */
+  async function stale(ruleVersion?: number): Promise<MemoryArtifactFs> {
+    const fs = new MemoryArtifactFs();
+    const state = project();
+    setBody(state, LANDING, CJK, { now: OPENED });
+    await writeProject(fs, state, { now: OPENED });
+    const raw = JSON.parse(await fs.read('caotang.json')) as { derived: Record<string, unknown> };
+    raw.derived.wordCounts = { [LANDING]: 1, [STORM]: 0 };
+    if (ruleVersion === undefined) delete raw.derived.ruleVersion;
+    else raw.derived.ruleVersion = ruleVersion;
+    await fs.writeAtomic('caotang.json', JSON.stringify(raw, null, 2));
+    return fs;
+  }
+
+  it('a new project is stamped with the rule in use', () => {
+    expect(project().manifest.derived.ruleVersion).toBe(WORD_RULE_VERSION);
+  });
+
+  it('recomputes a cache with no ruleVersion, stamps it, and leaves modifiedAt alone', async () => {
+    const fs = await stale();
+    const loaded = await readProject(fs, { now: LATER });
+    expect(loaded.state.manifest.derived.wordCounts[LANDING]).toBe(countBody(CJK).words);
+    expect(loaded.state.manifest.derived.wordCounts[LANDING]).toBeGreaterThan(1);
+    expect(loaded.state.manifest.derived.ruleVersion).toBe(WORD_RULE_VERSION);
+    expect(loaded.state.manifest.derived.computedAt).toBe(LATER.toISOString());
+    expect(loaded.state.manifest.project.modifiedAt).toBe(OPENED.toISOString());
+  });
+
+  it('recomputes a cache stamped with an older version', async () => {
+    const loaded = await readProject(await stale(1), { now: LATER });
+    expect(loaded.state.manifest.derived.wordCounts[LANDING]).toBe(countBody(CJK).words);
+  });
+
+  it('leaves a current cache alone, so a second open does not restamp it', async () => {
+    const fs = await stale(WORD_RULE_VERSION);
+    const loaded = await readProject(fs, { now: LATER });
+    expect(loaded.state.manifest.derived.wordCounts[LANDING]).toBe(1);
+    expect(loaded.state.manifest.derived.computedAt).toBe(OPENED.toISOString());
+  });
+
+  it('does not downgrade a cache counted with a newer rule', () => {
+    const state = project();
+    state.manifest.derived.ruleVersion = 3;
+    state.manifest.derived.wordCounts[LANDING] = 99;
+    rebuildDerived(state, { now: LATER });
+    expect(state.manifest.derived.ruleVersion).toBe(3);
+    expect(state.manifest.derived.wordCounts[LANDING]).toBe(99);
+  });
+
+  it('without a segmenter an empty cache is rebuilt by the whitespace rule and not stamped as the newer one', () => {
+    const real = Intl.Segmenter;
+    (Intl as { Segmenter: unknown }).Segmenter = undefined;
+    try {
+      const state = project();
+      state.manifest.derived.wordCounts = {};
+      rebuildDerived(state, { now: LATER });
+      expect(state.manifest.derived.ruleVersion).toBeUndefined();
+      expect(state.manifest.derived.wordCounts[LANDING]).toBe(6);
+    } finally {
+      (Intl as { Segmenter: unknown }).Segmenter = real;
+    }
+  });
+
+  it('is written only when above 1, and survives a round trip', () => {
+    const state = project();
+    expect(serializeManifest(state.manifest)).toContain(`"ruleVersion": ${WORD_RULE_VERSION}`);
+    delete state.manifest.derived.ruleVersion;
+    expect(serializeManifest(state.manifest)).not.toContain('ruleVersion');
+    state.manifest.derived.ruleVersion = 1;
+    expect(serializeManifest(state.manifest)).not.toContain('ruleVersion');
+  });
+
+  it.each([['2'], [0], [1.5], [-1], [null]])('treats %j as absent with a warning, never a rejection', async (bad) => {
+    const fs = new MemoryArtifactFs();
+    await writeProject(fs, project());
+    const raw = JSON.parse(await fs.read('caotang.json')) as { derived: Record<string, unknown> };
+    raw.derived.ruleVersion = bad;
+    const report = validateManifest(raw, { docFiles: [`${LANDING}.md`, `${STORM}.md`] });
+    expect(report.ok).toBe(true);
+    expect(report.warnings.some((w) => w.path === 'derived.ruleVersion')).toBe(true);
+    expect((report.manifest?.derived as { ruleVersion?: number }).ruleVersion).toBeUndefined();
+  });
+
+  it('is restored by an undo of a body write', () => {
+    const { state, run, undoGroup } = harness(project());
+    state.manifest.derived.ruleVersion = 3;
+    const outcome = run({ id: 'cmd_rv_1', name: 'doc.write', params: { docId: LANDING, body: 'one two' }, issuedBy: 'user', createdAt: LATER.getTime() });
+    undoGroup(outcome.undoGroupId!);
+    expect(state.manifest.derived.ruleVersion).toBe(3);
+
+    delete state.manifest.derived.ruleVersion;
+    const second = run({ id: 'cmd_rv_2', name: 'doc.write', params: { docId: LANDING, body: 'one two three' }, issuedBy: 'user', createdAt: LATER.getTime() });
+    undoGroup(second.undoGroupId!);
+    expect(state.manifest.derived.ruleVersion).toBeUndefined();
+  });
+});
