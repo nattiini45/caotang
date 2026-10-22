@@ -62,6 +62,18 @@ test('a script with Chinese text and an emoji loads the one CJK file and the one
   expect([...new Set(fonts)].sort()).toEqual(['NotoEmoji-Regular.woff', 'NotoSansMonoCJKsc-Regular.woff']);
 });
 
+test('a script with a woman walking facing right prints her as one emoji that a reader copies back as typed', async ({ page }) => {
+  await createProject(page, PROJECT);
+  await makeScene(page, 'INT. HALL - DAY\n\nShe walks off \u{1F6B6}‍♀️‍➡️.\n');
+  const pdf = await compilePdf(page);
+
+  expect(pdf).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoEmoji-Regular/);
+  // The whole sequence is one CID's ToUnicode entry: the walking person, ZWJ, the female sign, ZWJ, the right arrow, with their selectors.
+  expect(pdf).toContain('<D83DDEB6200D2640FE0F200D27A1FE0F>');
+  // Not as the first emoji alone (the walking person), which the sequence printed as before.
+  expect(pdf).not.toContain('<D83DDEB6>');
+});
+
 test('a Latin-only script loads no font', async ({ page }) => {
   const fonts = watchFonts(page);
   await createProject(page, PROJECT);

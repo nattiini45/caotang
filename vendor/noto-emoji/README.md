@@ -38,7 +38,8 @@ monochrome: emoji print in black, and a skin-tone modifier draws the figure with
 
 Emoji 17.0 is whole: 16.0's 🫩 🫆 🪾 🫜 🪉 🪏 🫟 and the flag of Sark 🇨🇶, and 17.0's 🫪 and 🛘, are one glyph each. HarfBuzz
 lays out every fully-qualified emoji of 17.0 as one glyph. fontkit, which both PDFs use, does so for all but 36: the woman and
-man walking, kneeling or running facing right (🚶‍♀️‍➡️, with or without a skin tone), which print as their parts in the
-contact sheet and as their first emoji in the screenplay. The font and Unicode's emoji list move together: the test in
+man walking, kneeling or running facing right (🚶‍♀️‍➡️, with or without a skin tone). Both PDFs draw those with the glyph
+HarfBuzz gives them, from a table in packages/pdf-fonts that scripts/emoji-coverage.mjs generates; the font draws them
+without a gender sign, as it draws 🚶‍♀️. The font and Unicode's emoji list move together: the test in
 packages/pdf-fonts/test/coverage.test.ts fails when the list in the repository is newer than the Emoji version the font
 supports.

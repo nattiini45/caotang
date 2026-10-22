@@ -157,6 +157,39 @@ test('the binder filters by word count, and a saved word bound is kept across a 
   await expect(page.getByRole('spinbutton', { name: 'Maximum words' })).toHaveValue('2');
 });
 
+test('Chinese text is counted by words: the footer, the word filter and the daily target agree', async ({ page }) => {
+  // The browser's own segmenter, so the expectation does not pin one engine's dictionary.
+  const text = '我喜欢在海边的灯塔里写作，每天清晨都会出发。';
+  const expected = await page.evaluate((body) => {
+    let n = 0;
+    for (const part of new Intl.Segmenter('und', { granularity: 'word' }).segment(body)) if (part.isWordLike) n++;
+    return n;
+  }, text);
+  expect(expected).toBeGreaterThan(1);
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByTestId('settings');
+  await settings.getByRole('button', { name: 'Writing' }).click();
+  await settings.getByLabel('Daily target, in words (0 for none)').fill(String(expected));
+  await settings.getByRole('button', { name: 'Save writing settings' }).click();
+  await expect(settings.getByText(/Saved\. The save delay/)).toBeVisible();
+  await settings.getByRole('button', { name: 'Close' }).click();
+
+  await chapterWithScenes(page);
+  await binderTitle(page, 'The Lamp').click();
+  await page.getByRole('textbox', { name: 'Document text' }).fill(text);
+  await waitForSaved(page);
+
+  await expect(page.locator('.editor-count')).toHaveText(`${expected} words`);
+  await expect(page.getByTestId('session-target')).toContainText(`${expected} / ${expected} words today`);
+
+  // The word filter reads the same number: the Harbour is empty, the Lamp holds `expected` words.
+  await page.getByRole('spinbutton', { name: 'Minimum words' }).fill(String(expected));
+  await expect(binderRow(page, 'The Harbour')).toHaveCount(0);
+  await expect(binderRow(page, 'The Lamp')).toBeVisible();
+});
+
 test('a goal is added and removed in the inspector of the manuscript, and the removal is kept across a reload', async ({ page }) => {
   await chapterWithScenes(page);
 

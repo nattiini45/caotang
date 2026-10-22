@@ -6,7 +6,7 @@
 
 import { NOTO_ARABIC_RANGES } from './coverage/noto-arabic-coverage.js';
 import { NOTO_CJK_RANGES } from './coverage/noto-cjk-coverage.js';
-import { NOTO_EMOJI_RANGES, NOTO_EMOJI_SEQUENCES, NOTO_EMOJI_TONED } from './coverage/noto-emoji-coverage.js';
+import { NOTO_EMOJI_LAYOUT, NOTO_EMOJI_RANGES, NOTO_EMOJI_SEQUENCES, NOTO_EMOJI_TONED } from './coverage/noto-emoji-coverage.js';
 import { NOTO_HEBREW_RANGES } from './coverage/noto-hebrew-coverage.js';
 
 type Ranges = readonly (readonly [number, number])[];
@@ -48,6 +48,7 @@ let hebrew: Ranges | undefined;
 let emoji: Ranges | undefined;
 let sequences: ReadonlySet<string> | undefined;
 let toned: ReadonlySet<string> | undefined;
+let layout: ReadonlyMap<string, number> | undefined;
 
 /** Whether the CJK fallback font (Noto Sans Mono CJK SC) has a glyph for a character. */
 export function fallbackCovers(ch: string): boolean {
@@ -83,4 +84,15 @@ export function emojiFontHasSequence(key: string): boolean {
 export function emojiFontHasTonedSequence(key: string): boolean {
   toned ??= decodeSequences(NOTO_EMOJI_TONED);
   return toned.has(key);
+}
+
+/** The glyph the emoji font draws for a sequence key (emoji.ts `emojiKey`) that fontkit lays out as more than one glyph, or undefined. */
+export function emojiFontLayoutGlyph(key: string): number | undefined {
+  layout ??= new Map(
+    NOTO_EMOJI_LAYOUT.split(' ').map((entry): [string, number] => {
+      const [seq = '', glyph = ''] = entry.split('=');
+      return [String.fromCodePoint(...seq.split('.').map((part) => parseInt(part, 36))), parseInt(glyph, 36)];
+    }),
+  );
+  return layout.get(key);
 }

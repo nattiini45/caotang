@@ -58,10 +58,42 @@ function detailOf(health: McpServerHealth): string {
   }
 }
 
+/** Whether the tools of a review have anything to approve: a new or changed tool, or one that is gone. */
+function toolsPending(review: ReviewCard): boolean {
+  return review.tools.some((tool) => tool.status !== 'unchanged') || review.removed.length > 0;
+}
+
+/**
+ * The words around a review. Its tools hold the server until they are approved; its prompts and resource templates do not, so a
+ * review that has only those to approve says so and does not say that the tools wait.
+ */
+export function reviewHeading(review: ReviewCard): { readonly title: string; readonly approve: string; readonly approved: string } {
+  if (toolsPending(review) || review.kind === 'first-connect') {
+    return {
+      title: 'Review the tool list',
+      approve: 'Approve this tool list',
+      approved: 'Approved. The tools are searchable now, and the pins are updated to this list.',
+    };
+  }
+  return {
+    title: 'Review the prompts and resource templates',
+    approve: 'Approve these prompts and templates',
+    approved: 'Approved. The prompts and resource templates are pinned as listed.',
+  };
+}
+
 /** The one-line count a review opens with. */
 export function reviewSummary(review: ReviewCard): string {
   const count = (status: 'new' | 'changed' | 'unchanged'): number => review.tools.filter((tool) => tool.status === status).length;
   const parts = [`${count('new')} new`, `${count('changed')} changed`, `${count('unchanged')} unchanged`];
   if (review.removed.length > 0) parts.push(`${review.removed.length} removed`);
-  return `${parts.join(', ')}. Every tool stays confirm-only until you approve this list.`;
+  const listed = review.prompts.length + review.resourceTemplates.length;
+  const catalog =
+    listed + review.removedPrompts.length + review.removedTemplates.length === 0
+      ? ''
+      : ` The server also lists ${review.prompts.length} prompt${review.prompts.length === 1 ? '' : 's'} and ${review.resourceTemplates.length} resource template${review.resourceTemplates.length === 1 ? '' : 's'}, shown in full below. They are pinned when you approve, and a changed one is shown again.`;
+  if (!toolsPending(review) && review.kind !== 'first-connect') {
+    return `The tools are unchanged and stay as they are.${catalog}`;
+  }
+  return `${parts.join(', ')}. Every tool stays confirm-only until you approve this list.${catalog}`;
 }

@@ -472,7 +472,7 @@ describe('§8 — the activity row for every shipped store apply', () => {
 
     // The unimplemented names are the exporter pair, and naming them here is what stops this list from quietly
     // becoming shorter: if the exporter landed, this assertion fails and demands a row for it. There are also
-    // four names that register only when their injected half is supplied (`mcp.invoke`, extensibility §6, and the
+    // four names that register only when their injected half is supplied (`mcp.invoke` and `mcp.readResource`, extensibility §6, and the
     // storyboard module's three shot commands), so with nothing injected they are unimplemented too, and the
     // rows they write are asserted in their own test files (mcp-invoke-injection, shot-commands).
     // `project.importAsset` registers only with the asset port injected (commands-project.ts), so it is
@@ -483,6 +483,7 @@ describe('§8 — the activity row for every shipped store apply', () => {
       'export.compile',
       'export.compileSelection',
       'mcp.invoke',
+      'mcp.readResource',
       'project.importAsset',
       'shot.create',
       'shot.importImage',

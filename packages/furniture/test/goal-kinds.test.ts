@@ -158,6 +158,21 @@ describe('the chars metric (goals-progress §9.2)', () => {
   });
 });
 
+describe('a words goal over CJK text (editor-engine §9)', () => {
+  const body = '我喜欢在海边的灯塔里写作。';
+
+  it('reads the segmented word count, not one word for the unspaced run', () => {
+    const words = countBody(body).words;
+    expect(words).toBeGreaterThan(1);
+    const progress = goalProgress(goal({ target: words }), probe({ wordsOf: () => countBody(body).words }), TODAY);
+    expect(progress).toEqual({ current: words, met: true, state: 'met' });
+  });
+
+  it('leaves a chars goal on the exact character count', () => {
+    expect(goalCharsOf(body)).toBe([...body].length);
+  });
+});
+
 describe('what a chars goal counts (goals-progress §9, as recorded in docs/decisions.md)', () => {
   it('counts the non-whitespace code points of a body', () => {
     expect(goalCharsOf('The ferry was late.')).toBe(16);

@@ -41,3 +41,31 @@ describe('mcp.invoke — the store registry takes the client’s half, and no ot
     expect(resolveIn(registry, 'export.compile').ok).toBe(false);
   });
 });
+
+describe('mcp.readResource — injected the same way, and closed to the agent whatever is injected', () => {
+  it('refuses the name as not wired when no client was injected', () => {
+    const resolved = resolveIn(createProjectCommandRegistry({}), 'mcp.readResource');
+    expect(resolved.ok).toBe(false);
+    if (resolved.ok) return;
+    expect(resolved.error.message).toContain('has no implementation in this build');
+  });
+
+  it('resolves to the injected descriptor and apply, unchanged, and leaves mcp.invoke unwired', () => {
+    const descriptor: CommandDescriptor<unknown> = {
+      mutates: 'none',
+      agentRisk: 'never',
+      undo: 'none',
+      activitySource: 'mcp',
+      asyncApply: true,
+      validate: (params) => ok(params),
+    };
+    const apply: CommandApply<unknown, unknown> = async () => ({ untrusted: true });
+    const registry = createProjectCommandRegistry({ mcpReadResource: { descriptor, apply } });
+    const resolved = resolveIn(registry, 'mcp.readResource');
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) return;
+    expect(resolved.value.descriptor).toBe(descriptor);
+    expect(resolved.value.apply).toBe(apply);
+    expect(resolveIn(registry, 'mcp.invoke').ok).toBe(false);
+  });
+});

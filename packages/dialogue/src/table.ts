@@ -12,6 +12,7 @@ import type { CodexEntry } from '@caotang/store';
 
 import type { DialogueContainerMeta } from './kinds.js';
 import { parseInk, ROOT_NODE_ID } from './ink-parse.js';
+import { sha256Hex } from './sha256.js';
 import { resolveSpeakerId, resolveSpeakerName } from './speakers.js';
 
 /** §6's columns, in order. `locale` and `condition` are appended only when a caller asks for them. */
@@ -19,8 +20,8 @@ export const TABLE_COLUMNS = ['lineId', 'speaker', 'text', 'context', 'charLimit
 
 /**
  * The columns of a Yarn Spinner strings file, in Yarn's order: the `yarn-csv` engine target's table (§2.1). Yarn reads
- * `language` as the line's locale and `id` as its line id; `lock` is a hash Yarn computes from its own source, so Caotang
- * leaves it empty.
+ * `language` as the line's locale and `id` as its line id; `lock` is the first 8 hex characters of the SHA-256 of the line's text,
+ * the hash Yarn writes itself, so Caotang fills it from the same text it writes (`toYarnCsv`).
  */
 export const YARN_COLUMNS = ['language', 'id', 'text', 'file', 'node', 'lineNumber', 'lock', 'comment'] as const;
 
@@ -149,7 +150,8 @@ export interface YarnCsvOptions {
  * `language` = the row's locale; `id` = `line:` + the line id, the prefix Yarn's line ids carry; `text` = `Speaker: text`
  * for a spoken line with a speaker name (Yarn keeps the character name in the line), and the label alone for a choice;
  * `file` = the container; `node` = the knot path, empty for text above the first knot; `lineNumber` = the Ink line;
- * `lock` = empty; `comment` = the table's context. Yarn has no character limit column, so the limit is not written.
+ * `lock` = the first 8 lowercase hex characters of the SHA-256 of the UTF-8 `text`, before the cell transform; `comment` = the
+ * table's context. Yarn has no character limit column, so the limit is not written.
  */
 export function toYarnCsv(rows: readonly TableRow[], options: YarnCsvOptions = {}): string {
   const cell = options.cell ?? ((value: string) => value);
@@ -163,7 +165,7 @@ export function toYarnCsv(rows: readonly TableRow[], options: YarnCsvOptions = {
       cell(fileOf(row.container)),
       row.node === ROOT_NODE_ID ? '' : row.node,
       String(row.line),
-      '',
+      sha256Hex(text).slice(0, 8),
       cell(row.context),
     ];
     return values.map(csvField).join(',');

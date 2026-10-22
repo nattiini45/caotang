@@ -415,7 +415,11 @@ function derived(d: Derived): string {
   return [
     `${INDENT}"derived": {`,
     body,
-    `${INDENT.repeat(2)}"computedAt": ${str(d.computedAt, 'derived.computedAt')}`,
+    // Only a version above 1 is written, so a project that was never rebuilt keeps its bytes.
+    `${INDENT.repeat(2)}"computedAt": ${str(d.computedAt, 'derived.computedAt')}${d.ruleVersion !== undefined && d.ruleVersion > 1 ? ',' : ''}`,
+    ...(d.ruleVersion !== undefined && d.ruleVersion > 1
+      ? [`${INDENT.repeat(2)}"ruleVersion": ${scalar(d.ruleVersion, 'derived.ruleVersion')}`]
+      : []),
     `${INDENT}},`,
   ].join('\n');
 }

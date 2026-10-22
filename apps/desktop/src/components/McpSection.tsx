@@ -12,7 +12,8 @@ import { useEffect, useReducer, useState, type FormEvent, type ReactNode } from 
 import { riskBadge, type ExternalToolDescriptor, type McpServerConfig, type McpServerHealth, type ReviewCard } from '@caotang/mcp-client';
 
 import type { McpApp } from '../app/mcp.js';
-import { mcpServerView, reviewSummary, STATE_LABEL, toolStatusLabel } from '../app/mcp-model.js';
+import { mcpServerView, reviewHeading, reviewSummary, STATE_LABEL, toolStatusLabel } from '../app/mcp-model.js';
+import { CatalogReview, CatalogRows } from './McpCatalog.js';
 
 export function McpSection({ mcp }: { mcp: McpApp }): ReactNode {
   const [, refresh] = useReducer((count: number) => count + 1, 0);
@@ -163,6 +164,12 @@ function ServerCard({ mcp, server, onChanged }: { mcp: McpApp; server: McpServer
       {view.review ? <ReviewPanel mcp={mcp} server={server} review={view.review} onChanged={onChanged} /> : null}
 
       <ToolRows mcp={mcp} server={server} onChanged={onChanged} />
+      <CatalogRows
+        status={client.catalogStatus(server.key)}
+        prompts={client.listPrompts(server.key)}
+        resources={client.listResources(server.key)}
+        showLists={view.review === undefined}
+      />
 
       <FormMessage message={message} />
     </li>
@@ -183,13 +190,13 @@ function ReviewPanel({
   const [message, setMessage] = useState<{ text: string; tone: 'info' | 'error' } | null>(null);
   const approve = (): void => {
     const outcome = mcp.client.approveReview(server.key, review.fingerprint);
-    if (outcome.ok) setMessage({ text: 'Approved. The tools are searchable now, and the pins are updated to this list.', tone: 'info' });
+    if (outcome.ok) setMessage({ text: reviewHeading(review).approved, tone: 'info' });
     else setMessage({ text: outcome.error, tone: 'error' });
     onChanged();
   };
   return (
     <section className="mcp-review" aria-label={`Review of ${server.name}`} data-testid="mcp-review">
-      <h5>Review the tool list</h5>
+      <h5>{reviewHeading(review).title}</h5>
       <p className="field-note">{reviewSummary(review)}</p>
       <ul className="mcp-review-tools">
         {review.tools.map((tool) => (
@@ -208,8 +215,9 @@ function ReviewPanel({
           Removed since the last review: {review.removed.map((removed) => removed.toolName).join(', ')}.
         </p>
       ) : null}
+      <CatalogReview review={review} />
       <button type="button" className="button is-primary" onClick={approve}>
-        Approve this tool list
+        {reviewHeading(review).approve}
       </button>
       <FormMessage message={message} />
     </section>
