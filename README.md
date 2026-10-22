@@ -212,7 +212,7 @@ The tools that need a model, `scene.draft`, `synopsis.fill`, `continuity.scan`, 
 
 The server runs on your computer over stdio and opens no network port. Uninstalling the bundle removes the server and leaves your project folder as it was. The wording of the dialog differs between hosts and versions.
 
-The bundle is not signed, and it has not been tested in a real host yet. [packages/mcp-server/HOST-CHECKS.md](packages/mcp-server/HOST-CHECKS.md) lists the checks and holds the results; it has none so far. A checksum for the release file is planned, not built.
+The bundle is not signed, and it has not been tested in a real host yet. [packages/mcp-server/HOST-CHECKS.md](packages/mcp-server/HOST-CHECKS.md) lists the checks and holds the results; it has none so far. The release lists the file's SHA-256 in `SHA256SUMS`.
 
 ## Documents
 
