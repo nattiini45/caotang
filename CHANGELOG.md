@@ -7,6 +7,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 ### Added
 
 - **Agent.** A live task list for multi-step turns, in the agent header and at the top of the turn, with the model-call budget. The header says "Step 3 of 5 · Drafting “The Landing”", or "Waiting for you · Plan, 3 steps", with the drawer open or closed. The list is worked out from the plan and the tool calls, so it costs no model tokens and shows only work that ran.
+- **Agent tools load on demand.** The agent starts each request with a short list of tools: the 13 it uses most and the search that finds the rest. The tools for importing, the coherence checks, storyboards, prompt packs and dialogue are found by that search when a task needs them, or are there from the start when a dialogue container or a storyboard is open. The tool list in each request is about 40% shorter, and a tool the agent loads part-way through a turn does not change what the model has already been sent. A tool that was not loaded still runs when the agent names it, and if its settings are wrong the agent is told to search for it. **Settings › Agent** has **Load every tool on every request**, off by default, for a model that searches poorly.
 
 ## 0.1.0
 

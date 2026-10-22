@@ -23,8 +23,8 @@ On the JSON wire the reply is exactly one of two objects in the content:
 {"reply": "..."}
 ```
 
-On the native wire the request declares the tools (`plannerToolDefs`: the registry's callable tools,
-then the external tools the turn has loaded), the reply's `toolCalls` are the plan's steps in order,
+On the native wire the request declares the tools (`plannerToolDefs`: the registry's core tools, then the
+deferred rows the turn has loaded, then the external tools it has loaded), the reply's `toolCalls` are the plan's steps in order,
 its text is the card's rationale — it fills each step's `expect`, which the wire does not carry — and
 every call is answered by a `tool`-role message keyed by its id. A call that never ran is reported
 not run, so the model always hears back about all of them.
@@ -50,8 +50,11 @@ Why this shape:
    model as a message naming the shape it should have had. A call whose arguments do not parse is refused
    by its call id, the same way. The turn does not fail on a bad reply.
 
-The planner's system message is built from the registry: only tools that are callable and wired are listed,
-each with its risk, description and schema, and `agent.plan` never appears (it is the protocol, not a tool).
+The planner's system message is built from the registry: only core tools that are callable and wired are listed,
+each with its risk, description and schema, and `agent.plan` never appears (it is the protocol, not a tool). A
+deferred row (`load: 'deferred'`) is declared once `tool.search` or `submit(intent, { preload })` loads it for the
+turn, and its descriptor follows the system message, so a mid-turn load leaves the system message as it was
+(agent-harness §3).
 The two system prefixes (`PLANNER_SYSTEM_PREFIX`, `DRAFT_SYSTEM_PREFIX`) are duplicated in
 `@caotang/gateway/mock` so its scripts can tell the calls apart; a test asserts the copies agree.
 
@@ -61,6 +64,7 @@ The two system prefixes (`PLANNER_SYSTEM_PREFIX`, `DRAFT_SYSTEM_PREFIX`) are dup
 |---|---|
 | `src/runtime.ts` | `createHarness`: the call path, the tool gate, the port path, plan execution, external callers |
 | `src/plan.ts` | Plans: preflight, execution from a step (`from`), the shared `AskBack` envelope (four codes) |
+| `src/agent/preload.ts` | `PRELOAD_BY_CONTEXT`: the deferred rows a turn starts with when a dialogue container or a storyboard is open |
 | `src/agent/protocol.ts` | The two wire protocols, the reply shapes, the tool declarations, the planner's system messages, the model-facing messages |
 | `src/agent/context.ts` | `ContextPort` and the product's port over `@caotang/context`: the layers it assembles (L1–L7), the harness's own L0 role text, the turns before this one as L6, the drop reasons, the layer budgets and the prompt preview (`buildPreview`) |
 | `src/agent/drafting.ts` | Generation for the three model-backed tools, streamed through the gateway, with each finish reason read |
