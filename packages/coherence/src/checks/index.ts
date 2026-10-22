@@ -12,6 +12,7 @@ import { checkPovCoverage, checkPresenceExpected } from './presence.js';
 import { checkGap, checkOrderDrift, checkOverlap, checkRelation, checkWindow } from './timeline.js';
 import { checkCueCollision, checkCueConsistency, checkShotCoverage } from './script.js';
 import { checkBranch } from './branch.js';
+import { checkUnresolvedThread } from './plot.js';
 
 export type { CheckInput, CheckOutput, DialogueFacts, DraftFinding } from './common.js';
 export { groupKey, pairKey, termsOf, resolveEntry, modeOf } from './common.js';
@@ -32,6 +33,7 @@ export const DETERMINISTIC_CHECKS: Readonly<Record<DeterministicCheckId, (input:
   'branch.dead-end': checkBranch('branch.dead-end'),
   'dialogue.speaker-unknown': checkBranch('dialogue.speaker-unknown'),
   'timeline.gap': checkGap,
+  'plot.unresolved-thread': checkUnresolvedThread,
 };
 
 /**
