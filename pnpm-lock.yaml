@@ -229,6 +229,9 @@ importers:
       '@caotang/font-noto-cjk':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-cjk
+      '@caotang/font-noto-devanagari':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-devanagari
       '@caotang/font-noto-emoji':
         specifier: workspace:*
         version: link:../../vendor/noto-emoji
@@ -675,6 +678,9 @@ importers:
       '@caotang/font-noto-cjk':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-cjk
+      '@caotang/font-noto-devanagari':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-devanagari
       '@caotang/font-noto-emoji':
         specifier: workspace:*
         version: link:../../vendor/noto-emoji
