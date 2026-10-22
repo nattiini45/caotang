@@ -19,6 +19,7 @@ const BINDER = { inTextField: false, inBinder: true };
 const ELSEWHERE = { inTextField: false, inBinder: false };
 const TYPING = { inTextField: true, inBinder: true };
 const CARD = { inTextField: false, inBinder: false, inCorkboard: true };
+const AGENT_INTENT = { inTextField: true, inBinder: false, inAgent: true, inAgentIntent: true };
 
 test.describe('the keyboard map', () => {
   test('a corkboard card selects with Enter or Space, renames with F2, asks to delete with Delete, and opens its menu on Shift+F10', () => {
@@ -78,7 +79,25 @@ test.describe('the keyboard map', () => {
     expect(resolveKey(keys('a'), BINDER)).toBeNull();
   });
 
+  test('in the agent panel, Escape stops a turn only with the Intent box empty, and Enter and Ctrl+Enter send and steer', () => {
+    expect(resolveKey(keys('Escape'), { ...AGENT_INTENT, agentIntentEmpty: true })).toBe('agent-stop');
+    expect(resolveKey(keys('Escape'), { inTextField: false, inBinder: false, inAgent: true, agentIntentEmpty: true })).toBe('agent-stop');
+    // With text in the box, Escape leaves the turn alone.
+    expect(resolveKey(keys('Escape'), { ...AGENT_INTENT, agentIntentEmpty: false })).toBe('escape');
+    // Outside the panel it is the app's ordinary Escape.
+    expect(resolveKey(keys('Escape'), ELSEWHERE)).toBe('escape');
+    expect(resolveKey(keys('Enter'), AGENT_INTENT)).toBe('agent-send');
+    expect(resolveKey(keys('Enter', { ctrl: true }), AGENT_INTENT)).toBe('agent-steer');
+    expect(resolveKey(keys('Enter', { meta: true }), AGENT_INTENT)).toBe('agent-steer');
+    // Anywhere else Ctrl+Enter keeps its meaning: a line break in a field, open-in-editor outside one.
+    expect(resolveKey(keys('Enter', { ctrl: true }), TYPING)).toBeNull();
+    expect(resolveKey(keys('Enter', { ctrl: true }), ELSEWHERE)).toBe('open-in-editor');
+  });
+
   test('each action has the label a control shows for it', () => {
+    expect(shortcutLabel('agent-send')).toBe('Enter');
+    expect(shortcutLabel('agent-steer')).toBe('Ctrl+Enter');
+    expect(shortcutLabel('agent-stop')).toBe('Esc');
     expect(shortcutLabel('new-document')).toBe('Ctrl+N');
     expect(shortcutLabel('open-in-editor')).toBe('Ctrl+Enter');
     expect(shortcutLabel('focus-mode')).toBe('Ctrl+Shift+F');
