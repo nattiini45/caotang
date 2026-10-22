@@ -20,6 +20,7 @@ import { newId } from '@caotang/ids';
 import { nextSiblingOrder } from './create.js';
 import { countBody } from './word-count.js';
 import { isBodyType } from './paths.js';
+import type { SkillFile } from '@caotang/skills';
 
 export interface DocumentRecord {
   readonly id: string;
@@ -80,6 +81,19 @@ export interface ProjectState {
    */
   readonly declinedText: Map<string, string>;
   /**
+   * The project's skills, `.agents/skills/<folder>/…`: every file of every skill folder this load read, by folder name, each folder's files
+   * sorted by path. Plain bytes and not parsed skills, so a save writes back exactly what the load read and a skill that does not parse
+   * is still carried (extensibility.md §10). A folder the load declined, for a cap or an unsafe path, is not here and is left on disk.
+   * Not in `caotang.json`; the runtime store keeps it on the project row (`ProjectRow.skillFiles`).
+   */
+  readonly skills: Map<string, SkillFile[]>;
+  /**
+   * The skill files the writer removed since this state was last written, by project path. A save removes them from a folder and only
+   * them: the writer takes nothing out of `.agents/skills/` that it did not put there. Cleared per path as a write removes it, and not
+   * persisted (a project's save to a folder is the only thing that reads it).
+   */
+  readonly removedSkillFiles: Set<string>;
+  /**
    * The coherence file, when one is open (coherence.md §3). Optional: a project opened without
    * one has none, and the coherence commands refuse that case rather than creating it. Loaded and
    * saved by the coherence module through `ArtifactFs`; the applies change the in-memory copy here
@@ -119,6 +133,8 @@ export function createProjectState(manifest: Manifest, options: CreateStateOptio
     declinedCodexFiles: new Set(),
     declinedDocFiles: new Set(),
     declinedText: new Map(),
+    skills: new Map(),
+    removedSkillFiles: new Set(),
   };
 }
 
@@ -128,7 +144,7 @@ export interface CreateStateOptions {
 }
 
 /**
- * A copy of a state that shares nothing mutable with it: the manifest, the documents, the declined sets and the declined text. A write made
+ * A copy of a state that shares nothing mutable with it: the manifest, the documents, the declined sets, the declined text and the skills. A write made
  * from the copy cannot change the original. `writeProject` stamps `project.modifiedAt` on whatever it writes from, so an export that writes
  * from the open project's own state would mark the project changed when nothing was edited (lifecycle `exportBundle`, persistence-plan).
  */
@@ -140,6 +156,8 @@ export function cloneProjectState(state: ProjectState): ProjectState {
   for (const name of state.declinedCodexFiles) copy.declinedCodexFiles.add(name);
   for (const name of state.declinedDocFiles) copy.declinedDocFiles.add(name);
   for (const [path, text] of state.declinedText) copy.declinedText.set(path, text);
+  for (const [folder, files] of state.skills) copy.skills.set(folder, files.map((file) => ({ path: file.path, bytes: file.bytes.slice() })));
+  for (const path of state.removedSkillFiles) copy.removedSkillFiles.add(path);
   return copy;
 }
 

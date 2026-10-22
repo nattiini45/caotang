@@ -45,6 +45,7 @@ import { PRODUCTION_FORMAT, type AppliedMigration, type FormatContext } from './
 import type { CodexEntry, Manifest, TreeNode } from './manifest.js';
 import { backfillProjectIdentity } from './project-identity.js';
 import { joinWords } from './folder-digests.js';
+import { readSkills } from './skills-fs.js';
 import { createProjectState, rebuildDerived, type DocumentRecord, type ProjectState } from './state.js';
 import { isIdWithPrefix, newId } from '@caotang/ids';
 
@@ -485,6 +486,7 @@ export async function readProject(fs: ArtifactFs, options: ReadOptions = {}): Pr
   await importOrphanDocuments(fs, state, report.orphans, notices, options.now ?? new Date(), encodingIssues);
   const orphanCodex = await importOrphanCodex(fs, state, notices, encodingIssues);
   dropDanglingCodexIds(state, notices);
+  await importSkills(fs, state, notices);
 
   // §2's "loader recomputes on open if absent", and it runs **here** for a
   // reason that is not tidiness: an orphan document imported three lines above
@@ -494,6 +496,16 @@ export async function readProject(fs: ArtifactFs, options: ReadOptions = {}): Pr
   rebuildDerived(state, { now: options.now });
 
   return { state, report, notices, orphans: report.orphans, orphanCodex, encodingIssues };
+}
+
+/**
+ * Reads the project's skills into the state (skills-fs.ts). A folder the load cannot take is named in a notice and left on disk, and the
+ * state does not hold it, so a save neither rewrites nor removes it.
+ */
+export async function importSkills(fs: ArtifactFs, state: ProjectState, notices: LoadNotice[]): Promise<void> {
+  const read = await readSkills(fs);
+  for (const [folder, files] of read.skills) state.skills.set(folder, files);
+  for (const notice of read.notices) notices.push({ path: notice.path, message: notice.message, say: notice.say });
 }
 
 /**

@@ -20,6 +20,17 @@ export const GITIGNORE_FILE = '.gitignore';
 export const SESSIONS_FILE = 'sessions.jsonl';
 
 /**
+ * Where a project's skills live: one Agent Skills folder per skill, `.agents/skills/<name>/SKILL.md` and the files beside it
+ * (project-format.md §1, extensibility.md §10). The neutral root other agents read; `.claude/skills` is not read.
+ */
+export const SKILLS_DIR = '.agents/skills';
+
+/** The project-relative path of one file of one skill: `.agents/skills/<folder>/<path>`. */
+export function skillFilePath(folder: string, path: string): string {
+  return `${SKILLS_DIR}/${folder}/${path}`;
+}
+
+/**
  * §5.1 tolerates this pre-ladder name for hand-made artifacts: "legacy
  * `caotang.json.bak` tolerated". It is tried *last*, after the whole N=3 ladder,
  * because the ladder generations are the ones a Caotang write path produced and

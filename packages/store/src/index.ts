@@ -68,6 +68,7 @@ export {
   MANIFEST_FILE,
   PROSE_BODY_EXT,
   SESSIONS_FILE,
+  SKILLS_DIR,
   SNAPSHOT_COUNT,
   bodyExtOf,
   bodyExtensionOf,
@@ -79,8 +80,10 @@ export {
   docFile,
   isBodyFileName,
   isBodyType,
+  skillFilePath,
   snapshotFile,
 } from './paths.js';
+export { isSkillFilePath, readSkills, type ReadSkills, type SkillsNotice } from './skills-fs.js';
 export { createBinderNode, type MediaCreateParams } from './commands-media.js';
 
 export {
