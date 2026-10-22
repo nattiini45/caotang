@@ -115,10 +115,14 @@ export function attachEntry(
 /**
  * `export.compile` (exporter.md §5): the whole manuscript, in one of the formats the exporter writes. A recipe, when named,
  * supplies the options the compile reads (the title page, the contents, the author), so the dialog's controls are saved to
- * the recipe first and the compile names it.
+ * the recipe first and the compile names it. A prompt pack names its vendor template as `templateId` (exporter.md §5).
  */
-export function compileManuscript(session: ProjectSession, format: string, recipeName?: string): Outcome {
-  return session.dispatch('export.compile', recipeName === undefined ? { format } : { format, recipeName });
+export function compileManuscript(session: ProjectSession, format: string, recipeName?: string, templateId?: string): Outcome {
+  return session.dispatch('export.compile', {
+    format,
+    ...(recipeName === undefined ? {} : { recipeName }),
+    ...(templateId === undefined ? {} : { templateId }),
+  });
 }
 
 /** `project.rename`: the project's title, which the title page and the EPUB's `dc:title` carry. */
@@ -164,11 +168,19 @@ export function deleteRecipe(session: ProjectSession, name: string): Outcome {
  * `export.compileSelection` (exporter.md §5): the nodes named, and nothing inferred from them. A recipe, when named, supplies the
  * options the part compiles with (the title page, the contents, the author and the character limit), as it does for a manuscript.
  */
-export function compileSelection(session: ProjectSession, includeRootIds: readonly string[], format: string, recipeName?: string): Outcome {
-  return session.dispatch(
-    'export.compileSelection',
-    recipeName === undefined ? { includeRootIds: [...includeRootIds], format } : { includeRootIds: [...includeRootIds], format, recipeName },
-  );
+export function compileSelection(
+  session: ProjectSession,
+  includeRootIds: readonly string[],
+  format: string,
+  recipeName?: string,
+  templateId?: string,
+): Outcome {
+  return session.dispatch('export.compileSelection', {
+    includeRootIds: [...includeRootIds],
+    format,
+    ...(recipeName === undefined ? {} : { recipeName }),
+    ...(templateId === undefined ? {} : { templateId }),
+  });
 }
 
 /** The first of the selection that still names a node, or `null`: a deleted node may linger in view state (bus view.ts). */
