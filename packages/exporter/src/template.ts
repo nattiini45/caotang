@@ -73,6 +73,13 @@ export function anchorOf(heading: string): string {
 const RESERVED_WINDOWS_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 const FORBIDDEN_IN_FILENAME = '<>:"/\\|?*';
 
+/** `text` without its trailing run of dots and spaces: a scan from the end, not a `[. ]+$` regex, which backtracks quadratically on `. . . . x`. */
+function trimEndDotsAndSpaces(text: string): string {
+  let end = text.length;
+  while (end > 0 && (text[end - 1] === '.' || text[end - 1] === ' ')) end--;
+  return text.slice(0, end);
+}
+
 /**
  * A title made safe to use as a file name in `exports/` on every platform the
  * artifact folder may be synced to. Reserved characters and control characters
@@ -80,12 +87,12 @@ const FORBIDDEN_IN_FILENAME = '<>:"/\\|?*';
  * capped; and the three-letter device names get a leading underscore.
  */
 export function fileStem(title: string): string {
-  const cleaned = [...title]
+  const collapsed = [...title]
     .map((ch) => (ch.charCodeAt(0) < 32 || FORBIDDEN_IN_FILENAME.includes(ch) ? ' ' : ch))
     .join('')
     .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/[. ]+$/, '')
+    .trim();
+  const cleaned = trimEndDotsAndSpaces(collapsed)
     .slice(0, 120)
     .trim();
   if (cleaned.length === 0) return 'Untitled';

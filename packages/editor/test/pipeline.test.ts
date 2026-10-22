@@ -407,3 +407,33 @@ describe('a body that is only link definitions loads, and reports them (§5: par
     expect(insertionOf('[a]: https://example.test/', caotangSchema).content.size).toBe(0);
   });
 });
+
+describe('insertionOf edge whitespace', () => {
+  const textOf = (text: string): string => {
+    const { content } = insertionOf(text, caotangSchema);
+    return content.textBetween(0, content.size, '\n');
+  };
+
+  it('keeps leading and trailing spaces and tabs as the text\'s own', () => {
+    expect(textOf('Ours ')).toBe('Ours ');
+    expect(textOf(' \tOurs\t ')).toBe(' \tOurs\t ');
+    expect(textOf('é ')).toBe('é ');
+  });
+
+  it('reads a whitespace-only text as plain text, unchanged', () => {
+    expect(textOf(' \t \t')).toBe(' \t \t');
+  });
+
+  it('does not treat a line ending as edge whitespace', () => {
+    expect(textOf('Ours\r\n')).not.toContain('\r');
+  });
+
+  // Measured before this change: the trailing-whitespace regex took 8.9s on 1e5 tabs followed by `x`.
+  it('stays linear on a long run of tabs that does not end the text', () => {
+    const text = '\t'.repeat(50_000) + 'x';
+    const started = performance.now();
+    const slice = insertionOf(text, caotangSchema);
+    expect(performance.now() - started).toBeLessThan(500);
+    expect(slice.content.textBetween(0, slice.content.size)).toBe(text);
+  });
+});

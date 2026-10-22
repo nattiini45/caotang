@@ -289,7 +289,7 @@ export function buildToc(state: ProjectState, projectName?: string): string {
  * targets, and a name that reduces to nothing falls back to the project id.
  */
 export function bundleStem(name: string, projectId: string): string {
-  const cleaned = name
+  let cleaned = name
     // The class is control characters and `no-control-regex` flags the escapes
     // exactly as it flags the literal bytes — measured, both forms, ESLint
     // 10.11.0, docs/decisions.md. It is a true positive, so the
@@ -311,11 +311,23 @@ export function bundleStem(name: string, projectId: string): string {
     .replace(/[\u0000-\u001f\u007f]/g, '')
     .replace(/[<>:"/\\|?*]/g, '-')
     .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/^[.\s]+|[.\s]+$/g, '')
-    .slice(0, 80)
     .trim();
+  cleaned = trimDotsAndSpace(cleaned).slice(0, 80).trim();
   return cleaned === '' ? projectId : cleaned;
+}
+
+/**
+ * Strips leading and trailing dots and whitespace. A scan, not
+ * `/^[.\s]+|[.\s]+$/g` — that regex is quadratic on a long run of dots and
+ * spaces followed by anything else.
+ */
+function trimDotsAndSpace(text: string): string {
+  const isTrim = (ch: string): boolean => ch === '.' || ch.trim() === '';
+  let start = 0;
+  let end = text.length;
+  while (start < end && isTrim(text[start]!)) start++;
+  while (end > start && isTrim(text[end - 1]!)) end--;
+  return text.slice(start, end);
 }
 
 export function bundleFilename(name: string, projectId: string): string {

@@ -91,7 +91,7 @@ export function planDraft(body: string, ink: string, fromBeats: readonly string[
     }
   }
 
-  const at = body.replace(/\s+$/, '').length;
+  const at = body.trimEnd().length;
   return { ok: true, plan: { body: `${body.slice(0, at)}\n\n${draft}`, mode: 'append', insertedAt: at, anchor: null, newBeats } };
 }
 

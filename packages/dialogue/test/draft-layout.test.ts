@@ -79,6 +79,27 @@ describe('placing a draft', () => {
     if (!result.ok) throw new Error('the placement should succeed');
     expect(printedOnAnyPath(result.plan.body).has('Thanks for the drink.')).toBe(true);
   });
+
+  it('appends after the last non-space character, whatever whitespace trails the body', () => {
+    for (const tail of ['', '\n', '\r\n\r\n', ' \t \n ', '  ﻿ ', '   ']) {
+      const body = `Hello there.${tail}`;
+      const result = planDraft(body, DRAFT_OK);
+      if (!result.ok) throw new Error('the placement should succeed');
+      expect(result.plan.mode).toBe('append');
+      expect(result.plan.insertedAt).toBe('Hello there.'.length);
+      expect(result.plan.body.startsWith(`Hello there.\n\n${DRAFT_OK}`)).toBe(true);
+    }
+  });
+
+  it('finds the end of a body with a very long run of spaces in linear time', () => {
+    const body = `${' '.repeat(50_000)}x${' '.repeat(50_000)}y${' '.repeat(50_000)}`;
+    const started = performance.now();
+    const result = planDraft(body, DRAFT_OK);
+    const elapsed = performance.now() - started;
+    if (!result.ok) throw new Error('the placement should succeed');
+    expect(result.plan.insertedAt).toBe(100_002);
+    expect(elapsed).toBeLessThan(500);
+  });
 });
 
 describe('checking a draft before the card', () => {

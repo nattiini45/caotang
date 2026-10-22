@@ -233,3 +233,54 @@ describe('createFountainRenderer', () => {
     expect(text('x')).toBe('x\n');
   });
 });
+
+describe('renderFountain — line and trailing white space (linear scans)', () => {
+  /** The expressions the renderer used before the single-pass scans; the new code must agree with them. */
+  const oneLineBefore = (s: string): string => s.replace(/\s*\n\s*/g, ' ').trim();
+  const titleOf = (title: string): string => renderFountain([{ kind: 'frontmatter', fmKind: 'titlepage' }], { title }).text;
+  const SAMPLES = [
+    '',
+    ' ',
+    '\n',
+    ' \n ',
+    'a\nb',
+    'a \n \n b',
+    'a\r\nb',
+    '\r\n\r\n',
+    '  a  b  ',
+    'a\u00a0\n\u2003b',
+    'a \u2028 b',
+    'Élan\n日本語\n',
+    '\n\na\n\n',
+  ];
+
+  it('joins a title across line breaks as the expression did', () => {
+    for (const s of SAMPLES) expect(titleOf(s)).toBe(`Title: ${oneLineBefore(s)}\n`);
+    expect(titleOf('A\n  B')).toBe('Title: A B\n');
+    expect(titleOf('  \n  ')).toBe('Title: \n');
+  });
+
+  it('keeps white space with no line break in it, and turns one that has a break into a single space', () => {
+    expect(titleOf('a  b')).toBe('Title: a  b\n');
+    expect(titleOf('a \t\r\n \t b')).toBe('Title: a b\n');
+  });
+
+  it('strips the trailing white space of a scene body and collapses trailing breaks of the document', () => {
+    const scene = (body: string): FlatBlock => ({ kind: 'scene', docId: 'd0', body, title: 'S', number: 1 });
+    expect(renderFountain([scene('INT. A - DAY \n\t\r\n')], { title: 'T' }).text).toBe('INT. A - DAY\n');
+    expect(renderFountain([scene('')], { title: 'T' }).text).toBe('\n');
+    expect(renderFountain([scene('  \n ')], { title: 'T' }).text).toBe('\n');
+    expect(renderFountain([scene('Action.\u00a0\u3000')], { title: 'T' }).text).toBe('Action.\n');
+  });
+
+  it('stays linear on long runs of white space and line breaks', () => {
+    const big = 50_000;
+    const start = performance.now();
+    titleOf(' '.repeat(big));
+    titleOf(`a${'\n'.repeat(big)}b`);
+    titleOf(`a${' '.repeat(big)}b`);
+    renderFountain([{ kind: 'scene', docId: 'd0', body: `A${' '.repeat(big)}x`, title: 'S', number: 1 }], { title: 'T' });
+    renderFountain([{ kind: 'scene', docId: 'd0', body: `A${'\n'.repeat(big)}x\n\n`, title: 'S', number: 1 }], { title: 'T' });
+    expect(performance.now() - start).toBeLessThan(500);
+  });
+});

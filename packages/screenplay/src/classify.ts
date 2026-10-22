@@ -53,12 +53,16 @@ export function printedText(text: string): string {
 
 /** Removes trailing parenthesised extensions such as `(V.O.)` or `(CONT'D)`, repeatedly. */
 export function stripExtensions(text: string): string {
-  let t = text.trim();
-  for (;;) {
-    const next = t.replace(/\s*\([^()]*\)$/, '').trimEnd();
-    if (next === t) return t;
-    t = next;
+  const t = text.trim();
+  let end = t.length;
+  // Scanned from the right, one extension at a time, so a long run of spaces or brackets costs one pass.
+  while (end > 0 && t[end - 1] === ')') {
+    const open = t.lastIndexOf('(', end - 2);
+    if (open < 0 || t.lastIndexOf(')', end - 2) > open) break;
+    end = open;
+    while (end > 0 && /\s/.test(t[end - 1] as string)) end--;
   }
+  return t.slice(0, end);
 }
 
 export interface CueLine {

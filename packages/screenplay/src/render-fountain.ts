@@ -48,7 +48,8 @@ export interface FountainRenderResult {
 
 /** Titles and names are one line in Fountain's key-value block and in section lines. */
 function oneLine(text: string): string {
-  return text.replace(/\s*\n\s*/g, ' ').trim();
+  // A white-space run that holds a line break becomes one space; one pass over the runs, so nothing backtracks.
+  return text.replace(/\s+/g, (run) => (run.includes('\n') ? ' ' : run)).trim();
 }
 
 function titlePageText(opts: FountainRenderOptions): string {
@@ -64,7 +65,7 @@ function titlePageText(opts: FountainRenderOptions): string {
 
 function sceneText(body: string, docId: string, opts: FountainRenderOptions): string {
   const synopses = opts.synopses;
-  if (synopses === undefined) return body.replace(/\s+$/, '');
+  if (synopses === undefined) return body.trimEnd();
   // The body's own `=` residue goes, and only the lines the parser reads as synopses: a dialogue line
   // that starts with `=` is dialogue (screenplay.md §2.3). The heading line is never residue.
   const source = normaliseSource(body);
@@ -81,7 +82,7 @@ function sceneText(body: string, docId: string, opts: FountainRenderOptions): st
     const at = first !== undefined && first.type === 'scene_heading' ? 1 : 0;
     lines.splice(at, 0, `= ${synopsis}`);
   }
-  return lines.join('\n').replace(/\s+$/, '');
+  return lines.join('\n').trimEnd();
 }
 
 /** Renders the flattened blocks as one Fountain document. Pure: the same blocks always give the same text. */
@@ -116,7 +117,10 @@ export function renderFountain(blocks: readonly FlatBlock[], opts: FountainRende
         break;
     }
   }
-  const text = out.replace(/\n+$/, out === '' ? '' : '\n');
+  // Trailing line breaks collapse to one.
+  let end = out.length;
+  while (end > 0 && out[end - 1] === '\n') end--;
+  const text = end === out.length ? out : `${out.slice(0, end)}\n`;
   return { text, notes };
 }
 

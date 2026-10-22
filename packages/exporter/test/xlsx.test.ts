@@ -261,6 +261,23 @@ describe('names', () => {
     expect(sheetName("''")).toBe('Sheet1');
   });
 
+  it('a sheet name drops the apostrophes at either end only', () => {
+    expect(sheetName("'Act 1'")).toBe('Act 1');
+    expect(sheetName("'''Act 1'''")).toBe('Act 1');
+    expect(sheetName("Bob's draft")).toBe("Bob's draft");
+    expect(sheetName("' Act 1 '")).toBe('Act 1');
+    expect(sheetName("'")).toBe('Sheet1');
+    expect(sheetName('')).toBe('Sheet1');
+    expect(sheetName('   ')).toBe('Sheet1');
+    expect(sheetName("'Café\r\n'")).toBe('Café');
+  });
+
+  it('a sheet name takes linear time on a long run of apostrophes between other characters', () => {
+    const started = performance.now();
+    expect(sheetName(`x${"'".repeat(50_000)}x`)).toHaveLength(31);
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+
   it('columns are lettered as a spreadsheet letters them', () => {
     expect([0, 9, 25, 26, 27, 701, 702].map(columnName)).toEqual(['A', 'J', 'Z', 'AA', 'AB', 'ZZ', 'AAA']);
   });

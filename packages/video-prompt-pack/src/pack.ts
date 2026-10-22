@@ -231,9 +231,9 @@ function jsonPack(run: PackRun): string {
   return `${JSON.stringify(document, null, 2)}\n`;
 }
 
-/** A Markdown table cell: pipes escaped, line breaks flattened. */
+/** A Markdown table cell: backslashes and pipes escaped, line breaks flattened. */
 function cell(text: string): string {
-  return text.replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim();
+  return text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\s+/g, ' ').trim();
 }
 
 /** A text block as a quotation: every line prefixed, so a multi-line dialogue cue stays one block. */
@@ -244,9 +244,9 @@ function quote(text: string): string {
     .join('\n');
 }
 
-/** Comment lines that cannot close the comment early. */
+/** Comment lines that cannot close the comment early, by `-->` or by the `--!>` that HTML also accepts. */
 function comment(text: string): string {
-  return text.replace(/-->/g, '--&gt;');
+  return text.replace(/--(!?)>/g, '--$1&gt;');
 }
 
 function markdownPack(run: PackRun): string {

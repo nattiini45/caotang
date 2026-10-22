@@ -12,6 +12,7 @@ import {
   formatFrontMatter,
   parseDocumentFile,
   parseFrontMatter,
+  parseFrontMatterFields,
   serializeDocumentFile,
   type DocumentFrontMatter,
 } from '../src/index.js';
@@ -208,5 +209,44 @@ describe('document file', () => {
   it('refuses a file that is not a Caotang document', () => {
     expect(() => parseDocumentFile('# just markdown\n')).toThrow(/front matter fence/);
     expect(() => parseDocumentFile('---\nid: n_3W8RN2TQ6C\n')).toThrow(/closing/);
+  });
+});
+
+describe('folded block scalars', () => {
+  // Pinned when a no-op `\n(?!\n)` -> `\n` replacement was dropped from the
+  // folding step: the output must be exactly what the join and the trailing
+  // space strip produce.
+  const fold = (yaml: string): string | null | undefined =>
+    parseFrontMatterFields(yaml).get('synopsis')?.scalar;
+
+  it('joins consecutive lines with a space', () => {
+    expect(fold('synopsis: >-\n  one\n  two\n  three\n')).toBe('one two three');
+  });
+
+  it('turns a blank line into a single newline', () => {
+    expect(fold('synopsis: >-\n  one\n  two\n\n  three\n')).toBe('one two\nthree');
+  });
+
+  it('keeps consecutive blank lines as consecutive newlines', () => {
+    expect(fold('synopsis: >-\n  one\n\n\n  two\n')).toBe('one\n\ntwo');
+  });
+
+  it('strips spaces before a newline and honours clip chomping', () => {
+    expect(fold('synopsis: >\n  one   \n\n  two\n')).toBe('one\ntwo\n');
+  });
+
+  it('decodes CRLF and unicode the same way', () => {
+    expect(fold('synopsis: >-\r\n  café\r\n  über\r\n')).toBe('café über');
+  });
+
+  it('handles an empty block', () => {
+    expect(fold('synopsis: >-\n')).toBe('');
+  });
+
+  it('folds a line with a long run of inner spaces in linear time', () => {
+    const run = ' '.repeat(80_000);
+    const started = performance.now();
+    expect(fold(`synopsis: >-\n  a${run}b\n  c${run}\n`)).toBe(`a${run}b c`);
+    expect(performance.now() - started).toBeLessThan(1_000);
   });
 });
