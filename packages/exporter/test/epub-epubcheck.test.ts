@@ -16,7 +16,7 @@ import { MemoryArtifactFs, type ProjectState } from '@caotang/store';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate/browser';
 import { createExporter } from '../src/exporter.js';
 import { renderEpub, type EpubInput } from '../src/render-epub.js';
-import { makeProject } from './fixture.js';
+import { IDS, makeProject, withSceneStyle } from './fixture.js';
 import { COVER_PNG, EPUB_IDENTIFIER, epubInput } from './epub-fixtures.js';
 
 /** The six fixtures epub-metadata.md names for the metadata floor, and the compiled book. */
@@ -106,5 +106,12 @@ describe('the epubcheck gate — EPUB 3.3, zero errors on the corpus', () => {
     expect(result.messages.filter((m) => m.severity === 'error' || m.severity === 'fatal').map((m) => m.id)).toEqual([]);
     expect(result.errorCount).toBe(0);
     expect(result.fatalCount).toBe(0);
+  });
+
+  it('validates a book with section scenes, an h2 in a chapter and under a loose lead scene', async () => {
+    const state = withSceneStyle(withSceneStyle(makeProject(), IDS.landing, 'section'), IDS.prologue, 'section');
+    const result = await EpubCheck.validate(await compiledBook(state), { version: '3.3' });
+    expect(result.messages.filter((m) => m.severity === 'error' || m.severity === 'fatal').map((m) => m.id)).toEqual([]);
+    expect(result.errorCount + result.fatalCount).toBe(0);
   });
 });

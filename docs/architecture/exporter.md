@@ -25,10 +25,27 @@ select → flatten → render → emit
    { kind: 'backmatter',  bmKind: 'about-author'|'custom', docId? }
    ```
    *(Front/back-matter blocks: v0.1 ships `titlepage` only, on by default — `{title}/{author}/{date}` template vars already cover it; `copyright` + custom front/back matter = recipe options with the same render path, land v0.2 unless trivial. Front/back matter blocks are rendered from template variables or a referenced doc's body — never stored as separate binder nodes, keeping the three-tier model intact.)* Empty documents are skipped **with a visible note in the compile log** ("skipped: Chapter 3 → The Call (empty)"). Scene-level text is the raw body; `***` thematic breaks inside a body are preserved as blocks.
-3. **Render** — per format. Template variables: `{title}`, `{author}`, `{date}`, `{chapterTitle}`, `{chapterNumber}`, `{sceneNumber}`. Defaults: chapter → `## {chapterNumber}. {chapterTitle}` (MD), separator → `***` centered (DOCX: centered `* * *` — the yWriter/Scrivener convention), title page → `{title}` + `{author}` + `{date}` centered. **`{date}` is the writer's local calendar day** (`YYYY-MM-DD` in the zone the device runs in, the rule goals-progress.md states for "today"), not the UTC day, which is a different day for part of every day in most zones. The compile log's `at` and the EPUB's `dcterms:modified` stay UTC. **TOC policy:** MD = generated anchor list after the title page (optional, default on); DOCX = Word **TOC field** anchored on `Heading 1` chapter styles (optional, default on — Word regenerates it via F9; if the renderer can't emit a credible TOC field, ship without and note it in the compile log); TXT = none. **DOCX TOC mechanics:** the adopted recipe is `TableOfContents(alias, { hyperlink: true, headingStyleRange: '1-2' })` + `Document({ features: { updateFields: true } })` **plus `cachedEntries`** built from the binder chapter list — entries visible in every viewer *before* Word's field update (Word: on-open "update fields" prompt fires once and regenerates; LibreOffice never auto-updates fields and shows only the cached content — acceptable, the cached entries ARE the real content; Pages/Vellum import likewise read the cache), with `beginDirty: false` rejected (no prompt, but stale TOC) and a static TOC rejected (loses Word's field semantics) — see §7 E1.
+3. **Render** — per format. Template variables: `{title}`, `{author}`, `{date}`, `{chapterTitle}`, `{chapterNumber}`, `{sceneNumber}`. Defaults: chapter → `## {chapterNumber}. {chapterTitle}` (MD), separator → `***` centered (DOCX: centered `* * *` — the yWriter/Scrivener convention), title page → `{title}` + `{author}` + `{date}` centered. **`{date}` is the writer's local calendar day** (`YYYY-MM-DD` in the zone the device runs in, the rule goals-progress.md states for "today"), not the UTC day, which is a different day for part of every day in most zones. The compile log's `at` and the EPUB's `dcterms:modified` stay UTC. **TOC policy:** MD = generated anchor list after the title page (optional, default on); DOCX = Word **TOC field** anchored on `Heading 1` chapter styles (optional, default on — Word regenerates it via F9; if the renderer can't emit a credible TOC field, ship without and note it in the compile log); TXT = none. **DOCX TOC mechanics:** the adopted recipe is `TableOfContents(alias, { hyperlink: true, headingStyleRange: '1-2' })` + `Document({ features: { updateFields: true } })` **plus `cachedEntries`** built from the binder chapter list, with a `section` scene's heading (§2, Per-scene styling) as a level-2 entry after its chapter — entries visible in every viewer *before* Word's field update (Word: on-open "update fields" prompt fires once and regenerates; LibreOffice never auto-updates fields and shows only the cached content — acceptable, the cached entries ARE the real content; Pages/Vellum import likewise read the cache), with `beginDirty: false` rejected (no prompt, but stale TOC) and a static TOC rejected (loses Word's field semantics) — see §7 E1.
 4. **Emit** — MD/TXT: Blob download + copy into `exports/` in the artifact. DOCX: Blob download. Every compile writes a `compile-log.json` entry: `{at, recipe, format, blockCount, wordCount, skippedDocs[], tocIncluded, notes[]}` (append-only, `exports/`).
 
 **Compile log as a first-class surface:** Scrivener's community advice is "trial-compile a small collection first"; our equivalents are `previewFlatten` (pre-compile block list, §4) and the compile log (post-compile record incl. every skipped doc). Vellum's Draft-vs-Proof live styled preview is the gold-standard UX and is explicitly **v0.2 backlog** (it is Vellum/Atticus's moat; not v0.1).
+
+### Per-scene styling
+
+A chapter has a heading and a scene has none: below the chapter the body is one undifferentiated run. A writer can say what a scene *is*, and each format decides how that looks.
+
+- **Declaration.** The scene's binder node carries an optional `style` (project-format.md §2, `tree[].style`). The vocabulary is closed and grows by spec change, not by free text: `normal` (the default, and the same as absent) and `section`. The writer sets it in the Inspector, through `binder.setMeta`'s `style` (a value, or `null` to clear), so it is undoable and idempotent. It is read from the manifest at flatten and never computed, and the flat `scene` block carries it only when it is not `normal`.
+- **`section`.** A scene that opens a section of its chapter, the manuscript's second-level division. Its **title** is printed above its body, which no format does for a scene without a style. A blank title prints nothing.
+- **Unknown stored value.** A `style` this build does not know loads as the string it is (nothing is dropped, so a later version's value survives a round trip), the load notice names it once, and every format renders the scene as `normal`.
+
+| Format | `section` renders as |
+|---|---|
+| Markdown | `### {title}` above the body. The contents list stays the chapter list. |
+| TXT | `{TITLE}` in upper case above the body, on its own line. |
+| DOCX | A `Heading 2` paragraph (defined in `styles.xml`) above the body, with no page break. The TOC field already asks for levels 1–2, so its `cachedEntries` carry the heading at level 2, after its chapter, in document order: the cached list and the field agree. |
+| EPUB | An `<h2>` above the scene's prose in its chapter file. The `nav.xhtml` and NCX stay the chapter list. A prologue scene filed under the manuscript is headed by its own title, so a `section` there does not repeat it. |
+
+**A style a format cannot express is dropped, and said.** Each style has a row of the formats that express it, and the compile log's `notes[]` names a style in the compile that its format dropped, once per style (for instance, "the `verse` style has no meaning in the plain-text format, so it was dropped"). `section` is expressible in all four prose formats, so no live style reaches that path yet; it is tested with a vocabulary row the test supplies. The media formats do not read `style`.
 
 ## 3. Format specifics
 
@@ -108,7 +125,7 @@ interface Exporter {
 
 - None. Every format the specs name for this enum is in it.
 
-**Not built, and not on any list yet:** print CSS, per-scene styling, custom CSS injection, endnote and footnote engines. EPUB ships, as §3a describes.
+**Not built, and not on any list yet:** print CSS, custom CSS injection, endnote and footnote engines. EPUB ships, as §3a describes.
 
 ## 7. Assumptions / open questions
 

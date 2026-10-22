@@ -191,7 +191,7 @@ const PARAM_SAMPLE: Record<string, unknown> = {
   body: 'A new body.',
   expectedRevision: REVISION,
   range: { from: 0, to: 0 },
-  patch: { status: 'draft', label: 'act-1', keywords_add: ['sea'], keywords_remove: ['grief'] },
+  patch: { status: 'draft', label: 'act-1', keywords_add: ['sea'], keywords_remove: ['grief'], style: 'section' },
   entries: [{ action: 'create', name: 'Someone New' }],
   attachTo: [CHAPTER_ONE],
   detachFrom: [],
@@ -522,9 +522,9 @@ describe("§9's Params column against the code's accepted keys", () => {
     }
   });
 
-  it("holds binder.setMeta's nested patch literal to §9's four fields", () => {
+  it("holds binder.setMeta's nested patch literal to §9's five fields", () => {
     // §9 spells this one out inline — `patch: {status?, label?, keywords_add?,
-    // keywords_remove?}` — and this test reads that literal and no other. The
+    // keywords_remove?, style?}` — and this test reads that literal and no other. The
     // top-level parser deliberately does not see nested keys. §9 now has three more
     // nested literals in the same column (`project.setMetadata`'s `patch`,
     // `binder.saveFilter`'s `filter` and `project.saveGoal`'s `goal`), and none of

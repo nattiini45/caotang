@@ -30,6 +30,7 @@
  */
 
 import { err, ok, type CommandError, type Result } from './result.js';
+import { SCENE_STYLES } from './command.js';
 import type {
   McpInvokeParams,
   ShotCreateCommandParams,
@@ -169,7 +170,7 @@ function rangeHint(length: number): string {
   return `offsets run 0-${length} in body coordinates - re-read the document for its current length`;
 }
 
-const PATCH_KEYS = ['status', 'label', 'keywords_add', 'keywords_remove'];
+const PATCH_KEYS = ['status', 'label', 'keywords_add', 'keywords_remove', 'style'];
 
 /**
  * `CodexUpsertOp`'s own fields, and nothing else.
@@ -584,9 +585,26 @@ export const binderSetMeta: CommandDescriptor<BinderSetMetaParams> = {
         );
       }
     }
+    const style = optionalNullableString(patch, 'style');
+    if (!style.ok) return style;
+    if (style.value !== undefined && style.value !== null && !(SCENE_STYLES as readonly string[]).includes(style.value)) {
+      return invalid(
+        `"${style.value}" is not a scene style`,
+        `pass one of: ${SCENE_STYLES.join(', ')}, or null to clear it`,
+        'patch.style',
+      );
+    }
+    if (style.value !== undefined && node.value.type !== 'document') {
+      return invalid(
+        `"${node.value.title}" is a ${node.value.type}, and only a document has a scene style`,
+        'name a document, or leave style out of the patch',
+        'patch.style',
+      );
+    }
     const typed: MetaPatch = {};
     if (status.value !== undefined) typed.status = status.value;
     if (label.value !== undefined) typed.label = label.value;
+    if (style.value !== undefined) typed.style = style.value;
     if (patch['keywords_add'] !== undefined) typed.keywords_add = patch['keywords_add'] as string[];
     if (patch['keywords_remove'] !== undefined) {
       typed.keywords_remove = patch['keywords_remove'] as string[];

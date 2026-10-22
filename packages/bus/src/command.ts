@@ -628,7 +628,13 @@ export type MetaPatch = {
   label?: string | null;
   keywords_add?: string[];
   keywords_remove?: string[];
+  /** The scene's export style (exporter.md §2): one of `SCENE_STYLES`, or `null` to clear it. `normal` and `null` both read as no style. */
+  style?: string | null;
 };
+
+/** The scene styles (exporter.md §2, Per-scene styling). A closed vocabulary that grows by spec change; `normal` is the default and the same as absent. */
+export const SCENE_STYLES = ['normal', 'section'] as const;
+export type SceneStyle = (typeof SCENE_STYLES)[number];
 
 /**
  * One provenance citation (codex.md §2, `EntrySource`): a verbatim slice of a

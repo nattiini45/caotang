@@ -23,11 +23,14 @@
  */
 
 import { FIXED_ROOT_IDS, countBody, type ProjectState, type TreeNode } from '@caotang/store';
+import { SCENE_STYLE_ROWS, sceneStyleOf, type SceneStyleRow } from './scene-style.js';
 import type { ExportSelection, FlatBlock } from './types.js';
 
 export interface FlattenOptions {
   /** Whether to lead with the title page (exporter.md §2 `titlepage`, default on). */
   readonly titlePage: boolean;
+  /** The scene styles a stored value is read against (exporter.md §2). Absent is the build's own rows. */
+  readonly sceneStyles?: readonly SceneStyleRow[];
 }
 
 export interface FlattenResult {
@@ -74,6 +77,7 @@ export function flatten(state: ProjectState, selection: ExportSelection, options
     siblings.sort((a, b) => a.order - b.order || compareIds(a.id, b.id));
   }
 
+  const styleRows = options.sceneStyles ?? SCENE_STYLE_ROWS;
   const selected = new Set(selection.includeRootIds);
   const blocks: FlatBlock[] = [];
   const skippedDocs: string[] = [];
@@ -137,7 +141,9 @@ export function flatten(state: ProjectState, selection: ExportSelection, options
       looseScenes += 1;
       number = looseScenes;
     }
-    blocks.push({ kind: 'scene', docId: node.id, title: node.title, body, number });
+    // Read from the manifest, never computed. A style the rows do not name (an unknown stored value) is a normal scene.
+    const style = sceneStyleOf(node.style, styleRows);
+    blocks.push({ kind: 'scene', docId: node.id, title: node.title, body, number, ...(style === undefined ? {} : { style }) });
     wordCount += countBody(body).words;
     sceneCount += 1;
     previousChapter = chapter;

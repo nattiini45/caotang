@@ -97,6 +97,7 @@ Pretty-printed JSON, 2-space indent, keys in the fixed order shown below (stable
 | `tree[].kind` | string, optional | The media-track kind marker: `screenplay` on a document, `storyboard` on a folder, `branching` on a dialogue container. Unknown values load as kept strings (§2 note above). |
 | `tree[].shot` | object, optional | A shot's stored metadata (storyboard.md §2.2). The store carries it unread; `@caotang/storyboard` owns its fields. |
 | `tree[].dialogue` | object, optional | A dialogue container's metadata: `speaker`, `locBaseline`, `engineTarget`, `autoLineIds` (dialogue-narrative.md §2.1). |
+| `tree[].style` | string, optional | The scene's export style (exporter.md §2, Per-scene styling): `normal` or `section`. Additive: absent is `normal`, and a project written before the field loads unchanged; no `formatVersion` bump. An unknown value loads as a kept string with a load notice, and the exporter renders it as `normal`. Changed only by `binder.setMeta`. |
 | `recipes[]` | array, optional | Saved export recipes (exporter.md §2), changed only by `recipe.save` and `recipe.delete`. |
 | — | — | **No secrets, ever.** Provider keys/URLs live in app-level settings, not in the artifact (projects get zipped, shared, committed). |
 

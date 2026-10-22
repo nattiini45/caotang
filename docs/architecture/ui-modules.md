@@ -101,6 +101,7 @@
 | Notes | node.notes | textarea, debounced 800 ms → `notes.set` (write-confirm for agent, plain for user) | ≤50k chars (project-format §2); plain Markdown; the `notes.append` agent divider (`— agent, <date>`) renders as a visual separator, not literal text. |
 | Keywords | node.keywords | chip input → `binder.setMeta {keywords_add/keywords_remove}` | ≤32 × 64 chars; freeform (Scrivener-style); autocomplete from existing keywords in-project. |
 | Status / Label | node.status/label | pickers → `binder.setMeta` | Vocabulary-validated at the command; picker shows "unknown status" chip when the loaded value is outside the vocabulary (project-format §2 tolerant rule). |
+| Export style | node.style (documents only) | select (Normal, Section) → `binder.setMeta {style}` | exporter.md §2, Per-scene styling. Normal clears the field; an unknown stored value shows as itself, disabled, and exports as Normal. The agent's `meta.set` does not carry it. |
 | Codex section | codex.md §8 | attach picker → `codex.write {attachTo}` / chips show mention counts | Mention chips refresh on doc-write cache invalidation; click → codex panel. |
 | SceneMeta editor | coherence.md §8.3 | POV picker (codex characters), dayOffset/duration number fields, `after`/`expectedPresent` chip pickers | **Lands with the coherence module** (post-v0.1); the Inspector layout reserves the collapsible section from day one. |
 
