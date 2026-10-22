@@ -38,6 +38,17 @@ export interface DialogueFacts {
   readonly findings: readonly DraftFinding[];
   /** The dialogue containers the findings were computed for. A finding is in scope when its container is. */
   readonly containerIds: readonly string[];
+  /**
+   * The speakers each container's lines name, by container id (`speakersOf`, dialogue-narrative.md §2.2), for `medium.speaker-parity`.
+   * Absent means the app did not read them, and that check is not evaluated.
+   */
+  readonly speakersByContainer?: ReadonlyMap<string, readonly DialogueSpeaker[]>;
+}
+
+/** One speaker of a container: the spelling its lines use, and the codex character it resolves to when it does. */
+export interface DialogueSpeaker {
+  readonly name: string;
+  readonly entryId?: string;
 }
 
 export interface CheckInput {

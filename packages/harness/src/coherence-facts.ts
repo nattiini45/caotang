@@ -11,7 +11,7 @@
  */
 
 import type { DialogueFacts } from '@caotang/coherence';
-import { validateContainer } from '@caotang/dialogue';
+import { speakersOf, validateContainer } from '@caotang/dialogue';
 import { getBody, type ProjectState, type TreeNode } from '@caotang/store';
 
 /** The binder node type a dialogue container carries (dialogue-narrative.md §2.1). */
@@ -39,11 +39,13 @@ export function containersOf(state: ProjectState): TreeNode[] {
 
 /**
  * The dialogue findings for every container the scan reads, with the container ids they were computed for. A container's
- * findings name the container as their document, so the scan keeps them exactly when it reads that container.
+ * findings name the container as their document, so the scan keeps them exactly when it reads that container. The speakers
+ * of each container ride along for `medium.speaker-parity`.
  */
 export function dialogueFactsOf(state: ProjectState): DialogueFacts {
   const entries = state.manifest.codex ?? [];
   const containers = containersOf(state);
   const findings = containers.flatMap((node) => validateContainer(node.id, getBody(state, node.id), { entries }).findings);
-  return { findings, containerIds: containers.map((node) => node.id) };
+  const speakersByContainer = new Map(containers.map((node) => [node.id, speakersOf(getBody(state, node.id), entries)] as const));
+  return { findings, containerIds: containers.map((node) => node.id), speakersByContainer };
 }

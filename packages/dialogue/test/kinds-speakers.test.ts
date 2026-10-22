@@ -11,6 +11,7 @@ import {
   readDialogueMeta,
   resolveSpeakerId,
   resolveSpeakerName,
+  speakersOf,
   validateContainer,
 } from '../src/index.js';
 import { TAVERN } from './fixtures.js';
@@ -93,6 +94,34 @@ describe('speaker resolution', () => {
   it('resolves a default speaker by id, of any type', () => {
     expect(resolveSpeakerId(entries, 'c_LANTERN001')?.name).toBe('Lantern');
     expect(resolveSpeakerId(entries, 'c_NOBODY0001')).toBeUndefined();
+  });
+});
+
+describe('speakersOf', () => {
+  const entries: CodexEntry[] = [
+    entry({ id: 'c_ALICE00001', name: 'Alice', type: 'character', aliases: ['Al'] }),
+    entry({ id: 'c_BOB0000001', name: 'Bob', type: 'character' }),
+    entry({ id: 'c_ALBERT0001', name: 'Albert', type: 'character', aliases: ['Bert', 'Alb'] }),
+    entry({ id: 'c_ALBERTA001', name: 'Alberta', type: 'character', aliases: ['Alb'] }),
+  ];
+
+  it('returns the speakers in body order, once each, resolved to their codex entry', () => {
+    const body = ['Bob: Hello.', 'Alice: Hi.', 'Bob: Again.', 'Al: I said hi.'].join('\n');
+    expect(speakersOf(body, entries)).toEqual([
+      { name: 'Bob', entryId: 'c_BOB0000001' },
+      { name: 'Alice', entryId: 'c_ALICE00001' },
+    ]);
+  });
+
+  it('keeps the typed spelling of a name that matches no character or matches two', () => {
+    const body = ['Marisol Vega: Hello.', 'Alb: Which one?', 'Marisol Vega: Again.'].join('\n');
+    expect(speakersOf(body, entries)).toEqual([{ name: 'Marisol Vega' }, { name: 'Alb' }]);
+  });
+
+  it('reads no speaker from a line without a prefix, from a choice head, or from a comment', () => {
+    const body = ['Plain narration.', '// Bob: commented out', '* Bob: a choice head', ''].join('\n');
+    expect(speakersOf(body, entries)).toEqual([]);
+    expect(speakersOf('', entries)).toEqual([]);
   });
 });
 

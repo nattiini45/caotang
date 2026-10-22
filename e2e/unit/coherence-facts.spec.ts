@@ -52,4 +52,13 @@ test.describe('the dialogue facts a scan reads (dialogue-narrative.md §5, coher
     const held = withFacts.file.findings.filter((finding) => finding.checkId.startsWith('branch.') || finding.checkId.startsWith('dialogue.'));
     expect(new Set(held.map((finding) => finding.factGroup))).toEqual(new Set(facts.findings.map((finding) => finding.factGroup)));
   });
+
+  test('the facts carry the speakers each container names, for the containers the scan reads', () => {
+    const state = project();
+    addContainer(state, 'd_COURT00001', 'manuscript', INK_BODY);
+    addContainer(state, 'd_NOTE000001', 'research', INK_BODY);
+    const speakers = dialogueFactsOf(state).speakersByContainer;
+    expect([...(speakers?.keys() ?? [])]).toEqual(['d_COURT00001']);
+    expect(speakers?.get('d_COURT00001')).toEqual([{ name: 'Zed' }]);
+  });
 });

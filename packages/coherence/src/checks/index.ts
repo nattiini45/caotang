@@ -15,7 +15,7 @@ import { checkBranch } from './branch.js';
 import { checkUnresolvedThread } from './plot.js';
 import { checkKnowledgeLeak } from './knowledge.js';
 
-export type { CheckInput, CheckOutput, DialogueFacts, DraftFinding } from './common.js';
+export type { CheckInput, CheckOutput, DialogueFacts, DialogueSpeaker, DraftFinding } from './common.js';
 export { groupKey, pairKey, termsOf, resolveEntry, modeOf } from './common.js';
 
 export const DETERMINISTIC_CHECKS: Readonly<Record<DeterministicCheckId, (input: CheckInput) => CheckOutput>> = {
