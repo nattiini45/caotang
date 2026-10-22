@@ -536,8 +536,11 @@ describe('§8 — the activity row for every shipped store apply', () => {
     h.run(cmd('binder.setMeta', { nodeId: LANDING, patch: { keywords_add: ['sea'] } }));
     const row = h.row('binder.setMeta');
     // The reachable-empty branch: §9 admits this command, and a digest built from
-    // the keys it was handed would claim a keyword was added.
-    expect(row.summary).toContain('unchanged');
+    // the keys it was handed would claim a keyword was added. The wording is the
+    // whole digest and not a part of it — the empty branch names no field,
+    // because a patch can change nothing in any of them and "the keywords"
+    // would be a claim about a field the patch never mentioned.
+    expect(row.summary).toBe('left "The Landing" unchanged');
     expect(row.affected.map((a) => a.title)).toEqual(['The Landing']);
   });
 

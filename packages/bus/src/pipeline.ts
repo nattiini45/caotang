@@ -256,6 +256,47 @@ function effectRow<S>(
 }
 
 /**
+ * A capture that arrived after its dispatch settled: an apply that stashed the
+ * undo scope and captured from a timer, an event or a floating continuation.
+ * The registration for this dispatch is closed, so the payload cannot join any
+ * group — and a raw throw from the capturing callback would escape as an
+ * uncaught exception nobody routes back to the caller. The activity log is the
+ * surface where the pipeline reports an apply's defects after the fact (§8), so
+ * that is where the late capture is reported: dropped and named.
+ *
+ * **One row per dispatch, and the first late capture is the one reported.**
+ * §8's "one entry per executed command" is about the rows that report an
+ * effect, and a defect row is not an effect: it carries the `defect` marker,
+ * so a reader counting command rows can tell the two apart. The cap is what
+ * keeps a scope stashed on a high-frequency timer from writing a row per
+ * capture into a session-lifetime log — the defect is the capture, not how
+ * many there were.
+ */
+function lateCaptureReporter<S>(
+  bus: BusContext<S>,
+  command: Command,
+  source: ActivitySource,
+): (payload: UndoPayload) => void {
+  let reported = false;
+  return (payload) => {
+    if (reported) return;
+    reported = true;
+    bus.log.append({
+      at: command.createdAt,
+      command: command.name,
+      issuedBy: command.issuedBy,
+      turnId: command.turnId,
+      callId: command.callId,
+      undoGroupId: undefined,
+      source,
+      affected: [],
+      defect: 'late-undo-capture',
+      summary: `the apply for "${command.name}" captured an undo payload of kind "${payload.kind}" after its dispatch settled; it was dropped, because this dispatch's undo registration is closed, and any further late capture for this dispatch is dropped the same way`,
+    });
+  };
+}
+
+/**
  * The one cast in this file, and it is TypeScript's limitation rather than the
  * design's: `CommandRegistry[K]` for an unresolved `K` is a union of eighteen
  * registrations, and **a union of call signatures is not callable**. The state
@@ -423,7 +464,7 @@ function dispatch<K extends CommandName>(
   const { descriptor } = resolved;
 
   // Step 3 — apply.
-  const scope = createUndoScope(descriptor.undo);
+  const scope = createUndoScope(descriptor.undo, lateCaptureReporter(bus, command, source));
   const activity = createActivityScope(command.name);
   const undoTarget: UndoTarget = bus.undo.targetFor(command, command.createdAt);
 
@@ -480,7 +521,7 @@ async function dispatchAsync<K extends CommandName>(
 ): Promise<Result<ExecutionOutcome, CommandError>> {
   const { descriptor } = resolved;
 
-  const scope = createUndoScope(descriptor.undo);
+  const scope = createUndoScope(descriptor.undo, lateCaptureReporter(bus, command, source));
   const activity = createActivityScope(command.name);
   const undoTarget: UndoTarget = bus.undo.targetFor(command, command.createdAt);
 
@@ -510,7 +551,15 @@ function applyRefused<S>(
   source: ActivitySource,
   refusal: ApplyRefusal,
 ): Result<ExecutionOutcome, CommandError> {
-  const groupId = registerIfCaptured(command, descriptor, scope.captured(), undoTarget, bus.undo);
+  // The apply window is closed before the registration, not after it:
+  // `bus.undo` is caller-supplied, so a registration that threw would escape
+  // with the scope still open, and a capture arriving later would hit exactly
+  // the raw second-capture throw the settle exists to prevent. `captured()`
+  // cannot throw, so the read is safe and the settle sits right behind it — the
+  // order `finish` uses.
+  const payload = scope.captured();
+  scope.settle();
+  const groupId = registerIfCaptured(command, descriptor, payload, undoTarget, bus.undo);
   const report = activity.reported();
   if (groupId !== undefined || report !== undefined) {
     effectRow(bus, command, source, groupId, report, `${command.name} was refused after it reported an attempt`);
@@ -536,7 +585,9 @@ function applyThrew<S>(
   // When a group was registered the effect is known to exist and reversible, so the
   // refusal also writes the row its success would have written (command-bus §8):
   // a change the log does not show is the one the user cannot find.
-  const groupId = registerIfCaptured(command, descriptor, scope.captured(), undoTarget, bus.undo);
+  const payload = scope.captured();
+  scope.settle();
+  const groupId = registerIfCaptured(command, descriptor, payload, undoTarget, bus.undo);
   if (groupId !== undefined) {
     effectRow(bus, command, source, groupId, activity.reported(), `${command.name} threw after changing the project`);
   }
@@ -560,7 +611,9 @@ function applyReturnedPromise<S>(
   bus: BusContext<S>,
   source: ActivitySource,
 ): Result<ExecutionOutcome, CommandError> {
-  const groupId = registerIfCaptured(command, descriptor, scope.captured(), undoTarget, bus.undo);
+  const payload = scope.captured();
+  scope.settle();
+  const groupId = registerIfCaptured(command, descriptor, payload, undoTarget, bus.undo);
   if (groupId !== undefined) {
     effectRow(bus, command, source, groupId, activity.reported(), `${command.name} returned a promise after changing the project`);
   }
@@ -592,6 +645,9 @@ function finish<S>(
   source: ActivitySource,
 ): Result<ExecutionOutcome, CommandError> {
   const payload = scope.captured();
+  // The payload is read, so the apply window is closed: a capture arriving after
+  // this point belongs to no dispatch and is reported rather than registered.
+  scope.settle();
 
   // Step 4 — postconditions (§2), where §3 puts them: straight after apply.
   const postconditions = descriptor.postconditions ?? [];

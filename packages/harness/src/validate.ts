@@ -213,7 +213,7 @@ function checkArray(spec: Extract<ParamSpec, { kind: 'array' }>, value: unknown,
   if (spec.maxItems !== undefined && value.length > spec.maxItems) {
     return failure(
       limitExceeded(
-        `${path} has ${plural(value.length, 'entry')}, limit ${spec.maxItems}`,
+        `${path} has ${plural(value.length, 'entry')}, at most ${spec.maxItems} allowed`,
         `send at most ${spec.maxItems} per call — split the rest into another call`,
         path,
       ),

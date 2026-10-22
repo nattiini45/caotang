@@ -8,8 +8,9 @@ import { describe, expect, it } from 'vitest';
 
 import * as mock from '@caotang/gateway/mock';
 
-import { createAgentPorts, createHarness, DRAFT_SYSTEM_PREFIX, PLANNER_SYSTEM_PREFIX, parseReply, plannerSystem } from '../../src/index.js';
+import { createAgentPorts, createHarness, DRAFT_SYSTEM_PREFIX, PLANNER_SYSTEM_PREFIX, parseReply, plannerSystem, REPLY_SCHEMA_HINT } from '../../src/index.js';
 import { errorSummary, refusalSentence } from '../../src/agent/protocol.js';
+import { PLAN_STEPS_MAX } from '../../src/plan.js';
 import { makeState } from '../fixtures.js';
 
 describe('parseReply: the two reply shapes', () => {
@@ -58,6 +59,16 @@ describe('parseReply: refusals name the shape the reply should have had', () => 
 
   it('refuses a blank reply', () => {
     expect(parseReply('{"reply":"   "}').ok).toBe(false);
+  });
+
+  it('refuses a step list over the plan bound, and the schema hint sent with the request declares the same bound', () => {
+    const steps = Array.from({ length: PLAN_STEPS_MAX + 1 }, () => ({ tool: 'meta.set', params: { targets: ['x'], label: 'act-2' }, expect: 'labelled' }));
+    const parsed = parseReply(JSON.stringify({ steps }));
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.error).toContain(`at most ${PLAN_STEPS_MAX}`);
+    // The hint the model reads states the cap too, so a reply aiming at its own schema never trips it.
+    const hint = REPLY_SCHEMA_HINT.oneOf[0];
+    expect(hint.properties.steps.maxItems).toBe(PLAN_STEPS_MAX);
   });
 });
 

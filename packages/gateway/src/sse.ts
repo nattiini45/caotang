@@ -41,8 +41,10 @@ export function createSseParser(): SseParser {
         // An event with no payload is a keep-alive in practice, not a message.
         if (data !== '') completed.push(eventName === undefined ? { data } : { event: eventName, data });
         dataLines = [];
-        eventName = undefined;
       }
+      // The event name belongs to the event it was declared in: the spec clears it on every
+      // blank line, one that dispatched an event and one that dispatched nothing.
+      eventName = undefined;
       return;
     }
     if (line.startsWith(':')) return;

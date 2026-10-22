@@ -3,7 +3,7 @@
  *
  * What is in here, and what is not:
  *  - the `coherence.json` model, its codec and its recovery posture;
- *  - the eight deterministic checks, the timeline exemption table and the
+ *  - the deterministic checks (the closed registry in `checks/index.ts`), the timeline exemption table and the
  *    findings lifecycle (upsert, dismissal, fixed, discard), all pure;
  *  - the model-assisted review as a plan and a run, behind an injected port;
  *  - the three agent tools in the harness's entry shape, with model-facing handlers.

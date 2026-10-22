@@ -54,7 +54,14 @@ export type {
   ViewSetSelectionParams,
   ViewState,
 } from './command.js';
-export type { ActivityEntry, ActivityLog, ActivitySource } from './activity-log.js';
+export type {
+  ActivityAffected,
+  ActivityDefect,
+  ActivityEntry,
+  ActivityLog,
+  ActivityReport,
+  ActivitySource,
+} from './activity-log.js';
 export { createActivityLog } from './activity-log.js';
 export type { CommandError, CommandErrorCode, CommandErrorDetails, PerOpFailure, Result } from './result.js';
 export { ok, err } from './result.js';
@@ -115,7 +122,7 @@ export type { BusContext, ExecutionOutcome } from './pipeline.js';
 export { ApplyRefusal, execute, executeAsync } from './pipeline.js';
 export type { IdempotencyCache } from './idempotency.js';
 export { createIdempotencyCache } from './idempotency.js';
-export type { UndoDispatch, UndoEntry, UndoGroup, UndoGroupKind, UndoOutcome, UndoStore, UndoStoreOptions, UndoTarget } from './undo.js';
+export type { SettledUndoScope, UndoDispatch, UndoEntry, UndoGroup, UndoGroupKind, UndoOutcome, UndoStore, UndoStoreOptions, UndoTarget } from './undo.js';
 export { applyContext, createUndoScope, createUndoStore } from './undo.js';
 export {
   createViewState,
@@ -142,6 +149,11 @@ export type {
   ProjectSaveGoalParams,
   SavedFilterParams,
 } from './descriptors-furniture.js';
+// The criterion-key list the furniture commands refuse a key outside of. The store's loader reads the same list to drop an
+// unknown criterion key from a saved filter on load (binder-filters §4), so the two halves never keep two records of it.
+// The name limit is exported for the same reason: the loader drops a saved filter whose name the bus would refuse — and the
+// rule itself, `filterNameFits`, so the loader counts a name exactly as the bus counts it.
+export { CRITERIA_KEYS, FILTER_NAME_MAX, filterNameFits } from './descriptors-furniture.js';
 // The coherence rules the bus and the store share (coherence.ts). The coherence module re-exports them.
 export type {
   CoherenceStatusName,

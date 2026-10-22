@@ -7,7 +7,7 @@
  * `unknown types throw` is asserted because it is a hazard the editor must handle, not
  * because the library should keep throwing.
  */
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { unified } from 'unified';
 import remarkStringify from 'remark-stringify';
 import remarkGfm from 'remark-gfm';
@@ -20,6 +20,7 @@ import {
   SPEC_STRINGIFY_OPTIONS,
   createParseHandlers,
 } from '../src/handlers.js';
+import type * as AuditHandlers from '../src/handlers.js';
 import { caotangSchema } from '../src/schema.js';
 
 /** One measurement per entry, shared by the tests that need it. */
@@ -115,13 +116,32 @@ describe('preflight · the corpus runs, and deterministically', () => {
   it('every construct that round-trips is deterministic — §3.3\'s real invariant', () => {
     // This is the invariant that actually governs, asserted across the whole
     // corpus: same input → same bytes, so a no-op edit cycle never dirties a
-    // git diff. The four that throw are excluded here and asserted separately
-    // below — a throw is not instability, it is a stronger failure, and
-    // counting it as "unstable" would have hidden the difference.
+    // git diff.
+    //
+    // **The filter reads the tri-state, and that is the point of it.** `false`
+    // is a *measured* instability — the bytes changed — and only that. `null`
+    // is no measurement at all: the round trip threw, or the determinism
+    // re-check could not be completed. The four that throw are excluded here
+    // and asserted separately below — a throw is not instability, it is a
+    // stronger failure, and counting it as "unstable" would have hidden the
+    // difference. The same goes for an unchecked row: a claim that could not
+    // be checked is not a claim that failed, and the old `false` said so
+    // nowhere.
     const unstable = [...results.entries()]
-      .filter(([, result]) => !result.deterministic && result.threw === null)
+      .filter(([, result]) => result.deterministic === false)
       .map(([name]) => name);
     expect(unstable).toEqual([]);
+
+    // And the rows with **no measurement** are named, so an unchecked row
+    // cannot hide inside the unstable bucket: the four constructs the library
+    // cannot round-trip at all are the only ones whose stability was never
+    // checked — and that is a measurement of its own.
+    const unchecked = [...results.entries()]
+      .filter(([, result]) => result.deterministic === null)
+      .map(([name]) => name);
+    expect(unchecked.sort()).toEqual(
+      ['footnote-reference', 'html-raw-block', 'image-reference', 'table-gfm'].sort(),
+    );
   });
 
   it('no exact-class construct is lost — content survives the round-trip', () => {
@@ -205,6 +225,211 @@ describe('preflight · the corpus runs, and deterministically', () => {
     const once = serialize(await parse(input));
     const twice = serialize(await parse(once));
     expect(twice).toBe(once);
+  });
+});
+
+describe('preflight · the outcome classifier measures the construct, not a stripped string', () => {
+  it('a lost inline structure is a degrade, not an exact round-trip', () => {
+    // **The construct the classifier used to get wrong.** `_gone and _struck_
+    // together_` round-trips to `_gone and struck together_`: the inner
+    // emphasis is gone, so a save re-parses as a *different* document — §3.3's
+    // own table calls that a degrade, and the corpus declares it one.
+    //
+    // A comparison that strips everything but `[a-z0-9]` cannot see it: both
+    // spellings reduce to the same letters, so the loss reads as an exact
+    // round-trip.
+    const result = get('strike-in-emphasis');
+    expect(result.outcome).toBe('degrade');
+    expect(result.outcome).not.toBe('exact');
+  });
+
+  it('a construct whose text is not Latin-alphabet is not called lost', async () => {
+    // The other direction, and the same stripped comparison: `[a-z0-9]` keeps
+    // only the Latin letters and the digits, so a CJK sentence reduces to the
+    // empty string — and an empty string is the classifier's "the round-trip
+    // produced no content", which is a *loss*. The round trip lost nothing
+    // here; it returned the same characters.
+    const cjk = await measure({ name: 'cjk', group: 'caotang', input: '你好，世界。' });
+    expect(cjk.threw).toBeNull();
+    expect(cjk.output).toContain('你好，世界。');
+    expect(cjk.outcome).not.toBe('lost');
+    expect(cjk.outcome).toBe('exact');
+
+    // And the case the stripping actually breaks on: the body is CJK, and the
+    // only Latin-alphabet characters in it are the ones inside an entity —
+    // which remark decodes while parsing. So the **source** strips to
+    // `amp` and the **output** strips to the empty string, and a classifier
+    // that asks "is the output empty?" answers *lost* about a round trip that
+    // changed nothing but an entity's spelling.
+    const entity = await measure({ name: 'cjk-entity', group: 'caotang', input: '你好 &amp;' });
+    expect(entity.threw).toBeNull();
+    expect(entity.output).toContain('你好 &');
+    expect(entity.outcome).not.toBe('lost');
+    expect(entity.outcome).toBe('exact');
+  });
+
+  it('a round trip that deletes fence info-string characters is not exact', async () => {
+    // remark parses `js title=x` as `lang: 'js', meta: 'title=x'`, and the
+    // loader keeps only the language — so a save writes the fence back without
+    // `title=x`: source characters deleted.
+    //
+    // **The warning clause is about this loader.** The preflight's own handler
+    // table has no warning channel at all, so the deletion is silent *here* —
+    // while the editor's loader warns `lossy-attribute` for the same fence
+    // (`packages/editor/src/handlers.ts`, pinned by the editor's own degrade
+    // test). The preflight measures the construct from the other side, and the
+    // two agree on what it is.
+    //
+    // A shape that folds only `lang` reads `code:js` on both sides and the
+    // code value is unchanged, so the classifier would call that round trip
+    // exact. It is the same dropped-attribute class as a link that loses its
+    // title, and it must measure the same way.
+    const fenced = await measure({
+      name: 'fence-meta',
+      group: 'caotang',
+      input: '```js title=x\nconst a = 1;\n```\n',
+    });
+    expect(fenced.threw).toBeNull();
+    expect(fenced.output).toContain('```js');
+    expect(fenced.output).not.toContain('title=x');
+    expect(fenced.outcome).not.toBe('exact');
+    expect(fenced.outcome).toBe('degrade');
+  });
+
+  it('a failure in the determinism re-check is not the library throwing', async () => {
+    // **The row that could contradict itself.** The re-checks run *after* the
+    // round trip has already succeeded, so a failure in one of them is the
+    // instrument's second reading failing — the row states that fact instead
+    // of the round trip's. While the two shared one try, such a failure set
+    // `threw` on a row whose first pass had parsed fine: the row said the
+    // library threw, which was false — the first pass had parsed — and it
+    // forced `byteIdentical` to false on bytes that were identical.
+    //
+    // The determinism re-check is the case that could *not* also have claimed
+    // a stable round trip: under one try its failure landed before the
+    // assignment to `deterministic`, so that flag stayed `false` and what the
+    // row lost was the round trip's own class. The output re-parse was the
+    // other half of the pair — it landed after the assignment, so its row said
+    // the library threw *and* that the round trip was deterministic.
+    //
+    // The mock makes the **second** parse throw, so the first pass succeeds and
+    // the determinism re-check's parse does not — which is the narrowest way to
+    // reach the branch without breaking the first pass as well.
+    vi.resetModules();
+    let parses = 0;
+    vi.doMock('../src/handlers.js', async (importOriginal) => {
+      const actual = await importOriginal<typeof AuditHandlers>();
+      return {
+        ...actual,
+        createParseHandlers: (schema: Parameters<typeof actual.createParseHandlers>[0]) => {
+          parses += 1;
+          if (parses > 1) throw new Error('the second parse fails');
+          return actual.createParseHandlers(schema);
+        },
+      };
+    });
+    try {
+      const { measure: measuredAlone } = await import('../src/trace.js');
+      const result = await measuredAlone({
+        name: 'recheck',
+        group: 'caotang',
+        input: 'One paragraph\n',
+      });
+      // The library did not throw, so the row must not say it did.
+      expect(result.threw).toBeNull();
+      // And the row does not contradict itself: the stability claim could not
+      // be checked, which is not the same as the library throwing — and not
+      // the same as a measured instability either, which is what the
+      // tri-state is for.
+      expect(result.deterministic).toBeNull();
+      expect(result.note).toMatch(/determinism re-check could not be completed/);
+      // The round trip's own result stands, and the bytes are what they were.
+      expect(result.outcome).toBe('exact');
+      expect(result.byteIdentical).toBe(true);
+    } finally {
+      vi.doUnmock('../src/handlers.js');
+      vi.resetModules();
+    }
+  });
+
+  it('an output that cannot be read back is a loss, and not the library throwing', async () => {
+    // **The branch that had no pin.** The output re-parse is the instrument
+    // reading back the bytes a save would write. When that reading fails the
+    // round trip has already succeeded, so the row must not say the library
+    // threw — and the loss is the row's own class, not a note on it.
+    //
+    // The mock makes the **read-back** fail and nothing else: the parser is
+    // wrapped so that a parse of anything but the input throws, and the
+    // read-back is the one place in the measurement that parses the *output*
+    // rather than the input. The input is the fence-with-meta one, so the
+    // output differs from it and the read-back is reached at all.
+    vi.resetModules();
+    const input = '```js title=x\nconst a = 1;\n```\n';
+    vi.doMock('unified', async (importOriginal) => {
+      const actual = await importOriginal<{ unified: typeof unified }>();
+      return {
+        ...actual,
+        unified: () => {
+          const processor = actual.unified();
+          const parseBody = processor.parse.bind(processor);
+          processor.parse = (body: string) => {
+            if (body !== input) throw new Error('the output cannot be read back');
+            return parseBody(body);
+          };
+          return processor;
+        },
+      };
+    });
+    try {
+      const { measure: measuredAlone } = await import('../src/trace.js');
+      const result = await measuredAlone({
+        name: 'unreadable',
+        group: 'caotang',
+        input,
+      });
+      // The round trip worked, so the row does not say the library threw.
+      expect(result.threw).toBeNull();
+      // The bytes a save would write cannot be read back: that is the class.
+      expect(result.outcome).toBe('lost');
+      expect(result.note).toMatch(/could not be read back/);
+      // And the stability claim was measured on the first reading, so it
+      // stands: the unreadable output is a loss, not an instability.
+      expect(result.deterministic).toBe(true);
+    } finally {
+      vi.doUnmock('unified');
+      vi.resetModules();
+    }
+  });
+
+  it('every corpus entry measures the class §3.3 declares for it', () => {
+    // **The corpus's `expect` is load-bearing from here.** A declared class
+    // that nothing ever compared against is a claim no test can check, and a
+    // classifier that measures something else — a stripped string, say — can
+    // answer "exact" for a construct that lost a mark and the table would
+    // still be green.
+    //
+    // The four entries the library cannot degrade are the exception, and they
+    // are the exception *by name*: §3.3 says Caotang degrades them and
+    // remark-prosemirror 0.1.5 throws instead. That difference is §2's
+    // finding, asserted by F3 and F4, and it is pinned here so it cannot widen
+    // without this test noticing.
+    const gaps: string[] = [];
+    const mismatched: string[] = [];
+    for (const entry of CORPUS) {
+      const result = get(entry.name);
+      if (result.threw !== null) {
+        gaps.push(entry.name);
+        expect(result.outcome, entry.name).toBe('lost');
+        continue;
+      }
+      if (result.outcome !== entry.expect) {
+        mismatched.push(`${entry.name}: measured ${result.outcome}, declared ${entry.expect}`);
+      }
+    }
+    expect(gaps.sort()).toEqual(
+      ['footnote-reference', 'html-raw-block', 'image-reference', 'table-gfm'].sort(),
+    );
+    expect(mismatched).toEqual([]);
   });
 });
 

@@ -14,7 +14,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Node as PmNode } from '@tiptap/pm/model';
 import { CORPUS } from '@caotang/editor-audit';
-import { buildProjectionMap, parse, serialize, textPositionFor } from '../src/index.js';
+import { buildProjectionMap, parse, pmFromBodyOffset, serialize, textPositionFor } from '../src/index.js';
 import type { ProjectionBlock } from '../src/index.js';
 import { prefixBlockSpans } from '../src/seam.js';
 
@@ -130,5 +130,86 @@ describe('block spans come from one render, and agree with the prefix algorithm'
     const blocks = buildProjectionMap(built).blocks;
     expectPartition(blocks, body, 'empty middle paragraph');
     expect(blocks[1]!.bodyEnd).toBe(blocks[1]!.bodyStart);
+  });
+});
+
+describe('a backslash inside a fenced code block', () => {
+  // §5's backslash is an inline Markdown escape; remark writes fenced content
+  // literally, so `a\b` in a fence is three body characters and three text
+  // characters. Segmenting it as an escape consumes a body character with no text
+  // character, so every run after it maps one character to the left — a
+  // self-consistent wrong range that the anchor ladder cannot detect, because it
+  // verifies the anchor against the same shifted map.
+  it('maps 1:1 across the backslash, so a round trip returns the offset it started from', async () => {
+    const body = '```\na\\b c\n```\n';
+    const doc = await parse(body);
+    const map = buildProjectionMap(doc);
+    expect(map.body).toContain('a\\b c');
+    for (const run of map.runs) {
+      // Both sides read independently: a length equality would hold by
+      // construction, since the builder derives `bodyEnd` and `pmTo` from the
+      // same segment length. The characters themselves are the property — what
+      // the run names in the body must be what it names in the document.
+      expect(map.body.slice(run.bodyStart, run.bodyEnd), 'run body text').toBe(
+        doc.textBetween(run.pmFrom, run.pmTo),
+      );
+    }
+    const start = map.body.indexOf('a\\b');
+    for (let offset = start; offset < start + 'a\\b c'.length; offset++) {
+      // The character at this body offset and the character at the PM position it
+      // maps to must be the same one. A round trip through `bodyOffsetFromPmPos`
+      // would be ambiguous at a character boundary (the position *before* `b` is
+      // also the position *after* the backslash), so the character is compared.
+      const pos = pmFromBodyOffset(map, offset);
+      expect(doc.textBetween(pos, pos + 1), `offset ${offset} of ${JSON.stringify(map.body)}`).toBe(
+        map.body[offset],
+      );
+    }
+  });
+
+  it('covers an inline code mark the same way: backslashes are literal there too', async () => {
+    // The identity rule (`spelling === text` means no escapes were consumed) is
+    // what the fix rests on, so it must hold for both fenced blocks and `code`
+    // marks — remark writes neither's backslashes as escapes.
+    const body = 'intro `a\\bc def` outro\n';
+    const doc = await parse(body);
+    const map = buildProjectionMap(doc);
+    const start = map.body.indexOf('a\\bc');
+    expect(start).toBeGreaterThan(0);
+    for (let offset = start; offset < start + 'a\\bc def'.length; offset++) {
+      const pos = pmFromBodyOffset(map, offset);
+      expect(doc.textBetween(pos, pos + 1), `offset ${offset} of ${JSON.stringify(map.body)}`).toBe(
+        map.body[offset],
+      );
+    }
+  });
+
+  it('still segments an escaped leaf outside a fence, where the backslash is syntax', async () => {
+    // The control: the same characters in a paragraph are an escape, so the body
+    // holds four characters for three text characters and the runs must skip it.
+    const doc = await parse('a\\*b\n');
+    const map = buildProjectionMap(doc);
+    const at = map.body.indexOf('a\\*b');
+    expect(at, 'the body lost the escaped leaf').toBeGreaterThan(-1);
+    // The leaf is cut at the escape, so it contributes more than one run.
+    expect(map.runs.length).toBeGreaterThan(1);
+    // **The gap the comment above claims, asserted rather than narrated**: the
+    // backslash is syntax and no text character corresponds to it, so no run
+    // may cover its body offset. A filter on `bodyStart` cannot express this —
+    // the offset the runs must *skip* is inside the span they start from.
+    const backslash = at + 1;
+    for (const run of map.runs) {
+      const coversEscape = run.bodyStart <= backslash && backslash < run.bodyEnd;
+      expect(coversEscape, `run ${run.bodyStart}..${run.bodyEnd} covers the backslash`).toBe(false);
+      // And what the runs do cover is the leaf's own text, read from both sides.
+      expect(map.body.slice(run.bodyStart, run.bodyEnd), 'run body text').toBe(
+        doc.textBetween(run.pmFrom, run.pmTo),
+      );
+    }
+    // Skipping the backslash drops no text: the runs' body characters, joined,
+    // are exactly the document's text.
+    expect(map.runs.map((run) => map.body.slice(run.bodyStart, run.bodyEnd)).join('')).toBe(
+      doc.textContent,
+    );
   });
 });

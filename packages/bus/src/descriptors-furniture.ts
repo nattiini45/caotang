@@ -100,8 +100,12 @@ export const SAVED_FILTERS_MAX = 50;
 /** goals-progress §2.2: ≤ 20 goals per project (the store checks the count). */
 export const GOALS_MAX = 20;
 
-/** The criteria keys this build knows (binder-filters §2, §2.1). A key outside the list is refused here. */
-const CRITERIA_KEYS: readonly string[] = [
+/**
+ * The criteria keys this build knows (binder-filters §2, §2.1). A key outside the list is refused here, and the store's loader
+ * (validate.ts) reads this same list to drop an unknown key from a saved filter on load — one record of the list, so the
+ * command boundary and the load cannot drift apart.
+ */
+export const CRITERIA_KEYS: readonly string[] = [
   'text',
   'textIn',
   'statusId',
@@ -123,7 +127,16 @@ const GOAL_KEYS: readonly string[] = ['id', 'nodeId', 'metric', 'kind', 'resetDa
 /** goals-progress §9.3: every month has a 28th, so a monthly goal resets on a day up to it, or on the month's last day. */
 const MONTHLY_RESET_MAX = 28;
 
-/** Crockford base32, as the id generators draw it (`@caotang/ids`). */
+/**
+ * Crockford base32, as the id generators draw it (`@caotang/ids`).
+ *
+ * **A copy, and the bus cannot have the shared one.** The bus takes no
+ * dependencies, so it cannot import `@caotang/ids` — the alphabet and the
+ * length are spelled out here.
+ * The furniture package's own patterns are built from the shared constants
+ * (`packages/furniture/src/save.ts`), so a change to the family is two edits
+ * rather than one, and this comment is what says so.
+ */
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const FILTER_ID = new RegExp(`^q_[${CROCKFORD}]{10}$`);
 const GOAL_ID = new RegExp(`^g_[${CROCKFORD}]{10}$`);
@@ -140,6 +153,21 @@ function isRealDay(value: string): boolean {
 
 function codePoints(text: string): number {
   return [...text].length;
+}
+
+/**
+ * Whether a saved filter's name is one the bus accepts: at most
+ * `FILTER_NAME_MAX` characters, counted in code points.
+ *
+ * The count is in code points and not in `.length` (UTF-16 units), so a name
+ * of 31 emoji is 31 characters and not 62 — the writer may give a name that
+ * long, and the store's loader, which drops a filter whose name the bus would
+ * refuse, reads this same rule (`packages/store/src/validate.ts`). One record
+ * of it, so the two halves cannot drift apart: `.length` here would refuse a
+ * name of 31 emoji that the bus accepts.
+ */
+export function filterNameFits(name: string): boolean {
+  return codePoints(name.trim()) <= FILTER_NAME_MAX;
 }
 
 /* ------------------------------------------------------------------ *
@@ -178,7 +206,7 @@ function readFilter(raw: unknown, snapshot: ValidationSnapshot): Result<SavedFil
     return invalid('a saved filter needs a name', `give the filter a name of up to ${FILTER_NAME_MAX} characters`, 'filter.name');
   }
   const trimmed = name.trim();
-  if (codePoints(trimmed) > FILTER_NAME_MAX) {
+  if (!filterNameFits(trimmed)) {
     return invalid(`the filter name is ${codePoints(trimmed)} characters`, `a name is at most ${FILTER_NAME_MAX} characters`, 'filter.name');
   }
 

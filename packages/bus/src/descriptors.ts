@@ -66,6 +66,7 @@ import type {
 import {
   HINT_READ_TREE,
   batchRefusal,
+  changesNothing,
   cycleError,
   describe,
   documentLength,
@@ -156,6 +157,11 @@ export const CODEX_VISUAL_REFS_MAX = 10;
  * rather than imported: descriptors-project.ts imports this module, so the import would be a cycle.
  */
 const VISUAL_REF_PATTERN = /^a_[0-9A-HJKMNP-TV-Z]{10}$/;
+/**
+ * The shape of a node id (project-format §2: `n_` and ten Crockford base32 chars). A node id is also a
+ * filename, so the shape is a load-time contract: the store refuses a manifest that carries another shape.
+ */
+const NODE_ID_PATTERN = /^n_[0-9A-HJKMNP-TV-Z]{10}$/;
 const CODEX_TYPES = ['character', 'location', 'object', 'lore', 'subplot', 'other'];
 const CODEX_POLICIES = ['always', 'detected', 'manual', 'never'];
 
@@ -477,8 +483,18 @@ export const binderMove: CommandDescriptor<BinderMoveParams> = {
         'newParentId',
       );
     }
+    // The index counts the new parent's children *without* the moved node, the
+    // count the store's `siblingOrderAt` takes. A position past the last sibling
+    // is not refused: the store appends there (§2's gap encoding), so the
+    // position is resolved here against the same sibling count and the apply is
+    // handed the position the node will land at. The result and the digest then
+    // name where the node went, instead of the position that was asked for.
+    const siblings = snapshot.manifest.tree.filter(
+      (sibling) => sibling.parentId === parent.value.id && sibling.id !== node.value.id,
+    );
     const index = requireInteger(p.value, 'index', { min: 0 });
     if (!index.ok) return index;
+    const position = Math.min(index.value, siblings.length);
     // §9: "Cycle check ... in validate". A move into the node itself or into any
     // of its own descendants would detach the subtree from the tree.
     if (isDescendantOf(snapshot, parent.value.id, node.value.id)) {
@@ -488,7 +504,7 @@ export const binderMove: CommandDescriptor<BinderMoveParams> = {
         'newParentId',
       );
     }
-    return ok({ nodeId: node.value.id, newParentId: parent.value.id, index: index.value });
+    return ok({ nodeId: node.value.id, newParentId: parent.value.id, index: position });
   },
 };
 
@@ -577,6 +593,21 @@ export const binderSetMeta: CommandDescriptor<BinderSetMetaParams> = {
     }
     const keywords = checkKeywordPatch(node.value, typed);
     if (!keywords.ok) return keywords;
+    // A patch with no field in it is not an idempotent no-op — it asks for
+    // nothing at all, and `project.setMetadata` refuses exactly that shape.
+    // (`dialogue.setMeta` counts the raw keys instead, so a patch of
+    // `{ speaker: undefined }` passes there and normalizes to an empty patch —
+    // the two checks are not the same check.) What the refusal enforces is the
+    // shape, not the effect: a patch whose fields all match what the node
+    // already holds stays accepted,
+    // because agent-harness §3 makes meta.set "idempotent by design" and
+    // `requireStringArray` keeps `keywords_add: []` a legitimate "nothing to
+    // do" payload. Such a dispatch stamps nothing and mints no restore entry
+    // (the store's `binderSetMeta` writes `updatedAt` only for a field it
+    // actually changed).
+    if (Object.keys(typed).length === 0) {
+      return changesNothing('the patch names no field to write, so it asks for nothing to change', `name at least one of: ${PATCH_KEYS.join(', ')}`, 'patch');
+    }
     return ok({ nodeId: node.value.id, patch: typed });
   },
 };
@@ -668,17 +699,73 @@ function requireDocumentNode(
   return node;
 }
 
-/** The loaded body length an offset must fall inside, or a refusal. */
+/**
+ * The project-relative paths of a body node's file, for its kind: **the names the
+ * loader tries, in the order it tries them.**
+ *
+ * **The store's rule, restated**: `.ink` for a dialogue container, `.fountain`
+ * for a screenplay document, `.md` for a prose document, all under `docs/`
+ * (`@caotang/store`'s `bodyExtensionOf` and `bodyNamesOf`). The bus cannot import
+ * the store — the dependency runs store → bus — so the rule is copied here, and
+ * `packages/store/test/bus-body-file.test.ts` pins the two together: a hint that
+ * names a file the loader never reads sends an agent to repair a file that does
+ * not exist.
+ *
+ * **Both names, because the loader reads both.** A kind's own file is what a save
+ * writes, but a project written before the kind had one of its own still carries
+ * the `.md` — and the loader reads that one when the kind's file is not there
+ * (`bodyNamesOf`, project-format.md §3). A hint that named only the kind's file
+ * would send an agent to repair a file that does not hold the body, which is the
+ * failure the pin above exists to prevent. A prose document has one name: its own.
+ */
+function bodyFilePaths(node: ValidationNode): string[] {
+  const extension = node.type === 'dialogue' ? 'ink' : node.kind === 'screenplay' ? 'fountain' : 'md';
+  const own = `docs/${node.id}.${extension}`;
+  const legacy = `docs/${node.id}.md`;
+  return own === legacy ? [own] : [own, legacy];
+}
+
+/**
+ * The loaded body length an offset must fall inside, or a refusal.
+ *
+ * `because` names what the caller needed the body for: the editor commands need
+ * it to bound their offsets, and `doc.write` needs it to know that the document
+ * it is about to replace is one the loader could read at all — so the refusal
+ * says the write, not offsets it never had.
+ *
+ * **The hint names the file, because the file is the surface that fixes this.**
+ * The id already resolved in `requireDocumentNode` by the time this runs, so
+ * §7's own rule — a `correctiveHint` names the surface that fixes the refusal —
+ * cannot be satisfied by "list valid ids": a body is missing when the document's
+ * file is not text the loader could read, or when the runtime rehydrator had no
+ * row for it, and no id the caller passes changes that.
+ *
+ * **The files are the ones the loader reads, for the node's kind.** A prose
+ * document's body is `docs/<id>.md`, a screenplay's is `docs/<id>.fountain` and a
+ * dialogue container's is `docs/<id>.ink` — so a hint that named `<id>.md` for
+ * all three would send an agent to a file that does not hold the body — and the
+ * `.md` a save wrote before the kind had a file of its own is a second name the
+ * loader reads, so it is named too.
+ *
+ * **The message does not name a *cause*.** A body can be missing because the file
+ * is not UTF-8 text, and because the runtime rehydrator had no body row for an id
+ * that resolved, and the bus cannot tell the two apart — so the hint says what it
+ * can act on (the file, and that it has to hold UTF-8 text) without claiming which
+ * of the two it is.
+ */
 function requireLoadedBody(
   snapshot: ValidationSnapshot,
-  docId: string,
+  node: ValidationNode,
+  because = 'so its offsets cannot be validated',
 ): Result<number, CommandError> {
-  const length = documentLength(snapshot, docId);
+  const length = documentLength(snapshot, node.id);
   if (length === undefined) {
+    const paths = bodyFilePaths(node);
+    const names = paths.map((path) => `"${path}"`).join(' or ');
     return notFound(
-      `document "${docId}" has no body loaded, so its offsets cannot be validated`,
-      HINT_READ_TREE,
-      docId,
+      `document "${node.id}" has no body loaded — ${because}`,
+      `the surface to fix is the document's own file, not this command's params: the body of "${node.id}" lives in ${names}, and the loader gave the document no body to read. A file that is not UTF-8 text is one reason, and a body the runtime had no row for is the other, and the bus cannot tell the two apart — so make sure the file holds UTF-8 text, then reload the project. The id itself resolved, so binder.read_tree cannot help here`,
+      node.id,
     );
   }
   return ok(length);
@@ -713,10 +800,25 @@ export const docWrite: CommandDescriptor<DocWriteParams> = {
     if (!p.ok) return p;
     const doc = requireDocumentNode(snapshot, p.value, 'docId');
     if (!doc.ok) return doc;
+    // The params are checked before the loaded-body state check: a write that is
+    // both malformed and to an unloaded document reports the defect its caller
+    // must fix in params, rather than a state refusal that hides it. The
+    // document's *existence* is checked before both — an id no node holds is a
+    // state refusal whatever the body says — so a write whose **body or
+    // revision** is malformed and whose id is unknown reports the unknown id
+    // first. A key that is not a declared param is a different refusal, and it
+    // comes first of all: the closed param list is checked before the id
+    // resolves, so a write carrying an undeclared key reports that key.
     const body = requireString(p.value, 'body');
     if (!body.ok) return body;
     const revision = expectedRevision(p.value);
     if (!revision.ok) return revision;
+    // The same check the two editor commands make: a document whose file is not
+    // UTF-8 opens with no body record while its node stays in the tree, and a
+    // write to it would reach the apply and fail there as a defect rather than
+    // as the refusal the loader already promised.
+    const loaded = requireLoadedBody(snapshot, doc.value, 'so it cannot be written to');
+    if (!loaded.ok) return loaded;
     return ok({
       docId: doc.value.id,
       body: body.value,
@@ -735,7 +837,7 @@ export const editorInsert: CommandDescriptor<EditorInsertParams> = {
     if (!p.ok) return p;
     const doc = requireDocumentNode(snapshot, p.value, 'docId');
     if (!doc.ok) return doc;
-    const length = requireLoadedBody(snapshot, doc.value.id);
+    const length = requireLoadedBody(snapshot, doc.value);
     if (!length.ok) return length;
     const offset = requireInteger(p.value, 'offset', {
       min: 0,
@@ -766,7 +868,7 @@ export const editorReplaceRange: CommandDescriptor<EditorReplaceRangeParams> = {
     if (!p.ok) return p;
     const doc = requireDocumentNode(snapshot, p.value, 'docId');
     if (!doc.ok) return doc;
-    const length = requireLoadedBody(snapshot, doc.value.id);
+    const length = requireLoadedBody(snapshot, doc.value);
     if (!length.ok) return length;
     const range = p.value['range'];
     if (!isRecord(range)) {
@@ -1454,7 +1556,12 @@ export const viewSetScroll: CommandDescriptor<ViewSetScrollParams> = {
   validate: (params) => {
     const p = requireDeclaredParams('view.setScroll', params);
     if (!p.ok) return p;
-    const nodeId = requireString(p.value, 'nodeId');
+    // A blank id is refused, as `view.setActiveDoc` and `view.setExpanded` refuse
+    // one: a scroll that names no node writes a junk key into the scroll map and
+    // an audit row that reads "scrolled to offset 0" for nothing.
+    const nodeId = requireNonBlankString(p.value, 'nodeId', {
+      blankHint: 'pass the id of the node being scrolled',
+    });
     if (!nodeId.ok) return nodeId;
     const offset = requireInteger(p.value, 'offset', { min: 0 });
     if (!offset.ok) return offset;
@@ -1645,21 +1752,106 @@ export const coherenceSetFindingStatus: CommandDescriptor<CoherenceSetFindingSta
  * advertised as read-only and the user trusts is `read`, and everything else asks first.
  */
 /**
+ * The id a create mints, checked against the project the command is about: the
+ * shape the loader accepts, and an id no node holds already.
+ *
+ * The shape is project-format §2's (`n_` and ten Crockford base32 chars), and a
+ * node id is also a filename — so an id of another shape is a project that will
+ * not load again. **The shape test is stateless input validation**: it describes
+ * what the caller supplied, not what the project holds, so it runs
+ * unconditionally — an id the loader would refuse on the next open is refused
+ * here whatever the tree looks like. Only the taken check reads the tree: an id
+ * the tree already holds is a node the create cannot take, and the plan can
+ * refuse it before the apply does.
+ */
+function requireNewNodeId(
+  snapshot: ValidationSnapshot,
+  params: Record<string, unknown>,
+): Result<string, CommandError> {
+  const id = requireNonBlankString(params, 'id');
+  if (!id.ok) return id;
+  if (!NODE_ID_PATTERN.test(id.value)) {
+    return invalid(
+      `"${id.value}" is not a node id`,
+      'a node id is "n_" and ten Crockford base32 characters',
+      'id',
+    );
+  }
+  if (snapshot.manifest.tree.some((node) => node.id === id.value)) {
+    return invalid(
+      `the tree already holds a node with id "${id.value}"`,
+      'mint a fresh id for the node being created',
+      'id',
+    );
+  }
+  return ok(id.value);
+}
+
+/**
+ * The node the id names, or a refusal naming the id that is not there.
+ */
+function requireNodeInTree(
+  snapshot: ValidationSnapshot,
+  id: string,
+): Result<ValidationNode, CommandError> {
+  const node = findNode(snapshot, id);
+  if (node === undefined) return notFound(`no node with id "${id}"`, HINT_READ_TREE, id);
+  return ok(node);
+}
+
+/**
  * `storyboard.create`, `shot.create` and `shot.setMeta` (storyboard.md §3.1). Each validates its closed key set and
- * its shape. The guards that depend on the stored project (a scene that moved, a shot whose metadata changed) run
- * in the apply, which the store registry supplies, because they read the storyboard module's own fields.
+ * its shape, and reads the snapshot for the state the command depends on: the folder the storyboard lands in, the
+ * storyboard folder a shot lands in, the shot a metadata change names, and the id each create mints. The guards that
+ * depend on what changed since the plan was made (a scene that moved, a shot whose metadata changed) run in the
+ * apply, which the store registry supplies, because they read the storyboard module's own fields.
+ *
+ * These read `snapshot.manifest.tree` directly, like every other descriptor in this module. The manifest is a
+ * required field of the snapshot, so a snapshot without one is a broken read seam — a partial projection, an adapter
+ * defect — and not "no project state": it fails loudly here, the way `binder.move`'s sibling dereference does,
+ * rather than silently standing every existence check down and letting a validated command fail mid-apply, which is
+ * the §2 hole these checks exist to close.
  */
 export const storyboardCreate: CommandDescriptor<StoryboardCreateCommandParams> = {
   mutates: 'project',
   agentRisk: 'write-auto',
   undo: 'inverse',
-  validate: (params) => {
+  validate: (params, snapshot) => {
     const p = requireDeclaredParams('storyboard.create', params);
     if (!p.ok) return p;
-    const id = requireNonBlankString(p.value, 'id');
+    const id = requireNewNodeId(snapshot, p.value);
     if (!id.ok) return id;
     const parentId = requireNonBlankString(p.value, 'parentId');
     if (!parentId.ok) return parentId;
+    const parent = requireNodeInTree(snapshot, parentId.value);
+    if (!parent.ok) return parent;
+    // The placement rules binder.create enforces, enforced here too (gap
+    // root-parent-invisible-nodes): a board under the project root is a node the
+    // binder can never show, a non-container cannot hold one, and a storyboard
+    // folder holds only shots. Existence alone would let a write-auto agent
+    // command create an invisible or malformed board that apply — which checks
+    // existence too, and nothing else — would happily land.
+    if (parent.value.id === 'root') {
+      return invalid(
+        'the project root is not a place for a node: the binder shows only the manuscript and research, so a storyboard made here would never appear',
+        'create the storyboard under "manuscript" or "research", or under a folder inside one of them',
+        'parentId',
+      );
+    }
+    if (!isContainer(parent.value)) {
+      return invalid(
+        `parent "${parent.value.id}" is a ${parent.value.type} and cannot hold children`,
+        'only folders hold children — name a folder, or create one with binder.create first',
+        'parentId',
+      );
+    }
+    if (isStoryboardFolder(parent.value)) {
+      return invalid(
+        `"${parent.value.id}" is a storyboard, and a storyboard holds only shots, so another storyboard cannot be made in it`,
+        'make the new board beside the other one, under the same parent',
+        'parentId',
+      );
+    }
     const title = requireNonBlankString(p.value, 'title');
     if (!title.ok) return title;
     const scene = isRecord(p.value['scene']) ? p.value['scene'] : undefined;
@@ -1685,13 +1877,24 @@ export const shotCreate: CommandDescriptor<ShotCreateCommandParams> = {
   mutates: 'project',
   agentRisk: 'write-auto',
   undo: 'inverse',
-  validate: (params) => {
+  validate: (params, snapshot) => {
     const p = requireDeclaredParams('shot.create', params);
     if (!p.ok) return p;
-    const id = requireNonBlankString(p.value, 'id');
+    const id = requireNewNodeId(snapshot, p.value);
     if (!id.ok) return id;
     const parentId = requireNonBlankString(p.value, 'parentId');
     if (!parentId.ok) return parentId;
+    const parent = requireNodeInTree(snapshot, parentId.value);
+    if (!parent.ok) return parent;
+    // The placement rule of storyboard.md §2.1, as `binder.move` states it: a shot
+    // sits in a storyboard folder.
+    if (!isStoryboardFolder(parent.value)) {
+      return invalid(
+        `"${parent.value.id}" is not a storyboard folder, and a shot lives in one`,
+        'name the storyboard folder the shot belongs to',
+        'parentId',
+      );
+    }
     const title = requireNonBlankString(p.value, 'title');
     if (!title.ok) return title;
     if (!isRecord(p.value['stored'])) return invalid('stored must be the shot’s metadata object', undefined, 'stored');
@@ -1703,11 +1906,20 @@ export const shotSetMeta: CommandDescriptor<ShotSetMetaCommandParams> = {
   mutates: 'project',
   agentRisk: 'write-auto',
   undo: 'inverse',
-  validate: (params) => {
+  validate: (params, snapshot) => {
     const p = requireDeclaredParams('shot.setMeta', params);
     if (!p.ok) return p;
     const nodeId = requireNonBlankString(p.value, 'nodeId');
     if (!nodeId.ok) return nodeId;
+    const node = requireNodeInTree(snapshot, nodeId.value);
+    if (!node.ok) return node;
+    if (node.value.type !== 'shot') {
+      return invalid(
+        `"${node.value.id}" is a ${node.value.type}, and only a shot holds these settings`,
+        'choose the shot whose details to change',
+        'nodeId',
+      );
+    }
     const stored = p.value['stored'];
     if (stored !== null && !isRecord(stored)) return invalid('stored must be the whole shot metadata object, or null to remove it', undefined, 'stored');
     if (!Object.prototype.hasOwnProperty.call(p.value, 'expect')) {

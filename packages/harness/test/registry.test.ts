@@ -14,6 +14,11 @@ describe('the registry joins every tool to its metadata', () => {
   const harness = makeHarness();
   const listing = harness.tools();
 
+  it('returns the same listing for repeated reads, so a plan with many steps does not rebuild it per step', () => {
+    expect(harness.tools()).toBe(listing);
+    expect(harness.tools()[0]).toBe(listing[0]);
+  });
+
   // Beyond the fourteen and doc.import: codex.import (the import verb beside doc.import,
   // codex.md §2 provenance) and the coherence module's three tools (coherence.md §7), each its own row;
   // tool.search (the Tier-2 gateway, extensibility §5), and the storyboard

@@ -14,6 +14,7 @@ import type { VocabularyKind } from '@caotang/bus';
 import { explain, removeTerm, saveTerm } from './actions.js';
 import { useReturnFocus } from './dialog-focus.js';
 import { closeDialog, useDialogRequest } from './dialog-requests.js';
+import { useStoreDraft } from './store-draft.js';
 import { useReport } from './shared.js';
 import type { ProjectSession } from '../app/session.js';
 import './project-dialogs.css';
@@ -156,7 +157,13 @@ function VocabularyEditorDialog({ session, initial }: { session: ProjectSession;
   );
 }
 
-/** One term: its name and colour, saved on Save, and removed on Remove. The row keeps its own draft until it is saved. */
+/**
+ * One term: its name and colour, saved on Save, and removed on Remove.
+ *
+ * The row's drafts follow the project's terms, so a term the project took back — an undo of the
+ * rename — leaves the row showing the term the project holds, and the row is not left looking
+ * changed.
+ */
 function TermRow({
   session,
   kind,
@@ -173,15 +180,15 @@ function TermRow({
   onRefusal: (message: string | null) => void;
 }): ReactNode {
   const report = useReport();
-  const [draftName, setDraftName] = useState(name);
-  const [draftColor, setDraftColor] = useState(color);
-  const changed = draftName.trim() !== name || draftColor.toLowerCase() !== color.toLowerCase();
+  const draftName = useStoreDraft(name);
+  const draftColor = useStoreDraft(color);
+  const changed = draftName.value.trim() !== name || draftColor.value.toLowerCase() !== color.toLowerCase();
 
   const save = (): void => {
-    const outcome = saveTerm(session, kind, { id, name: draftName, color: draftColor });
+    const outcome = saveTerm(session, kind, { id, name: draftName.value, color: draftColor.value });
     if (outcome.ok) {
       onRefusal(null);
-      report({ text: `Saved the ${KIND_LABEL[kind].singular} “${draftName.trim()}”.`, tone: 'info' });
+      report({ text: `Saved the ${KIND_LABEL[kind].singular} “${draftName.value.trim()}”.`, tone: 'info' });
     } else {
       onRefusal(explain(outcome.error));
     }
@@ -202,15 +209,15 @@ function TermRow({
       <input
         type="color"
         aria-label={`Colour of ${name}`}
-        value={draftColor}
-        onChange={(event) => setDraftColor(event.target.value)}
+        value={draftColor.value}
+        onChange={(event) => draftColor.change(event.target.value)}
       />
       <input
         type="text"
         aria-label={`Name of ${name}`}
-        value={draftName}
+        value={draftName.value}
         maxLength={40}
-        onChange={(event) => setDraftName(event.target.value)}
+        onChange={(event) => draftName.change(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && changed) save();
         }}

@@ -65,8 +65,12 @@ export interface CallSpec {
   readonly headers: Record<string, string>;
   /** Every secret value in `headers` (key, custom header values). Scrubbed from excerpts; never stored on an error or a log entry. */
   readonly secrets: readonly string[];
-  /** the stream dialect, for calls that read SSE (`streamChat`) */
-  readonly parser?: StreamParser;
+  /**
+   * A factory for the stream dialect, for calls that read SSE (`streamChat`). A parser holds
+   * the route's per-stream state — an open tool call and its arguments — so every attempt
+   * builds its own: a retry starts from nothing, not from the dropped attempt's state.
+   */
+  readonly createParser?: () => StreamParser;
   /** the prompt's estimated size, the fallback when a provider sends no usage */
   readonly promptTokens: number;
   readonly signal?: AbortSignal;
@@ -80,7 +84,11 @@ export interface StreamStats {
   usage: Usage | undefined;
 }
 
-/** Shared across attempts, so a retry knows whether anything has reached the caller yet. */
+/**
+ * Shared across attempts, so a retry knows whether anything has reached the caller yet.
+ * A retry only happens while `sawDelta` is false, and the delivered text and the flag are
+ * set together, so a retried attempt starts with nothing delivered either.
+ */
 interface StreamState {
   delivered: string;
   sawDelta: boolean;
@@ -347,11 +355,11 @@ function retryWait(deps: TransportDeps, err: ProviderError, retries: number, max
 
 function* chunksOf(
   spec: CallSpec,
+  parser: StreamParser | undefined,
   events: readonly SseEvent[],
   acc: WireAccumulator,
   state: StreamState,
 ): Generator<ChatChunk, void, undefined> {
-  const parser = spec.parser;
   if (parser === undefined) throw protocolError(spec, 'no stream parser for this call');
   for (const ev of events) {
     if (acc.done) return;
@@ -396,9 +404,22 @@ async function* readStream(
   const { clock } = deps;
   if (response.body === null) throw protocolError(spec, 'the response had no body');
 
+  // The adapter's parser for this attempt. It is built here, not once per call, because a
+  // parser carries the stream's own state: a retried attempt must not inherit the tool call
+  // the dropped attempt had already started. It is built before a reader locks the body,
+  // and a factory that throws releases the body and fails as a protocol error, so it can
+  // neither strand the response nor escape the ProviderError contract.
+  let parser: StreamParser | undefined;
+  try {
+    parser = spec.createParser?.();
+  } catch (err) {
+    void response.body.cancel().catch(() => undefined);
+    throw protocolError(spec, describe(err));
+  }
+
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  const parser = createSseParser();
+  const sse = createSseParser();
   const acc: WireAccumulator = { done: false, alive: false, finish: undefined, usage: undefined };
   // The start of what the body said, kept for the excerpt if no event ever parses.
   let head = '';
@@ -432,13 +453,13 @@ async function* readStream(
       if (read.done) {
         const tail = decoder.decode();
         head = keepHead(head, tail);
-        for (const chunk of chunksOf(spec, [...parser.push(tail), ...parser.end()], acc, state)) yield chunk;
+        for (const chunk of chunksOf(spec, parser, [...sse.push(tail), ...sse.end()], acc, state)) yield chunk;
         break;
       }
 
       const text = decoder.decode(read.value, { stream: true });
       head = keepHead(head, text);
-      for (const chunk of chunksOf(spec, parser.push(text), acc, state)) yield chunk;
+      for (const chunk of chunksOf(spec, parser, sse.push(text), acc, state)) yield chunk;
       if (acc.done) break;
     }
   } finally {
@@ -453,7 +474,7 @@ async function* readStream(
     if (!acc.alive) throw protocolError(spec, head.trim() === '' ? 'the response was empty' : head);
     throw networkError(spec, 'the stream ended before the response finished');
   }
-  return { finish: acc.finish ?? 'stop', usage: acc.usage, terminal: spec.parser?.finish() ?? {} };
+  return { finish: acc.finish ?? 'stop', usage: acc.usage, terminal: parser?.finish() ?? {} };
 }
 
 /**
@@ -583,14 +604,40 @@ export async function requestJson(deps: TransportDeps, spec: CallSpec): Promise<
   }
 }
 
+/**
+ * The body of a non-streaming response, read whole under the request deadline. The body is
+ * read through a reader, so the deadline can cancel it the way the streaming path cancels
+ * its reader: a `response.text()` that is still pulling cannot be stopped.
+ */
 async function readWhole(deps: TransportDeps, spec: CallSpec, response: Response, deadline: Deadline): Promise<string> {
   const limit = { ms: deadline.totalAt - deps.clock.now(), reason: `request exceeded ${Math.round(deps.timeouts.totalMs / 60_000)} minutes` };
+  const body = response.body;
+  if (body === null) return '';
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  const read = (async () => {
+    let text = '';
+    for (;;) {
+      const part = await reader.read();
+      if (part.done) break;
+      text += decoder.decode(part.value, { stream: true });
+    }
+    return text + decoder.decode();
+  })();
+  // When the deadline or the caller wins, nothing awaits `read` any more; its late
+  // settling (a cancelled reader) must not surface as an unhandled rejection.
+  read.catch(() => undefined);
   try {
-    return await guard(response.text(), limit.ms, deps.clock, spec.signal);
+    return await guard(read, limit.ms, deps.clock, spec.signal, () => {
+      // The deadline won, or the caller hung up: stop pulling the body.
+      void reader.cancel().catch(() => undefined);
+    });
   } catch (err) {
     if (err instanceof CallerCancelled) throw err;
     if (err instanceof DeadlineReached) throw networkError(spec, limit.reason);
     throw networkError(spec, describe(err));
+  } finally {
+    void reader.cancel().catch(() => undefined);
   }
 }
 

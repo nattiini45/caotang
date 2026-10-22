@@ -291,8 +291,9 @@ export const anthropicMessagesAdapter: ProviderAdapter = {
       ...(ctx.quirks.versionHeaders ?? {}),
       ...(ctx.quirks.extraHeaders ?? {}),
     };
-    if (ctx.quirks.browserAccess !== false) {
-      // Browser fetches to api.anthropic.com are allowed only when this is sent.
+    if (ctx.quirks.browserAccess === true) {
+      // Browser fetches to api.anthropic.com are allowed only when this is sent. It is
+      // Anthropic's own header, so only the routes that reach Anthropic ask for it.
       headers['anthropic-dangerous-direct-browser-access'] = 'true';
     }
     if (secrets.apiKey !== undefined && secrets.apiKey !== '') {

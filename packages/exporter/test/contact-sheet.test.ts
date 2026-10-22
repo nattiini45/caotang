@@ -583,7 +583,12 @@ describe('contact-sheet-pdf — text outside Latin script, in the Noto Sans CJK 
 
 describe('the fallback font file', () => {
   it('is found by the Node loader in @caotang/font-noto-cjk, and unpacks from WOFF to a TrueType font', async () => {
-    expect(cjkFontCandidates().some((path) => path.endsWith(`font-noto-cjk/${CJK_FONT_FILE}`) || path.endsWith(`noto-sans-cjk/${CJK_FONT_FILE}`))).toBe(true);
+    // Separator-agnostic: `cjkFontCandidates` joins with `node:path`, so the
+    // candidate carries `\` on Windows and `/` elsewhere.
+    expect(cjkFontCandidates().some((path) => {
+      const norm = path.replaceAll('\\', '/');
+      return norm.endsWith(`font-noto-cjk/${CJK_FONT_FILE}`) || norm.endsWith(`noto-sans-cjk/${CJK_FONT_FILE}`);
+    })).toBe(true);
     const woff = await loadCjkFontInNode();
     expect(new TextDecoder().decode(woff.slice(0, 4))).toBe('wOFF');
     const sfnt = await sfntFromWoff(woff);
@@ -685,7 +690,9 @@ function emojiShows(pdf: PDFDocument, index: number): string[] {
 function fullyQualifiedEmoji(): { emoji: string; name: string }[] {
   return readFileSync(resolve(__dirname, 'fixtures/emoji-15.1-fully-qualified.txt'), 'utf8')
     .split('\n')
-    .filter((line) => line !== '' && !line.startsWith('#'))
+    // `trim()` rather than `!== ''`: a CRLF edit of the fixture leaves blank lines
+    // as '\r', which would otherwise reach `String.fromCodePoint` as NaN.
+    .filter((line) => line.trim() !== '' && !line.startsWith('#'))
     .map((line) => {
       const [codes = '', comment = ''] = line.split(' # ');
       return { emoji: String.fromCodePoint(...codes.trim().split(/\s+/).map((hex) => parseInt(hex, 16))), name: comment };
@@ -903,7 +910,11 @@ describe('the emoji font file covers Unicode Emoji 15.1', () => {
 
 describe('the emoji font file', () => {
   it('is found by the Node loader in @caotang/font-noto-emoji, and unpacks from WOFF to a static TrueType font', async () => {
-    expect(emojiFontCandidates().some((path) => path.endsWith(`font-noto-emoji/${EMOJI_FONT_FILE}`) || path.endsWith(`noto-emoji/${EMOJI_FONT_FILE}`))).toBe(true);
+    // Separator-agnostic, like the CJK loader's assertion above.
+    expect(emojiFontCandidates().some((path) => {
+      const norm = path.replaceAll('\\', '/');
+      return norm.endsWith(`font-noto-emoji/${EMOJI_FONT_FILE}`) || norm.endsWith(`noto-emoji/${EMOJI_FONT_FILE}`);
+    })).toBe(true);
     const woff = await loadEmojiFontInNode();
     expect(new TextDecoder().decode(woff.slice(0, 4))).toBe('wOFF');
     const sfnt = await sfntFromWoff(woff);

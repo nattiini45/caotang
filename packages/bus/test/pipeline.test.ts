@@ -45,6 +45,7 @@ import {
   createViewState,
   err,
   execute,
+  executeAsync,
   ok,
   type ActivityLog,
   type ApplyContext,
@@ -465,7 +466,7 @@ describe('§5 — one gesture is one group, one agent turn is one group', () => 
     const registry = registryWith(
       fake(
         { agentRisk: 'write-auto', undo: 'compensable' },
-        ((_s: unknown, params: unknown, context: { undo: ReturnType<typeof createUndoScope> }) => {
+        ((_s: unknown, params: unknown, context: ApplyContext) => {
           const tag = (params as { tag: string }).tag;
           order.push(`apply:${tag}`);
           context.undo.compensate(tag, () => order.push(`restore:${tag}`));
@@ -501,7 +502,7 @@ describe('§5 — one gesture is one group, one agent turn is one group', () => 
     const registry = registryWith(
       fake(
         { agentRisk: 'write-auto', undo: 'compensable' },
-        ((_s: unknown, params: unknown, context: { undo: ReturnType<typeof createUndoScope> }) => {
+        ((_s: unknown, params: unknown, context: ApplyContext) => {
           const tag = (params as { tag: string }).tag;
           context.undo.compensate(tag, () => {
             if (tag === 'b') throw new Error('the snapshot is gone');
@@ -552,7 +553,7 @@ describe('§5 — one gesture is one group, one agent turn is one group', () => 
     const registry = registryWith(
       fake(
         { agentRisk: 'write-auto', undo: 'inverse' },
-        ((_s: unknown, _p: unknown, context: { undo: ReturnType<typeof createUndoScope> }) => {
+        ((_s: unknown, _p: unknown, context: ApplyContext) => {
           context.undo.inverse(inverseCommand);
           return null;
         })
@@ -577,6 +578,52 @@ describe('§5 — one gesture is one group, one agent turn is one group', () => 
     expect(h.log.entriesForGroup(id)).toHaveLength(2);
     expect(h.log.entries().map((entry) => entry.command)).toEqual(['doc.write', 'view.setActiveDoc']);
     expect(executed).toEqual([]);
+  });
+
+  it('treats an inverse that changes nothing as a no-op, not as a failed undo', () => {
+    // The store's `binder.setMeta` inverse is the same command with the previous
+    // values, and a change that wrote no field has no previous values to write
+    // back — so its inverse carries an empty patch, which the bus refuses as a
+    // request that changes nothing. The undo of a change that changed nothing
+    // has nothing to undo, so the group reports no failure for it.
+    const registry = {
+      ...COMMAND_REGISTRY,
+      'doc.write': fake(
+        { agentRisk: 'write-auto', undo: 'inverse' },
+        ((_s: unknown, _p: unknown, context: ApplyContext) => {
+          context.undo.inverse(
+            cmd({ name: 'binder.setMeta', params: { nodeId: THE_LANDING, patch: {} } }),
+          );
+          return null;
+        })
+      ),
+      'binder.setMeta': {
+        descriptor: COMMAND_REGISTRY['binder.setMeta'].descriptor,
+        apply: (() => null) as CommandApply<never, unknown>,
+      },
+    } as CommandRegistry;
+    const undo = createUndoStore({ dispatch: (command) => execute(command, h.bus, registry) });
+    const h = harness({ undo });
+
+    execute(cmd({ name: 'doc.write', params: { docId: THE_LANDING, body: 'Elena returns.' } }), h.bus, registry);
+    const id = undo.groups()[0]!.id;
+
+    const outcome = undo.undo(id);
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.value.failures).toEqual([]);
+    expect(outcome.value.undone).toHaveLength(1);
+    // The refusal was the bus's own, and it is the one that says "nothing changed".
+    const refused = execute(
+      cmd({ name: 'binder.setMeta', params: { nodeId: THE_LANDING, patch: {} } }),
+      h.bus,
+      registry,
+    );
+    expect(refused.ok).toBe(false);
+    if (refused.ok) return;
+    expect(refused.error.code).toBe('invalid-params');
+    expect(refused.error.details?.changesNothing).toBe(true);
   });
 
   it('does not register the inverse it just dispatched, so an undo is not a toggle', () => {
@@ -651,7 +698,10 @@ describe('§5 — one gesture is one group, one agent turn is one group', () => 
 
   it('reports an inverse it cannot dispatch, instead of skipping it quietly', () => {
     const undo = createUndoStore(); // no dispatch attached
-    const scope = createUndoScope('inverse');
+    // The late-capture reporter is required, so a late capture can never be
+    // dropped with no trace. This scope never captures late, so the reporter
+    // does nothing.
+    const scope = createUndoScope('inverse', () => undefined);
     scope.inverse(cmd({ name: 'view.setActiveDoc', params: { docId: THE_LANDING } }));
     const target = undo.targetFor(cmd({ name: 'doc.write' }), 1);
     undo.register(target, {
@@ -722,7 +772,7 @@ describe('§5 — registration is a pipeline step, not an apply courtesy', () =>
     const registry = registryWith(
       fake(
         { agentRisk: 'write-auto', undo: 'compensable' },
-        ((_s: unknown, _p: unknown, context: { undo: ReturnType<typeof createUndoScope> }) => {
+        ((_s: unknown, _p: unknown, context: ApplyContext) => {
           context.undo.inverse(cmd({ name: 'view.setActiveDoc', params: { docId: THE_LANDING } }));
           return null;
         })
@@ -735,6 +785,133 @@ describe('§5 — registration is a pipeline step, not an apply courtesy', () =>
     if (result.ok) return;
     expect(result.error.message).toContain("declares undo: 'compensable'");
     expect(result.error.message).toContain("captured a 'inverse' compensation");
+  });
+
+  it('throws when an apply captures a second undo payload, instead of keeping only the last one', () => {
+    // The trap this closes: a batch apply that captures per-op compensations the
+    // obvious way handed the pipeline one payload, so the group it registered
+    // reversed only the last effect — and the pipeline could not tell, because it
+    // saw a capture of the right kind. The activity log's own scope refuses a
+    // second report the same way.
+    const { bus, undo } = harness();
+    const registry = registryWith(
+      fake(
+        { agentRisk: 'write-auto', undo: 'compensable' },
+        ((_s: unknown, _p: unknown, context: ApplyContext) => {
+          context.undo.compensate('restore the first', () => {});
+          context.undo.compensate('restore the second', () => {});
+          return null;
+        })
+      ),
+    );
+
+    const result = execute(cmd({ name: 'doc.write' }), bus, registry);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe('internal');
+    expect(result.error.message).toContain('doc.write');
+    // The scope's own message does not repeat the command name: the pipeline's
+    // apply-threw prefix already names it, and a second naming would stutter.
+    expect(result.error.message).toContain('a second undo payload was captured');
+    // The first capture is kept, so what the apply already changed is still
+    // reversible: the group holds the first compensation, not the second. The
+    // entry itself is asserted, because a count would also pass an
+    // implementation that overwrote the first capture with the second.
+    expect(undo.groups()).toHaveLength(1);
+    expect(undo.groups()[0]!.entries[0]).toMatchObject({ kind: 'compensable', label: 'restore the first' });
+  });
+
+  it('reports a capture that arrives after the dispatch settled, instead of throwing where nobody catches it', () => {
+    // An apply that stashed the scope and captures from a timer, an event or a
+    // floating continuation fires after the pipeline read the payload and
+    // returned the outcome. A throw there escapes as an uncaught exception (or an
+    // unhandled rejection on the async path) — a defect that reaches no caller and
+    // no log. So a late capture is dropped, and the activity row reports it: the
+    // group the dispatch registered is already closed and cannot take the payload.
+    const { bus, log, undo } = harness();
+    let stashed: ApplyContext['undo'] | undefined;
+    const registry = registryWith(
+      fake(
+        { agentRisk: 'write-auto', undo: 'compensable' },
+        ((_s: unknown, _p: unknown, context: ApplyContext) => {
+          stashed = context.undo;
+          context.undo.compensate('the one that counts', () => {});
+          return null;
+        }),
+      ),
+    );
+
+    const result = execute(cmd({ name: 'doc.write' }), bus, registry);
+    expect(result.ok).toBe(true);
+    expect(undo.groups()).toHaveLength(1);
+
+    expect(() => stashed!.compensate('too late', () => {})).not.toThrow();
+    expect(() => stashed!.inverse(cmd({ name: 'view.setActiveDoc' }))).not.toThrow();
+    // The registered group is untouched by the late captures…
+    expect(undo.groups()).toHaveLength(1);
+    expect(undo.groups()[0]!.entries).toHaveLength(1);
+    expect(undo.groups()[0]!.entries[0]).toMatchObject({ kind: 'compensable', label: 'the one that counts' });
+    // …and the log says the late ones arrived and were dropped: the row for the
+    // dispatch, then **one defect row for the dispatch** — §8 caps them, so a
+    // scope stashed on a timer cannot write a row per capture.
+    const rows = log.entries();
+    expect(rows).toHaveLength(2);
+    expect(rows[1]?.summary).toContain('after its dispatch settled');
+    expect(rows[1]?.command).toBe('doc.write');
+    // The defect marker is what tells a defect row from an execution of the
+    // command it names.
+    expect(rows[1]?.defect).toBe('late-undo-capture');
+    expect(rows[0]?.defect).toBeUndefined();
+    // **The first late capture is the one reported.** The two late captures
+    // above are of different kinds, and the row names the kind it carries — so
+    // an implementation that reported the *last* capture would pass every
+    // assertion above and fail this one.
+    expect(rows[1]?.summary).toContain('kind "compensable"');
+    expect(rows[1]?.summary).not.toContain('kind "inverse"');
+    // A defect row belongs to no group: the dispatch's registration is closed,
+    // so the payload it carried was dropped rather than registered.
+    expect(rows[1]?.undoGroupId).toBeUndefined();
+  });
+
+  it('reports a late capture on the async path too, and caps it at one row per dispatch', async () => {
+    // `executeAsync` wires the same reporter as `execute` (pipeline.ts), so the
+    // defect row an async apply's late capture leaves is the same row. The
+    // async path is where a floating continuation is likeliest — an apply that
+    // stashed the scope and captures after its promise resolves — so the cap
+    // and the marker have to hold there too, not only on the synchronous path.
+    const { bus, log, undo } = harness();
+    let stashed: ApplyContext['undo'] | undefined;
+    const registry = registryWith(
+      fake(
+        { agentRisk: 'write-auto', undo: 'compensable' },
+        ((_s: unknown, _p: unknown, context: ApplyContext) => {
+          stashed = context.undo;
+          context.undo.compensate('the one that counts', () => {});
+          return Promise.resolve(null);
+        }),
+      ),
+    );
+
+    const result = await executeAsync(cmd({ name: 'doc.write' }), bus, registry);
+    expect(result.ok).toBe(true);
+    expect(undo.groups()).toHaveLength(1);
+
+    expect(() => stashed!.compensate('too late', () => {})).not.toThrow();
+    // **Two late captures, so the cap is actually exercised.** One capture
+    // passes for an implementation that writes a row *per* capture — the very
+    // divergence this test exists to catch, because the async path has to wire
+    // the same capped reporter the sync path does (pipeline.ts). The second
+    // capture is of another kind, so the row that is written names the *first*
+    // capture's kind and an implementation that reported the last would fail.
+    expect(() => stashed!.inverse(cmd({ name: 'view.setActiveDoc' }))).not.toThrow();
+    const rows = log.entries();
+    expect(rows).toHaveLength(2);
+    expect(rows[1]?.defect).toBe('late-undo-capture');
+    expect(rows[1]?.summary).toContain('kind "compensable"');
+    expect(rows[1]?.summary).not.toContain('kind "inverse"');
+    expect(rows[1]?.undoGroupId).toBeUndefined();
+    expect(rows[0]?.defect).toBeUndefined();
   });
 
   it("skips registration for a view command even when its descriptor claims undo: 'inverse'", () => {
@@ -763,7 +940,7 @@ describe('§5 — registration is a pipeline step, not an apply courtesy', () =>
     const registry = registryWith(
       fake(
         { agentRisk: 'write-auto', undo: 'none' },
-        ((_s: unknown, _p: unknown, context: { undo: ReturnType<typeof createUndoScope> }) => {
+        ((_s: unknown, _p: unknown, context: ApplyContext) => {
           // Capturing anyway must not create a group: the descriptor's `undo` is
           // the contract, and a capture the bus did not ask for is not registered.
           context.undo.compensate('ignored', () => undefined);

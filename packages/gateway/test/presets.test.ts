@@ -91,6 +91,29 @@ describe('the registry', () => {
       if (preset.cors === 'blocked') expect(preset.corsNote, preset.id).toBeTruthy();
     }
   });
+
+  it('opts into the browser-access header on every anthropic-messages preset pointed at an Anthropic host', () => {
+    // api.anthropic.com rejects browser calls that lack anthropic-dangerous-direct-browser-access,
+    // and the adapter sends that header only where the preset declares `browserAccess: true`. A
+    // preset that routes the Messages adapter at Anthropic without the flag would break browser
+    // calls, so the flag is pinned here rather than left to the preset author's memory.
+    const guarded: string[] = [];
+    for (const preset of PRESETS) {
+      const routesMessages =
+        preset.adapter === 'anthropic-messages' ||
+        Object.values(preset.quirks.modelRoutes ?? {}).includes('anthropic-messages');
+      if (!routesMessages) continue;
+      // `.hostname`, not `.host`: a port is not part of the host name, and a preset that
+      // carries one still routes at Anthropic.
+      const host = new URL(preset.baseUrl).hostname;
+      if (!/(^|\.)anthropic\.com$/.test(host)) continue;
+      guarded.push(`${preset.id} → ${host}`);
+      expect(preset.quirks.browserAccess, `${preset.id} → ${host}`).toBe(true);
+    }
+    // The loop must reach an assertion: a registry edit that moved every Anthropic route
+    // away would otherwise leave this test green with nothing guarded.
+    expect(guarded.length).toBeGreaterThan(0);
+  });
 });
 
 describe('resolveRoute', () => {

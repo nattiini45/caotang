@@ -104,7 +104,7 @@ export {
   type ParsedCodexFile,
   type SerializeCodexOptions,
 } from './codex-file.js';
-export { serializeManifest } from './manifest-json.js';
+export { OPTIONAL_NODE_FIELDS, serializeManifest } from './manifest-json.js';
 
 export {
   SessionsShrinkError,
@@ -204,6 +204,7 @@ export {
 } from './folder-digests.js';
 
 export {
+  KNOWN_NODE_KEYS,
   ManifestUnreadableError,
   ProjectRefusedError,
   ProjectValidationError,
@@ -276,6 +277,7 @@ export {
   type AutosaveOptions,
   type AutosaveState,
   type AutosaveStatus,
+  type BodySource,
   type DocumentWriteRequest,
   type DocumentWriter,
   type FlushOutcome,

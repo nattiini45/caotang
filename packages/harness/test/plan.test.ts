@@ -154,6 +154,14 @@ describe('previewPlan', () => {
     if (!result.ok) throw new Error('expected a preflight');
     expect(result.value.steps[0]?.error?.message).toContain('agent.plan is a plan, not a tool call');
   });
+
+  it('refuses a plan with more steps than the batch surfaces allow, and says how many are allowed', () => {
+    const steps = Array.from({ length: 31 }, () => step('meta.set', { targets: [LANDING], status: 'draft' }));
+    const result = makeHarness().previewPlan({ steps });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.message).toContain('at most 30');
+  });
 });
 
 describe('executePlan', () => {

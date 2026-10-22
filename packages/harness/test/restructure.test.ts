@@ -48,6 +48,32 @@ describe('binder.restructure', () => {
     expect(outcome.undoGroupId).toBeDefined();
   });
 
+  it('previews the position the move lands at', () => {
+    const state = makeState();
+    const harness = makeHarness({}, state);
+    // Chapter 2 holds one scene, so a move asking for position 99 lands at 1:
+    // binder.move's validate clamps the index against the sibling count, and the
+    // card the user approves has to promise where the node lands, not the raw
+    // index — the dispatch re-validates, so preview and result cannot disagree.
+    //
+    // **The preview is what this pins.** The card quotes the position the
+    // dispatch will use, because the harness dispatches the *validated* index
+    // — the clamp binder.move's validate resolves against the sibling count
+    // (`restructure.ts`: the validated command is what gets dispatched). A raw
+    // index of 99 would not land here in general: with more than one sibling
+    // the clamp resolves it to the sibling count — up to 99 siblings, which is
+    // what `Math.min(index.value, siblings.length)` gives — and the node lands
+    // elsewhere. So the equivalence this one sibling holds — a raw 99 and a
+    // validated 1 land in the same place — is a fact about this fixture, not
+    // about the pipeline, and re-validation is not what makes it hold.
+    const outcome = valueOf(
+      run(harness, 'binder.restructure', { ops: [{ action: 'move', node: STORM, newParent: CHAPTER_TWO, index: 99 }] }, CONFIRMED),
+    );
+    const operations = outcome.data['operations'] as string[];
+    expect(operations[0]).toContain('at position 1');
+    expect(childrenOf(state, CHAPTER_TWO)).toEqual([FRIEND, STORM]);
+  });
+
   it('is undone, as one group, back to the byte-identical prior tree', () => {
     const state = makeState();
     const harness = makeHarness({}, state);
@@ -99,7 +125,7 @@ describe('binder.restructure', () => {
     const ops = Array.from({ length: 31 }, (_, index) => ({ action: 'rename', node: LANDING, title: `T${index}` }));
     const error = refusalOf(run(makeHarness(), 'binder.restructure', { ops }, CONFIRMED));
     expect(error.code).toBe('limit-exceeded');
-    expect(error.message).toBe('params.ops has 31 entries, limit 30');
+    expect(error.message).toBe('params.ops has 31 entries, at most 30 allowed');
   });
 
   it('lists the failing op before anything runs, and writes none of the good ones', () => {

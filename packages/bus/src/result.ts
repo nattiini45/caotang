@@ -56,6 +56,13 @@ export interface PerOpFailure {
   code: CommandErrorCode;
   message: string;
   correctiveHint?: string;
+  /**
+   * The op's own details, when it has any — the candidates an ambiguous name
+   * matched, for instance. A per-op failure that dropped them would lose what
+   * the op's refusal said as data, and a caller that has to recover that by
+   * reading the prose cannot build the retry loop §7 is meant to enable.
+   */
+  details?: CommandErrorDetails;
 }
 
 export interface CommandErrorDetails {
@@ -89,6 +96,20 @@ export interface CommandErrorDetails {
    */
   expectedRevision?: number;
   actualRevision?: number;
+  /**
+   * A `changesNothing` refusal (params.ts): the machine-readable half of "this
+   * request asks for no change at all".
+   *
+   * **Declared rather than left to the index signature, for the same reason as
+   * `expectedRevision`**: undo.ts reads this key to decide that an inverse which
+   * could not dispatch was a no-op rather than a kept failure, so the key
+   * carries behaviour and deserves a declared, discoverable name.
+   *
+   * The index signature is still there, so a misspelled key (on either side)
+   * still typechecks; what the declaration rules out is a writer that puts a
+   * non-boolean under this name.
+   */
+  changesNothing?: boolean;
   /** anything else the refusing command wants the model to see */
   [key: string]: unknown;
 }
