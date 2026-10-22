@@ -81,10 +81,17 @@ export {
   type PdfEmojiGlyph,
   type PdfFont,
   type PdfInfo,
+  type PdfPlainRun,
+  type PdfRtlFonts,
+  type PdfRtlItem,
+  type PdfShapedGlyph,
+  type PdfShapedRun,
   type PdfText,
 } from './pdf.js';
 
-export { breakBetween, charColumns, textColumns, textUnits, unitColumns } from './width.js';
+export { breakBetween, charColumns, textColumns, textUnits, unitColumns, withMeasure, type MeasureRun } from './width.js';
+
+export type { RtlFontLoaders, RtlSupport } from './rtl-font.js';
 
 export { COURIER_PRIME_METRICS } from './fonts/courier-prime-metrics.js';
 
@@ -96,12 +103,15 @@ export {
   loadCjkFallback,
   loadEmojiFallback,
   loadCourierPrime,
+  loadRtlFallback,
+  preparePdf,
   renderPdf,
   type PdfFontLoaders,
   type PdfLayout,
   type PdfRenderOptions,
   type PdfRenderResult,
   type PdfRenderer,
+  type PreparedPdf,
 } from './render-pdf.js';
 
 export {
