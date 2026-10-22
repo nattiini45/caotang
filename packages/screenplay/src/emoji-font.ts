@@ -2,9 +2,9 @@
  * The emoji fallback font of the screenplay PDF ([screenplay.md §5.3](../../../docs/architecture/screenplay.md)).
  *
  * After Courier Prime and the CJK fallback, emoji print in Noto Emoji Regular (OFL), Google's monochrome emoji font. The
- * file sits beside this module (src/fonts/NotoEmoji-Regular.ttf, the static Regular instance of the variable font
- * google/fonts publishes; the source URL, the instancing step and the SHA-256s are in src/fonts/README.md). Its outlines
- * are TrueType, so the subset fontkit cuts is a `glyf` font and none of the CFF subset workarounds of cjk-font.ts apply.
+ * file is the one the contact sheet uses too: the static Regular instance in `@caotang/font-noto-emoji` (vendor/noto-emoji,
+ * where its source, the instancing step and the SHA-256s are written down), read through the host's {@link FontLoader}.
+ * Its outlines are TrueType, so the subset fontkit cuts is a `glyf` font.
  *
  * Each emoji is one grapheme cluster (emoji.ts). fontkit's layout engine (`font.layout`, the font's GSUB) turns the
  * cluster into one glyph: a ZWJ sequence, a skin-tone sequence, a flag, a keycap, a tag sequence. Every distinct cluster
@@ -12,20 +12,16 @@
  * (👍 and 👍🏽: the font has no skin tones).
  *
  * This module is reached only by the dynamic import in render-pdf.ts, and only for a script with an emoji the font
- * prints. The file is loaded from the app's own origin in the browser, or from disk under Node.
+ * prints.
  */
 
-import { encodeSubset, openFont, padGlyphs, subsetTag } from '@caotang/pdf-fonts';
+import { cutCidSubset, loadFont, type FontLoader } from '@caotang/pdf-fonts';
 import type { Font, Glyph } from '@pdf-lib/fontkit';
 
 import { emojiKey, firstCodePoint, isEmojiCluster } from './emoji.js';
-import { fontFileBytes } from './font-file.js';
 import type { PdfEmojiFont, PdfEmojiGlyph } from './pdf.js';
 import { LAYOUT } from './paginate.js';
 import { unitColumns } from './width.js';
-
-/** The font file, resolved against this module: an asset URL in the browser build, a file URL under Node. */
-const FONT_URL = new URL('./fonts/NotoEmoji-Regular.ttf', import.meta.url);
 
 /** The PostScript name the font's `name` table gives. */
 export const NOTO_EMOJI_POSTSCRIPT_NAME = 'NotoEmoji-Regular';
@@ -36,18 +32,19 @@ export const NOTO_EMOJI_POSTSCRIPT_NAME = 'NotoEmoji-Regular';
  */
 export const EMOJI_SIZE = 10;
 
-let loaded: Promise<Font> | undefined;
+const loaded = new WeakMap<FontLoader, Promise<Font>>();
 
-/** The parsed emoji font. Loaded once per session. */
-export function loadNotoEmoji(): Promise<Font> {
-  loaded ??= fontFileBytes(FONT_URL, 'emoji fallback font').then(
-    (bytes) => openFont(bytes),
-    (error: unknown) => {
-      loaded = undefined;
+/** The parsed emoji font. Loaded once per loader. */
+export function loadNotoEmoji(load: FontLoader): Promise<Font> {
+  let font = loaded.get(load);
+  if (font === undefined) {
+    font = loadFont(load, 'the emoji fallback font').catch((error: unknown) => {
+      loaded.delete(load);
       throw error;
-    },
-  );
-  return loaded;
+    });
+    loaded.set(load, font);
+  }
+  return font;
 }
 
 /** The one glyph fontkit's layout gives a text, or undefined when it gives more than one or the font lacks it. */
@@ -86,38 +83,23 @@ function byCodePoints(a: string, b: string): number {
  * writer prints it as "?".
  */
 export async function subsetNotoEmoji(font: Font, units: Iterable<string>): Promise<PdfEmojiFont> {
-  const scale = 1000 / font.unitsPerEm;
-  const subset = font.createSubset();
-  padGlyphs(subset);
-  const glyphs = new Map<string, PdfEmojiGlyph>();
-  const gids: number[] = [];
-  const widths: number[] = [];
-  const kept: string[] = [];
+  const placed: { unit: string; glyph: Glyph; width: number; dx: number }[] = [];
   for (const unit of [...new Set(units)].sort(byCodePoints)) {
     const glyph = emojiGlyph(font, unit);
     if (glyph === undefined) continue;
-    const cid = kept.length + 1;
-    kept.push(unit);
-    gids.push(subset.includeGlyph(glyph));
     // The stated advance is the unit's cell on the grid, in the glyph space of the emoji size: two columns at 12 points.
     const cell = unitColumns(unit) * LAYOUT.charWidth;
     const width = Math.round((cell / EMOJI_SIZE) * 1000);
-    widths.push(width);
     // The glyph is centred in its cell.
     const dx = (cell - (glyph.advanceWidth * EMOJI_SIZE) / font.unitsPerEm) / 2;
-    glyphs.set(unit, { cid, width, dx: Math.round(dx * 100) / 100 });
+    placed.push({ unit, glyph, width, dx: Math.round(dx * 100) / 100 });
   }
-  const bbox = font.bbox;
-  return {
-    baseFont: `${subsetTag(kept.join(''))}+${NOTO_EMOJI_POSTSCRIPT_NAME}`,
-    program: await encodeSubset(subset),
-    size: EMOJI_SIZE,
-    glyphs,
-    gids,
-    widths,
-    bbox: [bbox.minX, bbox.minY, bbox.maxX, bbox.maxY].map((v) => Math.round(v * scale)) as [number, number, number, number],
-    ascent: Math.round(font.ascent * scale),
-    descent: Math.round(font.descent * scale),
-    capHeight: Math.round((font.capHeight || font.ascent) * scale),
-  };
+  const subset = await cutCidSubset(
+    font,
+    placed.map(({ unit, glyph, width }) => ({ glyphId: glyph.id, width, text: unit })),
+    NOTO_EMOJI_POSTSCRIPT_NAME,
+  );
+  const glyphs = new Map<string, PdfEmojiGlyph>();
+  placed.forEach(({ unit, width, dx }, index) => glyphs.set(unit, { cid: index + 1, width, dx }));
+  return { ...subset, size: EMOJI_SIZE, glyphs };
 }

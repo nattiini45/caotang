@@ -20,7 +20,7 @@
  * (storyboard.md §6) is drawn the same way: its page plan runs here, and its pictures are read when it renders.
  */
 
-import { drawPdf, layoutPdf, loadCjkFallback, loadCourierPrime, loadEmojiFallback, renderFdx, renderFountain, isScreenplayKind, PDF_MIME, type SceneNumberPlacement } from '@caotang/screenplay';
+import { drawPdf, layoutPdf, loadCjkFallback, loadCourierPrime, loadEmojiFallback, renderFdx, renderFountain, isScreenplayKind, PDF_MIME, type PdfLayout, type SceneNumberPlacement } from '@caotang/screenplay';
 import {
   TABLE_COLUMNS,
   exportCsv,
@@ -124,9 +124,9 @@ export interface MediaRequest {
   readonly pageSize?: PageSize;
   /** The moment the compile ran, in ms. The contact sheet's PDF dates are set from it. Absent is now. */
   readonly at?: number;
-  /** Reads the contact sheet's fallback font for text outside Latin script (`@caotang/font-noto-cjk`). Only `contact-sheet-pdf` reads it. */
+  /** Reads the fallback font for text outside Latin script (`@caotang/font-noto-cjk`). The screenplay PDF and the contact sheet read it, and only when the file holds such text. */
   readonly loadFallbackFont?: FontLoader;
-  /** Reads the contact sheet's emoji font (`@caotang/font-noto-emoji`). Only `contact-sheet-pdf` reads it, and only for a sheet with emoji. */
+  /** Reads the emoji font (`@caotang/font-noto-emoji`). The screenplay PDF and the contact sheet read it, and only when the file holds an emoji. */
   readonly loadEmojiFont?: FontLoader;
 }
 
@@ -340,7 +340,11 @@ function pdfOutput(request: MediaRequest): MediaOutput {
         name: `${request.base}.pdf`,
         mimeType: PDF_MIME,
         bytes: async () => {
-          const [font, cjk, emoji] = await Promise.all([loadCourierPrime(), loadCjkFallback(layout), loadEmojiFallback(layout)]);
+          const [font, cjk, emoji] = await Promise.all([
+            loadCourierPrime(),
+            loadCjkFallback(layout, request.loadFallbackFont),
+            loadEmojiFallback(layout, request.loadEmojiFont),
+          ]);
           return drawPdf(layout, font, cjk, emoji);
         },
       },
@@ -354,9 +358,22 @@ function pdfOutput(request: MediaRequest): MediaOutput {
       ...flat.notes,
       ...left,
       ...layout.notes,
+      ...unloadedFontNotes(layout, request),
       `pdf: ${pages} script ${pages === 1 ? 'page' : 'pages'}${titled}, about ${pages} ${pages === 1 ? 'minute' : 'minutes'} of screen time at a page a minute`,
     ],
   };
+}
+
+/** What the screenplay PDF prints as "?" because this compile has no loader for the font that prints it. */
+function unloadedFontNotes(layout: PdfLayout, request: MediaRequest): string[] {
+  const missing = (characters: readonly string[], what: string): string[] =>
+    characters.length === 0
+      ? []
+      : [`pdf: this compile has no ${what}, so ${characters.length === 1 ? 'this character is' : `these ${characters.length} characters are`} printed as "?": ${characters.slice(0, 10).join(' ')}${characters.length > 10 ? ' …' : ''}`];
+  return [
+    ...(request.loadFallbackFont === undefined ? missing(layout.fallbackCharacters, 'CJK fallback font') : []),
+    ...(request.loadEmojiFont === undefined ? missing(layout.emojiCharacters, 'emoji font') : []),
+  ];
 }
 
 /** The flattened blocks with every code point XML 1.0 forbids removed from their text (xml-text.ts, the DOCX and EPUB rule). */

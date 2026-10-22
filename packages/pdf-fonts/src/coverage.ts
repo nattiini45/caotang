@@ -1,11 +1,11 @@
 /**
- * What the fallback fonts of the screenplay PDF print, known before either font loads
- * ([screenplay.md §5.3](../../../docs/architecture/screenplay.md)). The tables are generated from the fonts
- * (scripts/cjk-coverage.mjs, scripts/emoji-coverage.mjs), and the tests check them against the font files.
+ * What the fallback fonts print, known before either font loads, so a PDF can name the characters that print as "?" before it
+ * reads a font ([screenplay.md §5.3](../../../docs/architecture/screenplay.md)). The tables are generated from the font files
+ * (scripts/cjk-coverage.mjs, scripts/emoji-coverage.mjs), and the tests check them against the files.
  */
 
-import { NOTO_CJK_RANGES } from './fonts/noto-cjk-coverage.js';
-import { NOTO_EMOJI_RANGES, NOTO_EMOJI_SEQUENCES, NOTO_EMOJI_TONED } from './fonts/noto-emoji-coverage.js';
+import { NOTO_CJK_RANGES } from './coverage/noto-cjk-coverage.js';
+import { NOTO_EMOJI_RANGES, NOTO_EMOJI_SEQUENCES, NOTO_EMOJI_TONED } from './coverage/noto-emoji-coverage.js';
 
 type Ranges = readonly (readonly [number, number])[];
 

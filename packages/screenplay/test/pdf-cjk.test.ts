@@ -5,6 +5,7 @@
 
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { fallbackCovers } from '@caotang/pdf-fonts';
 import * as fontkitModule from '@pdf-lib/fontkit';
 import { describe, expect, it } from 'vitest';
 import type { FlatBlock } from '../src/index.js';
@@ -13,7 +14,6 @@ import {
   charColumns,
   createPdfRenderer,
   drawPdf,
-  fallbackCovers,
   importFountainScript,
   layoutPdf,
   loadCjkFallback,
@@ -23,12 +23,10 @@ import {
   textColumns,
   LAYOUT,
 } from '../src/index.js';
-import { NOTO_CJK_CODE_POINTS } from '../src/fonts/noto-cjk-coverage.js';
 import { SCRIPT_ONE_ACT, SCRIPT_WITH_TITLE_PAGE, text } from './fixtures/corpus.js';
+import { LOADERS, sourceCjk } from './fixtures/fonts.js';
 
 const fontkit = ((fontkitModule as unknown as { default?: typeof fontkitModule }).default ?? fontkitModule) as typeof fontkitModule;
-const FONT_PATH = new URL('../src/fonts/NotoSansMonoCJKsc-Regular.otf', import.meta.url);
-const FONT_SHA256 = 'ec04cc376b34887cedbdf84074e2e226ed2761eeabdcb9173fc1dd7bfd153ef7';
 
 function blocksOf(source: string): FlatBlock[] {
   return importFountainScript(source).nodes.map((node, i): FlatBlock => {
@@ -99,7 +97,7 @@ function extract(pdf: string): string[] {
 }
 
 async function cjkPdf(source: string, title = 'T'): Promise<string> {
-  const blob = await createPdfRenderer().emit(blocksOf(source), { title });
+  const blob = await createPdfRenderer(LOADERS).emit(blocksOf(source), { title });
   return decode(new Uint8Array(await blob.arrayBuffer()));
 }
 
@@ -183,40 +181,29 @@ describe('paginate — CJK wrapping on the 10-cpi grid', () => {
 });
 
 describe('the CJK fallback font', () => {
-  it('is the Noto Sans Mono CJK SC file the docs name, byte for byte', () => {
-    expect(createHash('sha256').update(readFileSync(FONT_PATH)).digest('hex')).toBe(FONT_SHA256);
-  });
-
-  it('has the coverage table the layout reads, code point for code point', () => {
-    const font = fontkit.create(readFileSync(FONT_PATH));
-    const set = font.characterSet;
-    expect(set.length).toBe(NOTO_CJK_CODE_POINTS);
-    for (const code of set) expect(fallbackCovers(String.fromCodePoint(code)), code.toString(16)).toBe(true);
-    for (const ch of ['😀', 'ꙮ', 'ά', '\u0378']) expect(fallbackCovers(ch), ch).toBe(set.includes(ch.codePointAt(0) ?? 0));
-  });
-
   it('covers Hanzi, kana and Hangul', () => {
     for (const ch of '草堂東京のアパート서울거리，。「」') expect(fallbackCovers(ch), ch).toBe(true);
   });
 
   it('subsets to the glyphs the script uses, each drawn as the font draws it', async () => {
     const layout = layoutPdf(blocksOf(CHINESE + JAPANESE + KOREAN), { title: 'T' });
-    const subset = await loadCjkFallback(layout);
+    const subset = await loadCjkFallback(layout, LOADERS.cjk);
     if (subset === undefined) throw new Error('no subset');
-    const font = fontkit.create(readFileSync(FONT_PATH));
+    const font = await sourceCjk();
     expect(subset.glyphs.size).toBe(layout.fallbackCharacters.length);
     expect(subset.baseFont).toMatch(/^[A-Z]{6}\+NotoSansMonoCJKsc-Regular$/);
-    expect(subset.program[3]).toBeGreaterThanOrEqual(1);
-    expect(subset.program[3]).toBeLessThanOrEqual(4);
-    // The subset read back through fontkit: every glyph's outline is the source glyph's, so each one sits under its own
-    // font dictionary and its own subroutines. The CFF is wrapped in the smallest OpenType file fontkit opens.
-    const wrapped = fontkit.create(sfntWithCff(subset.program));
+    // TrueType outlines, so the subset is a glyf font and the CFF subset bugs of fontkit 1.1.1 do not apply.
+    expect(['true', String.fromCharCode(0, 1, 0, 0)]).toContain(String.fromCharCode(...subset.program.subarray(0, 4)));
+    // The subset read back through fontkit: every character's CID names a glyph whose outline is the source glyph's.
+    const read = fontkit.create(subset.program as Buffer);
     for (const [ch, glyph] of subset.glyphs) {
       const expected = font.glyphForCodePoint(ch.codePointAt(0) ?? 0).path.toSVG();
-      expect(wrapped.getGlyph(glyph.cid).path.toSVG(), ch).toBe(expected);
-      expect(subset.widths[glyph.cid - 1], ch).toBe(charColumns(ch) * 600);
+      const entry = subset.entries[glyph.cid - 1];
+      expect(read.getGlyph(entry?.gid ?? 0).path.toSVG(), ch).toBe(expected);
+      expect(entry?.width, ch).toBe(charColumns(ch) * 600);
+      expect(entry?.text, ch).toBe(ch);
     }
-    // A subset, not the whole font: a few hundred KB at most against the font's 16 MB.
+    // A subset, not the whole font: a few hundred KB at most against the font's 7 MB.
     expect(subset.program.length).toBeLessThan(400_000);
   });
 });
@@ -225,8 +212,8 @@ describe('characters the CJK font draws with one glyph', () => {
   // ‧ U+2027 (one column) and ・ U+30FB (two), and ① U+2460 and ➀ U+2780: each pair is one glyph in Noto Sans Mono CJK SC.
   const SHARED = ['‧', '・', '①', '➀'];
 
-  it('are one glyph in the font, so the test is about them', () => {
-    const font = fontkit.create(readFileSync(FONT_PATH));
+  it('are one glyph in the font, so the test is about them', async () => {
+    const font = await sourceCjk();
     const gid = (ch: string): number => font.glyphForCodePoint(ch.codePointAt(0) ?? 0).id;
     expect(gid('‧')).toBe(gid('・'));
     expect(gid('①')).toBe(gid('➀'));
@@ -237,16 +224,19 @@ describe('characters the CJK font draws with one glyph', () => {
   it('get a CID each, with each one’s own width and outline', async () => {
     const layout = layoutPdf(blocksOf(text('INT. ROOM - DAY', '', 'Dots ‧ and ・, circled ① and ➀.')), { title: 'T' });
     expect(layout.fallbackCharacters).toEqual(SHARED);
-    const subset = await loadCjkFallback(layout);
+    const subset = await loadCjkFallback(layout, LOADERS.cjk);
     if (subset === undefined) throw new Error('no subset');
     const cids = SHARED.map((ch) => subset.glyphs.get(ch)?.cid);
     expect(new Set(cids).size).toBe(SHARED.length);
-    for (const ch of SHARED) expect(subset.widths[(subset.glyphs.get(ch)?.cid ?? 0) - 1], ch).toBe(charColumns(ch) * 600);
-    const font = fontkit.create(readFileSync(FONT_PATH));
-    const wrapped = fontkit.create(sfntWithCff(subset.program));
+    for (const ch of SHARED) expect(subset.entries[(subset.glyphs.get(ch)?.cid ?? 0) - 1]?.width, ch).toBe(charColumns(ch) * 600);
+    const font = await sourceCjk();
+    const read = fontkit.create(subset.program as Buffer);
     for (const [ch, glyph] of subset.glyphs) {
-      expect(wrapped.getGlyph(glyph.cid).path.toSVG(), ch).toBe(font.glyphForCodePoint(ch.codePointAt(0) ?? 0).path.toSVG());
+      const entry = subset.entries[glyph.cid - 1];
+      expect(read.getGlyph(entry?.gid ?? 0).path.toSVG(), ch).toBe(font.glyphForCodePoint(ch.codePointAt(0) ?? 0).path.toSVG());
     }
+    // The glyph is stored once however many CIDs name it.
+    expect(subset.entries[(subset.glyphs.get('‧')?.cid ?? 0) - 1]?.gid).toBe(subset.entries[(subset.glyphs.get('・')?.cid ?? 0) - 1]?.gid);
   });
 
   it('copy out of the PDF as the characters that were typed', async () => {
@@ -265,7 +255,11 @@ describe('the PDF with CJK text', () => {
     expect(lines).toContain('你还没睡？明月已经升到山顶了。我们');
     expect(pdf).toContain('/Subtype /Type0');
     expect(pdf).toContain('/Encoding /Identity-H');
-    expect(pdf).toContain('/Subtype /CIDFontType0C');
+    // TrueType outlines (CIDFontType2, FontFile2) with a CIDToGIDMap, as the emoji font is written.
+    expect(pdf).toContain('/Subtype /CIDFontType2');
+    expect(pdf).toContain('/FontFile2 ');
+    expect(pdf).toContain('/CIDToGIDMap ');
+    expect(pdf).not.toContain('CIDFontType0');
     expect(pdf).toContain('/ToUnicode ');
   });
 
@@ -329,14 +323,14 @@ describe('a Latin-only script', () => {
 
   it.each(BEFORE.map((row, i) => [...row, HASHES[i]] as const))('is byte for byte the file it was: %s', async (_name, source, embed, opts, hash) => {
     const layout = layoutPdf(blocksOf(source), { title: 'T', author: 'A', ...opts });
-    const bytes = drawPdf(layout, embed ? await loadCourierPrime() : undefined, await loadCjkFallback(layout));
+    const bytes = drawPdf(layout, embed ? await loadCourierPrime() : undefined, await loadCjkFallback(layout, LOADERS.cjk));
     expect(createHash('sha256').update(bytes).digest('hex')).toBe(hash);
   });
 
   it('needs no fallback, so none is loaded and the file names one font', async () => {
     const layout = layoutPdf(blocksOf(text('INT. CAFÉ - DAY', '', 'Crème brûlée — “twice”.')), { title: 'T' });
     expect(layout.fallbackCharacters).toEqual([]);
-    expect(await loadCjkFallback(layout)).toBeUndefined();
+    expect(await loadCjkFallback(layout, LOADERS.cjk)).toBeUndefined();
     const pdf = await cjkPdf(text('INT. CAFÉ - DAY', '', 'Crème brûlée — “twice”.'));
     expect(pdf).not.toContain('/F2');
     expect(pdf).not.toContain('NotoSans');
@@ -350,16 +344,3 @@ describe('a Latin-only script', () => {
     expect(index).not.toContain('cjk-font');
   });
 });
-
-/** A bare CFF table in the smallest OpenType wrapper fontkit opens: the sfnt header and one table record. */
-function sfntWithCff(cff: Uint8Array): Uint8Array {
-  const out = new Uint8Array(12 + 16 + cff.length);
-  const view = new DataView(out.buffer);
-  out.set([0x4f, 0x54, 0x54, 0x4f]); // 'OTTO'
-  view.setUint16(4, 1);
-  out.set([0x43, 0x46, 0x46, 0x20], 12); // 'CFF '
-  view.setUint32(20, 28);
-  view.setUint32(24, cff.length);
-  out.set(cff, 28);
-  return out;
-}

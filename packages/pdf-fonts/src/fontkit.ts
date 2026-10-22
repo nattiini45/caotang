@@ -7,6 +7,8 @@
 import type * as FontkitNamespace from '@pdf-lib/fontkit';
 import type { Font } from '@pdf-lib/fontkit';
 
+import { checkFontBytes, sfntFromWoff, type FontLoader } from './font-bytes.js';
+
 type FontkitModule = typeof FontkitNamespace;
 
 export type FontkitSubset = ReturnType<Font['createSubset']>;
@@ -22,6 +24,14 @@ export function loadFontkit(): Promise<FontkitModule> {
 /** A parsed font; TrueType or OpenType bytes, not WOFF (see `sfntFromWoff`). */
 export async function openFont(bytes: Uint8Array): Promise<Font> {
   return (await loadFontkit()).create(bytes as Parameters<FontkitModule['create']>[0]) as Font;
+}
+
+/**
+ * The font a host's loader reads: its bytes must start as a font file does (an HTML page served in a font's place is refused
+ * with what was served, named `label`), a WOFF is unpacked, and fontkit parses the result.
+ */
+export async function loadFont(load: FontLoader, label: string): Promise<Font> {
+  return openFont(await sfntFromWoff(checkFontBytes(await load(), label)));
 }
 
 /** What `encodeSubset` reaches past fontkit's types: the stream's `error` event, and the method the stream runs. */

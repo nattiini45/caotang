@@ -18,6 +18,7 @@ import {
 } from '../src/index.js';
 import { WIN_ANSI_EXTRA } from '../src/winansi.js';
 import { SCRIPT_ONE_ACT, SCRIPT_WITH_TITLE_PAGE, text } from './fixtures/corpus.js';
+import { LOADERS } from './fixtures/fonts.js';
 
 const fontkit = ((fontkitModule as unknown as { default?: typeof fontkitModule }).default ?? fontkitModule) as typeof fontkitModule;
 
@@ -270,8 +271,8 @@ describe('layoutPdf — what the fonts cannot print', () => {
   it('renderPdf draws the fallbacks it is given, as drawPdf does', async () => {
     const source = text('INT. 草堂 - DAY', '', 'She reads 草堂 aloud 👍.');
     const layout = layoutPdf(blocksOf(source), { title: 'T' });
-    const cjk = await loadCjkFallback(layout);
-    const emoji = await loadEmojiFallback(layout);
+    const cjk = await loadCjkFallback(layout, LOADERS.cjk);
+    const emoji = await loadEmojiFallback(layout, LOADERS.emoji);
     const result = renderPdf(blocksOf(source), { title: 'T' }, await loadCourierPrime(), cjk, emoji);
     const pdf = decode(result.bytes);
     expect(pdf).toContain('/F2 12 Tf');

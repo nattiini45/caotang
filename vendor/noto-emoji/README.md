@@ -1,7 +1,7 @@
 # @caotang/font-noto-emoji
 
-Noto Emoji Regular, version 3.002, the monochrome (black-and-white) Noto emoji font, as a static TrueType WOFF file. The PDF
-exporter embeds it, subset to the glyphs a file uses, for emoji: every fully-qualified emoji of Unicode Emoji 15.1, with
+Noto Emoji Regular, version 3.002, the monochrome (black-and-white) Noto emoji font, as a static TrueType WOFF file. Both PDF
+writers embed it, subset to the glyphs a file uses, for emoji: every fully-qualified emoji of Unicode Emoji 15.1, with
 ZWJ sequences, skin-tone sequences, flags, keycaps and tag sequences drawn through the font's own ligatures.
 
 The app serves the file from its own origin and fetches it only for an export that holds an emoji. The MCP server reads it
@@ -23,7 +23,7 @@ SHA256SUMS holds the SHA-256 of the source file and of the built file.
 `python3 build.py 'NotoEmoji[wght].ttf'`, with fontTools 4.61.1. The script checks the source's SHA-256, then:
 
 1. instances the variable font at weight 400 (Regular) into a static TrueType font;
-2. keeps every character the font maps and every glyph its `ccmp` ligatures reach, keeps GSUB (the exporter lays emoji
+2. keeps every character the font maps and every glyph its `ccmp` ligatures reach, keeps GSUB (both PDFs lay emoji
    out through it with fontkit), and drops the vertical metrics and the grid-fitting table;
 3. writes WOFF 1.0, and compares the result with SHA256SUMS.
 

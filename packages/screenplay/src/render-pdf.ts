@@ -14,25 +14,26 @@
  *
  * A character WinAnsi cannot encode is printed in the CJK fallback, Noto Sans Mono CJK SC, when the font has it
  * (cjk-font.ts). The layout knows which characters those are without loading the font (the coverage table in
- * src/fonts/noto-cjk-coverage.ts), so the compile log can name the ones that still print as "?" before anything is
- * drawn. {@link loadCjkFallback} loads the font and fontkit by a dynamic import, and only for a layout that needs them.
+ * `@caotang/pdf-fonts`), so the compile log can name the ones that still print as "?" before anything is drawn.
+ * {@link loadCjkFallback} loads the font and fontkit by a dynamic import, and only for a layout that needs them.
  *
  * Emoji print in the emoji fallback, Noto Emoji, after both (emoji.ts, emoji-font.ts). The layout reads that font's
- * coverage too (src/fonts/noto-emoji-coverage.ts), so it knows which emoji print whole, which print as their first emoji
- * (a sequence newer than the font), and which print as "?". {@link loadEmojiFallback} loads it, by a dynamic import, only
- * for a layout with an emoji it prints.
+ * coverage too, so it knows which emoji print whole, which print as their first emoji (a sequence newer than the font),
+ * and which print as "?". {@link loadEmojiFallback} loads it, by a dynamic import, only for a layout with an emoji it prints.
+ *
+ * Neither font file belongs to this package. The host passes a {@link FontLoader} for each (the app fetches the files from
+ * its own origin, Node reads them from their packages), the same two files and loaders the contact sheet uses.
  */
+
+import { emojiFontMaps, fallbackCovers, type FontLoader } from '@caotang/pdf-fonts';
 
 import type { FlatBlock } from './flat-block.js';
 import { paginate, type LayoutPage, type PaginateOptions } from './paginate.js';
 import { parseFountain } from './parse.js';
-import { emojiFontMaps, fallbackCovers } from './coverage.js';
 import { emojiPrint, firstCodePoint, isEmojiCluster } from './emoji.js';
 import { isPrintable, writePdf, type PdfCidFont, type PdfEmojiFont, type PdfFont } from './pdf.js';
 import { renderFountain, type FountainRenderOptions } from './render-fountain.js';
 import { textUnits } from './width.js';
-
-export { fallbackCovers };
 
 export const PDF_MIME = 'application/pdf';
 
@@ -159,23 +160,24 @@ export function drawPdf(layout: PdfLayout, font?: PdfFont, fallback?: PdfCidFont
 }
 
 /**
- * The CJK fallback subset a layout needs, or undefined when it needs none. Only a layout with a character WinAnsi cannot
- * encode, and the fallback font can print, loads cjk-font.ts, fontkit and the font file, by a dynamic import.
+ * The CJK fallback subset a layout needs, or undefined when it needs none, or when the host passes no loader for the font.
+ * Only a layout with a character WinAnsi cannot encode, and the fallback font can print, loads cjk-font.ts, fontkit and the
+ * font file, by a dynamic import.
  */
-export async function loadCjkFallback(layout: PdfLayout): Promise<PdfCidFont | undefined> {
-  if (layout.fallbackCharacters.length === 0) return undefined;
+export async function loadCjkFallback(layout: PdfLayout, load?: FontLoader): Promise<PdfCidFont | undefined> {
+  if (layout.fallbackCharacters.length === 0 || load === undefined) return undefined;
   const { loadNotoCjk, subsetNotoCjk } = await import('./cjk-font.js');
-  return subsetNotoCjk(await loadNotoCjk(), layout.fallbackCharacters);
+  return subsetNotoCjk(await loadNotoCjk(load), layout.fallbackCharacters);
 }
 
 /**
- * The emoji subset a layout needs, or undefined when it needs none. Only a layout with an emoji the font prints loads
- * emoji-font.ts, fontkit and the font file, by a dynamic import.
+ * The emoji subset a layout needs, or undefined when it needs none, or when the host passes no loader for the font. Only a
+ * layout with an emoji the font prints loads emoji-font.ts, fontkit and the font file, by a dynamic import.
  */
-export async function loadEmojiFallback(layout: PdfLayout): Promise<PdfEmojiFont | undefined> {
-  if (layout.emojiCharacters.length === 0) return undefined;
+export async function loadEmojiFallback(layout: PdfLayout, load?: FontLoader): Promise<PdfEmojiFont | undefined> {
+  if (layout.emojiCharacters.length === 0 || load === undefined) return undefined;
   const { loadNotoEmoji, subsetNotoEmoji } = await import('./emoji-font.js');
-  return subsetNotoEmoji(await loadNotoEmoji(), layout.emojiCharacters);
+  return subsetNotoEmoji(await loadNotoEmoji(load), layout.emojiCharacters);
 }
 
 /** Courier Prime Regular's bytes. The module that holds them is imported here and nowhere else. */
@@ -221,12 +223,18 @@ export interface PdfRenderer {
   emit(blocks: readonly FlatBlock[], opts: PdfRenderOptions): Promise<Blob>;
 }
 
-/** The renderer seam of screenplay.md §5.3. Its files always embed Courier Prime, and the CJK and emoji fallbacks when the script needs them. */
-export function createPdfRenderer(): PdfRenderer {
+/** The loaders of the two fallback fonts. A font without one is not loaded, and what it would print is printed as "?". */
+export interface PdfFontLoaders {
+  readonly cjk?: FontLoader;
+  readonly emoji?: FontLoader;
+}
+
+/** The renderer seam of screenplay.md §5.3. Its files always embed Courier Prime, and the CJK and emoji fallbacks when the script needs them and the host gave a loader. */
+export function createPdfRenderer(loaders: PdfFontLoaders = {}): PdfRenderer {
   return {
     async emit(blocks, opts) {
       const layout = layoutPdf(blocks, opts);
-      const [font, cjk, emoji] = await Promise.all([loadCourierPrime(), loadCjkFallback(layout), loadEmojiFallback(layout)]);
+      const [font, cjk, emoji] = await Promise.all([loadCourierPrime(), loadCjkFallback(layout, loaders.cjk), loadEmojiFallback(layout, loaders.emoji)]);
       const bytes = drawPdf(layout, font, cjk, emoji);
       return new Blob([bytes], { type: PDF_MIME });
     },

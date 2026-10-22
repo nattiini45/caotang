@@ -16,7 +16,7 @@
  * copies keeps the tone.
  */
 
-import { emojiFontHasSequence, emojiFontHasTonedSequence, emojiFontMaps } from './coverage.js';
+import { emojiFontHasSequence, emojiFontHasTonedSequence, emojiFontMaps } from '@caotang/pdf-fonts';
 
 const KEYCAP = /^[0-9#*]\uFE0F?\u20E3$/u;
 const EMOJI_START = /^\p{Emoji_Presentation}/u;

@@ -90,15 +90,16 @@ export interface ExporterOptions {
    */
   readonly readAsset?: (path: string) => Promise<Uint8Array | null>;
   /**
-   * Reads the PDF fallback font (Noto Sans Mono CJK SC, `@caotang/font-noto-cjk`) for contact-sheet text outside Latin script. The app fetches
-   * it from its own origin; Node reads it from `@caotang/font-noto-cjk` (`@caotang/pdf-fonts/node-loader`). It is called only
-   * when a contact sheet holds such text. Without it, that text is drawn as `?`, and the compile log says so.
+   * Reads the PDF fallback font (Noto Sans Mono CJK SC, `@caotang/font-noto-cjk`) for the screenplay PDF's and the contact
+   * sheet's text outside Latin script. The app fetches it from its own origin; Node reads it from `@caotang/font-noto-cjk`
+   * (`@caotang/pdf-fonts/node-loader`). It is called only when a file holds such text. Without it, that text is drawn as `?`,
+   * and the compile log says so.
    */
   readonly loadFallbackFont?: FontLoader;
   /**
-   * Reads the PDF emoji font (Noto Emoji, monochrome, ./emoji-font.ts) for contact-sheet emoji, the same way: the app from its
-   * own origin, Node from `@caotang/font-noto-emoji`. It is called only when a contact sheet holds an emoji. Without it, emoji
-   * are drawn as `?`, and the compile log says so.
+   * Reads the PDF emoji font (Noto Emoji, monochrome, `@caotang/font-noto-emoji`) for emoji, the same way: the app from its
+   * own origin, Node from the package. It is called only when a file holds an emoji. Without it, emoji are drawn as `?`, and
+   * the compile log says so.
    */
   readonly loadEmojiFont?: FontLoader;
 }
