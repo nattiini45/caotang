@@ -694,6 +694,19 @@ describe('what is never contacted', () => {
     // may refuse the second time, for a token that is already gone.
     expect(dropped).toEqual(['v_SHARED000']);
   });
+
+  it('hands a reference back again after it was named again', async () => {
+    const server = fixture();
+    const dropped: string[] = [];
+    const { client } = makeClient(server, {
+      servers: [serverFor(KEY, 'Authed', { auth: { kind: 'bearer', tokenRef: 'v_AAAAAAAAAA' } })],
+      onTokenDropped: (ref) => { dropped.push(ref); },
+    });
+    await client.updateServer(KEY, { url: 'https://first.fixture.test/mcp' });
+    await client.updateServer(KEY, { auth: { kind: 'bearer', tokenRef: 'v_AAAAAAAAAA' } });
+    await client.removeServer(KEY);
+    expect(dropped).toEqual(['v_AAAAAAAAAA', 'v_AAAAAAAAAA']);
+  });
 });
 
 describe('a disconnected server shows nothing it cannot call', () => {

@@ -527,6 +527,7 @@ class McpClientImpl implements McpClient {
       addedAt: this.clock(),
     };
     if (selection !== undefined) server.enabledTools = selection;
+    if (input.auth.kind === 'bearer') this.drops.delete(input.auth.tokenRef);
     this.config = { ...this.config, servers: [...this.config.servers, server] };
     this.runtimes.set(key, freshRuntime(key, 'not connected this session'));
     this.persist();
@@ -586,6 +587,8 @@ class McpClientImpl implements McpClient {
     }
     if (patch.auth !== undefined) {
       server.auth = { ...patch.auth };
+      // A reference that is named again holds a token again, so its earlier hand-back is forgotten.
+      if (patch.auth.kind === 'bearer') this.drops.delete(patch.auth.tokenRef);
       reason = 'the credentials changed — connect to check the tool list';
     }
     if (patch.enabled !== undefined && patch.enabled !== server.enabled) {
