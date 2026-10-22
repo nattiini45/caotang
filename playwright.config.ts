@@ -10,11 +10,21 @@ const isolated = process.env['CAOTANG_E2E_PORT'] !== undefined;
 // running their suites at once never share a preview server. CAOTANG_E2E_PREVIEW_PORT overrides it.
 const previewPort = Number(process.env['CAOTANG_E2E_PREVIEW_PORT'] ?? port + 1000);
 
+// The Firefox and WebKit projects exist only when CAOTANG_E2E_BROWSERS=all, so `pnpm test:e2e` on a machine (or a CI job) with only
+// Chromium installed keeps working. The nightly workflow sets it.
+const crossBrowser = process.env['CAOTANG_E2E_BROWSERS'] === 'all';
+
+/** What Firefox and WebKit leave to Chromium: pure model specs (the same in any browser), the build smoke, and the specs that call real provider endpoints. */
+const chromiumOnlySpecs = [/[\\/]e2e[\\/]unit[\\/]/, /prod-smoke\.spec\.ts/, /providers-cors\.spec\.ts/, /provider-smoke\.spec\.ts/];
+
 /**
  * E2E wiring. Browsers are installed on demand with
- * `pnpm exec playwright install chromium`, once per machine, not every run.
+ * `pnpm exec playwright install chromium` (add `firefox webkit` for those projects), once per machine, not every run.
  *
- * Two projects. `chromium` runs the suite against the dev server. `production-preview` runs only
+ * Four projects. `chromium` runs the suite against the dev server. `firefox` and `webkit` run it too, minus the specs that are
+ * browser-independent or need Chromium (e2e/unit, the production smoke, the provider specs), so a writer in those browsers meets the
+ * bundle-only storage path tested (File System Access is Chromium-only). They exist only with CAOTANG_E2E_BROWSERS=all, which the nightly
+ * workflow .github/workflows/e2e-browsers.yml sets; a pull request's CI does not run them. `production-preview` runs only
  * e2e/prod-smoke.spec.ts against `vite preview` of a fresh build, so a build-only failure (a root-absolute asset path, a
  * DEV-only hook) is caught here and not by a writer. The preview server builds before it starts, so it tests the source
  * this checkout holds.
@@ -35,6 +45,12 @@ export default defineConfig({
       testIgnore: /prod-smoke\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
+    ...(crossBrowser
+      ? [
+          { name: 'firefox', testIgnore: chromiumOnlySpecs, use: { ...devices['Desktop Firefox'] } },
+          { name: 'webkit', testIgnore: chromiumOnlySpecs, use: { ...devices['Desktop Safari'] } },
+        ]
+      : []),
     {
       name: 'production-preview',
       testMatch: /prod-smoke\.spec\.ts/,
