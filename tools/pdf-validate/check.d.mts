@@ -14,8 +14,6 @@ export interface ExpectedFile {
   readonly format: 'pdf' | 'contact-sheet-pdf';
   /** Per page, the strings it must give back as text. */
   readonly pages: readonly (readonly string[])[];
-  /** Per page, text only a tool that reads /ActualText gives back (pdf.js does not). */
-  readonly actualText?: readonly (readonly string[])[];
   readonly size: readonly [number, number];
   readonly fonts: readonly FontFact[];
 }
@@ -29,6 +27,9 @@ export const EXTERNAL_TOOLS: readonly string[];
 
 /** The text with every whitespace character removed. */
 export function squash(text: string): string;
+
+/** pdf.js text without the control characters it writes for glyphs that have no text. */
+export function withoutUnmappedGlyphs(text: string): string;
 
 /** A font's name without the six capitals and `+` a subset carries. */
 export function unsubset(name: string): string;

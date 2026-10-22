@@ -29,7 +29,8 @@
  * Arabic, Persian, Urdu and Hebrew are set in Noto Sans Arabic and Noto Sans Hebrew (`./rtl-font.ts`), after Helvetica and before
  * the CJK font. A text line holding either script is resolved by the bidirectional algorithm of UAX #9 (`@caotang/pdf-fonts/bidi`)
  * after it is cut to its box, so the cut falls between whole grapheme clusters in logical order; a word is shaped and drawn glyph
- * by glyph (cid-embedding.ts `drawPlaced`), and a line whose paragraph runs right to left ends at the right edge of its box. The
+ * by glyph (cid-embedding.ts `drawPlaced`) in visual order with each glyph's letter in ToUnicode and no `/ActualText`, and a line
+ * whose paragraph runs right to left ends at the right edge of its box. The
  * fonts are read through the input's `loadArabicFont` and `loadHebrewFont`, and only when a sheet holds their script.
  *
  * Devanagari (Hindi, Marathi, Nepali, Sanskrit) is set in Noto Sans Devanagari (`./devanagari-font.ts`), in the same place in the order: a
@@ -501,11 +502,11 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
     for (const run of runsOf(pieces)) {
       const face = run[0]?.face ?? 'base';
       if (face === 'arabic' || face === 'hebrew') {
-        // Each shaped run is drawn glyph by glyph at the positions the shaper gave, with its logical text for copying.
+        // Each shaped run is drawn glyph by glyph at the positions the shaper gave, in visual order, with each glyph's text in ToUnicode.
         const embedding = rtl.get(face);
         let pen = at;
         for (const piece of run) {
-          if (embedding && piece.placed !== undefined) embedding.drawPlaced(page, piece.placed, pen, y, size, ink, piece.text);
+          if (embedding && piece.placed !== undefined) embedding.drawPlaced(page, piece.placed, pen, y, size, ink);
           pen += piece.width ?? 0;
         }
         at = pen;

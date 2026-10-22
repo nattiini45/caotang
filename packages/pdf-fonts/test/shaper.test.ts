@@ -9,7 +9,7 @@ import type { Font } from '@pdf-lib/fontkit';
 import { openFont } from '../src/fontkit.js';
 import { loadArabicFontInNode, loadHebrewFontInNode } from '../src/node-loader.js';
 import { withoutMarks } from '../src/rtl-script.js';
-import { fontkitShape } from '../src/shaper.js';
+import { blankGlyphOf, clusterTexts, fontkitShape, withMarkGlyphs } from '../src/shaper.js';
 
 interface Glyphs {
   glyphs: { id: number; advance: number; dx: number; dy: number }[];
@@ -99,5 +99,93 @@ describe('fontkitShape', () => {
     const run = fontkitShape('بِسْمِ اللّٰهِ', fonts.arabic, 'rtl', 'arabic');
     expect(run.glyphs).toEqual([]);
     expect(run.failed).toMatch(/undefined/);
+  });
+});
+
+describe('the text of each glyph (what a reader copies)', () => {
+  /** What a reader puts together from a right-to-left run drawn left to right: the glyphs' texts, last drawn first. */
+  const copied = (run: ReturnType<typeof fontkitShape>) => [...run.glyphs].reverse().map((glyph) => glyph.text).join('');
+
+  it('is the letters of the text, in order, for every unmarked sample of the spike, whatever the cache of the engine remembers', () => {
+    const unmarked = plain(['plain', 'lam-alef', 'persian', 'urdu', 'digits']);
+    for (const sample of unmarked) {
+      const run = shaped(sample, sample.text);
+      expect(copied(run), sample.text).toBe([...sample.text].filter((ch) => ch !== '\u200c' && ch !== '\u200d').join(''));
+    }
+  });
+
+  it('gives the text to the glyph that advances, and none to the dots and blanks the font draws as glyphs of their own', () => {
+    // Noto Sans Arabic draws a dotted letter as a skeleton and a positioned dot with no advance (sheen is one, teh marbuta another).
+    const run = fontkitShape('سارة', fonts.arabic, 'rtl', 'arabic');
+    expect(run.glyphs.some((glyph) => glyph.advance === 0)).toBe(true);
+    for (const glyph of run.glyphs) expect(glyph.text === '', glyph.id + ' advances ' + glyph.advance).toBe(glyph.advance === 0);
+    // The engine's own report of a glyph's code points is the first text that used the glyph: a beh in the middle of a word was a
+    // noon, or a yeh. The text is the letter that was typed, in each word.
+    expect(copied(fontkitShape('دنيا', fonts.arabic, 'rtl', 'arabic'))).toBe('دنيا');
+    expect(copied(fontkitShape('دبيا', fonts.arabic, 'rtl', 'arabic'))).toBe('دبيا');
+    expect(copied(fontkitShape('عليكم', fonts.arabic, 'rtl', 'arabic'))).toBe('عليكم');
+    expect(copied(fontkitShape('غرفة', fonts.arabic, 'rtl', 'arabic'))).toBe('غرفة');
+  });
+
+  it('puts a whole run on its first advancing glyph when the glyphs cannot be matched to the letters, so nothing is split or lost', () => {
+    // Two letters, one glyph: a ligature of the font.
+    expect(clusterTexts([500], 'لا', 'rtl')).toEqual(['لا']);
+    // Four glyphs, three of them advancing, for two letters.
+    expect(clusterTexts([0, 300, 300, 300], 'اب', 'ltr')).toEqual(['', 'اب', '', '']);
+    expect(clusterTexts([300, 300, 300, 0], 'اب', 'rtl')).toEqual(['', '', 'اب', '']);
+  });
+
+  it('leaves the marks and the joiners to withMarkGlyphs', () => {
+    expect(clusterTexts([300, 300], 'ب\u200cا', 'ltr')).toEqual(['ب', 'ا']);
+    expect(clusterTexts([300, 300], 'بَا', 'ltr')).toEqual(['ب', 'ا']);
+  });
+});
+
+describe('the text of the marks and joiners that are not drawn', () => {
+  const blank = 3;
+  const glyph = (id: number, text: string, advance = 300) => ({ id, advance, dx: 0, dy: 0, text });
+  const texts = (glyphs: readonly { id: number; text: string }[]) => glyphs.map((entry) => `${entry.id}:${entry.text}`);
+
+  it('is returned as it was when there is none', () => {
+    const glyphs = [glyph(10, 'ب')];
+    expect(withMarkGlyphs(glyphs, 'ب', 'rtl', blank)).toBe(glyphs);
+  });
+
+  it('puts a mark after its letter in the logical order: before the letter, in the order the glyphs are drawn, for a right-to-left run', () => {
+    // بِسْم: drawn left to right, meem, seen, beh.
+    const drawn = [glyph(30, 'م'), glyph(20, 'س'), glyph(10, 'ب')];
+    const run = withMarkGlyphs(drawn, 'بِسْم', 'rtl', blank);
+    expect(texts(run)).toEqual(['30:م', '3:ْ', '20:س', '3:ِ', '10:ب']);
+    // A reader that reverses the right-to-left word character by character gets the typed text, marks after their letters.
+    expect([...run].reverse().map((entry) => entry.text).join('')).toBe('بِسْم');
+    // The mark glyphs draw nothing and advance nothing.
+    expect(run.filter((entry) => entry.id === blank).every((entry) => entry.advance === 0 && entry.dx === 0 && entry.dy === 0)).toBe(true);
+  });
+
+  it('puts the marks of a left-to-right run after the letter in the order drawn, and a mark at the start first', () => {
+    const run = withMarkGlyphs([glyph(10, 'a'), glyph(11, 'b')], 'ًaَb', 'ltr', blank);
+    expect(texts(run)).toEqual(['3:ً', '10:a', '3:َ', '11:b']);
+  });
+
+  it('keeps a zero-width non-joiner, which the shaper gives no letter, after the letter before it', () => {
+    const run = withMarkGlyphs([glyph(20, 'ب'), glyph(10, 'م')], 'م\u200cب', 'rtl', blank);
+    expect([...run].reverse().map((entry) => entry.text).join('')).toBe('م\u200cب');
+  });
+
+  it('puts every mark of a letter after it, in order, and follows the letter that owns a cluster the font draws as several glyphs', () => {
+    // Glyphs: a dot (no text) and the skeleton of the one letter, then a second letter; two marks on the first.
+    const drawn = [glyph(5, 'ب'), glyph(9, '', 0), glyph(7, 'ا')];
+    const run = withMarkGlyphs(drawn, 'اَّب', 'rtl', blank);
+    expect([...run].reverse().map((entry) => entry.text).join('')).toBe('اَّب');
+  });
+
+  it('returns the glyphs as they were when their texts are not the letters of the source', () => {
+    const drawn = [glyph(1, 'x')];
+    expect(withMarkGlyphs(drawn, 'بَ', 'rtl', blank)).toBe(drawn);
+  });
+
+  it('borrows the glyph a font draws for a space', () => {
+    expect(blankGlyphOf(fonts.arabic)).toBeGreaterThan(0);
+    expect(blankGlyphOf(fonts.hebrew)).toBeGreaterThan(0);
   });
 });

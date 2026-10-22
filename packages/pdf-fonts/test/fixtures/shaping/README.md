@@ -19,7 +19,7 @@ What it decides (docs/decisions.md, the Arabic and Hebrew entry):
 - Unmarked Arabic matches HarfBuzz, so Arabic ships on fontkit 1.1.1.
 - A combining mark is not shown to place like HarfBuzz places it (the glyph ids differ where fontkit composes shadda with a
   vowel or a shin dot with a vowel differently, and one text makes fontkit throw), so Hebrew points and cantillation and
-  Arabic tashkeel are left out of the drawn run, and the compile log says how many. `/ActualText` keeps them for copy and search.
+  Arabic tashkeel are left out of the drawn run, and the compile log says how many. Each is a glyph of its own that draws nothing, with the mark as its ToUnicode text, so copy and search keep them.
 - The marked samples agree once their marks are removed, which is the text the drawn run is shaped from.
 
 To run it again: `HARFBUZZJS=<scratch>/node_modules/harfbuzzjs/dist/index.mjs node packages/pdf-fonts/scripts/shaping-spike.mjs`.

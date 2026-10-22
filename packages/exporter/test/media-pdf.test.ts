@@ -24,6 +24,7 @@ import { loadArabicFontInNode, loadCjkFontInNode, loadEmojiFontInNode, loadHebre
 import { PDFDocument, PDFRawStream, decodePDFRawStream } from 'pdf-lib';
 import { createExporter, EXPORT_MIME, isBinaryFormat, isMediaFormat, MediaRefusedError, type ByteArtifacts, type ExporterService } from '../src/index.js';
 import { COMPILED_AT } from './fixture.js';
+import { drawnWords } from './rtl-text.js';
 import { ASSETS, MEDIA_IDS, PROJECT_NAME, makeMediaProject } from './media-fixture.js';
 
 type Dispatch = Result<ExecutionOutcome, CommandError>;
@@ -179,6 +180,12 @@ async function contentOf(bytes: Uint8Array): Promise<string> {
   return streams.map((stream) => new TextDecoder().decode(decodePDFRawStream(stream).decode())).join('\n');
 }
 
+/** The Arabic and Hebrew words of a file's pages as a reader copies them (rtl-text.ts). */
+async function copiedWords(bytes: Uint8Array): Promise<string[]> {
+  const pdf = await PDFDocument.load(bytes);
+  return pdf.getPages().flatMap((_, index) => drawnWords(pdf, undefined, index));
+}
+
 /** The `/ActualText` strings of a content stream, in the order they are written. */
 const actualTexts = (content: string): string[] =>
   [...content.matchAll(/\/ActualText <FEFF([0-9A-F]*)>/g)].map((match) =>
@@ -202,8 +209,11 @@ describe('pdf — Arabic and Hebrew', () => {
     const pdf = ascii(bytes);
     expect(pdf).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSansArabic-Regular/);
     expect(pdf).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSansHebrew-Regular/);
-    // Read back with pdf-lib: the file parses, and every word is marked content with its logical text.
-    const copied = actualTexts(await contentOf(bytes));
+    // Read back with pdf-lib: the file parses, and each word is glyphs in visual order whose ToUnicode texts, last drawn first,
+    // are its logical text. The brackets of the parentheticals are the one thing marked content still carries: a mirrored "(".
+    const content = await contentOf(bytes);
+    expect(actualTexts(content).filter((text) => /[\u0590-\u06ff]/.test(text))).toEqual([]);
+    const copied = await copiedWords(bytes);
     for (const word of ['غرفة', 'سارة', 'بهدوء', 'مرحبا', 'رأيت', 'דוד', 'בשקט', 'שלום', 'עולם', 'שלומך']) expect(copied, word).toContain(word);
   });
 

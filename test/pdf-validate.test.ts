@@ -15,6 +15,7 @@ import {
   mutoolComplaints,
   parsePdffonts,
   unsubset,
+  withoutUnmappedGlyphs,
   type ExpectedFile,
 } from '../tools/pdf-validate/check.mjs';
 
@@ -105,6 +106,18 @@ describe('fonts', () => {
       { name: 'CourierPrime', embedded: true, toUnicode: false },
       { name: 'NotoSansMonoCJKsc-Regular', embedded: true, toUnicode: true },
     ]);
+  });
+});
+
+describe('withoutUnmappedGlyphs', () => {
+  it('drops the control characters pdf.js writes for glyphs with no text, and nothing else', () => {
+    expect(withoutUnmappedGlyphs('الف\u0013 ي\u0011لم\u0001')).toBe('الف يلم');
+    expect(withoutUnmappedGlyphs('Hello \u007fWorld')).toBe('Hello World');
+  });
+
+  it('leaves reversed text reversed, so the gate still fails it: the letters stay in the order pdf.js gave them', () => {
+    expect(withoutUnmappedGlyphs('ةراس')).toBe('ةراس');
+    expect(withoutUnmappedGlyphs('םולש')).not.toContain('שלום');
   });
 });
 

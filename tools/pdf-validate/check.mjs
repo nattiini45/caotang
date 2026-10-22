@@ -50,6 +50,17 @@ function missingText(haystack, needles) {
   return needles.filter((needle) => !flat.includes(squash(needle)));
 }
 
+/**
+ * pdf.js text without the control characters it writes for glyphs that have no text. A glyph the ToUnicode map does not name
+ * (the positioned dot of an Arabic letter, which Noto Sans Arabic draws as a glyph of its own) gets its character code as its
+ * text, which for the CIDs the writers number is below U+0020, and nothing the writer does can change that, because pdf.js reads
+ * an empty ToUnicode entry as none. Only C0 controls go: every letter pdf.js gives back must be there, in the order of the
+ * word, so reversed text still fails.
+ */
+export function withoutUnmappedGlyphs(text) {
+  return [...text].filter((char) => char.charCodeAt(0) > 0x1f && char !== '\u007f').join('');
+}
+
 /** A font's name without the six capitals and `+` a subset carries. */
 export function unsubset(name) {
   if (name.length > 7 && name[6] === '+' && [...name.slice(0, 6)].every((char) => char >= 'A' && char <= 'Z')) return name.slice(7);
@@ -212,7 +223,7 @@ export async function checkWithPdfjs(bytes, expected) {
         if (want?.embedded && font.missingFile) problems.push(`page ${number}: pdf.js found no font program for ${font.name}`);
       }
       const content = await page.getTextContent();
-      const text = content.items.map((item) => ('str' in item ? item.str : '')).join(' ');
+      const text = withoutUnmappedGlyphs(content.items.map((item) => ('str' in item ? item.str : '')).join(' '));
       for (const missing of missingText(text, expected.pages[number - 1] ?? [])) problems.push(`page ${number}: pdf.js text does not hold "${missing}"`);
     }
     await task.destroy();
@@ -288,8 +299,7 @@ function externalCheck(tool, file, expected, tmp, log) {
       const pages = result.stdout.split('\f');
       const problems = [];
       expected.pages.forEach((needles, i) => {
-        const wanted = [...needles, ...(expected.actualText?.[i] ?? [])];
-        for (const missing of missingText(pages[i] ?? '', wanted)) problems.push(`page ${i + 1}: pdftotext does not give back "${missing}"`);
+        for (const missing of missingText(pages[i] ?? '', needles)) problems.push(`page ${i + 1}: pdftotext does not give back "${missing}"`);
       });
       if (pages.filter((page) => page.trim() !== '').length !== expected.pages.length) problems.push('pdftotext found a different number of pages');
       return problems;
