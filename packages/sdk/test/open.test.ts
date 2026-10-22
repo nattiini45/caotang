@@ -446,3 +446,30 @@ describe('onDecision and a given plan', () => {
     expect(report.status).toBe('failed');
   });
 });
+
+describe('onSave and provider', () => {
+  it('hands onSave the files a write changed, which diff() no longer holds afterwards', async () => {
+    const saved: string[][] = [];
+    await using project = await open({ approval: 'approve-all', write: true, onSave: (changes) => saved.push(changes.map((change) => change.path)) });
+    await project.run(DEMO_INTENTS.draftScene).report;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toContain(`docs/${FRIEND}.md`);
+    expect(await project.diff()).toEqual([]);
+  });
+
+  it('is not called for a turn that changed nothing, or when the project is not open for writing', async () => {
+    const saved: unknown[] = [];
+    await using project = await open({ approval: 'approve-all', onSave: (changes) => saved.push(changes) });
+    await project.run(DEMO_INTENTS.draftScene).report;
+    await project.run(DEMO_INTENTS.continuity).report;
+    expect(saved).toEqual([]);
+  });
+
+  it('names the preset and the model', async () => {
+    const demo = await open();
+    expect(demo.provider.preset).toBe('mock');
+    await demo.close();
+    await using real = await open({ provider: { profile: TEST_PROFILE, apiKey: 'sk-test-0123456789', model: 'my-model' } });
+    expect(real.provider).toEqual({ preset: 'generic', model: 'my-model' });
+  });
+});

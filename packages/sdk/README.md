@@ -134,6 +134,8 @@ try {
 
 Look at `diff()` before you set `write: true` on a project you care about.
 
+`onSave(changes)` is called after each write of the folder with the files it changed, because `diff()` is empty once the folder is saved. `project.provider` names the preset and the model the turns run on.
+
 ## How it is built
 
 | File | What it is |

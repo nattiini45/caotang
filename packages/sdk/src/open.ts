@@ -43,6 +43,8 @@ export interface OpenOptions {
   readonly approval?: ApprovalPolicy;
   /** Called with every card's answer and the rule that gave it, in the order they were given: the audit trail of an unattended run. */
   readonly onDecision?: (record: DecisionRecord) => void;
+  /** Called after each write of the folder, with the files it changed: what `diff()` held just before, which `diff()` no longer holds once the folder is saved. */
+  readonly onSave?: (changes: readonly FileChange[]) => void;
   /** false (default): changes stay in memory and `diff()` shows them; true: the folder is written after each turn. */
   readonly write?: boolean;
   /** The most model calls one turn may make, retries and drafts included. Default 8. */
@@ -60,6 +62,8 @@ export interface RunOptions {
 
 export interface CaotangProject extends AsyncDisposable {
   readonly root: string;
+  /** The profile the turns run on: its preset (`'mock'` for the demo provider) and the model its requests are sent with. */
+  readonly provider: { readonly preset: string; readonly model: string };
   /** A read-only view; every change goes through `run()` or `call()`. */
   readonly state: Readonly<ProjectState>;
   readonly notices: readonly LoadNotice[];
@@ -200,9 +204,11 @@ export async function openProject(options: OpenOptions): Promise<CaotangProject>
      */
     const saveIfWriting = async (force = false): Promise<void> => {
       if (!write) return;
-      if (force || (await diffFolder(state, folder.fs, baseline)).length > 0) {
+      const changes = await diffFolder(state, folder.fs, baseline);
+      if (force || changes.length > 0) {
         await folder.persist();
         baseline = await renderOwned(state);
+        options.onSave?.(changes);
       }
       await folder.persistCoherence();
     };
@@ -211,6 +217,10 @@ export async function openProject(options: OpenOptions): Promise<CaotangProject>
 
     const project: CaotangProject = {
       root: folder.root,
+      provider: {
+        preset: providers.profile.kind === 'mock' ? 'mock' : (providers.profile.preset ?? 'generic'),
+        model: providers.model ?? providers.profile.defaultModel,
+      },
       state,
       notices: folder.notices,
 
