@@ -621,6 +621,79 @@ describe('what is never contacted', () => {
     expect(dropped).toEqual([]);
     expect(client.serverFor('s_BCDEFGHJKM')?.auth).toEqual({ kind: 'bearer', tokenRef: 'v_SHARED000' });
   });
+
+  it('writes the record before it hands the reference back when a server is removed, too', async () => {
+    const server = fixture();
+    const saved: McpSettings[] = [];
+    const savedAtDrop: (McpSettings | undefined)[] = [];
+    const { client } = makeClient(server, {
+      servers: [serverFor(KEY, 'Authed', { auth: { kind: 'bearer', tokenRef: 'v_AAAAAAAAAA' } })],
+      onChange: (settings) => { saved.push(settings); },
+      // The record as it stood when the reference was handed back.
+      onTokenDropped: () => { savedAtDrop.push(saved.at(-1)); },
+    });
+    await client.removeServer(KEY);
+    // The record was written first: a saved record that still named the token would leave a
+    // dangling reference at the next start, for a token the vault has already let go of.
+    expect(savedAtDrop).toHaveLength(1);
+    expect(savedAtDrop[0]?.servers).toEqual([]);
+  });
+
+  it('reports a vault that cannot take the token back when a server is removed, instead of swallowing the failure', async () => {
+    const server = fixture();
+    const { client } = makeClient(server, {
+      servers: [serverFor(KEY, 'Authed', { auth: { kind: 'bearer', tokenRef: 'v_AAAAAAAAAA' } })],
+      onTokenDropped: () => Promise.reject(new Error('the vault is full')),
+    });
+    // The removal is awaited, so the failure reaches the caller: the server is gone and the
+    // record no longer names the reference, so a sealed token that stays in the vault for ever
+    // is not a thing that happens quietly.
+    await expect(client.removeServer(KEY)).rejects.toThrow('the vault is full');
+  });
+
+  it('hands a shared reference back once, on the removal of the last server that names it', async () => {
+    const server = fixture();
+    const dropped: string[] = [];
+    const { client } = makeClient(server, {
+      // Two servers naming one reference, the other one first: the sharer that is removed first
+      // is not the last one in the list, so a guard that only looked at the servers behind it
+      // would hand the token back while the other server still names it.
+      servers: [
+        serverFor('s_BCDEFGHJKM', 'Other', { auth: { kind: 'bearer', tokenRef: 'v_SHARED000' } }),
+        serverFor(KEY, 'Authed', { auth: { kind: 'bearer', tokenRef: 'v_SHARED000' } }),
+      ],
+      onTokenDropped: (ref) => { dropped.push(ref); },
+    });
+    await client.removeServer(KEY);
+    // The other server still names the token, so it stays in the vault.
+    expect(dropped).toEqual([]);
+    await client.removeServer('s_BCDEFGHJKM');
+    // Now nothing names the token, so the reference is handed back — once, and on this removal.
+    expect(dropped).toEqual(['v_SHARED000']);
+  });
+
+  it('hands a reference that two servers share back once, when both of them drop it at the same time', async () => {
+    const server = fixture();
+    const dropped: string[] = [];
+    const { client } = makeClient(server, {
+      // Two servers naming one reference, and both changing their address at once: each has
+      // switched its own credentials off, so neither sees the other naming the token any more,
+      // and both would hand the reference back.
+      servers: [
+        serverFor(KEY, 'Authed', { auth: { kind: 'bearer', tokenRef: 'v_SHARED000' } }),
+        serverFor('s_BCDEFGHJKM', 'Other', { auth: { kind: 'bearer', tokenRef: 'v_SHARED000' } }),
+      ],
+      onTokenDropped: (ref) => { dropped.push(ref); },
+    });
+    const moved = await Promise.all([
+      client.updateServer(KEY, { url: 'https://first.fixture.test/mcp' }),
+      client.updateServer('s_BCDEFGHJKM', { url: 'https://second.fixture.test/mcp' }),
+    ]);
+    expect(moved.every((outcome) => outcome.ok)).toBe(true);
+    // The vault is asked to take the token back once: a vault that is asked twice for one token
+    // may refuse the second time, for a token that is already gone.
+    expect(dropped).toEqual(['v_SHARED000']);
+  });
 });
 
 describe('a disconnected server shows nothing it cannot call', () => {
