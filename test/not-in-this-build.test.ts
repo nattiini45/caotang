@@ -2,7 +2,7 @@
  * The user-facing "not in this build" lists name only what is missing. Each list is prose a writer reads, and nothing
  * else checks it, so a feature that ships (visual references, the dialogue table's character limit, the demo's continuity
  * findings in the Findings tab, weekly and monthly goals, spreadsheet export, the engine target and locale in dialogue exports, the Source
- * tab's element menu, the storyboard contact sheet PDF) can stay on the list after it is built. These tests read the three lists and fail when one of them
+ * tab's element menu, the storyboard contact sheet PDF, WebP pictures on it) can stay on the list after it is built. These tests read the three lists and fail when one of them
  * names a built feature as missing.
  */
 import { readFileSync } from 'node:fs';
@@ -27,6 +27,7 @@ function sectionUnder(text: string, heading: string): string {
 /** Built features that no list may name as missing. Each pattern is one feature, in the words the lists used. */
 const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp }[] = [
   { name: 'codex visual references', pattern: /visual references?/i },
+  { name: 'WebP pictures on the contact sheet', pattern: /does not draw WebP|WebP picture as its caption/i },
   { name: 'the dialogue table character limit', pattern: /character limit/i },
   { name: 'the continuity check reporting outside the Findings tab', pattern: /continuity check/i },
   { name: 'weekly and monthly goals', pattern: /weekly|monthly/i },
