@@ -1718,12 +1718,18 @@ export const coherenceSetSceneMeta: CommandDescriptor<CoherenceSetSceneMetaParam
         return invalid(`${key} must be a list of {entryId, factId} pairs, got ${showValue(raw[key])}`, undefined, `patch.${key}`);
       }
     }
+    // §5.1: the dialogue container a scene is compared with is declared on a scene, like a thread.
+    if (node.type === 'folder' && raw['dialogueContainer'] !== undefined) {
+      return invalid('a dialogue container is linked to a scene, not a folder', 'pass the screenplay document as docId', 'patch.dialogueContainer');
+    }
     const patch = raw as ScenePatch;
     const documentIds = new Set(snapshot.manifest.tree.filter((n) => n.type === 'document').map((n) => n.id));
+    const dialogueIds = new Set(snapshot.manifest.tree.filter((n) => n.type === 'dialogue').map((n) => n.id));
     const result = applySceneMetaPatch(docId.value, coherence.value.sceneMeta[docId.value], patch, {
       entries: snapshot.manifest.codex ?? [],
       facts: coherence.value.knowledge ?? [],
       documentIds,
+      dialogueIds,
     });
     if (!result.ok) return invalid(result.error, undefined, 'patch');
     return ok({ docId: docId.value, patch });

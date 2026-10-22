@@ -16,6 +16,7 @@ const DECLARATION_WORDS: Readonly<Record<string, string>> = {
   expectedPresent: 'expected presence',
   timelineMode: 'timeline mode',
   threads: 'threads',
+  dialogueContainer: 'dialogue container',
 };
 
 /** Joins words the way a sentence does: `a`, `a and b`, `a, b and c`. */
@@ -72,6 +73,7 @@ const CHECK_LABELS: Readonly<Record<string, string>> = {
   'timeline.gap': 'A scene is days after the scene before it',
   'plot.unresolved-thread': 'A thread’s declared payoff is not in the manuscript',
   'knowledge.leak': 'A character knows something before they learn it',
+  'medium.speaker-parity': 'The screenplay and its dialogue name different speakers',
 };
 
 /**

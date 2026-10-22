@@ -146,6 +146,10 @@ export function stillPresent(
       message: 'the mention counts this check needs are not all available, so the fix cannot be checked yet',
     };
   }
+  // The parity check compares against the dialogue's speakers; without them it is silent, and silence is not a fix.
+  if (finding.checkId === 'medium.speaker-parity' && assembled.input.dialogue?.speakersByContainer === undefined) {
+    return { present: true, refusal: 'cannot-verify', message: 'the dialogue speakers this check needs are not available, so the fix cannot be checked yet' };
+  }
   const drafts = runChecks(assembled.input, [finding.checkId as DeterministicCheckId]).drafts;
   const key = identityOf(finding);
   return drafts.some((draft) => identityOf(draft) === key)
