@@ -1,12 +1,12 @@
 /**
- * The server's copy of `coherence.json` (coherence.md §3, §7 tool 15; extensibility.md §9).
+ * The Node host's copy of `coherence.json` (coherence.md §3, §7 tool 15; extensibility.md §9), held by the MCP server and by the SDK.
  *
  * The file is read when the project opens, on either posture, so a scan upserts against the findings the app saved and its run
  * joins the app's run history. The read writes nothing (`loadCoherence` with `readOnly`): a corrupt file is not repaired by a
- * server that was started read-only. Every write goes through the coherence module's own `saveCoherence`, so the rotation and the
+ * host that was opened read-only. Every write goes through the coherence module's own `saveCoherence`, so the rotation and the
  * atomic write are the module's, never this file's.
  *
- * A `coherence.json` that cannot be read never stops the server from opening the project. It is held as an empty file that is
+ * A `coherence.json` that cannot be read never stops the host from opening the project. It is held as an empty file that is
  * not written, and the notice says so.
  */
 
@@ -24,6 +24,8 @@ import {
 } from '@caotang/coherence';
 import type { ArtifactFs, LoadNotice, ProjectState } from '@caotang/store';
 
+import type { FolderVoice } from './voice.js';
+
 /** The file as it was read at open, and what the read had to say. */
 export interface OpenedCoherence {
   readonly load: LoadResult;
@@ -36,10 +38,10 @@ function noticeOf(message: string): LoadNotice {
 }
 
 /**
- * Reads `coherence.json` without writing, reconciles it with the project the server holds, and sets `state.coherence`. A failure of the
- * port itself holds an empty file that is not writable, so the file on disk is never replaced by one this server could not read.
+ * Reads `coherence.json` without writing, reconciles it with the project the host holds, and sets `state.coherence`. A failure of the
+ * port itself holds an empty file that is not writable, so the file on disk is never replaced by one this host could not read.
  */
-export async function openCoherence(fs: ArtifactFs, state: ProjectState): Promise<OpenedCoherence> {
+export async function openCoherence(fs: ArtifactFs, state: ProjectState, voice: FolderVoice): Promise<OpenedCoherence> {
   let load: LoadResult;
   try {
     load = await loadCoherence(fs, { readOnly: true });
@@ -48,7 +50,7 @@ export async function openCoherence(fs: ArtifactFs, state: ProjectState): Promis
     load = {
       status: 'read-only',
       file: emptyCoherenceFile(),
-      notices: [{ code: 'corrupt-file', message: `coherence.json could not be read (${reason}). It is not changed, and this server does not write it.` }],
+      notices: [{ code: 'corrupt-file', message: `coherence.json could not be read (${reason}). It is not changed, and ${voice.holder} does not write it.` }],
       writable: false,
     };
   }
@@ -114,6 +116,7 @@ export interface HoldOptions {
   readonly notices: LoadNotice[];
   /** One line for the operator (stderr). */
   readonly report: (line: string) => void;
+  readonly voice: FolderVoice;
 }
 
 /**
@@ -125,7 +128,7 @@ export interface HoldOptions {
  * and stops coherence writes until the server restarts.
  */
 export function holdCoherence(options: HoldOptions): CoherenceHold {
-  const { fs, state, allowWrites, notices, report } = options;
+  const { fs, state, allowWrites, notices, report, voice } = options;
   let load = options.opened.load;
   let base = structuredClone(state.coherence as CoherenceFile);
   let savedText = serializeCoherenceFile(base);
@@ -134,11 +137,11 @@ export function holdCoherence(options: HoldOptions): CoherenceHold {
 
   const say = (message: string): void => {
     notices.push(noticeOf(message));
-    report(`caotang-mcp: notice: ${COHERENCE_FILE}: ${message}`);
+    report(`${voice.program}: notice: ${COHERENCE_FILE}: ${message}`);
   };
   const refuse = (reason: string): void => {
     stopped = true;
-    say(`${reason} Nothing was written to ${COHERENCE_FILE}, and writes to it are stopped until caotang-mcp restarts. The scan runs and finding changes made since the last save stay in this server's memory.`);
+    say(`${reason} Nothing was written to ${COHERENCE_FILE}, and writes to it are stopped until ${voice.reopened}. The scan runs and finding changes made since the last save stay in ${voice.holder}'s memory.`);
   };
 
   return {
@@ -151,7 +154,7 @@ export function holdCoherence(options: HoldOptions): CoherenceHold {
         let using = load;
         if ((await options.digest()) !== heldDigest) {
           const reread = await loadCoherence(fs, { readOnly: true });
-          if (reread.status === 'read-only') return refuse(`${COHERENCE_FILE} was changed by another program to a format from a newer Caotang, which this server cannot save over.`);
+          if (reread.status === 'read-only') return refuse(`${COHERENCE_FILE} was changed by another program to a format from a newer Caotang, which ${voice.holder} cannot save over.`);
           if (reread.status === 'recovered') return refuse(`${COHERENCE_FILE} was changed by another program and cannot be read, so the changes could not be merged with it.`);
           target = mergeServerDelta(reconcileCoherence(reread.file, state).file, base, mine);
           using = reread;

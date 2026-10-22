@@ -38,6 +38,7 @@ export const NEVER_EXPOSED = [
   'recipe.delete',
   'vocabulary.remove',
   'coherence.discardRun',
+  'coherence.removeKnowledgeFact',
   'doc.write',
   'editor.insert',
   'editor.replaceRange',

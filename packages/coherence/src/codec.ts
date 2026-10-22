@@ -20,6 +20,7 @@ import {
   FINDING_CLASSES,
   FINDING_SEVERITIES,
   FINDING_STATUSES,
+  KNOWLEDGE_TEXT_LIMIT,
   LLM_CATEGORIES,
   NOTE_LIMIT,
   RUN_KINDS,
@@ -32,6 +33,8 @@ import {
   type CoherenceRun,
   type Evidence,
   type Finding,
+  type KnowledgeFact,
+  type KnowledgeLink,
   type ModelMeta,
   type Redetection,
   type ReviewStateEntry,
@@ -49,10 +52,12 @@ export type LoadNoticeCode =
   | 'dropped-run'
   | 'dropped-scene-meta'
   | 'dropped-world-rule'
+  | 'dropped-knowledge'
   | 'dropped-review-state'
   | 'dangling-scene-meta'
   | 'dangling-finding'
   | 'dangling-world-rule-source'
+  | 'dangling-knowledge'
   | 'world-rule-source-changed'
   | 'corrupt-file'
   | 'restored-from-snapshot'
@@ -79,10 +84,12 @@ const FINDING_KEYS = [
 const RUN_KEYS = [
   'id', 'at', 'kind', 'checkIds', 'scope', 'findingsUpserted', 'tokens', 'model', 'status', 'notes',
 ] as const;
-const SCENE_META_KEYS = ['pov', 'dayOffset', 'durationDays', 'after', 'expectedPresent', 'timelineMode', 'threads'] as const;
+const SCENE_META_KEYS = ['pov', 'dayOffset', 'durationDays', 'after', 'expectedPresent', 'timelineMode', 'threads', 'learns', 'knows'] as const;
+const KNOWLEDGE_LINK_KEYS = ['entryId', 'factId'] as const;
+const KNOWLEDGE_KEYS = ['id', 'text', 'ruleId', 'entryId', 'createdAt', 'updatedAt'] as const;
 const THREAD_KEYS = ['id', 'payoff', 'note'] as const;
 const WORLD_RULE_KEYS = ['id', 'text', 'origin', 'source', 'verified', 'createdAt', 'updatedAt'] as const;
-const TOP_KEYS = ['formatVersion', 'findings', 'runs', 'sceneMeta', 'worldRules', 'reviewState'] as const;
+const TOP_KEYS = ['formatVersion', 'findings', 'runs', 'sceneMeta', 'worldRules', 'knowledge', 'reviewState'] as const;
 
 function isRecord(value: unknown): value is Obj {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -300,6 +307,22 @@ export function readWorldRule(raw: unknown): Read<WorldRule> {
   return good(rule);
 }
 
+/** §4.4: a fact is a `k_` id, one sentence within the limit, and two optional links. */
+export function readKnowledgeFact(raw: unknown): Read<KnowledgeFact> {
+  if (!isRecord(raw)) return bad('knowledge fact is not an object');
+  if (!isCoherenceId('k', raw.id)) return bad('knowledge.id is not a k_ id');
+  if (typeof raw.text !== 'string' || raw.text.trim() === '' || codePointLength(raw.text) > KNOWLEDGE_TEXT_LIMIT) {
+    return bad(`knowledge.text is empty or longer than ${KNOWLEDGE_TEXT_LIMIT} characters`);
+  }
+  if (raw.ruleId !== undefined && !isNonEmptyString(raw.ruleId)) return bad('knowledge.ruleId is not a string');
+  if (raw.entryId !== undefined && !isNonEmptyString(raw.entryId)) return bad('knowledge.entryId is not a string');
+  if (!isIso(raw.createdAt) || !isIso(raw.updatedAt)) return bad('knowledge timestamps are not ISO-8601');
+  const fact: KnowledgeFact = { id: raw.id, text: raw.text, createdAt: raw.createdAt as string, updatedAt: raw.updatedAt as string };
+  if (raw.ruleId !== undefined) fact.ruleId = raw.ruleId as string;
+  if (raw.entryId !== undefined) fact.entryId = raw.entryId as string;
+  return good(fact);
+}
+
 export function readReviewState(raw: unknown): Read<ReviewStateEntry> {
   if (!isRecord(raw) || !isNonNegInt(raw.lastReviewedRevision) || !isIso(raw.lastReviewedAt)) {
     return bad('review state is malformed');
@@ -358,7 +381,37 @@ export function readSceneMeta(raw: unknown, notices: LoadNotice[], key: string, 
       if (threads.length > 0) meta.threads = threads;
     } else dropped('threads');
   }
+  for (const field of ['learns', 'knows'] as const) {
+    if (raw[field] === undefined) continue;
+    if (Array.isArray(raw[field])) {
+      const links = readKnowledgeLinks(raw[field], notices, key, field);
+      if (links.length > 0) meta[field] = links;
+    } else dropped(field);
+  }
   return meta;
+}
+
+/** Reads §4.4's pairs. An entry that is not a pair of strings, or repeats one, is dropped with a notice; the rest are kept. */
+function readKnowledgeLinks(raw: readonly unknown[], notices: LoadNotice[], key: string, field: 'learns' | 'knows'): KnowledgeLink[] {
+  const links: KnowledgeLink[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (!isRecord(item) || !isNonEmptyString(item.entryId) || !isNonEmptyString(item.factId)) {
+      notices.push({ code: 'dropped-scene-meta', message: `An entry of "${field}" declared on "${key}" is malformed and was dropped.` });
+      continue;
+    }
+    const pair = JSON.stringify([item.entryId, item.factId]);
+    if (seen.has(pair)) {
+      notices.push({ code: 'dropped-scene-meta', message: `"${field}" on "${key}" names the same character and fact twice; the second was dropped.` });
+      continue;
+    }
+    for (const extra of unknownKeys(item, KNOWLEDGE_LINK_KEYS)) {
+      notices.push({ code: 'unknown-field', message: `An entry of "${field}" on "${key}" has a field this version does not know ("${extra}"); it is dropped on the next save.` });
+    }
+    seen.add(pair);
+    links.push({ entryId: item.entryId, factId: item.factId });
+  }
+  return links;
 }
 
 /**
@@ -395,6 +448,8 @@ export function serializeCoherenceFile(file: CoherenceFile): string {
     runs: file.runs.map(orderRun),
     sceneMeta: sortedMap(file.sceneMeta, orderSceneMeta),
     worldRules: file.worldRules.map(orderWorldRule),
+    // Not written when empty, so a build that predates the key sees no unknown field in a file that holds no fact (§4.4).
+    ...(file.knowledge.length > 0 ? { knowledge: file.knowledge.map(orderKnowledge) } : {}),
     reviewState: sortedMap(file.reviewState, (state) => ({
       lastReviewedRevision: state.lastReviewedRevision,
       lastReviewedAt: state.lastReviewedAt,
@@ -426,6 +481,10 @@ function orderFinding(finding: Finding): Obj {
 
 function orderRun(run: CoherenceRun): Obj {
   return pick(run as unknown as Obj, RUN_KEYS);
+}
+
+function orderKnowledge(fact: KnowledgeFact): Obj {
+  return pick(fact as unknown as Obj, KNOWLEDGE_KEYS);
 }
 
 function orderSceneMeta(meta: SceneMeta): Obj {
@@ -498,6 +557,20 @@ export function parseCoherenceFile(text: string): ParseOutcome {
     const read = readWorldRule(item);
     if (read.ok) file.worldRules.push(read.value);
     else notices.push({ code: 'dropped-world-rule', message: `A world rule could not be read (${read.reason}) and was dropped.` });
+  }
+  if (raw.knowledge !== undefined && !Array.isArray(raw.knowledge)) {
+    notices.push({ code: 'dropped-knowledge', message: 'The knowledge list in coherence.json is not a list and was dropped.' });
+  }
+  const factIds = new Set<string>();
+  for (const item of Array.isArray(raw.knowledge) ? raw.knowledge : []) {
+    const read = readKnowledgeFact(item);
+    const label = isRecord(item) && typeof item.text === 'string' && item.text.trim() !== '' ? `"${item.text.trim().slice(0, 60)}"` : 'one';
+    if (!read.ok) notices.push({ code: 'dropped-knowledge', message: `A knowledge fact (${label}) could not be read (${read.reason}) and was dropped.` });
+    else if (factIds.has(read.value.id)) notices.push({ code: 'dropped-knowledge', message: `The knowledge fact "${read.value.text.slice(0, 60)}" appears twice in coherence.json; the second copy was dropped.` });
+    else {
+      factIds.add(read.value.id);
+      file.knowledge.push(read.value);
+    }
   }
   for (const key of Object.keys(raw.reviewState).sort()) {
     const read = readReviewState(raw.reviewState[key]);

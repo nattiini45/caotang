@@ -109,6 +109,10 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 - **Security posture:** off by default; per-server opt-in; per-call confirmation unless trusted for reads; tool pinning against changed tools; tool text and results are untrusted; no agent-driven installs.
 - **Spec:** [architecture/extensibility.md](architecture/extensibility.md).
 
+### 2.17 `sdk` (Node) 📐
+- **Responsibility:** run the agent against a project folder from a script, a CLI or CI (`@caotang/sdk`): `openProject`, an approval policy in place of the cards, a diff before anything is saved, the provider key held in memory. It owns the Node folder session (the single-writer lock, the folder-drift checks, the write queue) that the MCP server shares, and builds its harness with the same `createProductHarness` the desktop does.
+- **Spec:** [architecture/agent-harness.md](architecture/agent-harness.md) §11. Its README: [../packages/sdk/README.md](../packages/sdk/README.md).
+
 ## 3. Data model (sketch)
 
 ```

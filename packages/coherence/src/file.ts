@@ -10,7 +10,7 @@
  * `caotang.json`). A load that finds the live file unreadable keeps the damaged copy
  * under a timestamped name and restores the newest snapshot that reads. Only when no
  * snapshot reads are the writer's parts of the file lost: dismissals, scene declarations
- * and manual world rules. Findings are always recomputable. The load says exactly which.
+ * manual world rules and knowledge facts. Findings are always recomputable. The load says exactly which.
  */
 
 import { isBodyType, type ArtifactFs, type ProjectState } from '@caotang/store';
@@ -53,7 +53,7 @@ export interface LoadResult {
 /** Said when no snapshot reads: the writer-authored parts of the file are gone, and the kept copy is the only record. */
 const LOSS_NOTICE =
   'Findings were recomputed, and no earlier version of the file could be read. Dismissal decisions are lost, and the kept copy is the only record of them. ' +
-  'Scene declarations and manual world rules were in that file too; they are in the kept copy and nowhere else.';
+  'Scene declarations, manual world rules and knowledge facts were in that file too; they are in the kept copy and nowhere else.';
 
 /** The newest snapshot that reads, in ladder order (`.bak.1` first). A newer-format or damaged one is skipped. */
 async function newestReadableSnapshot(fs: ArtifactFs): Promise<{ path: string; file: CoherenceFile; notices: LoadNotice[] } | undefined> {
@@ -222,6 +222,45 @@ export async function saveCoherence(fs: ArtifactFs, load: LoadResult, file: Cohe
 }
 
 /**
+ * §4.4: a `learns` or `knows` pair whose codex entry or fact is gone is dropped, and a fact whose world rule or codex entry
+ * is gone keeps its text and loses the link. Each is named in a notice, so a writer who deleted a character sees what went.
+ */
+function reconcileKnowledge(next: CoherenceFile, state: ProjectState, notices: LoadNotice[]): void {
+  const entries = new Map((state.manifest.codex ?? []).map((entry) => [entry.id, entry.name] as const));
+  const facts = new Map(next.knowledge.map((fact) => [fact.id, fact.text] as const));
+  const rules = new Set(next.worldRules.map((rule) => rule.id));
+  for (const fact of next.knowledge) {
+    if (fact.entryId !== undefined && !entries.has(fact.entryId)) {
+      delete fact.entryId;
+      notices.push({ code: 'dangling-knowledge', message: `The codex entry a knowledge fact is about no longer exists, so "${fact.text}" lost that link and stays.` });
+    }
+    if (fact.ruleId !== undefined && !rules.has(fact.ruleId)) {
+      delete fact.ruleId;
+      notices.push({ code: 'dangling-knowledge', message: `The world rule a knowledge fact restates no longer exists, so "${fact.text}" lost that link and stays.` });
+    }
+  }
+  for (const [key, meta] of Object.entries(next.sceneMeta)) {
+    for (const field of ['learns', 'knows'] as const) {
+      const links = meta[field];
+      if (links === undefined) continue;
+      const kept = links.filter((link) => {
+        const entryName = entries.get(link.entryId);
+        const factText = facts.get(link.factId);
+        if (entryName !== undefined && factText !== undefined) return true;
+        const who = entryName === undefined ? 'a character that no longer exists' : entryName;
+        const what = factText === undefined ? 'a knowledge fact that no longer exists' : `"${factText}"`;
+        notices.push({ code: 'dangling-knowledge', message: `A "${field}" declaration on "${state.manifest.tree.find((node) => node.id === key)?.title ?? key}" named ${who} and ${what}, and was dropped.` });
+        return false;
+      });
+      if (kept.length === links.length) continue;
+      if (kept.length > 0) meta[field] = kept;
+      else delete meta[field];
+    }
+    if (Object.keys(meta).length === 0) delete next.sceneMeta[key];
+  }
+}
+
+/**
  * Brings a loaded file into line with the project it is attached to. A
  * declaration on a deleted node is dropped, and so is a finding that quotes a
  * deleted body: its quote is no longer in the project. A body is a document or a
@@ -245,6 +284,8 @@ export function reconcileCoherence(file: CoherenceFile, state: ProjectState): { 
       notices.push({ code: 'dangling-scene-meta', message: 'Scene declarations for a scene that no longer exists were dropped.' });
     }
   }
+
+  reconcileKnowledge(next, state, notices);
 
   next.findings = next.findings.filter((finding) => {
     const dangling = finding.evidence.some((passage) => !documentIds.has(passage.docId));

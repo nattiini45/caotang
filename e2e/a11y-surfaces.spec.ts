@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { binderTitle, createProject, waitForSaved } from './support.js';
+import { binderTitle, createProject, firstChapter, waitForSaved } from './support.js';
 
 /**
  * The shell's surfaces, as rendered, pass the axe rules the suite holds them to: no colour-contrast violation (WCAG 2.2 1.4.3;
@@ -235,4 +235,22 @@ test('the storage banner, shown while the browser has not kept the project, pass
   await expect(banner).toContainText('Browsers may remove stored data');
 
   expect([...(await contrastProblemsIn(page, '.storage-banner')), ...(await shellProblemsIn(page, '.storage-banner'))]).toEqual([]);
+});
+
+test('the Pages tab of a screenplay scene, with its lines that open the Source tab, passes the colour-contrast and role rules', async ({
+  page,
+}) => {
+  await createProject(page, 'Pages Book');
+  await binderTitle(page, await firstChapter(page)).click({ button: 'right' });
+  await page.getByRole('menu', { name: 'Actions for Chapter 1' }).getByRole('menuitem', { name: 'New screenplay scene here' }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('region', { name: 'Screenplay: Untitled scene' })).toBeVisible();
+  await page.getByRole('radio', { name: 'Source', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Fountain source' }).fill(['INT. HOUSE - DAY', '', 'MARCUS', 'Hi.', '', 'Rain falls.'].join('\n'));
+  await page.getByRole('radio', { name: 'Pages', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'MARCUS' })).toBeVisible();
+
+  // Not the target-size rule: a line is a row of the page's own 14px grid, and the function it has is also reached by the Source tab
+  // (WCAG 2.5.8, the equivalent-control exception), which axe cannot know.
+  expect(await problemsIn(page, '.sp-preview', ['color-contrast', 'aria-allowed-role'])).toEqual([]);
 });

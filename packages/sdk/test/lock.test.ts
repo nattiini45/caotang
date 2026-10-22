@@ -11,7 +11,7 @@ import { join } from 'node:path';
 
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { acquireProjectLock, LOCK_FILE, LOCK_TAKEOVER_FILE, ProjectLockedError } from '../src/index.js';
+import { acquireProjectLock, LOCK_FILE, LOCK_TAKEOVER_FILE, ProjectLockedError } from '../src/folder-api.js';
 import type * as lockModule from '../src/lock.js';
 import { removeDir, tempDir } from './support.js';
 

@@ -1644,6 +1644,9 @@ export const viewSetCorkboardScope: CommandDescriptor<ViewSetCorkboardScopeParam
  * validated command cannot fail in its apply for a validation reason.
  * ------------------------------------------------------------------ */
 
+/** The patch keys that are lists of {entryId, factId} pairs (§4.4). The shared rule reads each pair. */
+const SCENE_LINK_KEYS = ['learns_add', 'learns_remove', 'knows_add', 'knows_remove'] as const;
+
 /** The list-valued patch keys, each a list of non-blank ids (§7.1). */
 const SCENE_LIST_KEYS = ['after_add', 'after_remove', 'expectedPresent_add', 'expectedPresent_remove', 'threads_remove'] as const;
 
@@ -1705,10 +1708,21 @@ export const coherenceSetSceneMeta: CommandDescriptor<CoherenceSetSceneMetaParam
     if (node.type === 'folder' && (threadsAdd !== undefined || raw['threads_remove'] !== undefined)) {
       return invalid('a thread is declared on a scene, not a folder', 'pass the document that sets the thread up as docId', 'patch.threads_add');
     }
+    // §4.4: who learns and who knows a fact is declared on a scene, like a thread.
+    const links = SCENE_LINK_KEYS.find((key) => raw[key] !== undefined);
+    if (node.type === 'folder' && links !== undefined) {
+      return invalid('what a character learns or knows is declared on a scene, not a folder', 'pass the document as docId', `patch.${links}`);
+    }
+    for (const key of SCENE_LINK_KEYS) {
+      if (raw[key] !== undefined && !Array.isArray(raw[key])) {
+        return invalid(`${key} must be a list of {entryId, factId} pairs, got ${showValue(raw[key])}`, undefined, `patch.${key}`);
+      }
+    }
     const patch = raw as ScenePatch;
     const documentIds = new Set(snapshot.manifest.tree.filter((n) => n.type === 'document').map((n) => n.id));
     const result = applySceneMetaPatch(docId.value, coherence.value.sceneMeta[docId.value], patch, {
       entries: snapshot.manifest.codex ?? [],
+      facts: coherence.value.knowledge ?? [],
       documentIds,
     });
     if (!result.ok) return invalid(result.error, undefined, 'patch');

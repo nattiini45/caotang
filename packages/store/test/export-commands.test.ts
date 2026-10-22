@@ -150,8 +150,8 @@ describe('registration — the two names are implemented only with an exporter',
     // Everything but the two export names (commands.test.ts). The three coherence applies (two mutations and the run
     // discard) are among them, since they need no exporter; project export adds six and saved filters and goals four:
     // 21 + 6 + 4 = 31. The script imports add three more (the two imports and the container settings): 31 + 3 = 34.
-    // The skill commands add three more (`skill.write`, `skill.delete`, `skill.setEnabled`): 34 + 3 = 37.
-    expect(implemented).toHaveLength(37);
+    // The skill commands add three more (`skill.write`, `skill.delete`, `skill.setEnabled`): 34 + 3 = 37. The three knowledge commands add three more: 37 + 3 = 40.
+    expect(implemented).toHaveLength(40);
   });
 
   it('implements both names once an exporter is injected, and nothing else changes', () => {
@@ -159,8 +159,8 @@ describe('registration — the two names are implemented only with an exporter',
     expect(typeof registry['export.compile'].apply).toBe('function');
     expect(typeof registry['export.compileSelection'].apply).toBe('function');
     const implemented = Object.values(registry).filter((entry) => entry.apply !== undefined);
-    // All thirty-nine: the exporter adds exactly the two export applies to the thirty-seven above (37 + 2).
-    expect(implemented).toHaveLength(39);
+    // All forty-two: the exporter adds exactly the two export applies to the forty above (40 + 2).
+    expect(implemented).toHaveLength(42);
     // The descriptors are the bus's own, unchanged: the store adds an apply, never a rule.
     expect(registry['export.compile'].descriptor).toBe(COMMAND_REGISTRY['export.compile'].descriptor);
   });

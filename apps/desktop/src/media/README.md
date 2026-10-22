@@ -11,7 +11,7 @@ binder makes their nodes (`media/create-menu.ts`, through `binder.create`).
   storyboard holds only shots, and a shot lives only in a storyboard: the bus refuses a move or a create that breaks either.
 - **Write a screenplay scene.** The Script tab draws the scene as it reads; the Source tab edits the Fountain text, with
   the headings, cues, parentheticals, transitions and notes drawn in their own styles over it; the Pages tab shows the
-  scene paginated, read only. Enter at the end of a cue moves onto its dialogue, and Enter on an empty line after dialogue
+  scene paginated, and a line of it opens its element in the Source tab. Enter at the end of a cue moves onto its dialogue, and Enter on an empty line after dialogue
   starts action. Tab completes a half-typed cue from the cues in the scene and the codex's characters. The element menu
   (the Element button, or Ctrl+E, Cmd+E on a Mac) rewrites the caret's line as the element chosen, through the screenplay engine's
   `convertLine` (element-menu.ts); a chord per element does the same from the text (*Known limits*, 3). All of these write through the session's autosave, which is the path the prose editor
@@ -147,7 +147,8 @@ One exception is open: `ScreenplayPreview.tsx` imports `paginate` and `LAYOUT` f
 4. **Coverage of a repeated passage.** The text area shows the stored text with line feeds, so a selection is always located
    by its words in the stored text, whatever its line endings. A passage that appears more than once is refused in every
    file, with how many places; the writer selects more words around the one meant.
-7. **Page preview.** The Pages tab is `paginate()`'s output, read only, and it is not the PDF. The PDF is the `pdf` export
+7. **Page preview.** The Pages tab is `paginate()`'s output, and it is not the PDF. It writes nothing and cannot be typed on yet: a line that prints an element (its `LayoutLine.source`) is a button that
+   opens the element in the Source tab, with the caret at its start, and generated lines have none. One line is in the tab order, and Up and Down move between them. The PDF is the `pdf` export
    format (screenplay.md §5.3), from the Compile dialog. The preview draws a dual-dialogue pair side by side, as the PDF
    does: the pair's two columns share their rows, and the blank rows stay collapsed, so the preview is not page-accurate.
 8. **Ink line ids on import.** An imported container keeps the Ink as written. Line ids are minted by the Add line ids

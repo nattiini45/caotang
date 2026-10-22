@@ -60,7 +60,7 @@ function seedFinding(state: ProjectState): void {
 }
 
 function emptyFile(): NonNullable<ProjectState['coherence']> {
-  return { formatVersion: 1, findings: [], runs: [], sceneMeta: {}, worldRules: [], reviewState: {} };
+  return { formatVersion: 1, findings: [], runs: [], sceneMeta: {}, worldRules: [], knowledge: [], reviewState: {} };
 }
 
 describe('coherence.scan (coherence.md §7 tool 15)', () => {

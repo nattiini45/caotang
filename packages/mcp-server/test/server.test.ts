@@ -10,12 +10,11 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { Client as LegacyClient, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import type { Client } from '@modelcontextprotocol/client';
 import { mcpExposure, metadataFor, TOOL_METADATA } from '@caotang/harness';
+import { NodeArtifactFs, manifestOnDisk } from '@caotang/sdk/folder';
 import { ArtifactNotFoundError, parseDocumentFile } from '@caotang/store';
 
 import { createRoundCodec, createToolRuntime, LEGACY_ROUND_TIMEOUT_MS, ROUND_TTL_SECONDS, LegacySessions, startHttpServer, type RunningHttpServer } from '../src/index.js';
 import { openProject, ProjectContentError, type ProjectSession } from '../src/index.js';
-import { NodeArtifactFs } from '../src/node-fs.js';
-import { manifestOnDisk } from '../src/session.js';
 import {
   acceptConfirm,
   cancelConfirm,

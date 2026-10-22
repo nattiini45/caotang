@@ -12,12 +12,14 @@ import { describe, expect, it } from 'vitest';
 import {
   COHERENCE_NOTE_LIMIT,
   DISMISSAL_REASON_IDS,
+  KNOWLEDGE_TEXT_LIMIT as BUS_KNOWLEDGE_TEXT_LIMIT,
   TIMELINE_MODES as BUS_TIMELINE_MODES,
   applySceneMetaPatch as busApplySceneMetaPatch,
 } from '@caotang/bus';
 
 import {
   DISMISSAL_REASONS,
+  KNOWLEDGE_TEXT_LIMIT,
   NOTE_LIMIT,
   TIMELINE_MODES,
   applySceneMetaPatch,
@@ -39,6 +41,10 @@ describe('the shared vocabulary matches the coherence model', () => {
 
   it('holds the note limit the model declares (§7)', () => {
     expect(COHERENCE_NOTE_LIMIT).toBe(NOTE_LIMIT);
+  });
+
+  it('holds the knowledge text limit the model declares (§4.4)', () => {
+    expect(BUS_KNOWLEDGE_TEXT_LIMIT).toBe(KNOWLEDGE_TEXT_LIMIT);
   });
 
   it('re-exports the one scene-metadata rule the bus and the store apply, rather than a second copy', () => {

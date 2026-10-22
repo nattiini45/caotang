@@ -11,7 +11,7 @@ import type { CodexEntry } from '@caotang/store';
 
 import type { CueFacts } from '../cues.js';
 import { effectiveMode } from '../scene-meta.js';
-import type { DeterministicCheckId, Evidence, FindingSeverity, TimelineMode } from '../model.js';
+import type { DeterministicCheckId, Evidence, FindingSeverity, KnowledgeFact, TimelineMode } from '../model.js';
 import type { ManuscriptFolder, ScannedScene, ShotFact } from '../scope.js';
 
 /** One finding as a check produced it, before the lifecycle has placed it. */
@@ -65,6 +65,8 @@ export interface CheckInput {
    * that names nothing from one that is in the project and was not read. Absent means that check cannot run and says so.
    */
   readonly treeDocuments?: ReadonlyMap<string, string>;
+  /** The knowledge facts of the file (§4.4). `knowledge.leak` resolves each `knows` pair against them. Absent is the same as none. */
+  readonly knowledge?: readonly KnowledgeFact[];
 }
 
 export interface CheckOutput {

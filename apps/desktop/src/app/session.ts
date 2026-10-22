@@ -45,8 +45,6 @@
  */
 
 import { scanTool, type CoherenceFile, type CoherenceModel, type DeterministicCheckId, type ScanData, type ScopeSpec, type ToolResult } from '@caotang/coherence';
-import { dialogueFactsOf } from './coherence-facts.js';
-import { reviewContextOf } from './coherence-review.js';
 import { compileCodex, countMentions, type DocumentTerm } from '@caotang/codex';
 import {
   ApplyRefusal,
@@ -102,7 +100,7 @@ import {
 import { newId } from '@caotang/ids';
 import { assetRecordsOf, createExporter, exportMetadataOf, type EmitFailure, type ExporterService } from '@caotang/exporter';
 import { dropDanglingImages, shotCommandPort } from '@caotang/storyboard';
-import { createAgentPorts, createHarness, type Harness } from '@caotang/harness';
+import { createProductHarness, dialogueFactsOf, type Harness } from '@caotang/harness';
 import type { McpClient } from '@caotang/mcp-client';
 import type { SkillFile } from '@caotang/skills';
 
@@ -388,23 +386,19 @@ export class ProjectSession {
       skillStaging: this.skillStaging,
     });
 
-    this.harness = createHarness({
+    this.harness = createProductHarness({
       state: this.state,
       registry: this.registry,
       clock: () => Date.now(),
-      ports: createAgentPorts(),
+      ports: 'agent',
       // The agent is told only of the skills the writer has read and approved, and the harness checks that on every call.
       skills: { reviewedPin: (name) => this.skillReviews.pinOf(name) },
       notify: () => this.afterCommand(),
       ...(options.mcp === undefined ? {} : { mcp: options.mcp }),
       ...(options.presentAssets === undefined ? {} : { presentAssets: options.presentAssets }),
-      // The agent's coherence scans read the writer's Coherence settings and the dialogue facts (coherence.md §5.1), and its
-      // review runs through the app's model (coherence.md §5.3). The settings and the model are read at each call.
-      coherence: {
-        dialogue: dialogueFactsOf,
-        review: reviewContextOf,
-        ...(options.coherence === undefined ? {} : { checks: options.coherence.checks, model: options.coherence.model }),
-      },
+      // The agent's coherence scans read the writer's Coherence settings, and its review runs through the app's model
+      // (coherence.md §5.3). The settings and the model are read at each call. The factory adds the dialogue facts and the review context.
+      ...(options.coherence === undefined ? {} : { coherence: options.coherence }),
     });
     this.undo = this.harness.undo;
     this.log = this.harness.log;

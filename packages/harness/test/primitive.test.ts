@@ -103,6 +103,8 @@ describe('never-exposed commands', () => {
       () => primitiveTool(specFor('vocabulary.remove')),
       // @ts-expect-error a delete is never a tool
       () => primitiveTool(specFor('coherence.discardRun')),
+      // @ts-expect-error a delete is never a tool
+      () => primitiveTool(specFor('coherence.removeKnowledgeFact')),
       // @ts-expect-error a document body is written by the editor and drafting tools
       () => primitiveTool(specFor('doc.write')),
       // @ts-expect-error a document body is written by the editor and drafting tools

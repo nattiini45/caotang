@@ -80,8 +80,12 @@ function populated(): CoherenceFile {
     runs: [run()],
     sceneMeta: {
       sB: { dayOffset: 7, durationDays: 2, after: ['sA'], expectedPresent: ['c_5h8qk2m9rt'], pov: 'c_5h8qk2m9rt', timelineMode: 'flashback', threads: [{ id: 'the lamp', payoff: 'sA', note: 'it is lit again' }, { id: 'the map', payoff: 'sA' }] },
-      sA: { dayOffset: 1 },
+      sA: { dayOffset: 1, learns: [{ entryId: 'c_5h8qk2m9rt', factId: 'k_SECRET0001' }], knows: [{ entryId: 'c_5h8qk2m9rt', factId: 'k_SECRET0001' }] },
     },
+    knowledge: [
+      { id: 'k_SECRET0001', text: 'Mara is the heir', ruleId: 'w_9Q8WRN2TQ6', entryId: 'c_5h8qk2m9rt', createdAt: NOW.toISOString(), updatedAt: LATER.toISOString() },
+      { id: 'k_MAP0000001', text: 'The map is a forgery', createdAt: NOW.toISOString(), updatedAt: NOW.toISOString() },
+    ],
     worldRules: [
       { id: 'w_9Q8WRN2TQ6', text: 'The bridge is out after chapter four.', origin: 'manual', createdAt: NOW.toISOString(), updatedAt: NOW.toISOString() },
       {
@@ -212,6 +216,7 @@ describe('coherence.json codec', () => {
       formatVersion: 1,
       findings: [],
       runs: [],
+      knowledge: [],
       sceneMeta: { sA: { dayOffset: 2, timelineMode: 'montage' }, sB: { timelineMode: 'montage' } },
       worldRules: [],
       reviewState: {},
@@ -251,6 +256,63 @@ describe('coherence.json codec', () => {
     expect(messages.filter((m) => m.includes('is malformed and was dropped'))).toHaveLength(4);
     expect(messages).toContain('The thread "THE LAMP" is declared twice on "sC"; the second was dropped.');
     expect(messages.some((m) => m.includes('("colour")'))).toBe(true);
+  });
+
+  it('loads a file written before knowledge existed unchanged, as none and with no notice, and writes no key for an empty list', () => {
+    const before = { formatVersion: 1, findings: [], runs: [], sceneMeta: { sA: { dayOffset: 2 } }, worldRules: [], reviewState: {} };
+    const outcome = parseCoherenceFile(JSON.stringify(before));
+    expect(outcome.kind === 'ok' && outcome.file.knowledge).toEqual([]);
+    expect(outcome.kind === 'ok' && outcome.notices).toEqual([]);
+    if (outcome.kind !== 'ok') return;
+    expect(serializeCoherenceFile(outcome.file)).not.toContain('knowledge');
+    expect(serializeCoherenceFile({ ...outcome.file, knowledge: populated().knowledge })).toContain('"knowledge": [');
+  });
+
+  it('keeps the good facts, and names the ones it drops and why', () => {
+    const good = { id: 'k_SECRET0001', text: 'Mara is the heir', createdAt: NOW.toISOString(), updatedAt: NOW.toISOString() };
+    const raw = {
+      formatVersion: 1,
+      findings: [],
+      runs: [],
+      sceneMeta: {},
+      worldRules: [],
+      knowledge: [
+        good,
+        { ...good },
+        { ...good, id: 'f_SECRET0001', text: 'wrong prefix' },
+        { ...good, id: 'k_BLANK00001', text: '   ' },
+        { ...good, id: 'k_LONG000001', text: 'x'.repeat(301) },
+        { ...good, id: 'k_NODATE0001', createdAt: 'yesterday' },
+        'a string',
+      ],
+      reviewState: {},
+    };
+    const outcome = parseCoherenceFile(JSON.stringify(raw));
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind !== 'ok') return;
+    expect(outcome.file.knowledge).toEqual([good]);
+    const messages = outcome.notices.filter((n) => n.code === 'dropped-knowledge').map((n) => n.message);
+    expect(messages).toHaveLength(6);
+    expect(messages[0]).toBe('The knowledge fact "Mara is the heir" appears twice in coherence.json; the second copy was dropped.');
+    expect(messages.join(' ')).toContain('wrong prefix');
+  });
+
+  it('keeps the good pairs of a scene, and says which were dropped', () => {
+    const pair = { entryId: 'c_5h8qk2m9rt', factId: 'k_SECRET0001' };
+    const raw = {
+      formatVersion: 1,
+      findings: [],
+      runs: [],
+      sceneMeta: { sA: { learns: [pair, { ...pair }, { entryId: 'c_5h8qk2m9rt' }, 'x'], knows: 'everyone' }, sB: { knows: [] } },
+      worldRules: [],
+      reviewState: {},
+    };
+    const outcome = parseCoherenceFile(JSON.stringify(raw));
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind !== 'ok') return;
+    expect(outcome.file.sceneMeta['sA']).toEqual({ learns: [pair] });
+    expect(outcome.file.sceneMeta['sB']).toEqual({});
+    expect(outcome.notices.filter((n) => n.code === 'dropped-scene-meta')).toHaveLength(4);
   });
 
   it('drops one malformed declaration field and keeps the others', () => {
@@ -305,7 +367,7 @@ describe('coherence.json on disk', () => {
     expect(parseCoherenceFile(fs.snapshot()[COHERENCE_FILE] ?? '').kind).toBe('ok');
     const notice = load.notices.find((n) => n.code === 'corrupt-file');
     expect(notice?.message).toContain('Dismissal decisions are lost');
-    expect(notice?.message).toContain('Scene declarations and manual world rules');
+    expect(notice?.message).toContain('Scene declarations, manual world rules and knowledge facts');
   });
 
   it('never overwrites a file a newer Caotang wrote', async () => {
@@ -325,6 +387,36 @@ describe('coherence.json on disk', () => {
 });
 
 describe('reconcileCoherence', () => {
+  it('drops the pairs whose character or fact is gone, and the links of a fact whose entry or rule is gone, with a notice each', () => {
+    const state = buildState({
+      scenes: [{ id: 'sA', title: 'Scene A', body: 'Elena returned.' }, { id: 'sB', title: 'Scene B', body: 'Ben left.' }],
+      entries: [entry('c_5H8QK2M9RT', 'Elena')],
+    });
+    const stamp = NOW.toISOString();
+    const file: CoherenceFile = {
+      ...populated(),
+      findings: [],
+      runs: [],
+      worldRules: [],
+      reviewState: {},
+      knowledge: [
+        { id: 'k_SECRET0001', text: 'Mara is the heir', ruleId: 'w_GONE000001', entryId: 'c_GONE000001', createdAt: stamp, updatedAt: stamp },
+        { id: 'k_MAP0000001', text: 'The map is a forgery', createdAt: stamp, updatedAt: stamp },
+      ],
+      sceneMeta: {
+        sA: { learns: [{ entryId: 'c_5H8QK2M9RT', factId: 'k_SECRET0001' }, { entryId: 'c_GONE000001', factId: 'k_SECRET0001' }], knows: [{ entryId: 'c_5H8QK2M9RT', factId: 'k_GONE000001' }] },
+        sB: { knows: [{ entryId: 'c_GONE000001', factId: 'k_MAP0000001' }] },
+      },
+    };
+    const { file: next, notices } = reconcileCoherence(file, state);
+    expect(next.sceneMeta).toEqual({ sA: { learns: [{ entryId: 'c_5H8QK2M9RT', factId: 'k_SECRET0001' }] } });
+    expect(next.knowledge.map((fact) => [fact.id, fact.ruleId, fact.entryId])).toEqual([['k_SECRET0001', undefined, undefined], ['k_MAP0000001', undefined, undefined]]);
+    expect(notices.map((n) => n.code)).toEqual(['dangling-knowledge', 'dangling-knowledge', 'dangling-knowledge', 'dangling-knowledge', 'dangling-knowledge']);
+    expect(notices.map((n) => n.message).join(' ')).toContain('A "knows" declaration on "Scene A" named Elena and a knowledge fact that no longer exists, and was dropped.');
+    expect(notices.map((n) => n.message).join(' ')).not.toMatch(/[ck]_[0-9A-Z]{10}/);
+    expect(file.sceneMeta['sB']).toBeDefined();
+  });
+
   it('drops declarations on deleted nodes, findings quoting deleted documents, and dangling sources', () => {
     const state = buildState({
       scenes: [{ id: 'sA', title: 'A', body: 'Elena returned.' }],
@@ -337,6 +429,7 @@ describe('reconcileCoherence', () => {
         finding({ id: 'f_BBBBBBBBBB', evidence: [EVIDENCE] }),
       ],
       runs: [],
+      knowledge: [],
       sceneMeta: { sA: { dayOffset: 1 }, sGone: { dayOffset: 2 } },
       worldRules: [
         { id: 'w_9Q8WRN2TQ6', text: 'Rule.', origin: 'found', source: { docId: 'sGone', quote: 'x', from: 0, to: 1 }, verified: true, createdAt: NOW.toISOString(), updatedAt: NOW.toISOString() },
@@ -370,6 +463,7 @@ describe('reconcileCoherence', () => {
       formatVersion: 1,
       findings: [loose],
       runs: [],
+      knowledge: [],
       sceneMeta: {},
       worldRules: [
         {
@@ -397,6 +491,7 @@ describe('reconcileCoherence', () => {
       formatVersion: 1,
       findings: [finding({ id: 'f_DLGGONE01', checkId: 'branch.loose-end', type: 'loose-end', evidence: [{ docId: 'dGone', quote: 'Hello', from: 2, to: 7 }] })],
       runs: [],
+      knowledge: [],
       sceneMeta: {},
       worldRules: [],
       reviewState: {},

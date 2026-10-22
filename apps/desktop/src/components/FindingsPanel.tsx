@@ -34,6 +34,7 @@ import { gatewayCoherenceModel, planCoherenceReview, reviewCostDetailFor, runCoh
 import { formatUsd } from '../app/plan-preview.js';
 import type { ProjectSession } from '../app/session.js';
 import { explain } from './actions.js';
+import { KnowledgeList } from './KnowledgeList.js';
 import { EmptyState, useReport, useSession } from './shared.js';
 
 export interface FindingsPanelProps {
@@ -46,6 +47,8 @@ export interface FindingsPanelProps {
   readonly providers?: ProviderService;
   /** Opens the agent drawer when "Fix with agent" starts, so the fix's card or its refusal is on screen (coherence.md §6.3). */
   readonly onOpenAgent?: () => void;
+  /** Opens a document in the editor: the scenes of the Knowledge list's ledger are buttons that do. */
+  readonly onOpenDocument?: (docId: string) => void;
 }
 
 /** The question a large scope asks before it runs (coherence.md §6.2). "Scan it anyway" is the control that answers it. */
@@ -65,7 +68,7 @@ interface ReviewState {
   readonly controller: AbortController | null;
 }
 
-export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_SETTINGS, providers, onOpenAgent }: FindingsPanelProps): ReactNode {
+export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_SETTINGS, providers, onOpenAgent, onOpenDocument }: FindingsPanelProps): ReactNode {
   useSession(session);
   const report = useReport();
   const [filter, setFilter] = useState<FindingFilter>('open');
@@ -410,6 +413,8 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
           </section>
         ))
       )}
+
+      <KnowledgeList session={session} onOpenDocument={onOpenDocument} />
 
       <section className="findings-runs" aria-label="Run history" data-testid="run-history">
         <h3 className="findings-section-title">

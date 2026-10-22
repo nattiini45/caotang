@@ -42,7 +42,7 @@ const MODES: readonly Mode[] = ['script', 'source', 'pages'];
 const MODE_LABEL: Readonly<Record<Mode, string>> = {
   script: 'The formatted script, as it reads',
   source: 'The Fountain source, edited as text',
-  pages: 'The pages, read only, as they print',
+  pages: 'The pages, as they print. A line opens in the Source tab',
 };
 
 /** The visible words are the names of the views (WCAG 2.5.3), so a writer who speaks what they see is understood. */
@@ -220,17 +220,24 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
     applyConversion(field, entry.edit);
   };
 
-  const jumpToScene = (index: number): void => {
-    const from = sceneOffset(model, index);
-    if (from === null) return;
+  /** The Source tab with the caret at this offset of the draft, scrolled to where the caret is. */
+  const showSourceAt = (from: number): void => {
     setMode('source');
     // The source tab mounts on this render, so the caret is placed on the next frame.
     requestAnimationFrame(() => {
       const field = sourceRef.current;
       if (field === null) return;
       field.focus();
-      field.setSelectionRange(from, from);
+      const at = Math.min(from, field.value.length);
+      field.setSelectionRange(at, at);
+      const top = caretTop(field, at);
+      if (top !== null) field.scrollTop = Math.max(0, top - field.clientHeight / 3);
     });
+  };
+
+  const jumpToScene = (index: number): void => {
+    const from = sceneOffset(model, index);
+    if (from !== null) showSourceAt(from);
   };
 
   // A passage a finding quotes, in this scene (coherence.md §8), is shown on the Source tab. The tab is switched while this render runs, so
@@ -305,7 +312,7 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
               )}
             </article>
           ) : mode === 'pages' ? (
-            <ScreenplayPreview source={deferred} title={node.title} />
+            <ScreenplayPreview source={deferred} title={node.title} onOpenSource={(range) => showSourceAt(range.from)} />
           ) : (
             <div className="sp-source-pane">
               <div className="sp-source-bar">
@@ -441,6 +448,30 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
       </footer>
     </section>
   );
+}
+
+/**
+ * Where the caret at this offset sits in the field, in pixels from the top of its text. A textarea does not scroll to a caret
+ * that code sets, so the offset is read from the styled layer under it (SourceField), which wraps the same text the same way.
+ */
+function caretTop(field: HTMLTextAreaElement, at: number): number | null {
+  const layer = field.previousElementSibling;
+  if (!(layer instanceof HTMLElement)) return null;
+  const walker = document.createTreeWalker(layer, NodeFilter.SHOW_TEXT);
+  let left = at;
+  for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+    const length = node.nodeValue?.length ?? 0;
+    if (left > length) {
+      left -= length;
+      continue;
+    }
+    const range = document.createRange();
+    range.setStart(node, left);
+    range.collapse(true);
+    const rect = range.getClientRects()[0] ?? range.getBoundingClientRect();
+    return rect.top - layer.getBoundingClientRect().top + layer.scrollTop;
+  }
+  return null;
 }
 
 function pagesLabel(pages: number): string {

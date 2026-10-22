@@ -15,7 +15,7 @@ Caotang is free and MIT-licensed. There are no accounts, no subscriptions, no cr
 - **Corkboard.** The scenes of a chapter, or the chapters of the manuscript, as cards in three sizes. Drag to reorder.
 - **Inspector.** Synopsis, notes, keywords, status and label, codex links and scene declarations for the selected item, and the container settings of a dialogue.
 - **Editor.** Scenes are Markdown and save as you type. Word counts, a daily target and focus mode. Agent drafts appear in the scene first, in a preview bar.
-- **Screenplays.** A scene is Fountain, with a Script view, a Source view and a read-only Pages view. Import a `.fountain` or `.fdx` script as sections and scenes. Final Draft files have not yet been checked against Final Draft itself.
+- **Screenplays.** A scene is Fountain, with a Script view, a Source view and a Pages view, which opens a line in the Source view. Import a `.fountain` or `.fdx` script as sections and scenes. Final Draft files have not yet been checked against Final Draft itself.
 - **Dialogue.** A container is an Ink story, with an outline, a branch graph, findings and line ids. Import a `.ink` story as one container for each group of knots that divert to one another.
 - **Storyboards.** Shot cards with pictures (chosen, dropped or pasted), an animatic total, script coverage, a prompt for each target video model, and a prompt pack that exports as JSON, Markdown or CSV.
 - **Codex.** Characters, locations, objects, lore, subplots and other entries, with aliases, include policies, excluded phrases and a list of the documents each name appears in.
@@ -214,6 +214,10 @@ The tools that need a model, `scene.draft`, `synopsis.fill`, `continuity.scan`, 
 The server runs on your computer over stdio and opens no network port. Uninstalling the bundle removes the server and leaves your project folder as it was. The wording of the dialog differs between hosts and versions.
 
 The bundle is not signed, and it has not been tested in a real host yet. [packages/mcp-server/HOST-CHECKS.md](packages/mcp-server/HOST-CHECKS.md) lists the checks and holds the results; it has none so far. The release lists the file's SHA-256 in `SHA256SUMS`.
+
+## Scripting Caotang
+
+The agent can also run from a Node script, a CLI or CI, against a project folder, with an approval policy in place of the cards. The package is `@caotang/sdk`, and its [README](packages/sdk/README.md) has three examples: the demo provider, a read-only review with your own key, and an approve-everything run that writes the folder. Changes stay in memory until you save, `diff()` shows them first, and the key is held in memory and sent only to your provider.
 
 ## Documents
 

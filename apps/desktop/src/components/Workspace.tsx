@@ -740,6 +740,7 @@ export function Workspace({
                   settings={settingsNow.coherence}
                   providers={services.providers}
                   onOpenAgent={() => setAgentOpen(true)}
+                  onOpenDocument={openDocument}
                 />
               ) : (
                 <ActivityPanel

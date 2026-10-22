@@ -160,6 +160,10 @@ const FINDING_ID = 'f_AAAAAAAAAA';
 /** The run the discard case removes. The finding above was made by it and nobody touched it, so the discard takes it too. */
 const RUN_ID = 'r_AAAAAAAAAA';
 
+/** The knowledge fact the knowledge cases act on, with one scene that learns it, so the removal has a declaration to take. */
+const FACT_ID = 'k_AAAAAAAAAA';
+const CHARACTER_ID = 'c_AAAAAAAAAA';
+
 function coherenceWithFinding(): CoherenceState {
   const file = emptyCoherenceState();
   file.runs.push({
@@ -171,6 +175,8 @@ function coherenceWithFinding(): CoherenceState {
     findingsUpserted: [FINDING_ID],
     status: 'complete',
   });
+  file.knowledge.push({ id: FACT_ID, text: 'Mara is the heir', createdAt: '2026-10-01T00:00:00.000Z', updatedAt: '2026-10-01T00:00:00.000Z' });
+  file.sceneMeta[STORM] = { learns: [{ entryId: CHARACTER_ID, factId: FACT_ID }] };
   file.findings.push({
     id: FINDING_ID,
     status: 'open',
@@ -246,6 +252,31 @@ const CASES: readonly Case[] = [
     ids: [],
     // The run is named by its kind and scope in words, never by its id (coherence.md §8).
     digestMentions: 'discarded a scan of 1 document',
+    coherence: true,
+  },
+  {
+    // coherence.md §4.4, §7.1: a knowledge fact is added, changed and removed, and the row names it by its words, never its id.
+    name: 'coherence.addKnowledgeFact',
+    params: { text: 'The map is a forgery' },
+    titles: [],
+    ids: [],
+    digestMentions: 'added the knowledge fact “The map is a forgery”',
+    coherence: true,
+  },
+  {
+    name: 'coherence.editKnowledgeFact',
+    params: { factId: FACT_ID, text: 'Mara is the rightful heir' },
+    titles: [],
+    ids: [],
+    digestMentions: 'changed the knowledge fact “Mara is the rightful heir”',
+    coherence: true,
+  },
+  {
+    name: 'coherence.removeKnowledgeFact',
+    params: { factId: FACT_ID },
+    titles: [],
+    ids: [],
+    digestMentions: 'removed the knowledge fact “Mara is the heir” and 1 declaration of who learns or knows it',
     coherence: true,
   },
   {
