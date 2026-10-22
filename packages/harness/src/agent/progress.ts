@@ -151,8 +151,20 @@ function named(params: CallParams, nameOf: NameOf): CallParams {
   return shown;
 }
 
-/** `mcp__<server>__<alias>`: the name an external tool is given (extensibility §3.5). */
-const EXTERNAL_NAME = /^mcp__(.+?)__(.+)$/;
+/** A line terminator: none can stand in a name the parsers below accept (the `.` of the patterns they replace). */
+const LINE_BREAK = /[\n\r\u2028\u2029]/;
+
+/**
+ * `mcp__<server>__<alias>`: the name an external tool is given (extensibility §3.5), split at the first `__` after a server key of at
+ * least one character. A scan rather than a pattern, because the name is the server's own text and a backtracking split of it is
+ * quadratic.
+ */
+function externalName(tool: string): { readonly server: string; readonly alias: string } | null {
+  if (!tool.startsWith('mcp__') || LINE_BREAK.test(tool)) return null;
+  const split = tool.indexOf('__', 6);
+  if (split < 0 || split + 2 >= tool.length) return null;
+  return { server: tool.slice(5, split), alias: tool.slice(split + 2) };
+}
 
 /**
  * The phrase of any tool a card can name. A native tool takes its table row. An external tool takes a generic phrase built from
@@ -160,9 +172,9 @@ const EXTERNAL_NAME = /^mcp__(.+?)__(.+)$/;
  */
 export function phraseFor(tool: string, params: CallParams, nameOf?: NameOf): TaskPhrase {
   if (isToolName(tool)) return TASK_PHRASES[tool](nameOf === undefined ? params : named(params, nameOf));
-  const external = EXTERNAL_NAME.exec(tool);
+  const external = externalName(tool);
   if (external !== null) {
-    const call = `“${external[2]}” on “${external[1]}”`;
+    const call = `“${external.alias}” on “${external.server}”`;
     return phrase(`Call ${call}`, `Calling ${call}`);
   }
   return phrase(`Run ${tool}`, `Running ${tool}`);
@@ -235,7 +247,28 @@ export function firstSentence(text: string): string {
 
 const PLAN_KEY = 'plan';
 const READ_CALL = /:r\d+(?:\.confirm)?$/;
-const PLAN_CALL = /^(.*?)(?:\.retry\d+)*\.\d+$/;
+
+/**
+ * The call id a plan's step ids are built from: the id less its trailing `.<step>` and any `.retry<n>` before it, or undefined when it
+ * has no step suffix. Read from the end in one pass, because a pattern with a repeated retry group backtracks quadratically.
+ */
+export function planCallRoot(id: string): string | undefined {
+  const digitsBefore = (end: number): number => {
+    let start = end;
+    while (start > 0 && id.charCodeAt(start - 1) >= 48 && id.charCodeAt(start - 1) <= 57) start--;
+    return start;
+  };
+  const step = digitsBefore(id.length);
+  if (step === id.length || step === 0 || id[step - 1] !== '.') return undefined;
+  let end = step - 1;
+  for (;;) {
+    const digits = digitsBefore(end);
+    if (digits === end || digits < 6 || id.slice(digits - 6, digits) !== '.retry') break;
+    end = digits - 6;
+  }
+  const root = id.slice(0, end);
+  return LINE_BREAK.test(root) ? undefined : root;
+}
 
 function isSettled(phase: TurnPhase | 'idle'): boolean {
   return phase === 'done' || phase === 'failed' || phase === 'cancelled';
@@ -371,7 +404,7 @@ function onPlan(list: TaskList, card: PlanCardView, nameOf?: NameOf): TaskList {
     return finish({ ...list, track: next, items: replaceItem(items, target, (item) => (step.status === 'refused' ? itemOfStep(Number(groupOf(target)), step, item, nameOf) : { ...item, state: 'waiting' })) }, false);
   }
 
-  const root = track.fresh[0] === undefined ? undefined : (PLAN_CALL.exec(track.fresh[0].id)?.[1] ?? track.fresh[0].id);
+  const root = track.fresh[0] === undefined ? undefined : (planCallRoot(track.fresh[0].id) ?? track.fresh[0].id);
   const current = track.plan;
   const reshown = current !== null && (root === undefined ? !current.approved : root === current.root);
   const seq = reshown ? current.seq : track.groups + 1;

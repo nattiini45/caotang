@@ -189,7 +189,7 @@ async function pagesOf(page: Page, fountain: string) {
 
 /** The box of the sheet's line with exactly this text. */
 async function boxOf(sheet: Locator, text: string) {
-  const box = await sheet.locator('.sp-line', { hasText: new RegExp(`^${text.replace(/[().]/g, '\\$&')}$`) }).boundingBox();
+  const box = await sheet.locator('.sp-line', { hasText: new RegExp(`^${text.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')}$`) }).boundingBox();
   if (box === null) throw new Error(`no line ${text}`);
   return box;
 }
