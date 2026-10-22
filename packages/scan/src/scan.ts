@@ -132,11 +132,12 @@ async function heldFileOf(fs: ArtifactFs, state: ProjectState, docId: string, ca
     if (!isContainedPath(path)) continue;
     try {
       if (!(await fs.exists(path))) continue;
-      const text = await fs.read(path);
+      // As the loader decodes it (read.ts readUtf8): strict UTF-8, which drops a leading BOM, so the offsets agree with its text.
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(await fs.readBytes(path));
       held = { path, text, bodyStart: bodyStartOf(text, path) };
       break;
     } catch {
-      // A file the port cannot read as text leaves the finding unplaced; it is still reported.
+      // A file that is not UTF-8 leaves the finding unplaced; it is still reported.
     }
   }
   cache.set(docId, held);

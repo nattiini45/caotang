@@ -104,6 +104,21 @@ describe('runScan', () => {
     expect(result.findings[0]).toMatchObject({ file: `docs/${HARBOUR}.md`, line: 10, endLine: 11 });
   });
 
+  it('places the finding on the same line when the file starts with a byte order mark, as the loader reads it', async () => {
+    const { fs } = await seedProject();
+    const path = `docs/${HARBOUR}.md`;
+    fs.putFile(path, `﻿${await fs.read(path)}`);
+    const result = await runScan(fs, { now: NOW });
+    expect(result.findings[0]).toMatchObject({ file: path, line: 10, endLine: 11 });
+  });
+
+  it('reports a finding without a place when its file is not UTF-8', async () => {
+    const { fs } = await seedProject();
+    await fs.writeBytesAtomic(`docs/${HARBOUR}.md`, new Uint8Array([0xff, 0xfe, 0x00]));
+    const result = await runScan(fs, { now: NOW });
+    expect(result.findings.filter((finding) => finding.file === `docs/${HARBOUR}.md`)).toEqual([]);
+  });
+
   it('places a screenplay finding in its .fountain file, and a legacy .md body in the .md the loader read', async () => {
     const { fs } = await seedProject({ expecting: [SCRIPT] });
     const fountain = await runScan(fs, { now: NOW });
