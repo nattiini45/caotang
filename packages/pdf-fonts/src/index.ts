@@ -26,6 +26,7 @@ export {
   cidFontObjects,
   cutCidSubset,
   describeSubset,
+  NO_TEXT,
   toUnicodeCMap,
   type CidEntry,
   type CidSubset,

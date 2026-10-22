@@ -21,7 +21,10 @@ export interface CidEntry {
   readonly gid: number;
   /** The advance the PDF states, in glyph space (1000 to the em of the text size). */
   readonly width: number;
-  /** The text a reader gets back when it copies the CID; empty for a CID with none. */
+  /**
+   * The text a reader gets back when it copies the CID. Empty for a CID that draws part of another's text (the positioned dot of
+   * an Arabic letter, the later glyphs of an Indic cluster) or none: the ToUnicode map then holds {@link NO_TEXT} for it.
+   */
   readonly text: string;
 }
 
@@ -111,6 +114,16 @@ const BFCHAR_BLOCK = 100;
 
 const hex4 = (value: number): string => value.toString(16).toUpperCase().padStart(4, '0');
 
+/**
+ * What the ToUnicode map says for a CID with no text of its own: U+200B ZERO WIDTH SPACE. A CID with no entry is not a CID with
+ * no text: pdf.js reads the character code as the text (`toUnicode.get(code) || code`), and the codes are the CIDs, so the dot
+ * glyph of an Arabic letter came out inside the word as a control character, and as a space, a letter or a digit once the file
+ * had more than 31 CIDs. A zero-width space is a format character (category Cf): pdf.js skips it; a viewer that copies it adds
+ * an invisible character that is no letter of the word. It stands for the absence of text and is never text, so
+ * `tools/pdf-validate` removes it and nothing else.
+ */
+export const NO_TEXT = '​';
+
 /** UTF-16BE hex of a text, as a ToUnicode destination writes it. */
 function utf16Hex(text: string): string {
   let out = '';
@@ -118,9 +131,12 @@ function utf16Hex(text: string): string {
   return out;
 }
 
-/** The ToUnicode CMap (PDF 1.7 §9.10.3): each CID with text back to that text, so the text extracts. */
+/**
+ * The ToUnicode CMap (PDF 1.7 §9.10.3): each CID back to its text, so the text extracts; a CID with no text of its own maps to
+ * {@link NO_TEXT}, never to nothing (see there).
+ */
 export function toUnicodeCMap(entries: readonly CidEntry[]): string {
-  const mapped = entries.flatMap((entry, index) => (entry.text === '' ? [] : [`<${hex4(index + 1)}> <${utf16Hex(entry.text)}>`]));
+  const mapped = entries.map((entry, index) => `<${hex4(index + 1)}> <${utf16Hex(entry.text === '' ? NO_TEXT : entry.text)}>`);
   const blocks: string[] = [];
   for (let i = 0; i < mapped.length; i += BFCHAR_BLOCK) {
     const block = mapped.slice(i, i + BFCHAR_BLOCK);

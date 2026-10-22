@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { cidFontObjects, cutCidSubset, toUnicodeCMap, type CidSubset } from '../src/cid-font.js';
+import { NO_TEXT, cidFontObjects, cutCidSubset, toUnicodeCMap, type CidSubset } from '../src/cid-font.js';
 import { loadFont, openFont } from '../src/fontkit.js';
 import { loadCjkFontInNode, loadEmojiFontInNode } from '../src/node-loader.js';
 
@@ -71,14 +71,23 @@ describe('cidFontObjects', () => {
     expect([...(objects[5]?.stream as Uint8Array)]).toEqual([0, 0, 0, 1, 0, 1, 0, 2]);
   });
 
-  it('gives a CID with text its ToUnicode entry, and a CID without text none', () => {
+  it('gives a CID with text its ToUnicode entry, and a CID without text the zero-width space, never no entry', () => {
     const map = decode(objects[4]?.stream);
-    expect(map).toContain('2 beginbfchar\n<0001> <0061>\n<0002> <0062>\nendbfchar');
-    expect(map).not.toContain('<0003>');
+    expect(map).toContain('3 beginbfchar\n<0001> <0061>\n<0002> <0062>\n<0003> <200B>\nendbfchar');
   });
 });
 
 describe('toUnicodeCMap', () => {
+  it('maps every CID, so no reader falls back to the CID as the text: pdf.js reads an unmapped code as the character of that number', () => {
+    // Fifty CIDs, a few with no text, among them one past 0x20 (a printable character if it were left unmapped).
+    const entries = Array.from({ length: 50 }, (_, index) => ({ gid: index + 1, width: 500, text: index % 7 === 3 ? '' : String.fromCharCode(0x627 + index) }));
+    const map = toUnicodeCMap(entries);
+    const mapped = [...map.matchAll(/^<([0-9A-F]{4})> <([0-9A-F]+)>$/gm)].map((match) => [parseInt(match[1] ?? '', 16), match[2]] as const).filter(([cid]) => cid > 0);
+    expect(mapped.map(([cid]) => cid)).toEqual(Array.from({ length: 50 }, (_, index) => index + 1));
+    expect(mapped.filter(([, text]) => text === '200B').map(([cid]) => cid)).toEqual([4, 11, 18, 25, 32, 39, 46]);
+    expect(NO_TEXT).toBe('​');
+  });
+
   it('writes 100 entries to a block, as the PDF spec allows at most, and an astral character as a surrogate pair', () => {
     const entries = Array.from({ length: 250 }, (_, index) => ({ gid: index + 1, width: 1000, text: index === 0 ? '👍' : 'x' }));
     const map = toUnicodeCMap(entries);

@@ -28,8 +28,8 @@ export const EXTERNAL_TOOLS: readonly string[];
 /** The text with every whitespace character removed. */
 export function squash(text: string): string;
 
-/** pdf.js text without the control characters it writes for glyphs that have no text. */
-export function withoutUnmappedGlyphs(text: string): string;
+/** A reader's text without U+200B, the stand-in the writers' ToUnicode maps hold for a glyph with no text, and nothing else. */
+export function withoutNoText(text: string): string;
 
 /** A font's name without the six capitals and `+` a subset carries. */
 export function unsubset(name: string): string;

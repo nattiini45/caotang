@@ -34,7 +34,8 @@ export interface ShapedGlyph {
   readonly dy: number;
   /**
    * The text the glyph stands for, for the ToUnicode map: the character of the cluster it draws, or '' for a glyph that draws part
-   * of another's (the positioned dot of an Arabic letter, a zero-width joiner's blank). See {@link clusterTexts}.
+   * of another's (the positioned dot of an Arabic letter, a zero-width joiner's blank). See {@link clusterTexts}. The ToUnicode map
+   * writes `NO_TEXT` for it (cid-font.ts), not nothing.
    */
   readonly text: string;
 }

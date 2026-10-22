@@ -4,7 +4,7 @@
  * that are left out, the plan of a mixed line, the text a reader extracts, and the Latin-only file that stays as it was.
  */
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -403,8 +403,13 @@ describe('the file', () => {
   });
 });
 
-/** pdftotext, where it is installed: the run is skipped otherwise. */
+/**
+ * Poppler's pdftotext, where it is installed: the run is skipped otherwise, and for Xpdf's tool of the same name (Git for Windows
+ * ships it), which lays glyphs out with spaces of its own and is not the reader this test is about.
+ */
 function pdftotext(bytes: Uint8Array): string | null {
+  const banner = spawnSync('pdftotext', ['-v'], { encoding: 'utf8', timeout: 20_000 });
+  if (banner.error !== undefined || !/poppler/i.test(`${banner.stdout}${banner.stderr}`)) return null;
   const dir = mkdtempSync(join(tmpdir(), 'caotang-rtl-'));
   try {
     const file = join(dir, 'file.pdf');
@@ -423,8 +428,9 @@ describe('the text a reader extracts', () => {
     const blob = await createPdfRenderer(LOADERS).emit(blocksOf(source), { title: 'T' });
     const out = pdftotext(new Uint8Array(await blob.arrayBuffer()));
     if (out === null) return;
-    // pdftotext lays right-to-left runs out with embedding controls around them; the words are what matters.
-    const bare = out.replace(/[‪-‮⁦-⁩]/g, '');
+    // pdftotext lays right-to-left runs out with embedding controls around them, and may pass on the zero-width space that stands for
+    // a glyph with no text; the words are what matters.
+    const bare = out.replace(/\u200B/g, '').replace(/[‪-‮⁦-⁩]/g, '');
     for (const word of ['السلام', 'عليكم', 'أصدقائي', 'مرحبا', 'سارة', 'שלום', 'עולם', 'שלומך', 'בסדר', 'תודה', 'Everything']) expect(bare, word).toContain(word);
   });
 });

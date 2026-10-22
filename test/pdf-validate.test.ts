@@ -15,7 +15,7 @@ import {
   mutoolComplaints,
   parsePdffonts,
   unsubset,
-  withoutUnmappedGlyphs,
+  withoutNoText,
   type ExpectedFile,
 } from '../tools/pdf-validate/check.mjs';
 
@@ -109,15 +109,21 @@ describe('fonts', () => {
   });
 });
 
-describe('withoutUnmappedGlyphs', () => {
-  it('drops the control characters pdf.js writes for glyphs with no text, and nothing else', () => {
-    expect(withoutUnmappedGlyphs('الف\u0013 ي\u0011لم\u0001')).toBe('الف يلم');
-    expect(withoutUnmappedGlyphs('Hello \u007fWorld')).toBe('Hello World');
+describe('withoutNoText', () => {
+  it('drops the zero-width space the writers map a glyph with no text to, and nothing else', () => {
+    expect(withoutNoText('الف​يلم​')).toBe('الفيلم');
+    expect(withoutNoText('Hello ​World')).toBe('Hello World');
   });
 
-  it('leaves reversed text reversed, so the gate still fails it: the letters stay in the order pdf.js gave them', () => {
-    expect(withoutUnmappedGlyphs('ةراس')).toBe('ةراس');
-    expect(withoutUnmappedGlyphs('םולש')).not.toContain('שלום');
+  it('keeps every other character, so a word with a control character, a space or a stray letter in it still fails the gate', () => {
+    for (const junk of ['\u0013', '\u0011', ' ', 'A', '7', '‌', '‍', ' ', '﻿']) {
+      expect(withoutNoText(`الف${junk}يلم`), JSON.stringify(junk)).toBe(`الف${junk}يلم`);
+    }
+  });
+
+  it('leaves reversed text reversed, so the gate still fails it: the letters stay in the order the reader gave them', () => {
+    expect(withoutNoText('ةراس')).toBe('ةراس');
+    expect(withoutNoText('םולש')).not.toContain('שלום');
   });
 });
 

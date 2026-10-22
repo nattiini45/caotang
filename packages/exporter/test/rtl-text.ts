@@ -5,6 +5,7 @@
  * word back in its logical order).
  */
 
+import { NO_TEXT } from '@caotang/pdf-fonts';
 import { PDFArray, PDFDict, PDFName, PDFRawStream, type PDFDocument } from 'pdf-lib';
 import { unzlibSync } from 'fflate';
 
@@ -33,7 +34,9 @@ function toUnicodeMap(pdf: PDFDocument, font: PDFDict): Map<number, string> {
     const units: number[] = [];
     const hex = match[2] ?? '';
     for (let i = 0; i + 4 <= hex.length; i += 4) units.push(parseInt(hex.slice(i, i + 4), 16));
-    map.set(parseInt(match[1] ?? '', 16), String.fromCharCode(...units));
+    const text = String.fromCharCode(...units);
+    // The writers' stand-in for a glyph with no text is no text to a reader.
+    map.set(parseInt(match[1] ?? '', 16), text === NO_TEXT ? '' : text);
   }
   return map;
 }

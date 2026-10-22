@@ -44,21 +44,22 @@ export function squash(text) {
   return text.replace(/\s/g, '');
 }
 
-/** The strings of `needles` that `haystack` does not contain, whitespace aside. */
+/** The strings of `needles` that `haystack` does not contain, whitespace and the writers' no-text stand-in aside. */
 function missingText(haystack, needles) {
-  const flat = squash(haystack);
+  const flat = squash(withoutNoText(haystack));
   return needles.filter((needle) => !flat.includes(squash(needle)));
 }
 
 /**
- * pdf.js text without the control characters it writes for glyphs that have no text. A glyph the ToUnicode map does not name
- * (the positioned dot of an Arabic letter, which Noto Sans Arabic draws as a glyph of its own) gets its character code as its
- * text, which for the CIDs the writers number is below U+0020, and nothing the writer does can change that, because pdf.js reads
- * an empty ToUnicode entry as none. Only C0 controls go: every letter pdf.js gives back must be there, in the order of the
- * word, so reversed text still fails.
+ * A reader's text without U+200B ZERO WIDTH SPACE, and nothing else. It is what the writers' ToUnicode maps hold for a glyph
+ * with no text of its own (the positioned dot of an Arabic letter, which Noto Sans Arabic draws as a glyph of its own;
+ * `NO_TEXT` in packages/pdf-fonts/src/cid-font.ts): a glyph the map does not name is not a glyph with no text, because pdf.js
+ * reads the glyph's character code as its text. The stand-in is no letter of the page, so an engine may or may not pass it on.
+ * Every other character a reader gives back stays where it is, a control character, a space or a stray letter inside a word
+ * included, and the letters stay in the order the reader gave them, so a word with junk in it or a reversed word still fails.
  */
-export function withoutUnmappedGlyphs(text) {
-  return [...text].filter((char) => char.charCodeAt(0) > 0x1f && char !== '\u007f').join('');
+export function withoutNoText(text) {
+  return text.replaceAll('​', '');
 }
 
 /** A font's name without the six capitals and `+` a subset carries. */
@@ -223,7 +224,7 @@ export async function checkWithPdfjs(bytes, expected) {
         if (want?.embedded && font.missingFile) problems.push(`page ${number}: pdf.js found no font program for ${font.name}`);
       }
       const content = await page.getTextContent();
-      const text = withoutUnmappedGlyphs(content.items.map((item) => ('str' in item ? item.str : '')).join(' '));
+      const text = content.items.map((item) => ('str' in item ? item.str : '')).join(' ');
       for (const missing of missingText(text, expected.pages[number - 1] ?? [])) problems.push(`page ${number}: pdf.js text does not hold "${missing}"`);
     }
     await task.destroy();
