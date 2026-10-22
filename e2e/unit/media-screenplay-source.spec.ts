@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { fillSegments, fountainSegments, type Segment } from '../../apps/desktop/src/media/source-decor.js';
 import { cueCompletion, cueNames, enterAfterCue, enterOnEmptyDialogue } from '../../apps/desktop/src/media/screenplay-keys.js';
-import { elementEntries, opensElementMenu } from '../../apps/desktop/src/media/element-menu.js';
+import { chordLabel, chordPlatform, chordRange, elementChord, elementEntries, opensElementMenu, type ChordEvent, type ChordPlatform } from '../../apps/desktop/src/media/element-menu.js';
 
 /** The text the segments draw, joined back together: a decoration must never change a character (screenplay.md §3). */
 function textOf(source: string, segments: readonly Segment[]): string {
@@ -209,5 +209,80 @@ test.describe('the element menu lists the elements and marks the line’s own', 
     expect(key({ ctrlKey: true, shiftKey: true })).toBe(false);
     expect(key({ ctrlKey: true, altKey: true })).toBe(false);
     expect(key({ ctrlKey: true, key: 'r' })).toBe(false);
+  });
+});
+
+test.describe('the element chords', () => {
+  const press = (over: Partial<ChordEvent> = {}): ChordEvent => ({
+    code: 'Digit3',
+    ctrlKey: false,
+    metaKey: false,
+    altKey: false,
+    shiftKey: false,
+    repeat: false,
+    isComposing: false,
+    ...over,
+  });
+  const WINDOWS = { ctrlKey: true, shiftKey: true };
+  const MAC = { metaKey: true, altKey: true };
+
+  test('Ctrl+Shift+digit on Windows and Linux, and Cmd+Alt+digit on a Mac, choose the element of that menu digit', () => {
+    const types = ['scene_heading', 'action', 'character', 'parenthetical', 'dialogue', 'transition', 'centered', 'note', 'page_break'];
+    types.forEach((type, index) => {
+      expect(elementChord(press({ ...WINDOWS, code: `Digit${index + 1}` }), 'other')).toBe(type);
+      expect(elementChord(press({ ...MAC, code: `Digit${index + 1}` }), 'mac')).toBe(type);
+    });
+    // The menu's digit and the chord's digit are the same number.
+    for (const entry of elementEntries('INT. HOUSE - DAY', 0, 'other')) {
+      expect(entry.chord).toBe(`Ctrl+Shift+${entry.shortcut}`);
+      expect(chordLabel(entry.type, 'mac')).toBe(`Cmd+Alt+${entry.shortcut}`);
+    }
+  });
+
+  test('reads the physical key, so a layout that types a symbol there, or a shifted digit, still chooses', () => {
+    expect(elementChord(press({ ...WINDOWS, code: 'Digit3' }), 'other')).toBe('character');
+    expect(elementChord(press({ ...MAC, code: 'Digit7' }), 'mac')).toBe('centered');
+    expect(elementChord(press({ ...WINDOWS, code: 'Numpad3' }), 'other')).toBeNull();
+    expect(elementChord(press({ ...WINDOWS, code: 'Digit0' }), 'other')).toBeNull();
+    expect(elementChord(press({ ...WINDOWS, code: 'KeyE' }), 'other')).toBeNull();
+  });
+
+  test('wants exactly the platform’s modifiers: Ctrl+Alt (AltGr) on Windows and Cmd+Shift on a Mac are not chords', () => {
+    expect(elementChord(press({ ctrlKey: true, altKey: true }), 'other')).toBeNull();
+    expect(elementChord(press({ ctrlKey: true, altKey: true, shiftKey: true }), 'other')).toBeNull();
+    expect(elementChord(press({ ctrlKey: true }), 'other')).toBeNull();
+    expect(elementChord(press({ shiftKey: true }), 'other')).toBeNull();
+    expect(elementChord(press({ metaKey: true, shiftKey: true }), 'mac')).toBeNull();
+    expect(elementChord(press({ metaKey: true, altKey: true, shiftKey: true }), 'mac')).toBeNull();
+    expect(elementChord(press({ metaKey: true }), 'mac')).toBeNull();
+    // Each family belongs to its platform only.
+    expect(elementChord(press(MAC), 'other')).toBeNull();
+    expect(elementChord(press(WINDOWS), 'mac')).toBeNull();
+  });
+
+  test('is not a chord while AltGraph is down, on key repeat, or while an input method composes', () => {
+    const altGraph = (key: string): boolean => key === 'AltGraph';
+    expect(elementChord(press({ ...WINDOWS, getModifierState: altGraph }), 'other')).toBeNull();
+    expect(elementChord(press({ ...MAC, getModifierState: altGraph }), 'mac')).toBeNull();
+    expect(elementChord(press({ ...WINDOWS, getModifierState: () => false }), 'other')).toBe('character');
+    expect(elementChord(press({ ...WINDOWS, repeat: true }), 'other')).toBeNull();
+    expect(elementChord(press({ ...WINDOWS, isComposing: true }), 'other')).toBeNull();
+  });
+
+  test('the platform is read from userAgentData and then platform, and anything unknown gets Ctrl+Shift', () => {
+    const platformOf = (source: Parameters<typeof chordPlatform>[0]): ChordPlatform => chordPlatform(source);
+    expect(platformOf({ platform: 'MacIntel' })).toBe('mac');
+    expect(platformOf({ userAgentData: { platform: 'macOS' }, platform: 'Win32' })).toBe('mac');
+    expect(platformOf({ userAgentData: { platform: 'Windows' }, platform: 'MacIntel' })).toBe('other');
+    expect(platformOf({ platform: 'Win32' })).toBe('other');
+    expect(platformOf({ platform: 'Linux x86_64' })).toBe('other');
+    expect(platformOf({})).toBe('other');
+    expect(platformOf(undefined)).toBe('other');
+    expect(chordRange('other')).toBe('Ctrl+Shift+1 to 9');
+    expect(chordRange('mac')).toBe('Cmd+Alt+1 to 9');
+  });
+
+  test('entries carry no chord until a platform is given', () => {
+    expect(elementEntries('INT. HOUSE - DAY', 0).every((entry) => entry.chord === undefined)).toBe(true);
   });
 });

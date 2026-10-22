@@ -124,6 +124,7 @@ On the Source tab:
 - Enter on an empty line after dialogue starts an action line.
 - Tab completes a half-typed character name from the names cued in the scene and the characters in the codex.
 - **Element**, above the text, or Ctrl+E (Cmd+E on a Mac), opens the element menu for the line the caret is on. It lists **Scene heading**, **Action**, **Character**, **Parenthetical**, **Dialogue**, **Transition**, **Centered**, **Note** and **Page break**, and marks the one the line is. The arrow keys move through it, and Enter chooses. The digits 1 to 9 choose an element directly.
+- **Ctrl+Shift+1** to **9** (**Cmd+Alt+1** to **9** on a Mac) do the same without opening the menu: the caret's line becomes the element that has that digit in the menu. A line that already is that element stays as it is. A line that cannot be it, such as dialogue with no character above, is left alone, and the status line says so. The menu shows each chord beside its digit. A chord your system or browser keeps for itself does nothing in the text, and the menu still works. Holding AltGr with a digit types the character your keyboard layout has there.
 - Choosing an element rewrites the line in its Fountain form. Your words are kept. Caotang adds a mark such as `.`, `@`, `!` or `>` only where the line would otherwise read as another element. A heading, a character or a transition under other text gets a blank line above it. **Parenthetical** and **Dialogue** are offered only under a character. **Page break** on a line with words puts the break on its own line above it.
 
 When Caotang saves a scene, it writes Fountain in the standard layout: a run of blank lines becomes one blank line, and Windows line endings become the usual ones. Your words are kept.
@@ -319,7 +320,7 @@ Choose **Settings** on the projects screen or in the toolbar. It has eight secti
 
 ## Keyboard
 
-On a Mac, Cmd takes the place of Ctrl.
+On a Mac, Cmd takes the place of Ctrl. The element chords are the one exception: they use Cmd+Alt, because Cmd+Shift+3 and Cmd+Shift+4 take screenshots.
 
 | Key | What it does |
 |---|---|
@@ -329,6 +330,7 @@ On a Mac, Cmd takes the place of Ctrl.
 | Ctrl+Alt+F | Move to the binder's filter. |
 | Ctrl+Enter | Open the selected item in the editor. |
 | Ctrl+E | On a screenplay's Source tab, open the element menu for the caret's line. |
+| Ctrl+Shift+1 to 9 (Cmd+Alt+1 to 9 on a Mac) | On a screenplay's Source tab, make the caret's line the 1st to 9th element of the element menu. |
 | F2 | Rename the selected item in the binder. |
 | Delete | Delete the selected item in the binder. It asks first. |
 | Arrow keys | Move the selection in the binder. |

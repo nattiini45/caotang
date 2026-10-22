@@ -33,10 +33,12 @@ export interface ElementEntry {
   readonly shortcut: string;
   readonly checked: boolean;
   readonly edit: LineConversion | null;
+  /** The chord that does the same from the text, as the writer reads it ("Ctrl+Shift+3"). Absent when no platform was given. */
+  readonly chord?: string;
 }
 
 /** The menu's entries for the line the caret is on, in the order the menu lists them. */
-export function elementEntries(text: string, caret: number): ElementEntry[] {
+export function elementEntries(text: string, caret: number, platform?: ChordPlatform): ElementEntry[] {
   const current = lineElementAt(text, caret);
   return LINE_ELEMENT_TYPES.map((type, index) => ({
     type,
@@ -44,7 +46,77 @@ export function elementEntries(text: string, caret: number): ElementEntry[] {
     shortcut: String(index + 1),
     checked: current === type,
     edit: convertLine(text, caret, type),
+    ...(platform === undefined ? {} : { chord: chordLabel(type, platform) }),
   }));
+}
+
+/** The platform families a chord is defined for. */
+export type ChordPlatform = 'mac' | 'other';
+
+interface ChordFamily {
+  readonly ctrl: boolean;
+  readonly meta: boolean;
+  readonly alt: boolean;
+  readonly shift: boolean;
+  /** The modifiers as the writer reads them, and as `aria-keyshortcuts` spells them. */
+  readonly label: string;
+  readonly aria: string;
+}
+
+/**
+ * The chord for the Nth element is this family's modifiers and the Nth digit. One entry per platform, so changing the family
+ * is a one-line edit. Ctrl+Alt is AltGr on Windows layouts, and Cmd+Shift+3/4 are macOS screenshots, so neither is used.
+ */
+const CHORD_FAMILY: Readonly<Record<ChordPlatform, ChordFamily>> = {
+  other: { ctrl: true, meta: false, alt: false, shift: true, label: 'Ctrl+Shift', aria: 'Control+Shift' },
+  mac: { ctrl: false, meta: true, alt: true, shift: false, label: 'Cmd+Alt', aria: 'Meta+Alt' },
+};
+
+/** The platform, from `navigator.userAgentData.platform` and then `navigator.platform`. Anything but macOS gets Ctrl+Shift. */
+export function chordPlatform(source: { readonly userAgentData?: { readonly platform?: string }; readonly platform?: string } | undefined): ChordPlatform {
+  const named = source?.userAgentData?.platform ?? source?.platform ?? '';
+  return named.toLowerCase().startsWith('mac') ? 'mac' : 'other';
+}
+
+/** The chord of an element as the writer reads it: "Ctrl+Shift+3", or "Cmd+Alt+3" on a Mac. */
+export function chordLabel(type: LineElementType, platform: ChordPlatform): string {
+  return `${CHORD_FAMILY[platform].label}+${LINE_ELEMENT_TYPES.indexOf(type) + 1}`;
+}
+
+/** The whole family as the writer reads it: "Ctrl+Shift+1 to 9". */
+export function chordRange(platform: ChordPlatform): string {
+  return `${CHORD_FAMILY[platform].label}+1 to ${LINE_ELEMENT_TYPES.length}`;
+}
+
+/** The chord of an element as `aria-keyshortcuts` spells it. */
+export function chordAria(type: LineElementType, platform: ChordPlatform): string {
+  return `${CHORD_FAMILY[platform].aria}+${LINE_ELEMENT_TYPES.indexOf(type) + 1}`;
+}
+
+/** The parts of a key event the chord reads. A DOM `KeyboardEvent` has all of them. */
+export interface ChordEvent {
+  readonly code: string;
+  readonly ctrlKey: boolean;
+  readonly metaKey: boolean;
+  readonly altKey: boolean;
+  readonly shiftKey: boolean;
+  readonly repeat: boolean;
+  readonly isComposing?: boolean;
+  getModifierState?(key: string): boolean;
+}
+
+/**
+ * The element a key event chooses, or `null` when it is not an element chord. The key is the physical digit (`event.code`), so
+ * a layout that types a symbol on that key still chooses; the modifiers must be exactly the platform's family. A key held down,
+ * a key pressed while an input method composes, and AltGraph (which a layout types characters with) are never a chord.
+ */
+export function elementChord(event: ChordEvent, platform: ChordPlatform): LineElementType | null {
+  if (event.repeat || event.isComposing === true) return null;
+  if (event.getModifierState?.('AltGraph') === true) return null;
+  const family = CHORD_FAMILY[platform];
+  if (event.ctrlKey !== family.ctrl || event.metaKey !== family.meta || event.altKey !== family.alt || event.shiftKey !== family.shift) return null;
+  if (event.code.length !== 6 || !event.code.startsWith('Digit')) return null;
+  return LINE_ELEMENT_TYPES[event.code.charCodeAt(5) - 49] ?? null;
 }
 
 /** Whether a key opens the menu: Ctrl+E, or Cmd+E on macOS, with no other modifier. */
