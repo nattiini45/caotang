@@ -94,7 +94,7 @@ The panel on the right shows the selected item:
 - **Status and label**: the menus described above.
 - **Export style**: for a scene, **Normal** or **Section**. A scene marked **Section** prints its title as a heading above it when you export (see [Export](#export)). **Normal** clears it. Undo puts the last choice back.
 - **Codex**: the codex entries attached to the item, with **Attach a codex entry**. The **Mentioned in this document** list shows the codex names the text contains.
-- **Scene declarations**: for a scene, its **Point of view**, **Day offset**, **Duration in days** and **Timeline mode** (Linear, Flashback, Flash-forward, Parallel, Frame, Dream, Mythic, Backstory, Simultaneous, Circular or Time skip), the scenes listed under **Follows these scenes**, and the codex entries listed under **Expected to appear**. The continuity checks read these. Under **Threads this scene sets up** you can name something this scene plants (a **Thread name**, for example "the lamp"), choose the scene it is **Paid off in**, and add a line on **What the payoff is for**. Choose **Edit** to change a thread and **×** to remove it. Under **Knowledge** you can say which character **Learns** a fact in this scene and which is shown to **Know** it. Pick a character and a fact and choose **Add**; **×** takes a pair off. The facts are kept in the Knowledge list of the Findings tab, and a character is a codex entry of type character.
+- **Scene declarations**: for a scene, its **Point of view**, **Day offset**, **Duration in days** and **Timeline mode** (Linear, Flashback, Flash-forward, Parallel, Frame, Dream, Mythic, Backstory, Simultaneous, Circular or Time skip), the scenes listed under **Follows these scenes**, and the codex entries listed under **Expected to appear**. The continuity checks read these. Under **Threads this scene sets up** you can name something this scene plants (a **Thread name**, for example "the lamp"), choose the scene it is **Paid off in**, and add a line on **What the payoff is for**. Choose **Edit** to change a thread and **×** to remove it. Under **Knowledge** you can say which character **Learns** a fact in this scene and which is shown to **Know** it. Pick a character and a fact and choose **Add**; **×** takes a pair off. The facts are kept in the Knowledge list of the Findings tab, and a character is a codex entry of type character. **Dialogue container** links a screenplay scene to a dialogue container, so a scan can compare the characters the two name (see **Speakers in a screenplay and its dialogue** below); choose **No dialogue container linked** to clear it.
 - **Container settings**: for a dialogue container, described in [Writing dialogue](#writing-dialogue).
 
 ## The editor
@@ -254,6 +254,15 @@ You say who learns and who knows a fact on the scene, in its **Scene declaration
 - A scene that is empty or archived is not read.
 
 The scan does not look for the fact in a character's lines or in the prose. Dismiss a finding with a reason when the early knowledge is meant, for example a character who guessed.
+
+### Speakers in a screenplay and its dialogue
+
+A screenplay scene and a branching dialogue can name the same people in different ways, such as "Marisol" in one and "Marisol Vega" in the other. Nothing pairs a scene with a dialogue until you do: in the scene's **Scene declarations**, choose a **Dialogue container**. A full scan then compares the characters the scene's cues name with the speakers of that container, and notes where the two differ:
+
+- a screenplay spelling and a dialogue spelling that look like one name, where the codex knows only one of them or holds them as two characters;
+- a character only the screenplay has, or only the dialogue has.
+
+These are notes, not errors: a branch may rightly give a character a line the flat script lacks, so dismiss a note with a reason when the difference is meant. Only speakers are compared, never the lines or what they mean. A scene with no link is not compared, and the run history says how many scenes were compared and how many were not. A link to a container that is archived or gone shows as missing in the Inspector, with a button to clear it. Only screenplay scenes are compared.
 
 The **Run history** lists each run. **Run again** repeats a run with the same scope and the checks you have on now. **Discard run** removes a run, and Undo puts it back. The Export dialog's Review group writes the findings and runs as a coherence report, in Markdown or JSON.
 
