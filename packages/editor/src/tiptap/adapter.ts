@@ -164,6 +164,39 @@ export class StaleMountError extends Error {
   }
 }
 
+/**
+ * The mount was refused because the store holds unsaved text it could not read:
+ * the producer that yields the editor's own text failed.
+ *
+ * This is not the refusal {@link StaleMountError} names. The store has not moved
+ * on, and it does hold unsaved work — the editor's text — but the editor cannot
+ * show a body it could not read, and mounting over it would replace the store's
+ * work with a body that does not have it. Nothing is mounted, and the store keeps
+ * its text.
+ *
+ * The remedy is a mount again, because the flush a mount makes asks a failed
+ * producer once more: a text that can be read now is stored, and the document is
+ * then at a new revision — so reload it from the store and mount again, as
+ * {@link StaleMountError} says. A text that still cannot be read is still the
+ * store's to keep, and the failure is named here so the writer is told why.
+ */
+export class UnreadablePendingBodyError extends Error {
+  constructor(
+    readonly docId: string,
+    readonly error: unknown,
+  ) {
+    super(
+      `"${docId}" holds unsaved text the editor could not read (${describeFailure(error)}), so the editor ` +
+        'will not mount over it; the store keeps the text, and mounting again reads it again',
+    );
+    this.name = 'UnreadablePendingBodyError';
+  }
+}
+
+/** A failure in words, for a message that names it. */
+const describeFailure = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 /** The seam's load diagnostics, grouped for the banner (grouping is a separate call). */
 export interface LoadResult extends LoadDiagnostics {
   groups: LossWarningGroup[];
@@ -309,6 +342,9 @@ interface MountSeed {
  * - **Unsaved keystrokes the store still holds** (a failed flush, or an edit that arrived while flushing)
  *   are what the editor shows, at the store's revision. The mount is not refused: the store keeps the
  *   keystrokes, so none is lost, and the editor shows them rather than an older body.
+ * - **Unsaved text the store could not read** (a producer that failed) is refused with
+ *   {@link UnreadablePendingBodyError}: the editor cannot show a body it could not read, and mounting
+ *   over it would replace the store's work with a body that does not have it.
  * - **A flush that stored the unsaved body** leaves that body as the one the store holds, so the editor
  *   shows it at the revision the flush produced.
  * - **A write still running** has a body this caller cannot know yet, so the mount is refused.
@@ -328,7 +364,15 @@ const settleStoreWork = async (
   const after = autosave.status(docId);
   const pending = autosave.pendingBodyOf(docId);
   if (pending !== null) return { body: pending, revision: after.revision };
-  if (after.dirty) throw new StaleMountError(docId);
+  if (after.dirty) {
+    // The store still holds a body, and it is not one it can show: the producer
+    // that yields the editor's text failed, and the failure is what the store
+    // recorded. That is not the refusal `StaleMountError` names — the store has
+    // not moved on, and it does hold unsaved work — so the cause is named
+    // instead, and the store keeps the text.
+    if (after.lastError !== null) throw new UnreadablePendingBodyError(docId, after.lastError);
+    throw new StaleMountError(docId);
+  }
   if (after.revision === before.revision) return loaded;
   if (unsaved !== null) return { body: unsaved, revision: after.revision };
   throw new StaleMountError(docId);
@@ -474,6 +518,54 @@ const createInstance = (
   };
 
   /**
+   * The user's unsaved text, taken now, while the document still holds it.
+   *
+   * §9's window holds the body of the user's last edit, and the body belongs to the
+   * **write**, not to the keystroke that armed the window: the editor offers a
+   * producer, and the scheduler reads the text when the body is needed. So a change
+   * that is not the user's — an agent apply, a restore, a body that arrived from
+   * elsewhere — must not be read by that producer as if the user had typed it, and
+   * must not be written under the user's revision.
+   *
+   * Asking the store for the pending body takes the text as it is now and keeps it:
+   * the write that follows sends what the user typed, and the agent's change is the
+   * agent's own write to make. This is asked for *before* the change lands, which is
+   * the only moment the user's text is still the document's text.
+   *
+   * The store's `pendingBodyOf` is the ask: it produces a producer's body once and
+   * keeps it, so the flush that follows writes that same text without asking again.
+   *
+   * **What the ask cannot do is freeze a text it could not read.** The producer
+   * yields the editor's own text, so a read that fails is that text failing to be
+   * read: the capture leaves the store's pending source a producer still, and the
+   * change lands on top of it. The next attempt reads the text again, and what it
+   * reads then is the text the change left behind — so a producer that failed once
+   * and then succeeded stores the change's text under the user's revision. That is
+   * the hazard this capture closes, and a failed read is the one case where it
+   * stays open; the store records the failure, so the "unsaved changes" indicator
+   * is what the writer has.
+   *
+   * **A text the store could not read also refuses the next mount.** The mount
+   * shows the store's unsaved body, and a body it could not read is not a body it
+   * can show: mounting over it would replace the store's work with a body that
+   * does not have it. So the mount is refused with
+   * {@link UnreadablePendingBodyError}, which names the failure rather than
+   * blaming a store that has not moved. The store keeps the text, and the mount
+   * reads it again — the flush a mount makes asks a failed producer once more, so
+   * a text that can be read now is stored, and one that cannot is still the
+   * store's to keep.
+   *
+   * **The lane is the one this file reads everywhere.** A change that is not the
+   * user's is a transaction carrying `addToHistory: false`, and `markLane` is the
+   * only writer of that meta — so a change that arrives without it is a user
+   * change by §7's own definition, and it is counted as one.
+   */
+  const capturePending = (): void => {
+    if (autosave === undefined) return;
+    autosave.pendingBodyOf(docId);
+  };
+
+  /**
    * Every transaction the adapter makes goes through here, after its lane is marked. An
    * agent apply that reaches the user's undo scope empties that undo after it lands, so
    * the user's Ctrl+Z cannot rebase its inverse over the agent's text (§7 rule 1).
@@ -481,6 +573,10 @@ const createInstance = (
   const commit = (tr: Transaction): void => {
     if (destroyed) return;
     const agent = tr.getMeta('addToHistory') === false;
+    // A change that is not the user's, landing on a document with an unsaved edit of
+    // the user's, must not become part of that edit's body. The body is taken first,
+    // while the document still holds the user's text (§9).
+    if (agent && tr.docChanged) capturePending();
     const collide = agent && tr.docChanged && reachesScope(replacedSpans(tr), scope);
     editor.view.dispatch(tr);
     if (collide) resetUndoHistory();
@@ -534,13 +630,19 @@ const createInstance = (
   };
 
   // --- §9: the dirty pipeline is the store's (decision 4) -----------------------
-  /** A user edit: forwarded to the store's clock, or counted locally when there is no store. */
+  /**
+   * A user edit: forwarded to the store's clock, or counted locally when there is no store.
+   *
+   * The body is offered as a **producer** (§9): the body belongs to the write, not to
+   * the keystroke, so the text is read when the write needs it — once per window —
+   * rather than rendered on the leading edge of every keystroke and thrown away.
+   */
   const noteUserEdit = (): void => {
     if (autosave === undefined) {
       setLocallyEdited(true);
       return;
     }
-    autosave.noteEdit(docId, body());
+    autosave.noteEdit(docId, () => body());
   };
 
   // --- The view's events -------------------------------------------------------
