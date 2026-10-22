@@ -1,10 +1,10 @@
 /**
  * Ids for the coherence module — the same Crockford base32 family as node and
  * codex ids ([project-format.md](../../../docs/architecture/project-format.md)),
- * with three prefixes of its own: `f_` finding, `r_` run, `w_` world rule (coherence.md §3, §4.1, §4.3).
+ * with four prefixes of its own: `f_` finding, `r_` run, `w_` world rule, `k_` knowledge fact (coherence.md §3, §4.1, §4.3, §4.4).
  *
  * `@caotang/ids` owns the prefix union, and this module mints through it with its own
- * prefix (the union carries these three, rather than
+ * prefix (the union carries these four, rather than
  * borrowing `c` and swapping the prefix afterwards). The body is ten Crockford
  * characters from the family's randomness, and the spec's uniqueness rule still
  * applies: a minted id is never one `taken` already holds.
@@ -12,7 +12,7 @@
 
 import { ID_BODY_PATTERN, newId, type RandomBytes } from '@caotang/ids';
 
-export type CoherenceIdPrefix = 'f' | 'r' | 'w';
+export type CoherenceIdPrefix = 'f' | 'r' | 'w' | 'k';
 
 /**
  * True when `value` is `<prefix>_` followed by `ID_LENGTH` Crockford base32 characters.

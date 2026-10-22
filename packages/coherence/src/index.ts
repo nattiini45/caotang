@@ -33,6 +33,7 @@ export * from './dismissal.js';
 export * from './groups.js';
 export * from './type-labels.js';
 export * from './world-rules.js';
+export * from './knowledge.js';
 export * from './canon.js';
 export * from './errors.js';
 export { DETERMINISTIC_CHECKS, runChecks, type CheckInput, type CheckOutput, type DialogueFacts, type DraftFinding } from './checks/index.js';

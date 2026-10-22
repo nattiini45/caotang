@@ -40,6 +40,7 @@ export function assembleInput(state: ProjectState, file: CoherenceFile, options:
       // A screenplay's cues are counted by the detector with its body (mentions.ts), so the counts are used as they come.
       hits: resolved.hits,
       shots: snapshot.shots,
+      knowledge: file.knowledge,
       treeDocuments: new Map(state.manifest.tree.filter((node) => node.type === 'document').map((node) => [node.id, node.title || node.id])),
       ...(options.dialogue !== undefined ? { dialogue: options.dialogue } : {}),
     },
