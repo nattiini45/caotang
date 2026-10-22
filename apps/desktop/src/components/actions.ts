@@ -78,6 +78,11 @@ export function setLabel(session: ProjectSession, nodeId: string, label: string 
   return session.dispatch('binder.setMeta', { nodeId, patch: { label } });
 }
 
+/** The scene's export style (exporter.md §2): a style in `SCENE_STYLES`, or `null` to clear it. */
+export function setSceneStyle(session: ProjectSession, nodeId: string, style: string | null): Outcome {
+  return session.dispatch('binder.setMeta', { nodeId, patch: { style } });
+}
+
 export function addKeyword(session: ProjectSession, nodeId: string, keyword: string): Outcome {
   return session.dispatch('binder.setMeta', { nodeId, patch: { keywords_add: [keyword] } });
 }

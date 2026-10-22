@@ -6,6 +6,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Export.** A scene can be marked **Section** (the **Export style** in the inspector), and its title then prints as a heading above it in Markdown (`###`), plain text (capitals), Word (Heading 2, listed under its chapter in the contents field) and EPUB (`<h2>`). Scene titles never printed before, so an export of a manuscript with a scene marked Section differs from an earlier one. A style that a format cannot express is named in the compile log; none is dropped yet. A project written before the field loads unchanged.
 - **Agent.** A live task list for multi-step turns, in the agent header and at the top of the turn, with the model-call budget. The header says "Step 3 of 5 · Drafting “The Landing”", or "Waiting for you · Plan, 3 steps", with the drawer open or closed. The list is worked out from the plan and the tool calls, so it costs no model tokens and shows only work that ran.
 
 ## 0.1.0

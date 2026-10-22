@@ -92,6 +92,7 @@ The panel on the right shows the selected item:
 - **Keywords**: type one and press Enter.
 - **Goals**: for a folder, or for the manuscript. Choose the **Comparison** (**At least**, **At most** or **About**) and the **Measure** (**Words** or **Characters**), type the target, and choose an optional **By** date for a project goal. On the manuscript, **Kind** also offers **Weekly** and **Monthly**. A weekly or monthly goal counts the words of the sessions that ended in the current week or month, across all your projects in this browser. Choose when it starts with **Week starts on** (the first day of the week where you live, unless you pick another day) or **Month starts on** (the 1st, unless you pick a day up to the 28th or the last day of the month). Choose **Add goal**, then **Edit** or **Remove** beside a goal to change or delete it.
 - **Status and label**: the menus described above.
+- **Export style**: for a scene, **Normal** or **Section**. A scene marked **Section** prints its title as a heading above it when you export (see [Export](#export)). **Normal** clears it. Undo puts the last choice back.
 - **Codex**: the codex entries attached to the item, with **Attach a codex entry**. The **Mentioned in this document** list shows the codex names the text contains.
 - **Scene declarations**: for a scene, its **Point of view**, **Day offset**, **Duration in days** and **Timeline mode** (Linear, Flashback, Flash-forward, Parallel, Frame, Dream, Mythic, Backstory, Simultaneous, Circular or Time skip), the scenes listed under **Follows these scenes**, and the codex entries listed under **Expected to appear**. The continuity checks read these.
 - **Container settings**: for a dialogue container, described in [Writing dialogue](#writing-dialogue).
@@ -264,6 +265,7 @@ Choose **Compile…** in the toolbar. Then choose a recipe, a format and what to
 - Choose **Compile**. Undo removes the file the compile wrote. A compile that Caotang refuses is said inside the dialog, beside **Compile**, and no file is saved. The message clears when you choose another recipe or format.
 - Empty documents are left out, and the status line says how many were skipped.
 - Research is never included.
+- A scene marked **Section** (its **Export style** in the inspector) prints its title as a heading above it, which a scene never does otherwise: `###` in Markdown, capitals in plain text, a second-level heading in Word and EPUB. In Word the contents field lists it under its chapter. The Markdown and EPUB contents lists stay the list of chapters. A file you exported before still has no scene titles, so an export made now differs from it for every scene you mark.
 
 The formats come in three groups:
 
