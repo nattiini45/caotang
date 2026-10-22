@@ -752,6 +752,15 @@ importers:
         specifier: 1.6.3
         version: 1.6.3
 
+  packages/remote-store:
+    dependencies:
+      '@caotang/crypto':
+        specifier: workspace:*
+        version: link:../crypto
+      '@caotang/store':
+        specifier: workspace:*
+        version: link:../store
+
   packages/screenplay:
     dependencies:
       '@caotang/pdf-fonts':
