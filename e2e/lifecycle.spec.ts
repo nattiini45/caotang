@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { binderRow, bodyOf, createProject, idOf, projectTrace, trace, waitForSaved, binderTitle } from './support.js';
+import { binderRow, bodyOf, createProject, FOLDER_ACCESS_ONLY, idOf, projectTrace, trace, waitForSaved, binderTitle } from './support.js';
 
 /**
  * Projects outlive a tab: they are kept in the browser's store, listed, opened, exported as a
@@ -36,7 +36,8 @@ test('a scene survives a reload: the project is listed, and it opens with the te
   await expect(page.getByRole('textbox', { name: 'Document text' })).toHaveText('It was a dark and stormy night.');
 });
 
-test('the projects screen offers the folder picker where the browser can open folders', async ({ page }) => {
+test('the projects screen offers the folder picker where the browser can open folders', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', FOLDER_ACCESS_ONLY);
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Open a folder…' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Import bundle (.caotang)' })).toBeVisible();

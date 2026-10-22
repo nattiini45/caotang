@@ -11,7 +11,7 @@ import { readFile } from 'node:fs/promises';
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { binderTitle, createProject, firstChapter, waitForSaved } from './support.js';
+import { binderTitle, createProject, firstChapter, FOLDER_ACCESS_ONLY, waitForSaved } from './support.js';
 import { zipEntries } from './zip-entries.js';
 
 const PROJECT = 'Picture Book';
@@ -128,7 +128,8 @@ test('a bundle made from the projects list after a reload carries the project’
   expect([...entries.keys()].filter((name) => name.startsWith('assets/'))).toHaveLength(2);
 });
 
-test('a folder saved after a reload holds every picture of the project, not only the ones this page added', async ({ page }) => {
+test('a folder saved after a reload holds every picture of the project, not only the ones this page added', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', FOLDER_ACCESS_ONLY);
   await standInFolderPicker(page);
   await createProject(page, PROJECT);
   const card = await storyboardWithShot(page);
@@ -144,7 +145,8 @@ test('a folder saved after a reload holds every picture of the project, not only
   expect(files.filter((file) => file.startsWith('assets/'))).toHaveLength(1);
 });
 
-test('a project opened from a folder keeps its pictures when it is opened again from the projects list', async ({ page }) => {
+test('a project opened from a folder keeps its pictures when it is opened again from the projects list', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', FOLDER_ACCESS_ONLY);
   await standInFolderPicker(page);
   await createProject(page, PROJECT);
   const card = await storyboardWithShot(page);

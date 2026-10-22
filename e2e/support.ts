@@ -8,6 +8,9 @@
 
 import { expect, type Locator, type Page } from '@playwright/test';
 
+/** Why a spec that opens or saves a project folder skips outside Chromium: Firefox and WebKit have no folder picker, so a writer there uses bundles. */
+export const FOLDER_ACCESS_ONLY = 'File System Access is Chromium-only';
+
 /** One row of the activity log, as the hook reports it. */
 export interface TraceRow {
   readonly command: string;
