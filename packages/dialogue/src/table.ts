@@ -181,6 +181,7 @@ export function toJsonRows(rows: readonly TableRow[]): Record<string, unknown>[]
     text: row.text,
     context: row.context,
     charLimit: row.charLimit,
+    locale: row.locale,
     ...(row.kind === 'choice' ? { condition: row.condition } : {}),
     container: row.container,
     node: row.node,

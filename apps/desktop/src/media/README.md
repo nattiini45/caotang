@@ -138,7 +138,8 @@ One exception is open: `ScreenplayPreview.tsx` imports `paginate` and `LAYOUT` f
 2. **Dialogue table and container settings.** The dialogue table's character limit (`charLimit`) is a recipe option, set in the
    export dialog's Character limit field when the dialogue table is chosen, so a `dialogue-csv` or `dialogue-xlsx` export from the app carries it.
    The engine target and the locale reach the exports (*What a writer can do*, *Container settings*). The agent's
-   `dialogue.table` tool does not read them: it returns §6's columns.
+   `dialogue.table` tool reads them too, but stays the one table: §6's columns plus `locale`, with the target and locale in its
+   `data` and a note when the export writes a Yarn strings file. Its `charLimit` column is empty, because the tool has no recipe.
 3. **Screenplay source affordances.** The element menu offers no section or synopsis: sections and synopses live in the binder and
    the Inspector (screenplay.md §2.2). Each of the nine elements has a chord in the Source tab: Ctrl+Shift+1..9, or Cmd+Alt+1..9 on a
    Mac, matched on the physical digit key. Playwright fakes the modifier state, so the chords are not checked on a real Mac, on a
