@@ -25,12 +25,20 @@
  * columns, set at 10 points and centred in its cell so it fits the 12-point line. Its ToUnicode entry is the whole
  * cluster, so a reader copies the sequence the writer typed. A line with no emoji is written as it was without this font.
  *
+ * Arabic and Hebrew print in two more fonts when the caller passes them (rtl-font.ts cuts them): subsets of Noto Sans Arabic and
+ * Noto Sans Hebrew, written like the others. A line that holds either script, or belongs to a right-to-left paragraph, is not
+ * placed by its text but by a plan the caller made for it (`PdfRtlFonts.lines`): the line's runs in the order the algorithm
+ * of UAX #9 puts them, each at its column. A word of one of the scripts is a shaped run, set glyph by glyph at the positions the
+ * shaper gave, because a text operator would drop the marks' offsets; the glyphs are wrapped in marked content with
+ * `/ActualText` holding the run's logical text, so a reader copies and searches what the writer typed. The runs are written in
+ * logical order, each at an absolute position. A line without a plan is written as it always was.
+ *
  * Every byte is ASCII. Strings are escaped on the way in and the font program is written in
  * hexadecimal (`ASCIIHexDecode`), so the object offsets the xref table records are string
  * offsets, and the tests can check them exactly.
  */
 
-import { cidFontObjects, isEmojiCluster, type CidSubset, type PdfValue } from '@caotang/pdf-fonts';
+import { cidFontObjects, isBidiControl, isEmojiCluster, type CidSubset, type PdfValue } from '@caotang/pdf-fonts';
 
 import { COURIER_PRIME_METRICS } from './fonts/courier-prime-metrics.js';
 import { LAYOUT } from './paginate.js';
@@ -44,6 +52,8 @@ const CID_FONT_OBJECTS = 6;
 
 export interface PdfText {
   readonly text: string;
+  /** The line belongs to a right-to-left paragraph (paginate.ts `LayoutLine.rtl`); with its text it finds the line's plan. */
+  readonly rtl?: true;
   /** Points from the left page edge. */
   readonly x: number;
   /** Baseline in points from the top page edge. */
@@ -96,6 +106,52 @@ export interface PdfEmojiFont extends CidSubset {
   readonly glyphs: ReadonlyMap<string, PdfEmojiGlyph>;
 }
 
+/** One glyph of a shaped Arabic or Hebrew run: its CID in the font's subset, and its place in points from the run's left edge, right and up. */
+export interface PdfShapedGlyph {
+  readonly cid: number;
+  readonly x: number;
+  readonly y: number;
+}
+
+/** A word of Arabic or Hebrew, set in the font of its script glyph by glyph (see the header). */
+export interface PdfShapedRun {
+  readonly kind: 'shaped';
+  readonly font: 'arabic' | 'hebrew';
+  /** The column of the run's left edge, from the line's start. */
+  readonly column: number;
+  /** The glyphs left to right as drawn, each at its own position, the order the shaper gives them. */
+  readonly glyphs: readonly PdfShapedGlyph[];
+  /** The run's text in logical order: its `/ActualText`. */
+  readonly source: string;
+  /** The run's place among the line's runs in logical order. */
+  readonly order: number;
+}
+
+/** Text of the other fonts, in the order it is drawn, left to right, from a column. */
+export interface PdfPlainRun {
+  readonly kind: 'plain';
+  readonly column: number;
+  readonly text: string;
+  /** The text in logical order. When it differs from `text` the run gets an `/ActualText` of it. */
+  readonly source: string;
+  readonly order: number;
+}
+
+export type PdfRtlItem = PdfShapedRun | PdfPlainRun;
+
+/** The Arabic and Hebrew subsets, and the plan of each line that holds either script or belongs to a right-to-left paragraph. */
+export interface PdfRtlFonts {
+  readonly arabic?: CidSubset;
+  readonly hebrew?: CidSubset;
+  /** A line's plan, by {@link rtlLineKey}. */
+  readonly lines: ReadonlyMap<string, readonly PdfRtlItem[]>;
+}
+
+/** What finds a line's plan: its text, and whether its paragraph is right to left. */
+export function rtlLineKey(text: string, rtl: boolean): string {
+  return `${rtl ? 'r' : 'l'}${text}`;
+}
+
 /** The WinAnsi byte for a character. Anything it cannot encode becomes a question mark. */
 function winAnsiCode(ch: string): number {
   const code = ch.codePointAt(0) ?? 0x3f;
@@ -122,33 +178,25 @@ function num(value: number): string {
 /** Text that is all WinAnsi in the Latin-1 range: one unit a character, each one column in Courier Prime. */
 const LATIN = /^[\x20-\x7e\xa0-\xff]*$/;
 
-function contentStream(lines: readonly PdfText[], fallback?: PdfCidFont, emoji?: PdfEmojiFont): string {
+function contentStream(lines: readonly PdfText[], fallback?: PdfCidFont, emoji?: PdfEmojiFont, rtl?: PdfRtlFonts): string {
   const parts = ['BT', '/F1 12 Tf'];
   let current = 'F1';
   const setFont = (name: string, size = 12): void => {
     if (current !== name) parts.push(`/${name} ${size} Tf`);
     current = name;
   };
-  for (const line of lines) {
-    const y = num(LAYOUT.pageHeight - line.y);
-    // A line whose every unit is one Courier Prime column is one string, as the writer always wrote it.
-    const units = LATIN.test(line.text) ? null : textUnits(line.text);
-    if (units === null || units.every((unit) => unit.length === 1 && unitColumns(unit) === 1 && fontOf(unit, fallback, emoji) === 'F1')) {
-      setFont('F1');
-      parts.push(`1 0 0 1 ${num(line.x)} ${y} Tm`, `(${pdfString(line.text)}) Tj`);
-      continue;
-    }
-    // A line with fallback glyphs or emoji is written as runs, each placed at its first unit's column.
+  /** The units of a stretch of a line, each run placed at its column from `x`. */
+  const writeUnits = (units: readonly string[], x: number, y: string): void => {
     for (const run of runsOf(units, fallback, emoji)) {
       if (run.font === 'F3' && emoji !== undefined) {
         // Each emoji is placed on its own, centred in its two-column cell.
         setFont('F3', emoji.size);
         (run.glyphs as PdfEmojiGlyph[]).forEach((glyph, i) => {
-          parts.push(`1 0 0 1 ${num(line.x + (run.column + 2 * i) * LAYOUT.charWidth + glyph.dx)} ${y} Tm`, `${cidString([glyph])} Tj`);
+          parts.push(`1 0 0 1 ${num(x + (run.column + 2 * i) * LAYOUT.charWidth + glyph.dx)} ${y} Tm`, `${cidString([glyph])} Tj`);
         });
         continue;
       }
-      parts.push(`1 0 0 1 ${num(line.x + run.column * LAYOUT.charWidth)} ${y} Tm`);
+      parts.push(`1 0 0 1 ${num(x + run.column * LAYOUT.charWidth)} ${y} Tm`);
       if (run.font === 'F1') {
         setFont('F1');
         parts.push(`(${pdfString(run.text)}) Tj`);
@@ -157,9 +205,60 @@ function contentStream(lines: readonly PdfText[], fallback?: PdfCidFont, emoji?:
         parts.push(`${cidString(run.glyphs)} Tj`);
       }
     }
+  };
+  for (const line of lines) {
+    const y = num(LAYOUT.pageHeight - line.y);
+    const plan = rtl?.lines.get(rtlLineKey(line.text, line.rtl === true));
+    if (plan !== undefined) {
+      writePlan(plan, line, y, setFont, writeUnits, parts);
+      continue;
+    }
+    // A line whose every unit is one Courier Prime column is one string, as the writer always wrote it.
+    const units = LATIN.test(line.text) ? null : textUnits(line.text);
+    if (units === null || units.every((unit) => unit.length === 1 && unitColumns(unit) === 1 && fontOf(unit, fallback, emoji) === 'F1')) {
+      setFont('F1');
+      parts.push(`1 0 0 1 ${num(line.x)} ${y} Tm`, `(${pdfString(line.text)}) Tj`);
+      continue;
+    }
+    // A line with fallback glyphs or emoji is written as runs, each placed at its first unit's column.
+    writeUnits(units, line.x, y);
   }
   parts.push('ET');
   return parts.join('\n');
+}
+
+/** The marked content that gives a reader the text a stretch of the page stands for (PDF 32000-1 §14.9.4). */
+const actualText = (text: string): string => `/Span << /ActualText <FEFF${utf16Hex(text)}> >> BDC`;
+
+/**
+ * A planned line: its runs in logical order, each at its column. A shaped run is set glyph by glyph; a run of the other fonts
+ * is written as any line's units are. A run whose drawn text differs from its logical text, and every shaped run, carries
+ * its logical text for copying.
+ */
+function writePlan(
+  plan: readonly PdfRtlItem[],
+  line: PdfText,
+  y: string,
+  setFont: (name: string, size?: number) => void,
+  writeUnits: (units: readonly string[], x: number, y: string) => void,
+  parts: string[],
+): void {
+  for (const item of [...plan].sort((a, b) => a.order - b.order)) {
+    const x = line.x + item.column * LAYOUT.charWidth;
+    if (item.kind === 'shaped') {
+      parts.push(actualText(item.source));
+      setFont(item.font === 'arabic' ? 'F4' : 'F5');
+      for (const glyph of item.glyphs) {
+        parts.push(`1 0 0 1 ${num(x + glyph.x)} ${num(LAYOUT.pageHeight - line.y + glyph.y)} Tm`, `${cidString([glyph])} Tj`);
+      }
+      parts.push('EMC');
+      continue;
+    }
+    const copied = item.text !== item.source;
+    if (copied) parts.push(actualText(item.source));
+    writeUnits(textUnits(item.text), x, y);
+    if (copied) parts.push('EMC');
+  }
 }
 
 /** The font a unit prints in: F1 Courier Prime, F2 the CJK fallback, F3 the emoji fallback. A unit no font has is F1, as "?". */
@@ -190,6 +289,8 @@ function runsOf(units: readonly string[], fallback?: PdfCidFont, emoji?: PdfEmoj
   const runs: Run[] = [];
   let column = 0;
   for (const unit of units) {
+    // A bidirectional control character prints nothing and takes no column, planned line or not.
+    if (isBidiControl(unit)) continue;
     const font = fontOf(unit, fallback, emoji);
     const cols = unitColumns(unit);
     const base = String.fromCodePoint(unit.codePointAt(0) ?? 0x3f);
@@ -288,7 +389,7 @@ function infoString(text: string): string {
  * 3 the font, 4 the info dictionary. Each page then takes two objects: the page, and its
  * content stream. An embedded font adds its descriptor and its program after the pages, a CJK fallback that prints at
  * least one character adds its six objects after those, and an emoji font that prints at least one unit its six after
- * those. Every page names each font the file has.
+ * those, and an Arabic and a Hebrew font that print at least one glyph their six each after those. Every page names each font the file has.
  *
  * A document with nothing to print writes one blank page: PDF 1.7 §7.7.3.2 asks the page tree to hold at least one
  * page, and a reader refuses a file whose page tree is empty.
@@ -299,6 +400,7 @@ export function writePdf(
   font?: PdfFont,
   cjk?: PdfCidFont,
   emojiFont?: PdfEmojiFont,
+  rtlFonts?: PdfRtlFonts,
 ): Uint8Array<ArrayBuffer> {
   const fallback = cjk === undefined || cjk.glyphs.size === 0 ? undefined : cjk;
   const emoji = emojiFont === undefined || emojiFont.glyphs.size === 0 ? undefined : emojiFont;
@@ -329,12 +431,31 @@ export function writePdf(
       bodies[emojiId - 1 + i] = body;
     });
   }
+  const arabic = rtlFonts?.arabic === undefined || rtlFonts.arabic.entries.length === 0 ? undefined : rtlFonts.arabic;
+  const hebrew = rtlFonts?.hebrew === undefined || rtlFonts.hebrew.entries.length === 0 ? undefined : rtlFonts.hebrew;
+  const arabicId = emojiId + (emoji === undefined ? 0 : CID_FONT_OBJECTS);
+  if (arabic !== undefined) {
+    cidFontText(arabic, arabicId).forEach((body, i) => {
+      bodies[arabicId - 1 + i] = body;
+    });
+  }
+  const hebrewId = arabicId + (arabic === undefined ? 0 : CID_FONT_OBJECTS);
+  if (hebrew !== undefined) {
+    cidFontText(hebrew, hebrewId).forEach((body, i) => {
+      bodies[hebrewId - 1 + i] = body;
+    });
+  }
   const fonts =
-    '/F1 3 0 R' + (fallback === undefined ? '' : ` /F2 ${fallbackId} 0 R`) + (emoji === undefined ? '' : ` /F3 ${emojiId} 0 R`);
+    '/F1 3 0 R' +
+    (fallback === undefined ? '' : ` /F2 ${fallbackId} 0 R`) +
+    (emoji === undefined ? '' : ` /F3 ${emojiId} 0 R`) +
+    (arabic === undefined ? '' : ` /F4 ${arabicId} 0 R`) +
+    (hebrew === undefined ? '' : ` /F5 ${hebrewId} 0 R`);
+  const planned = arabic === undefined && hebrew === undefined ? undefined : rtlFonts;
   const author = info.author === undefined || info.author.trim() === '' ? '' : ` /Author ${infoString(info.author)}`;
   bodies[3] = `<< /Title ${infoString(info.title ?? 'Screenplay')}${author} /Producer ${infoString(info.producer ?? 'Caotang')} >>`;
   written.forEach((lines, i) => {
-    const stream = contentStream(lines, fallback, emoji);
+    const stream = contentStream(lines, fallback, emoji, planned);
     bodies[pageId(i) - 1] =
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${LAYOUT.pageWidth} ${LAYOUT.pageHeight}] ` +
       `/Resources << /Font << ${fonts} >> >> /Contents ${pageId(i) + 1} 0 R >>`;

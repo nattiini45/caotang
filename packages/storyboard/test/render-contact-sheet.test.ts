@@ -575,3 +575,21 @@ describe('planContactSheet: the plan with no reads', () => {
     expect(planned.plan.geometry.height).toBe(792);
   });
 });
+
+describe('measureText — Arabic and Hebrew', () => {
+  it('counts an Arabic letter at half an em, a Hebrew letter at 0.55 em, and a mark of either at none', () => {
+    expect(measureText('مرحبا', 10)).toBeCloseTo(5 * 0.5 * 10, 6);
+    expect(measureText('שלום', 10)).toBeCloseTo(4 * 0.55 * 10, 6);
+    expect(measureText('بِسْمِ', 10)).toBeCloseTo(3 * 0.5 * 10, 6);
+    expect(measureText('שָׁלוֹם', 10)).toBeCloseTo(4 * 0.55 * 10, 6);
+    // Latin text is measured as before.
+    expect(measureText('abc', 10)).toBeCloseTo(3 * 0.55 * 10, 6);
+  });
+
+  it('wraps Arabic in logical order at spaces and never inside a letter with its marks', () => {
+    const lines = wrapText(Array.from({ length: 12 }, () => 'بِسْمِ').join(' '), 60, 10, 6);
+    expect(lines.length).toBeGreaterThan(1);
+    for (const line of lines) expect(measureText(line, 10)).toBeLessThanOrEqual(60 + 1e-6);
+    expect(lines.join(' ').startsWith('بِسْمِ')).toBe(true);
+  });
+});

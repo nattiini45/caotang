@@ -9,7 +9,7 @@ import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
-import { CJK_FONT_FILE, EMOJI_FONT_FILE } from '@caotang/pdf-fonts';
+import { ARABIC_FONT_FILE, CJK_FONT_FILE, EMOJI_FONT_FILE, HEBREW_FONT_FILE } from '@caotang/pdf-fonts';
 import { cjkFontCandidates, emojiFontCandidates } from '@caotang/pdf-fonts/node-loader';
 
 import { BUNDLE_ENTRY, BUNDLE_FONTS, manifestProblems, mcpbCliPath, packBundle, runMcpb, stageBundle } from '../scripts/pack-mcpb.mjs';
@@ -191,12 +191,17 @@ describe('staging and packing', () => {
     }
   });
 
-  it('has exactly one CJK font and one emoji font to stage, from their packages, 7.8 MB together', () => {
+  it('has exactly one CJK, one emoji, one Arabic and one Hebrew font to stage, from their packages, 8.0 MB together', () => {
     const require = createRequire(import.meta.url);
-    const sizes = [`@caotang/font-noto-cjk/${CJK_FONT_FILE}`, `@caotang/font-noto-emoji/${EMOJI_FONT_FILE}`].map((specifier) => statSync(require.resolve(specifier)).size);
-    expect(sizes).toEqual([7219856, 579236]);
+    const sizes = [
+      `@caotang/font-noto-cjk/${CJK_FONT_FILE}`,
+      `@caotang/font-noto-emoji/${EMOJI_FONT_FILE}`,
+      `@caotang/font-noto-arabic/${ARABIC_FONT_FILE}`,
+      `@caotang/font-noto-hebrew/${HEBREW_FONT_FILE}`,
+    ].map((specifier) => statSync(require.resolve(specifier)).size);
+    expect(sizes).toEqual([7219856, 579236, 142140, 16836]);
     // Against 25,065,212 bytes of four font files before the two PDFs shared one of each.
-    expect(sizes[0]! + sizes[1]!).toBeLessThan(8_000_000);
+    expect(sizes.reduce((sum, size) => sum + size, 0)).toBeLessThan(8_100_000);
   });
 
   it('stages the fonts where the Node loader looks first, from the server bundle it stages', () => {

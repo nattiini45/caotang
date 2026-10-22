@@ -81,6 +81,8 @@ packages/storyboard/     shot cards and animatics
 packages/video-prompt-pack/
 vendor/noto-sans-cjk/    @caotang/font-noto-cjk
 vendor/noto-emoji/       @caotang/font-noto-emoji
+vendor/noto-sans-arabic/ @caotang/font-noto-arabic
+vendor/noto-sans-hebrew/ @caotang/font-noto-hebrew
 site/                    the marketing landing page (GitHub Pages root)
 e2e/                     Playwright specs; e2e/unit/ holds the pure model specs
 test/                    repo-level vitest guards (lockfile, toolchain floor, guide claims, …)

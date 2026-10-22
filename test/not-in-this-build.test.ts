@@ -42,6 +42,8 @@ const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp
   },
   { name: 'the engine target and locale in dialogue exports', pattern: /engine target|dialogue export settings|locale in exports/i },
   { name: 'the Source tab element menu', pattern: /element menu/i },
+  // A sentence that names Arabic or Hebrew as unprintable, with Hindi or as a question mark; the limits that remain (marks, Nastaliq, no mirrored page) do not.
+  { name: 'Arabic and Hebrew in the PDFs', pattern: /such as (?:an? )?(?:Arabic|Hebrew)|Arabic,? (?:and|or) Hindi|Hindi,? (?:and|or) Arabic/i },
   { name: 'the storyboard contact sheet PDF', pattern: /storyboard PDF|PDF (?:exports? |output )?(?:of|for) (?:a )?storyboards?|PDF of a storyboard/i },
 ];
 
@@ -92,5 +94,19 @@ describe('the not-in-this-build lists name only what is missing', () => {
     expect(sectionUnder(media, '## What is not wired')).not.toMatch(/visual references/i);
     // The panel sets them and the pack names them; the wired-behaviour list says so.
     expect(media).toMatch(/The codex panel's \*Visual references\* section sets them/);
+  });
+});
+
+describe('the Arabic and Hebrew pattern', () => {
+  const pattern = BUILT_FEATURES.find((feature) => feature.name === 'Arabic and Hebrew in the PDFs')?.pattern ?? /$^/;
+
+  it('flags the old claims that Arabic does not print', () => {
+    expect('Characters that none of its fonts has, such as Arabic and Hindi, print as `?`.').toMatch(pattern);
+    expect('A character no font covers, such as an Arabic letter, prints as a question mark.').toMatch(pattern);
+  });
+
+  it('lets the limits that remain through', () => {
+    expect('Characters that none of its fonts has (Noto Sans Arabic, Noto Sans Hebrew), such as Hindi, print as `?`.').not.toMatch(pattern);
+    expect('Arabic marks and Hebrew points are left out of the print.').not.toMatch(pattern);
   });
 });

@@ -20,7 +20,7 @@
  * (storyboard.md §6) is drawn the same way: its page plan runs here, and its pictures are read when it renders.
  */
 
-import { drawPdf, layoutPdf, loadCjkFallback, loadCourierPrime, loadEmojiFallback, renderFdx, renderFountain, isScreenplayKind, PDF_MIME, type PdfLayout, type SceneNumberPlacement } from '@caotang/screenplay';
+import { drawPdf, layoutPdf, preparePdf, renderFdx, renderFountain, isScreenplayKind, PDF_MIME, type PdfLayout, type PdfRenderOptions, type SceneNumberPlacement } from '@caotang/screenplay';
 import {
   TABLE_COLUMNS,
   exportCsv,
@@ -128,6 +128,12 @@ export interface MediaRequest {
   readonly loadFallbackFont?: FontLoader;
   /** Reads the emoji font (`@caotang/font-noto-emoji`). The screenplay PDF and the contact sheet read it, and only when the file holds an emoji. */
   readonly loadEmojiFont?: FontLoader;
+  /** Reads Noto Sans Arabic (`@caotang/font-noto-arabic`). The screenplay PDF and the contact sheet read it, and only when the file holds Arabic-script text. */
+  readonly loadArabicFont?: FontLoader;
+  /** Reads Noto Sans Hebrew (`@caotang/font-noto-hebrew`). The screenplay PDF and the contact sheet read it, and only when the file holds Hebrew text. */
+  readonly loadHebrewFont?: FontLoader;
+  /** The project's language (a BCP 47 tag), when it has one. In a right-to-left language the screenplay PDF lays out a paragraph with no strong character right to left. */
+  readonly language?: string;
 }
 
 /**
@@ -308,12 +314,16 @@ function fountainOutput(request: MediaRequest): MediaOutput {
 
 /**
  * The screenplay PDF (screenplay.md §5.3). The selection, the gate and the pagination are the plan's, so a refusal writes
- * nothing and the log row can give the page count. The file is drawn in the queue, with Courier Prime embedded, and the CJK and emoji fallbacks when the script needs them.
+ * nothing and the log row can give the page count. The file is drawn in the queue, with Courier Prime embedded, and the CJK, emoji,
+ * Arabic and Hebrew fonts when the script needs them. A script with Arabic or Hebrew is laid out twice: here, before any font is
+ * read, with a column for each letter of a word, which is what the gate and the page count in the log are made of; and again when the
+ * file is drawn, with the words measured in their fonts (screenplay.md §5.3). When the measured layout has another page count, the
+ * log says so.
  */
 function pdfOutput(request: MediaRequest): MediaOutput {
   const { flat, left } = screenplayBlocks(request);
   requireScenes('pdf', flat, left);
-  const layout = layoutPdf(flat.blocks, {
+  const options: PdfRenderOptions = {
     title: request.title,
     author: request.author,
     date: request.date,
@@ -321,7 +331,9 @@ function pdfOutput(request: MediaRequest): MediaOutput {
     titlePage: request.titlePage,
     sceneNumbers: request.sceneNumbers ?? 'off',
     continued: request.continued ?? true,
-  });
+    ...(request.language === undefined ? {} : { language: request.language }),
+  };
+  const layout = layoutPdf(flat.blocks, options);
   // A scene that survives the gate can still print nothing: a body of only notes, boneyard or blank scenes yields no
   // script page, and the paginator writes one blank page so the PDF is valid — a blank book that reports success. The
   // gate refuses it as it refuses a selection with no scene, before anything is reserved or written.
@@ -340,12 +352,19 @@ function pdfOutput(request: MediaRequest): MediaOutput {
         name: `${request.base}.pdf`,
         mimeType: PDF_MIME,
         bytes: async () => {
-          const [font, cjk, emoji] = await Promise.all([
-            loadCourierPrime(),
-            loadCjkFallback(layout, request.loadFallbackFont),
-            loadEmojiFallback(layout, request.loadEmojiFont),
-          ]);
-          return drawPdf(layout, font, cjk, emoji);
+          const prepared = await preparePdf(flat.blocks, options, {
+            ...(request.loadFallbackFont === undefined ? {} : { cjk: request.loadFallbackFont }),
+            ...(request.loadEmojiFont === undefined ? {} : { emoji: request.loadEmojiFont }),
+            ...(request.loadArabicFont === undefined ? {} : { arabic: request.loadArabicFont }),
+            ...(request.loadHebrewFont === undefined ? {} : { hebrew: request.loadHebrewFont }),
+          });
+          const bytes = drawPdf(prepared.layout, prepared.font, prepared.cjk, prepared.emoji, prepared.rtl);
+          const counted = prepared.layout.scriptPageCount;
+          if (counted === pages) return bytes;
+          return {
+            contents: bytes,
+            notes: [`pdf: with Arabic and Hebrew words measured in their fonts the script is ${counted} ${counted === 1 ? 'page' : 'pages'}, not ${pages}`],
+          };
         },
       },
     ],
@@ -373,6 +392,8 @@ function unloadedFontNotes(layout: PdfLayout, request: MediaRequest): string[] {
   return [
     ...(request.loadFallbackFont === undefined ? missing(layout.fallbackCharacters, 'CJK fallback font') : []),
     ...(request.loadEmojiFont === undefined ? missing(layout.emojiCharacters, 'emoji font') : []),
+    ...(request.loadArabicFont === undefined && layout.rtlScripts.includes('arabic') ? ['pdf: this compile has no Arabic font, so the Arabic text is printed as "?"'] : []),
+    ...(request.loadHebrewFont === undefined && layout.rtlScripts.includes('hebrew') ? ['pdf: this compile has no Hebrew font, so the Hebrew text is printed as "?"'] : []),
   ];
 }
 
@@ -780,6 +801,8 @@ function contactSheetOutput(request: MediaRequest): MediaOutput {
             ...(request.author.trim() === '' ? {} : { author: request.author }),
             ...(request.loadFallbackFont === undefined ? {} : { loadFallbackFont: request.loadFallbackFont }),
             ...(request.loadEmojiFont === undefined ? {} : { loadEmojiFont: request.loadEmojiFont }),
+            ...(request.loadArabicFont === undefined ? {} : { loadArabicFont: request.loadArabicFont }),
+            ...(request.loadHebrewFont === undefined ? {} : { loadHebrewFont: request.loadHebrewFont }),
             at,
           }),
       },

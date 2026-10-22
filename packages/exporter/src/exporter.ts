@@ -104,6 +104,13 @@ export interface ExporterOptions {
    */
   readonly loadEmojiFont?: FontLoader;
   /**
+   * Reads Noto Sans Arabic (`@caotang/font-noto-arabic`) and Noto Sans Hebrew (`@caotang/font-noto-hebrew`) for the screenplay PDF's
+   * Arabic, Persian, Urdu and Hebrew text, the same way. Each is called only when a file holds its script. Without one, that
+   * script is drawn as `?`, and the compile log says so.
+   */
+  readonly loadArabicFont?: FontLoader;
+  readonly loadHebrewFont?: FontLoader;
+  /**
    * The scene styles and the formats that express them (exporter.md §2, Per-scene styling). Absent is the build's own rows
    * (`section`, in all four prose formats); a test supplies a row a format lacks to reach the compile log's dropped-style note.
    */
@@ -260,7 +267,8 @@ export function createExporter(options: ExporterOptions): ExporterService {
     const date = localDayOf(at);
 
     if (isMediaFormat(request.format)) {
-      return planMedia(state, request, { format: request.format, title, author, date });
+      const language = metadata.language?.trim();
+      return planMedia(state, request, { format: request.format, title, author, date, ...(language === undefined || language === '' ? {} : { language }) });
     }
 
     const { template, note: templateNote } = resolveTemplate(request.templateId);
@@ -327,7 +335,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
   const planMedia = (
     state: ProjectState,
     request: PlanRequest,
-    common: { readonly format: MediaFormat; readonly title: string; readonly author: string; readonly date: string },
+    common: { readonly format: MediaFormat; readonly title: string; readonly author: string; readonly date: string; readonly language?: string },
   ): MediaPlan => {
     // A prompt pack's templateId names a vendor, not a layout template, so only the other media formats resolve one.
     const resolved = resolveTemplate(request.format === 'promptpack' ? undefined : request.templateId);
@@ -355,6 +363,9 @@ export function createExporter(options: ExporterOptions): ExporterService {
       ...(request.options.pageSize === undefined ? {} : { pageSize: request.options.pageSize }),
       ...(options.loadFallbackFont === undefined ? {} : { loadFallbackFont: options.loadFallbackFont }),
       ...(options.loadEmojiFont === undefined ? {} : { loadEmojiFont: options.loadEmojiFont }),
+      ...(options.loadArabicFont === undefined ? {} : { loadArabicFont: options.loadArabicFont }),
+      ...(options.loadHebrewFont === undefined ? {} : { loadHebrewFont: options.loadHebrewFont }),
+      ...(common.language === undefined ? {} : { language: common.language }),
       at: request.at,
     });
     const notes = [...output.notes];

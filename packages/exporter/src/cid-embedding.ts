@@ -104,6 +104,48 @@ export class CidEmbedding {
     );
   }
 
+  /**
+   * Draws a shaped run glyph by glyph, each at its own position (a pen that moves by the advances, and the glyph's offset from
+   * it), inside marked content that gives a reader `actual`, the run's logical text (`/ActualText`). pdf-lib's own text
+   * operators write advances only, so the offsets that place a joined or marked word are drawn here.
+   */
+  drawPlaced(
+    page: PdfLib.PDFPage,
+    glyphs: readonly { readonly id: number; readonly advance: number; readonly text: string; readonly dx: number; readonly dy: number }[],
+    x: number,
+    y: number,
+    size: number,
+    ink: { r: number; g: number; b: number },
+    actual: string,
+  ): void {
+    const { pushGraphicsState, popGraphicsState, beginText, endText, setFontAndSize, setFillingRgbColor, setTextMatrix, showText, PDFHexString, PDFName, PDFOperator, PDFOperatorNames, endMarkedContent } = this.lib;
+    let key = this.keys.get(page);
+    if (key === undefined) {
+      key = page.node.newFontDictionary(this.names.resource, this.ref);
+      this.keys.set(page, key);
+    }
+    const scale = size / this.font.unitsPerEm;
+    const operators = [
+      pushGraphicsState(),
+      // pdf-lib has the operator for marked content without properties only (BMC); this is BDC, with the /ActualText dictionary
+      // inline. Its operand types leave out a dictionary, which the operator writes as it writes any object.
+      PDFOperator.of(PDFOperatorNames.BeginMarkedContentSequence, [
+        PDFName.of('Span'),
+        this.doc.context.obj({ ActualText: PDFHexString.fromText(actual) }) as unknown as PdfLib.PDFName,
+      ]),
+      setFillingRgbColor(ink.r, ink.g, ink.b),
+      beginText(),
+      setFontAndSize(key, size),
+    ];
+    let pen = x;
+    for (const glyph of glyphs) {
+      operators.push(setTextMatrix(1, 0, 0, 1, pen + glyph.dx * scale, y + glyph.dy * scale), showText(PDFHexString.of(hex4(this.cidOf(glyph)))));
+      pen += glyph.advance * scale;
+    }
+    operators.push(endText(), endMarkedContent(), popGraphicsState());
+    page.pushOperators(...operators);
+  }
+
   private cidOf(glyph: CidGlyph): number {
     const key = `${glyph.id}\u0000${glyph.text}`;
     const known = this.cids.get(key);

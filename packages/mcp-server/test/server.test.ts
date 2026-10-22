@@ -1168,6 +1168,27 @@ describe('the confirmation round trip on the wire', () => {
     }
   }, 30_000);
 
+  it('export.compile draws a contact sheet with Arabic and Hebrew in Noto Sans Arabic and Noto Sans Hebrew, read from their packages', async () => {
+    const fixture = await startFixture({ label: 'export-rtl', allowWrites: true, seed: true, shot: true, shotAction: 'مرحبا بالعالم שלום עולם' });
+    const client = await connectClient(fixture.url, fixture.token, () => ({ action: 'accept', content: { confirmed: true } }));
+    try {
+      const result = await client.callTool({
+        name: 'export.compile',
+        arguments: { selection: { root: SHOTS_FOLDER, includeSubtrees: true }, format: 'contact-sheet-pdf' },
+      });
+      expect(result.isError).not.toBe(true);
+      expect(JSON.stringify(result.content)).not.toContain('drawn as');
+      const pdf = readdirSync(join(fixture.root, 'exports')).filter((name) => name.endsWith('.pdf'));
+      expect(pdf).toHaveLength(1);
+      const bytes = readFileSync(join(fixture.root, 'exports', pdf[0] ?? '')).toString('latin1');
+      expect(bytes).toContain('/BaseFont /CAOTAR+NotoSansArabic-Regular');
+      expect(bytes).toContain('/BaseFont /CAOTHE+NotoSansHebrew-Regular');
+    } finally {
+      await client.close();
+      await fixture.close();
+    }
+  }, 30_000);
+
   it('a shot-list compile is refused before the writer is asked when the images stop being listable after the project opened', async () => {
     // The reverse: the listing read at the open, and the folder became unreadable since. The check lists again, so the dialog never
     // asks for a compile the accept would refuse.
