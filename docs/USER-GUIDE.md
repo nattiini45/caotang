@@ -243,6 +243,10 @@ Choose **Agent** at the bottom of the window to open the panel. The line at the 
 
 Type what you want in **Intent**, then choose **Send**. With a provider you have added, you can ask for anything that provider can answer. The built-in demo provider answers only three requests, which run on a sample manuscript. You find them on the first-run card under **Try the agent with no key** on the projects screen, and as buttons in the agent panel before its first turn when the demo is in use. When it cannot make its draft or fill its synopses, it says so in words, and nothing changes.
 
+The Intent box stays open while the agent works. **Enter** queues what you type as the next turn, and **Ctrl+Enter** (Cmd+Enter on a Mac) sends it to the turn that is running as a note, which the agent reads at its next step. **Stop**, in the header while a turn runs, ends the turn; so does **Esc** with the Intent box empty. With text in the box, Esc leaves the turn alone. The turn stops at its next step: what it already applied stays, the turn's checkpoint can still restore it, and the report says "Stopped by you." A card that is waiting is cancelled, as **Cancel** does. A step that has started is not interrupted: a change that is being applied, and a compile, finish first.
+
+Queued messages show under the box as **Queued messages**. Each can be edited, removed, moved with ↑ and ↓ or by dragging, or sent now to the running turn with **Steer now**. They run one at a time, each after the turn before it has ended, and a queued message is never joined to another or to a note. If a turn ends on a question, the queue waits: answer the question or choose **Run the queue**. A note typed while a card waits does not go at once, because the card is yours to decide: choose **Send with Cancel** to cancel the card and give the agent the note, or **Queue as next turn** to keep the card and run the note after the turn. A note the agent did not read before its turn ended becomes the first queued message.
+
 Reading the agent's work:
 
 - **Progress.** While the agent works, the header of the agent panel says where it is: "Step 3 of 5 · Drafting “The Landing”", or "Waiting for you · Plan, 3 steps" when a card needs you. It shows with the panel open or closed. At the top of the turn, a checklist lists the steps with one in progress, each marked in words as Queued, Waiting for you, In progress, Done, Skipped or Failed (a failed step gives its reason). A step you drop from the card is Skipped, and so is a step that did not run after a failure or a cancel. The checklist folds when the turn ends and stays in the turn. Under it, **Model calls: 3 of 8** counts the requests the turn has made to the model; at 7 and 8 it turns to a warning, and at 8 the turn stops and asks you how to go on. The list is built from the agent's plan and its calls, not by asking the model, so it never shows a step as done that did not run.
@@ -327,7 +331,9 @@ On a Mac, Cmd takes the place of Ctrl.
 | Arrow keys | Move the selection in the binder. |
 | Alt+Up, Alt+Down | Move the selected item among its neighbours in the binder, or earlier and later on the corkboard. |
 | Alt+Left, Alt+Right | In the binder, move the item out of its folder, or into the folder above. |
-| Esc | Close a menu or a dialog. A menu returns focus to the control that opened it. |
+| Esc | Close a menu or a dialog. A menu returns focus to the control that opened it. In the agent panel, with the Intent box empty, stop the running turn. |
+| Enter, in the agent's Intent box | Send the message, or queue it as the next turn while the agent works. |
+| Ctrl+Enter, in the agent's Intent box | Send the message to the running turn as a note. |
 
 The tabs on the left (**Binder**, **Codex**, **Activity** and **Findings**) and the **Editor** and **Corkboard** buttons take the arrow keys, Home and End. In a menu, the arrow keys move between items, and Enter or Space chooses one.
 
