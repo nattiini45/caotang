@@ -35,7 +35,9 @@ import {
 import { McpFailure, PIN_MISMATCH_TEXT, serverErrorText, timeoutText, unreachableText, type McpError } from './errors.js';
 import { effectiveRiskOf, type EffectiveRisk } from './risk.js';
 import { diffPins, hasDelta, listingFingerprint, pinsAfterReview, pinStateOf, type PinDelta, type PinState } from './pins.js';
-import { corsProbe, createStreamableHttpWire, WireError, type McpWire, type WireAnnotations, type WireCallResult, type WireDeps, type WireFactory, type WireTool } from './wire.js';
+import { createStreamableHttpWire } from './lazy-wire.js';
+import { corsProbe, WireError, WireLoadError } from './wire-error.js';
+import type { McpWire, WireAnnotations, WireCallResult, WireDeps, WireFactory, WireTool } from './wire.js';
 
 /** §3.3: the reachable-but-blocked message, verbatim. */
 export const CORS_REFUSAL = 'server reachable but refuses browser connections (CORS). The desktop app on the roadmap connects without this restriction.';
@@ -984,6 +986,7 @@ function listFailureDetail(failure: WireError, listTimeoutMs: number): string {
     case 'cors':
       return CORS_REFUSAL;
     case 'network':
+      if (failure instanceof WireLoadError) return 'the MCP connector could not be loaded — check your connection, then connect again';
       return 'server unreachable: no response from the host — check the URL in Settings › MCP & tools';
     case 'timeout':
       return `tools/list timed out after ${Math.round(listTimeoutMs) / 1000} s`;

@@ -89,6 +89,12 @@ editor (`activeDoc` skips it), so the editor and a media view never hold one doc
 Each view runs inside `MediaBoundary`, an error boundary, so a view that throws shows its fallback and the app keeps
 running.
 
+The storyboard, its prompt pack tab and the dialogue view are loaded when they are first opened (`React.lazy`, through
+`lazyView` in `components/lazy-view.tsx`); the screenplay view is not, as it is small and its package is the store's. Each
+view sits in a `LazyBoundary` inside `MediaBoundary`: a status line ("Loading Storyboard…") while the code arrives, and
+**Try again** and **Reload** if it cannot be fetched. A browser may keep a failed import for the life of the page, so
+Reload is the sure way out. The check in `e2e/lazy-views.spec.ts` holds a request, and refuses one, to show both.
+
 `mediaPortsFor(session)` is the one port the centre passes: `commitShot`, which sends every storyboard command through
 the bus (`commit.ts`), `importImage`, which stages a picture and runs `shot.importImage`, and `assets`, the project's images
 as an artifact store (`session.assets.artifactFs()`). The images are kept in the browser's own asset store

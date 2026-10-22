@@ -46,7 +46,7 @@ import { ChoiceDialog, ConfirmDialog, EmptyState, formatCount, wordsLabel } from
 import { EncodingDialog } from './EncodingDialog.js';
 import { FirstRun } from './FirstRun.js';
 import { RecoveryDialog } from './RecoveryDialog.js';
-import { Settings, type SettingsSection } from './Settings.js';
+import { Settings, type SettingsSection } from './LazySettings.js';
 import './project-rename.css';
 
 export interface HomeProps {

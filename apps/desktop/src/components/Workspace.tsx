@@ -54,7 +54,7 @@ import { openDialog } from './dialog-requests.js';
 import { ProjectPanel } from './ProjectPanel.js';
 import { VocabularyEditor } from './VocabularyEditor.js';
 import { Inspector } from './Inspector.js';
-import { Settings, type SettingsSection } from './Settings.js';
+import { Settings, type SettingsSection } from './LazySettings.js';
 import { StaleTabNotice } from './StaleTabNotice.js';
 import {
   clearSelection,

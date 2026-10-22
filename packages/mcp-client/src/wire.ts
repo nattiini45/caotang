@@ -11,7 +11,9 @@
  *
  * The seam ({@link McpWire}) is what the client talks to. The SDK wire is one implementation;
  * `mock.ts` is another, scripted for evals. The client never imports the SDK directly, so every
- * behaviour above the seam is testable without a socket.
+ * behaviour above the seam is testable without a socket. This file is the only one that holds the
+ * SDK at runtime, and `lazy-wire.ts` loads it on first use, so the app's first download does not
+ * carry it.
  *
  * **Failures leave this file as {@link WireError}s**, classified by kind. The kind decides
  * what the person is told: a network failure and a CORS refusal look the same to `fetch`, so the
@@ -33,19 +35,9 @@ import {
 
 import { egressAllowed } from './egress.js';
 import type { McpServerConfig } from './config.js';
+import { CLIENT_NAME, CLIENT_VERSION, WireError } from './wire-error.js';
 
-/**
- * The newest protocol revision, which the client asks for first (§12 D17). A server that speaks it is connected on the
- * stateless path. A server that speaks only an older revision is connected through the SDK's legacy handshake.
- */
-export const MODERN_REVISION = '2026-07-28';
-
-/** What the server sees us as. */
-export const CLIENT_NAME = 'caotang';
-export const CLIENT_VERSION = '0.1.0';
-
-/** How long the probe that tells CORS from a dead host may take. */
-const PROBE_MS = 5_000;
+export { CLIENT_NAME, CLIENT_VERSION, MODERN_REVISION, WireError, WireLoadError, corsProbe, type WireErrorKind } from './wire-error.js';
 
 /**
  * The most bytes one answer from a server may carry before it is refused. A server the writer
@@ -61,32 +53,6 @@ export const MAX_ANSWER_BYTES = 16 * 1024 * 1024;
 
 /** The start of the SDK's message when the server's `initialize` answer names a revision the client does not offer. */
 const UNSUPPORTED_SERVER_REVISION = "Server's protocol version is not supported";
-
-/**
- * `revision`: the server speaks none of the revisions Caotang offers (2026-07-28, or a 2024 or 2025 revision),
- * so there is no common one to connect on. It is named apart from a generic protocol error, because the
- * person's fix is the server's version, not the URL.
- */
-export type WireErrorKind = 'network' | 'cors' | 'timeout' | 'abort' | 'auth' | 'http' | 'protocol' | 'result' | 'revision';
-
-/** A classified transport failure. The client turns the kind into the person's sentence. */
-export class WireError extends Error {
-  readonly kind: WireErrorKind;
-  readonly status: number | undefined;
-  /** For a `revision` failure: the revision the server's `initialize` answer named, when the SDK's message carries it. */
-  readonly answeredRevision: string | undefined;
-  /** For a `revision` failure: the revisions the server listed as supported, when its refusal carried the list. */
-  readonly supportedRevisions: readonly string[];
-
-  constructor(kind: WireErrorKind, message: string, status?: number, named: { readonly answered?: string; readonly supported?: readonly string[] } = {}) {
-    super(message);
-    this.name = 'WireError';
-    this.kind = kind;
-    this.status = status;
-    this.answeredRevision = named.answered;
-    this.supportedRevisions = named.supported ?? [];
-  }
-}
 
 /** A tool as a server advertises it. Verbatim: the description and the schema are the server's own text. */
 export interface WireTool {
@@ -130,22 +96,6 @@ export interface WireDeps {
 }
 
 export type WireFactory = (server: McpServerConfig, deps: WireDeps) => McpWire;
-
-/**
- * The CORS probe: the same URL, asked for with a no-cors GET. A browser answers an opaque
- * response when the host is up, even when it would refuse the real request, and it rejects
- * when the host is down. Only the difference between the two matters here.
- */
-export function corsProbe(fetchImpl: FetchLike): (url: string) => Promise<boolean> {
-  return async (url) => {
-    try {
-      await fetchImpl(url, { method: 'GET', mode: 'no-cors', cache: 'no-store', signal: AbortSignal.timeout(PROBE_MS) });
-      return true;
-    } catch {
-      return false;
-    }
-  };
-}
 
 /** The SDK-backed wire for one server. It opens its connection on first use. */
 class StreamableHttpWire implements McpWire {
@@ -556,5 +506,5 @@ function revisionToken(value: unknown): string | undefined {
   return typeof value === 'string' && /^[0-9A-Za-z._-]{1,32}$/.test(value) ? value : undefined;
 }
 
-/** The default wire: one {@link StreamableHttpWire} per server. */
-export const createStreamableHttpWire: WireFactory = (server, deps) => new StreamableHttpWire(server, deps);
+/** The SDK-backed wire: one {@link StreamableHttpWire} per server. The app reaches it through `lazy-wire.ts`, which loads this file on first use. */
+export const createSdkWire: WireFactory = (server, deps) => new StreamableHttpWire(server, deps);
