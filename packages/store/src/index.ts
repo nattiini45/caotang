@@ -173,6 +173,7 @@ export {
   type ExportCommandOutcome,
   type ExportCommandPort,
   type McpInvokeCommandPort,
+  type McpReadResourceCommandPort,
   type ShotCommandPort,
   type ShotCommandReport,
   type ExportCommandRequest,

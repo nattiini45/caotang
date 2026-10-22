@@ -171,6 +171,22 @@ export {
   type ValidateDeps,
 } from './invoke.js';
 
+export {
+  MCP_READ_RESOURCE_NAME,
+  McpReadResourceFailure,
+  applyMcpReadResource,
+  mcpReadResourceRegistration,
+  prepareReadResource,
+  templateUnreviewedText,
+  type McpReadResourceNormalized,
+  type McpReadResourceOutcome,
+  type McpReadResourceParams,
+  type McpReadResourceRegistration,
+  type ReadResourceDeps,
+  type ReadResourceValidateDeps,
+  type UntrustedResource,
+} from './read-resource.js';
+
 export { agentRiskOf, effectiveRiskOf, type EffectiveRisk, type RiskInputs } from './risk.js';
 
 export {
