@@ -188,7 +188,7 @@ Choose **New storyboard here** from a folder's menu. A storyboard holds shots, a
 
 **Pictures.** In a shot's **Image** section, choose **Choose an image file** (PNG, JPEG or WebP). You can also drop a picture on a card, or paste one while the card is selected. **Or use an image already in the project** points the shot at a picture the project holds, and **No image** removes the shot's picture. The picture is kept in this browser, and also in the project folder when you save to one. Export a bundle to keep a copy. If the browser refuses storage, a picture lasts only while the tab is open. Select a picture to see it larger, and choose **Close** or press Escape to return. A picture whose file has gone is dropped when the storyboard opens, and a notice on the board says so.
 
-**Script coverage.** In a shot's **Script coverage** section, choose a scene or a document, select the words of its text that the shot covers, then choose **Cover the selected text**. **Remove** takes a coverage back. If a passage appears twice in the text, Caotang refuses it, so select more words around the one you mean.
+**Script coverage.** In a shot's **Script coverage** section, choose a scene or a document, select the words of its text that the shot covers, then choose **Cover the selected text**. **Remove** takes a coverage back. If a passage appears more than once in the text, in any file, Caotang refuses it and says how many places, so select more words around the one you mean. A selection across a line break is covered.
 
 **The shot's prompt.** The **Prompt** section writes one target model's prompt for the shot: its camera, subject, action, context and style; its audio; the negative prompt; the clip length, aspect ratio, resolution and seed; and its references. Use **Vendor for this prompt** to choose the model. **Save prompt** saves that vendor's prompt, and the other vendors' prompts are kept as they were. The text you type for one vendor stays when you switch to another vendor and back. A change to the stored prompt, such as an undo or the agent's draft, can replace it, and then the section says so. **Remove this prompt** deletes it. Each check under the fields names a problem, and **Go to the field** brings that field into view. **Writer's note for this shot** is for you, and it is not sent to the model. **Add a reference** adds a codex entry or a picture the prompt sends with the shot, and **Best take** records the take you kept from your own generation.
 
@@ -369,7 +369,7 @@ With writes allowed, an outside tool can also compile the manuscript, one item, 
 - **A scene is missing from the export.** Empty scenes are left out. The status line names how many.
 - **Compile says what stopped it.** A dialogue line with no id, or a selection with no scene, is named in the dialog.
 - **The Ink does not compile.** The dialogue view lists the errors. Fix them in the Ink text.
-- **A passage is refused for script coverage.** It appears twice in the text. Select more words around the one you mean.
+- **A passage is refused for script coverage.** It appears more than once in the text, and the message says how many places. Select more words around the one you mean.
 - **The browser warns that it has not promised to keep your words.** Export a bundle now, and again from time to time.
 - **A card is hidden under the agent panel.** Close the panel to reach it.
 
