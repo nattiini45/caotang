@@ -44,15 +44,18 @@ export const PRESETS: readonly PresetDef[] = [
     corsNote: 'Browser calls are supported; the adapter sends anthropic-dangerous-direct-browser-access.',
     docsUrl: 'https://platform.claude.com/docs',
     models: [
+      // Window and output cap: Anthropic's model overview, "Compare models" table (1M and 128K tokens for all four),
+      // https://platform.claude.com/docs/en/about-claude/models/overview, read 2026-10-20. Exact ids only: a Claude id
+      // not named here gets no row, and so no guessed window. The output cap is informational (the profile's is sent).
       // Sonnet 5.5 turns thinking "off" via thinking.type between_tools, which the
       // Messages adapter does not emit — so Off is not offered on it.
-      { pattern: 'claude-sonnet-5-5', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['low', 'medium', 'high', 'max'] }, pricePer1k: { prompt: 0.002, completion: 0.01 } },
+      { pattern: 'claude-sonnet-5-5', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['low', 'medium', 'high', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000, pricePer1k: { prompt: 0.002, completion: 0.01 } },
       // Opus 5.5 cannot turn thinking off.
-      { pattern: 'claude-opus-5-5', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['low', 'medium', 'high', 'max'] }, pricePer1k: { prompt: 0.004, completion: 0.02 } },
+      { pattern: 'claude-opus-5-5', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['low', 'medium', 'high', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000, pricePer1k: { prompt: 0.004, completion: 0.02 } },
       // Haiku 5.5 accepts thinking.type disabled at low/high.
-      { pattern: 'claude-haiku-5-5', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['off', 'low', 'medium', 'high', 'max'] } },
+      { pattern: 'claude-haiku-5-5', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['off', 'low', 'medium', 'high', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000 },
       // Fable 5.1 cannot turn thinking off.
-      { pattern: 'claude-fable-5-1', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['low', 'medium', 'high', 'max'] } },
+      { pattern: 'claude-fable-5-1', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['low', 'medium', 'high', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000 },
     ],
   },
   {

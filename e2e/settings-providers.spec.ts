@@ -49,8 +49,8 @@ test('the preset picker lists the registry, enables every preset the sweep found
   await expect(form.getByLabel('API key (required)')).toBeVisible();
   await expect(form.getByText(/adapter sends anthropic-dangerous-direct-browser-access/)).toBeVisible();
   await expect(form.getByRole('group', { name: 'Extra request headers (optional)' })).toHaveCount(0);
-  // The default model's capability row is read aloud under the field: native tools, image input, and its thinking levels.
-  await expect(form.getByText('native tools · image input · thinking: low / medium / high / max')).toBeVisible();
+  // The default model's capability row is read aloud under the field: the published window, native tools, image input, and its thinking levels.
+  await expect(form.getByText('1,000,000-token window · native tools · image input · thinking: low / medium / high / max')).toBeVisible();
 
   // A workspace-templated preset: the fields it declares build the endpoint, shown as they are typed.
   await picker.selectOption('alibaba');

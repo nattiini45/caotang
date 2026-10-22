@@ -4,13 +4,21 @@
  * vLLM and most gateways also use.
  *
  * Context windows arrive under several names, since no two providers agree: OpenRouter
- * and LM Studio use `context_length`, vLLM uses `max_model_len`. Returns undefined
- * when the envelope itself is wrong.
+ * and LM Studio use `context_length`, vLLM uses `max_model_len`. A route whose provider
+ * uses other names passes them as `extra`, tried after the shared ones. Anthropic's
+ * `max_tokens` is one: too ambiguous a name to read from every OpenAI-shaped listing.
+ * Returns undefined when the envelope itself is wrong.
  */
 
 import type { ModelInfo } from '../types.js';
 
-export function parseModels(json: unknown): ModelInfo[] | undefined {
+/** Extra listing field names for a route's own provider: the context window, then the output cap. */
+export interface ListingFields {
+  window?: readonly string[];
+  output?: readonly string[];
+}
+
+export function parseModels(json: unknown, extra: ListingFields = {}): ModelInfo[] | undefined {
   if (typeof json !== 'object' || json === null) return undefined;
   const envelope = json as Record<string, unknown>;
   const list = envelope.data ?? envelope.models;
@@ -21,8 +29,14 @@ export function parseModels(json: unknown): ModelInfo[] | undefined {
     if (typeof item !== 'object' || item === null) continue;
     const record = item as Record<string, unknown>;
     if (typeof record.id !== 'string' || record.id === '') continue;
-    const window = [record.context_length, record.context_window, record.max_context_length, record.max_model_len].find(positive);
-    const output = [record.max_completion_tokens, record.max_output_tokens, topProviderCap(record.top_provider)].find(positive);
+    const window = [
+      record.context_length, record.context_window, record.max_context_length, record.max_model_len,
+      ...(extra.window ?? []).map((name) => record[name]),
+    ].find(positive);
+    const output = [
+      record.max_completion_tokens, record.max_output_tokens, topProviderCap(record.top_provider),
+      ...(extra.output ?? []).map((name) => record[name]),
+    ].find(positive);
     const price = priceOf(record.pricing);
     models.push({
       id: record.id,

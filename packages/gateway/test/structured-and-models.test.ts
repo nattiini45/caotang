@@ -121,6 +121,27 @@ describe('the response_format probe (§5)', () => {
 });
 
 describe('listModels (§3)', () => {
+  it('reads Anthropic’s max_input_tokens and max_tokens as the window and the output cap, and leaves out a null or a 0', async () => {
+    const net = new ScriptedFetch().push(() =>
+      jsonResponse(200, {
+        data: [
+          { id: 'claude-sonnet-5-5', max_input_tokens: 1_000_000, max_tokens: 128_000 },
+          { id: 'claude-null', max_input_tokens: null, max_tokens: null },
+          { id: 'claude-zero', max_input_tokens: 0, max_tokens: 0 },
+        ],
+      }),
+    );
+    const h = harness({ net });
+    const profile = await addEndpoint(h, { preset: 'anthropic', baseUrl: 'https://api.anthropic.com/v1' });
+
+    expect(await h.gateway.listModels(profile.id)).toEqual([
+      { id: 'claude-sonnet-5-5', contextWindow: 1_000_000, maxOutputTokens: 128_000 },
+      { id: 'claude-null' },
+      { id: 'claude-zero' },
+    ]);
+    expect(net.calls[0]?.url).toBe('https://api.anthropic.com/v1/models');
+  });
+
   it('GETs {baseUrl}/models with the bearer key, and reads ids and context windows', async () => {
     const net = new ScriptedFetch().push(() =>
       jsonResponse(200, { data: [{ id: 'llama-3', context_length: 8192 }, { id: 'tiny' }] }),

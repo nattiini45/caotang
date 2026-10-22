@@ -177,6 +177,30 @@ describe('modelRowFor', () => {
   });
 });
 
+describe('the Claude rows state the published window (provider-gateway §2)', () => {
+  // Anthropic's model overview, "Compare models", read 2026-10-20: 1M window and 128K output for all four ids.
+  // A change here is a deliberate edit to a documented number, not drift.
+  it.each(['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5', 'claude-fable-5-1'])('%s: 1M window, 128K output', (id) => {
+    const row = modelRowFor(presetFor('anthropic')!, id);
+    expect(row?.contextWindow).toBe(1_000_000);
+    expect(row?.maxOutputTokens).toBe(128_000);
+  });
+
+  it('states no window for a Claude id the page does not name, and no wildcard row guesses one', () => {
+    const anthropic = presetFor('anthropic')!;
+    expect(modelRowFor(anthropic, 'claude-future-9-9')).toBeUndefined();
+    expect(anthropic.models.some((row) => row.pattern.includes('*'))).toBe(false);
+  });
+
+  it('changes no price: Sonnet and Opus keep theirs, Haiku and Fable stay unpriced', () => {
+    const anthropic = presetFor('anthropic')!;
+    expect(modelRowFor(anthropic, 'claude-sonnet-5-5')?.pricePer1k).toEqual({ prompt: 0.002, completion: 0.01 });
+    expect(modelRowFor(anthropic, 'claude-opus-5-5')?.pricePer1k).toEqual({ prompt: 0.004, completion: 0.02 });
+    expect(modelRowFor(anthropic, 'claude-haiku-5-5')?.pricePer1k).toBeUndefined();
+    expect(modelRowFor(anthropic, 'claude-fable-5-1')?.pricePer1k).toBeUndefined();
+  });
+});
+
 describe('preset lookups', () => {
   it('resolves presetFor by id, and generic for an absent id', () => {
     expect(presetFor('openai')?.name).toContain('OpenAI');
