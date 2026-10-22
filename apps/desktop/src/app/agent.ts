@@ -63,7 +63,7 @@ import {
   type TurnOptions,
   type TurnReport,
 } from '@caotang/harness';
-
+import { newId } from '@caotang/ids';
 import { nodeById } from '@caotang/store';
 
 import { documentIdFor, draftCheckOf, newTurnView, reduceTurn, type DraftCheck, type GhostView, type TurnView } from './agent-model.js';
@@ -191,22 +191,17 @@ export class AgentController {
   /**
    * The agent session one open panel keeps across turns (context-assembly §2, L6): the loop's
    * `started` RecentTurn array lives in this session's closure, so two turns through one controller
-   * share the prior turns and the next turn's assembled prompt carries them as L6. The session is
-   * rebuilt when the resolved profile, model or thinking changes (a provider switch), and that
-   * rebuild ends the conversation too — the fresh session starts with an empty turn list. Otherwise
-   * the conversation ends with the controller itself, a project switch or a reload, and the app has
-   * no other affordance that clears it within a visit. Per-turn state is cleared by
-   * `harness.endTurn` on every settlement, so a cancelled/refused/failed turn never leaves its
-   * per-turn state behind. The conversation is in memory only: a reload starts it over.
+   * share the prior turns and the next turn's assembled prompt carries them as L6. It is created on the
+   * first turn and never rebuilt: the profile, model and thinking level are the turn's own
+   * (`TurnOptions`), so a provider switch keeps the conversation. The conversation ends with the
+   * controller itself, a project switch or a reload, and the app has no other affordance that clears it
+   * within a visit. Per-turn state is cleared by `harness.endTurn` on every settlement, so a
+   * cancelled/refused/failed turn never leaves its per-turn state behind. The conversation is in memory
+   * only: a reload starts it over.
    */
-  private session_:
-    | {
-        readonly agent: AgentSession;
-        readonly profileId: string;
-        readonly model: string | undefined;
-        readonly thinking: string | undefined;
-      }
-    | null = null;
+  private session_: AgentSession | null = null;
+  /** Names the session's turns `<id>.turn-<n>`; fixed for the controller's life, and unique among the controllers of one harness. */
+  private readonly sessionId = newId('cmd').slice('cmd_'.length);
   /** The drafts of the card the loop is showing. Each is a value of its own, so a draft shown for an earlier card is never this one. */
   private ghosts: GhostView[] = [];
   /** The drafts that have been on screen in their scene while their card is shown. */
@@ -372,34 +367,31 @@ export class AgentController {
       this.providerForNextTurn = profile.name;
       this.priceForNextTurn = profile.pricePer1k ?? null;
       // One agent session per controller keeps `started` RecentTurn list across turns (context-assembly §2, L6).
-      // The session is rebuilt only when the resolved profile, model or thinking changes; the per-turn state
+      // The turn carries its own pins, so a provider switch between turns keeps the session; the per-turn state
       // (call cache, plan cache, undo group, loaded tools) is cleared by `harness.endTurn` after every
       // settlement, so a cancelled/refused/failed turn cannot leave its state behind in the shared session.
-      const cached = this.session_;
       const model = resolved?.model;
       const thinking = resolved?.thinking;
       const agent: AgentSession =
-        cached !== null && cached.profileId === profile.id && cached.model === model && cached.thinking === thinking
-          ? cached.agent
-          : (() => {
-              const created = createAgentSession({
-                harness: this.session.harness,
-                gateway: this.providers.gateway,
-                context: createContextPort({ state: this.session.state, config: this.contextConfig }),
-                decide: (pending) => this.decide(pending),
-                emit: (event) => this.onEvent(event),
-                role: 'chat',
-                loadEveryTool: this.loadEveryTool,
-                beforeStage: (offer) => this.askOffer(offer),
-                profileId: profile.id,
-                ...(model === undefined ? {} : { model }),
-                ...(thinking === undefined ? {} : { thinking }),
-              });
-              this.session_ = { agent: created, profileId: profile.id, model, thinking };
-              return created;
-            })();
+        this.session_ ??
+        (this.session_ = createAgentSession({
+          harness: this.session.harness,
+          gateway: this.providers.gateway,
+          context: createContextPort({ state: this.session.state, config: this.contextConfig }),
+          decide: (pending) => this.decide(pending),
+          emit: (event) => this.onEvent(event),
+          role: 'chat',
+          sessionId: this.sessionId,
+          loadEveryTool: this.loadEveryTool,
+          beforeStage: (offer) => this.askOffer(offer),
+        }));
       this.runningAgent = agent;
-      report = await start(agent, { signal: abort.signal });
+      report = await start(agent, {
+        signal: abort.signal,
+        profileId: profile.id,
+        ...(model === undefined ? {} : { model }),
+        ...(thinking === undefined ? {} : { thinking }),
+      });
       return report;
     } catch (error) {
       this.message = `The turn stopped unexpectedly: ${error instanceof Error ? error.message : String(error)}`;

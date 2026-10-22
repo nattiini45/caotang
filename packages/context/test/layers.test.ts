@@ -323,6 +323,29 @@ describe('L6, the recent turns (§2)', () => {
     ]);
   });
 
+  it('reads a turn’s own outcome and undo group when the activity log has no row for it', () => {
+    const turns = [
+      { turnId: 's.turn-1', intent: 'Who rows the ferry?', outcome: 'Oren rows the ferry.' },
+      { turnId: 's.turn-2', intent: 'Tighten the storm.', outcome: 'Applied: tightened the storm.', undoGroupId: 'g_kept' },
+    ];
+    const text = assemble(CONTINUE, { ...buildApp(), turns, activity: [] }).messages[1]?.content ?? '';
+    expect(text).toContain('- Turn s.turn-1\n  Intent: Who rows the ferry?\n  Outcome: Oren rows the ferry.\n  Undo group: none');
+    expect(text).toContain('- Turn s.turn-2\n  Intent: Tighten the storm.\n  Outcome: Applied: tightened the storm.\n  Undo group: g_kept');
+  });
+
+  it('prefers the activity rows over the turn’s own fields, and says so when neither has an outcome', () => {
+    const base = buildApp();
+    const turns = [
+      { turnId: 't_2', intent: 'Draft chapter 2.', outcome: 'the stored line', undoGroupId: 'g_stored' },
+      { turnId: 'none', intent: 'Nothing happened.' },
+    ];
+    const text = assemble(CONTINUE, { ...base, turns }).messages[1]?.content ?? '';
+    expect(text).not.toContain('the stored line');
+    expect(text).not.toContain('g_stored');
+    expect(text).toContain('Undo group: g_t2');
+    expect(text).toContain('- Turn none\n  Intent: Nothing happened.\n  Outcome: no recorded changes\n  Undo group: none');
+  });
+
   it('is left out of the layers that do not take conversation memory', () => {
     const assembled = assemble({ tool: 'meta', instruction: 'x' }, buildApp());
     expect(assembled.layers[6]?.included).toBe(false);
