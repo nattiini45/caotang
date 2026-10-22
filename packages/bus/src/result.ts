@@ -96,14 +96,11 @@ export interface CommandErrorDetails {
    * **Declared rather than left to the index signature, for the same reason as
    * `expectedRevision`**: undo.ts reads this key to decide that an inverse which
    * could not dispatch was a no-op rather than a kept failure, so the key
-   * carries behaviour and cannot ride on `[key: string]: unknown` — a
-   * misspelling at the writer would compile silently and the undo would report
-   * the opposite verdict.
+   * carries behaviour and deserves a declared, discoverable name.
    *
-   * **What the declaration buys is the writer's side, and a discoverable name
-   * for the reader.** The index signature is still there, so a misspelled
-   * *read* (`details.changesNothng`) still typechecks; what cannot slip
-   * through any more is a writer that puts a non-boolean here.
+   * The index signature is still there, so a misspelled key (on either side)
+   * still typechecks; what the declaration rules out is a writer that puts a
+   * non-boolean under this name.
    */
   changesNothing?: boolean;
   /** anything else the refusing command wants the model to see */

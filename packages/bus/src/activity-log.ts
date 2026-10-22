@@ -56,15 +56,11 @@
  *
  * **And a defect row is not an execution.** A dispatch that made an effect can
  * leave two rows: the effect it made, and — after the fact — a defect the bus
- * found in the apply. **The pairing is not guaranteed.** The effect row is
- * written when the dispatch registered an undo group or reported an attempt
- * (`pipeline.ts`), and the registration refusal (`pipeline.ts:670`) and the
- * missing-report path (`pipeline.ts:693`) write a row of their own even when
- * the dispatch did neither. Only the two paths that write no row unless a group
- * was registered — the apply-threw (`pipeline.ts:591`) and the
- * apply-returned-a-promise (`pipeline.ts:618`) paths — leave the defect row on
- * its own: an apply that stashed its scope, threw before it captured or
- * reported, and captured from its timer later is exactly that case.
+ * found in the apply. **The pairing is not guaranteed:** the apply-threw and
+ * apply-returned-a-promise paths in `pipeline.ts` write no effect row unless an
+ * undo group was registered, so an apply that stashed its scope, threw before
+ * it captured, and captured from its timer later leaves the defect row on its
+ * own.
  * The defect row is marked (`defect`), reports nothing that ran, and
  * carries no undo group, so the rule this section states is the rule for the
  * **rows that report an effect**. A reader of the entries can tell the two

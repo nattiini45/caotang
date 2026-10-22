@@ -604,9 +604,7 @@ export const binderSetMeta: CommandDescriptor<BinderSetMetaParams> = {
     // `requireStringArray` keeps `keywords_add: []` a legitimate "nothing to
     // do" payload. Such a dispatch stamps nothing and mints no restore entry
     // (the store's `binderSetMeta` writes `updatedAt` only for a field it
-    // actually changed), so neither the node's stamp nor the audit row claims a
-    // change that did not happen — the row's own digest says "left ...
-    // unchanged".
+    // actually changed).
     if (Object.keys(typed).length === 0) {
       return changesNothing('the patch names no field to write, so it asks for nothing to change', `name at least one of: ${PATCH_KEYS.join(', ')}`, 'patch');
     }
