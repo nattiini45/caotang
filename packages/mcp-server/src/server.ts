@@ -216,7 +216,11 @@ async function answer(
     sendJson(res, 404, {
       jsonrpc: '2.0',
       id: null,
-      error: { code: -32001, message: 'Session not found: this connection has closed or expired. Send initialize again.' },
+      error: {
+        code: -32001,
+        message:
+          'Session not found: this connection has closed or expired. A confirmation open on it ended too and nothing was written. Send initialize again, then ask for the change again.',
+      },
     });
     return;
   }
