@@ -6,7 +6,7 @@
  */
 
 import { type ChildProcess, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -25,11 +25,13 @@ import {
   removeDir,
   resultJson,
   seedProject,
+  SHOTS_FOLDER,
   tempDir,
   TAVERN,
   testToken,
 } from './support.js';
 import { LOCK_FILE } from '../src/index.js';
+import { webpFixture } from '../../exporter/test/webp-fixtures.js';
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 const BUNDLE = join(PACKAGE, 'dist', 'caotang-mcp.mjs');
@@ -130,6 +132,13 @@ describe('the built caotang-mcp binary', () => {
     expect(bundle).toMatch(/["']fonts["'], file/);
     expect(bundle).not.toMatch(/new URL\((["'])\.\/fonts\//);
     expect(existsSync(join(PACKAGE, 'dist', 'fonts'))).toBe(false);
+  });
+
+  it('reads the WebP decoder from beside the bundle, which the pack stages, and emits none of its own', () => {
+    const bundle = readFileSync(BUNDLE, 'utf8');
+    // The transcoder's first candidate is webp_dec.wasm beside the running module (packages/exporter/src/picture-transcoder-node.ts).
+    expect(bundle).toMatch(/WEBP_DECODER_FILE = ["']webp_dec\.wasm["']/);
+    expect(readdirSync(join(PACKAGE, 'dist')).filter((name) => name.endsWith('.wasm'))).toEqual([]);
   });
 
   it('serves a project over Streamable HTTP with the token from the environment, and answers with real data', async () => {
@@ -275,6 +284,28 @@ describe('the built caotang-mcp binary', () => {
       });
       expect(result.isError).not.toBe(true);
       expect(nodesTitled(folder, 'Over Stdio')).toBe(1);
+    } finally {
+      await host.close();
+    }
+  }, 120_000);
+
+  it('compiles a contact sheet with a WebP picture in the single file, the decoder read from @jsquash/webp', async () => {
+    const folder = join(root, 'stdio-webp');
+    await seedProject(folder, 'Stdio Book', { shot: true, shotImage: 'a_7WEBP4K2QX' });
+    mkdirSync(join(folder, 'assets'), { recursive: true });
+    writeFileSync(join(folder, 'assets', 'a_7WEBP4K2QX.webp'), webpFixture('lossless'));
+    const host = await stdioHost(folder, acceptConfirm);
+    try {
+      const result = await host.callTool({
+        name: 'export.compile',
+        arguments: { selection: { root: SHOTS_FOLDER, includeSubtrees: true }, format: 'contact-sheet-pdf' },
+      });
+      expect(result.isError).not.toBe(true);
+      const pdf = readdirSync(join(folder, 'exports')).filter((name) => name.endsWith('.pdf'));
+      expect(pdf).toHaveLength(1);
+      const bytes = readFileSync(join(folder, 'exports', pdf[0] ?? '')).toString('latin1');
+      expect(bytes.match(/\/Subtype \/Image/g)).toHaveLength(1);
+      expect(bytes).toMatch(/\/Width 80\b/);
     } finally {
       await host.close();
     }
