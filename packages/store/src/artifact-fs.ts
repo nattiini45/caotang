@@ -54,7 +54,11 @@ export interface ArtifactFs {
 
 export function joinPath(dir: string, name: string): string {
   if (dir === '' || dir === '.') return name;
-  return `${dir.replace(/\/+$/, '')}/${name}`;
+  // A scan, not `/\/+$/` — that regex is quadratic on a long run of slashes
+  // followed by anything else.
+  let end = dir.length;
+  while (end > 0 && dir.charCodeAt(end - 1) === 47) end--;
+  return `${dir.slice(0, end)}/${name}`;
 }
 
 export function dirName(path: string): string {
