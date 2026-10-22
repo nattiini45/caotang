@@ -69,6 +69,7 @@ import {
   type ViewState,
 } from '@caotang/bus';
 import {
+  AUTOSAVE_DEBOUNCE_MS,
   DEFAULT_RETENTION,
   RevisionConflictError,
   appendSession,
@@ -109,6 +110,9 @@ import { ProjectAssets, coverFileHeld } from './project-assets.js';
 import type { DirectoryHandleLike } from './fs-access.js';
 import { Persistence } from './persistence.js';
 import type { Shadow } from './persistence-plan.js';
+import { dropHistoryOf } from './history-store.js';
+import { PendingJournal, type PendingFailure } from './pending-journal.js';
+import { browserStorage, stopKeptInBrowser } from './unsent-copy.js';
 
 /**
  * Whether every change has reached the store (`saved`), is on its way (`saving`), failed (`failed`: retried by the next
@@ -255,6 +259,13 @@ export class ProjectSession {
   readonly harness: Harness;
   readonly persistence: Persistence;
   readonly autosave: Autosave;
+  /** The words typed since the last save, kept where a page that goes away cannot take them (pending-journal.ts). */
+  private readonly pending: PendingJournal;
+  /** The timer of the journal's current window, or `null` between windows. */
+  private pendingTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly pendingWindowMs: number;
+  /** What an open that recovered words from the journal says to the writer (`setReloadNotice`). */
+  private reloadNoticeText: string | null = null;
   /** The exporter's artifacts: held for the session, and mirrored into a project folder when one is open. */
   readonly exports = new ExportStore();
   /** The project's images, the cover among them: written by the import, read by the exporter, carried by the bundle. */
@@ -311,6 +322,8 @@ export class ProjectSession {
   private coherenceQueue: Promise<void> = Promise.resolve();
   /** The findings writes queued or running. The save indicator reads saving while any is, since the store does not hold them until they land. */
   private coherenceInFlight = 0;
+  /** Lets go of the lifecycle signals the pending journal is written on (see the constructor). */
+  private detachPendingKeep: () => void = () => undefined;
   /** Lets go of the lifecycle signals the findings file is flushed on (see the constructor). */
   private detachCoherenceFlush: () => void = () => undefined;
   /** Lets go of the tab's focus signals, which list the project's images again (see the constructor). */
@@ -390,7 +403,21 @@ export class ProjectSession {
       notify: () => this.bump(),
     };
     this.persistence = new Persistence(options.store, options.projectId, () => this.state, options.shadow);
-    this.persistence.subscribe(() => this.bump());
+    // The journal reads the autosave and the persistence only when it is asked to keep or prune, which is after both are made.
+    this.pendingWindowMs = Math.min(options.debounceMs ?? AUTOSAVE_DEBOUNCE_MS, AUTOSAVE_DEBOUNCE_MS);
+    this.pending = new PendingJournal(browserStorage(), options.projectId, {
+      docIds: () => this.state.documents.keys(),
+      bodyOf: (docId) => this.state.documents.get(docId)?.body,
+      stored: (docId) => this.persistence.storedDocument(docId),
+      pendingBodyOf: (docId) => this.autosave.pendingBodyOf(docId),
+      dirtyDocIds: () => this.autosave.dirtyDocIds(),
+      stopped: () => this.persistence.isStopped(),
+    });
+    this.pending.subscribe(() => this.bump());
+    this.persistence.subscribe(() => {
+      this.afterPersistence();
+      this.bump();
+    });
     // The identity this open filled in is written now, not at the next edit: an identifier that was never saved would be
     // minted again on the next open, and a retailer would see two books.
     if (this.backfilled.length > 0) this.persistence.schedule();
@@ -409,7 +436,13 @@ export class ProjectSession {
       signals: flushSignals,
       ...(options.debounceMs === undefined ? {} : { debounceMs: options.debounceMs }),
     });
-    this.autosave.subscribe(() => this.bump());
+    this.autosave.subscribe((event) => {
+      if (event.status.dirty) this.armPendingWindow();
+      this.bump();
+    });
+    // The typing not yet saved is kept in this browser on the same signals the autosave flushes on, synchronously (pending-journal.ts): a
+    // flush that starts during teardown may never finish, and `localStorage` has finished when the handler returns.
+    this.detachPendingKeep = flushSignals.subscribe(() => this.pending.keep());
     // The findings file leaves on the same signals as the bodies (project-format §4). A findings save that failed is tried again when the tab
     // is hidden or leaves, instead of waiting for the next change. A save already in flight is not awaited here, since a pagehide handler
     // cannot wait for it: the save indicator and the unload warning cover that case.
@@ -473,9 +506,44 @@ export class ProjectSession {
     const result = execute(command, this.bus, this.registry);
     if (!result.ok) {
       this.rejections.push({ command: command.name, issuedBy: command.issuedBy, code: result.error.code });
+    } else if (command.name === 'project.deleteNode') {
+      // The undo kept for a document that was deleted goes with it (history-store.ts).
+      void dropHistoryOf(this.projectId, new Set(this.state.documents.keys()));
     }
     this.afterCommand();
     return result;
+  }
+
+  /**
+   * Opens the journal's window on the first unsaved edit, and writes the journal when it closes: once per window while the writer types, not
+   * per keystroke. A tab that is discarded or killed gets no lifecycle event, so this write is what it leaves behind.
+   */
+  private armPendingWindow(): void {
+    if (this.pendingTimer !== null || this.closing !== null) return;
+    this.pendingTimer = setTimeout(() => {
+      this.pendingTimer = null;
+      this.pending.keep();
+    }, this.pendingWindowMs);
+  }
+
+  /** A persistence pass has settled or failed: the journal drops what the store holds, or yields to the unsent copy if the session stopped. */
+  private afterPersistence(): void {
+    if (this.persistence.isStopped()) this.pending.clearForStop(stopKeptInBrowser(browserStorage()));
+    else this.pending.prune();
+  }
+
+  /** Why the typing not yet saved could not be kept in this browser, or `null`. The shell says it in the status line. */
+  pendingFailure(): PendingFailure | null {
+    return this.pending.failure();
+  }
+
+  /** What an open that recovered words kept through a reload says to the writer, or `null`. */
+  reloadNotice(): string | null {
+    return this.reloadNoticeText;
+  }
+
+  setReloadNotice(text: string | null): void {
+    this.reloadNoticeText = text;
   }
 
   /** What every command owes the UI and the store, whoever issued it: a persistence pass and a re-render. */
@@ -1213,11 +1281,15 @@ export class ProjectSession {
       try {
         // The lifecycle signals are let go first, so nothing this session does after its close begins can start a findings save.
         this.detachCoherenceFlush();
+        this.detachPendingKeep();
+        if (this.pendingTimer !== null) clearTimeout(this.pendingTimer);
+        this.pendingTimer = null;
         // The tab's focus signals are let go too, so a closed session does not list the project's images any more.
         this.detachAssetRefresh();
         await this.autosave.flush();
         await this.persistence.settle();
         await this.coherenceQueue;
+        this.pending.prune();
         this.autosave.dispose();
         if (this.sitting.isOpen() && (this.sitting.pending()?.docIds.length ?? 0) > 0) {
           await this.sitting.endSession();

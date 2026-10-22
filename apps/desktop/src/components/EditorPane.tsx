@@ -36,6 +36,7 @@ import type { GhostView } from '../app/agent-model.js';
 import { describeLossGroup, reStyleSentence } from '../app/load-banner.js';
 import { isOwnWrite } from '../app/integrity-model.js';
 import type { ProjectSession } from '../app/session.js';
+import { createHistorySaver, loadHistoryJournal } from '../app/history-store.js';
 import { registerSelectionReader } from '../app/test-hook.js';
 import type { TargetProgress } from '../app/session-progress.js';
 import { EmptyState, useReport, useSession, wordsLabel } from './shared.js';
@@ -190,25 +191,33 @@ function DocumentEditor({
     if (element === null) return;
     let alive = true;
     let mounted: TiptapEditorInstance | null = null;
-    const body = getBody(session.state, docId);
-    const at = getRevision(session.state, docId);
-    synced.current = { body, revision: at };
-    editorApi
-      .mount(element, {
-        docId,
-        initialBody: body,
-        revision: at,
-        autosave: session.autosave,
-        injectCSS: false,
-        placeholder: PLACEHOLDER,
-        ghost: {
-          onApply: () => agent.answer({ action: 'approve' }),
-          onRetry: () => agent.answer({ action: 'retry' }),
-          onDiscard: () => agent.answer({ action: 'cancel' }),
-        },
+    // The undo the writer's last visit left (history-store.ts) is read first, and the body and revision after it, so the editor opens on
+    // what the store holds at the moment it mounts. The editor rebuilds the undo only if it replays to that body.
+    const saver = createHistorySaver(session.projectId, docId);
+    loadHistoryJournal(session.projectId, docId)
+      .then((journal) => {
+        if (!alive) return null;
+        const body = getBody(session.state, docId);
+        const at = getRevision(session.state, docId);
+        synced.current = { body, revision: at };
+        return editorApi.mount(element, {
+          docId,
+          initialBody: body,
+          revision: at,
+          autosave: session.autosave,
+          injectCSS: false,
+          placeholder: PLACEHOLDER,
+          history: { journal, onChange: saver.onChange },
+          ghost: {
+            onApply: () => agent.answer({ action: 'approve' }),
+            onRetry: () => agent.answer({ action: 'retry' }),
+            onDiscard: () => agent.answer({ action: 'cancel' }),
+          },
+        });
       })
       .then(
         (instance) => {
+          if (instance === null) return;
           if (!alive) {
             instance.destroy();
             return;
@@ -229,6 +238,8 @@ function DocumentEditor({
       // Teardown flushes the document's pending edit through the autosave (editor-engine §9).
       if (mounted !== null) agent.detachGhost(docId, mounted.ghost);
       mounted?.destroy();
+      // The undo journal is written one last time, from what the editor held.
+      void saver.dispose();
     };
   }, [session, docId, agent]);
 

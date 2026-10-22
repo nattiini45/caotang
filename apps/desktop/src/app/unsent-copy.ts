@@ -41,6 +41,9 @@ export interface UnsentDocument {
 /** The chapter a put-back makes, once per put-back, at the end of the manuscript, for the documents whose own chapter is gone. */
 export const KEPT_CHAPTER_TITLE = 'Kept from a stopped tab';
 
+/** The same, for words kept through a reload (`UnsentEntry.origin`). */
+export const RELOAD_CHAPTER_TITLE = 'Kept from before a reload';
+
 /** The Research root's id (store create.ts): the documents under it are notes, not the manuscript. */
 const RESEARCH_ROOT = 'research';
 
@@ -76,6 +79,11 @@ export interface UnsentEntry {
   readonly stopId: string;
   readonly savedAt: string;
   readonly documents: readonly UnsentDocument[];
+  /**
+   * Where the words came from. Absent for a stopped tab's. `'reload'` marks words the pending journal kept through a reload that the store has
+   * since moved past (pending-journal.ts), offered the same way, with their own wording (UnsentWords).
+   */
+  readonly origin?: 'reload';
 }
 
 /** The browser's local storage, or `undefined` when the browser does not offer it. Reading it can throw in some privacy modes. */
@@ -222,6 +230,17 @@ export function writeUnsentEntry(
   return storeEntries(storage, projectId, next);
 }
 
+/**
+ * Adds an entry another part of the app made (the pending journal's offer, see `UnsentEntry.origin`). Every entry already there stays. Returns
+ * `false` when the browser refused the write or would not give the value up, in which case nothing changed.
+ */
+export function addUnsentEntry(storage: UnsentStorage | undefined, projectId: string, entry: UnsentEntry): boolean {
+  if (storage === undefined) return false;
+  const current = storedEntries(storage, projectId);
+  if (current === null) return false;
+  return storeEntries(storage, projectId, [...current.filter((existing) => existing.stopId !== entry.stopId), entry]);
+}
+
 /** Removes one stop's entry, once its words are put back and saved, or discarded. A browser that refuses the removal keeps it: nothing is lost. */
 export function removeUnsentEntry(storage: UnsentStorage | undefined, projectId: string, stopId: string): boolean {
   return writeUnsentEntry(storage, projectId, stopId, []);
@@ -307,8 +326,9 @@ export function restoreStep(doc: UnsentDocument, existing: { readonly body: stri
 
 function isUnsentEntry(value: unknown): value is UnsentEntry {
   if (typeof value !== 'object' || value === null) return false;
-  const entry = value as { stopId?: unknown; savedAt?: unknown; documents?: unknown };
+  const entry = value as { stopId?: unknown; savedAt?: unknown; documents?: unknown; origin?: unknown };
   if (typeof entry.stopId !== 'string' || typeof entry.savedAt !== 'string' || !Array.isArray(entry.documents)) return false;
+  if (entry.origin !== undefined && entry.origin !== 'reload') return false;
   return entry.documents.every(isUnsentDocument);
 }
 

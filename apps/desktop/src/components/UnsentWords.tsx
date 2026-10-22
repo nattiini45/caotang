@@ -2,6 +2,7 @@
  * The words a stopped tab kept (unsent-copy.ts), offered back once the project is open again, in the binder footer. Each stop that kept
  * words has its own block, so two stops' words are both offered and neither overwrites the other.
  *
+ * Words the pending journal kept through a reload that the store has moved past are offered the same way (`UnsentEntry.origin`, pending-journal.ts).
  * The offer shows only in a tab that is not stopped. A stopped tab answers its own notice (StaleTabNotice), and a put-back there would write
  * into a session that writes nothing to the store. Putting the words back adds them as new documents through the bus, so nothing already saved
  * is overwritten, and each addition is an undo group of its own. A block leaves the copy only once the store has saved the put-back: a save that
@@ -12,6 +13,7 @@ import { useState, type ReactNode } from 'react';
 
 import {
   KEPT_CHAPTER_TITLE,
+  RELOAD_CHAPTER_TITLE,
   browserStorage,
   putBackDocuments,
   readUnsentEntries,
@@ -49,7 +51,12 @@ export function UnsentWords({ session }: { session: ProjectSession }): ReactNode
    * it could not, or `null`. The created id is recorded before the body is written, so a body write that fails is retried, not repeated as a
    * create. A document whose chapter is gone (or that recorded none) goes into the kept chapter, which `keptChapter` makes once per put-back.
    */
-  const putOne = (doc: UnsentDocument, recordCreated: (docId: string) => void, keptChapter: () => string | { readonly failure: string }): string | null => {
+  const putOne = (
+    doc: UnsentDocument,
+    entry: UnsentEntry,
+    recordCreated: (docId: string) => void,
+    keptChapter: () => string | { readonly failure: string },
+  ): string | null => {
     const existing = doc.restoredAs === undefined ? undefined : session.state.documents.get(doc.restoredAs);
     const step = restoreStep(doc, existing);
     if (step.kind === 'done') return null;
@@ -59,7 +66,7 @@ export function UnsentWords({ session }: { session: ProjectSession }): ReactNode
     const created = session.dispatch('binder.create', {
       parentId,
       type: 'document',
-      title: `${doc.title} (kept from a stopped tab)`,
+      title: `${doc.title} (${entry.origin === 'reload' ? 'kept from before a reload' : 'kept from a stopped tab'})`,
     });
     const docId = createdNodeId(created);
     if (docId === undefined) {
@@ -76,13 +83,17 @@ export function UnsentWords({ session }: { session: ProjectSession }): ReactNode
     let kept: string | null = null;
     const keptChapter = (): string | { readonly failure: string } => {
       if (kept !== null) return kept;
-      const made = session.dispatch('binder.create', { parentId: 'manuscript', type: 'folder', title: KEPT_CHAPTER_TITLE });
+      const made = session.dispatch('binder.create', {
+        parentId: 'manuscript',
+        type: 'folder',
+        title: entry.origin === 'reload' ? RELOAD_CHAPTER_TITLE : KEPT_CHAPTER_TITLE,
+      });
       const id = createdNodeId(made);
       if (id === undefined) return { failure: `The words could not be put back: ${made.ok ? 'the new chapter has no id.' : explain(made.error)}` };
       kept = id;
       return id;
     };
-    const failed = putBackDocuments(storage, session.projectId, entry.stopId, (doc, recordCreated) => putOne(doc, recordCreated, keptChapter));
+    const failed = putBackDocuments(storage, session.projectId, entry.stopId, (doc, recordCreated) => putOne(doc, entry, recordCreated, keptChapter));
     if (failed !== null) {
       setFailure(failed);
     } else {
@@ -110,14 +121,18 @@ export function UnsentWords({ session }: { session: ProjectSession }): ReactNode
       {entries.map((entry) => {
         const count = entry.documents.length;
         const when = Number.isNaN(Date.parse(entry.savedAt)) ? '' : ` from ${new Date(entry.savedAt).toLocaleString()}`;
+        const reload = entry.origin === 'reload';
         return (
           <div key={entry.stopId} className="unsent-entry" data-stop={entry.stopId}>
-            <h3 className="footer-title">Kept from a stopped tab</h3>
+            <h3 className="footer-title">{reload ? 'Kept from before a reload' : 'Kept from a stopped tab'}</h3>
             <p className="field-note">
-              A tab stopped because another tab saved newer text for this project. The words it held were kept in this browser{when}, in{' '}
-              {count === 1 ? 'one document' : `${count} documents`}: {entry.documents.map((doc) => doc.title).join(', ')}. Putting them back
-              adds them as new documents in the chapters they came from, so nothing already saved is overwritten. A document whose chapter
-              is gone goes into a new chapter, &ldquo;{KEPT_CHAPTER_TITLE}&rdquo;.
+              {reload
+                ? 'The page reloaded before these words were saved, and the project has newer text now (from another tab, or a save that did land). '
+                : 'A tab stopped because another tab saved newer text for this project. '}
+              The words it held were kept in this browser{when}, in {count === 1 ? 'one document' : `${count} documents`}:{' '}
+              {entry.documents.map((doc) => doc.title).join(', ')}. Putting them back adds them as new documents in the chapters they came
+              from, so nothing already saved is overwritten. A document whose chapter is gone goes into a new chapter, &ldquo;
+              {reload ? RELOAD_CHAPTER_TITLE : KEPT_CHAPTER_TITLE}&rdquo;.
             </p>
             <div className="unsent-actions">
               <button type="button" className="button is-primary" disabled={busy !== null} onClick={() => void putBack(entry)}>

@@ -30,6 +30,7 @@ import { exportBundle, noteLeaveSuggestion, saveFolder, type FolderFileChange, t
 import type { ZoomLevel } from '../app/corkboard-model.js';
 import type { AppServices } from '../app/services.js';
 import { contextConfigOf } from '../app/settings.js';
+import type { PendingFailure } from '../app/pending-journal.js';
 import type { ProjectSession, SaveState } from '../app/session.js';
 import { crossedTarget, localDayOfIso, targetProgress, wordsWrittenToday } from '../app/session-progress.js';
 import { focusBinderFilter } from './BinderFilters.js';
@@ -191,6 +192,24 @@ export function Workspace({
   const sample = settingsNow.sampleProjectIds.includes(session.projectId);
 
   const report = useCallback((next: StatusMessage) => setMessage(next), []);
+  // The typing not yet saved cannot be kept in this browser's storage (pending-journal.ts): said once each time it starts, so the writer knows
+  // that only the autosave and the leave prompt stand between a reload and the last words.
+  useEffect(() => {
+    let told: PendingFailure | null = null;
+    return session.subscribe(() => {
+      const failure = session.pendingFailure();
+      if (failure !== null && failure !== told) {
+        report({
+          text:
+            failure === 'too-large'
+              ? 'The unsaved text is too large to keep a spare copy in this browser, so a reload in the next moment could lose it.'
+              : 'This browser would not keep a spare copy of the unsaved text, so a reload in the next moment could lose it.',
+          tone: 'info',
+        });
+      }
+      told = failure;
+    });
+  }, [session, report]);
   const clearFocus = useCallback(() => setFocusDocId(null), []);
   const clearReveal = useCallback(() => setReveal(null), []);
   /**

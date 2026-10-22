@@ -22,6 +22,8 @@ export type {
 } from './adapter.js';
 export { createGhostPreview } from './ghost.js';
 export type { GhostCallbacks, GhostPreview } from './ghost.js';
+export { HISTORY_JOURNAL_VERSION, HISTORY_MAX_ENTRIES, schemaSignature } from './history-journal.js';
+export type { HistoryJournal, HistoryPort, JournalEntry } from './history-journal.js';
 export { isAppLocalSource, caotangExtensions } from './extensions.js';
 export type { CaotangExtensionOptions, CaotangRole } from './extensions.js';
 export { isSafeLinkTarget, plainPasteHtml } from './paste.js';
