@@ -128,6 +128,7 @@ All deterministic checks share inputs from three already-specced sources: the **
 | `timeline.window` | scene outside declared container span | warning | folder-level SceneMeta.dayOffset/durationDays | Folder (act/part) with declared span: child scenes' windows must fall inside `[folder.dayOffset, folder.dayOffset + folder.durationDays)`. | Only declared windows checked; no inheritance guessing. |
 | `timeline.overlap` | sibling scene windows intersect | info | dayOffset, durationDays | Sibling scenes (same parent) with overlapping windows → info ("may be intentional — parallel POVs; dismiss to record that"). | Default info, one-click dismiss; **not** an error because multi-POV simultaneity is normal. |
 | `timeline.gap` | a jump in story time | info | SceneMeta.dayOffset, timelineMode | Sort scheduled scenes by dayOffset (binder order breaks ties); each adjacent pair whose later dayOffset is **7 or more days** past the earlier one's (start to start) → info finding citing both scenes and the day count, with "declare a time skip on one of the scenes, or accept the gap". `parallel` and `frame` scenes are compared within their own strand. | A pair is skipped when **either** scene is `time-skip`, `dream` or `mythic` (§5.2.1); scenes without an offset are counted as unscheduled, never compared. Info, one-click dismiss. |
+| `plot.unresolved-thread` | declared payoff missing | warning · info | SceneMeta.threads, the binder tree | For each thread a scanned scene declares (§5.5): `payoff` names no document in the project → **warning**; it names a document the scan did not read (empty, archived, outside the Manuscript, or Research not named) → **info**; it names a scanned scene → no finding. The message says what the scene *declares*, never that the thread is open. | Fires only on a declared thread; it never judges whether the payoff works. A scene with no thread is counted in the run note, never compared. |
 | `pov.coverage` | declared POV not named | info | SceneMeta.pov, mention cache | Scene with declared POV whose entry has 0 hits in the scene text → info "POV never named in scene" (normal in deep/first-person POV). | Info severity; dismissal records "deep POV" convention. Unresolvable POV names (not a codex entry) → separate info finding prompting codex creation. |
 | `presence.expected` | declared presence violated | error | SceneMeta.expectedPresent, mention cache | Each expected entry must have ≥1 hit in the scene text; 0 hits → error naming entry + scene. | Only fires on writer-declared expectations — the deterministic analog of a saved-search collection (Scrivener's manual baseline), not a guess. |
 
@@ -142,6 +143,7 @@ interface SceneMeta {
   durationDays?: number;           // default 0 (a scene occupies a moment unless declared)
   after?: string[];                // declared dependencies: this scene happens after these docIds (order guarantee, no exact timing — Aeon dependency shape, simplified)
   expectedPresent?: string[];      // codex entry ids that must be mentioned in this scene
+  threads?: { id: string; payoff: string; note?: string }[];   // §5.5: threads this scene sets up
 }
 ```
 
@@ -197,12 +199,55 @@ Severity defaults by category: Factual/Detail + Timeline/Plot → `error`; Chara
 
 ### 5.4 Check registry (closed for the first landing)
 
-Deterministic: **15 checks** (`packages/coherence/src/checks/index.ts` holds the closed registry, `DETERMINISTIC_CHECK_IDS` in `model.ts` the ids). The eight of §5.1, with their severities: `codex.alias-collisions` (warning), `codex.never-mentioned` (info), `timeline.order-drift` (info), `timeline.relation` (error), `timeline.window` (warning), `timeline.overlap` (info), `pov.coverage` (info), `presence.expected` (error). Then `timeline.gap` (info, §5.1 and §5.2.1), appended so the order of the eight does not move, and the six the screen and media track adds, which the registry runs as its own rows:
+Deterministic: **16 checks** (`packages/coherence/src/checks/index.ts` holds the closed registry, `DETERMINISTIC_CHECK_IDS` in `model.ts` the ids). The eight of §5.1, with their severities: `codex.alias-collisions` (warning), `codex.never-mentioned` (info), `timeline.order-drift` (info), `timeline.relation` (error), `timeline.window` (warning), `timeline.overlap` (info), `pov.coverage` (info), `presence.expected` (error). Then `timeline.gap` (info, §5.1 and §5.2.1), appended so the order of the eight does not move, then the six the screen and media track adds, which the registry runs as their own rows, and `plot.unresolved-thread` (warning or info, §5.5) last:
 
 - **Screenplay cues** (`script.cue-collision`, info; `script.cue-consistency`, warning) and **storyboard shot coverage** (`script.shot-coverage`, info). They sit inside the coherence module because both packages are leaves below it (screenplay.md §4; storyboard.md §5).
 - **Dialogue branch facts**: `branch.loose-end` (warning), `branch.dead-end` (info) and `dialogue.speaker-unknown` (info). The dialogue package depends on this module, so the app computes these over each container and passes the findings in; each id takes only its own findings. Branch checks run on full scans, and a narrower scan says in its run record that they were not run.
 
 LLM: the 5 ConStory categories (fixed enum; subtypes rendered from model output's `category` + `type` field). Adding a check = a spec change + eval fixtures, never a runtime plugin (Principle 5 posture carried into the track).
+
+### 5.5 Causality: setup → payoff
+
+Causality was the one continuity axis with no declaration to check, so the model review's timeline-plot category was the only thing that read it (media-track.md). A writer states it here, on the scene that plants the thread, and the app checks that the stated payoff is there. The module's one rule holds: nothing is inferred from the prose.
+
+**Field shape (additive `SceneMeta` field):**
+
+```ts
+interface SceneMeta {
+  // … §5.2 and §5.2.1 fields unchanged …
+  threads?: { id: string; payoff: string; note?: string }[];   // absent = [] = the scene declares no thread
+}
+```
+
+- `id` is the writer's **handle** for the thread ("the lamp"): free text, trimmed, at most 80 characters, not blank. Two handles on one scene that differ only in case are one handle, because the fact group lowercases it.
+- `payoff` is the id of the document that pays the thread off. It is a document of the project, and not the setup scene itself.
+- `note` is one line (at most 200 characters) on what the payoff is for. No check reads it; it is for the writer and for the model half below.
+- **Why the setup side only.** A two-sided link needs two documents kept in step, and half the pairs would be one-sided in practice, which is the state this check reports. One declaration per thread, with the check as the judge, is one edit.
+- **Why not `after`.** `after` records order (A before B). A thread records what A plants for B. They can coexist: a payoff normally comes after its setup, and `timeline.relation` may already say so.
+
+**Field contract (project-format §2 discipline):** a file written before the field existed loads unchanged, and an empty list reads as none. An entry that is not a thread (a blank handle, no payoff, a note that is not text) is dropped on load with a notice that names the scene, and so is a second entry with a handle the first already holds. An unknown field on an entry is reported in the load notices, as on the scene itself. The list is kept sorted by handle, so the undo of a removal puts the list back as it was.
+
+**Patch.** `coherence.setSceneMeta`'s `patch` gains `threads_add?: {id, payoff, note?}[]` and `threads_remove?: string[]` (handles, matched without regard to case). Removals apply first, so one patch with both edits a thread, as one command and one undo. Validation names the field: a blank handle (`threads_add[0].id`), a handle over the limit, a `payoff` that is not a document in the project or is the scene itself, a note over the limit, and a handle already on the scene (unless the same patch removes it). A thread is declared on a document: the command refuses it on a folder. The undo is the exact inverse: what the patch added is removed, and what it removed, or edited, comes back as it was.
+
+**The check, `plot.unresolved-thread`** (id appended to the registry, so the order of the others does not move):
+
+| Declared thread | Finding |
+|---|---|
+| `payoff` is a scanned scene | none |
+| `payoff` is a document of the project that the scan did not read: empty, archived, outside the Manuscript, or a Research document the scope does not name | **info**, type `payoff-not-read`: nothing can be said about a scene that was not read |
+| `payoff` names no document of the project (a deleted scene, a folder, a shot, a stale id) | **warning**, type `payoff-unresolved` |
+
+- **Scope rule.** The check resolves a payoff against what the scan *could* read (the scanned scenes and the binder), and not against the scenes in this run's scope. A `changed` or `doc` run is then no different from a full one: a payoff scene that was not edited is still a payoff scene. The run's scope still decides which findings it reports, as for every check, by the setup scene: a thread whose setup scene the run did not read is not reported by it. A thread declared on a scene that was not scanned is not compared.
+- **Messages say what was declared**, not what is wrong with the story: `"Chapter 2" declares the thread "the lamp" with its payoff in gone9, which is not a document in the project`, and `… with its payoff in "Chapter 14", which this scan did not read`. A thread the writer forgot to update is then a stale declaration and not a claim about the manuscript. The `expected` line names the declaration side.
+- **Evidence** is the opening of the setup scene, as for the other declaration checks.
+- **Fact group** `lower(setupDocId + '|thread:' + handle)`: one finding per thread, stable across edits to the text around it. A finding whose payoff moves between the two cases above stays one finding, and its dismissal stands.
+- **Run note**, whenever the scan reads scenes: `N of M scene(s) declare a thread; K not compared`, so a check that has little to read does not look like one that found nothing. When the document list is not supplied, the check says so in its note and raises nothing.
+- **Finding budget.** There is one finding per declared, unresolved thread and no cap on deterministic findings (the cap in §7 is the model review's). The writer declares each thread, so the count is the writer's.
+- **Dismissal.** The five reasons stay as specced. `intentional` ("the payoff is in another book") and `false-positive` are the ones that fit; no technique reason is added.
+
+**Model half (decision D13).** The review's category enum stays at five. A foreshadowing pass is a *subtype* of the timeline-plot category: its Stage 1 prompt gains one instruction, to judge for each declared thread whose payoff was read whether the payoff pays it off, and to name the handle in the finding so that a dismissal is against the thread and not a paragraph. No finding or category string changes, so a finding saved by an earlier build loads as it did. **Status: not built.** The field, the patch, the Inspector control and the check are built; the prompt instruction is the next landing.
+
+**Fixtures (the build inherits them):** a thread whose payoff is a scanned scene (none); a payoff that names nothing, a folder, and a stale id (warning, naming setup document, payoff id and handle); a payoff that is empty or archived (info); two threads on one scene (one finding each, two fact groups); the same thread after the setup scene's text is edited (same fact group, a dismissal stands); a scene with no thread (no finding; the note counts declared and not compared); a thread on a scene that was not scanned (not compared); a blank handle (refused by the patch, dropped on load, skipped by the check); a `changed` run that did not edit the payoff scene (no warning) and a `doc` run over the payoff scene alone (no finding); a file written before the field existed (loads unchanged); the undo of an add, a removal and an edit (the threads as they were).
 
 ## 6. Findings lifecycle
 
@@ -248,7 +293,7 @@ The v0.1 registry is frozen (agent-harness §3); these three land with the modul
 
 | Command | Params | agentRisk | undo | Notes |
 |---|---|---|---|---|
-| `coherence.setSceneMeta` | `{docId, patch: {pov?, dayOffset?, durationDays?, after_add?, after_remove?, expectedPresent_add?, expectedPresent_remove?, timelineMode?}}` | write-auto | inverse | Validates pov/expected ids against codex (unknown id → error lists codex entries); dayOffset ≥ 0 integer; `timelineMode` validated against the §5.2.1 enum (unknown → error lists valid values). |
+| `coherence.setSceneMeta` | `{docId, patch: {pov?, dayOffset?, durationDays?, after_add?, after_remove?, expectedPresent_add?, expectedPresent_remove?, timelineMode?, threads_add?, threads_remove?}}` | write-auto | inverse | Validates pov/expected ids against codex (unknown id → error lists codex entries); dayOffset ≥ 0 integer; `timelineMode` validated against the §5.2.1 enum (unknown → error lists valid values); `threads_add` entries validated as §5.5 says (blank handle, a payoff that is not a document, a handle already on the scene → error names the field), and refused on a folder. |
 | `coherence.setFindingStatus` | `{findingId, status: 'open'\|'dismissed'\|'fixed', reason?, note?}` | write-confirm (agent: only `'fixed'`, per tool 17) | inverse | `dismissed` from the agent side is hard-refused at the gate. |
 | `coherence.discardRun` | `{runId}` | write-confirm | compensable (puts back the run and its untouched findings; undo is by compensation, not an exact inverse) | Removes a run and findings it created **that the user never touched** (no status change, no dismissal); touched findings survive with their history. |
 
@@ -258,7 +303,7 @@ The v0.1 registry is frozen (agent-harness §3); these three land with the modul
 
 - **Findings panel** — third left-rail peer beside Binder and Codex: tab badge = open-finding count (Aeon's badge pattern); group cards (factGrouped) with type chip, severity dot, status; expanding a card shows both passages **side-by-side** (click a quote → `revealRange` in the editor); per-card actions: *Fix with agent* (§6.3), *Dismiss* (reason picker), *Mark fixed*, *Re-open*. A quoted passage's button is named by the passage, and its document is its description. The reason picker takes focus when it opens; Escape or Cancel closes it and returns focus to the card's *Dismiss* control; a dismissal moves focus to the next open card, or to the panel heading when none is open. A scope over the document guard (§6.2) asks in the panel, with *Scan it anyway* beside the scan, for a scan and for *Run again* alike; approving runs the scope that asked.
 - **Run history** section: last N runs (kind, scope, date, findings upserted, tokens for llm runs), actions: re-run same scope, discard run.
-- **Inspector extension:** SceneMeta editor on document nodes — POV picker (codex characters), dayOffset/duration number fields, `after`/`expectedPresent` chip pickers. Declared-but-unresolvable values flagged inline.
+- **Inspector extension:** SceneMeta editor on document nodes — POV picker (codex characters), dayOffset/duration number fields, `after`/`expectedPresent` chip pickers, and a thread list (handle, the scene that pays it off, an optional note; add, edit, remove). Declared-but-unresolvable values flagged inline.
 - **Settings:** deterministic-check toggles (default all on), default review scope, per-run `maxFindings`.
 - Out of scope first landing: cross-medium consistency (script ↔ storyboard ↔ cutscene — requires the screenplay, dialogue and storyboard artifacts to exist; noted in media-track's plot-coherence item), inline finding marks in prose, Director-Mode-style canon-constrained drafting (backlog — the plan-card context assembly may suffice, a `coherence.preflight` step is the v0.2 option).
 
@@ -299,6 +344,7 @@ Failure modes at each seam: codex caches stale → checks read `docRevision`-sta
 | D8 | Registry 14 → 17 tools (post-v0.1); `coherence.scan` findings-append = sessions.jsonl-class side effect | Delegated; the band discipline applies to v0.1's frozen registry; the module lands with its own justified +3. The registry holds 26 rows, and this module's three are among its 12 extension rows (agent-harness §10). |
 | A1 | Codex mention caches + SceneMeta are sufficient inputs for the deterministic class | Explicit; a richer timeline constraint model (D10) may add shapes; findings model is shape-stable under that upgrade. |
 | A2 | ConStory 5-category taxonomy transfers to fiction long-form | Evidence-class (Microsoft/SUTD 2026, prose benchmarks); subtypes remain model-proposed strings, validated against the category enum. |
+| D13 | Foreshadowing joins the model review as a timeline-plot subtype, not a sixth category (§5.5) | **Delegated default**, the option the proposal recommended: the deterministic half is what makes a thread trackable (an id, a dismissal, survival across edits); the model only judges whether a payoff works, and a category that fires on every declared thread would flood the finding budget. The enum stays five, so no saved finding changes. A sixth category stays open for a later, larger change (A2). |
 | A3 | LLM review cost stays acceptable at per-chapter/changed scoping | Estimate-gated at plan time (§5.3); full-manuscript runs are opt-in with the 20-doc guard. Real-cost feedback lands with usage; revisit if extract-call volume dominates. |
 | A4 | Cross-medium consistency (script ↔ storyboard ↔ branches) deferred until the screenplay, dialogue and storyboard artifacts exist | Explicit; the findings model already carries it (`checkId` namespace is open). |
 | A5 | Timeline-mode exemptions are a v0.2 upgrade path | **Resolved** — the exemption table is in §5.2.1 with its evidence complete: StoryLine's Validator source captures the full set membership — `EXEMPT_FROM_DATE_ORDER` = flashback/flash-forward/dream/mythic/**circular**/simultaneous; `EXEMPT_FROM_CONTINUITY` (all continuity) = dream/mythic; `EXEMPT_FROM_GAP` = timeskip/dream/mythic; `timeskip` stays IN the main-timeline order group (it is a gap legitimizer, not a date-order exemption). **`circular` adopted into the §5.2.1 enum (same row as flashback — third exemption set captured, second vendor precedent obtained); `time-skip` adopted with `timeline.gap`** (its only consumer is a gap-magnitude check, which §5.1 now has; the two landed together). StoryLine's doubly-exempt `simultaneous` row recorded, not adopted (Caotang stays conservative). Until the v0.2 landing, writers express the same intent via dismiss-with-reason (`flashback`, §6.3). |
