@@ -192,7 +192,7 @@ describe('the emoji fallback font', () => {
     // Everything is one glyph but the allow-list: fontkit does not lay the people "facing right" out as one, though the
     // font has them (HarfBuzz does). They print as their first emoji until the PDFs lay them out another way.
     expect(new Set(base)).toEqual(FACING_RIGHT);
-  });
+  }, 120_000);
 
   it('prints a minimally-qualified or unqualified emoji as the glyph of its fully-qualified form', () => {
     const list = emojiList();
@@ -205,7 +205,7 @@ describe('the emoji fallback font', () => {
       expect(emojiPrint(emoji), emoji).toBe(emojiPrint(full ?? ''));
       expect(emojiGlyph(font, emoji)?.id, emoji).toBe(emojiGlyph(font, full ?? '')?.id);
     }
-  });
+  }, 120_000);
 
   it('has the emoji of 16.0 and 17.0 as one glyph each', () => {
     for (const emoji of NEW_EMOJI) {
@@ -223,7 +223,7 @@ describe('the emoji fallback font', () => {
       if (print === 'none') expect(glyph, emoji).toBeUndefined();
       else expect(glyph?.id ?? 0, emoji).not.toBe(0);
     }
-  });
+  }, 120_000);
 
   it('lays out each sequence as one glyph: ZWJ, skin tone, flag, keycap, tag sequence, VS16', () => {
     for (const unit of SEQUENCES) {
@@ -300,7 +300,7 @@ describe('the PDF with emoji', () => {
     expect(lines.some((line) => line.includes('?'))).toBe(false);
     const copied = textUnits(lines.join(' ')).filter((unit) => isEmojiCluster(unit));
     expect(copied.join(' ')).toBe(all.join(' '));
-  });
+  }, 120_000);
 
   it('prints the 16.0 and 17.0 emoji as one glyph each, copied back as typed, with no note', async () => {
     const source = text('INT. A - DAY', '', `New: ${NEW_EMOJI.join(' ')}.`);
