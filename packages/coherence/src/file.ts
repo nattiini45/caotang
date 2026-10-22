@@ -72,11 +72,22 @@ async function newestReadableSnapshot(fs: ArtifactFs): Promise<{ path: string; f
   return undefined;
 }
 
+export interface LoadOptions {
+  readonly now?: Date;
+  /**
+   * Writes nothing. An unreadable file is not kept under a corrupt name and not restored: the newest snapshot that reads, or an
+   * empty file, is what the load returns, and the notice says the file on disk is as it was. The result stays writable, because
+   * a later save rotates the unreadable live file under its corrupt name before it replaces it (`rotateCoherence`).
+   * For a reader that must not change the folder (the MCP server on either posture, extensibility.md §9).
+   */
+  readonly readOnly?: boolean;
+}
+
 /**
  * Reads the project's coherence file. Never throws on content. It throws only
  * when the port itself fails, because a port failure is not a file problem.
  */
-export async function loadCoherence(fs: ArtifactFs, options: { now?: Date } = {}): Promise<LoadResult> {
+export async function loadCoherence(fs: ArtifactFs, options: LoadOptions = {}): Promise<LoadResult> {
   if (!(await fs.exists(COHERENCE_FILE))) {
     return { status: 'absent', file: emptyCoherenceFile(), notices: [], writable: true };
   }
@@ -100,6 +111,8 @@ export async function loadCoherence(fs: ArtifactFs, options: { now?: Date } = {}
       writable: false,
     };
   }
+
+  if (options.readOnly === true) return readOnlyRecovery(fs, outcome.reason);
 
   const preservedAs = corruptCoherenceFile(options.now ?? new Date());
   await fs.writeAtomic(preservedAs, text);
@@ -136,6 +149,38 @@ export async function loadCoherence(fs: ArtifactFs, options: { now?: Date } = {}
     ],
     writable: true,
     preservedAs,
+  };
+}
+
+/** The result of a read-only load of an unreadable file: what a recovery would hold, with nothing written and nothing kept. */
+async function readOnlyRecovery(fs: ArtifactFs, reason: string): Promise<LoadResult> {
+  const snapshot = await newestReadableSnapshot(fs);
+  if (snapshot !== undefined) {
+    return {
+      status: 'recovered',
+      file: snapshot.file,
+      notices: [
+        ...snapshot.notices,
+        {
+          code: 'restored-from-snapshot',
+          message:
+            `coherence.json could not be read (${reason}). It is not changed, and ${snapshot.path}, the newest earlier version that reads, is used instead. ` +
+            'Changes made after that version was saved are not in it; a scan recomputes the findings.',
+        },
+      ],
+      writable: true,
+    };
+  }
+  return {
+    status: 'recovered',
+    file: emptyCoherenceFile(),
+    notices: [
+      {
+        code: 'corrupt-file',
+        message: `coherence.json could not be read (${reason}). It is not changed, and no earlier version of it reads, so an empty file is used. ${LOSS_NOTICE}`,
+      },
+    ],
+    writable: true,
   };
 }
 

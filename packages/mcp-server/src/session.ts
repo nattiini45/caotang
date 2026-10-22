@@ -65,6 +65,7 @@ import {
 } from '@caotang/store';
 
 import { sourceWindow, type SourceWindow } from './attribution.js';
+import { openCoherence } from './coherence-file.js';
 import { byteArtifactsOver, NodeArtifactFs } from './node-fs.js';
 import { acquireProjectLock, type ProjectLock } from './lock.js';
 
@@ -409,6 +410,9 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
     let held = await folderDigests(fs);
     const loaded = await readProject(fs, { now: now(), manifestText });
     const state = loaded.state;
+    // coherence.json is read on either posture and written by neither here (the write is persistCoherence's, under --allow-writes).
+    const coherence = await openCoherence(fs, state);
+    const notices = [...loaded.notices, ...coherence.notices];
     // The body nodes this copy named when it was last loaded or saved: one that has since left the tree is a document the session deleted.
     let heldBodies = bodyNodeIdsOf(state);
     // The titles the copy held at the same time, so a file a later edit or deletion took out of the state is still named in words.
@@ -534,7 +538,7 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
       exporter,
       allowWrites: options.allowWrites,
       created,
-      notices: loaded.notices,
+      notices,
       window,
 
       async callDirect(name, callId, params, turnId) {
