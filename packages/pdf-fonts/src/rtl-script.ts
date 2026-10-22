@@ -94,10 +94,21 @@ export function rtlRunKind(cluster: string): 'letters' | 'single' | undefined {
 }
 
 /** The characters that steer the bidirectional algorithm and print nothing: LRM, RLM, ALM, the embeddings, overrides and isolates. */
+const ANY_BIDI_CONTROL = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/;
 const BIDI_CONTROL = /^[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/;
 
 export function isBidiControl(cluster: string): boolean {
   return BIDI_CONTROL.test(cluster);
+}
+
+/** Whether a text holds a bidirectional control character anywhere. */
+export function hasBidiControl(text: string): boolean {
+  return ANY_BIDI_CONTROL.test(text);
+}
+
+/** Whether a text needs the bidirectional algorithm at all: it holds a character of Arabic or Hebrew, or a control character. */
+export function needsBidi(text: string): boolean {
+  return hasRtlScript(text) || hasBidiControl(text);
 }
 
 /**

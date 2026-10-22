@@ -43,9 +43,11 @@ export {
 export { arabicFontMaps, emojiFontHasSequence, emojiFontHasTonedSequence, emojiFontMaps, fallbackCovers, hebrewFontMaps, inRanges } from './coverage.js';
 export {
   countMarks,
+  hasBidiControl,
   hasRtlScript,
   isBidiControl,
   isRtlMark,
+  needsBidi,
   rtlFontMaps,
   rtlFontPrints,
   rtlRunKind,

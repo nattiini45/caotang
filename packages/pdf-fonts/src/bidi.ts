@@ -129,6 +129,10 @@ export interface VisualRun {
    * `other` holds: the text left to right as drawn, brackets mirrored where the level is odd.
    */
   readonly text: string;
+  /** The run's text in logical order, whatever `text` holds: what a reader copies. */
+  readonly source: string;
+  /** The run's place among the line's runs in logical order, from 0. */
+  readonly order: number;
   readonly level: number;
   /** `letters`: a word of the Arabic or Hebrew font, `single`: one other character of it, `other`: everything else (Courier Prime, CJK, emoji). */
   readonly kind: 'letters' | 'single' | 'other';
@@ -156,14 +160,15 @@ export function visualRuns(text: string, base: Direction): VisualRun[] {
     if (last !== undefined && kind !== 'single' && last.run.kind === kind && last.run.level === level && last.run.script === script) {
       last.clusters.push(cluster);
     } else {
-      logical.push({ run: { text: '', level, kind, ...(script === undefined ? {} : { script }) }, clusters: [cluster] });
+      logical.push({ run: { text: '', source: '', order: logical.length, level, kind, ...(script === undefined ? {} : { script }) }, clusters: [cluster] });
     }
   }
   return visualOrder(logical.map(({ run }) => run.level)).map((position) => {
     const { run, clusters: held } = logical[position] as (typeof logical)[number];
-    if (run.kind !== 'other') return { ...run, text: held.join('') };
+    const source = held.join('');
+    if (run.kind !== 'other') return { ...run, text: source, source };
     // The characters of a right-to-left run are written in visual order, and a bracket in it is turned (L4).
     const ordered = run.level % 2 === 1 ? held.map((cluster) => (cluster.length <= 2 ? mirrored(cluster) : cluster)).reverse() : held;
-    return { ...run, text: ordered.join('') };
+    return { ...run, text: ordered.join(''), source };
   });
 }
