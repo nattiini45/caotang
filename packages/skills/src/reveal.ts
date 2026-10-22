@@ -52,6 +52,9 @@ export function findHidden(text: string): HiddenFindings {
   let invisible = 0;
   for (const ch of text) if (isHiddenCode(ch.codePointAt(0)!)) invisible += 1;
   let comments = 0;
+  // Each closer is searched for again only once the cursor has passed its last hit (a miss stays a miss), so the scan is linear.
+  let close = -2;
+  let bang = -2;
   let at = text.indexOf('<!--');
   while (at >= 0) {
     comments += 1;
@@ -60,8 +63,8 @@ export function findHidden(text: string): HiddenFindings {
     if (text.startsWith('>', at + 4)) end = at + 5;
     else if (text.startsWith('->', at + 4)) end = at + 6;
     else {
-      const close = text.indexOf('-->', at + 4);
-      const bang = text.indexOf('--!>', at + 4);
+      if (close !== -1 && close < at + 4) close = text.indexOf('-->', at + 4);
+      if (bang !== -1 && bang < at + 4) bang = text.indexOf('--!>', at + 4);
       if (close < 0 && bang < 0) break;
       end = bang >= 0 && (close < 0 || bang < close) ? bang + 4 : close + 3;
     }

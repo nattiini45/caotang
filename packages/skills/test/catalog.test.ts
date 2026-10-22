@@ -126,4 +126,14 @@ describe('the review card helpers', () => {
     expect(findHidden('<!--> x <!---> y <!-- z -->').comments).toBe(3);
     expect(findHidden('plain text, é, 日本語, emoji 😀').invisible).toBe(0);
   });
+
+  it('counts a file full of short comments in linear time', () => {
+    for (const unit of ['<!--x-->', '<!-- --!> ', '<!-- x']) {
+      const text = unit.repeat(Math.floor(262144 / unit.length));
+      const started = Date.now();
+      const { comments } = findHidden(text);
+      expect(Date.now() - started).toBeLessThan(1500);
+      expect(comments).toBe(unit === '<!-- x' ? 1 : Math.floor(262144 / unit.length));
+    }
+  });
 });
