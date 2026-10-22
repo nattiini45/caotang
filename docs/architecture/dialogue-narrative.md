@@ -85,7 +85,7 @@ VO/loc completeness ("every line has an id when the table is exported") is a **v
 - **VO:** the same table is the VO script (speaker + text + id = the auditionable/recordable unit; per-vendor audio extensions stay vendor-side — the WTWTLW dual-use precedent).
 - **Spreadsheet stack (XLSX):** shared with the storyboard shot list (storyboard.md §8 A4) — one writer, two consumers. Built as a hand-written Office Open XML writer over `fflate` (exporter.md §5). The XLSX table has the CSV's columns and rows; `charLimit` is a number cell.
 
-## 7. Harness tools (the track's rows 22 and 23; the registry holds 26 rows, agent-harness §10)
+## 7. Harness tools (the track's rows 22 and 23; the registry holds 31 rows, agent-harness §10)
 
 The numbers in the first column are the track's own, as this spec gives them, and they are not positions in the registry. The MCP server lists `dialogue.table` (read) on every server and does not list `dialogue.draft`, which needs a model provider the server does not hold (mcp-server README).
 

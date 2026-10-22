@@ -141,6 +141,14 @@ export function invalid(message: string, correctiveHint?: string, target?: strin
   return err(invalidError(message, correctiveHint, target));
 }
 
+/**
+ * A vocabulary id the project does not hold. It carries `details.unknownVocabulary`, so a plan can tell this miss from a shape
+ * error: a step that names a term an earlier step of the plan adds is checked again when it runs, not refused up front.
+ */
+export function unknownTerm(kind: 'status' | 'label', message: string, correctiveHint: string, target: string): Result<never, CommandError> {
+  return err({ ...invalidError(message, correctiveHint, target), details: { unknownVocabulary: kind } });
+}
+
 export function notFound(message: string, correctiveHint?: string, target?: string): Result<never, CommandError> {
   return err(notFoundError(message, correctiveHint, target));
 }

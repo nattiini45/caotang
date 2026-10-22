@@ -60,6 +60,19 @@ describe('the four furniture descriptors carry the spec columns', () => {
   });
 });
 
+describe('a vocabulary id the project does not hold', () => {
+  it('says which vocabulary it was named in, so a plan can tell it from a shape error', () => {
+    const missing = validateSave({ filter: { name: 'x', criteria: { statusId: 'final' } } });
+    expect(missing.ok ? undefined : missing.error.details).toEqual({ unknownVocabulary: 'status' });
+    const label = validateSave({ filter: { name: 'x', criteria: { labelId: 'act-9' } } });
+    expect(label.ok ? undefined : label.error.details).toEqual({ unknownVocabulary: 'label' });
+    const shape = validateSave({ filter: { name: 'x', criteria: { statusId: '' } } });
+    expect(shape.ok ? undefined : shape.error.details).toBeUndefined();
+    const meta = COMMAND_REGISTRY['binder.setMeta'].descriptor.validate({ nodeId: 'n_SCENEONE000', patch: { status: 'final' } }, SNAPSHOT);
+    expect(meta.ok ? undefined : meta.error.details).toEqual({ unknownVocabulary: 'status' });
+  });
+});
+
 describe('binder.saveFilter', () => {
   it('accepts a filter with a root and criteria, and returns the name trimmed and the criteria copied', () => {
     const result = validateSave({

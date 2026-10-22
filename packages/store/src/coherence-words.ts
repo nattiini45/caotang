@@ -15,6 +15,7 @@ const DECLARATION_WORDS: Readonly<Record<string, string>> = {
   after: 'dependencies',
   expectedPresent: 'expected presence',
   timelineMode: 'timeline mode',
+  threads: 'threads',
 };
 
 /** Joins words the way a sentence does: `a`, `a and b`, `a, b and c`. */
@@ -69,6 +70,7 @@ const CHECK_LABELS: Readonly<Record<string, string>> = {
   'branch.dead-end': 'A dialogue knot can never be reached',
   'dialogue.speaker-unknown': 'A dialogue speaker matches no codex entry',
   'timeline.gap': 'A scene is days after the scene before it',
+  'plot.unresolved-thread': 'A thread’s declared payoff is not in the manuscript',
 };
 
 /**

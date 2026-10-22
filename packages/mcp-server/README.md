@@ -2,7 +2,7 @@
 
 Caotang's tool registry, served to an outside agent over MCP: the same tools, under the same names, descriptions and schemas, through the same command bus and the same permission gate. The design is [extensibility.md §9](../../docs/architecture/extensibility.md). The tool list is in [The tools](#the-tools) below, and it is the list a host sees.
 
-It is **read-only by default**. Writes are exposed only when the project is opened with `--allow-writes` (or `CAOTANG_MCP_ALLOW_WRITES=true`). Then nine tools write: four apply their change at once, and five ask the user to confirm each call in the host before anything is written. The tables under [The tools](#the-tools) say which is which.
+It is **read-only by default**. Writes are exposed only when the project is opened with `--allow-writes` (or `CAOTANG_MCP_ALLOW_WRITES=true`). Then fourteen tools write: seven apply their change at once, and seven ask the user to confirm each call in the host before anything is written. The tables under [The tools](#the-tools) say which is which.
 
 ## Build
 
@@ -13,7 +13,7 @@ pnpm --filter @caotang/mcp-server run pack       # builds, then writes dist/caot
 
 `dist/caotang-mcp.mjs` is one file: the workspace packages and the MCP SDK are inlined, so it runs with a plain `node` (the workspace's `engines` range, Node 22.12 or a later supported release). Nothing else needs to be installed next to it, except the two fonts below for a PDF that needs them.
 
-The two PDF exports (the screenplay PDF and the storyboard contact sheet) set text Helvetica or Courier Prime cannot print in two fallback fonts, one CJK font and one emoji font, and both PDFs share the same two files: `NotoSansMonoCJKsc-Regular.woff` (Noto Sans Mono CJK SC, `@caotang/font-noto-cjk`, 7,219,856 bytes) and `NotoEmoji-Regular.woff` (Noto Emoji, `@caotang/font-noto-emoji`, 566,592 bytes). The server reads each only for a PDF that holds such text: from `fonts/` beside the bundle, then from its package in a checkout.
+The two PDF exports (the screenplay PDF and the storyboard contact sheet) set text Helvetica or Courier Prime cannot print in two fallback fonts, one CJK font and one emoji font, and both PDFs share the same two files: `NotoSansMonoCJKsc-Regular.woff` (Noto Sans Mono CJK SC, `@caotang/font-noto-cjk`, 7,219,856 bytes) and `NotoEmoji-Regular.woff` (Noto Emoji, `@caotang/font-noto-emoji`, 579,236 bytes). The server reads each only for a PDF that holds such text: from `fonts/` beside the bundle, then from its package in a checkout.
 
 `pack` makes the MCPB bundle a host can install. The bundle holds `server/caotang-mcp.mjs`, `server/fonts/NotoSansMonoCJKsc-Regular.woff` and `server/fonts/NotoEmoji-Regular.woff` (7.8 MB together, where the bundle held four font files and 25,065,212 bytes before the two PDFs shared one of each), `THIRD-PARTY-NOTICES.md` for the bundle's dependencies, and the repository's `LICENSE`. The pack script stages those files, checks the manifest against the bundle (its version, its entry point, the arguments, and the write setting), validates it and packs it with the MCPB CLI this package pins (`@anthropic-ai/mcpb`, an exact version). It then reads the result back. The bundle is not signed.
 
@@ -102,12 +102,12 @@ These are the tools a host lists, measured from `tools/list` on a server started
 | `coherence.scan` | read |
 | `dialogue.table` | read |
 
-**With `--allow-writes` (16 tools):** the seven above, and:
+**With `--allow-writes` (21 tools):** the seven above, and:
 
 | Tool | Risk | What the host does |
 |---|---|---|
-| `meta.set`, `notes.append`, `coherence.setFindingStatus`, `shots.annotate` | write-auto | Applies at once when the call arrives. |
-| `binder.restructure`, `codex.write`, `codex.import`, `doc.import`, `export.compile` | write-confirm | Asks the user to confirm each call (its description starts "Requires user confirmation."), and writes nothing if the answer is not an accept. |
+| `meta.set`, `notes.append`, `synopsis.set`, `filter.save`, `goal.save`, `coherence.setFindingStatus`, `shots.annotate` | write-auto | Applies at once when the call arrives. |
+| `binder.restructure`, `codex.write`, `codex.import`, `doc.import`, `export.compile`, `notes.replace`, `vocabulary.upsert` | write-confirm | Asks the user to confirm each call (its description starts "Requires user confirmation."), and writes nothing if the answer is not an accept. |
 
 `export.compile` writes any format in the list into `exports/`. It takes the project's identifier, language, author and cover through the mapping the desktop app's exporter uses (`exportMetadataOf`), and the images under `assets/` that a shot list or a prompt pack names (`assetRecordsOf`), so one project writes the same book and shot list from either host. An EPUB compiles here for any project. A project that predates the identifier is given one when it opens, but this server does not save on open: the identifier is stored by the first save of the folder, which is a write or a compile that succeeds, and the book that compile writes carries the identifier it stores. A prompt pack names its vendor template in `template`, or the recipe does, and a call that names neither is refused before the dialog. So is a compile the exporter's own gates would refuse for its selection: a screenplay format (Fountain or Final Draft) with no scene, an Ink story or a dialogue table with no dialogue container, a shot list with no shot, and an EPUB with no identifier. Each is refused with its reason, nothing is written, and the writer is not asked. A call can name a saved recipe with `recipeName`: the recipe supplies the title page, contents, author, character limit and template, and, when `selection` is left out, the nodes it compiles (the manuscript, or the part the recipe names). A folder whose images cannot be listed refuses a shot list (CSV or XLSX) or a prompt pack, the three formats that name images, with the reason, so no shot list is written with its images named as missing; the other formats still compile.
 

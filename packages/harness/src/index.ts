@@ -43,7 +43,14 @@ export {
   type PlanStepPreflight,
   type StepResult,
 } from './plan.js';
-export { createAgentSession, type AgentSession, type AgentSessionOptions, type SubmitOptions } from './agent/loop.js';
+export {
+  createAgentSession,
+  type AgentSession,
+  type AgentSessionOptions,
+  type SteerReceipt,
+  type SubmitOptions,
+  type TurnOptions,
+} from './agent/loop.js';
 export { PRELOAD_BY_CONTEXT, preloadContextOf, preloadFor, type PreloadContext } from './agent/preload.js';
 export {
   checkRun,
@@ -62,6 +69,8 @@ export {
   type ScenarioCategory,
   type ScenarioDecision,
   type ScenarioRun,
+  type WriterAction,
+  type WriterMoment,
 } from './agent/eval.js';
 export { createAgentPorts, previewFor, codexReadPort, sceneDraftPort, synopsisFillPort, continuityScanPort } from './agent/ports.js';
 export {
@@ -125,11 +134,13 @@ export {
   type CardRecord,
   type Decision,
   type PendingCard,
+  type SteeringNote,
   type StepRecord,
   type TraceEntry,
   type TurnPhase,
   type TurnReport,
   type TurnStatus,
+  type TurnStop,
 } from './agent/events.js';
 export {
   DRAFT_SYSTEM_PREFIX,
@@ -148,6 +159,7 @@ export {
   draftScene,
   fillSynopses,
   GenerationStopped,
+  TurnStopped,
   scanContinuity,
   type Finding,
   type FindingsProposal,

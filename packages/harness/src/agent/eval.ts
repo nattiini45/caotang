@@ -30,11 +30,13 @@ import { metadataFor, type ToolName } from '../metadata.js';
 import { createHarness } from '../runtime.js';
 import type { AskBackCode } from '../plan.js';
 import { canonicalJson } from '../util.js';
-import { createAgentSession } from './loop.js';
+import { createAgentSession, type AgentSession } from './loop.js';
 import { createAgentPorts } from './ports.js';
 import { createContextPort, type ContextPortOptions } from './context.js';
 import { emptyTaskList, reduceTaskList, type TaskState } from './progress.js';
-import type { AgentEvent, CardRecord, Decision, PendingCard, TraceEntry, TurnReport, TurnStatus } from './events.js';
+import { createProjectCommandRegistry } from '@caotang/store';
+
+import type { AgentEvent, CardRecord, Decision, PendingCard, TraceEntry, TurnPhase, TurnReport, TurnStatus } from './events.js';
 
 export type ScenarioCategory =
   | 'single-op'
@@ -46,7 +48,8 @@ export type ScenarioCategory =
   | 'streaming'
   | 'anchor'
   | 'codex'
-  | 'demo';
+  | 'demo'
+  | 'stop-steer';
 
 export type Matcher = 'strict' | 'unordered';
 
@@ -88,8 +91,28 @@ export interface TaskExpect {
   readonly reason?: string;
 }
 
+/** When the writer acts during a turn (agent-harness §2, "Stop and steer"). Every moment is an event the turn emits, so a run is the same bytes twice. */
+export type WriterMoment =
+  /** As the nth model request of the turn is sent. */
+  | { readonly modelCall: number }
+  /** As the text of the nth model request starts to stream in. */
+  | { readonly streaming: number }
+  /** As the nth card is shown. */
+  | { readonly card: number }
+  /** As the nth bus command begins to apply. */
+  | { readonly apply: number };
+
+/** The writer stops the turn, or sends it a note, at a moment of the turn. */
+export type WriterAction = { readonly at: WriterMoment; readonly do: 'stop' } | { readonly at: WriterMoment; readonly do: 'steer'; readonly text: string };
+
 export interface Expectation {
   readonly status: TurnStatus;
+  /** The turn was stopped by the writer, in this phase. Absent, the report is not read for a stop. */
+  readonly stop?: { readonly during: TurnPhase };
+  /** The notes the report carries, in order, with the model call each reached (absent: undelivered). */
+  readonly steering?: readonly { readonly text: string; readonly deliveredAtCall?: number }[];
+  /** The requests the gateway's ledger recorded for the turn: a stopped request still counts. */
+  readonly ledgerRequests?: number;
   readonly askBack?: AskBackCode;
   /** The ask-back's candidates, by count (agent-harness §2: anchor drift names up to three). */
   readonly candidates?: number;
@@ -145,6 +168,8 @@ export interface Scenario {
   readonly coherence?: boolean;
   /** Deferred rows loaded before the planner's first request, as `submit(intent, { preload })` does. */
   readonly preload?: readonly ToolName[];
+  /** What the writer does during the turn, at fixed moments: the turn's signal is aborted, or a note is sent to it. */
+  readonly writer?: readonly WriterAction[];
   readonly expect: Expectation;
 }
 
@@ -214,9 +239,44 @@ export async function runScenario(scenario: Scenario): Promise<ScenarioRun> {
   const state = scenario.project();
   const requests: ChatRequest[] = [];
   const gateway = recording(await scenario.gateway(state), requests);
+  const writer = scenario.writer ?? [];
+  const stop = new AbortController();
+  const held: { session?: AgentSession; turnId?: string } = {};
+  const counts = { modelCall: 0, streaming: 0, card: 0, apply: 0 };
+  const streamed = new Set<string>();
+  /** The writer's actions for a moment that has just come: a stop aborts the signal, a note goes to the turn. */
+  const happen = (moment: keyof typeof counts): void => {
+    counts[moment] += 1;
+    for (const action of writer) {
+      if (!(moment in action.at) || (action.at as Record<string, number>)[moment] !== counts[moment]) continue;
+      if (action.do === 'stop') stop.abort();
+      else if (held.session !== undefined && held.turnId !== undefined) held.session.steer(held.turnId, action.text);
+    }
+  };
+  // A scenario that acts when a command begins to apply needs the registry wrapped; the others keep the default one.
+  const registry = writer.some((action) => 'apply' in action.at)
+    ? (() => {
+        const base = createProjectCommandRegistry({ clock: { now: Date.now } });
+        return Object.fromEntries(
+          Object.entries(base).map(([name, entry]) => [
+            name,
+            entry.apply === undefined
+              ? entry
+              : {
+                  ...entry,
+                  apply: (...args: unknown[]) => {
+                    happen('apply');
+                    return (entry.apply as (...inner: unknown[]) => unknown)(...args);
+                  },
+                },
+          ]),
+        ) as typeof base;
+      })()
+    : undefined;
   const harness = createHarness({
     state,
     ports: createAgentPorts(),
+    ...(registry === undefined ? {} : { registry }),
     ...(scenario.coherence === true ? { coherence: { model: () => reviewModelOf(gateway) } } : {}),
   });
   const before = projectBytes(state);
@@ -236,13 +296,25 @@ export async function runScenario(scenario: Scenario): Promise<ScenarioRun> {
     gateway,
     context: createContextPort({ state, ...(scenario.contextOptions ?? {}) }),
     decide,
-    emit: (event) => events.push(event),
+    emit: (event) => {
+      events.push(event);
+      held.turnId ??= event.turnId;
+      if (event.type === 'model.call') happen('modelCall');
+      else if (event.type === 'model.delta' && !streamed.has(String(counts.modelCall))) {
+        streamed.add(String(counts.modelCall));
+        happen('streaming');
+      } else if (event.type === 'plan') happen('card');
+    },
     // A fixed session name, so two runs of one scenario name the same turns and see the same bytes.
     sessionId: 'eval',
     ...(scenario.maxRetries === undefined ? {} : { maxRetries: scenario.maxRetries }),
     ...(scenario.modelCallBound === undefined ? {} : { maxModelCalls: scenario.modelCallBound }),
   });
-  const report = await session.submit(scenario.intent, scenario.preload === undefined ? {} : { preload: scenario.preload });
+  held.session = session;
+  const report = await session.submit(scenario.intent, {
+    ...(scenario.preload === undefined ? {} : { preload: scenario.preload }),
+    ...(writer.length === 0 ? {} : { signal: stop.signal }),
+  });
   if (scenario.expect.restores !== true) return { report, events, requests, pending, state, before };
   const outcome = session.restore(report.turnId);
   const restored = {
@@ -409,6 +481,16 @@ export function checkRun(scenario: Scenario, run: ScenarioRun): string[] {
     failures.push(`ask-back: expected revision drift ${expect.revisionDrift}, got ${report.askBack?.revisionDrift ?? 'none'}`);
   }
   if (expect.restores === true) failures.push(...restoreFailures(run));
+  if (expect.stop !== undefined && (report.stop?.by !== 'user' || report.stop.during !== expect.stop.during)) {
+    failures.push(`stop: expected the writer to stop the turn during ${expect.stop.during}, got ${JSON.stringify(report.stop ?? null)}`);
+  }
+  if (expect.steering !== undefined) {
+    const sent = (report.steering ?? []).map((note) => ({ text: note.text, ...(note.deliveredAtCall === undefined ? {} : { deliveredAtCall: note.deliveredAtCall }) }));
+    if (JSON.stringify(sent) !== JSON.stringify(expect.steering)) failures.push(`steering: expected ${JSON.stringify(expect.steering)}, got ${JSON.stringify(sent)}`);
+  }
+  if (expect.ledgerRequests !== undefined && report.tokens.requests !== expect.ledgerRequests) {
+    failures.push(`ledger: expected ${expect.ledgerRequests} recorded requests, got ${report.tokens.requests}`);
+  }
   for (const part of expect.summaryIncludes ?? []) {
     if (!report.summary.includes(part)) failures.push(`summary: expected it to include ${JSON.stringify(part)}, got ${JSON.stringify(report.summary)}`);
   }

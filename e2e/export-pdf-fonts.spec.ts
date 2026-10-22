@@ -46,7 +46,7 @@ function watchFonts(page: Page): string[] {
 test('a script with Chinese text and an emoji loads the one CJK file and the one emoji file, and the PDF embeds both as TrueType', async ({ page }) => {
   const fonts = watchFonts(page);
   await createProject(page, PROJECT);
-  await makeScene(page, 'INT. 草堂 - NIGHT\n\nThe lamp turns 👍.\n');
+  await makeScene(page, 'INT. 草堂 - NIGHT\n\nThe lamp turns 👍, tired 🫩.\n');
   const pdf = await compilePdf(page);
 
   expect(pdf.startsWith('%PDF-')).toBe(true);
@@ -57,6 +57,8 @@ test('a script with Chinese text and an emoji loads the one CJK file and the one
   // The characters come back out of the file: their CIDs have ToUnicode entries.
   expect(pdf).toContain('<8349>');
   expect(pdf).toContain('<D83DDC4D>');
+  // 🫩 is Emoji 16.0, in the font from 3.006 on.
+  expect(pdf).toContain('<D83EDEE9>');
   expect([...new Set(fonts)].sort()).toEqual(['NotoEmoji-Regular.woff', 'NotoSansMonoCJKsc-Regular.woff']);
 });
 

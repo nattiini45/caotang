@@ -88,6 +88,7 @@ describe('the coherence words name a change in the writer’s terms (coherence.m
       'dependencies, point of view, day, expected presence and duration',
     );
     expect(declarationChangeWords(['timelineMode'])).toBe('timeline mode');
+    expect(declarationChangeWords(['threads_add', 'threads_remove'])).toBe('threads');
   });
 
   it('names a dismissal reason in the picker’s words, and returns a reason it does not hold as written', () => {

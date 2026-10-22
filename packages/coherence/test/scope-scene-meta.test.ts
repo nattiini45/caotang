@@ -6,7 +6,9 @@ import {
   effectiveMode,
   emptyCoherenceFile,
   headEvidence,
+  parseCoherenceFile,
   resolveScope,
+  serializeCoherenceFile,
   snapshotManuscript,
   type CoherenceFile,
 } from '../src/index.js';
@@ -159,6 +161,17 @@ describe('applySceneMetaPatch (§5.2 and §7.1)', () => {
       ok: true,
       meta: { timelineMode: 'circular' },
     });
+  });
+
+  it('declares and removes a thread through the shared rule, and the file codec keeps it', () => {
+    const declared = applySceneMetaPatch('sA', undefined, { threads_add: [{ id: 'the lamp', payoff: 'sB', note: 'lit again' }] }, context);
+    expect(declared).toEqual({ ok: true, meta: { threads: [{ id: 'the lamp', payoff: 'sB', note: 'lit again' }] } });
+    if (!declared.ok) return;
+    const file: CoherenceFile = { ...emptyCoherenceFile(), sceneMeta: { sA: { threads: declared.meta.threads ?? [] } } };
+    const loaded = parseCoherenceFile(serializeCoherenceFile(file));
+    expect(loaded.kind === 'ok' && loaded.file).toEqual(file);
+    const removed = applySceneMetaPatch('sA', declared.meta, { threads_remove: ['the lamp'] }, context);
+    expect(removed).toEqual({ ok: true, meta: {} });
   });
 
   it('refuses a patch field it does not know', () => {

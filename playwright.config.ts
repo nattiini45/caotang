@@ -14,6 +14,10 @@ const previewPort = Number(process.env['CAOTANG_E2E_PREVIEW_PORT'] ?? port + 100
 // Chromium installed keeps working. The nightly workflow sets it.
 const crossBrowser = process.env['CAOTANG_E2E_BROWSERS'] === 'all';
 
+// CAOTANG_E2E_NO_SERVER=1 starts neither web server, for the one spec that needs none: the real-key round, which runs in the Node
+// worker with no page (.github/workflows/provider-smoke.yml). Every other run keeps both servers.
+const noServer = process.env['CAOTANG_E2E_NO_SERVER'] === '1';
+
 /** What Firefox and WebKit leave to Chromium: pure model specs (the same in any browser), the build smoke, and the specs that call real provider endpoints. */
 const chromiumOnlySpecs = [/[\\/]e2e[\\/]unit[\\/]/, /prod-smoke\.spec\.ts/, /providers-cors\.spec\.ts/, /provider-smoke\.spec\.ts/];
 
@@ -57,7 +61,7 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], baseURL: `http://127.0.0.1:${previewPort}` },
     },
   ],
-  webServer: [
+  webServer: noServer ? [] : [
     {
       command: 'pnpm --filter @caotang/desktop dev',
       url: `http://127.0.0.1:${port}`,

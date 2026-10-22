@@ -305,6 +305,7 @@ export function coherenceAsyncPorts(clock: () => number, source: CoherenceSource
       model,
       ...(source.review === undefined ? {} : { review: source.review(context.state) }),
       currentFile: () => heldFile(context.state),
+      ...(context.signal === undefined ? {} : { signal: context.signal }),
     });
     if (!result.ok) return failure(refusalOf(result, 'coherence.review'));
     // The appender side-effect of coherence.md §7 tool 16, as the scan makes it: the run and its findings join the held file.

@@ -6,7 +6,7 @@
 ## 1. Responsibility & boundaries
 
 - A filter is a **named, saved conjunction of criteria** evaluated against binder nodes. Matching is a pure read-side function: **filters mutate nothing** — the result is a view over the tree (same discipline as the corkboard: no commands of their own beyond saving/managing the queries themselves).
-- What filters are NOT: not a query language (rejected, §6), not an agent tool (registry band discipline — the model reaches the same answers via `binder.read_tree` + `doc.read`; a `filters.*` tool would be convenience only), not a search UI for document *content* beyond the text criterion (full-text search with result excerpts = polish backlog).
+- What filters are NOT: not a query language (rejected, §6), not a Tier-1 agent tool (the model reaches the same answers via `binder.read_tree` + `doc.read`; the only agent tool is the deferred, allowlisted `filter.save`, agent-harness §3, which saves or changes a filter and has no delete), not a search UI for document *content* beyond the text criterion (full-text search with result excerpts = polish backlog).
 
 ## 2. Data model
 
@@ -77,7 +77,7 @@ matchNode(
 
 ## 5. Commands & UI
 
-**Command-bus §9 registry rows for the saved filters (two of the furniture commands; none are agent tools):**
+**Command-bus §9 registry rows for the saved filters (two of the furniture commands; `binder.saveFilter` is also the deferred agent tool `filter.save`, agent-harness §3; `binder.deleteFilter` is not an agent tool):**
 
 | Command | Params | agentRisk | undo | Notes |
 |---|---|---|---|---|
@@ -105,7 +105,7 @@ The active filter is **not a bus command**. The draft a writer types, and the sa
 ## 7. Rejected alternatives
 
 - **Dataview-style free-form query language** — power beyond the validated pattern, at the cost of grammar design, injection-shaped edge cases, and eval instability; the market's validated shape (Ulysses filters, Scrivener saved searches) is named criteria, not a language. Revisit only with concrete usage evidence — the parallel verdict on saved **codex** queries was **rejected with all vendors checked** (no vendor ships them; browse-and-filter + the Mentions tab is the codex answer surface), and the same posture extends to a filter grammar here.
-- **A `filters.*` agent tool** — the 14-tool registry band is frozen; the model composes `binder.read_tree` + `doc.read` to answer the same questions, and saved filters are writer workflow furniture.
+- **A `filters.*` family of agent tools** — the Tier-1 band stays 14; the one agent tool is the deferred, allowlisted `filter.save` (agent-harness §3). No read tool (`project.overview` lists the filters) and no delete tool; the model composes `binder.read_tree` + `doc.read` to answer the same questions.
 - **Dynamic/smart collections that auto-appear in the tree** — blurs the three-tier invariant; filters are a rail-level view, not tree nodes (one metadata shape everywhere, and no new node kinds for views).
 
 ## 8. Assumptions

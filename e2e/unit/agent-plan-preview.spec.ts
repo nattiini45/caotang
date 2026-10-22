@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { sampleProjectState } from '../../apps/desktop/src/app/demo.js';
 import { elapsedOf, formatElapsed } from '../../apps/desktop/src/app/agent-model.js';
-import { costLineOf, formatUsd, NEW_ENTRY_FROM, planCostOf, refusalReasonOf, stepPreviewOf, turnCostOf } from '../../apps/desktop/src/app/plan-preview.js';
+import { costLineOf, formatUsd, NEW_ENTRY_FROM, planCostOf, refusalReasonOf, stepPreviewOf, turnCostOf, wordDiff } from '../../apps/desktop/src/app/plan-preview.js';
 
 /**
  * The view model of what a plan card draws for a step's preview (agent-harness §3 rows 7, 9 and 13), the prices it shows, and the
@@ -33,6 +33,58 @@ test.describe('the view model of a synopsis batch carries each row’s document,
         { doc: 'The Storm', action: 'replace', synopsis: 'The lamp fails.', words: 3 },
       ],
     });
+  });
+});
+
+test.describe('the view model of a notes rewrite is the old notes and the new, word by word', () => {
+  test('keeps the words both share, marks the words taken out and the words added, and counts both texts', () => {
+    const view = stepPreviewOf(
+      'notes.replace',
+      { doc: 'The Landing', before: 'Fix pacing in the last three paragraphs.', after: 'Fix the pacing in the final paragraphs.' },
+      state,
+    );
+    expect(view).toEqual({
+      kind: 'notes',
+      doc: 'The Landing',
+      segments: [
+        { kind: 'same', text: 'Fix ' },
+        { kind: 'added', text: 'the ' },
+        { kind: 'same', text: 'pacing in the ' },
+        { kind: 'removed', text: 'last three' },
+        { kind: 'added', text: 'final' },
+        { kind: 'same', text: ' paragraphs.' },
+      ],
+      wordsBefore: 7,
+      wordsAfter: 7,
+    });
+  });
+
+  test('joins back to the new text without the removed runs, and to the old text without the added ones', () => {
+    const before = 'One two three\n\nfour five six.';
+    const after = 'One three\n\nfour 5 six seven.';
+    const segments = wordDiff(before, after);
+    expect(segments.filter((segment) => segment.kind !== 'removed').map((segment) => segment.text).join('')).toBe(after);
+    expect(segments.filter((segment) => segment.kind !== 'added').map((segment) => segment.text).join('')).toBe(before);
+  });
+
+  test('shows a clear as all removed, a first write as all added, and equal texts as one kept run', () => {
+    expect(wordDiff('old notes', '')).toEqual([{ kind: 'removed', text: 'old notes' }]);
+    expect(wordDiff('', 'new notes')).toEqual([{ kind: 'added', text: 'new notes' }]);
+    expect(wordDiff('same', 'same')).toEqual([{ kind: 'same', text: 'same' }]);
+    expect(wordDiff('', '')).toEqual([]);
+  });
+
+  test('falls back to the old words out and the new words in when the middle is too large to match', () => {
+    const before = Array.from({ length: 2500 }, (_, index) => `a${index}`).join(' ');
+    const after = Array.from({ length: 2500 }, (_, index) => `b${index}`).join(' ');
+    expect(wordDiff(before, after)).toEqual([
+      { kind: 'removed', text: before },
+      { kind: 'added', text: after },
+    ]);
+  });
+
+  test('is not drawn for a preview that is not a notes rewrite', () => {
+    expect(stepPreviewOf('notes.replace', { doc: 'x' }, state)).toBeUndefined();
   });
 });
 

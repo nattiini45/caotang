@@ -130,6 +130,8 @@ export interface PortContext {
    * refuses a scope until the writer agrees reads it here (coherence.md §7 tool 15).
    */
   readonly permission?: PermissionContext;
+  /** The turn's stop (`TurnContext.signal`). An async port that awaits a model or a server ends its wait when it fires. */
+  readonly signal?: AbortSignal;
   /**
    * Records that the port changed held state outside the bus (an appender side-effect, coherence.md §7). A
    * port that did so reports it, and the runtime then caches its answer by callId, so a replay of the same
@@ -214,6 +216,8 @@ export interface TurnContext {
   readonly source?: ActivitySource;
   /** `approvedPlan` or `confirmed` — the flow facts the gate reads (command-bus §4). */
   readonly permission?: PermissionContext;
+  /** The writer's stop. Awaited calls (an async port, an external read) end their wait when it fires; a started bus command is never interrupted. */
+  readonly signal?: AbortSignal;
 }
 
 /** One tool call. `callId` is required: it is the idempotency key for a replay (command-bus §6). */

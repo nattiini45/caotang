@@ -3,9 +3,12 @@
  * what the agent did. Every turn is a block in order: the provider it ran on, its status cards, its plan or confirm card, any
  * ask-back, its findings, its checkpoint row and its report. The ghost draft is not here; it is shown in the editor, where it
  * will land.
+ *
+ * The Intent box stays open while a turn runs (agent-harness §8, "Stop and steer"): Enter queues what is typed as the next turn,
+ * Ctrl+Enter sends it to the running turn as a note, and Stop (or Escape, with the box empty) stops the turn.
  */
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import {
   CHECKPOINT_LABEL,
   groupCards,
@@ -21,12 +24,14 @@ import type { ProjectState } from '@caotang/store';
 import { DEMO_CHOICES } from '../app/demo.js';
 import { askBackOptions, elapsedOf, formatElapsed, isSettled, phaseLabel, type TurnView } from '../app/agent-model.js';
 import { formatUsd, turnCostOf } from '../app/plan-preview.js';
+import { resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
 import type { AgentController, AgentSnapshot } from '../app/agent.js';
 import type { StartIntent } from '../App.js';
 import type { ProjectSession } from '../app/session.js';
 import { useAssetRecords } from '../media/hooks.js';
 import { ConfirmDialog, EmptyState, useReport, useSession } from './shared.js';
+import { AgentQueue, type HeldNote } from './AgentQueue.js';
 import { PlanCard } from './PlanCard.js';
 import { TaskChecklist } from './TaskChecklist.js';
 
@@ -57,7 +62,10 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
   const pictureNames = useMemo(() => new Map([...pictures.values()].map((picture) => [picture.id, picture.fileName] as const)), [pictures]);
   const [intent, setIntent] = useState('');
   const [restoring, setRestoring] = useState<PendingRestore | null>(null);
+  // A note the writer wrote while a card waits, until they choose what happens to it and the card.
+  const [held, setHeld] = useState<HeldNote | null>(null);
   const handled = useRef(0);
+  const intentRef = useRef<HTMLInputElement>(null);
 
   // A demo run that the first-run card started: the shell submits its intent once, when the panel is there. Every start is a
   // demo intent, so it runs on the built-in demo profile.
@@ -71,12 +79,56 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
     if (snapshot.message !== null) report({ text: snapshot.message, tone: 'error' });
   }, [snapshot.message, report]);
 
+  // The note is held for one showing of one card: when that card is decided or shown again, the choice goes with it.
+  const cardKey = snapshot.pending === null ? null : `${snapshot.pending.turnId}:${snapshot.pending.card.id}:${snapshot.pending.card.revision}`;
+  const heldNow = held !== null && held.cardKey === cardKey ? held : null;
+
+  // Enter: send when no turn runs, queue as the next turn when one does.
   const submit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
     const text = intent.trim();
     if (text === '') return;
     setIntent('');
-    void agent.submit(text);
+    if (snapshot.busy) agent.enqueue(text);
+    else void agent.submit(text);
+  };
+
+  // Ctrl+Enter: send the text to the running turn as a note. While a card waits, the writer chooses what happens to the card first.
+  const steer = (): void => {
+    const text = intent.trim();
+    if (text === '') return;
+    const result = agent.steer(text);
+    if (result === 'sent') setIntent('');
+    else if (result === 'card-waiting' && cardKey !== null) {
+      setHeld({ text, cardKey });
+      setIntent('');
+    } else if (result === 'idle') {
+      setIntent('');
+      void agent.submit(text);
+    }
+  };
+
+  const onPanelKey = (event: ReactKeyboardEvent<HTMLElement>): void => {
+    // A dialog inside the panel (the restore confirmation) has Escape for itself.
+    const target = event.target;
+    if (event.defaultPrevented || (target instanceof HTMLElement && target.closest('dialog') !== null)) return;
+    const action = resolveKey(
+      { key: event.key, ctrl: event.ctrlKey, meta: event.metaKey, shift: event.shiftKey, alt: event.altKey },
+      {
+        inTextField: target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement,
+        inBinder: false,
+        inAgent: true,
+        agentIntentEmpty: intent.trim() === '',
+        inAgentIntent: target === intentRef.current,
+      },
+    );
+    if (action === 'agent-stop' && snapshot.stoppable) {
+      event.preventDefault();
+      agent.stop();
+    } else if (action === 'agent-steer') {
+      event.preventDefault();
+      steer();
+    }
   };
 
   const confirmRestore = (): void => {
@@ -93,7 +145,7 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
   const running = snapshot.turns[snapshot.turns.length - 1];
   const stepLine = running === undefined || isSettled(running) ? null : headerLineOf(running.tasks);
   return (
-    <section className={`agent${open ? ' is-open' : ''}`} aria-label="Agent" data-testid="agent-panel">
+    <section className={`agent${open ? ' is-open' : ''}`} aria-label="Agent" data-testid="agent-panel" onKeyDown={onPanelKey}>
       <header className="agent-head">
         {/* aria-controls names the body only while the body is rendered: a closed drawer has no element with that id. */}
         <button type="button" className="button is-quiet agent-toggle" aria-expanded={open} aria-controls={open ? 'agent-body' : undefined} onClick={onToggle}>
@@ -110,6 +162,22 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
             {stepLine ?? (snapshot.pending !== null ? 'Waiting for you' : 'Working…')}
           </span>
         ) : null}
+        {snapshot.stoppable ? (
+          <button
+            type="button"
+            className="button is-danger agent-stop"
+            data-testid="agent-stop"
+            disabled={snapshot.stopping}
+            title={`Stop the turn (${shortcutLabel('agent-stop')} with the Intent box empty)`}
+            onClick={() => agent.stop()}
+          >
+            {snapshot.stopping ? 'Stopping…' : 'Stop'}
+          </button>
+        ) : null}
+        {/* What Stop, a note or the queue just did, for a screen reader: a status the header's step line does not carry. */}
+        <p className="visually-hidden" role="status" aria-live="polite" data-testid="agent-announcement">
+          {snapshot.announcement}
+        </p>
       </header>
 
       {open ? (
@@ -118,18 +186,30 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
             <label>
               <span className="visually-hidden">Intent</span>
               <input
+                ref={intentRef}
                 type="text"
                 aria-label="Intent"
-                placeholder="Ask the agent to draft, fill, or check something"
+                placeholder={
+                  snapshot.busy
+                    ? `${shortcutLabel('agent-send')} queues it for the next turn, ${shortcutLabel('agent-steer')} sends it to this one`
+                    : 'Ask the agent to draft, fill, or check something'
+                }
                 value={intent}
-                disabled={snapshot.busy || snapshot.providerName === null}
+                disabled={snapshot.providerName === null}
                 onChange={(event) => setIntent(event.target.value)}
               />
             </label>
-            <button type="submit" className="button is-primary" disabled={snapshot.busy || intent.trim() === '' || snapshot.providerName === null}>
-              Send
+            <button type="submit" className="button is-primary" disabled={intent.trim() === '' || snapshot.providerName === null}>
+              {snapshot.busy ? 'Queue' : 'Send'}
             </button>
+            {snapshot.busy ? (
+              <button type="button" className="button" disabled={intent.trim() === '' || snapshot.providerName === null} onClick={steer}>
+                Steer
+              </button>
+            ) : null}
           </form>
+
+          <AgentQueue agent={agent} snapshot={snapshot} held={heldNow} cardKey={cardKey} onHold={setHeld} onRelease={() => setHeld(null)} />
 
           {sample && snapshot.turns.length === 0 ? (
             <div className="agent-demos" role="group" aria-label="Demo intents">
@@ -224,7 +304,15 @@ function TurnBlock({
       <header className="agent-turn-head">
         <q className="agent-intent-text">{turn.intent}</q>
         <span className="agent-phase" aria-live="polite">
-          {settled ? (turn.report?.status === 'applied' ? 'Applied' : turn.report?.status === 'replied' ? 'Answered' : phaseLabel(turn.phase)) : phaseLabel(turn.phase)}
+          {settled
+            ? turn.report?.stop !== undefined
+              ? 'Stopped by you'
+              : turn.report?.status === 'applied'
+                ? 'Applied'
+                : turn.report?.status === 'replied'
+                  ? 'Answered'
+                  : phaseLabel(turn.phase)
+            : phaseLabel(turn.phase)}
         </span>
       </header>
       <TaskChecklist list={turn.tasks} settled={settled} />
@@ -253,6 +341,16 @@ function TurnBlock({
       ) : null}
 
       {turn.cards.length > 0 ? <StatusCards cards={turn.cards} /> : null}
+
+      {turn.steering.length > 0 ? (
+        <ul className="agent-notes" aria-label="Notes you sent during this turn">
+          {turn.steering.map((note) => (
+            <li key={note.noteId}>
+              <span className="muted">You added:</span> {note.text}
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
       {turn.plan !== null ? (
         // Keyed on the showing, so every field of the card is read again from the card the loop holds (agent-harness §2).

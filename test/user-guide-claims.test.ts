@@ -286,6 +286,30 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(keyboard).not.toContain('Cmd+E');
   });
 
+  it('names the agent panel’s Stop, queue and note controls, and their keys, as the panel and the keymap have them', () => {
+    const keymap = read('apps/desktop/src/app/keymap.ts');
+    expect(keymap).toMatch(/case 'agent-send':\s+return 'Enter';/);
+    expect(keymap).toMatch(/case 'agent-steer':\s+return 'Ctrl\+Enter';/);
+    expect(keymap).toMatch(/case 'agent-stop':\s+return 'Esc';/);
+    expect(guide).toContain('**Enter** queues what you type as the next turn, and **Ctrl+Enter** (Cmd+Enter on a Mac) sends it to the turn that is running as a note');
+    expect(guide).toContain('**Stop**, in the header while a turn runs, ends the turn; so does **Esc** with the Intent box empty. With text in the box, Esc leaves the turn alone.');
+    expect(guide).toContain('| Esc | Close a menu or a dialog. A menu returns focus to the control that opened it. In the agent panel, with the Intent box empty, stop the running turn. |');
+    expect(guide).toContain("| Enter, in the agent's Intent box | Send the message, or queue it as the next turn while the agent works. |");
+    expect(guide).toContain("| Ctrl+Enter, in the agent's Intent box | Send the message to the running turn as a note. |");
+    // The controls the guide names are the buttons and headings the panel shows.
+    const panel = read('apps/desktop/src/components/AgentPanel.tsx');
+    const queue = read('apps/desktop/src/components/AgentQueue.tsx');
+    expect(panel).toContain("{snapshot.stopping ? 'Stopping…' : 'Stop'}");
+    for (const label of ['Send with Cancel', 'Queue as next turn', 'Run the queue', 'Steer now', 'Queued messages']) {
+      expect(queue).toContain(label);
+      expect(guide).toContain(`**${label}**`);
+    }
+    // The queue's pause sentence is the controller's, and the guide names the choice it offers.
+    expect(read('apps/desktop/src/app/agent.ts')).toContain("'The last turn stopped on a question. Answer it or choose Run the queue.'");
+    expect(guide).toContain('answer the question or choose **Run the queue**');
+    expect(changelog).toContain('**Stop** (or **Esc**, with the Intent box empty) ends a running turn');
+  });
+
   it('names the Agent setting in the words the section shows, and says it is off by default', () => {
     const section = read('apps/desktop/src/components/Settings.tsx');
     expect(section).toContain("{ id: 'agent', label: 'Agent' }");

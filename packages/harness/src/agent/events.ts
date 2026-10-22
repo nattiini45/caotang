@@ -48,6 +48,22 @@ export interface StepRecord {
 
 export type TurnStatus = 'replied' | 'applied' | 'failed' | 'cancelled';
 
+export type TurnPhase = 'started' | 'planning' | 'awaiting-approval' | 'running' | 'retrying' | 'done' | 'failed' | 'cancelled';
+
+/** The writer stopped the turn (agent-harness §2, "Stop and steer"): the phase it was in when the stop took effect. */
+export interface TurnStop {
+  readonly by: 'user';
+  readonly during: TurnPhase;
+}
+
+/** A note the writer sent to a running turn. It reaches the model at the next planner request, one user message per note. */
+export interface SteeringNote {
+  readonly noteId: string;
+  readonly text: string;
+  /** The model call it was sent with. Absent when the turn ended before the note could be delivered. */
+  readonly deliveredAtCall?: number;
+}
+
 /** The compact turn summary (agent-harness §2 step 5): what changed, the undo group, and what it cost. */
 export interface TurnReport {
   readonly turnId: string;
@@ -68,6 +84,10 @@ export interface TurnReport {
   readonly dropped: readonly string[];
   /** The model calls the turn made, in order, including retries. */
   readonly modelCalls: number;
+  /** Present when the writer stopped the turn. `status` is then `cancelled`, and whatever was applied before the stop stays in the undo group. */
+  readonly stop?: TurnStop;
+  /** The notes the writer sent during the turn, in order. A note without `deliveredAtCall` was not delivered: the turn ended first. */
+  readonly steering?: readonly SteeringNote[];
 }
 
 /**
@@ -90,8 +110,6 @@ export interface PendingCard {
 
 /** How many model requests a turn may make unless the session says otherwise (agent-harness §2). */
 export const DEFAULT_MAX_MODEL_CALLS = 8;
-
-export type TurnPhase = 'started' | 'planning' | 'awaiting-approval' | 'running' | 'retrying' | 'done' | 'failed' | 'cancelled';
 
 export type AgentEvent =
   | { readonly type: 'turn'; readonly turnId: string; readonly phase: TurnPhase }
@@ -118,6 +136,8 @@ export type AgentEvent =
   | { readonly type: 'ladder'; readonly turnId: string; readonly callId: string; readonly attempt: number; readonly askBack: AskBack }
   /** The checkpoint row (command-bus §5): the turn's undo group, and the label that says what one click does. */
   | { readonly type: 'checkpoint'; readonly turnId: string; readonly undoGroupId: string; readonly label: string; readonly note?: string }
+  /** A steering note reached the model: delivered with the request named in `note.deliveredAtCall`. */
+  | { readonly type: 'steer'; readonly turnId: string; readonly note: SteeringNote }
   | { readonly type: 'report'; readonly turnId: string; readonly report: TurnReport };
 
 /** The label every checkpoint row carries (agent-harness §5). */

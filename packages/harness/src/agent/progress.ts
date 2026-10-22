@@ -133,6 +133,23 @@ export const TASK_PHRASES: Readonly<Record<ToolName, TaskPhraseFn>> = {
   'prompt.variant': () => phrase('Draft a prompt variant', 'Drafting a prompt variant'),
   'dialogue.draft': aboutDoc('Draft dialogue in', 'Drafting dialogue in', 'Draft dialogue', 'Drafting dialogue'),
   'dialogue.table': aboutDoc('Export the dialogue table of', 'Exporting the dialogue table of', 'Export a dialogue table', 'Exporting a dialogue table'),
+  'notes.replace': aboutDoc('Rewrite the notes of', 'Rewriting the notes of', 'Rewrite notes', 'Rewriting notes'),
+  'synopsis.set': aboutDoc('Set the synopsis of', 'Setting the synopsis of', 'Set a synopsis', 'Setting a synopsis'),
+  'vocabulary.upsert': (params) => {
+    const name = textOf(params, 'name');
+    const kind = textOf(params, 'kind') ?? 'status';
+    return name === undefined
+      ? phrase(`Change the ${kind} vocabulary`, `Changing the ${kind} vocabulary`)
+      : phrase(`Add or change the ${kind} ${quoted(name)}`, `Adding or changing the ${kind} ${quoted(name)}`);
+  },
+  'filter.save': (params) => {
+    const name = textOf(params, 'name');
+    return name === undefined ? phrase('Save a filter', 'Saving a filter') : phrase(`Save the filter ${quoted(name)}`, `Saving the filter ${quoted(name)}`);
+  },
+  'goal.save': (params) => {
+    const node = textOf(params, 'node');
+    return node === undefined ? phrase('Set a goal', 'Setting a goal') : phrase(`Set a goal for ${quoted(node)}`, `Setting a goal for ${quoted(node)}`);
+  },
 };
 
 /** Gives a reference its name for display: a document id its title. The reducer stays pure; the caller supplies the project's titles. */

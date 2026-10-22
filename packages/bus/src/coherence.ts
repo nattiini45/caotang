@@ -47,7 +47,23 @@ export type CoherenceStatusName = (typeof COHERENCE_STATUSES)[number];
 /** codex-level note limit (coherence.md §7): counted in code points, the unit `maxLength` counts. */
 export const COHERENCE_NOTE_LIMIT = 500;
 
-/** §5.2 plus §5.2.1: one document's declarations. Absent keys are "not declared". */
+/** §5.5: a handle, at most this many code points. The handle names the thread in a finding and a dismissal. */
+export const THREAD_ID_LIMIT = 80;
+
+/** §5.5: the writer's one line about what the payoff is for, at most this many code points. */
+export const THREAD_NOTE_LIMIT = 200;
+
+/**
+ * §5.5: a thread declared on its setup scene. `id` is the writer's handle (free text), `payoff` the document that pays it
+ * off, and `note` what that payoff is for. Only `id` and `payoff` are read by a check.
+ */
+export interface SceneThread {
+  id: string;
+  payoff: string;
+  note?: string;
+}
+
+/** §5.2 plus §5.2.1 and §5.5: one document's declarations. Absent keys are "not declared". */
 export interface SceneMetaRecord {
   pov?: string;
   dayOffset?: number;
@@ -55,6 +71,8 @@ export interface SceneMetaRecord {
   after?: string[];
   expectedPresent?: string[];
   timelineMode?: string;
+  /** Kept sorted by handle, so an add and the undo of a remove leave the list as it was. */
+  threads?: SceneThread[];
 }
 
 /** §7.1's `patch`. `null` on a scalar clears it; `timelineMode` has no clear form (`linear` is the clear). */
@@ -67,6 +85,10 @@ export interface ScenePatch {
   expectedPresent_add?: string[];
   expectedPresent_remove?: string[];
   timelineMode?: string;
+  /** §5.5: threads to declare. A handle already declared is refused unless `threads_remove` takes it in the same patch. */
+  threads_add?: SceneThread[];
+  /** §5.5: handles to remove, matched without regard to case. Applied before `threads_add`, so the two together edit a thread. */
+  threads_remove?: string[];
 }
 
 /** The closed set of `patch` keys (§7.1). A key outside it is refused with the list of keys that are valid. */
@@ -79,6 +101,8 @@ export const SCENE_PATCH_KEYS = [
   'expectedPresent_add',
   'expectedPresent_remove',
   'timelineMode',
+  'threads_add',
+  'threads_remove',
 ] as const;
 
 /** What a patch is checked against: the codex entries by id, and the documents a dependency may name. */
@@ -174,7 +198,75 @@ export function applySceneMetaPatch(
     else next.timelineMode = mode;
   }
 
+  if (patch.threads_add !== undefined || patch.threads_remove !== undefined) {
+    const threads = applyThreads(docId, next.threads ?? [], patch, context);
+    if (!threads.ok) return threads;
+    if (threads.threads.length > 0) next.threads = threads.threads;
+    else delete next.threads;
+  }
+
   return { ok: true, meta: next };
+}
+
+/** The key two handles are compared by: trimmed, and without regard to case, as the finding's fact group lowercases it. */
+function threadKey(id: string): string {
+  return id.trim().toLowerCase();
+}
+
+function codePoints(text: string): number {
+  return [...text].length;
+}
+
+/**
+ * §5.5: removes the named handles, then adds the new threads, and returns the list sorted by handle. Every refusal names the
+ * field, so an agent or a form can say which entry was wrong.
+ */
+function applyThreads(
+  docId: string,
+  current: readonly SceneThread[],
+  patch: ScenePatch,
+  context: SceneMetaContext,
+): { readonly ok: true; readonly threads: SceneThread[] } | { readonly ok: false; readonly error: string } {
+  const removing = new Set<string>();
+  for (const [index, id] of (patch.threads_remove ?? []).entries()) {
+    if (typeof id !== 'string') return { ok: false, error: `threads_remove[${index}] must be a handle, got ${String(id)}` };
+    removing.add(threadKey(id));
+  }
+  const kept = new Map<string, SceneThread>();
+  for (const thread of current) if (!removing.has(threadKey(thread.id))) kept.set(threadKey(thread.id), thread);
+
+  for (const [index, raw] of (patch.threads_add ?? []).entries()) {
+    const field = `threads_add[${index}]`;
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+      return { ok: false, error: `${field} must be an object with an id and a payoff` };
+    }
+    const { id, payoff, note } = raw as Partial<Record<keyof SceneThread, unknown>>;
+    if (typeof id !== 'string' || id.trim() === '') {
+      return { ok: false, error: `${field}.id must be a handle that is not blank` };
+    }
+    const handle = id.trim();
+    if (codePoints(handle) > THREAD_ID_LIMIT) {
+      return { ok: false, error: `${field}.id is ${codePoints(handle)} characters; the limit is ${THREAD_ID_LIMIT}` };
+    }
+    if (typeof payoff !== 'string' || payoff.trim() === '') {
+      return { ok: false, error: `${field}.payoff must be the id of the document that pays the thread off` };
+    }
+    if (payoff === docId) return { ok: false, error: `${field}.payoff cannot be the scene that sets the thread up` };
+    if (context.documentIds !== undefined && !context.documentIds.has(payoff)) {
+      return { ok: false, error: `${field}.payoff names "${payoff}", which is not a document in this project` };
+    }
+    if (note !== undefined && typeof note !== 'string') return { ok: false, error: `${field}.note must be text` };
+    const line = note === undefined ? '' : note.trim();
+    if (codePoints(line) > THREAD_NOTE_LIMIT) {
+      return { ok: false, error: `${field}.note is ${codePoints(line)} characters; the limit is ${THREAD_NOTE_LIMIT}` };
+    }
+    if (kept.has(threadKey(handle))) {
+      return { ok: false, error: `${field}.id "${handle}" is already a thread on this scene; remove it first to change it` };
+    }
+    kept.set(threadKey(handle), line === '' ? { id: handle, payoff } : { id: handle, payoff, note: line });
+  }
+  const threads = [...kept.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, thread]) => thread);
+  return { ok: true, threads };
 }
 
 /** A record with no declarations is absent, not an empty object: the store drops it. */
@@ -207,6 +299,15 @@ export function inverseScenePatch(before: SceneMetaRecord | undefined, forward: 
     const { added, removed } = membershipChange(prior.expectedPresent ?? [], after.expectedPresent ?? []);
     inverse.expectedPresent_add = removed;
     inverse.expectedPresent_remove = added;
+  }
+  if (forward.threads_add !== undefined || forward.threads_remove !== undefined) {
+    const was = new Map((prior.threads ?? []).map((thread) => [threadKey(thread.id), thread] as const));
+    const now = new Map((after.threads ?? []).map((thread) => [threadKey(thread.id), thread] as const));
+    const same = (a: SceneThread | undefined, b: SceneThread | undefined): boolean =>
+      a !== undefined && b !== undefined && a.id === b.id && a.payoff === b.payoff && a.note === b.note;
+    // A thread the patch edited is in both lists: it is removed as it is now, and added as it was.
+    inverse.threads_add = [...was].filter(([key, thread]) => !same(thread, now.get(key))).map(([, thread]) => thread);
+    inverse.threads_remove = [...now].filter(([key, thread]) => !same(thread, was.get(key))).map(([, thread]) => thread.id);
   }
   return inverse;
 }

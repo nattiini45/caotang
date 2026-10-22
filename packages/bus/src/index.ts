@@ -156,6 +156,17 @@ export type {
 // The name limit is exported for the same reason: the loader drops a saved filter whose name the bus would refuse — and the
 // rule itself, `filterNameFits`, so the loader counts a name exactly as the bus counts it.
 export { CRITERIA_KEYS, FILTER_NAME_MAX, filterNameFits } from './descriptors-furniture.js';
+// The limits and value lists the harness's filter and goal tools declare their params from, so a tool never keeps a copy.
+export {
+  FILTER_LIST_MAX,
+  FILTER_TAG_MAX,
+  FILTER_TEXT_MAX,
+  GOAL_COMPARATORS,
+  GOAL_KINDS,
+  GOAL_METRICS,
+  MONTHLY_RESET_MAX,
+  SEARCH_SURFACES,
+} from './descriptors-furniture.js';
 // The coherence rules the bus and the store share (coherence.ts). The coherence module re-exports them.
 export type {
   CoherenceStatusName,
@@ -164,6 +175,7 @@ export type {
   ScenePatchResult,
   SceneMetaContext,
   SceneMetaRecord,
+  SceneThread,
   TimelineModeName,
 } from './coherence.js';
 export {
@@ -171,6 +183,8 @@ export {
   COHERENCE_STATUSES,
   DISMISSAL_REASON_IDS,
   SCENE_PATCH_KEYS,
+  THREAD_ID_LIMIT,
+  THREAD_NOTE_LIMIT,
   TIMELINE_MODES,
   applySceneMetaPatch,
   coherenceNoteProblem,
@@ -217,6 +231,7 @@ export {
   CODEX_VISUAL_REFS_MAX,
   KEYWORDS_MAX,
   KEYWORD_CHARS_MAX,
+  NOTES_MAX,
   SYNOPSIS_MAX,
   EXPORT_FORMATS,
   // The chapter rule's sentence: the binder's drop refusal and the bus's create refusal say the same words.

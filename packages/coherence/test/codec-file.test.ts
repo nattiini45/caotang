@@ -79,7 +79,7 @@ function populated(): CoherenceFile {
     ],
     runs: [run()],
     sceneMeta: {
-      sB: { dayOffset: 7, durationDays: 2, after: ['sA'], expectedPresent: ['c_5h8qk2m9rt'], pov: 'c_5h8qk2m9rt', timelineMode: 'flashback' },
+      sB: { dayOffset: 7, durationDays: 2, after: ['sA'], expectedPresent: ['c_5h8qk2m9rt'], pov: 'c_5h8qk2m9rt', timelineMode: 'flashback', threads: [{ id: 'the lamp', payoff: 'sA', note: 'it is lit again' }, { id: 'the map', payoff: 'sA' }] },
       sA: { dayOffset: 1 },
     },
     worldRules: [
@@ -223,6 +223,34 @@ describe('coherence.json codec', () => {
     const modeNotices = outcome.notices.filter((n) => n.code === 'unknown-timeline-mode');
     expect(modeNotices).toHaveLength(1);
     expect(modeNotices[0]?.message).toContain('"montage"');
+  });
+
+  it('loads a file written before threads existed unchanged, and reads an empty list as none', () => {
+    const before = { formatVersion: 1, findings: [], runs: [], sceneMeta: { sA: { dayOffset: 2, pov: 'c_5h8qk2m9rt' }, sB: { threads: [] } }, worldRules: [], reviewState: {} };
+    const outcome = parseCoherenceFile(JSON.stringify(before));
+    expect(outcome.kind === 'ok' && outcome.file.sceneMeta).toEqual({ sA: { dayOffset: 2, pov: 'c_5h8qk2m9rt' }, sB: {} });
+    expect(outcome.kind === 'ok' && outcome.notices).toEqual([]);
+  });
+
+  it('keeps the good threads of a scene, and says which were dropped and why', () => {
+    const threads = [
+      { id: ' the lamp ', payoff: 'sA', note: '  lit  ' },
+      { id: 'THE LAMP', payoff: 'sB' },
+      { id: '  ', payoff: 'sA' },
+      { id: 'no payoff' },
+      'a string',
+      { id: 'the map', payoff: 'sA', colour: 'red' },
+    ];
+    const raw = { formatVersion: 1, findings: [], runs: [], sceneMeta: { sC: { threads }, sD: { threads: 'the lamp' } }, worldRules: [], reviewState: {} };
+    const outcome = parseCoherenceFile(JSON.stringify(raw));
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind !== 'ok') return;
+    expect(outcome.file.sceneMeta['sC']?.threads).toEqual([{ id: 'the lamp', payoff: 'sA', note: 'lit' }, { id: 'the map', payoff: 'sA' }]);
+    expect(outcome.file.sceneMeta['sD']).toEqual({});
+    const messages = outcome.notices.map((n) => n.message);
+    expect(messages.filter((m) => m.includes('is malformed and was dropped'))).toHaveLength(4);
+    expect(messages).toContain('The thread "THE LAMP" is declared twice on "sC"; the second was dropped.');
+    expect(messages.some((m) => m.includes('("colour")'))).toBe(true);
   });
 
   it('drops one malformed declaration field and keeps the others', () => {

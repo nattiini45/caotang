@@ -21,6 +21,7 @@ import {
   completeRecovery,
   createProject,
   exportStoredBundle,
+  imageDropNotice,
   importBundle,
   listProjects,
   openFolder,
@@ -161,7 +162,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
   const open = (projectId: string): void => {
     void run('Opening the project', async () => {
       const session = await openProject(store, projectId);
-      onOpened({ session, notices: [], droppedFields: [], copiedFrom: null });
+      onOpened({ session, notices: imageDropNotice(session), droppedFields: [], copiedFrom: null });
     });
   };
 

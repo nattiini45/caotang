@@ -172,3 +172,51 @@ test('a project opened from a folder keeps its pictures when it is opened again 
   await expect(page.getByRole('article', { name: 'Shot 1: New shot' }).locator('img')).toBeVisible();
   await expect(page.getByText('was dropped when the project opened')).toHaveCount(0);
 });
+
+/** Writes a text file into the folder, under a directory it creates, as another program would. */
+async function writeFolderFile(page: Page, directory: string, name: string, text: string): Promise<void> {
+  await page.evaluate(
+    async ([folder, dir, file, body]: readonly [string, string, string, string]) => {
+      type Writable = { write(data: string): Promise<void>; close(): Promise<void> };
+      type Dir = {
+        getDirectoryHandle(child: string, options?: { create: boolean }): Promise<Dir>;
+        getFileHandle(child: string, options?: { create: boolean }): Promise<{ createWritable(): Promise<Writable> }>;
+      };
+      const root = (await (await navigator.storage.getDirectory()).getDirectoryHandle(folder)) as unknown as Dir;
+      const writable = await (await (await root.getDirectoryHandle(dir, { create: true })).getFileHandle(file, { create: true })).createWritable();
+      await writable.write(body);
+      await writable.close();
+    },
+    [FOLDER, directory, name, text] as const,
+  );
+}
+
+test('a folder whose attach is refused still lends its pictures: the browser’s version keeps the shot’s image', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium', FOLDER_ACCESS_ONLY);
+  await standInFolderPicker(page);
+  await createProject(page, PROJECT);
+  const card = await storyboardWithShot(page);
+  await choosePicture(page, card);
+  await page.getByRole('button', { name: 'Save to folder' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Saved the project to the folder' })).toBeVisible();
+
+  // The browser's version moves on, so it differs from the folder's; the picture is then in the folder only, and the folder's
+  // compile log cannot be read, so attaching the folder is refused.
+  await makeUnder(page, 'Storyboard', 'New shot here');
+  await waitForSaved(page);
+  await clearBrowserPictures(page);
+  await writeFolderFile(page, 'exports', 'compile-log.json', '{}');
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Open a folder…' }).click();
+  const question = page.getByRole('dialog').filter({ hasText: 'The folder holds a different version of' });
+  await expect(question).toBeVisible();
+  await question.getByRole('button', { name: 'Keep this browser’s version and save it to the folder' }).click();
+  await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
+  await expect(page.getByText('Exports are kept in this browser, not in the folder.')).toBeVisible();
+
+  await binderTitle(page, 'Storyboard').click();
+  await expect(page.getByRole('article', { name: 'Shot 1: New shot' }).locator('img')).toBeVisible();
+  await expect(page.getByText('was dropped when the project opened')).toHaveCount(0);
+  await expect(page.getByText('lost its picture')).toHaveCount(0);
+});

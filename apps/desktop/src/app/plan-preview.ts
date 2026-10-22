@@ -59,8 +59,24 @@ export interface ShotsPreviewView {
   readonly notes: readonly string[];
 }
 
+/** A run of a notes rewrite's text: kept as it is, added, or taken out. */
+export interface NotesDiffSegment {
+  readonly kind: 'same' | 'added' | 'removed';
+  readonly text: string;
+}
+
+/** What `notes.replace` does to a document's notes, word by word, old to new (agent-harness §3). */
+export interface NotesPreviewView {
+  readonly kind: 'notes';
+  readonly doc: string;
+  readonly segments: readonly NotesDiffSegment[];
+  readonly wordsBefore: number;
+  readonly wordsAfter: number;
+}
+
 /** A step's preview in the words the card draws. */
 export type StepPreviewView =
+  | NotesPreviewView
   | { readonly kind: 'synopses'; readonly rows: readonly SynopsisPreviewRow[] }
   | { readonly kind: 'codex'; readonly entries: readonly CodexPreviewEntry[] }
   | { readonly kind: 'tree'; readonly lines: readonly string[]; readonly rows: readonly TreePreviewRow[] }
@@ -216,6 +232,87 @@ function updateChangesOf(changes: unknown, names: ReadonlyMap<string, string>): 
   });
 }
 
+function isSpace(char: string): boolean {
+  return char.trim() === '';
+}
+
+/** The text as words and the whitespace between them, so a diff of the tokens joins back to the text. */
+function wordTokens(text: string): string[] {
+  const tokens: string[] = [];
+  let start = 0;
+  for (let at = 1; at <= text.length; at += 1) {
+    if (at === text.length || isSpace(text.charAt(at)) !== isSpace(text.charAt(at - 1))) {
+      tokens.push(text.slice(start, at));
+      start = at;
+    }
+  }
+  return text.length === 0 ? [] : tokens;
+}
+
+/** The product of two token counts above which the longest-common-subsequence table is not built (about 4 million cells). */
+const DIFF_CELLS_MAX = 4_000_000;
+
+/**
+ * The difference between two texts, word by word. The words both texts share at the start and the end are kept, and the middle is
+ * matched by a longest common subsequence. A middle too large to match shows as the old words taken out and the new words added,
+ * which is true and only less fine.
+ */
+export function wordDiff(before: string, after: string): NotesDiffSegment[] {
+  const a = wordTokens(before);
+  const b = wordTokens(after);
+  let head = 0;
+  while (head < a.length && head < b.length && a[head] === b[head]) head += 1;
+  let tail = 0;
+  while (tail < a.length - head && tail < b.length - head && a[a.length - 1 - tail] === b[b.length - 1 - tail]) tail += 1;
+  const middleA = a.slice(head, a.length - tail);
+  const middleB = b.slice(head, b.length - tail);
+
+  const out: NotesDiffSegment[] = [];
+  const push = (kind: NotesDiffSegment['kind'], text: string): void => {
+    if (text === '') return;
+    const last = out[out.length - 1];
+    if (last !== undefined && last.kind === kind) out[out.length - 1] = { kind, text: last.text + text };
+    else out.push({ kind, text });
+  };
+
+  push('same', a.slice(0, head).join(''));
+  if (middleA.length * middleB.length > DIFF_CELLS_MAX) {
+    push('removed', middleA.join(''));
+    push('added', middleB.join(''));
+  } else {
+    // lengths[i][j] is the longest common run of middleA from i and middleB from j.
+    const lengths: Uint32Array[] = Array.from({ length: middleA.length + 1 }, () => new Uint32Array(middleB.length + 1));
+    for (let i = middleA.length - 1; i >= 0; i -= 1) {
+      for (let j = middleB.length - 1; j >= 0; j -= 1) {
+        const row = lengths[i] as Uint32Array;
+        row[j] = middleA[i] === middleB[j] ? ((lengths[i + 1] as Uint32Array)[j + 1] as number) + 1 : Math.max((lengths[i + 1] as Uint32Array)[j] as number, row[j + 1] as number);
+      }
+    }
+    let i = 0;
+    let j = 0;
+    while (i < middleA.length || j < middleB.length) {
+      if (i < middleA.length && j < middleB.length && middleA[i] === middleB[j]) {
+        push('same', middleA[i] as string);
+        i += 1;
+        j += 1;
+      } else if (i < middleA.length && (j === middleB.length || ((lengths[i + 1] as Uint32Array)[j] as number) >= ((lengths[i] as Uint32Array)[j + 1] as number))) {
+        // The old words come out before the new ones go in, so a replaced run reads old, then new.
+        push('removed', middleA[i] as string);
+        i += 1;
+      } else {
+        push('added', middleB[j] as string);
+        j += 1;
+      }
+    }
+  }
+  push('same', a.slice(a.length - tail).join(''));
+  return out;
+}
+
+function wordCount(text: string): number {
+  return wordTokens(text).filter((token) => !isSpace(token.charAt(0))).length;
+}
+
 /**
  * The card's view of one step's preview, by tool. Undefined for a step whose preview the card does not draw (a read, or a
  * tool with nothing to show beyond its params), so the card shows its params as it always has. `pictureNames` maps each
@@ -228,6 +325,15 @@ export function stepPreviewOf(
   pictureNames: ReadonlyMap<string, string> = new Map(),
 ): StepPreviewView | undefined {
   if (!isRecord(preview)) return undefined;
+  if (tool === 'notes.replace' && typeof preview['before'] === 'string' && typeof preview['after'] === 'string') {
+    return {
+      kind: 'notes',
+      doc: typeof preview['doc'] === 'string' ? preview['doc'] : '',
+      segments: wordDiff(preview['before'], preview['after']),
+      wordsBefore: wordCount(preview['before']),
+      wordsAfter: wordCount(preview['after']),
+    };
+  }
   if (tool === 'synopsis.fill' && Array.isArray(preview['rows'])) {
     const rows = preview['rows'].filter(isRecord).map(
       (row): SynopsisPreviewRow => ({

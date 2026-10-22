@@ -251,6 +251,8 @@ export interface CoherenceToolContext {
   readonly dialogue?: DialogueFacts;
   /** The held findings file as it stands now, read again when a review's model calls have settled (see `ReviewRunOptions.currentFile`). */
   readonly currentFile?: () => CoherenceFile;
+  /** The writer's stop: a review that sees it fired ends its run as partial, with the findings it has (`ReviewRunOptions.signal`). */
+  readonly signal?: AbortSignal;
 }
 
 export interface ToolSuccess<T> {
@@ -415,6 +417,7 @@ export async function executeReviewTool(
       now: context.now,
       ...(context.review !== undefined ? { context: context.review } : {}),
       ...(context.currentFile !== undefined ? { currentFile: context.currentFile } : {}),
+      ...(context.signal !== undefined ? { signal: context.signal } : {}),
       randomBytes: context.randomBytes,
     });
     const upserted = new Set(result.run.findingsUpserted);

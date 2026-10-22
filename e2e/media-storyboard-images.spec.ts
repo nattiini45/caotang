@@ -1,7 +1,7 @@
 /**
  * The image of a shot, in the app (storyboard.md §3.1–3.2). A picture is chosen from the desktop, dropped or pasted onto a card,
- * looked at larger in the lightbox, and kept across a reload with no folder attached. An image whose file has gone is dropped on
- * open with a notice. The tests drive the gestures and read the result through the activity log and the card.
+ * looked at larger in the lightbox, and kept across a reload with no folder attached. An image whose file has gone is dropped as the
+ * project opens, with a notice. The tests drive the gestures and read the result through the activity log and the card.
  */
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
@@ -126,13 +126,16 @@ test('an image whose file is no longer in the project is dropped when the projec
     database.close();
   });
 
+  // The check ran as the project opened from the list: the open says so before the storyboard is ever opened.
   await reopen(page);
+  await expect(page.getByText('A shot lost its picture because the file is not in the project.')).toBeVisible();
   await binderTitle(page, 'Storyboard').click();
   await expect(page.getByRole('status').filter({ hasText: 'An image was dropped when the project opened' })).toBeVisible();
   await expect(page.getByRole('article', { name: 'Shot 1: New shot' }).locator('img')).toHaveCount(0);
 
   // The drop is saved with the project, so the next open has nothing left to drop and no notice.
   await reopen(page);
+  await expect(page.getByText('lost its picture')).toHaveCount(0);
   await binderTitle(page, 'Storyboard').click();
   await expect(page.getByText('An image was dropped when the project opened')).toHaveCount(0);
 });

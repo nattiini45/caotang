@@ -199,6 +199,8 @@ interface NativeOptions {
   /** Connect the story-bible server, so `tool.search` has tools to load. */
   readonly mcp?: boolean;
   readonly state?: ProjectState;
+  /** Runs as each event is emitted, with the session: a test steers at a fixed point of the turn. */
+  readonly onEvent?: (event: AgentEvent, session: AgentSession) => void;
 }
 
 async function nativeFixture(scripts: readonly MockScript[], options: NativeOptions = {}): Promise<NativeFixture> {
@@ -222,6 +224,7 @@ async function nativeFixture(scripts: readonly MockScript[], options: NativeOpti
   const queue = [...(options.decisions ?? [])];
   const pending: PendingCard[] = [];
   const events: AgentEvent[] = [];
+  const held: { session?: AgentSession } = {};
   const session = createAgentSession({
     harness,
     gateway,
@@ -231,10 +234,14 @@ async function nativeFixture(scripts: readonly MockScript[], options: NativeOpti
       pending.push(card);
       return queue.shift() ?? { action: 'approve' };
     },
-    emit: (event) => events.push(event),
+    emit: (event) => {
+      events.push(event);
+      if (held.session !== undefined) options.onEvent?.(event, held.session);
+    },
     sessionId: 'nvt',
     ...(options.thinking === undefined ? {} : { thinking: options.thinking }),
   });
+  held.session = session;
   return { session, seen, pending, events, calls, state };
 }
 
@@ -574,5 +581,36 @@ describe('the wire the planner speaks', () => {
     const system = planner?.messages[0]?.content ?? '';
     expect(system).toContain('"steps"');
     expect(state.manifest.tree.find((node) => node.id === FRIEND)?.label).toBe('act-2');
+  });
+});
+
+describe('a steering note on the native wire', () => {
+  it('lands after the previous reply’s tool messages, so every call is answered before the writer speaks', async () => {
+    const intent = 'Read the Friend, then wait for my note.';
+    const fixture = await nativeFixture(
+      nativeTranscript(intent, [
+        { content: 'Reading.', calls: [{ id: 'call_r', name: 'doc.read', args: { doc: FRIEND } }, { id: 'call_t', name: 'binder.read_tree', args: { root: 'manuscript' } }] },
+        { content: 'Understood.' },
+      ]),
+      {
+        onEvent: (event, session) => {
+          if (event.type === 'model.call' && event.used === 1) expect(session.steer(event.turnId, 'Keep Elena out of it.').ok).toBe(true);
+        },
+      },
+    );
+    const report = await fixture.session.submit(intent);
+    expect(report.status).toBe('replied');
+
+    const [first, second] = plannerRequests(fixture.seen);
+    const note = 'Note from the writer, sent while you were working: Keep Elena out of it.';
+    expect(first?.messages.some((message) => message.content === note)).toBe(false);
+    const messages = second?.messages ?? [];
+    expect(messages.filter((message) => message.content === note)).toHaveLength(1);
+    // [... assistant (two calls), tool, tool, user note]: no user message sits between the calls and their results.
+    const assistantAt = messages.findIndex((message) => message.role === 'assistant');
+    const noteAt = messages.findIndex((message) => message.content === note);
+    expect(messages.slice(assistantAt, noteAt + 1).map((message) => message.role)).toEqual(['assistant', 'tool', 'tool', 'user']);
+    expect(messages.slice(assistantAt + 1, noteAt).map((message) => message.role === 'tool' && message.toolCallId)).toEqual(['call_r', 'call_t']);
+    expect(report.steering).toEqual([{ noteId: 'nvt.turn-1.note-1', text: 'Keep Elena out of it.', deliveredAtCall: 2 }]);
   });
 });

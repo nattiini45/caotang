@@ -8,7 +8,7 @@
 1. **Session target** (daily writing goal) — rolling per-day words-written, the Longform/NaNoWriMo habit loop. Lives in **app settings** (`session.dailyTargetWords` — already in the typed schema, ui-modules §5.1), progresses from `sessions.jsonl`, **resets daily**. Not project data: the habit follows the writer, not the book.
 2. **Project goals** — deadline-shaped completion goals attached to the manuscript root or any folder (chapter/act): "finish Act 2 (≥ 12k words) by Oct 31". Stored in the **project manifest** (additive `goals[]`), computed from tree word counts. This is where Ulysses' attach-anywhere model and Caotang's Pacemaker-shaped upgrade live.
 
-Both are **read-only derived state + tiny config**: no goal ever mutates manuscript content, and no goal needs a model call. Zero agent tools (registry band discipline — the model reads `project.overview`, which already carries "session target progress"; §5 extends that response with goal progress).
+Both are **read-only derived state + tiny config**: no goal ever mutates manuscript content, and no goal needs a model call. One agent tool: the deferred, allowlisted `goal.save` (agent-harness §3) sets or changes a goal, with no delete tool; the model reads progress from `project.overview`, which already carries "session target progress" and which §5 extends with goal progress.
 
 ## 2. Data model
 
@@ -69,7 +69,7 @@ goalProgress(goal: ProjectGoal, wordsOf(nodeId: string): number): {
 
 ## 4. Commands & UI
 
-**Command-bus §9 registry rows for the goals (two project commands; no agent tools — see §5):**
+**Command-bus §9 registry rows for the goals (two project commands; `project.saveGoal` is also the deferred agent tool `goal.save`, agent-harness §3; `project.deleteGoal` is not an agent tool):**
 
 | Command | Params | agentRisk | undo | Notes |
 |---|---|---|---|---|
@@ -88,7 +88,7 @@ goalProgress(goal: ProjectGoal, wordsOf(nodeId: string): number): {
 ## 5. Agent integration (read-only, zero new tools)
 
 - `project.overview` response **extends** with `goals: [{nodeTitle, comparator, target, current, met, pace?}]` and `session: {todayWords, target?}` — the model can report on progress ("am I on pace?") without any new surface. Cap: goals array ≤ 20 (the manifest clamp).
-- No agent mutation of goals: goal CRUD is writer workflow (metadata, not manuscript), and the registry band stays frozen. Revisit only with usage evidence.
+- The agent can save or change a goal through the deferred `goal.save` (write-auto, one undo group, so the writer can take it back) but cannot delete one: a goal is writer intent, and `project.deleteGoal` is not exposed.
 
 ## 6. Evals (headless)
 
@@ -101,7 +101,7 @@ goalProgress(goal: ProjectGoal, wordsOf(nodeId: string): number): {
 - **Six Ulysses metrics in v0.1** — characters/sentences/paragraphs/pages/reading-time are cheap *conversions* but each adds surface (per-goal metric pickers, unit tests, UI labels) for marginal validated value; words is the writing-loop currency (sessions.jsonl counts words; targets read words). v0.2 menu = chars-first widening (§9); pages/reading-time stay exporter-domain.
 - **Per-scene goals** — Ulysses allows sheet-level goals; for Caotang's three-tier model a per-scene goal duplicates the inspector's synopsis/word-count row and clutters the §4 inspector. Folder+ only.
 - **Streaks / gamified history** — NaNoWriMo-style streak mechanics contradict the "no meter on your writing" posture the coherence module adopted (never background-shame); completion notification only.
-- **Agent-managed goals** — registry band frozen; goals are writer intent, and an agent "helpfully" lowering a deadline is the exact automation class the 0-to-1 rule exists for.
+- **Agent-managed goals beyond `goal.save`** — no delete tool; goals are writer intent, and an agent "helpfully" lowering a deadline is the exact automation class the 0-to-1 rule exists for, so `goal.save` is the one reach, undoable.
 
 ## 8. Assumptions
 

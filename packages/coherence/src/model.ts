@@ -68,7 +68,7 @@ export type WorldRuleOrigin = (typeof WORLD_RULE_ORIGINS)[number];
  * The deterministic registry, closed (§5.4: adding a check is a spec change with fixtures). The first eight are §5.1's.
  * Six more come from the media-track specs, which each say they ride this rule: screenplay.md §4 adds two
  * (`script.cue-*`), storyboard.md §5 adds one (`script.shot-coverage`), and dialogue-narrative.md §5 adds three
- * (`branch.*` and `dialogue.speaker-unknown`). `timeline.gap` (§5.1) is the last. The count is 8 + 2 + 1 + 3 + 1 = 15.
+ * (`branch.*` and `dialogue.speaker-unknown`). `timeline.gap` (§5.1) and `plot.unresolved-thread` (§5.5) are the last two. The count is 8 + 2 + 1 + 3 + 1 + 1 = 16.
  * New ids are appended, so the order of the first eight, which the run report and the check order depend on, does not move.
  */
 export const DETERMINISTIC_CHECK_IDS = [
@@ -87,6 +87,7 @@ export const DETERMINISTIC_CHECK_IDS = [
   'branch.dead-end',
   'dialogue.speaker-unknown',
   'timeline.gap',
+  'plot.unresolved-thread',
 ] as const;
 export type DeterministicCheckId = (typeof DETERMINISTIC_CHECK_IDS)[number];
 
@@ -114,6 +115,7 @@ export const DETERMINISTIC_CHECK_LABELS: Readonly<Record<DeterministicCheckId, s
   'branch.dead-end': 'A dialogue knot can never be reached',
   'dialogue.speaker-unknown': 'A dialogue speaker matches no codex entry',
   'timeline.gap': 'A scene is days after the scene before it',
+  'plot.unresolved-thread': 'A thread’s declared payoff is not in the manuscript',
 };
 
 /** §5.3's five ConStory categories. The enum is closed; subtypes are model-proposed strings. */
@@ -227,7 +229,15 @@ export interface CoherenceRun {
   notes?: string[];
 }
 
-/** §5.2 plus §5.2.1. Keys of `sceneMeta` are binder node ids: documents, and folders for window spans. */
+/** §5.5: a thread the writer declares on the scene that sets it up. `id` is the writer's handle, `payoff` the document that pays it off. */
+export interface SceneThread {
+  id: string;
+  payoff: string;
+  /** One line on what the payoff is for. No check reads it. */
+  note?: string;
+}
+
+/** §5.2 plus §5.2.1 and §5.5. Keys of `sceneMeta` are binder node ids: documents, and folders for window spans. */
 export interface SceneMeta {
   /** A codex entry id (§5.2). Free text is accepted and reported as an unanchored finding. */
   pov?: string;
@@ -241,6 +251,8 @@ export interface SceneMeta {
   expectedPresent?: string[];
   /** §5.2.1. Absent is `linear`. */
   timelineMode?: TimelineMode;
+  /** §5.5. Additive: absent and an empty list both mean the scene declares no thread. */
+  threads?: SceneThread[];
 }
 
 export interface WorldRule {

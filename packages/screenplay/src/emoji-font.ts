@@ -3,7 +3,7 @@
  *
  * After Courier Prime and the CJK fallback, emoji print in Noto Emoji Regular (OFL), Google's monochrome emoji font. The
  * file is the one the contact sheet uses too: the static Regular instance in `@caotang/font-noto-emoji` (vendor/noto-emoji,
- * where its source, the instancing step and the SHA-256s are written down), read through the host's {@link FontLoader}.
+ * where its source and the SHA-256s are written down), read through the host's {@link FontLoader}.
  * Its outlines are TrueType, so the subset fontkit cuts is a `glyf` font.
  *
  * Each emoji is one grapheme cluster (emoji.ts). fontkit's layout engine (`font.layout`, the font's GSUB) turns the

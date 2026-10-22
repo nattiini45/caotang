@@ -13,7 +13,7 @@ import { evaluate, type Scenario } from '../../src/agent/eval.js';
 import { CHAPTER_ONE, FRIEND, LANDING, LANDING_BODY, STORM, makeState } from '../fixtures.js';
 import { mockGateway } from '../agent/gateway.js';
 import { answer, prose, steps, transcript } from '../agent/scripts.js';
-import type { MockScript } from '@caotang/gateway/mock';
+import { userTextOf, plannerScript, type MockScript } from '@caotang/gateway/mock';
 
 const quote = (ref: string): string => `“${ref}”`;
 const storm = (state: ReturnType<typeof makeState>) => state.documents.get(STORM)?.body ?? '';
@@ -476,6 +476,105 @@ const scenarios: Scenario[] = [
       cards: { matcher: 'strict', items: [{ kind: 'confirm', tools: ['scene.draft'], decision: 'cancelled' }] },
       trace: { matcher: 'strict', calls: [] },
       state: (state) => (state.documents.get(FRIEND)?.body === '' ? [] : ['The Friend was written after the user cancelled']),
+    },
+  },
+  {
+    name: 'stop-steer: a stop during the planner stream ends the turn as the writer’s, with nothing staged and the request still counted',
+    category: 'stop-steer',
+    intent: 'Tag The Storm and move The Friend to Act 2.',
+    project: makeState,
+    gateway: scriptsFor(
+      transcript('Tag The Storm and move The Friend to Act 2.', [
+        steps(
+          { tool: 'meta.set', params: { targets: [STORM], keywords_add: ['storm'] }, expect: 'The Storm is tagged' },
+          { tool: 'meta.set', params: { targets: [FRIEND], label: 'act-2' }, expect: 'The Friend is labelled act-2' },
+        ),
+      ]),
+    ),
+    writer: [{ at: { streaming: 1 }, do: 'stop' }],
+    expect: {
+      status: 'cancelled',
+      stop: { during: 'planning' },
+      summaryIncludes: ['Stopped by you', 'Nothing was written'],
+      cards: { matcher: 'strict', items: [] },
+      trace: { matcher: 'strict', calls: [] },
+      ledgerRequests: 1,
+      maxModelCalls: 1,
+      restores: false,
+      state: (state) => {
+        const failures: string[] = [];
+        if (state.manifest.tree.find((node) => node.id === STORM)?.keywords.includes('storm') === true) failures.push('The Storm was tagged after the stop');
+        if (state.manifest.tree.find((node) => node.id === FRIEND)?.label === 'act-2') failures.push('The Friend was labelled after the stop');
+        return failures;
+      },
+    },
+  },
+  {
+    name: 'stop-steer: a stop after the first of two approved steps keeps it, marks the second not-run, and restore puts the project back',
+    category: 'stop-steer',
+    intent: 'Tag The Storm and move The Friend to Act 2.',
+    project: makeState,
+    gateway: scriptsFor(
+      transcript('Tag The Storm and move The Friend to Act 2.', [
+        steps(
+          { tool: 'meta.set', params: { targets: [STORM], keywords_add: ['storm'] }, expect: 'The Storm is tagged' },
+          { tool: 'meta.set', params: { targets: [FRIEND], label: 'act-2' }, expect: 'The Friend is labelled act-2' },
+        ),
+      ]),
+    ),
+    // The writer presses Stop as the first step's command begins to apply: that command finishes, and the second never starts.
+    writer: [{ at: { apply: 1 }, do: 'stop' }],
+    expect: {
+      status: 'cancelled',
+      stop: { during: 'running' },
+      summaryIncludes: ['Stopped by you', 'Written before the stop'],
+      cards: { matcher: 'strict', items: [{ kind: 'plan', tools: ['meta.set', 'meta.set'], decision: 'approved' }] },
+      trace: {
+        matcher: 'strict',
+        calls: [
+          { tool: 'meta.set', outcome: 'ok', params: { targets: [STORM] } },
+          { tool: 'meta.set', outcome: 'not-run', params: { targets: [FRIEND] } },
+        ],
+      },
+      restores: true,
+      state: (state) => (state.manifest.tree.find((node) => node.id === STORM)?.keywords.includes('storm') === true ? ['The Storm is still tagged after the restore'] : []),
+    },
+  },
+  {
+    name: 'stop-steer: a note sent during the first request reaches the next one, and the plan follows it',
+    category: 'stop-steer',
+    intent: 'Tag the scenes of the manuscript.',
+    project: makeState,
+    gateway: scriptsFor(
+      // A model that obeys the note: it reads first, and once the writer has said which scene, it tags that scene alone.
+      plannerScript((req) => {
+        if (!userTextOf(req).includes('Request: Tag the scenes of the manuscript.')) return undefined;
+        return userTextOf(req).includes('Note from the writer')
+          ? steps({ tool: 'meta.set', params: { targets: [STORM], keywords_add: ['storm'] }, expect: 'The Storm is tagged' })
+          : steps({ tool: 'binder.read_tree', params: { root: 'manuscript' }, expect: 'the manuscript is read' });
+      }),
+    ),
+    writer: [{ at: { modelCall: 1 }, do: 'steer', text: 'Only tag The Storm.' }],
+    expect: {
+      status: 'applied',
+      steering: [{ text: 'Only tag The Storm.', deliveredAtCall: 2 }],
+      cards: { matcher: 'strict', items: [{ kind: 'auto', tools: ['meta.set'], decision: 'auto' }] },
+      trace: {
+        matcher: 'strict',
+        calls: [
+          { tool: 'binder.read_tree', outcome: 'ok' },
+          { tool: 'meta.set', outcome: 'ok', params: { targets: [STORM] } },
+        ],
+      },
+      requests: [
+        { system: undefined, excludes: ['Note from the writer'] },
+        { includes: ['Note from the writer, sent while you were working: Only tag The Storm.'] },
+      ],
+      maxModelCalls: 2,
+      state: (state) => {
+        const tagged = state.manifest.tree.filter((node) => node.keywords.includes('storm')).map((node) => node.id);
+        return tagged.length === 1 && tagged[0] === STORM ? [] : [`the scenes tagged storm are ${JSON.stringify(tagged)}`];
+      },
     },
   },
 ];

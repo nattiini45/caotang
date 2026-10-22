@@ -118,7 +118,7 @@ export const notesAppendParams: ObjectSpec = param.object(
       nonBlank: true,
       maxLength: NOTES_APPEND_MAX,
       overflowHint:
-        'split the text into calls of at most 2000 characters each. notes.replace, the confirm-class rewrite, is a v0.2 tool and is not available yet',
+        'split the text into calls of at most 2000 characters each, or rewrite the whole notes with notes.replace, which asks the writer to confirm — call tool.search for notes.replace to load it',
     }),
   },
   ['doc', 'text'],
