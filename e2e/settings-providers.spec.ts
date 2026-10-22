@@ -247,7 +247,7 @@ test('the local model servers sit under "On this computer", save with no key, an
   await expect(form.getByText(/OLLAMA_CONTEXT_LENGTH/)).toBeVisible();
   await expect(form.getByText(/Chrome and Edge ask whether this site may connect to apps on your device/)).toBeVisible();
   await expect(form.getByText(/Safari is unverified/)).toBeVisible();
-  await expect(form.getByRole('link', { name: 'Ollama documentation' })).toHaveAttribute('href', /docs\.ollama\.com/);
+  await expect(form.getByRole('link', { name: 'Ollama documentation' })).toHaveAttribute('href', 'https://docs.ollama.com/faq');
   await expect(form.getByText('Until the server says more: 4,096-token window, no native tools, no image input.')).toBeVisible();
   await expect(form.getByText('Your text stays on this computer.')).toBeVisible();
   await expect(form.getByRole('group', { name: 'Extra request headers (optional)' })).toHaveCount(0);
