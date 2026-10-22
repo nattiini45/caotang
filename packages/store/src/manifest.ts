@@ -123,6 +123,8 @@ export interface Derived {
   /** rebuildable, allowed stale — never a reason to reject a manifest */
   wordCounts: Record<string, number>;
   computedAt: string;
+  /** The words rule the counts were made with (word-count.ts); absent means 1. An older cache is rebuilt once, never a newer one. */
+  ruleVersion?: number;
 }
 
 export type CodexIncludePolicy = 'always' | 'detected' | 'never' | 'manual';

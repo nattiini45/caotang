@@ -30,7 +30,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
-import { createAutosave, domFlushSignals, RevisionConflictError } from '@caotang/store';
+import { countBody, createAutosave, domFlushSignals, RevisionConflictError } from '@caotang/store';
 import type { Autosave, DocumentWriter } from '@caotang/store';
 import type { EditorApi, EditorInstance } from '../src/index.js';
 import { groupLossWarnings, parseWithDiagnostics, resolveAnchor } from '../src/index.js';
@@ -1286,5 +1286,11 @@ describe('teardown', () => {
   it('wordCount is the store’s count of the body, not a second copy of its rule', async () => {
     const { instance } = await mountInto('Two words.\n\nThree more words here.\n');
     expect(instance.wordCount()).toEqual({ words: 6, chars: instance.getContent().length });
+  });
+
+  it('wordCount segments unspaced scripts exactly as the store does', async () => {
+    const { instance } = await mountInto('我喜欢在海边的灯塔里写作。\n');
+    expect(instance.wordCount()).toEqual(countBody(instance.getContent()));
+    expect(instance.wordCount().words).toBeGreaterThan(1);
   });
 });

@@ -58,7 +58,7 @@ On each row:
 
 ### Filter the binder
 
-The filter bar above the list narrows it. Type to filter by title, synopsis or text. Then choose a status, a label, a minimum and a maximum word count, keywords that must all match or any that match, or a change or creation within a number of days. The binder shows exactly what the bar matches.
+The filter bar above the list narrows it. Type to filter by title, synopsis or text. Then choose a status, a label, a minimum and a maximum word count (Chinese, Japanese and Thai words are counted the way the browser divides them, so those counts are approximate), keywords that must all match or any that match, or a change or creation within a number of days. The binder shows exactly what the bar matches.
 
 - **Save current…** keeps the filter under a name. Give it a name and choose **Save filter**. When a saved filter is applied, the button reads **Update saved filter…** instead.
 - **Clear** removes the filter.
@@ -104,7 +104,7 @@ Select a scene in the binder to write in it.
 - Scenes are saved as Markdown files, so they stay readable outside Caotang. A screenplay scene and a dialogue container have their own views, described below.
 - Caotang saves as you type. The toolbar says **All changes saved in this browser** once it has. The pause before a save is 800 ms by default. **Settings › Writing** changes it, for the projects you open after you save.
 - If a scene holds Markdown that Caotang would save differently, a notice names it when the scene opens. Your text is kept.
-- The footer under the editor shows the scene's word count, a session ring that fills toward your daily target, and whether the scene is saved. Choose the ring or today's line to set the target there. Zero clears it.
+- The footer under the editor shows the scene's word count (for Chinese, Japanese and Thai it follows the browser's word segmentation, so it is approximate and can differ between browsers; a goal in characters is exact), a session ring that fills toward your daily target, and whether the scene is saved. Choose the ring or today's line to set the target there. Zero clears it.
 - **Ctrl+Z** undoes your typing in the scene, one burst at a time, and still does after a reload. An agent's draft is never part of it. The **Undo** button in the toolbar takes back the last change Caotang made, such as a move or a deletion.
 - **Focus** in the toolbar, or Ctrl+Shift+F, hides the binder and the inspector and leaves the text. **Settings › Writing** has the setting **In focus mode, hide the binder and the inspector**. When it is off, focus mode leaves the panels shown. The status line says so when you turn focus on, and its **Settings › Writing** opens that setting. The Focus button stays on the toolbar, so you can leave focus mode from it.
 - When the agent drafts a scene, its words appear in the scene as they are written, and a draft preview bar offers **Apply**, **Retry** and **Discard**. See [The agent](#the-agent).

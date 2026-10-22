@@ -65,7 +65,8 @@ Pretty-printed JSON, 2-space indent, keys in the fixed order shown below (stable
   ],
   "derived": {
     "wordCounts": { "n_3W8RN2TQ6C": 2143 },
-    "computedAt": "2026-09-08T15:32:10.000Z"
+    "computedAt": "2026-09-08T15:32:10.000Z",
+    "ruleVersion": 2
   },
   "codex": [
     { "id": "c_5H8QK2M9RT", "name": "Elena Voss", "aliases": ["Lena"], "type": "character", "description": "The lighthouse keeper's daughter; returns after nine years abroad.", "includePolicy": "detected", "caseSensitive": false, "exclude": [], "attachments": ["n_3W8RN2TQ6C"], "keywords": ["protagonist"], "origin": "manual", "sources": [], "createdAt": "2026-09-09T10:00:00.000Z", "updatedAt": "2026-09-09T10:00:00.000Z" }
@@ -96,6 +97,7 @@ Pretty-printed JSON, 2-space indent, keys in the fixed order shown below (stable
 | `tree[].synopsis` | string ≤ 2000 chars | Corkboard/inspector card text. |
 | `tree[].notes` | string ≤ 50_000 chars | Inspector long-form notes. Plain Markdown, **not** in `docs/` for v0.1 (simplicity; file-split candidate in v0.2 if notes get long — assumption flagged). |
 | `derived.wordCounts` | map id → int | **Derived, rebuildable, allowed stale.** Never a reason to reject a manifest; loader recomputes on open if absent. |
+| `derived.ruleVersion` | int ≥ 1, optional | The words rule the counts were made with (editor-engine §9); absent means 1, the plain whitespace split. 2 segments Han, kana, Thai, Lao, Khmer and Myanmar tokens. The loader recomputes `wordCounts` once when this is lower than the rule the engine counts with, and stamps it; it never recomputes downward, so a project counted with rule 2 opened where `Intl.Segmenter` is missing is left as it is. Written only when above 1; a value that is not a whole number from 1 is treated as absent with a warning. |
 | `project.author` | string, optional | The byline on the title page and as the EPUB and DOCX creator. Absent or empty means none (epub-metadata.md). |
 | `project.language` | BCP-47 tag, optional | The source of EPUB's `dc:language`. Absent on an old project until its first open, which writes the app locale. |
 | `project.identifier` | object, optional: `uuid` (`urn:uuid:` and a UUID), `isbn` (`urn:isbn:` and thirteen digits, or null) | The EPUB unique identifier. Minted once and never regenerated; an ISBN-10 is stored in ISBN-13 form (epub-metadata.md). |
