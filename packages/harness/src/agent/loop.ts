@@ -531,7 +531,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     options.context ??
     createContextPort({
       state: () => harness.state,
-      config: () => ({ model: gateway.modelLimits(options.profileId, options.model) }),
+      config: () => ({ model: gateway.modelLimits(options.profileId, options.model, options.thinking) }),
     });
   const emit = (event: AgentEvent): void => options.emit?.(event);
   const now = options.clock ?? Date.now;

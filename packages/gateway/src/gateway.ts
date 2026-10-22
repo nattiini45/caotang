@@ -113,6 +113,8 @@ export interface GatewayOptions {
 
 const ZERO: Usage = { promptTokens: 0, completionTokens: 0 };
 const PROBE_PROMPT = 'Reply with the JSON object {"ok": true}.';
+/** The output cap the format probe asks for; the request log line records it like any other cap. */
+const PROBE_MAX_TOKENS = 16;
 
 export function createGateway(options: GatewayOptions): Gateway {
   const { profiles, keys } = options;
@@ -393,7 +395,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     const body = JSON.stringify({
       model: profile.defaultModel,
       messages: [{ role: 'user', content: PROBE_PROMPT }],
-      [route.ctx.quirks.maxTokensField ?? 'max_tokens']: 16,
+      [route.ctx.quirks.maxTokensField ?? 'max_tokens']: PROBE_MAX_TOKENS,
       stream: false,
       response_format: { type: 'json_object' },
     });
@@ -407,6 +409,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       method: 'POST',
       accept: 'application/json',
       body,
+      maxTokens: PROBE_MAX_TOKENS,
       headers: route.adapter.headers(route.ctx, revealed.secrets, 'models'),
       secrets: revealed.redact,
       promptTokens: usageFor([{ role: 'user', content: PROBE_PROMPT }], '').promptTokens,

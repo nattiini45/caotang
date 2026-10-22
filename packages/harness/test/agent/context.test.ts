@@ -163,6 +163,17 @@ describe('the project is read as it is at each call, and the model’s limits re
     expect(call.preview.cost?.completionUsd).toBeCloseTo((100 / 1000) * 2);
   });
 
+  it('a thinking allowance in the limits reaches the card’s reply estimate and its cost', () => {
+    const port = createContextPort({
+      state: makeState(),
+      config: { model: { pricePer1k: { prompt: 0, completion: 2 }, maxOutputTokens: 100, thinkingTokens: 400 } },
+    });
+    const call = port.assemble({ task: meta('Request: hello'), role: ROLE });
+    expect(call.preview.completionTokens).toBe(500);
+    expect(call.preview.cost?.completionUsd).toBeCloseTo((500 / 1000) * 2);
+    expect(call.preview.cost?.includesThinking).toBe(true);
+  });
+
   it('with no limits in the config the card has no window and no price, and no guessed number', () => {
     const call = createContextPort({ state: makeState() }).assemble({ task: meta('Request: hello'), role: ROLE });
 

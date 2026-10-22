@@ -161,6 +161,7 @@ export function mergePreviews(previews: readonly PromptPreview[]): PromptPreview
           promptUsd: sum(costs.map((item) => item?.promptUsd ?? 0)),
           completionUsd: sum(costs.map((item) => item?.completionUsd ?? 0)),
           totalUsd: sum(costs.map((item) => item?.totalUsd ?? 0)),
+          ...(costs.some((item) => item?.includesThinking === true) ? { includesThinking: true as const } : {}),
         }
       : undefined;
 

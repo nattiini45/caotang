@@ -251,5 +251,11 @@ export interface PromptPreview {
   readonly focus?: { readonly head: string; readonly summary: string };
   readonly window?: { readonly contextWindow: number; readonly warning?: string };
   /** Display-only estimate from `pricePer1k` (provider-gateway §6). */
-  readonly cost?: { readonly promptUsd: number; readonly completionUsd: number; readonly totalUsd: number };
+  readonly cost?: {
+    readonly promptUsd: number;
+    readonly completionUsd: number;
+    readonly totalUsd: number;
+    /** The reply side counts the thinking a set level can spend as well as the output cap; the card says "including thinking". */
+    readonly includesThinking?: true;
+  };
 }
