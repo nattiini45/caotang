@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { flatten } from '../src/flatten.js';
 import { renderMarkdown, renderText } from '../src/render-text.js';
 import type { RenderInput } from '../src/render-input.js';
-import { DEFAULT_TEMPLATE, anchorOf } from '../src/template.js';
+import { DEFAULT_TEMPLATE, anchorOf, fileStem } from '../src/template.js';
 import { makeProject, PROJECT_NAME } from './fixture.js';
 
 const DATE = '2026-10-08';
@@ -153,5 +153,39 @@ describe('renderText', () => {
     );
     expect(renderText(input({ blocks }))).toContain('A heading the author typed');
     expect(renderText(input({ blocks }))).not.toContain('# A heading');
+  });
+});
+
+describe('fileStem', () => {
+  it('drops trailing dots and spaces, and keeps the rest', () => {
+    expect(fileStem('Book')).toBe('Book');
+    expect(fileStem('Book. . .')).toBe('Book');
+    expect(fileStem('Book...   ')).toBe('Book');
+    expect(fileStem('. Book .')).toBe('. Book');
+    expect(fileStem('A.B. C.')).toBe('A.B. C');
+  });
+
+  it('is Untitled when nothing is left, and prefixes a Windows device name', () => {
+    expect(fileStem('')).toBe('Untitled');
+    expect(fileStem('   \t\n ')).toBe('Untitled');
+    expect(fileStem('. . . .')).toBe('Untitled');
+    expect(fileStem('CON.')).toBe('_CON');
+  });
+
+  it('turns reserved, control and line-ending characters into one space, and keeps unicode', () => {
+    expect(fileStem('a<b>c:d"e/f\\g|h?i*j')).toBe('a b c d e f g h i j');
+    expect(fileStem('Line\r\nBreak\u0007Bell')).toBe('Line Break Bell');
+    expect(fileStem('Café \u{1F4D6} Ünïcode. ')).toBe('Café \u{1F4D6} Ünïcode');
+  });
+
+  it('caps the stem at 120 characters and drops the space the cut leaves', () => {
+    expect(fileStem(`${'a'.repeat(119)} bcd`)).toBe('a'.repeat(119));
+  });
+
+  it('takes linear time on a long run of alternating dots and spaces', () => {
+    const pathological = `${'. '.repeat(25_000)}x`;
+    const started = performance.now();
+    expect(fileStem(pathological)).toBe(('. '.repeat(60)).trim());
+    expect(performance.now() - started).toBeLessThan(500);
   });
 });
