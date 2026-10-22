@@ -182,7 +182,9 @@ export type PortToolName =
   | 'dialogue.draft'
   | 'dialogue.table'
   // The project's skills (extensibility.md §10). Wired only where the app supplies `HarnessOptions.skills`, so the outward MCP server, which does not, never lists it.
-  | 'skill.load';
+  | 'skill.load'
+  // Delegation (agent-harness §2): answered by the agent loop; the port (tools/delegate.ts) is what a caller outside a turn gets.
+  | 'agent.delegate';
 
 interface EntryBase {
   readonly meta: ToolMetadata;
@@ -222,6 +224,11 @@ export interface TurnContext {
   readonly permission?: PermissionContext;
   /** The writer's stop. Awaited calls (an async port, an external read) end their wait when it fires; a started bus command is never interrupted. */
   readonly signal?: AbortSignal;
+  /**
+   * Set for a call made by a delegated agent (agent-harness §2, "Delegate"): `turn-3/reader#1`. The harness refuses every tool that is not a
+   * read while it is present, behind the runner's own filter. Display and attribution otherwise; it grants nothing.
+   */
+  readonly agentPath?: string;
 }
 
 /** One tool call. `callId` is required: it is the idempotency key for a replay (command-bus §6). */

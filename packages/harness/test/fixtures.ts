@@ -152,6 +152,8 @@ export interface RunOptions {
   readonly callId?: string;
   readonly permission?: { readonly approvedPlan?: boolean; readonly confirmed?: boolean };
   readonly source?: 'native' | 'mcp';
+  /** The call is a delegated agent's (`TurnContext.agentPath`). */
+  readonly agentPath?: string;
 }
 
 /** One tool call under one turn. A fresh callId unless the test names one (to exercise a replay). */
@@ -162,6 +164,7 @@ export function run(harness: Harness, name: string, params: unknown, options: Ru
       turnId: options.turnId ?? `turn-${callSeq}`,
       ...(options.permission === undefined ? {} : { permission: options.permission }),
       ...(options.source === undefined ? {} : { source: options.source }),
+      ...(options.agentPath === undefined ? {} : { agentPath: options.agentPath }),
     },
   );
 }

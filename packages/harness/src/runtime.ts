@@ -422,6 +422,13 @@ function confirmedOnly(turn: TurnContext): TurnContext {
   return permission?.confirmed === true ? { ...rest, permission: { confirmed: true } } : rest;
 }
 
+function delegatedWriteRefusal(meta: ToolMetadata): CommandError {
+  return refusal('permission-denied', `"${meta.name}" is not a read, and a delegated agent can only read; return the change as a proposed step`, {
+    target: meta.name,
+    correctiveHint: 'name the change in your result as a proposed step; the parent agent decides whether it goes into a plan the writer approves',
+  });
+}
+
 function externalPlanRefusal(turn: TurnContext): CommandError {
   return refusal(
     'permission-denied',
@@ -486,6 +493,9 @@ function externalWriteRefusal(meta: ToolMetadata): CommandError {
 function toolGrant(meta: ToolMetadata, turn: TurnContext, externalWrites: boolean): Result<void, CommandError> {
   const external = turn.source === 'mcp';
   if (meta.risk === 'read') return ok(undefined);
+  // A delegated agent only reads (agent-harness §2, "Delegate"). The runner never offers it anything else; this is the backstop, and it
+  // answers before the approvals below, because a delegated agent holds none.
+  if (turn.agentPath !== undefined) return failure(delegatedWriteRefusal(meta)) as Result<void, CommandError>;
   if (meta.risk === 'write-auto') {
     if (external && !externalWrites) return failure(externalWriteRefusal(meta)) as Result<void, CommandError>;
     return ok(undefined);
@@ -1061,6 +1071,14 @@ export function createHarness(options: HarnessOptions): Harness {
         refusal('permission-denied', `"${call.name}" is an external tool, and an external caller may not reach another server through Caotang. Nothing was called.`, {
           target: call.name,
           correctiveHint: 'ask the user to run this tool from Caotang; do not retry it from outside',
+        }),
+      ) as ToolOutcome;
+    }
+    if (given.agentPath !== undefined) {
+      return failure(
+        refusal('permission-denied', `"${call.name}" is an external tool, and a delegated agent can only read the project with the registry's read tools. Nothing was called.`, {
+          target: call.name,
+          correctiveHint: 'return what you need from the external tool as a note for the parent agent, which may call it itself',
         }),
       ) as ToolOutcome;
     }
