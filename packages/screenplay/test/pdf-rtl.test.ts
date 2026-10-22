@@ -339,6 +339,14 @@ describe('the file', () => {
     expect(prepared.layout.pages).toEqual(layoutPdf(latin, { title: 'T' }).pages);
   });
 
+  it('draws a bidirectional control character of a script with no Arabic or Hebrew as nothing, in no column', async () => {
+    const source = text('INT. A - DAY', '', 'Hello\u200f world.', '', '\u200f\u200f');
+    const pdf = await pdfOf(source, {}, LOADERS);
+    expect(pdf).toContain('(Hello world.) Tj');
+    expect(pdf).not.toContain('(?');
+    expect(renderPdf(blocksOf(source), { title: 'T' }).notes.filter((note) => note.includes('printed as'))).toEqual([]);
+  });
+
   it('prints Arabic and Hebrew as "?" when the host passes no font for them, and says so', () => {
     const result = renderPdf(blocksOf(text('@سارة', 'مرحبا.')), { title: 'T' });
     expect(result.notes.some((note) => note.includes('Arabic font was not passed to renderPdf'))).toBe(true);

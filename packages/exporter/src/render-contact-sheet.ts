@@ -50,8 +50,10 @@ import {
   emojiStyleOf,
   graphemesOf,
   isBidiControl,
+  isRtlMark,
   loadFont,
   rtlFontPrints,
+  rtlScriptOf,
   scriptRuns,
   type FontLoader,
   type RtlScript,
@@ -387,8 +389,14 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
       const embedding = run.script === undefined ? undefined : rtl.get(run.script);
       if (run.kind === 'other' || run.script === undefined || embedding === null || embedding === undefined) {
         // The pieces keep their font: a bracket the algorithm turned is the mirror image in Helvetica, if WinAnsi has it.
+        // Dropping a control character can join a character to a mark: the mark is left out and counted, as in a shaped run.
         for (const cluster of graphemesOf(run.text)) {
-          out.push(known.get(cluster) ?? (builtIn.has(cluster.codePointAt(0) ?? 0) ? { text: cluster, face: 'base' } : unknown));
+          const kept = known.has(cluster) ? undefined : [...cluster].filter((ch) => !isRtlMark(ch));
+          if (kept === undefined) out.push(known.get(cluster) as Piece);
+          else if (kept.length > 0 && kept.every((ch) => builtIn.has(ch.codePointAt(0) ?? 0))) {
+            for (const ch of cluster) if (isRtlMark(ch)) marksLeftOut[rtlScriptOf(ch.codePointAt(0) ?? 0) ?? 'arabic'] += 1;
+            out.push({ text: kept.join(''), face: 'base' });
+          } else out.push(unknown);
         }
         continue;
       }

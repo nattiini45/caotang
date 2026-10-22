@@ -725,6 +725,13 @@ describe('contact-sheet-pdf — Arabic and Hebrew, in Noto Sans Arabic and Noto 
     ]);
   });
 
+  it('leaves out a mark that a dropped bidi control character left next to a character of the other fonts, and counts it', async () => {
+    for (const text of [`${ARABIC} .\u200f\u064e`, `${HEBREW} (\u202b\u064e`]) {
+      const { result } = await compileSheet(rig({ state: withAction(text), ...bothLoaders }).exporter);
+      expect(result.log.notes.filter((note) => note.includes('Arabic mark') && note.includes('left out'))).toEqual([expect.stringMatching(/^contact sheet: 1 Arabic mark/)]);
+    }
+  });
+
   it('reads each font once, and only for a sheet that holds its script', async () => {
     const arabic = countingLoader(loadArabicFontInNode);
     const hebrew = countingLoader(loadHebrewFontInNode);

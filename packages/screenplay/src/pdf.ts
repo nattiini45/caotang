@@ -38,7 +38,7 @@
  * offsets, and the tests can check them exactly.
  */
 
-import { cidFontObjects, isEmojiCluster, type CidSubset, type PdfValue } from '@caotang/pdf-fonts';
+import { cidFontObjects, isBidiControl, isEmojiCluster, type CidSubset, type PdfValue } from '@caotang/pdf-fonts';
 
 import { COURIER_PRIME_METRICS } from './fonts/courier-prime-metrics.js';
 import { LAYOUT } from './paginate.js';
@@ -289,6 +289,8 @@ function runsOf(units: readonly string[], fallback?: PdfCidFont, emoji?: PdfEmoj
   const runs: Run[] = [];
   let column = 0;
   for (const unit of units) {
+    // A bidirectional control character prints nothing and takes no column, planned line or not.
+    if (isBidiControl(unit)) continue;
     const font = fontOf(unit, fallback, emoji);
     const cols = unitColumns(unit);
     const base = String.fromCodePoint(unit.codePointAt(0) ?? 0x3f);
