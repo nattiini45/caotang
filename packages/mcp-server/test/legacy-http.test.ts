@@ -9,11 +9,12 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { Client as LegacyClient, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
-import type { ElicitRequestParams, ElicitResult } from '@modelcontextprotocol/client';
+import type { CallToolResult, ElicitRequestParams, ElicitResult } from '@modelcontextprotocol/client';
 import { parseDocumentFile } from '@caotang/store';
 
 import {
   createToolRuntime,
+  LEGACY_ROUND_TIMEOUT_MS,
   openProject,
   startHttpServer,
   type LegacySessionOptions,
@@ -41,22 +42,42 @@ interface Booted {
   readonly session: ProjectSession;
   readonly server: RunningHttpServer;
   readonly token: string;
+  /** The nonces the server remembered an answer for. A round that timed out remembers none. */
+  readonly remembered: string[];
   close(): Promise<void>;
 }
 
 const booted: Booted[] = [];
 
-async function boot(label: string, legacySessions?: LegacySessionOptions): Promise<Booted> {
+async function boot(label: string, legacySessions?: LegacySessionOptions, roundTimeoutMs?: number): Promise<Booted> {
   const root = tempDir(label);
   await seedProject(root, 'The Lighthouse Keeper');
   const session = await openProject({ root, allowWrites: true });
   const token = testToken();
-  const server = await startHttpServer(createToolRuntime(session), { port: 0, token, ...(legacySessions === undefined ? {} : { legacySessions }) });
+  const base = createToolRuntime(session);
+  const remembered: string[] = [];
+  const runtime = {
+    ...base,
+    ledger: {
+      recall: base.ledger.recall,
+      remember: (nonce: string, answer: Promise<CallToolResult>, expiresAt: number, now: number): void => {
+        remembered.push(nonce);
+        base.ledger.remember(nonce, answer, expiresAt, now);
+      },
+    },
+  };
+  const server = await startHttpServer(runtime, {
+    port: 0,
+    token,
+    ...(legacySessions === undefined ? {} : { legacySessions }),
+    ...(roundTimeoutMs === undefined ? {} : { roundTimeoutMs }),
+  });
   const fixture: Booted = {
     root,
     session,
     server,
     token,
+    remembered,
     async close() {
       await server.close();
       await session.close();
@@ -124,7 +145,11 @@ async function connectWhenRoom(fixture: Booted): Promise<Host> {
  * A raw POST to the endpoint, with the session header when given. The body is a JSON-RPC message. The answer is read to
  * its end, because a response left unread keeps its stream, and so its request, open on the server.
  */
-async function post(fixture: Booted, message: Record<string, unknown>, sessionId: string | undefined): Promise<{ status: number; message: Record<string, unknown> | undefined }> {
+async function post(
+  fixture: Booted,
+  message: Record<string, unknown>,
+  sessionId: string | undefined,
+): Promise<{ status: number; retryAfter: string | null; message: Record<string, unknown> | undefined }> {
   const response = await fetch(fixture.server.url, {
     method: 'POST',
     headers: {
@@ -137,8 +162,16 @@ async function post(fixture: Booted, message: Record<string, unknown>, sessionId
     body: JSON.stringify(message),
   });
   const answered = await jsonRpcOf(response).catch(() => undefined);
-  return { status: response.status, message: answered };
+  return { status: response.status, retryAfter: response.headers.get('retry-after'), message: answered };
 }
+
+/** An `initialize` for a newcomer, sent raw so a test reads the status and the body, not a client's error. */
+const HANDSHAKE = {
+  jsonrpc: '2.0',
+  id: 14,
+  method: 'initialize',
+  params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'legacy-newcomer', version: '0.0.0' } },
+};
 
 /** A `doc.import` call's arguments, the same write in every test. */
 const IMPORT = (title: string): { name: string; arguments: Record<string, unknown> } => ({
@@ -334,15 +367,10 @@ describe('the 2025-era connections are kept, bounded and closed', () => {
       await questionAsked;
       // The holder's confirmation is open, so its connection is busy and the table is full: a newcomer's handshake is refused
       // with a 503 that says why. It is sent raw, so the test reads the status and the body, not a client's error.
-      const handshake = {
-        jsonrpc: '2.0',
-        id: 14,
-        method: 'initialize',
-        params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'legacy-newcomer', version: '0.0.0' } },
-      };
-      const refused = await post(fixture, handshake, undefined);
+      const refused = await post(fixture, HANDSHAKE, undefined);
       expect(refused.status).toBe(503);
       expect(JSON.stringify(refused.message)).toContain('Too many connections');
+      expect(JSON.stringify(refused.message)).toContain('all 1 2025-era connections are busy (1 with a request open)');
 
       release({ action: 'accept', content: { confirmed: true } });
       const result = await running;
@@ -373,4 +401,111 @@ describe('the 2025-era connections are kept, bounded and closed', () => {
       await second.client.close();
     }
   });
+});
+
+describe("an unanswered confirmation ends at the server's own deadline", () => {
+  /** A host whose writer never answers: the question is on the wire, and the answer is withheld until the test ends. */
+  function silentHost(): { answer: Answer; asked: Promise<void>; release: () => void } {
+    let asked: () => void = () => undefined;
+    const questionAsked = new Promise<void>((resolve) => {
+      asked = resolve;
+    });
+    let release: (answer: ElicitResult) => void = () => undefined;
+    const pending = new Promise<ElicitResult>((resolve) => {
+      release = resolve;
+    });
+    return {
+      answer: () => {
+        asked();
+        return pending;
+      },
+      asked: questionAsked,
+      release: () => release({ action: 'decline' }),
+    };
+  }
+
+  it("the server holds a confirmation for 60 seconds by default, not the SDK's ten minutes", () => {
+    expect(LEGACY_ROUND_TIMEOUT_MS).toBe(60_000);
+  });
+
+  it('the host gets a failed result at the deadline, nothing is written, and the connection and its place are free again', async () => {
+    const silent = silentHost();
+    const fixture = await boot('legacy-timeout', { limit: 1 }, 300);
+    const holder = await connectHost(fixture, silent.answer);
+    try {
+      const before = folderBytes(fixture.root);
+      const result = await holder.client.callTool(IMPORT('Unanswered'));
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).toContain("Fulfilling input required by 'tools/call' failed: Request timed out");
+      expect(holder.asked).toHaveLength(1);
+      expect(folderBytes(fixture.root)).toEqual(before);
+      expect(fixture.remembered).toEqual([]);
+
+      // The POST is answered, so the connection is idle, and the one place of this table can be given to a newcomer.
+      const next = await connectWhenRoom(fixture);
+      expect(next.transport.sessionId).toBeTypeOf('string');
+      await next.client.close();
+    } finally {
+      silent.release();
+      await holder.client.close().catch(() => undefined);
+    }
+  }, 30_000);
+
+  it('the retry after a timeout asks a fresh question, and an answer inside the deadline writes once', async () => {
+    let calls = 0;
+    const silent = silentHost();
+    const fixture = await boot('legacy-retry', undefined, 300);
+    const host = await connectHost(fixture, (params) => {
+      calls += 1;
+      return calls === 1 ? silent.answer(params) : acceptConfirm(params);
+    });
+    try {
+      const first = await host.client.callTool(IMPORT('Twice'));
+      expect(first.isError).toBe(true);
+      expect(fixture.remembered).toEqual([]);
+
+      const second = await host.client.callTool(IMPORT('Twice'));
+      expect(second.isError).not.toBe(true);
+      expect(host.asked).toHaveLength(2);
+      expect(fixture.remembered).toHaveLength(1);
+      expect(fixture.session.state.manifest.tree.filter((node) => node.title === 'Twice')).toHaveLength(1);
+    } finally {
+      silent.release();
+      await host.client.close().catch(() => undefined);
+    }
+  }, 30_000);
+
+  it('a full table refuses initialize with the limit, the busy count and the wait, and a Retry-After', async () => {
+    const silent = silentHost();
+    const fixture = await boot('legacy-503', { limit: 1 }, 60_000);
+    const holder = await connectHost(fixture, silent.answer);
+    const running = holder.client.callTool(IMPORT('Waiting'));
+    try {
+      await silent.asked;
+      const refused = await post(fixture, HANDSHAKE, undefined);
+      expect(refused.status).toBe(503);
+      expect(refused.retryAfter).toBe('60');
+      const error = refused.message?.['error'] as { code: number; message: string };
+      expect(refused.message?.['id']).toBeNull();
+      expect(error.code).toBe(-32000);
+      expect(error.message).toContain('all 1 2025-era connections are busy (1 with a request open)');
+      expect(error.message).toContain('60 seconds');
+    } finally {
+      silent.release();
+      await running.catch(() => undefined);
+      await holder.client.close().catch(() => undefined);
+    }
+  }, 30_000);
+
+  it('the question and the initialize instructions say how long the question waits', async () => {
+    const fixture = await boot('legacy-says', undefined, 45_000);
+    const host = await connectHost(fixture, declineConfirm);
+    try {
+      expect(host.client.getInstructions()).toContain('A confirmation waits 45 seconds');
+      await host.client.callTool(IMPORT('Says'));
+      expect(host.asked[0]?.message).toContain('This question waits 45 seconds');
+    } finally {
+      await host.client.close();
+    }
+  }, 30_000);
 });

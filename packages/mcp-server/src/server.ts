@@ -46,6 +46,15 @@ import { MCP_PATH, VERSION } from './version.js';
 export const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
 /**
+ * How long a confirmation on a 2025-era connection waits for its answer. The connection's POST stays open that long, and
+ * a connection with a POST open holds one of the table's places (legacy-sessions.ts), so this is how long a person who
+ * walked away from the dialog costs. It is this server's own decision: the SDK's default is ten minutes. The SDK's
+ * `maxRounds` stays at its default of 8; a confirmation re-enters its handler once. The 2026-07-28 path and stdio hold
+ * no place, so they keep the SDK's default.
+ */
+export const LEGACY_ROUND_TIMEOUT_MS = 60_000;
+
+/**
  * What a host reads at initialize. It says exactly which writes ask first: the ones whose description opens with the
  * confirmation sentence (tools.ts reads the same marker through the harness's exposure). The others apply at once.
  */
@@ -54,6 +63,13 @@ const INSTRUCTIONS =
   'Writes are exposed only when the project was started with --allow-writes. A write tool whose description starts with "Requires user confirmation." ' +
   'asks the user to confirm it in the host before it changes anything. The other write tools apply at once. ' +
   'A refused call says why, and the corrective step is in the refusal.';
+
+/** The instructions of a connection whose confirmations wait `roundMs`: they say how long, so a host can tell the user. */
+function instructionsFor(roundMs: number | undefined): string {
+  if (roundMs === undefined) return INSTRUCTIONS;
+  const seconds = Math.ceil(roundMs / 1000);
+  return `${INSTRUCTIONS} A confirmation waits ${seconds} seconds for the user's answer; after that the call fails, nothing changes, and the call can be made again.`;
+}
 
 /** Everything a server needs: the session, and the confirmation machinery bound to this process. */
 export function createToolRuntime(session: ProjectSession): ToolRuntime {
@@ -68,22 +84,33 @@ export function createToolRuntime(session: ProjectSession): ToolRuntime {
  */
 export const MODERN_PROTOCOL_VERSION = '2026-07-28';
 
+export interface McpServerOptions {
+  /**
+   * How long a confirmation waits for its answer on this server's 2025-era connection, in milliseconds. Left out, the
+   * SDK's default stands and the question and the instructions name no deadline. The SDK takes this option on the
+   * server, not on `createMcpHandler`, which has no such option.
+   */
+  readonly roundTimeoutMs?: number;
+}
+
 /** A fresh MCP server over the runtime: its tools registered, and its `requestState` verified by the codec. */
-export function buildMcpServer(runtime: ToolRuntime): McpServer {
+export function buildMcpServer(runtime: ToolRuntime, options: McpServerOptions = {}): McpServer {
   const { codec } = runtime;
+  const { roundTimeoutMs } = options;
   const server = new McpServer(
     { name: 'caotang', title: 'Caotang', version: VERSION },
     {
-      instructions: INSTRUCTIONS,
+      instructions: instructionsFor(roundTimeoutMs),
       // The tools are fixed when the project is opened (a write tool is listed only with --allow-writes), so the list never
       // changes during a session and no list-changed notice is ever sent. The 2025 initialize result says so, and the SDK's
       // default of `true` would promise a notice this server never sends.
       capabilities: { tools: { listChanged: false } },
       supportedProtocolVersions: [MODERN_PROTOCOL_VERSION, ...SUPPORTED_PROTOCOL_VERSIONS],
       requestState: { verify: (state, ctx) => codec.verify(state, ctx) },
+      ...(roundTimeoutMs === undefined ? {} : { inputRequired: { roundTimeoutMs } }),
     },
   );
-  registerCaotangTools(server, runtime);
+  registerCaotangTools(server, runtime, roundTimeoutMs);
   return server;
 }
 
@@ -100,6 +127,8 @@ export interface HttpServerOptions {
   readonly token: string;
   /** The limit and idle time of the 2025-era connections, and the clock they read. Tests set them; a host does not. */
   readonly legacySessions?: LegacySessionOptions;
+  /** How long a confirmation waits on a 2025-era connection. Defaults to {@linkcode LEGACY_ROUND_TIMEOUT_MS}; a test shortens it. */
+  readonly roundTimeoutMs?: number;
 }
 
 /** The `Host` and `Origin` guards from the SDK, built once per listener. */
@@ -192,13 +221,27 @@ async function answer(
     return;
   }
   if (req.method === 'POST' && isInitializeRequest(parsed)) {
-    const opened = await http.legacy.initialize(req, res, parsed, () => buildMcpServer(runtime));
+    const roundMs = options.roundTimeoutMs ?? LEGACY_ROUND_TIMEOUT_MS;
+    const opened = await http.legacy.initialize(req, res, parsed, () => buildMcpServer(runtime, { roundTimeoutMs: roundMs }));
     if (!opened) {
-      sendJson(res, 503, {
-        jsonrpc: '2.0',
-        id: null,
-        error: { code: -32000, message: 'Too many connections: every 2025-era connection is busy. Try again when one finishes.' },
-      });
+      // A busy connection frees when its POST is answered, and an unanswered confirmation is answered at the deadline.
+      const seconds = Math.ceil(roundMs / 1000);
+      const { limit, busyCount } = http.legacy;
+      sendJson(
+        res,
+        503,
+        {
+          jsonrpc: '2.0',
+          id: null,
+          error: {
+            code: -32000,
+            message:
+              `Too many connections: all ${limit} 2025-era connections are busy (${busyCount} with a request open). ` +
+              `A connection frees when its request is answered; a confirmation nobody answers ends after ${seconds} seconds. Try again in ${seconds} seconds.`,
+          },
+        },
+        { 'Retry-After': String(seconds) },
+      );
     }
     return;
   }
