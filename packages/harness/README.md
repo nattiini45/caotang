@@ -223,5 +223,6 @@ is typed there, and the harness program has to see it.
 - **Tool descriptions.** The four port tools' descriptions dropped "Not wired in this build". `synopsis.fill` and
   `continuity.scan` state their limits and are at `descriptionVersion` 3 (§9): their schemas gained `maxItems`.
   `scene.draft` is at 2, unchanged. The other caps and versions are as before.
-- **Snapshot eviction.** The fixture runs the store's retention planner over real harness writes. It does not
-  run `evictSnapshots` against IndexedDB, which needs a browser store.
+- **Snapshot eviction.** The fixture (`test/eval/eviction.test.ts`) runs the store's retention planner over real harness writes. It
+  does not run `evictSnapshots`, which needs a browser store. The sweep's rules are pinned in `packages/store/test/snapshot-retention.test.ts`,
+  and `e2e/snapshot-eviction.spec.ts` runs it against a real IndexedDB, with a mid-sweep abort and Settings › Data › Trim.
