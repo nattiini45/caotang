@@ -22,7 +22,7 @@ import {
 import type { ProjectState } from '@caotang/store';
 
 import { DEMO_CHOICES } from '../app/demo.js';
-import { askBackOptions, elapsedOf, formatElapsed, isSettled, phaseLabel, type TurnView } from '../app/agent-model.js';
+import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, phaseLabel, type DelegationCardView, type TurnView } from '../app/agent-model.js';
 import { formatUsd, turnCostOf } from '../app/plan-preview.js';
 import { resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
@@ -434,6 +434,7 @@ const STATUS_WORDS: Readonly<Record<StatusCard['status'], string>> = {
 };
 
 function StatusCardRow({ card }: { card: StatusCard }): ReactNode {
+  const delegation = delegationViewOf(card);
   return (
     <article className={`status-card is-${card.status}`} data-tool={card.tool} data-status={card.status}>
       <header className="status-card-head">
@@ -442,6 +443,7 @@ function StatusCardRow({ card }: { card: StatusCard }): ReactNode {
         <span className={`status-pill is-${card.status}`}>{STATUS_WORDS[card.status]}</span>
         <ElapsedTime card={card} />
       </header>
+      {delegation === undefined ? null : <DelegationBlock view={delegation} />}
       {card.summary !== undefined || card.error !== undefined ? (
         // The result is collapsed once the call is done, and open when it failed, so the reason is in front of the writer.
         <details className="status-card-result" open={card.error !== undefined}>
@@ -454,6 +456,45 @@ function StatusCardRow({ card }: { card: StatusCard }): ReactNode {
         <pre>{JSON.stringify(card.args, null, 2)}</pre>
       </details>
     </article>
+  );
+}
+
+/**
+ * A delegated agent's part of its call's card (agent-harness §8): its name and reserved calls beside a word for how it stands, then
+ * three disclosures, each a native `<details>` so the keyboard and a screen reader reach them: the brief it was given, its notes,
+ * and its own trace rows. The call's summary and arguments stay below, as on every card.
+ */
+function DelegationBlock({ view }: { view: DelegationCardView }): ReactNode {
+  return (
+    <section className="delegation" aria-label={view.title}>
+      <p className="delegation-line">
+        <strong>{view.title}</strong>
+        <span className="muted">{view.reserved}</span>
+        <span className="delegation-standing">{view.standing}</span>
+      </p>
+      <details className="delegation-brief">
+        <summary>Brief</summary>
+        <p className="status-card-text">{view.brief}</p>
+        {view.scope.length > 0 ? <p className="status-card-text muted">Starts from: {view.scope.join(', ')}</p> : null}
+      </details>
+      {view.result === undefined ? null : (
+        <details className="delegation-result">
+          <summary>Notes</summary>
+          <p className="status-card-text">{view.result === '' ? 'The agent gave no notes.' : view.result}</p>
+        </details>
+      )}
+      {view.proposed === undefined ? null : <p className="status-card-text delegation-proposed">{view.proposed}</p>}
+      {view.trace.length === 0 ? null : (
+        <details className="delegation-trace">
+          <summary>Transcript ({view.trace.length})</summary>
+          <ol>
+            {view.trace.map((row) => (
+              <li key={row.key}>{row.text}</li>
+            ))}
+          </ol>
+        </details>
+      )}
+    </section>
   );
 }
 

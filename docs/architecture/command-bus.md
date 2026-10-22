@@ -7,7 +7,7 @@
 
 One in-process bus. UI gestures and agent tools both emit commands onto it; **no module mutates project state except by executing a command**. This is what makes "agent drives the app" safe (same surface as the human), auditable (activity log), and reversible (undo groups).
 
-Non-goals: no network in the bus (the gateway owns transport); no cross-worker bus in v0.1 (a background task stages drafts on the main thread and never issues a command, agent-harness §2); **no event-sourcing** — undo is compensation-based (§5), rejected alternative: full event log (weight without v0.1 benefit).
+Non-goals: no network in the bus (the gateway owns transport); no cross-worker bus in v0.1 (a background task stages drafts on the main thread and never issues a command, agent-harness §2; a delegated agent never issues one either: it reads, and a write it wants is a proposed step that reaches the bus only as a step of the parent turn's approved plan, agent-harness §2, "Delegate"); **no event-sourcing** — undo is compensation-based (§5), rejected alternative: full event log (weight without v0.1 benefit).
 
 ## 2. Command envelope & descriptors
 

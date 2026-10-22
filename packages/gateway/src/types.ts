@@ -242,6 +242,11 @@ export interface ChatRequest {
   turnId?: string;
   /** the task role this request runs under; recorded on the ledger row (§6) */
   role?: TaskRole;
+  /**
+   * Finer attribution inside a turn: which delegated agent made the call (`turn-3/reader#1`). Display and ledger only, it
+   * carries no semantics, and `turnId` stays the parent turn's, so the turn's totals sum its children.
+   */
+  agentPath?: string;
 }
 
 /**
@@ -282,6 +287,8 @@ export interface UsageAttribution {
   profileId: string;
   model: string;
   turnId?: string;
+  /** the delegated agent inside the turn that made the request, when one did (§6) */
+  agentPath?: string;
   /** the task role the usage ran under, for per-role accounting (§6) */
   role?: TaskRole;
   at?: number;

@@ -302,7 +302,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     } finally {
       if (stats.attempts > 0) {
         ledger.record(
-          { profileId: profile.id, model, turnId: req.turnId, role: req.role, at: startedAt },
+          { profileId: profile.id, model, turnId: req.turnId, agentPath: req.agentPath, role: req.role, at: startedAt },
           stats.usage ?? ZERO,
           stats.attempts,
         );
@@ -452,7 +452,7 @@ export function createGateway(options: GatewayOptions): Gateway {
 
   function accountTokens(usage: Usage, by: UsageAttribution): void {
     ledger.record(
-      { profileId: by.profileId, model: by.model, turnId: by.turnId, role: by.role, at: by.at ?? clock.now() },
+      { profileId: by.profileId, model: by.model, turnId: by.turnId, agentPath: by.agentPath, role: by.role, at: by.at ?? clock.now() },
       usage,
       1,
     );

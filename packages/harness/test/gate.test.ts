@@ -7,7 +7,7 @@ import { HARD_DENIED, HARD_DENY_CLASSES } from '@caotang/bus';
 import { VIDEO_TEMPLATE_IDS } from '@caotang/video-prompt-pack';
 import { describe, expect, it } from 'vitest';
 
-import { TOOL_METADATA, TOOL_NAMES } from '../src/index.js';
+import { createAgentPorts, TOOL_METADATA, TOOL_NAMES } from '../src/index.js';
 import { LANDING, makeHarness, makeState, refusalOf, run, snapshotOf, valueOf } from './fixtures.js';
 
 describe('the activity source', () => {
@@ -113,6 +113,64 @@ describe('the tool-level permission matrix', () => {
   it('refuses the protocol row as a tool call, whatever approval it is given', () => {
     const error = refusalOf(run(makeHarness(), 'agent.plan', { steps: [] }, { permission: { approvedPlan: true } }));
     expect(error.code).toBe('invalid-params');
+  });
+});
+
+describe('a delegated agent’s calls (agent-harness §2, "Delegate")', () => {
+  const approved = { approvedPlan: true, confirmed: true } as const;
+
+  it('refuses every tool that is not a read when the turn names an agent path, whatever approval rides on it, and writes nothing', () => {
+    const state = makeState();
+    const implemented = () => ({ ok: true as const, value: { data: {}, summary: '', affected: [] } });
+    const harness = makeHarness(
+      {
+        ports: {
+          'scene.draft': implemented,
+          'synopsis.fill': implemented,
+          'coherence.review': implemented,
+          'shots.derive': implemented,
+          'prompt.draft': implemented,
+          'dialogue.draft': implemented,
+        },
+      },
+      state,
+    );
+    const before = snapshotOf(state);
+    // Every write-confirm tool, and the two write-auto tools whose params fit in a line: the gate is what answers, not the closed-set check.
+    const writes: [string, Record<string, unknown>][] = [
+      ...TOOL_METADATA.filter((meta) => meta.risk === 'write-confirm').map((meta): [string, Record<string, unknown>] => [meta.name, minimalParams(meta.name)]),
+      ['meta.set', { targets: [LANDING], status: 'final' }],
+      ['notes.append', { doc: LANDING, text: 'Hello.' }],
+    ];
+    expect(writes.length).toBeGreaterThan(10);
+    for (const [name, params] of writes) {
+      const error = refusalOf(run(harness, name, params, { agentPath: 'turn-1/reader#1', permission: approved }));
+      expect(error.code, name).toBe('permission-denied');
+      expect(error.message, name).toContain('a delegated agent can only read; return the change as a proposed step');
+    }
+    expect(snapshotOf(state)).toBe(before);
+    expect(harness.log.length).toBe(0);
+  });
+
+  it('still answers a read under an agent path, and the same write runs for the parent turn that holds the approval', () => {
+    const harness = makeHarness();
+    expect(valueOf(run(harness, 'doc.read', { doc: LANDING }, { agentPath: 'turn-2/reader#1' })).data).toBeDefined();
+    expect(valueOf(run(harness, 'meta.set', { targets: [LANDING], status: 'final' }, { permission: approved })).undoGroupId).toBeDefined();
+  });
+
+  it('does not let an external tool be called from an agent path', async () => {
+    const harness = makeHarness();
+    const outcome = await harness.callExternal({ name: 'mcp__server__tool', callId: 'ext-1', params: {} }, { turnId: 'turn-3', agentPath: 'turn-3/general#1' });
+    expect(outcome.ok ? undefined : outcome.error.code).toBe('permission-denied');
+  });
+
+  it('answers a direct agent.delegate call with the refusal that it runs inside a turn, or as not wired where the agent ports are absent', () => {
+    const wired = makeHarness({ ports: createAgentPorts() });
+    const direct = refusalOf(run(wired, 'agent.delegate', { agent: 'reader', brief: 'Read the harbor chapters.' }));
+    expect(direct.code).toBe('invalid-params');
+    expect(direct.message).toContain('runs inside an agent turn');
+    const bare = refusalOf(run(makeHarness(), 'agent.delegate', { agent: 'reader', brief: 'Read the harbor chapters.' }));
+    expect(bare.message).toContain('no implementation in this build');
   });
 });
 

@@ -96,6 +96,30 @@ export {
   type WriterAction,
   type WriterMoment,
 } from './agent/eval.js';
+// Delegated agents (agent-harness §2, "Delegate"): the built-in specs, the runner, and the framing a result reaches the planner in.
+export {
+  DELEGATE_MAX_SCOPE,
+  DELEGATE_NOTICE,
+  GENERAL,
+  READER,
+  SUBAGENT_NAMES,
+  SUBAGENT_SPECS,
+  SUBAGENT_SYSTEM_PREFIX,
+  SUMMARY_MAX_TOKENS,
+  childTools,
+  createSubagentRunner,
+  framedResult,
+  resultLine,
+  subagentSpec,
+  subagentSystem,
+  type DelegateParams,
+  type ParentTurnHandle,
+  type SubagentHost,
+  type SubagentName,
+  type SubagentResult,
+  type SubagentRunner,
+  type SubagentSpec,
+} from './agent/subagent.js';
 export { createAgentPorts, draftModeRefusal, previewFor, codexReadPort, sceneDraftPort, synopsisFillPort, continuityScanPort } from './agent/ports.js';
 // The reads an MCP resource serves, whole, and the node lookups the server's prompts share with the tools (extensibility §9).
 export { codexInOrder, readBody, readCodexEntry, readNotes, type BodyRead, type NotesRead } from './resource-reads.js';
@@ -128,6 +152,7 @@ export {
   reviewCostOf,
   stagedOf,
   type CardItem,
+  type DelegationView,
   type EditableSteps,
   type PlanCardView,
   type PlanEdit,

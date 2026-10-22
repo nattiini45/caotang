@@ -11,11 +11,13 @@ import type { CommandError, Result } from '@caotang/bus';
 import { err, ok } from '@caotang/bus';
 
 import type { PlanPreflight, PlanStep } from '../plan.js';
+import type { SubagentName } from '../tools/delegate.js';
 import type { CallParams } from '../types.js';
 import { isRecord } from '../util.js';
 import { DEFAULT_MAX_OUTPUT_TOKENS, type ModelLimits, type PromptPreview } from '@caotang/context';
 import type { ThinkingLevel } from '@caotang/gateway';
 import type { ReviewPlan } from '@caotang/coherence';
+import type { TraceEntry } from './events.js';
 
 /* ------------------------------------------------------------------ *
  * Status cards — one per tool call, with the lifecycle.
@@ -23,6 +25,25 @@ import type { ReviewPlan } from '@caotang/coherence';
 
 /** pending-approval → running → done | failed, or pending-approval → cancelled (agent-harness §8). */
 export type StatusState = 'pending-approval' | 'running' | 'done' | 'cancelled' | 'failed';
+
+/**
+ * What a delegated agent's call shows beside the generic card (agent-harness §8): the agent, the model calls reserved for it, how it
+ * ended, its notes once it has finished, and its own trace rows as they happen. No new card kind: it rides on the `agent.delegate` call's card.
+ */
+export interface DelegationView {
+  readonly agent: SubagentName;
+  readonly agentPath: string;
+  /** The model calls the turn reserved for the agent. */
+  readonly reserved: number;
+  /** `running` until the agent answers; then how it ended. */
+  readonly outcome: 'running' | 'done' | 'partial' | 'failed';
+  /** The agent's notes, once it has finished: what the planner reads of its work. */
+  readonly result?: string;
+  /** How many steps the agent proposed. */
+  readonly proposed?: number;
+  /** The agent's own tool rows, in order (`TraceEntry.agentPath` is this card's). */
+  readonly trace: readonly TraceEntry[];
+}
 
 export interface StatusCard {
   readonly id: string;
@@ -40,6 +61,8 @@ export interface StatusCard {
   readonly startedAt?: number;
   /** When the call reached done, failed or cancelled, in epoch milliseconds. Display only. */
   readonly finishedAt?: number;
+  /** Set on an `agent.delegate` call's card (agent-harness §8). */
+  readonly delegation?: DelegationView;
 }
 
 const NEXT: Readonly<Record<StatusState, readonly StatusState[]>> = {
@@ -133,6 +156,8 @@ export interface PlanStepView {
   readonly context?: PromptPreview;
   /** The step's estimated cost at the profile's price, when the step carries one: a coherence review's plan (coherence.md §5.3). */
   readonly cost?: StepCost;
+  /** The delegated agent that proposed this step, when the step is the one it proposed as it was proposed (agent-harness §2). An edited step has none. */
+  readonly proposedBy?: string;
 }
 
 export interface PlanCardView {
@@ -434,6 +459,8 @@ export function planCardOf(args: {
   readonly previews: readonly (unknown | undefined)[];
   readonly risks: readonly string[];
   readonly staged?: readonly StagedView[];
+  /** The delegated agent each step was proposed by, aligned to the steps. */
+  readonly proposedBy?: readonly (string | undefined)[];
   readonly notice?: string;
 }): PlanCardView {
   const badges = dependencyBadges(args.state.steps, args.state.origins, args.state.superseded);
@@ -442,6 +469,7 @@ export function planCardOf(args: {
     const origin = args.state.origins[index] ?? index;
     const context = staged[index]?.context;
     const cost = staged[index]?.cost;
+    const proposer = args.proposedBy?.[index];
     const shared = {
       index,
       origin,
@@ -454,6 +482,7 @@ export function planCardOf(args: {
       cut: staged[index]?.cut === true,
       ...(context === undefined ? {} : { context }),
       ...(cost === undefined ? {} : { cost }),
+      ...(proposer === undefined ? {} : { proposedBy: proposer }),
     };
     if (args.state.completed.includes(origin)) return { ...shared, status: 'done' };
     const checked = args.preflight.steps.find((entry) => entry.index === index);

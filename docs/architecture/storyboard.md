@@ -67,7 +67,7 @@ interface DialogueCoverage { kind: 'fountain-element'; docId: string; anchor: Te
 - The prompt section (video-prompt-pack.md §2) keeps the text typed for each target model while the shot stays open, so a switch of vendor and back loses none of it. A stored prompt that changes under the editor (an undo, or an agent's apply to this shot) replaces that vendor's unsaved text with the stored values, and the section says so.
 - Image editor = **none in v1** (crop/sketch = parked; Storyboarder's Shot Generator is a product-scale feature). Import-only posture.
 
-## 4. Harness tools (the track's rows 18 and 19; the registry holds 32 rows, agent-harness §10)
+## 4. Harness tools (the track's rows 18 and 19; the registry holds 33 rows, agent-harness §10)
 
 Two tools, added **with the storyboard module** (same metadata discipline: `{name, risk, undoable, response_token_cap, description}`; callId dedupe; model-facing errors). The numbers in the first column are the track's own, from before the registry was counted in full; the registry's count is agent-harness §10's. On the MCP server, `shots.annotate` is listed on a writable server, and `shots.derive` is not, because it needs a model provider and the server holds none (mcp-server README).
 

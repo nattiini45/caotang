@@ -18,11 +18,12 @@
  */
 
 import { err, ok, type CommandError, type Result } from '@caotang/bus';
-import type { ToolDef } from '@caotang/gateway';
+import type { ToolCall as WireToolCall, ToolDef } from '@caotang/gateway';
 import { clipChars, EXCERPT_CHARS, type ExternalToolDescriptor } from '@caotang/mcp-client';
 
 import { checkParams } from '../validate.js';
 import { PLAN_STEPS_MAX, planParams, type AskBack, type Plan, type PlanPreflight } from '../plan.js';
+import type { CallParams } from '../types.js';
 import type { ToolListing } from '../runtime.js';
 import { isRecord } from '../util.js';
 
@@ -30,6 +31,8 @@ import { isRecord } from '../util.js';
 export const PLANNER_SYSTEM_PREFIX = "You are Caotang's agent.";
 /** The first words of a drafting call's system message: prose, synopses or findings for one tool. */
 export const DRAFT_SYSTEM_PREFIX = 'You are drafting prose for Caotang.';
+/** The first words of a delegated agent's system message (agent-harness §2, "Delegate"). The mock scripts match on it (gateway mock). */
+export const SUBAGENT_SYSTEM_PREFIX = 'You are a delegated agent for Caotang.';
 
 /** The shape of a reply, as the gateway's schema hint states it. Derived from the plan schema for the steps. */
 export const REPLY_SCHEMA_HINT = {
@@ -121,6 +124,8 @@ export function parseReply(content: string): Result<Reply, string> {
 export interface PlannerSurface {
   readonly loaded?: readonly ToolListing[];
   readonly all?: boolean;
+  /** A closed allowlist of names: only these rows are offered, whatever else the surface would admit. A delegated agent's listing is built with it. */
+  readonly only?: readonly string[];
 }
 
 /**
@@ -134,9 +139,14 @@ export function plannerTools(tools: readonly ToolListing[], surface: PlannerSurf
   // writes its findings to the inbox, where continuity.scan's stay in the transcript. The tool stays callable for older turns.
   const reviewWired = tools.some((tool) => tool.name === 'coherence.review' && tool.callable && tool.wired);
   const loaded = new Set(surface.loaded?.map((tool) => tool.name));
+  const only = surface.only === undefined ? undefined : new Set(surface.only);
   return tools.filter(
     (tool) =>
-      tool.callable && tool.wired && !(reviewWired && tool.name === 'continuity.scan') && (surface.all === true || tool.load === 'core' || loaded.has(tool.name)),
+      tool.callable &&
+      tool.wired &&
+      !(reviewWired && tool.name === 'continuity.scan') &&
+      (only === undefined || only.has(tool.name)) &&
+      (surface.all === true || tool.load === 'core' || loaded.has(tool.name)),
   );
 }
 
@@ -159,18 +169,38 @@ function clipExternalDescription(description: string): string {
  * `tool.search` returned; a native tool's description is Caotang's own text (in full) and an
  * external tool's is clipped to the spec's excerpt budget so the model's ambient context stays
  * bounded. The list is built fresh for each request, so a tool a mid-turn search loaded joins the
- * next request.
+ * next request. `only` closes the list to the named rows (a delegated agent's), and then no external tool is declared.
  */
 export function plannerToolDefs(
   tools: readonly ToolListing[],
   loadedNative: readonly ToolListing[],
   externals: readonly ExternalToolDescriptor[],
   all = false,
+  only?: readonly string[],
 ): ToolDef[] {
   return [
-    ...plannerTools(tools, { loaded: loadedNative, all }).map((tool) => ({ name: tool.name, description: tool.description, parameters: tool.schema })),
-    ...externals.map((tool) => ({ name: tool.qualifiedName, description: clipExternalDescription(tool.description), parameters: tool.inputSchema })),
+    ...plannerTools(tools, { loaded: loadedNative, all, ...(only === undefined ? {} : { only }) }).map((tool) => ({ name: tool.name, description: tool.description, parameters: tool.schema })),
+    ...(only === undefined ? externals : []).map((tool) => ({ name: tool.qualifiedName, description: clipExternalDescription(tool.description), parameters: tool.inputSchema })),
   ];
+}
+
+/**
+ * A native call's arguments, parsed. A call that names no arguments is read as none; one whose JSON does
+ * not parse or is not an object is a refusal the model corrects, like a JSON reply it cannot parse.
+ */
+export function callArgs(call: WireToolCall): { readonly params?: CallParams; readonly error?: string } {
+  const source = call.argumentsJson.trim();
+  if (source === '') return { params: {} };
+  let value: unknown;
+  try {
+    value = JSON.parse(source);
+  } catch {
+    return { error: 'the call\'s arguments were not valid JSON, so it did not run: send the call again with its arguments as one JSON object' };
+  }
+  if (!isRecord(value)) {
+    return { error: `the call's arguments must be one JSON object, and this call sent ${value === null ? 'null' : Array.isArray(value) ? 'an array' : `a ${typeof value}`}: send the call again with its arguments as one JSON object` };
+  }
+  return { params: value };
 }
 
 const JSON_WIRE_RULES = [
