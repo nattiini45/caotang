@@ -69,13 +69,36 @@ async function settled(session: ProjectSession): Promise<number> {
   throw new Error('the image listings did not settle');
 }
 
-/** Waits until the version has moved, and answers the version it moved to. */
+/**
+ * Waits until the version has moved.
+ *
+ * The session says when it has moved (its own change notice), so the wait ends at the moment the
+ * listing that moved it is done. A timer would add its own round to every wait, and the latch that
+ * holds one moment at the front of the tab is a window of fixed length: a wait that spends part of
+ * that window on a timer is a wait that can miss the window and see a listing the product never
+ * made.
+ */
 async function moved(session: ProjectSession, from: number): Promise<void> {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    if (session.assetsVersion() > from) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  throw new Error('the images were not listed again');
+  if (session.assetsVersion() > from) return;
+  await new Promise<void>((resolve, reject) => {
+    let done = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let detach: (() => void) | null = null;
+    const finish = (failure: Error | null): void => {
+      if (done) return;
+      done = true;
+      if (timer !== null) clearTimeout(timer);
+      if (detach !== null) detach();
+      if (failure === null) resolve();
+      else reject(failure);
+    };
+    timer = setTimeout(() => finish(new Error('the images were not listed again')), 2000);
+    detach = session.subscribe(() => {
+      if (session.assetsVersion() > from) finish(null);
+    });
+    // The version can have moved between the check above and the subscription, so it is asked again.
+    if (session.assetsVersion() > from) finish(null);
+  });
 }
 
 test('the images are listed again when the tab comes back to the front', async () => {
@@ -95,14 +118,18 @@ test('the images are listed again when the tab comes back to the front', async (
   // The window comes back to the front: the images are listed again, once.
   fakeWindow.dispatchEvent(new Event('focus'));
   await moved(session, before);
-  expect(await settled(session)).toBe(before + 1);
 
   // The document's visibility is the other half of the same moment, and the latch that answers a moment
   // holds it: the images are not listed a second time for the moment the focus already answered.
+  // The signal is posted as soon as the listing has moved, and not after the version has settled: the
+  // latch holds the moment for a window of fixed length, and a wait that spends part of that window
+  // can miss it and see the listing of a later moment.
   const same = session.assetsVersion();
   fakeDocument.dispatchEvent(new Event('visibilitychange'));
   await new Promise((resolve) => setTimeout(resolve, 200));
   expect(session.assetsVersion()).toBe(same);
+  // And the one moment cost one listing: the version moved once, and not twice.
+  expect(await settled(session)).toBe(before + 1);
 
   // A later moment is its own listing: the document's visibility, once the latch has let go.
   const after = session.assetsVersion();
