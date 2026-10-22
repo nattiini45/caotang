@@ -336,7 +336,7 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
     name: 'agent.delegate',
     risk: 'read',
     undoable: false,
-    response_token_cap: 3000,
+    response_token_cap: 6000,
     descriptionVersion: 1,
     description: `Hand a self-contained piece of reading to a built-in helper agent with its own context, its own read tools and its own small budget of model calls, and get back only its notes. Agents: reader — ${SUBAGENT_BLURBS.reader}; general — ${SUBAGENT_BLURBS.general}. The agent sees only your brief and the scope you name, none of this conversation. Its result carries no approval: it cannot make a change, and a change it proposes happens only if you put it in your own plan and the writer approves that plan. Read-only. A delegate the turn cannot afford is refused: ask for a narrower scope.`,
     surface: 'extension',
