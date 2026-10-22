@@ -203,3 +203,23 @@ describe('convertLine — what it never does', () => {
     expect(convertLine(note, note.indexOf('note]]'), 'action')).toBeNull();
   });
 });
+
+describe('convertLine — every element the menu lists is handled', () => {
+  const SCENE = join('INT. HOUSE - DAY', '', 'ANNA', 'Hello there.', '', 'Anna waits.');
+
+  it('converts to each of LINE_ELEMENT_TYPES without reaching an unhandled case', () => {
+    expect(LINE_ELEMENT_TYPES).toHaveLength(9);
+    for (const target of LINE_ELEMENT_TYPES) {
+      // The first line has nothing above it, the last has action above it, and the dialogue line has a cue above it.
+      for (const caret of [0, SCENE.indexOf('Hello'), SCENE.indexOf('Anna waits.')]) {
+        expect(() => convertLine(SCENE, caret, target), `${target} at ${caret}`).not.toThrow();
+      }
+    }
+  });
+
+  it('throws on an element it does not know, rather than treating it as some other element', () => {
+    const unknown = 'section' as unknown as LineElementType;
+    expect(() => convertLine(SCENE, 0, unknown)).toThrow('Unhandled line element: section');
+    expect(() => convertLine(SCENE, SCENE.indexOf('Anna waits.'), unknown)).toThrow('Unhandled line element: section');
+  });
+});

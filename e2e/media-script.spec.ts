@@ -271,3 +271,128 @@ test('the scene\'s heading and cue carry their decoration after a reload', async
   await page.getByRole('radio', { name: 'Source', exact: true }).click();
   await expect(page.locator('.src-layer .tok-heading')).toHaveText('INT. HOUSE - DAY');
 });
+
+/** The element menu's chord family for this browser, which the Element button names. Playwright's Chromium reports its host OS. */
+async function onMac(page: Page): Promise<boolean> {
+  return page.evaluate(() => (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform?.toLowerCase().startsWith('mac') ?? navigator.platform.toLowerCase().startsWith('mac'));
+}
+
+/** The chord for an element digit, spelled for Playwright, on the platform the browser reports. */
+async function chord(page: Page, digit: number): Promise<string> {
+  return `${(await onMac(page)) ? 'Meta+Alt' : 'Control+Shift'}+Digit${digit}`;
+}
+
+test('a chord on the Source tab turns the caret\'s line into the element of that digit, as the menu\'s digit does', async ({ page }) => {
+  await createProject(page, PROJECT);
+  await makeScene(page);
+  await page.getByRole('radio', { name: 'Source', exact: true }).click();
+  const lines = ['INT. HOUSE - DAY', '', 'marcus', 'Hi.'];
+  await source(page).fill(lines.join('\n'));
+  await source(page).press('ArrowUp');
+  await source(page).press('End');
+
+  // The menu shows the chord beside each digit, in the platform's family.
+  await page.keyboard.press('ControlOrMeta+e');
+  const menu = page.getByRole('menu', { name: 'Element of this line' });
+  const family = (await onMac(page)) ? 'Cmd+Alt' : 'Ctrl+Shift';
+  await expect(menu.getByRole('menuitemradio', { name: 'Character' })).toContainText(`${family}+3`);
+  await expect(menu.getByRole('menuitemradio', { name: 'Page break' })).toContainText(`${family}+9`);
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Element', exact: true })).toHaveAttribute('title', expect.stringContaining(`${family}+1 to 9`));
+
+  // Chord 3 is Character, as the digit 3 is in the menu: the lower-case cue is forced with @, and the caret stays after it.
+  await source(page).focus();
+  await page.keyboard.press(await chord(page, 3));
+  await expect(source(page)).toHaveValue(['INT. HOUSE - DAY', '', '@marcus', 'Hi.'].join('\n'));
+  await expect(source(page)).toBeFocused();
+  // A line that already is the element is left alone, and no character is typed.
+  await page.keyboard.press(await chord(page, 3));
+  await expect(source(page)).toHaveValue(['INT. HOUSE - DAY', '', '@marcus', 'Hi.'].join('\n'));
+
+  // The dialogue line below becomes a parenthetical with chord 4.
+  await source(page).press('ArrowDown');
+  await source(page).press('End');
+  await page.keyboard.press(await chord(page, 4));
+  await expect(source(page)).toHaveValue(['INT. HOUSE - DAY', '', '@marcus', '(Hi.)'].join('\n'));
+
+  // The change is an ordinary edit of the scene, saved as typing is.
+  await waitForSaved(page);
+  const id = await idOf(page, 'Untitled scene');
+  await expect.poll(() => bodyOf(page, id)).toContain('(Hi.)');
+});
+
+test('a chord for an element the line cannot be says so on the status line and changes nothing', async ({ page }) => {
+  await createProject(page, PROJECT);
+  await makeScene(page);
+  await page.getByRole('radio', { name: 'Source', exact: true }).click();
+  await source(page).fill('INT. HOUSE - DAY');
+  // Dialogue needs a cue above it, so chord 5 cannot apply to a heading.
+  await page.keyboard.press(await chord(page, 5));
+  await expect(page.getByRole('status').filter({ hasText: 'This line cannot be dialogue here.' })).toBeVisible();
+  await expect(source(page)).toHaveValue('INT. HOUSE - DAY');
+});
+
+test('AltGraph with a digit, Ctrl+Alt and a held chord change nothing', async ({ page }) => {
+  await createProject(page, PROJECT);
+  await makeScene(page);
+  await page.getByRole('radio', { name: 'Source', exact: true }).click();
+  await source(page).fill('Anna waits.');
+  const mac = await onMac(page);
+  const fire = (init: { ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; shiftKey?: boolean; repeat?: boolean; modifierAltGraph?: boolean }) =>
+    source(page).evaluate((field, eventInit) => {
+      const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, code: 'Digit3', key: '3', ...eventInit });
+      field.dispatchEvent(event);
+      return event.defaultPrevented;
+    }, init);
+  const own = mac ? { metaKey: true, altKey: true } : { ctrlKey: true, shiftKey: true };
+  // AltGraph is down: on Windows layouts that is Ctrl+Alt, and the layout types a character with it.
+  expect(await fire({ ...own, modifierAltGraph: true })).toBe(false);
+  expect(await fire({ ctrlKey: true, altKey: true, modifierAltGraph: true })).toBe(false);
+  expect(await fire({ ctrlKey: true, altKey: true })).toBe(false);
+  expect(await fire({ ...own, repeat: true })).toBe(false);
+  await expect(source(page)).toHaveValue('Anna waits.');
+  // The chord itself, sent the same way, is taken.
+  expect(await fire(own)).toBe(true);
+  await expect(source(page)).toHaveValue('@Anna waits.');
+});
+
+test('Ctrl+Z after a chord leaves the text a menu choice leaves', async ({ page }) => {
+  // Each route runs on a scene of its own, so the browser's undo history of one does not reach the other.
+  const afterUndo: Record<'menu' | 'chord', string> = { menu: '', chord: '' };
+  for (const route of ['menu', 'chord'] as const) {
+    await createProject(page, `${PROJECT} ${route}`);
+    await makeScene(page);
+    await page.getByRole('radio', { name: 'Source', exact: true }).click();
+    await source(page).fill('Anna waits.');
+    if (route === 'menu') {
+      await page.getByRole('button', { name: 'Element', exact: true }).click();
+      await page.keyboard.press('7');
+    } else {
+      await page.keyboard.press(await chord(page, 7));
+    }
+    await expect(source(page)).toHaveValue('> Anna waits. <');
+    await page.keyboard.press('ControlOrMeta+z');
+    afterUndo[route] = await source(page).inputValue();
+  }
+  expect(afterUndo.chord).toBe(afterUndo.menu);
+});
+
+test('a browser that reports a Mac gets the Cmd+Alt chords, and its Ctrl+Shift chord does nothing', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'userAgentData', { value: undefined });
+    Object.defineProperty(navigator, 'platform', { value: 'MacIntel' });
+  });
+  await createProject(page, PROJECT);
+  await makeScene(page);
+  await page.getByRole('radio', { name: 'Source', exact: true }).click();
+  await source(page).fill('Anna waits.');
+  await page.keyboard.press('Control+Shift+Digit3');
+  await expect(source(page)).toHaveValue('Anna waits.');
+  await page.getByRole('button', { name: 'Element', exact: true }).click();
+  await expect(page.getByRole('menuitemradio', { name: 'Character' })).toContainText('Cmd+Alt+3');
+  await page.keyboard.press('Escape');
+  await source(page).focus();
+  await page.keyboard.press('Meta+Alt+Digit3');
+  await expect(source(page)).toHaveValue('@Anna waits.');
+});
