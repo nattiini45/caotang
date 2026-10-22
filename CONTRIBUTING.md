@@ -32,7 +32,7 @@ All three must pass before a pull request is merged. CI runs the same commands o
 
 CI on a pull request from a fork runs with a read-only token (`permissions: contents: read`), so a workflow run cannot change the repository. If this is your first contribution, a maintainer approves your pull request's first CI run before it starts; this is a repository setting, and it only means the checks wait a little.
 
-Tests run against the built-in mock and demo providers. They never need a real provider key, and no test may require one. To run the end-to-end suite beside another copy of Caotang, set `CAOTANG_E2E_PORT` (see the README).
+Tests run against the built-in mock and demo providers. They never need a real provider key, and no test may require one. The real-key provider round (`e2e/provider-smoke.spec.ts`) is separate and opt-in: it skips without keys, and in CI it runs only when a maintainer dispatches the `provider-smoke` workflow from `main`, never on a pull request. To run the end-to-end suite beside another copy of Caotang, set `CAOTANG_E2E_PORT` (see the README).
 
 If your change adds or upgrades a dependency, regenerate the licence notices with `node tools/third-party-notices.mjs --write`; a test fails when they no longer match the lockfile.
 
