@@ -46,11 +46,12 @@ interface PendingRestore {
 }
 
 export function AgentPanel({ session, agent, startIntent, open, onToggle, sample }: AgentPanelProps): ReactNode {
-  const version = useSession(session);
+  useSession(session);
   const snapshot = useSyncExternalStore(agent.subscribe, agent.snapshot);
   const report = useReport();
   // The pictures' file names, by id: a codex step's visual references are shown by name on its card (plan-preview.ts).
-  const pictures = useAssetRecords(session.assets.artifactFs(), version);
+  // The images are listed when they can have changed, not on every change of the session (media/hooks.ts).
+  const pictures = useAssetRecords(session.assets.artifactFs(), session.assetsVersion());
   const pictureNames = useMemo(() => new Map([...pictures.values()].map((picture) => [picture.id, picture.fileName] as const)), [pictures]);
   const [intent, setIntent] = useState('');
   const [restoring, setRestoring] = useState<PendingRestore | null>(null);

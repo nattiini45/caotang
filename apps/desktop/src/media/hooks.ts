@@ -23,9 +23,10 @@ export interface AssetListing {
 }
 
 /**
- * The asset records of the project's `assets/` folder, keyed by asset id. `version` is the session's version, so a
- * new asset appears on the next change the session makes. `listing` says whether that list has come back: a picture that
- * is not in it is only missing once it has. With no folder the list cannot be read, so the listing is `failed`.
+ * The asset records of the project's `assets/` folder, keyed by asset id. `version` is the session's assets version
+ * (session.ts): it moves when the images have been listed again, so a new asset appears on the next listing and not on every change of
+ * the session. `listing` says whether that list has come back: a picture that is not in it is only missing once it has. With no folder
+ * the list cannot be read, so the listing is `failed`.
  *
  * `assets` must keep its identity while the project is open: the effect below runs on it. The App memoizes the one
  * `ArtifactFs` per attached folder (README, "Stable identity"). A new object each render lists the folder again.

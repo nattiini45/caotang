@@ -44,6 +44,7 @@ import {
   type FolderSaveFacts,
 } from '../../apps/desktop/src/app/integrity-model.js';
 import { acquireProjectLease, leaseName, ProjectOpenElsewhereError } from '../../apps/desktop/src/app/project-lease.js';
+import { rememberedFolder } from '../../apps/desktop/src/app/folder-memory.js';
 import {
   answerFolderDiffers,
   completeRecovery,
@@ -1497,6 +1498,54 @@ function handleDb(): AppDb {
   };
 }
 
+/**
+ * A store whose project row refuses a write that carries declined files — the
+ * write that puts a held file back. Every other write goes to the store it
+ * wraps, so the put-back of a copy fails and nothing else does.
+ */
+function storeRefusingHeldFiles(store: RuntimeStore): RuntimeStore {
+  const db = new Proxy(store.db, {
+    get(target: IDBDatabase, property: string | symbol) {
+      if (property !== 'transaction') {
+        const value = Reflect.get(target, property) as unknown;
+        return typeof value === 'function' ? value.bind(target) : value;
+      }
+      return (...args: unknown[]) => {
+        const tx = (target.transaction as (...a: unknown[]) => IDBTransaction)(...args);
+        return new Proxy(tx, {
+          get(txTarget: IDBTransaction, txProperty: string | symbol) {
+            if (txProperty !== 'objectStore') {
+              const value = Reflect.get(txTarget, txProperty) as unknown;
+              return typeof value === 'function' ? value.bind(txTarget) : value;
+            }
+            return (name: string) => {
+              const objectStore = txTarget.objectStore(name);
+              return new Proxy(objectStore, {
+                get(storeTarget: IDBObjectStore, storeProperty: string | symbol) {
+                  if (storeProperty !== 'put') {
+                    const value = Reflect.get(storeTarget, storeProperty) as unknown;
+                    return typeof value === 'function' ? value.bind(storeTarget) : value;
+                  }
+                  return (value: unknown, key?: IDBValidKey) => {
+                    const declined = (value as { declinedDocFiles?: unknown }).declinedDocFiles;
+                    if (Array.isArray(declined) && declined.length > 0) {
+                      throw new Error('the store refused the write');
+                    }
+                    return key === undefined
+                      ? storeTarget.put(value as never)
+                      : storeTarget.put(value as never, key);
+                  };
+                },
+              });
+            };
+          },
+        });
+      };
+    },
+  });
+  return { ...store, db: db as IDBDatabase };
+}
+
 // Linking a copy to its folder: a reopened folder whose book differs from the stored
 // project asks, rather than copying without a word.
 test.describe('a folder whose version differs from this browser\'s asks which to keep', () => {
@@ -1589,6 +1638,107 @@ test.describe('a folder whose version differs from this browser\'s asks which to
     const again = await openProject(store, id);
     expect(again.state.documents.get(IDS.sceneA)?.body).toBe('Typed in this browser');
     await again.close();
+  });
+
+  /**
+   * A browser's copy whose Scene A the load held: the file's bytes are not UTF-8, so the
+   * state has no text for it and names the file in `declinedDocFiles`.
+   *
+   * The row is written the way the load's own write writes it (`writeProjectState`),
+   * because a session's later writes keep the row's record rather than restating it: the
+   * record belongs to the load, not to an edit.
+   */
+  async function heldCopy(
+    name: string,
+  ): Promise<{ store: RuntimeStore; root: ReturnType<typeof memoryFolder>; id: string; held: string }> {
+    const state = project();
+    const root = memoryFolder(name);
+    await writeProject(folderArtifactFs(root), state);
+    const store = await openRuntimeStore(new MemoryIndexedDb());
+    const first = await openFolder(store, root);
+    if (first.kind !== 'opened') throw new Error('the folder should open');
+    await first.opened.session.close();
+    const held = `${IDS.sceneA}.md`;
+    const heldState = await readProjectState(store, state.manifest.project.id);
+    heldState.declinedDocFiles.add(held);
+    heldState.documents.delete(IDS.sceneA);
+    await writeProjectState(store, heldState, { now: new Date() });
+    return { store, root, id: state.manifest.project.id, held };
+  }
+
+  // A file the load held is named on the state, and the state holds no text for it. The
+  // internal bundle the 'use-folder' answer holds before it removes this browser's copy
+  // cannot carry either: it writes an empty document in place of the held one. So the
+  // copy that is put back after a failed adopt has to be given the held files again, or
+  // the next save to the folder writes that empty document over the author's file.
+  test('"Use the folder\'s version" that fails to open puts back the copy with the files the load held', async () => {
+    setActiveAppDb(handleDb());
+    try {
+      const { store, root, id, held } = await heldCopy('Held Book');
+      const asked = await openFolder(store, root);
+      if (asked.kind !== 'differs') throw new Error('the open should ask');
+      const broken = { ...asked.differs, folderLog: [{ startedAt: 'not a time' } as unknown as SessionRecord] };
+      await expect(answerFolderDiffers(store, broken, 'use-folder')).rejects.toThrow();
+
+      const restored = await openProject(store, id);
+      // The file is named again, and the state holds no text for it.
+      expect(restored.state.declinedDocFiles.has(held)).toBe(true);
+      expect(restored.state.documents.has(IDS.sceneA)).toBe(false);
+      // And a save to the folder leaves the author's file as it is.
+      expect(await saveFolder(restored, root)).toEqual({ kind: 'saved' });
+      expect(await folderArtifactFs(root).read(`docs/${held}`)).toContain('Four little words here');
+      await restored.close();
+    } finally {
+      setActiveAppDb(null);
+    }
+  });
+
+  // A store that refuses the write that puts the held files back: the put-back
+  // of this browser's copy fails, and the failure must not skip the close of
+  // the session — the lease would stay held by a session nobody has — nor the
+  // records the removal forgot, and the writer must be told why the *open*
+  // failed rather than why the store refused the write.
+  test('"Use the folder\'s version" whose put-back cannot write the held files still closes the copy, keeps its records, and says why the open failed', async () => {
+    test.setTimeout(20_000);
+    setActiveAppDb(handleDb());
+    try {
+      await withLocks(async () => {
+        const { store, root, id } = await heldCopy('Held Book, Refused');
+        const asked = await openFolder(store, root);
+        if (asked.kind !== 'differs') throw new Error('the open should ask');
+        const broken = { ...asked.differs, folderLog: [{ startedAt: 'not a time' } as unknown as SessionRecord] };
+
+        const failure = await answerFolderDiffers(storeRefusingHeldFiles(store), broken, 'use-folder').then(
+          () => {
+            throw new Error('the answer should have failed');
+          },
+          (error: unknown) => error,
+        );
+
+        // The writer is told why the open failed, and that the copy could not be
+        // put back either: the store's refusal is not why the open failed.
+        expect(failure).toBeInstanceOf(Error);
+        const message = (failure as Error).message;
+        expect(message).toContain('sessions.jsonl record');
+        expect(message).toContain('could not be put back');
+        // And the adopt's own error is the cause, so nothing about it is lost.
+        expect((failure as Error).cause).toBeInstanceOf(Error);
+
+        // The lease is back: the session that could not write the held files
+        // was closed all the same, so the project is not held by a session
+        // nobody has.
+        const lease = await acquireProjectLease(id);
+        expect(lease).not.toBeNull();
+        lease?.release();
+
+        // The copy is in the list as it was, and the folder it belongs to is
+        // remembered, as the removal forgot it.
+        expect(await listProjectIds(store)).toEqual([id]);
+        expect(await rememberedFolder(id)).not.toBeNull();
+      }, lockManager());
+    } finally {
+      setActiveAppDb(null);
+    }
   });
 
   test('"Use the folder\'s version" that fails to open puts back the copy\'s folder records: still refused in its original\'s folder, saved straight into its own', async () => {
