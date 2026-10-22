@@ -1682,6 +1682,106 @@ describe('§9 — the body is produced when the write needs it, not when the key
     expect(writer.peakConcurrency).toBe(1);
   });
 
+  it('a producer that edits the document and then fails does not fail the newer edit', async () => {
+    // The failure belongs to the edit the producer was made for. A newer edit
+    // that replaced it has not failed: recording the old error on it would make
+    // a read answer `null` for a producer that is healthy.
+    const { autosave, clock, writer } = harness();
+    autosave.open(DOC, { body: 'a', revision: 0 });
+
+    let newerReads = 0;
+    autosave.noteEdit(DOC, () => {
+      // A newer edit, made while the producer ran, and then the failure.
+      autosave.noteEdit(DOC, () => {
+        newerReads += 1;
+        return 'the newer edit';
+      });
+      throw new Error('the editor is mid-teardown');
+    });
+
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS);
+
+    // Nothing was written — the producer that failed yielded no body — but the
+    // newer edit is healthy, and a read names it.
+    expect(writer.calls).toHaveLength(0);
+    expect(autosave.pendingBodyOf(DOC)).toBe('the newer edit');
+    expect(newerReads).toBe(1);
+
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS);
+
+    expect(writer.calls).toHaveLength(1);
+    expect(writer.calls[0]?.body).toBe('the newer edit');
+  });
+
+  it('a producer that reseats the document writes nothing over the rebase', async () => {
+    // A reseat is not a newer edit: it drops the pending body on purpose and
+    // names the body the store holds now. Nothing may be written over it.
+    const { autosave, clock, writer } = harness();
+    autosave.open(DOC, { body: 'a', revision: 0 });
+
+    autosave.noteEdit(DOC, () => {
+      void autosave.reseat(DOC, { body: 'the rebased body', revision: 1 });
+      return 'the produced body';
+    });
+
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS);
+
+    // The rebase's contract is that it writes nothing, and the slot is the
+    // rebase's now: clean, at the body it named, with nothing waiting.
+    expect(writer.calls).toHaveLength(0);
+    expect(clock.armed).toBe(0);
+    expect(autosave.status(DOC)).toMatchObject({ state: 'clean', dirty: false, revision: 1 });
+    expect(autosave.pendingBodyOf(DOC)).toBeNull();
+  });
+
+  it('a producer that asks for the pending body does not run itself twice', async () => {
+    // A producer runs inside the scheduler, so it may call back into it. The
+    // read is refused: running the producer again would render the text twice
+    // for one edit, and would drop the flag that says a flush owns the write.
+    const { autosave, clock, writer } = harness();
+    autosave.open(DOC, { body: 'a', revision: 0 });
+
+    let renders = 0;
+    let read: string | null = 'not read';
+    autosave.noteEdit(DOC, () => {
+      renders += 1;
+      read = autosave.pendingBodyOf(DOC);
+      return 'typed text';
+    });
+
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS);
+
+    expect(renders).toBe(1);
+    expect(read).toBeNull();
+    expect(writer.calls).toHaveLength(1);
+    expect(writer.calls[0]?.body).toBe('typed text');
+    expect(writer.peakConcurrency).toBe(1);
+  });
+
+  it('a notice after a write carries the body that was written, when a newer edit replaced the producer', async () => {
+    // The body a write stores is the newest the scheduler knows — unless a
+    // newer edit is waiting with a body of its own. A pending body that has not
+    // been produced yet is not in here, so the written one is.
+    const { autosave, clock, writer } = harness();
+    autosave.open(DOC, { body: 'a', revision: 0 });
+
+    const bodies: string[] = [];
+    autosave.subscribe((event) => bodies.push(event.body));
+
+    autosave.noteEdit(DOC, () => {
+      // A newer edit, made while the producer ran, whose body is a producer of
+      // its own and has not been produced yet.
+      autosave.noteEdit(DOC, () => 'the newer edit');
+      return 'the first edit';
+    });
+
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS);
+
+    expect(writer.calls).toHaveLength(1);
+    expect(writer.calls[0]?.body).toBe('the first edit');
+    expect(bodies.at(-1)).toBe('the first edit');
+  });
+
   it('a string body still works exactly as it did', async () => {
     // The union is backward compatible: a caller that already has the text keeps
     // handing it over, and nothing about the window changes.

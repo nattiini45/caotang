@@ -475,8 +475,11 @@ export interface Autosave {
    * this read's one side effect**: producing the body caches it, so the flush
    * does not ask the producer a second time.
    *
-   * `null` means "there is no body to name", and that is two things: nothing is
-   * waiting, or the waiting body is a producer that failed and could not be read.
+   * `null` means "there is no body to name", and that is three things: nothing
+   * is waiting, the waiting body is a producer that failed and could not be
+   * read, or a producer for that document is running right now — a producer
+   * that asks for the body while it runs is refused, so that it is not run
+   * twice for one edit.
    * A producer that fails is **recorded**: the failure goes on `lastError` and the
    * subscribers are told, because the editor's own text is what could not be read
    * and the writer has to know that. The *state* is the flush's, and a read does
@@ -641,6 +644,13 @@ export function createAutosave(options: AutosaveOptions): Autosave {
   function materialize(slot: DocumentSlot, forWrite: boolean): Production | null {
     if (slot.pendingSource === null) return null;
     if (slot.pendingBody !== null) return { ok: true, body: slot.pendingBody };
+    // A producer is running for this document, and it asked the scheduler for
+    // the body while it ran. Asking the producer again here would run it twice
+    // for one edit — against the "once per pending edit" this file promises —
+    // and clearing `producing` on the way out would let a flush that arrives
+    // now start a second write beside the one the outer flush owns. So the
+    // re-entry is refused: there is no body to name yet.
+    if (slot.producing) return null;
     // A producer that has already failed for this edit is not asked again by a
     // read, and a write asks again only while the budget lasts.
     if (slot.producerFailure !== null && !forWrite) {
@@ -660,8 +670,16 @@ export function createAutosave(options: AutosaveOptions): Autosave {
       produced = typeof source === 'string' ? source : source();
     } catch (error) {
       slot.producing = false;
-      slot.producerFailure = producerFailureOf(error);
-      return { ok: false, error: slot.producerFailure };
+      const failure = producerFailureOf(error);
+      // The failure belongs to the edit the producer was made for. A producer
+      // that called back into the scheduler first — a `noteEdit()` of its own —
+      // has been replaced by a newer edit, and that newer edit has not failed:
+      // recording the old error on it would make a read answer `null` for a
+      // producer that is healthy, and would report the newer edit as failed.
+      if (slot.pendingSource === source) {
+        slot.producerFailure = failure;
+      }
+      return { ok: false, error: failure };
     }
     slot.producing = false;
     // The producer may have called back into the scheduler while it ran — a
@@ -777,6 +795,16 @@ export function createAutosave(options: AutosaveOptions): Autosave {
     // A producer that called back into the scheduler replaced the pending edit
     // while it ran. That edit is newer, and it keeps its place in the slot: this
     // flush is about the edit it started with.
+    //
+    // A **reseat** is the other thing such a callback can do, and it is not a
+    // newer edit: it drops the pending body on purpose and names the body the
+    // store holds now. Nothing may be written here — the rebase's contract is
+    // that it writes nothing, and the text this producer read is the text the
+    // rebase discarded. The slot is the reseat's now: clean, at the body it
+    // named, with nothing waiting. So this flush has nothing to do.
+    if (slot.pendingSource === null) {
+      return { docId, outcome: 'skipped' };
+    }
     const replaced = slot.pendingSource !== source;
     if (!replaced) {
       slot.pendingSource = null;
@@ -814,6 +842,12 @@ export function createAutosave(options: AutosaveOptions): Autosave {
       slot.inFlight = null;
       slot.baseRevision = result.revision;
       slot.persistedBody = body;
+      // The body this write stored is the newest the scheduler knows — unless a
+      // newer edit is waiting with a body of its own. A pending body wins: a
+      // notice must not carry the older text that was just stored over the text
+      // the writer is typing. A pending body that has not been produced yet is
+      // not in here, so the written one is.
+      if (slot.pendingBody === null) slot.latestBody = body;
       slot.lastError = null;
       // A write that stored a change is a document write for the open session
       // (sessions.ts). Counted from the two bodies this write took the document
