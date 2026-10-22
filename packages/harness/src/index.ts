@@ -51,10 +51,25 @@ export {
   createAgentSession,
   type AgentSession,
   type AgentSessionOptions,
+  type OfferAnswer,
+  type PlanOffer,
+  type StageOnlyResult,
   type SteerReceipt,
   type SubmitOptions,
   type TurnOptions,
 } from './agent/loop.js';
+// Background runs (agent-harness §2): the offer's threshold, what a plan costs in model calls, and which staged steps have gone stale.
+export {
+  BACKGROUND_OFFER_MIN_CALLS,
+  backgroundEligibility,
+  estimatedModelCalls,
+  estimatedStepCalls,
+  proposalShapeOk,
+  revisionsOf,
+  staleSteps,
+  type BackgroundEligibility,
+  type StepRevisions,
+} from './agent/background.js';
 export { PRELOAD_BY_CONTEXT, preloadContextOf, preloadFor, type PreloadContext } from './agent/preload.js';
 export {
   checkRun,
