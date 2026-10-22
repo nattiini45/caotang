@@ -4,6 +4,9 @@ import { TOOL_SEARCH_META } from '@caotang/mcp-client';
 import { STORYBOARD_TOOL_ENTRIES } from '@caotang/storyboard';
 import { PROMPT_PACK_TOOL_ENTRIES } from '@caotang/video-prompt-pack';
 
+import { PRIMITIVE_TOOLS } from './tools/primitive-tools.js';
+import { PRIMITIVE_TOOL_NAMES } from './tools/primitive.js';
+
 /**
  * The tool registry's metadata — [agent-harness.md §3](../../../docs/architecture/agent-harness.md),
  * as data.
@@ -72,6 +75,8 @@ export const TOOL_NAMES = [
   'prompt.variant',
   'dialogue.draft',
   'dialogue.table',
+  // The allowlisted bus primitives (tools/primitive.ts), each a deferred extension row.
+  ...PRIMITIVE_TOOL_NAMES,
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];
@@ -116,9 +121,9 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
     risk: 'read',
     undoable: false,
     response_token_cap: 4000,
-    descriptionVersion: 1,
+    descriptionVersion: 2,
     description:
-      'Summary of the open project: title, a two-level tree with types and statuses, the status and label vocabulary, total word count, session progress when the app supplies it, the saved-filter count and goals. Read-only. An empty project returns a skeleton that says it has no chapters yet.',
+      'Summary of the open project: title, a two-level tree with types and statuses, the status and label vocabulary, total word count, session progress when the app supplies it, the saved filters (id and name) and the goals. Read-only. An empty project returns a skeleton that says it has no chapters yet.',
     surface: 'v0.1',
     load: 'core',
   },
@@ -304,6 +309,8 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
   ...PROMPT_PACK_TOOL_ENTRIES.map((entry) => entry.meta),
   // The dialogue module's two rows (dialogue-narrative.md §7). Read from the module's own entries.
   ...DIALOGUE_TOOL_ENTRIES.map((entry) => entry.meta),
+  // The allowlisted bus primitives (agent-harness §3). Their risk and undo are their command's descriptor's, read by the factory.
+  ...PRIMITIVE_TOOLS.map((tool) => tool.meta),
 ];
 
 /** Looks a name up in the metadata table. Undefined for a name that is not a tool. */

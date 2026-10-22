@@ -57,7 +57,8 @@ describe('the tool-level permission matrix', () => {
   // (coherence.setFindingStatus, restricted to `fixed` by the coherence tool's own rule); the
   // storyboard and prompt-pack modules' write tools: shots.derive and prompt.draft (write-confirm), and the
   // write-auto shots.annotate; and the dialogue module's dialogue.draft (write-confirm,
-  // dialogue-narrative.md §7); its read, dialogue.table, is not in either list.
+  // dialogue-narrative.md §7); its read, dialogue.table, is not in either list. The five allowlisted bus primitives add
+  // notes.replace and vocabulary.upsert (write-confirm), and synopsis.set, filter.save and goal.save (write-auto).
   it('lists the write-confirm and write-auto tools the matrix covers', () => {
     expect(writeConfirm.sort()).toEqual([
       'binder.restructure',
@@ -67,12 +68,14 @@ describe('the tool-level permission matrix', () => {
       'dialogue.draft',
       'doc.import',
       'export.compile',
+      'notes.replace',
       'prompt.draft',
       'scene.draft',
       'shots.derive',
       'synopsis.fill',
+      'vocabulary.upsert',
     ]);
-    expect(writeAuto.sort()).toEqual(['coherence.setFindingStatus', 'meta.set', 'notes.append', 'shots.annotate']);
+    expect(writeAuto.sort()).toEqual(['coherence.setFindingStatus', 'filter.save', 'goal.save', 'meta.set', 'notes.append', 'shots.annotate', 'synopsis.set']);
   });
 
   it('refuses every write-confirm tool when neither a plan nor a confirmation is present, and names the tool', () => {
@@ -151,6 +154,10 @@ function minimalParams(name: string): Record<string, unknown> {
       return { scope: { mode: 'full' } };
     case 'doc.import':
       return { parent: 'Chapter 1', title: 'Import', body: 'x' };
+    case 'notes.replace':
+      return { doc: LANDING, notes: 'x' };
+    case 'vocabulary.upsert':
+      return { kind: 'status', name: 'In Review', color: '#3fa66a' };
     case 'export.compile':
       return { selection: { root: 'manuscript' }, format: 'md' };
     case 'scene.draft':
