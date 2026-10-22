@@ -196,6 +196,21 @@ describe('the Markdown pack is the reviewable artifact', () => {
     expect(markdown).toContain('<!-- Notes: hold on the ferryman -->');
     expect(markdown).not.toContain('> hold on the ferryman');
   });
+
+  it('closes no comment early, whether the note ends it with --> or with --!>', () => {
+    for (const [note, safe] of [
+      ['a --> b', 'a --&gt; b'],
+      ['a --!> b', 'a --!&gt; b'],
+    ] as const) {
+      const markdown = text(preparePack(ready(REF1, { ...REF2, notes: note }), 'runway-gen4'), 'markdown');
+      expect(markdown).toContain(`<!-- Notes: ${safe} -->`);
+    }
+  });
+
+  it('escapes a backslash in a table cell before the pipe, so the pipe stays inside the cell', () => {
+    const markdown = text(preparePack(ready({ ...REF1, audio: { sfx: 'a\\|b' } }), 'runway-gen4'), 'markdown');
+    expect(markdown).toContain('- sfx: a\\\\\\|b');
+  });
 });
 
 describe('the CSV shot list follows RFC 4180', () => {
