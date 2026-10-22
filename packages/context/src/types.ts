@@ -72,11 +72,15 @@ export interface ToolSignature {
   readonly signature: string;
 }
 
-/** A past agent turn, oldest first. Its outcome and undo group come from the activity rows. */
+/** A past agent turn, oldest first. Its outcome and undo group come from the activity rows, else from the fields below. */
 export interface RecentTurn {
   readonly turnId: string;
   /** The instruction the writer gave for the turn. */
   readonly intent: string;
+  /** The turn's outcome in one line, for when its activity rows are gone (a reload) or it wrote none (a reply). */
+  readonly outcome?: string;
+  /** The turn's undo group, for the same cases. */
+  readonly undoGroupId?: string;
 }
 
 /** The app state assembly reads. Assembly never writes any of it. */

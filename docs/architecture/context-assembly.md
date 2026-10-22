@@ -44,7 +44,7 @@ Assembly renders layers in this order into the message list; truncation happens 
 - `rewrite_selection`: the selection + the preceding 1,500-char tail (immediate antecedent), each labeled.
 - Always ends with a marker line: `<<< current text ends here >>>` so continuation starts at a known boundary.
 
-**L6 — conversation memory.** Last 2 agent turns, compressed to intent + outcome lines (not verbatim transcripts) with their undo-group ids. Older turns are recoverable by the model via explicit tools, not context (token economics).
+**L6 — conversation memory.** Last 2 agent turns, compressed to intent + outcome lines (not verbatim transcripts) with their undo-group ids. The outcome is the turn's activity rows' digests; a turn with none (a reply writes none, and a reload empties the log) reads the one-line `outcome` and the `undoGroupId` its `RecentTurn` carries, set when the turn settled (a reply's clipped answer is its outcome), and only a turn with neither reads "no recorded changes". Older turns are recoverable by the model via explicit tools, not context (token economics).
 
 **L7 — task.** The tool instruction verbatim, plus compact tool params. Never truncated.
 

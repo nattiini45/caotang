@@ -14,8 +14,8 @@ import { sampleProjectState } from '../../apps/desktop/src/app/demo.js';
  * open project share one agent session, so the second turn's scene.draft call carries the first turn's
  * intent and outcome as L6 (the planner's `meta` tool is L0+L1+L7 only, so the L6 surface that matters
  * for "what did I just do" is the draft call's prompt). The conversation lives in memory only: it ends
- * with the controller — a project switch or a reload — or with the session rebuild a profile, model
- * or thinking change makes, and the app has no other affordance that clears it within a visit.
+ * with the controller — a project switch or a reload. A profile, model or thinking change does not end it
+ * (each turn carries its own pins), and the app has no affordance that clears it within a visit.
  */
 
 const globals = globalThis as unknown as Record<string, unknown>;
@@ -144,4 +144,94 @@ test('the second turn in an open panel carries the first turn as L6, so the mode
   expect(seen.length).toBeGreaterThanOrEqual(2);
   expect(seen[0]).not.toContain('Intent: Name the ferryman.');
   expect(seen[1]).toContain('Intent: Name the ferryman.');
+});
+
+/** Two scripted mock profiles on one gateway, and the way to say which is active. The controller reads the active one at each turn. */
+async function switchableProviders(scripts: readonly MockScript[]): Promise<{ providers: ProviderService; use: (index: 0 | 1) => void; ids: readonly [string, string] }> {
+  const keys = createKeyStore(createMemoryVaultPort());
+  const profiles = createProfileStore({ keys });
+  const first = await profiles.create({ name: 'First', kind: 'mock', isActive: true });
+  const second = await profiles.create({ name: 'Second', kind: 'mock', isActive: false });
+  const gateway = createGateway({ profiles, keys, clock: createManualClock(0), mock: createMockProvider({ scripts: [...scripts] }) });
+  let current = first;
+  const providers = { gateway, active: () => current, demoProfile: async () => current, persist: async () => undefined } as unknown as ProviderService;
+  return { providers, use: (index) => void (current = index === 0 ? first : second), ids: [first.id, second.id] };
+}
+
+test('turn ids stay under one session id, the second draft reads the first turn’s outcome and undo group, and a provider switch keeps the conversation', async () => {
+  const state = sampleProjectState();
+  withScreenplayScene(state, 'The Ferry');
+  withScreenplayScene(state, 'The Gale');
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const session = await sessionOver(state, store);
+  const seen: string[] = [];
+  const profilesSeen: (string | undefined)[] = [];
+  const { providers, use, ids } = await switchableProviders([
+    plansASceneDraft('The Ferry', 'Name the ferryman.'),
+    plansASceneDraft('The Gale', 'Name the gale.'),
+    {
+      match: (req) => isDraftCall(req) && userTextOf(req).includes('Continue the chapter.'),
+      respond: (req) => {
+        seen.push(userTextOf(req));
+        profilesSeen.push(req.profileId);
+        return { content: 'The ferry rowed on.' };
+      },
+    },
+  ]);
+  const controller = new AgentController(session, providers);
+  const unsubscribe = autoApprover(controller, { count: 0 });
+
+  const first = await controller.submit('Name the ferryman.');
+  use(1);
+  const second = await controller.submit('Name the gale.');
+
+  unsubscribe();
+  await session.close();
+
+  // One session id for the controller's life: the turn counter runs on across the provider switch.
+  const [name = '', one = ''] = (first?.turnId ?? '').split('.turn-');
+  expect(name).not.toBe('');
+  expect([one, second?.turnId]).toEqual(['1', `${name}.turn-2`]);
+
+  // Each turn ran on the profile that was active for it.
+  expect(profilesSeen).toEqual([ids[0], ids[1]]);
+
+  // The second draft call, made on the other profile, still reads the first turn: its intent, its outcome and its undo group.
+  expect(seen[1]).toContain(`- Turn ${first?.turnId}\n  Intent: Name the ferryman.`);
+  expect(seen[1]).toContain('Outcome: ');
+  expect(seen[1]).not.toContain('Outcome: no recorded changes');
+  expect(first?.undoGroupId).toBeDefined();
+  expect(seen[1]).toContain(`Undo group: ${first?.undoGroupId}`);
+});
+
+test('a turn that only replied leaves its answer as the outcome the next draft reads', async () => {
+  const state = sampleProjectState();
+  withScreenplayScene(state, 'The Ferry');
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const session = await sessionOver(state, store);
+  const seen: string[] = [];
+  const controller = new AgentController(
+    session,
+    await scriptedProviders([
+      {
+        match: (req) => isPlannerCall(req) && userTextOf(req).includes('Request: Who rows the ferry?'),
+        respond: () => ({ content: JSON.stringify({ reply: 'Oren rows the ferry.' }) }),
+      },
+      plansASceneDraft('The Ferry', 'Write the crossing.'),
+      draftsAScene(seen),
+    ]),
+  );
+  const unsubscribe = autoApprover(controller, { count: 0 });
+
+  const reply = await controller.submit('Who rows the ferry?');
+  const draft = await controller.submit('Write the crossing.');
+
+  unsubscribe();
+  await session.close();
+
+  expect(reply?.status).toBe('replied');
+  expect(draft?.status).toBe('applied');
+  expect(seen[0]).toContain('Intent: Who rows the ferry?');
+  expect(seen[0]).toContain('Outcome: Oren rows the ferry.');
+  expect(seen[0]).not.toContain('Outcome: no recorded changes');
 });
