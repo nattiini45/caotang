@@ -61,7 +61,8 @@ describe('binder.restructure', () => {
     // — the clamp binder.move's validate resolves against the sibling count
     // (`restructure.ts`: the validated command is what gets dispatched). A raw
     // index of 99 would not land here in general: with more than one sibling
-    // the clamp resolves it to the sibling count, and the node lands
+    // the clamp resolves it to the sibling count — up to 99 siblings, which is
+    // what `Math.min(index.value, siblings.length)` gives — and the node lands
     // elsewhere. So the equivalence this one sibling holds — a raw 99 and a
     // validated 1 land in the same place — is a fact about this fixture, not
     // about the pipeline, and re-validation is not what makes it hold.
