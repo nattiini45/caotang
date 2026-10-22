@@ -678,15 +678,24 @@ importers:
 
   packages/pdf-fonts:
     dependencies:
+      '@caotang/font-noto-arabic':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-arabic
       '@caotang/font-noto-cjk':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-cjk
       '@caotang/font-noto-emoji':
         specifier: workspace:*
         version: link:../../vendor/noto-emoji
+      '@caotang/font-noto-hebrew':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-hebrew
       '@pdf-lib/fontkit':
         specifier: 1.1.1
         version: 1.1.1
+      bidi-js:
+        specifier: 1.1.0
+        version: 1.1.0
       fflate:
         specifier: 0.8.3
         version: 0.8.3
@@ -741,7 +750,11 @@ importers:
 
   vendor/noto-emoji: {}
 
+  vendor/noto-sans-arabic: {}
+
   vendor/noto-sans-cjk: {}
+
+  vendor/noto-sans-hebrew: {}
 
 packages:
 

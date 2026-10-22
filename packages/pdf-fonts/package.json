@@ -12,9 +12,12 @@
     "./node-loader": "./src/node-loader.ts"
   },
   "dependencies": {
+    "@caotang/font-noto-arabic": "workspace:*",
     "@caotang/font-noto-cjk": "workspace:*",
     "@caotang/font-noto-emoji": "workspace:*",
+    "@caotang/font-noto-hebrew": "workspace:*",
     "@pdf-lib/fontkit": "1.1.1",
+    "bidi-js": "1.1.0",
     "fflate": "0.8.3"
   },
   "scripts": {
