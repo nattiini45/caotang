@@ -111,7 +111,7 @@ The full ordering, budgets, and the assembly algorithm live in [context-assembly
 2. Filter: `never` out; empty descriptions out.
 3. **Sort deterministically:** `always` first, then by `type` (enum order above), then `name` (case-insensitive) — insertion order is independent of mention order, which makes assembled context eval-stable (adopted for §9 evals).
 4. Render per entry: `## {name} ({type})` + description body. Aliases are **not** rendered (they're detection keys, not payload).
-5. Budget: codex layer gets its fixed allocation; overflow prunes lowest-priority entries (manual → detected tail first; `always` last) with the prune list surfaced in prompt preview. Never truncate an entry's description mid-body — drop whole entries, deterministically.
+5. Budget: the codex layer gets its fixed allocation, fitted in two phases (context-assembly A3). Phase one reserves the `always` entries; phase two fits the detected and manual entries into what they leave, pruning from the bottom of the rank order (manual → detected tail), with the prune list surfaced in prompt preview. When the `always` entries fit, this is the same set a flat prune keeps. When they alone exceed the allocation, all of them are still sent, every other entry is dropped, and the layer reports the overflow as a drop ("the codex's always entries need N tokens; the layer's budget is M") and a layer note, so a rule set to `always` never leaves the prompt without the preview saying why. The whole-prompt pass floors the codex at its `always` entries, so a prompt they push over the total budget is reported as over budget, not trimmed. Never truncate an entry's description mid-body — drop whole entries, deterministically.
 
 ## 7. Agent tools (added to harness registry — 12 → 14)
 

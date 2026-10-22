@@ -204,8 +204,9 @@ is typed there, and the harness program has to see it.
 
 - **Context.** The layers come from `@caotang/context`: L3 (structural synopses) and L4 (prior-scene synopses)
   are built, and so are the per-tool expansions of `continuity.scan` (the codex layer at 2.5k and the
-  story-so-far at 6k) and `synopsis.fill` (the document capped at 25k, with L3). The gap that is left is the
-  codex layer's budget: a single pool, not the reserved two-phase budgeting context-assembly A3 lists for v0.2.
+  story-so-far at 6k) and `synopsis.fill` (the document capped at 25k, with L3). The codex layer is
+  fitted in two phases (context-assembly A3): the `always` entries are reserved, the rest are fitted into what they
+  leave, and `always` entries that alone exceed the budget are sent whole with the overflow named in the preview.
 - **The planner's reply.** A planner reply the provider cut at its output limit is not special-cased. It fails to
   parse, and the model is asked again, which is the existing behaviour of a malformed reply.
 - **Ghost preview.** The ghost is a `ghost` event with Apply (approve), Retry (`retry`) and Discard (cancel).

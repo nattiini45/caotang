@@ -6,6 +6,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Added
 
+- **Codex.** An entry set to Always is no longer cut when the Always entries together are longer than the codex budget. They are all sent, the other entries are left out, and the prompt preview says so: "the codex's always entries need 1,400 tokens; the layer's budget is 1,000". When the Always entries fit, nothing changes.
 - **Agent.** A live task list for multi-step turns, in the agent header and at the top of the turn, with the model-call budget. The header says "Step 3 of 5 · Drafting “The Landing”", or "Waiting for you · Plan, 3 steps", with the drawer open or closed. The list is worked out from the plan and the tool calls, so it costs no model tokens and shows only work that ran.
 
 ## 0.1.0
