@@ -38,6 +38,7 @@ import {
 import { DEFAULT_MAX_OUTPUT_TOKENS } from './profiles.js';
 import { usageFor } from './tokens.js';
 import { adapterFor } from './adapters/index.js';
+import { effectiveOutput, nominalThinkingTokens } from './adapters/effort.js';
 import { modelRowFor, presetFor, resolveRoute } from './presets/index.js';
 import type { AdapterContext, CallSecrets, ProviderAdapter } from './adapters/types.js';
 import type {
@@ -63,9 +64,10 @@ export interface Gateway extends ProviderGateway {
    * §5). The profile is the one named, else the active one; the model is the one named, else the profile's.
    * Synchronous, so an assembly can call it: it reads what `listModels` last reported for the profile, and
    * takes the documented default for anything that report did not state (see {@link ModelLimits}). With no
-   * profile at all it is the defaults, since there is then no request to limit.
+   * profile at all it is the defaults, since there is then no request to limit. A `thinking` level adds
+   * `thinkingTokens`: what one call at that level may spend on thinking, for a cost estimate.
    */
-  modelLimits(profileId?: string, model?: string): ModelLimits;
+  modelLimits(profileId?: string, model?: string, thinking?: ThinkingLevel): ModelLimits;
   /**
    * The capability row for a model on a profile's route: whether it takes native
    * tools, images, a JSON-schema response format, and which thinking levels the UI
@@ -180,7 +182,13 @@ export function createGateway(options: GatewayOptions): Gateway {
     const spec = resolveRoute({ preset: profile.preset, baseUrl: profile.baseUrl }, model);
     return {
       adapter: adapterFor(spec.adapter),
-      ctx: { baseUrl: profile.baseUrl, model, quirks: spec.quirks, caps: spec.caps },
+      ctx: {
+        baseUrl: profile.baseUrl,
+        model,
+        quirks: spec.quirks,
+        caps: spec.caps,
+        ...(spec.modelMaxOutput === undefined ? {} : { modelMaxOutput: spec.modelMaxOutput }),
+      },
     };
   };
 
@@ -192,11 +200,19 @@ export function createGateway(options: GatewayOptions): Gateway {
     revealed: { secrets: CallSecrets; redact: string[] },
   ): CallSpec => {
     const { adapter, ctx } = route;
+    const effective = effectiveOutput({
+      cap: req.maxOutputTokens ?? profile.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
+      ...(req.thinking === undefined ? {} : { level: req.thinking }),
+      ...(req.reasoningBudget === undefined ? {} : { budget: req.reasoningBudget }),
+      caps: ctx.caps,
+      ...(ctx.modelMaxOutput === undefined ? {} : { modelMaxOutput: ctx.modelMaxOutput }),
+      ...(adapter.id === 'anthropic-messages' ? { style: ctx.caps.effortStyle ?? 'anthropic' } : {}),
+    });
     const body = adapter.buildBody({
       req,
       ctx,
       temperature: req.temperature ?? profile.temperature ?? 0.7,
-      maxTokens: req.maxOutputTokens ?? profile.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
+      effective,
       jsonObject,
     });
     const path = adapter.completePath(ctx.model);
@@ -210,6 +226,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       method: 'POST',
       accept: 'text/event-stream',
       body: JSON.stringify(body),
+      maxTokens: effective.maxTokens,
       headers: adapter.headers(ctx, revealed.secrets, 'complete'),
       secrets: revealed.redact,
       createParser: () => adapter.createStreamParser(ctx),
@@ -323,7 +340,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     return models;
   }
 
-  function modelLimits(profileId?: string, model?: string): ModelLimits {
+  function modelLimits(profileId?: string, model?: string, thinking?: ThinkingLevel): ModelLimits {
     const profile = profileId === undefined ? profiles.active() : profiles.get(profileId);
     if (profile === undefined) return { maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS };
     const modelId = model ?? profile.defaultModel;
@@ -333,9 +350,23 @@ export function createGateway(options: GatewayOptions): Gateway {
     const row = preset === undefined ? undefined : modelRowFor(preset, modelId);
     const price = profile.pricePer1k ?? info?.pricePer1k ?? row?.pricePer1k;
     const contextWindow = info?.contextWindow ?? row?.contextWindow;
+    const maxOutputTokens = profile.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
+    let thinkingTokens: number | undefined;
+    if (thinking !== undefined && row !== undefined) {
+      const spec = resolveRoute({ preset: profile.preset, baseUrl: profile.baseUrl }, modelId);
+      const settled = effectiveOutput({
+        cap: maxOutputTokens,
+        level: thinking,
+        caps: spec.caps,
+        ...(spec.modelMaxOutput === undefined ? {} : { modelMaxOutput: spec.modelMaxOutput }),
+        ...(spec.adapter === 'anthropic-messages' ? { style: spec.caps.effortStyle ?? 'anthropic' } : {}),
+      });
+      if (settled.level !== undefined && settled.level !== 'off') thinkingTokens = settled.budget ?? nominalThinkingTokens(settled.level);
+    }
     return {
       ...(contextWindow === undefined ? {} : { contextWindow }),
-      maxOutputTokens: profile.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
+      maxOutputTokens,
+      ...(thinkingTokens === undefined ? {} : { thinkingTokens }),
       ...(price === undefined ? {} : { pricePer1k: { prompt: price.prompt, completion: price.completion } }),
     };
   }

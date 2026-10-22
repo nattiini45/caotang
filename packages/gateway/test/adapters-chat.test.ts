@@ -9,8 +9,9 @@ import { describe, expect, it } from 'vitest';
 import { createSseParser } from '../src/sse.js';
 import { openaiChatAdapter, wireMessages } from '../src/adapters/openai-chat.js';
 import { applyEffort } from '../src/adapters/effort.js';
-import { routeFor, type AdapterContext, type BodyInput, type QuirkFlags, type StreamParser, type StreamPiece } from '../src/adapters/types.js';
+import { routeFor, type AdapterContext, type QuirkFlags, type StreamParser, type StreamPiece } from '../src/adapters/types.js';
 import type { ChatRequest, ModelCaps, ThinkingLevel } from '../src/types.js';
+import { bodyInput, type BodyOver } from './helpers.js';
 
 const CTX: AdapterContext = { baseUrl: 'https://api.example/v1', model: 'model-x', quirks: {}, caps: {} };
 
@@ -21,8 +22,8 @@ const ctx = (quirks: QuirkFlags = {}, caps: ModelCaps = {}, model = 'model-x'): 
   caps,
 });
 
-const body = (req: ChatRequest, overrides: Partial<BodyInput> = {}): Record<string, unknown> =>
-  openaiChatAdapter.buildBody({ req, ctx: CTX, temperature: 0.7, maxTokens: 4096, jsonObject: false, ...overrides });
+const body = (req: ChatRequest, over: BodyOver = {}): Record<string, unknown> =>
+  openaiChatAdapter.buildBody(bodyInput(req, over.ctx ?? CTX, over));
 
 const user = (content: string): ChatRequest => ({ messages: [{ role: 'user', content }] });
 
@@ -43,13 +44,13 @@ const EFFORT_FIELDS = ['reasoning_effort', 'reasoning', 'thinking', 'enable_thin
 
 /** Builds a body for one (style, level) pair and returns the effort fields it wrote. */
 function effortFields(style: string, level: ThinkingLevel | undefined, caps: ModelCaps = {}): Record<string, unknown> {
-  const built = openaiChatAdapter.buildBody({
-    req: { messages: [{ role: 'user', content: 'hi' }], thinking: level },
-    ctx: ctx({}, { effortStyle: style, effortLevels: ['off', 'low', 'medium', 'high', 'max'], ...caps }),
-    temperature: 0.5,
-    maxTokens: 1024,
-    jsonObject: false,
-  });
+  const built = openaiChatAdapter.buildBody(
+    bodyInput(
+      { messages: [{ role: 'user', content: 'hi' }], thinking: level },
+      ctx({}, { effortStyle: style, effortLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'], ...caps }),
+      { temperature: 0.5, maxTokens: 1024 },
+    ),
+  );
   return Object.fromEntries(EFFORT_FIELDS.filter((k) => k in built).map((k) => [k, built[k]]));
 }
 
@@ -191,13 +192,12 @@ describe('openai-chat effort mapping', () => {
   it('sends nothing without a level or without an effortLevels row', () => {
     expect(effortFields('reasoning_effort', undefined)).toEqual({});
     expect(effortFields('reasoning_effort', 'high', { effortLevels: [] })).toEqual({});
-    const noLevels = openaiChatAdapter.buildBody({
-      req: { messages: [{ role: 'user', content: 'hi' }], thinking: 'high' },
-      ctx: ctx({}, { effortStyle: 'reasoning_effort' }),
-      temperature: 0.5,
-      maxTokens: 1024,
-      jsonObject: false,
-    });
+    const noLevels = openaiChatAdapter.buildBody(
+      bodyInput({ messages: [{ role: 'user', content: 'hi' }], thinking: 'high' }, ctx({}, { effortStyle: 'reasoning_effort' }), {
+        temperature: 0.5,
+        maxTokens: 1024,
+      }),
+    );
     for (const k of EFFORT_FIELDS) expect(noLevels).not.toHaveProperty(k);
   });
 

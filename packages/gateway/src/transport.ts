@@ -61,6 +61,8 @@ export interface CallSpec {
   readonly method: 'GET' | 'POST';
   readonly accept: string;
   readonly body?: string;
+  /** The output cap the body carries (`max_tokens` after any raise for thinking), recorded on the request log line. */
+  readonly maxTokens?: number;
   /** The request headers the adapter built — auth, protocol versions, preset extras. */
   readonly headers: Record<string, string>;
   /** Every secret value in `headers` (key, custom header values). Scrubbed from excerpts; never stored on an error or a log entry. */
@@ -213,6 +215,7 @@ function logAttempt(
     model: spec.model,
     attempt,
     url: spec.url,
+    ...(spec.maxTokens === undefined ? {} : { maxTokens: spec.maxTokens }),
     outcome,
     ...(status !== undefined ? { status } : {}),
     ...(error !== undefined ? { errorKind: error.kind } : {}),

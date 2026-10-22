@@ -16,6 +16,7 @@
  */
 
 import type { SseEvent } from '../sse.js';
+import type { EffectiveOutput } from './effort.js';
 import type {
   ChatRequest,
   FinishReason,
@@ -89,6 +90,8 @@ export interface RouteSpec {
   readonly adapter: AdapterId;
   readonly quirks: QuirkFlags;
   readonly caps: ModelCaps;
+  /** The matched row's documented output cap, when published: the ceiling a raised `max_tokens` is held to. */
+  readonly modelMaxOutput?: number;
 }
 
 /** Secrets revealed for this one call. Values land in `CallSpec.secrets` for redaction. */
@@ -104,6 +107,8 @@ export interface AdapterContext {
   readonly model: string;
   readonly quirks: QuirkFlags;
   readonly caps: ModelCaps;
+  /** The matched row's documented output cap, when published: the ceiling a raised `max_tokens` is held to. */
+  readonly modelMaxOutput?: number;
   /** Extra fields the preset contributed (Alibaba workspace/region already folded into baseUrl). */
 }
 
@@ -113,8 +118,8 @@ export interface BodyInput {
   readonly ctx: AdapterContext;
   /** temperature after profile/request resolution and denylist filtering */
   readonly temperature?: number;
-  /** the output cap after resolution */
-  readonly maxTokens: number;
+  /** the output cap and thinking settled for this call (`effectiveOutput`): adapters send these, they do not recompute them */
+  readonly effective: EffectiveOutput;
   /** whether the route may send `response_format: {type:'json_object'}` for this call */
   readonly jsonObject: boolean;
 }

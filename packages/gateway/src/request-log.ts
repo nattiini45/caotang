@@ -24,6 +24,8 @@ export interface RequestLogEntry {
   /** 0 for the first attempt, 1 for the first retry, and so on */
   readonly attempt: number;
   readonly url: string;
+  /** The output cap the request was sent with, thinking room included, so a writer can see why a call cost more output. */
+  readonly maxTokens?: number;
   readonly outcome: RequestOutcome;
   readonly status?: number;
   readonly errorKind?: ProviderErrorKind;

@@ -24,11 +24,16 @@ const GROQ_DENY = ['logprobs', 'logit_bias', 'top_logprobs', 'name'] as const;
 const XAI_DENY = ['presence_penalty', 'frequency_penalty', 'stop'] as const;
 /** The Cohere compatibility layer rejects these fields outright. */
 const COHERE_DENY = ['store', 'metadata', 'logit_bias', 'top_logprobs', 'n', 'modalities', 'prediction', 'audio', 'service_tier', 'parallel_tool_calls'] as const;
-/** Anthropic 5-series rows share tools+vision+replay; only the effort set and price differ. */
+/**
+ * Anthropic 5-series rows share tools+vision+replay and the adaptive thinking shape (`thinking.type: 'adaptive'` + `output_config.effort`;
+ * `enabled` with `budget_tokens` is a 400 on them); only the effort set and price differ.
+ */
 const CLAUDE_CAPS = {
   tools: true,
   vision: true,
   replayStyle: 'blocks',
+  thinkingShape: 'adaptive',
+  thinkingDisplay: 'summarized',
   denylist: CLAUDE_DENY,
 } as const satisfies Partial<ModelCaps>;
 
@@ -49,13 +54,13 @@ export const PRESETS: readonly PresetDef[] = [
       // not named here gets no row, and so no guessed window. The output cap is informational (the profile's is sent).
       // Sonnet 5.5 turns thinking "off" via thinking.type between_tools, which the
       // Messages adapter does not emit — so Off is not offered on it.
-      { pattern: 'claude-sonnet-5-5', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['low', 'medium', 'high', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000, pricePer1k: { prompt: 0.002, completion: 0.01 } },
+      { pattern: 'claude-sonnet-5-5', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000, pricePer1k: { prompt: 0.002, completion: 0.01 } },
       // Opus 5.5 cannot turn thinking off.
-      { pattern: 'claude-opus-5-5', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['low', 'medium', 'high', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000, pricePer1k: { prompt: 0.004, completion: 0.02 } },
-      // Haiku 5.5 accepts thinking.type disabled at low/high.
-      { pattern: 'claude-haiku-5-5', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['off', 'low', 'medium', 'high', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000 },
+      { pattern: 'claude-opus-5-5', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000, pricePer1k: { prompt: 0.004, completion: 0.02 } },
+      // Haiku 5.5 accepts thinking.type disabled only with an effort at or below high; Off is sent alone, so max stays selectable.
+      { pattern: 'claude-haiku-5-5', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000 },
       // Fable 5.1 cannot turn thinking off.
-      { pattern: 'claude-fable-5-1', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['low', 'medium', 'high', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000 },
+      { pattern: 'claude-fable-5-1', caps: { ...CLAUDE_CAPS, effortStyle: 'anthropic', effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] }, contextWindow: 1_000_000, maxOutputTokens: 128_000 },
     ],
   },
   {
@@ -680,6 +685,11 @@ export function resolveRoute(profile: { readonly preset?: string; readonly baseU
   if (profile.preset === undefined) return { adapter: 'openai-chat', quirks: {}, caps: {} };
   const preset = presetFor(profile.preset);
   if (preset === undefined) return { adapter: 'openai-chat', quirks: {}, caps: {} };
-  const caps = modelRowFor(preset, model)?.caps ?? {};
-  return { adapter: routeFor(preset.quirks, model, preset.adapter), quirks: preset.quirks, caps };
+  const row = modelRowFor(preset, model);
+  return {
+    adapter: routeFor(preset.quirks, model, preset.adapter),
+    quirks: preset.quirks,
+    caps: row?.caps ?? {},
+    ...(row?.maxOutputTokens === undefined ? {} : { modelMaxOutput: row.maxOutputTokens }),
+  };
 }
