@@ -1494,6 +1494,11 @@ function handleDb(): AppDb {
     put: async (key: string, value: unknown): Promise<void> => {
       rows.set(key, value);
     },
+    list: async <T>(prefix: string) =>
+      [...rows.entries()].filter(([key]) => key.startsWith(prefix)).sort(([a], [b]) => (a < b ? -1 : 1)).map(([key, value]) => ({ key, value: value as T })),
+    delete: async (key: string): Promise<void> => {
+      rows.delete(key);
+    },
     close: (): void => {},
   };
 }
