@@ -257,6 +257,7 @@ describe('mergeServerDelta', () => {
     runs: runIds.map((id) => ({ id, at: '2026-10-08T09:00:00.000Z', kind: 'deterministic', checkIds: [], scope: { docIds: [] }, findingsUpserted: [], status: 'complete' })),
     sceneMeta: {},
     worldRules: [],
+    knowledge: [],
     reviewState: {},
   });
 

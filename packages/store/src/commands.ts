@@ -105,12 +105,15 @@
 
 import { newId } from '@caotang/ids';
 import type { CoherenceFindingState, CoherenceState } from './coherence-state.js';
-import { applyCoherenceDiscardRun } from './commands-coherence.js';
+import { applyCoherenceDiscardRun, knowledgeApplies } from './commands-coherence.js';
 import { declarationChangeWords, dismissalWordsOf } from './coherence-words.js';
 import {
   applySceneMetaPatch,
   buildRegistry,
+  coherenceAddKnowledgeFact as coherenceAddKnowledgeFactDescriptor,
   coherenceDiscardRun as coherenceDiscardRunDescriptor,
+  coherenceEditKnowledgeFact as coherenceEditKnowledgeFactDescriptor,
+  coherenceRemoveKnowledgeFact as coherenceRemoveKnowledgeFactDescriptor,
   commands,
   inverseScenePatch,
   isEmptySceneMeta,
@@ -337,9 +340,14 @@ function requireCoherenceFile(state: ProjectState): CoherenceState {
  * What a scene-declaration patch is checked against: the codex entries by id and name, and the
  * documents a dependency may name. The same two lists `coherenceSetSceneMeta`'s validate reads.
  */
-function sceneMetaContextOf(state: ProjectState): { entries: { id: string; name: string }[]; documentIds: Set<string> } {
+function sceneMetaContextOf(state: ProjectState): {
+  entries: { id: string; name: string; type: string }[];
+  facts: { id: string; text: string }[];
+  documentIds: Set<string>;
+} {
   return {
-    entries: (state.manifest.codex ?? []).map((entry) => ({ id: entry.id, name: entry.name })),
+    entries: (state.manifest.codex ?? []).map((entry) => ({ id: entry.id, name: entry.name, type: entry.type })),
+    facts: (state.coherence?.knowledge ?? []).map((fact) => ({ id: fact.id, text: fact.text })),
     documentIds: new Set(state.manifest.tree.filter((node) => node.type === 'document').map((node) => node.id)),
   };
 }
@@ -1644,11 +1652,16 @@ export function createProjectCommandRegistry(
     return { findingId: params.findingId, status: params.status, previousStatus: before.status };
   };
 
+  const knowledge = knowledgeApplies(clock);
+
   const registry: CommandRegistry = {
     ...buildRegistry(),
     'coherence.setSceneMeta': { descriptor: commands.coherenceSetSceneMeta, apply: narrow(coherenceSetSceneMeta) },
     'coherence.setFindingStatus': { descriptor: commands.coherenceSetFindingStatus, apply: narrow(coherenceSetFindingStatus) },
     'coherence.discardRun': { descriptor: coherenceDiscardRunDescriptor, apply: narrow(applyCoherenceDiscardRun) },
+    'coherence.addKnowledgeFact': { descriptor: coherenceAddKnowledgeFactDescriptor, apply: narrow(knowledge.add) },
+    'coherence.editKnowledgeFact': { descriptor: coherenceEditKnowledgeFactDescriptor, apply: narrow(knowledge.edit) },
+    'coherence.removeKnowledgeFact': { descriptor: coherenceRemoveKnowledgeFactDescriptor, apply: narrow(knowledge.remove) },
     'binder.move': { descriptor: commands.binderMove, apply: narrow(binderMove) },
     'binder.rename': { descriptor: commands.binderRename, apply: narrow(binderRename) },
     'binder.setMeta': { descriptor: commands.binderSetMeta, apply: narrow(binderSetMeta) },

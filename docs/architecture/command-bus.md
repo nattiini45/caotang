@@ -1,6 +1,6 @@
 # Command bus & undo — the spine every module talks through (v1)
 
-> Status: built. §9 lists every one of the registry's 46 command names (`packages/bus/src/command.ts` `COMMAND_NAMES`).
+> Status: built. §9 lists every one of the registry's 49 command names (`packages/bus/src/command.ts` `COMMAND_NAMES`).
 > Cross-refs: tool registry = [agent-harness.md](agent-harness.md) §3 · write-ahead snapshots = [project-format.md](project-format.md) §4 · edit anchors = [edit-anchors.md](edit-anchors.md) · usage ledger = [provider-gateway.md](provider-gateway.md) §6.
 
 ## 1. Purpose
@@ -14,7 +14,7 @@ Non-goals: no network in the bus (the gateway owns transport); no cross-worker b
 ```ts
 interface Command {
   id: string;                 // "cmd_" + 10 chars Crockford base32 (same generator family as node ids)
-  name: CommandName;          // from the registry (§9; 46 names)
+  name: CommandName;          // from the registry (§9; 49 names)
   params: object;             // flat, enum-constrained, schema-validated
   issuedBy: 'user' | 'agent';
   turnId?: string;            // agent turn this command belongs to (agent-issued only)
@@ -133,7 +133,7 @@ The log keeps every row it is given. The Activity panel shows a 200-row window o
 
 ## 9. v0.1 command registry (closed set)
 
-The heading keeps the name the v0.1 table had. The table lists all 46 of the registry's names: the v0.1 rows and those each module added (their owning specs are named in the notes). Reads are **not commands** — modules read the store directly; only mutations route through the bus. Provider/settings mutation is app-level state, never a project command (agentRisk `never`, hard-deny §4). `sessions.jsonl` appends are session-tracker side-effects of doc writes, not commands.
+The heading keeps the name the v0.1 table had. The table lists all 49 of the registry's names: the v0.1 rows and those each module added (their owning specs are named in the notes). Reads are **not commands** — modules read the store directly; only mutations route through the bus. Provider/settings mutation is app-level state, never a project command (agentRisk `never`, hard-deny §4). `sessions.jsonl` appends are session-tracker side-effects of doc writes, not commands.
 
 | Command | Params (essentials) | agentRisk | undo | Notes |
 |---|---|---|---|---|
@@ -156,9 +156,11 @@ The heading keeps the name the v0.1 table had. The table lists all 46 of the reg
 | `view.setExpanded` | `{nodeId, expanded}` | read | none | Binder folder expansion (ui-modules §2.2). Never persisted. A folder since deleted is a stale flag the binder ignores, not a refusal. |
 | `view.setCorkboardScope` | `{nodeId}` | read | none | The corkboard's scope (ui-modules §3): a container, or `null` for the manuscript default. Never persisted. |
 | `coherence.setSceneMeta` | `{docId, patch: ScenePatch}` | write-auto | inverse | Writer-declared scene metadata (coherence.md §5.2, §7.1). The patch is the closed set `SCENE_PATCH_KEYS` (`pov`, `dayOffset`, `durationDays`, `after_add`, `after_remove`, `expectedPresent_add`, `expectedPresent_remove`, `timelineMode`, `threads_add`, `threads_remove`, `learns_add`, `learns_remove`, `knows_add`, `knows_remove`), and an unknown field is refused. |
-| `coherence.addKnowledgeFact` / `coherence.editKnowledgeFact` / `coherence.removeKnowledgeFact` | `{text, ruleId?, entryId?}` / `{factId, text?, ruleId?, entryId?}` / `{factId}` | write-confirm | compensable | The knowledge facts of `coherence.json` (coherence.md §4.4, §7.1). A removal takes the `learns`/`knows` pairs that name the fact in the same command, and one undo puts the fact and the pairs back. The removal is on the never-exposed list: the agent holds no tool for it. |
 | `coherence.setFindingStatus` | `{findingId, status, reason?, note?}` | write-confirm | inverse | One finding's status (coherence.md §6.3, §7.1). `dismissed` needs a `reason` from the writer's picker. **An agent may set only `fixed`**: `open` and `dismissed` are refused for it, as a hard denial (permission.ts). |
 | `coherence.discardRun` | `{runId}` | write-confirm | compensable | Removes one run from the run history, with the findings it created that nobody has touched (coherence.md §8). Touched findings stay. Undo puts the run and those findings back. |
+| `coherence.addKnowledgeFact` | `{text, ruleId?, entryId?}` | write-confirm | compensable | A knowledge fact of `coherence.json` (coherence.md §4.4, §7.1). The apply mints the `k_` id. `text` is one sentence of at most 300 characters; `ruleId` must be a world rule and `entryId` a codex entry. Undo removes the fact. |
+| `coherence.editKnowledgeFact` | `{factId, text?, ruleId?, entryId?}` | write-confirm | compensable | Changes the fields it names (coherence.md §4.4, §7.1); `null` clears a link. A call that names no field is refused. Undo puts the fact back as it was. |
+| `coherence.removeKnowledgeFact` | `{factId}` | write-confirm | compensable | Removes the fact and the `learns`/`knows` pairs of every scene that name it, in one command (coherence.md §4.4, §7.1). One undo puts back the fact and the pairs. On the never-exposed list: the agent holds no tool for it. |
 | `mcp.invoke` | `{serverKey, toolName, args, expectedPins?}` | write-confirm | none | An external tool call (extensibility.md §6). `mutates: none`, and its activity row is `source: 'mcp'`. Its apply awaits the server, so it runs through `executeAsync` only (§3). Per call it is `read` when the external is trusted for reads and its tool is read-only (`agentRiskOf`; extensibility §7). |
 | `storyboard.create` | `{id, parentId, title, scene}` | write-auto | inverse | The `<Scene Title> — Shots` folder (storyboard.md §3.1). `scene` is the scene facts the plan was made against, and the apply refuses when the scene has moved or changed since. Validate resolves `parentId` against the snapshot's tree and refuses a parent that is gone (not-found, naming the id), and checks the minted `id` against the tree and against project-format §2's shape (`n_` and ten Crockford base32 chars). Its apply comes from the store, injected through `ProjectCommandOptions.shots`, because its guards belong to the storyboard module. The manifest is a required field of the snapshot, so a snapshot without one fails loudly in validate rather than standing the state check down. |
 | `shot.create` | `{id, parentId, title, stored}` | write-auto | inverse | One shot card with its stored metadata (storyboard.md §2.2, §3.1). Validate resolves `parentId` and refuses a parent that is gone (not-found) or is not a storyboard folder (invalid-params, target `parentId`), and checks the minted `id` the way `storyboard.create`'s does. Only the module's own write-time guards are left in the apply, where they run as `storyboard.create`'s do. Its state check reads the manifest the same way, so a snapshot without one fails loudly rather than standing the check down. |

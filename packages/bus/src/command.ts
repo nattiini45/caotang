@@ -86,6 +86,10 @@ export const COMMAND_NAMES = [
   'coherence.setFindingStatus',
   // The run history's one removal (coherence.md §7.1, §8). It joins the module's rows the same way the two above do.
   'coherence.discardRun',
+  // The knowledge facts of coherence.json (coherence.md §4.4, §7.1). A removal takes the scene declarations that name the fact.
+  'coherence.addKnowledgeFact',
+  'coherence.editKnowledgeFact',
+  'coherence.removeKnowledgeFact',
   // The one command an external tool call rides (extensibility.md §6). It is a v0.2 addition, and §9
   // tabulates it with its reason. Its descriptor is the one `@caotang/mcp-client` builds, and its apply reaches a server,
   // so the store registry takes both as an injected option (`ProjectCommandOptions.mcpInvoke`). Without that, the name is refused.
@@ -200,6 +204,8 @@ export interface ValidationNode {
 export interface ValidationCodexEntry {
   readonly id: string;
   readonly name: string;
+  /** The entry's kind (`character`, `location`, …). The scene declarations of who learns and knows a fact take a character. */
+  readonly type?: string;
   /**
    * codex.md §2's citations, held by the entry; an update's new ones are appended to
    * them. Only the count is read here, so only the document id is named.
@@ -229,6 +235,18 @@ export interface ValidationCoherence {
   readonly sceneMeta: Readonly<Record<string, SceneMetaRecord>>;
   /** The run history, by id (coherence.md §4.1). Absent reads as no runs, so a holder that predates it still validates. */
   readonly runs?: readonly ValidationRun[];
+  /** The knowledge facts (coherence.md §4.4). Absent reads as none. */
+  readonly knowledge?: readonly ValidationKnowledgeFact[];
+  /** The world rules, by id, for a fact's `ruleId` link (coherence.md §4.3). Absent reads as none. */
+  readonly worldRules?: readonly { readonly id: string }[];
+}
+
+/** One knowledge fact as a validate reads it: its id and its words, which a refusal quotes. */
+export interface ValidationKnowledgeFact {
+  readonly id: string;
+  readonly text: string;
+  readonly ruleId?: string;
+  readonly entryId?: string;
 }
 
 /** One run as a discard validate reads it: its id, which is all the bus needs to name it (coherence.md §4.1). */
@@ -538,6 +556,9 @@ export interface CommandParams {
   'coherence.setSceneMeta': CoherenceSetSceneMetaParams;
   'coherence.setFindingStatus': CoherenceSetFindingStatusParams;
   'coherence.discardRun': CoherenceDiscardRunParams;
+  'coherence.addKnowledgeFact': CoherenceAddKnowledgeFactParams;
+  'coherence.editKnowledgeFact': CoherenceEditKnowledgeFactParams;
+  'coherence.removeKnowledgeFact': CoherenceRemoveKnowledgeFactParams;
   'mcp.invoke': McpInvokeParams;
   'storyboard.create': StoryboardCreateCommandParams;
   'shot.create': ShotCreateCommandParams;
@@ -807,6 +828,18 @@ export type CoherenceSetFindingStatusParams = {
  * Touched findings stay. Undo puts the run and those findings back.
  */
 export type CoherenceDiscardRunParams = { runId: string };
+
+/**
+ * coherence.md §4.4 and §7.1: a knowledge fact added. The text is one sentence; `ruleId` and `entryId` link the world rule it
+ * restates and the codex entry it is about. The `k_` id is minted by the apply.
+ */
+export type CoherenceAddKnowledgeFactParams = { text: string; ruleId?: string; entryId?: string };
+
+/** coherence.md §7.1: the fields of a fact the call names change. `null` clears a link. */
+export type CoherenceEditKnowledgeFactParams = { factId: string; text?: string; ruleId?: string | null; entryId?: string | null };
+
+/** coherence.md §7.1: a fact removed, with every `learns` and `knows` pair that names it. */
+export type CoherenceRemoveKnowledgeFactParams = { factId: string };
 
 /**
  * The three reserved tree ids — project-format §2: *"Reserved ids: `root`,

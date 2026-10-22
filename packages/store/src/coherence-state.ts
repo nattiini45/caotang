@@ -23,7 +23,7 @@
  * commands refuse that case in `validate` rather than creating a file as a side effect.
  */
 
-import type { SceneMetaRecord } from '@caotang/bus';
+import type { KnowledgeFactRecord, SceneMetaRecord } from '@caotang/bus';
 
 /**
  * The part of one finding the store's applies touch, the evidence an `affected` row names (§8), and the fields the
@@ -78,13 +78,15 @@ export interface CoherenceState {
   runs: CoherenceRunState[];
   /** §5.2's declarations, by document id. A document with none has no key. */
   sceneMeta: Record<string, SceneMetaRecord>;
-  /** Held as the coherence module declares them; the store does not read them. */
-  worldRules: unknown[];
+  /** Held as the coherence module declares them. The store reads only the ids, which a knowledge fact's `ruleId` names. */
+  worldRules: { readonly id: string }[];
+  /** §4.4's knowledge facts. The bus's record is the module's `KnowledgeFact`; the three knowledge commands change this list and the scenes' `learns` and `knows`. */
+  knowledge: KnowledgeFactRecord[];
   /** Held as the coherence module declares them; the store does not read them. */
   reviewState: Record<string, unknown>;
 }
 
 /** The empty file a project with no coherence yet starts from (coherence.md §3). */
 export function emptyCoherenceState(): CoherenceState {
-  return { formatVersion: 1, findings: [], runs: [], sceneMeta: {}, worldRules: [], reviewState: {} };
+  return { formatVersion: 1, findings: [], runs: [], sceneMeta: {}, worldRules: [], knowledge: [], reviewState: {} };
 }
