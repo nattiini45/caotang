@@ -115,7 +115,7 @@ Choose **New screenplay scene here** from a folder's menu. A screenplay scene is
 
 - **Script** draws the scene as it reads.
 - **Source** is the Fountain text. Headings, cues, parentheticals, transitions and notes are drawn in their own styles as you type.
-- **Pages** shows the scene paginated. It is read only, and it is a preview. To get a PDF, compile the screenplay as **Screenplay PDF**.
+- **Pages** shows the scene paginated. It is read only, and it is a preview: a dual-dialogue pair stands side by side, as in the PDF, but the blank lines between elements are closed up. To get a PDF, compile the screenplay as **Screenplay PDF**.
 
 On the Source tab:
 
@@ -140,7 +140,7 @@ Compile a screenplay from **Compile…**, in the Media group, as Fountain, as Fi
 - Script pages count from 1. The number is printed at the top right from page 2.
 - A scene heading is never left alone at the foot of a page. A character name always stays with its first line of dialogue. A transition never starts a page.
 - A speech that crosses a page breaks after a sentence. **(MORE)** ends the page and the name returns with **(CONT’D)** on the next one. You can turn this off in the recipe: clear **(MORE) and (CONT’D) where a speech crosses a page**.
-- Dual dialogue (a second name marked `^`) is printed side by side, in two columns.
+- Dual dialogue (a second name marked `^`) is printed side by side, in two columns. The Pages view draws it the same way.
 - **Scene numbers** can be printed in the left margin, the right margin or both. They are off unless you choose them. A heading's own number, such as `#24A#`, is used when it has one.
 - Notes (`[[…]]`), boneyard text (`/* … */`), sections and synopses are not printed.
 
@@ -379,6 +379,6 @@ With writes allowed, an outside tool can also compile the manuscript, one item, 
 - **Contact sheet pictures and characters.** The contact sheet does not draw WebP pictures; their cards show the caption. Characters that none of its fonts has, such as Arabic, Hindi and emoji newer than Unicode Emoji 15.1 (🫩, for one), print as `?`. The compile log names them. Emoji print in black and white, and skin tones as the plain figure. Of Emoji 15.1's people "facing right", a person walking, kneeling or running prints as one picture; a woman or a man walking, kneeling or running, and a person, woman or man with a white cane or in a wheelchair, print as their parts side by side (the figure, then any gender sign, then the cane or wheelchair where the sequence has one, then an arrow). Chinese, Japanese and Korean text has no bold, and Han characters take their Simplified Chinese forms.
 - **Final Draft files.** Import and export of `.fdx` files have not been checked against files that Final Draft wrote or opened. The scene numbers and page headers that Caotang writes are not yet confirmed to show in Final Draft.
 - **Word contents.** How Word and LibreOffice handle the contents field in a `.docx` file has not been tested.
-- **The Pages view.** The Pages view of a screenplay is a read-only preview.
+- **The Pages view.** The Pages view of a screenplay is a read-only preview. It draws a dual-dialogue pair side by side, as the PDF does, but it closes up the blank lines and is not the page's exact height.
 - **Undo and reloads.** Undo lasts for the open tab, and text typed in the moment before a reload may not be saved yet.
 - **The desktop app.** Caotang runs in the browser. A desktop wrapper is not in this build.

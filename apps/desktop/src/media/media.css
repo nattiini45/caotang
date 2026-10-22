@@ -1080,7 +1080,8 @@
   color: var(--ink-soft, var(--ink));
 }
 
-/* The paginated preview (ScreenplayPreview.tsx): each page is a sheet, and each line sits at its own indent in characters. */
+/* The paginated preview (ScreenplayPreview.tsx): each page is a sheet, and each line sits at its own indent in characters.
+   A script page is a grid of 14px rows, and a line names its row, so the two sides of a dual-dialogue pair share theirs. */
 .sp-preview {
   display: grid;
   gap: 16px;
@@ -1101,6 +1102,12 @@
   font-size: 12px;
   line-height: 14px;
   color: var(--ink);
+}
+
+.sp-page-sheet.is-script {
+  display: grid;
+  grid-auto-rows: 14px;
+  align-content: start;
 }
 
 .sp-page-sheet .sp-line {

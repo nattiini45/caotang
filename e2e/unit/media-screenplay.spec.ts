@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { paginate, parseFountain } from '../../packages/screenplay/src/index.js';
+
 import {
   printedOf,
   saveLineOf,
@@ -8,6 +10,7 @@ import {
   unwrittenFlushOf,
   type ScreenplayUnit,
 } from '../../apps/desktop/src/media/screenplay-model.js';
+import { previewRowsOf } from '../../apps/desktop/src/media/preview-rows.js';
 
 /** A scene with every element the formatted view draws: a heading, action, a block, a transition and a second heading. */
 const SCENE = [
@@ -151,5 +154,58 @@ test.describe('the save line and the write that did not land', () => {
     expect(unwrittenFlushOf([])).toBeNull();
     expect(unwrittenFlushOf([{ docId: 'n_SCENE00001', outcome: 'failed', error: new Error('disk full') }])).toContain('did not save');
     expect(unwrittenFlushOf([{ docId: 'n_SCENE00001', outcome: 'conflict' }])).toContain('did not save');
+  });
+});
+
+test.describe('the preview rows of a script page', () => {
+  const pageOf = (source: string, options: Parameters<typeof paginate>[1] = {}) => {
+    const page = paginate(parseFountain(source).elements, options).find((candidate) => candidate.kind === 'script');
+    if (page === undefined) throw new Error('no script page');
+    return page;
+  };
+
+  test('stack the occupied rows and put the two sides of a dual pair on the same rows', () => {
+    const page = pageOf(['INT. HALL - DAY', '', 'ANNA', 'I go left.', '', 'BEN ^', '(quietly)', 'I go right.'].join('\n'));
+    const rows = previewRowsOf(page.lines);
+    const rowOf = (text: string) => rows[page.lines.findIndex((line) => line.text === text)];
+    expect(rowOf('INT. HALL - DAY')).toBe(0);
+    // The blank row between the heading and the pair is collapsed.
+    expect(rowOf('ANNA')).toBe(1);
+    expect(rowOf('BEN')).toBe(1);
+    expect(rowOf('I go left.')).toBe(2);
+    expect(rowOf('(quietly)')).toBe(2);
+    expect(rowOf('I go right.')).toBe(3);
+  });
+
+  test('give a page without a pair one row to each line, in order', () => {
+    const page = pageOf(['INT. HALL - DAY', '', 'Rain falls.', '', 'ANNA', 'Hello.'].join('\n'));
+    expect(previewRowsOf(page.lines)).toEqual(page.lines.map((_, index) => index));
+  });
+
+  test('put a scene number on its heading\'s row, and the page number after the last row', () => {
+    const body = Array.from({ length: 70 }, (_, i) => `Line ${i}.`).join('\n\n');
+    const pages = paginate(parseFountain(`INT. HALL - DAY\n\n${body}`).elements, { sceneNumbers: 'both' });
+    const first = pages[0];
+    const second = pages[1];
+    if (first === undefined || second === undefined) throw new Error('expected two pages');
+    const rows = previewRowsOf(first.lines);
+    const heading = first.lines.findIndex((line) => line.kind === 'scene');
+    expect(first.lines.filter((line) => line.kind === 'sceneNumber')).toHaveLength(2);
+    expect(rows[heading + 1]).toBe(rows[heading]);
+    expect(rows[heading + 2]).toBe(rows[heading]);
+    const numbered = previewRowsOf(second.lines);
+    const last = second.lines.length - 1;
+    expect(second.lines[last]?.kind).toBe('pageNumber');
+    expect(numbered[last]).toBe(Math.max(...numbered.slice(0, last)) + 1);
+  });
+
+  test('keep a pair taller than a page as two blocks, one after the other', () => {
+    const speech = Array.from({ length: 400 }, (_, i) => `Word${i}`).join(' ');
+    const pages = paginate(parseFountain(['ANNA', speech, '', 'BEN ^', speech].join('\n')).elements);
+    for (const page of pages.filter((candidate) => candidate.kind === 'script')) {
+      const rows = previewRowsOf(page.lines);
+      const cues = page.lines.flatMap((line, index) => (line.kind === 'character' ? [rows[index]] : []));
+      expect(new Set(cues).size).toBe(cues.length);
+    }
   });
 });

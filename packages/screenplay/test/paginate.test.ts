@@ -422,6 +422,25 @@ describe('paginate — dual dialogue side by side (screenplay.md §2.2)', () => 
     expect(right?.x).toBeCloseTo(LAYOUT.marginLeft + LAYOUT.dual.right.dialogue * LAYOUT.charWidth, 5);
   });
 
+  it('gives the two columns of a pair the same row numbers, and leaves the blank rows out of the lines', () => {
+    const long = 'Every word of this speech is here to make it wrap onto several rows of its column.';
+    const [page] = paginate(parseFountain(text('INT. HALL - DAY', '', 'ANNA', long, '', 'BEN ^', 'Short.')).elements);
+    const lines = (page?.lines ?? []).filter((line) => line.row !== null);
+    const rightStart = LAYOUT.marginLeft + LAYOUT.dual.right.dialogue * LAYOUT.charWidth;
+    const left = lines.filter((line) => line.kind !== 'scene' && line.x < rightStart - 1e-9);
+    const right = lines.filter((line) => line.x >= rightStart - 1e-9);
+    const rowsOf = (side: readonly LayoutLine[]): number[] => side.map((line) => line.row ?? -1);
+    // The control: the left speech wraps onto more rows than the right, and both start on the same row.
+    expect(left.length).toBeGreaterThan(right.length);
+    expect(rowsOf(right)).toEqual(rowsOf(left).slice(0, right.length));
+    expect(new Set(rowsOf(left)).size).toBe(left.length);
+    // The heading's row, a blank row, then the pair: the blank row is a gap in the numbers, with no line in it.
+    const rows = lines.map((line) => line.row ?? -1);
+    expect(Math.min(...rowsOf(right))).toBe(2);
+    expect(rows).not.toContain(1);
+    expect((page?.lines ?? []).every((line) => line.text.trim() !== '')).toBe(true);
+  });
+
   it('wraps each column to its own width, so the columns never overlap, cues and parentheticals included', () => {
     const long = 'Every word of this speech is here to make it wrap onto several rows of its column.';
     // Cue names long enough to wrap: 25 characters each, one with no space to break at.
