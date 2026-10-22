@@ -40,7 +40,7 @@ A card a built-in policy cancels ends the turn as `cancelled`, with `askBack.cod
 
 ## Writing, and the safety net
 
-`write` defaults to `false`: changes stay in memory, nothing in the folder changes (an export lands in memory too), and `diff()` shows what a save would do. With `write: true` the folder is saved after each turn and each `call()` that changed the project, and `coherence.json` follows it (never under `'read-only'`).
+`write` defaults to `false`: changes stay in memory, nothing in the folder changes (an export lands in memory too), and `diff()` shows what a save would do. With `write: true` the folder is saved after each turn and each `call()` that changed the project, and `coherence.json` follows it (never under `'read-only'`). A turn that changed nothing writes nothing, and a file left spelled as it was (CRLF, say) is not rewritten by it.
 
 `restore(turnId)` takes a turn back, in memory, while the process lives: the undo history is not saved. Call `save()` afterwards to write the restored project. Git is the long-term safety net.
 

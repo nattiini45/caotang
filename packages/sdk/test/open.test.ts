@@ -3,7 +3,7 @@
  * scripted endpoint behind the global-fetch seam; the folder is the store's own, written to a temporary directory.
  */
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -13,7 +13,7 @@ import type { AgentEvent, TurnReport } from '@caotang/harness';
 
 import { LOCK_FILE, ProjectLockedError, openProject, type ApprovalPolicy, type CaotangProject, type OpenOptions } from '../src/index.js';
 import { DRAFT_THE_FRIEND, TEST_PROFILE, endpoint } from './endpoint.js';
-import { FRIEND, folderBytes, seedProject } from './fixture.js';
+import { FRIEND, LANDING, folderBytes, seedProject } from './fixture.js';
 import { removeDir, tempDir } from './support.js';
 
 let root = '';
@@ -89,6 +89,51 @@ describe("approval: 'read-only'", () => {
     await project.run(DEMO_INTENTS.continuity).report;
     await project.close();
     expect(existsSync(join(root, 'coherence.json'))).toBe(false);
+  });
+});
+
+describe('a folder that is not byte-canonical', () => {
+  const landing = (): string => join(root, 'docs', `${LANDING}.md`);
+
+  it('is left byte-identical by a read-only run, and diff() reports nothing for it', async () => {
+    writeFileSync(landing(), readFileSync(landing(), 'utf8').split(String.fromCharCode(10)).join(String.fromCharCode(13, 10)));
+    const before = folderBytes(root);
+    const project = await open({ write: true });
+    expect(await project.diff()).toEqual([]);
+    expect((await project.run(DEMO_INTENTS.continuity).report).status).toBe('replied');
+    expect(await project.diff()).toEqual([]);
+    await project.close();
+    expect(folderBytes(root)).toEqual(before);
+  });
+
+  it('keeps a document whose bytes are not UTF-8 as it is, and still saves the turn that changed another', async () => {
+    const utf16 = Buffer.from(`${String.fromCharCode(0xfeff)}${readFileSync(landing(), 'utf8')}`, 'utf16le');
+    writeFileSync(landing(), utf16);
+    const project = await open({ approval: 'approve-all', write: true });
+    expect(project.notices.length).toBeGreaterThan(0);
+    expect(await project.diff()).toEqual([]);
+    expect((await project.run(DEMO_INTENTS.continuity).report).status).toBe('replied');
+    expect((await project.run(DEMO_INTENTS.draftScene).report).status).toBe('applied');
+    expect((await project.diff()).map((change) => change.path)).not.toContain(`docs/${LANDING}.md`);
+    await project.close();
+    expect(readFileSync(landing()).equals(utf16)).toBe(true);
+    expect(readFileSync(join(root, 'docs', `${FRIEND}.md`), 'utf8')).toContain('friend');
+  });
+
+  it('with write: false lists the changes of a project that holds such a document', async () => {
+    writeFileSync(landing(), Buffer.from(String.fromCharCode(0xfeff) + readFileSync(landing(), 'utf8'), 'utf16le'));
+    await using project = await open({ approval: 'approve-all' });
+    await project.run(DEMO_INTENTS.draftScene).report;
+    expect((await project.diff()).map((change) => change.path)).toContain(`docs/${FRIEND}.md`);
+  });
+
+  it('writes the folder again when a save is followed by an undo of that turn', async () => {
+    await using project = await open({ approval: 'approve-all', write: true });
+    const report = await project.run(DEMO_INTENTS.draftScene).report;
+    expect(project.restore(report.turnId).ok).toBe(true);
+    expect((await project.diff()).map((change) => change.path)).toContain(`docs/${FRIEND}.md`);
+    await project.close();
+    expect(readFileSync(join(root, 'docs', `${FRIEND}.md`), 'utf8')).not.toContain('friend');
   });
 });
 

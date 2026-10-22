@@ -43,15 +43,42 @@ function ownedFiles(files: Readonly<Record<string, string>>): Map<string, string
   return owned;
 }
 
-export async function diffFolder(state: ProjectState, folder: ArtifactFs): Promise<readonly FileChange[]> {
+/** Paths of the files the load held because their bytes are not UTF-8: the state carries no text for them. */
+function heldPaths(state: ProjectState): Set<string> {
+  const held = new Set<string>();
+  for (const name of state.declinedDocFiles) held.add(`${DOCS_DIR}/${name}`);
+  for (const name of state.declinedCodexFiles) held.add(`${CODEX_DIR}/${name}`);
+  return held;
+}
+
+/**
+ * What a save would write for this state, by path: the owned files only. A document or codex file the load held has no text in the state,
+ * and `writeProject` refuses a target that lacks it, so a placeholder stands in for it in the in-memory folder and is left out of the
+ * result: a save leaves the folder's own file as it is.
+ */
+export async function renderOwned(state: ProjectState): Promise<ReadonlyMap<string, string>> {
   const memory = new MemoryArtifactFs();
+  const held = heldPaths(state);
+  for (const path of held) await memory.writeAtomic(path, '');
   // `writeProject` stamps `modifiedAt`. Stamping the value it already holds keeps the stamp out of the comparison and out of the state.
   const stamp = new Date(state.manifest.project.modifiedAt);
   await writeProject(memory, state, { now: Number.isNaN(stamp.getTime()) ? new Date() : stamp });
-  const after = ownedFiles(memory.snapshot());
+  const owned = ownedFiles(memory.snapshot());
+  for (const path of held) owned.delete(path);
+  return owned;
+}
+
+/**
+ * What saving would change. `baseline` is `renderOwned` of the state as it was opened: a file the state renders as it did then is no
+ * change of the session's, however the folder spells it (CRLF, hand-edited front matter), and a save of the session's changes leaves it alone.
+ */
+export async function diffFolder(state: ProjectState, folder: ArtifactFs, baseline: ReadonlyMap<string, string>): Promise<readonly FileChange[]> {
+  const after = await renderOwned(state);
+  const held = heldPaths(state);
 
   const changes: FileChange[] = [];
   for (const [path, text] of after) {
+    if (baseline.get(path) === text) continue;
     const before = await readOrUndefined(folder, path);
     if (before === undefined) changes.push({ path, kind: 'added', after: text });
     else if (before !== text) changes.push({ path, kind: 'changed', before, after: text });
@@ -62,7 +89,9 @@ export async function diffFolder(state: ProjectState, folder: ArtifactFs): Promi
   ] as const) {
     for (const name of await folder.listFiles(dir)) {
       const path = `${dir}/${name}`;
-      if (!owns(name) || after.has(path)) continue;
+      if (!owns(name) || after.has(path) || held.has(path)) continue;
+      // Only a document this session deleted is removed from docs/ (project-format §3); a file no manifest named is another program's.
+      if (dir === DOCS_DIR && !baseline.has(path)) continue;
       changes.push({ path, kind: 'removed', before: (await readOrUndefined(folder, path)) ?? '' });
     }
   }

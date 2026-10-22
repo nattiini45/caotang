@@ -28,7 +28,7 @@ import {
 import type { LoadNotice, ProjectState } from '@caotang/store';
 
 import { allowsAutoWrites, askBackFor, decisionFor, withAskBack, withoutAutoWrites, type ApprovalPolicy } from './approval.js';
-import { diffFolder, type FileChange } from './diff.js';
+import { diffFolder, renderOwned, type FileChange } from './diff.js';
 import { openFolder } from './folder.js';
 import { createNodeProviders, type ProviderConfig } from './providers.js';
 import { createEventQueue, type AgentRun } from './run.js';
@@ -176,13 +176,18 @@ export async function openProject(options: OpenOptions): Promise<CaotangProject>
     const assertOpen = (): void => {
       if (closed) throw new Error('this project is closed');
     };
+    /** What the state renders as, as of the open and of each save: `diff()` reports what the session changed since, not how the folder spells a file. */
+    let baseline = await renderOwned(state);
     /**
-     * Writes the folder when this project is open for writing and holds a change a save would make. A save stamps the manifest, so a
-     * project nothing changed in is left as it is, byte for byte.
+     * Writes the folder when this project is open for writing and the session changed it. A save stamps the manifest and rewrites every
+     * file that is not byte-canonical, so a project nothing changed in is left as it is, byte for byte. `force` is the caller's own save().
      */
-    const saveIfWriting = async (): Promise<void> => {
+    const saveIfWriting = async (force = false): Promise<void> => {
       if (!write) return;
-      if ((await diffFolder(state, folder.fs)).length > 0) await folder.persist();
+      if (force || (await diffFolder(state, folder.fs, baseline)).length > 0) {
+        await folder.persist();
+        baseline = await renderOwned(state);
+      }
       await folder.persistCoherence();
     };
 
@@ -252,7 +257,7 @@ export async function openProject(options: OpenOptions): Promise<CaotangProject>
         });
       },
 
-      diff: () => diffFolder(state, folder.fs),
+      diff: () => diffFolder(state, folder.fs, baseline),
 
       restore: (turnId) => agent.restore(turnId),
 
@@ -261,7 +266,7 @@ export async function openProject(options: OpenOptions): Promise<CaotangProject>
         if (!write) {
           throw new Error('this project was opened with write: false, so it cannot be saved. Open it with write: true, or read diff() and apply the changes yourself.');
         }
-        await inSequence(saveIfWriting);
+        await inSequence(() => saveIfWriting(true));
       },
 
       async close() {
