@@ -100,8 +100,12 @@ export const SAVED_FILTERS_MAX = 50;
 /** goals-progress §2.2: ≤ 20 goals per project (the store checks the count). */
 export const GOALS_MAX = 20;
 
-/** The criteria keys this build knows (binder-filters §2, §2.1). A key outside the list is refused here. */
-const CRITERIA_KEYS: readonly string[] = [
+/**
+ * The criteria keys this build knows (binder-filters §2, §2.1). A key outside the list is refused here, and the store's loader
+ * (validate.ts) reads this same list to drop an unknown key from a saved filter on load — one record of the list, so the
+ * command boundary and the load cannot drift apart.
+ */
+export const CRITERIA_KEYS: readonly string[] = [
   'text',
   'textIn',
   'statusId',
@@ -142,6 +146,21 @@ function codePoints(text: string): number {
   return [...text].length;
 }
 
+/**
+ * Whether a saved filter's name is one the bus accepts: at most
+ * `FILTER_NAME_MAX` characters, counted in code points.
+ *
+ * The count is in code points and not in `.length` (UTF-16 units), so a name
+ * of 31 emoji is 31 characters and not 62 — the writer may give a name that
+ * long, and the store's loader, which drops a filter whose name the bus would
+ * refuse, reads this same rule (`packages/store/src/validate.ts`). One record
+ * of it, so the two halves cannot drift apart: `.length` here would refuse a
+ * name of 31 emoji that the bus accepts.
+ */
+export function filterNameFits(name: string): boolean {
+  return codePoints(name.trim()) <= FILTER_NAME_MAX;
+}
+
 /* ------------------------------------------------------------------ *
  * Saved filters
  * ------------------------------------------------------------------ */
@@ -178,7 +197,7 @@ function readFilter(raw: unknown, snapshot: ValidationSnapshot): Result<SavedFil
     return invalid('a saved filter needs a name', `give the filter a name of up to ${FILTER_NAME_MAX} characters`, 'filter.name');
   }
   const trimmed = name.trim();
-  if (codePoints(trimmed) > FILTER_NAME_MAX) {
+  if (!filterNameFits(trimmed)) {
     return invalid(`the filter name is ${codePoints(trimmed)} characters`, `a name is at most ${FILTER_NAME_MAX} characters`, 'filter.name');
   }
 

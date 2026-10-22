@@ -9,6 +9,7 @@
 
 import type { CodexEntry } from '@caotang/store';
 
+import type { CueFacts } from '../cues.js';
 import { effectiveMode } from '../scene-meta.js';
 import type { DeterministicCheckId, Evidence, FindingSeverity, TimelineMode } from '../model.js';
 import type { ManuscriptFolder, ScannedScene, ShotFact } from '../scope.js';
@@ -51,6 +52,14 @@ export interface CheckInput {
   readonly shots?: readonly ShotFact[];
   /** The dialogue module's validation, when the app supplied it. Absent means the branch checks are not evaluated. */
   readonly dialogue?: DialogueFacts;
+  /**
+   * The screenplay read of each scene body, keyed by `scene.docId`, when the run computed it: the three script checks
+   * share one parse per scene. The map is trusted as it stands — a check quotes these facts as finding evidence
+   * without re-reading the body, so the caller must build it from the very bodies this input carries; facts parsed
+   * from older bodies would be quoted as stale evidence with nothing to detect it. A scene missing from a partial map
+   * is not an error: that scene's checks fall back to a fresh parse of its own body, which costs a parse, nothing else.
+   */
+  readonly cueFacts?: ReadonlyMap<string, CueFacts>;
 }
 
 export interface CheckOutput {

@@ -85,7 +85,7 @@ describe('codex.write', () => {
     const entries = Array.from({ length: 21 }, (_, index) => ({ action: 'create', name: `Name ${index}` }));
     const error = refusalOf(run(makeHarness(), 'codex.write', { entries }, { permission: CONFIRMED }));
     expect(error.code).toBe('limit-exceeded');
-    expect(error.message).toBe('params.entries has 21 entries, limit 20');
+    expect(error.message).toBe('params.entries has 21 entries, at most 20 allowed');
   });
 
   it('refuses an entry that both attaches and detaches the same node, because the two asks contradict', () => {

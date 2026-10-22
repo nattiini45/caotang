@@ -40,12 +40,15 @@ function rich(): Manifest {
       updatedAt: T.toISOString(),
     },
   ];
+  // The ids and criterion keys are the shapes the loader keeps (binder-filters §2,
+  // goals-progress §2.2), so the load-side tests below can run the fixture through
+  // `validateManifest` without tripping a drop rule that is not under test.
   m.filters = [
-    { id: 'f_1', name: 'Stale scenes', criteria: { status: 'draft' }, createdAt: T.toISOString(), updatedAt: T.toISOString() },
+    { id: 'q_01H2K3M4N5', name: 'Stale scenes', criteria: { statusId: 'draft' }, createdAt: T.toISOString(), updatedAt: T.toISOString() },
   ];
   m.goals = [
     {
-      id: 'g_1',
+      id: 'g_01H2K3M4N5',
       nodeId: 'manuscript',
       metric: 'words',
       comparator: 'at-least',
@@ -330,5 +333,267 @@ describe('manifest serializer', () => {
     const once = serializeManifest(m);
     const twice = serializeManifest(JSON.parse(once) as Manifest);
     expect(twice).toBe(once);
+  });
+
+  /**
+   * A field the writer does not have is a refusal, not a word in the file.
+   *
+   * `JSON.stringify(undefined)` is `undefined`, and the emitter pasted it into
+   * the file as the bare word `undefined` — which is not JSON, so the manifest
+   * a save had just written could not be parsed by the next open. The write
+   * fails instead, and the error names the field, so the caller can say which
+   * one is missing.
+   */
+  it('refuses to write a field it does not have, naming it', () => {
+    const withoutStamp = rich();
+    delete (withoutStamp.filters![0] as { createdAt?: string }).createdAt;
+    expect(() => serializeManifest(withoutStamp)).toThrow(/createdAt/);
+
+    const withoutMetric = rich();
+    delete (withoutMetric.goals![0] as { metric?: string }).metric;
+    expect(() => serializeManifest(withoutMetric)).toThrow(/metric/);
+
+    const withoutName = rich();
+    delete (withoutName.goals![0] as { comparator?: string }).comparator;
+    expect(() => serializeManifest(withoutName)).toThrow(/comparator/);
+  });
+
+  it('refuses a criterion value it cannot write as JSON, rather than writing it bare', () => {
+    const m = rich();
+    (m.filters![0] as { criteria: Record<string, unknown> }).criteria = { text: undefined };
+
+    expect(() => serializeManifest(m)).toThrow(/criteria/);
+  });
+
+  // `JSON.stringify` writes NaN and Infinity as the string `null`, which would
+  // silently change the value on save; `String()` writes them bare, which is not
+  // JSON at all. Both emitters refuse instead, naming the field.
+  it('refuses a non-finite criterion number, naming the field, rather than writing null', () => {
+    for (const bad of [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NaN]) {
+      const m = rich();
+      (m.filters![0] as { criteria: Record<string, unknown> }).criteria = { minWords: bad };
+      expect(() => serializeManifest(m), String(bad)).toThrow(/minWords/);
+    }
+  });
+
+  it('refuses a non-finite scalar such as a citation offset, naming the field, rather than writing it bare', () => {
+    for (const bad of [Number.POSITIVE_INFINITY, Number.NaN]) {
+      const m = rich();
+      m.codex![0]!.sources = [{ docId: 'n_3W8RN2TQ6C', quote: 'the ferry was late', from: bad }];
+      expect(() => serializeManifest(m), String(bad)).toThrow(/source\.from/);
+    }
+  });
+});
+
+/**
+ * The writer refuses a value it cannot write as JSON — and a refusal with no
+ * path to recovery makes a project unsaveable. So every value of this class
+ * that the loader accepts is normalized on load instead: deleted with a warning
+ * (a field with a documented meaning when absent, like `kind`), or given that
+ * meaning (like `origin` = 'manual'). What the load keeps, the writer can
+ * write.
+ */
+describe('what the loader accepts, the writer can write back', () => {
+  it('drops a node stamp that is not an ISO date, rather than keeping a value every save would refuse', () => {
+    const m = rich();
+    (m.tree[1] as unknown as Record<string, unknown>)['createdAt'] = 123;
+    (m.tree[2] as unknown as Record<string, unknown>)['updatedAt'] = null;
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings.map((w) => w.path)).toEqual(
+      expect.arrayContaining(['tree[1].createdAt', 'tree[2].updatedAt']),
+    );
+    expect(r.manifest?.tree[1]).not.toHaveProperty('createdAt');
+    expect(r.manifest?.tree[2]).not.toHaveProperty('updatedAt');
+    expect(() => serializeManifest(r.manifest as Manifest)).not.toThrow();
+  });
+
+  it('drops a codex stamp that is null or malformed — null included, which the writer cannot write either', () => {
+    const m = rich();
+    (m.codex![0] as unknown as Record<string, unknown>)['createdAt'] = null;
+    (m.codex![0] as unknown as Record<string, unknown>)['updatedAt'] = 'yesterday';
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings.map((w) => w.path)).toEqual(
+      expect.arrayContaining(['codex[0].createdAt', 'codex[0].updatedAt']),
+    );
+    expect(r.manifest?.codex?.[0]).not.toHaveProperty('createdAt');
+    expect(r.manifest?.codex?.[0]).not.toHaveProperty('updatedAt');
+    expect(() => serializeManifest(r.manifest as Manifest)).not.toThrow();
+  });
+
+  it('drops a vocabulary term whose name or color is not a string, and the nodes that named it keep their value as an unknown chip', () => {
+    const m = rich();
+    (m.vocabulary.statuses[0] as unknown as Record<string, unknown>)['color'] = 123;
+    // The node named the term that is dropped, so the unknown-chip path runs: the
+    // value is kept, and the load says the vocabulary does not know it.
+    (m.tree[1] as unknown as Record<string, unknown>)['status'] = 'draft';
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings.map((w) => w.path)).toContain('vocabulary.statuses[0]');
+    expect(r.warnings.map((w) => w.path)).toContain('tree[1].status');
+    expect(r.manifest?.vocabulary.statuses.map((term) => term.id)).toEqual(['revised', 'final']);
+    expect(r.manifest?.tree[1]?.status).toBe('draft');
+    expect(() => serializeManifest(r.manifest as Manifest)).not.toThrow();
+  });
+
+  // A term id the bus could not use is a term the writer writes happily and the
+  // app cannot: an empty id makes `''` a 'known' status id the bus refuses, and
+  // a repeated id makes `vocabulary.upsert` edit only the first match.
+  it('drops a vocabulary term with an empty or repeated id', () => {
+    const m = rich();
+    (m.vocabulary.statuses[0] as unknown as Record<string, unknown>)['id'] = '';
+    m.vocabulary.labels.push({ id: 'act-1', name: 'Act 1 again', color: '#d9a44a' });
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings.map((w) => w.path)).toEqual(
+      expect.arrayContaining(['vocabulary.statuses[0].id', 'vocabulary.labels[1].id']),
+    );
+    expect(r.manifest?.vocabulary.statuses.map((term) => term.id)).toEqual(['revised', 'final']);
+    expect(r.manifest?.vocabulary.labels.map((term) => term.id)).toEqual(['act-1']);
+    expect(() => serializeManifest(r.manifest as Manifest)).not.toThrow();
+  });
+
+  // A node's media metadata is written as the JSON it is, so a value JSON
+  // cannot hold — a number that is not finite, a BigInt — would make every
+  // save of the project refuse. The load drops the field, the writer refuses it
+  // by name: neither writes it as `null` and changes it.
+  it('drops media metadata JSON cannot hold, and the writer refuses it by name', () => {
+    const m = rich();
+    (m.tree[1] as unknown as Record<string, unknown>)['shot'] = { duration: Number.POSITIVE_INFINITY };
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings.map((w) => w.path)).toContain('tree[1].shot.duration');
+    expect(r.manifest?.tree[1]).not.toHaveProperty('shot');
+    expect(() => serializeManifest(r.manifest as Manifest)).not.toThrow();
+
+    // The writer is the second guard: a value that got past the load refuses
+    // the save, naming the field.
+    const hand = rich();
+    (hand.tree[1] as unknown as Record<string, unknown>)['shot'] = { duration: Number.POSITIVE_INFINITY };
+    expect(() => serializeManifest(hand)).toThrow(/shot\.duration/);
+  });
+
+  // A Map or a Set is the value JSON hides rather than refuses: it writes them
+  // as `{}`, and their contents are dropped without a word. The load drops the
+  // field and the writer refuses it by name, so nothing is written as `{}`.
+  it('drops media metadata a Map would be written as {}, and the writer refuses it by name', () => {
+    const m = rich();
+    (m.tree[1] as unknown as Record<string, unknown>)['shot'] = { tags: new Map([['wide', 1]]) };
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings.map((w) => w.path)).toContain('tree[1].shot.tags');
+    expect(r.manifest?.tree[1]).not.toHaveProperty('shot');
+    expect(() => serializeManifest(r.manifest as Manifest)).not.toThrow();
+
+    // The writer is the second guard: a value it cannot write refuses the
+    // save, naming the field.
+    const hand = rich();
+    (hand.tree[1] as unknown as Record<string, unknown>)['shot'] = { tags: new Map([['wide', 1]]) };
+    expect(() => serializeManifest(hand)).toThrow(/node\.shot\.tags/);
+  });
+
+  // The counts are a cache the writer writes as JSON numbers, so a count that
+  // is not a number is dropped on load: the writer would write it as a quoted
+  // string (`n_x: "abc"`, through `scalar`), which is valid JSON and a count
+  // the next load drops again.
+  it('drops a word count that is not a number, and the writer refuses one by name', () => {
+    const m = rich();
+    (m.derived as unknown as Record<string, unknown>)['wordCounts'] = { n_3W8RN2TQ6C: 'lots' };
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings.map((w) => w.path)).toContain('derived.wordCounts.n_3W8RN2TQ6C');
+    expect(r.manifest?.derived.wordCounts).toEqual({});
+    // `toEqual` cannot tell a deleted count from one set to `undefined`, and
+    // the writer maps `undefined ?? 0` to `0` — so a count left in place would
+    // be written back as a different number. The key has to be gone.
+    expect(r.manifest?.derived.wordCounts).not.toHaveProperty('n_3W8RN2TQ6C');
+    const text = serializeManifest(r.manifest as Manifest);
+    expect(() => JSON.parse(text)).not.toThrow();
+
+    // The writer is the second guard: a count that is not finite refuses the
+    // save, naming the field.
+    const hand = rich();
+    (hand.derived as unknown as Record<string, unknown>)['wordCounts'] = { n_3W8RN2TQ6C: Number.POSITIVE_INFINITY };
+    expect(() => serializeManifest(hand)).toThrow(/derived\.wordCounts/);
+  });
+
+  // The case the finite-number guard is there for: JSON parses `1e400` to
+  // Infinity, so a file can carry a count that is not finite. The load drops
+  // it, and the writer refuses one by name.
+  it('drops a word count that is not finite, and the writer refuses one by name', () => {
+    const m = rich();
+    (m.derived as unknown as Record<string, unknown>)['wordCounts'] = { n_3W8RN2TQ6C: Number.POSITIVE_INFINITY };
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings.map((w) => w.path)).toContain('derived.wordCounts.n_3W8RN2TQ6C');
+    expect(r.manifest?.derived.wordCounts).not.toHaveProperty('n_3W8RN2TQ6C');
+    // And a count that JSON itself parsed to Infinity is the same count.
+    expect(JSON.parse('{"n_x": 1e400}')['n_x']).toBe(Number.POSITIVE_INFINITY);
+
+    const hand = rich();
+    (hand.derived as unknown as Record<string, unknown>)['wordCounts'] = { n_3W8RN2TQ6C: Number.POSITIVE_INFINITY };
+    expect(() => serializeManifest(hand)).toThrow(/derived\.wordCounts/);
+  });
+
+  it('gives an absent status or label the null the field table gives it, so the writer has a value to write', () => {
+    const m = rich();
+    delete (m.tree[1] as unknown as Record<string, unknown>)['status'];
+    delete (m.tree[1] as unknown as Record<string, unknown>)['label'];
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.manifest?.tree[1]?.status).toBeNull();
+    expect(r.manifest?.tree[1]?.label).toBeNull();
+    const text = serializeManifest(r.manifest as Manifest);
+    expect(() => JSON.parse(text)).not.toThrow();
+    expect(text).not.toContain('undefined');
+  });
+
+  it('gives an absent codex description, case flag and lists the empty values the spec gives them', () => {
+    const m = rich();
+    const entry = m.codex![0] as unknown as Record<string, unknown>;
+    for (const key of ['description', 'caseSensitive', 'aliases', 'exclude', 'attachments', 'keywords', 'sources']) {
+      delete entry[key];
+    }
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    const kept = r.manifest?.codex?.[0] as unknown as Record<string, unknown>;
+    expect(kept['description']).toBe('');
+    expect(kept['caseSensitive']).toBe(false);
+    expect(kept['aliases']).toEqual([]);
+    expect(kept['sources']).toEqual([]);
+    const text = serializeManifest(r.manifest as Manifest);
+    expect(() => JSON.parse(text)).not.toThrow();
+    expect(text).not.toContain('undefined');
+  });
+
+  it('replaces a vocabulary that is not an object with an empty one, so the project still opens and still saves', () => {
+    const m = rich();
+    (m as unknown as Record<string, unknown>)['vocabulary'] = 'none';
+
+    const r = validateManifest(m, { docFiles: [] });
+
+    expect(r.ok).toBe(true);
+    expect(r.warnings.map((w) => w.path)).toContain('vocabulary');
+    expect(r.manifest?.vocabulary).toEqual({ statuses: [], labels: [] });
+    expect(() => serializeManifest(r.manifest as Manifest)).not.toThrow();
   });
 });

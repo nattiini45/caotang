@@ -58,6 +58,7 @@ export {
 export {
   LAYOUT,
   MINUTES_PER_PAGE,
+  SCENE_NUMBER_PLACEMENTS,
   estimatePageCount,
   estimateRuntimeMinutes,
   paginate,
@@ -66,6 +67,7 @@ export {
   type LayoutPage,
   type LineKind,
   type PaginateOptions,
+  type SceneNumberPlacement,
   type SceneLength,
 } from './paginate.js';
 

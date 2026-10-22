@@ -73,6 +73,11 @@ export function projectedSnapshot(
  * A batch's per-op refusal, in the bus's shape (`batchRefusal` is not exported by
  * the bus, and this is the same envelope: `invalid-params`, the failures in
  * `details`, and a hint that says nothing was written).
+ *
+ * Each per-op failure keeps the details of the failure it reports, so what the op
+ * said as data — the candidates an ambiguous name matched — survives the wrapping.
+ * A caller that cannot see it can only read the prose, which §7 does not ask of
+ * anyone.
  */
 export function batchRefusal(
   failures: readonly { readonly target: string; readonly error: CommandError }[],
@@ -93,6 +98,7 @@ export function batchRefusal(
         code: error.code,
         message: error.message,
         ...(error.correctiveHint === undefined ? {} : { correctiveHint: error.correctiveHint }),
+        ...(error.details === undefined ? {} : { details: error.details }),
       })),
     },
   };

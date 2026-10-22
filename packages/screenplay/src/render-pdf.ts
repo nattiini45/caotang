@@ -58,6 +58,7 @@ export interface PdfLayout {
 
 export interface PdfRenderResult {
   readonly bytes: Uint8Array<ArrayBuffer>;
+  /** The pages the written file holds. A script that prints nothing still writes one blank page, and this counts it. */
   readonly pageCount: number;
   /** What the Fountain step left out, then any font-coverage notes from layout (neither font can print a character; an emoji sequence the emoji font lacks), then, when a fallback font is missing or incomplete, one note naming up to ten of the characters it leaves unprinted (CJK first, then emoji units, each in order of first use, with an ellipsis past ten). */
   readonly notes: readonly string[];
@@ -212,7 +213,8 @@ export function renderPdf(
     const { what, verb, shown } = counted(unprinted, 'character', 'characters');
     notes.push(`pdf: the CJK or emoji fallback font that prints ${what} was not passed to renderPdf, or has no glyph for ${unprinted.length === 1 ? 'it' : 'them'}, so ${verb} not printed as written: ${shown}`);
   }
-  return { bytes: drawPdf(layout, font, fallback, emoji), pageCount: layout.pages.length, notes };
+  // A script that prints nothing writes one blank page (writePdf), so the reported count agrees with the file.
+  return { bytes: drawPdf(layout, font, fallback, emoji), pageCount: Math.max(1, layout.pages.length), notes };
 }
 
 export interface PdfRenderer {
