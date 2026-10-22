@@ -144,6 +144,15 @@ import {
 } from './protocol.js';
 import { previewFor, sceneDraftPreflight, shotsDeriveScenePreflight } from './ports.js';
 import { createContextPort, dropLinesOf, mergePreviews, type ContextPort } from './context.js';
+import {
+  BACKGROUND_OFFER_MIN_CALLS,
+  backgroundEligibility,
+  estimatedModelCalls,
+  proposalShapeOk,
+  revisionsOf,
+  staleSteps,
+  type StepRevisions,
+} from './background.js';
 import { DERIVE_SCHEMA_HINT, deriveRole, deriveUserText, parseDeriveReply, promptModelOf, storyboardOf } from './storyboard-model.js';
 
 export interface AgentSessionOptions {
@@ -190,6 +199,39 @@ export interface AgentSessionOptions {
    * tool on every request", for a model that searches poorly. Read at each request, so a change applies to the next one.
    */
   readonly loadEveryTool?: () => boolean;
+  /**
+   * Asked once for a planner's plan that needs many model calls, before any of them is made (agent-harness §2, "Background runs"). The
+   * answer is the writer's: stage the plan now, queue it, or drop it. Absent, a plan is always staged now. A plan the app built
+   * (`submitPlan`) is never offered, and neither is a plan that cannot run unattended or is small (`BACKGROUND_OFFER_MIN_CALLS`).
+   */
+  readonly beforeStage?: (offer: PlanOffer) => Promise<OfferAnswer>;
+}
+
+/** The plan a writer is asked about before it is staged. */
+export interface PlanOffer {
+  readonly turnId: string;
+  readonly steps: readonly PlanStep[];
+  /** The model calls staging the plan makes (`estimatedModelCalls`). A background run is capped at this many. */
+  readonly estimatedCalls: number;
+  /** The most model calls a turn may make here: staging now stops at this many. */
+  readonly turnCap: number;
+}
+
+/** The writer's answer to a `PlanOffer`. `background` is only given once the app has queued the plan. */
+export type OfferAnswer = 'now' | 'background' | 'cancel';
+
+/** What staging steps without a card produced (`AgentSession.stageOnly`). Every array is aligned to the steps given. */
+export interface StageOnlyResult {
+  /** The draft of each model-backed step, and `undefined` for a step with none or one that was refused. */
+  readonly proposals: readonly unknown[];
+  /** The documents each step read, with their revisions as they were before the step's model calls. */
+  readonly revisions: readonly StepRevisions[];
+  readonly refusals: readonly { readonly index: number; readonly tool: string; readonly message: string }[];
+  /** The writer's stop (the signal) ended staging before it finished: the steps from the first one without an outcome did not run. */
+  readonly stopped: boolean;
+  /** The model calls made, and their tokens as the gateway's ledger counted them. */
+  readonly modelCalls: number;
+  readonly tokens: { readonly promptTokens: number; readonly completionTokens: number; readonly requests: number };
 }
 
 /** What the caller holds for one turn (agent-harness §2, "Stop and steer"). */
@@ -223,6 +265,25 @@ export interface AgentSession {
    * planner's is, and a plan that does not parse is refused before anything is staged.
    */
   submitPlan(intent: string, plan: unknown, options?: TurnOptions): Promise<TurnReport>;
+  /**
+   * Stages `steps` and nothing else: no card, no decision, no bus command, and no turn in the session's record. A background task
+   * runs this for each of its items. A step the stop cut short is not an outcome; the rest of the result is what was staged.
+   */
+  stageOnly(steps: readonly PlanStep[], options?: TurnOptions): Promise<StageOnlyResult>;
+  /**
+   * Reviews a plan that was staged earlier (`stageOnly`) as a turn: its card is decided like any other and the ghost previews and the
+   * apply are the normal path, but no step is staged again, so no model call is made for a draft already held. `proposals` and
+   * `revisions` are aligned to the plan's steps. Stored data is untrusted: a step whose proposal fails its shape guard, was not
+   * drafted, or read a document that has changed since is marked stale, and the card cannot be approved until it is drafted again or
+   * dropped.
+   */
+  submitStaged(
+    intent: string,
+    plan: unknown,
+    proposals: readonly unknown[],
+    revisions: readonly (StepRevisions | undefined)[],
+    options?: TurnOptions,
+  ): Promise<TurnReport>;
   /**
    * Adds a writer's note to a running turn. It reaches the model at the next planner request, after the previous reply's tool
    * results, as one user message of its own. Refused with `not-found` for a turn that is not running. A note the turn ends
@@ -344,6 +405,10 @@ interface Settled {
 interface Staged {
   readonly proposals: readonly unknown[];
   readonly refusals: readonly { readonly index: number; readonly tool: string; readonly message: string }[];
+  /** Steps whose drafts are out of date as the card first shows them (a plan staged earlier, `submitStaged`). */
+  readonly stale?: readonly boolean[];
+  /** The card's first notice. */
+  readonly notice?: string;
 }
 
 /** What one step's drafting produced: its proposal, or the reason it was refused. */
@@ -1792,14 +1857,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const single = plan.steps.length === 1 ? (plan.steps[0] as PlanStep) : undefined;
     const kind: 'plan' | 'confirm' = single !== undefined && riskOf(single.tool) === 'write-confirm' ? 'confirm' : 'plan';
     // A single write-auto call runs at once: a reversible op skips the plan (agent-harness §2).
-    const auto = single !== undefined && riskOf(single.tool) !== 'write-confirm';
+    const auto = single !== undefined && riskOf(single.tool) !== 'write-confirm' && staged.stale?.some(Boolean) !== true;
     if (plan.steps.some((step) => step.params['selection'] !== undefined)) await preloadAnchorLibraries();
 
     let editable: EditableSteps = {
       steps: plan.steps,
       origins: plan.steps.map((_, index) => index),
       proposals: staged.proposals,
-      stale: plan.steps.map(() => false),
+      stale: plan.steps.map((_, index) => staged.stale?.[index] === true),
       superseded: [],
       completed: [],
     };
@@ -1828,7 +1893,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     let edits = 0;
     let attempt = 0;
     let attemptPrefix = prefix;
-    let notice: string | undefined;
+    let notice: string | undefined = staged.notice;
     for (;;) {
       const decided = await decideCard(turn, kind, attemptPrefix, { editable, from, revision: edits + retries, ...(notice === undefined ? {} : { notice }) });
       notice = undefined;
@@ -1945,6 +2010,38 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     }
   }
 
+  /**
+   * The writer's choice for a plan that needs many model calls, asked before any of them is made (`AgentSessionOptions.beforeStage`).
+   * Undefined means stage the plan now. The wait ends at once with a cancel when the writer stops the turn.
+   */
+  async function offerBackground(turn: Turn, plan: Plan): Promise<Settled | undefined> {
+    const ask = options.beforeStage;
+    const calls = estimatedModelCalls(plan.steps);
+    if (ask === undefined || calls < BACKGROUND_OFFER_MIN_CALLS || !backgroundEligibility(plan.steps).eligible) return undefined;
+    checkStop(turn);
+    phase(turn, 'awaiting-approval');
+    const { signal } = turn;
+    turn.deciding = true;
+    let release = (): void => {};
+    try {
+      const asked = ask({ turnId: turn.id, steps: plan.steps, estimatedCalls: calls, turnCap: maxModelCalls });
+      const stopped = new Promise<OfferAnswer>((resolve) => {
+        if (signal === undefined) return;
+        const onAbort = (): void => resolve('cancel');
+        if (signal.aborted) return onAbort();
+        signal.addEventListener('abort', onAbort, { once: true });
+        release = () => signal.removeEventListener('abort', onAbort);
+      });
+      const answer = await Promise.race([asked, stopped]);
+      if (signal?.aborted === true || answer === 'cancel') return { status: 'cancelled' };
+      if (answer === 'now') return undefined;
+      return { status: 'replied', text: `Queued in the background: ${calls} model ${calls === 1 ? 'call' : 'calls'}. Results appear in Tasks when ready.` };
+    } finally {
+      release();
+      turn.deciding = false;
+    }
+  }
+
   /** The model conversation of one turn: a reply, parsed, with a bad one answered by the words it needs. */
   async function converse(turn: Turn): Promise<Settled> {
     for (;;) {
@@ -2014,6 +2111,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         plan = parsed.value.plan;
       }
 
+      const offered = await offerBackground(turn, plan);
+      if (offered !== undefined) return offered;
       const staged = await stage(turn, plan.steps);
       if (staged.refusals.length > 0) {
         flushWire(turn);
@@ -2129,12 +2228,93 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   }
 
   /**
+   * A turn that reviews a plan staged in the background (`submitStaged`): the stored drafts go to the card as they are, and nothing is
+   * staged again. A stored plan is checked as a planner's is, and it must still be one that may run unattended.
+   */
+  async function stagedTurn(
+    turn: Turn,
+    plan: Plan,
+    stored: readonly unknown[],
+    revisions: readonly (StepRevisions | undefined)[],
+  ): Promise<Settled> {
+    const eligible = backgroundEligibility(plan.steps);
+    if (!eligible.eligible) return { status: 'failed', askBack: askBackFor(refusal('invalid-params', eligible.reason, { correctiveHint: 'send the request again' })) };
+    const stale = staleSteps(harness.state, plan.steps, stored, revisions);
+    // A proposal that fails its shape guard never reaches the card: it is treated as a step that was not drafted.
+    const proposals = plan.steps.map((step, index) => (MODEL_BACKED.has(step.tool) && proposalShapeOk(step.tool, stored[index]) ? stored[index] : undefined));
+    const outdated = stale.filter(Boolean).length;
+    if (plan.steps.every((step) => riskOf(step.tool) === 'read')) {
+      if (outdated > 0) {
+        return { status: 'failed', askBack: askBackFor(refusal('revision-conflict', 'the background result is out of date, so nothing was run', { correctiveHint: 'send the request again' })) };
+      }
+      const ended = await runReads(turn, plan.steps, proposals);
+      if (ended !== undefined) return ended;
+      return { status: 'replied', text: turn.steps.map((step) => step.summary ?? step.tool).join('; ') };
+    }
+    const notice =
+      outdated === 0
+        ? undefined
+        : `${outdated} of ${plan.steps.length} ${plan.steps.length === 1 ? 'step is' : 'steps are'} out of date or could not be drafted in the background. Retry ${outdated === 1 ? 'it' : 'them'} against the current text, or drop ${outdated === 1 ? 'it' : 'them'}.`;
+    const written = await runWrites(turn, plan, { proposals, refusals: [], stale, ...(notice === undefined ? {} : { notice }) });
+    if (written === 'continue') {
+      return { status: 'failed', askBack: askBackFor(refusal('invalid-params', 'the plan was refused before anything ran', { correctiveHint: 'correct the step and send it again' })) };
+    }
+    return written;
+  }
+
+  /**
+   * Stages steps with no card (`stageOnly`). Each step is staged on its own, so one refused or failed step costs the others nothing.
+   * Its turn is not recorded as a conversation turn: the session's record and the planner's history stay as they were.
+   */
+  async function stageSteps(stepsIn: readonly PlanStep[], turnOptions: TurnOptions): Promise<StageOnlyResult> {
+    const parsed = parsePlan({ steps: stepsIn });
+    const turn = newTurn(turnOptions.signal, []);
+    const steps = parsed.ok ? parsed.value.steps : [];
+    const proposals: unknown[] = stepsIn.map(() => undefined);
+    const revisions: StepRevisions[] = stepsIn.map(() => ({}));
+    const refusals: { index: number; tool: string; message: string }[] = [];
+    let stopped = false;
+    if (!parsed.ok) {
+      for (const [index, step] of stepsIn.entries()) refusals.push({ index, tool: step.tool, message: parsed.error.message });
+    }
+    try {
+      for (const [index, step] of steps.entries()) {
+        checkStop(turn);
+        revisions[index] = revisionsOf(harness.state, step);
+        try {
+          const one = await stage(turn, [step]);
+          proposals[index] = one.proposals[0];
+          for (const refused of one.refusals) refusals.push({ index, tool: refused.tool, message: refused.message });
+        } catch (error) {
+          if (error instanceof TurnStopped || turn.signal?.aborted === true) throw new TurnStopped();
+          const settled = stoppedBy(error, maxModelCalls);
+          refusals.push({ index, tool: step.tool, message: settled.askBack?.reason ?? messageOf(error) });
+        }
+      }
+    } catch (error) {
+      if (!(error instanceof TurnStopped)) throw error;
+      stopped = true;
+    } finally {
+      harness.endTurn(turn.id);
+    }
+    const totals = gateway.ledger.turnTotals(turn.id);
+    return {
+      proposals,
+      revisions,
+      refusals,
+      stopped,
+      modelCalls: turn.modelCalls,
+      tokens: { promptTokens: totals.promptTokens, completionTokens: totals.completionTokens, requests: totals.requests },
+    };
+  }
+
+  /**
    * One turn, from its record to its report. `first` runs the turn's steps. A failure it cannot recover from is reported in words
    * the user can act on: the turn is never left half-finished, and whatever it applied stays in its undo group.
    */
-  async function runTurn(intent: string, turnOptions: TurnOptions, first: (turn: Turn) => Promise<Settled>): Promise<TurnReport> {
+  function newTurn(signal: AbortSignal | undefined, priorTurns: readonly RecentTurn[]): Turn {
     turnCounter += 1;
-    const turn: Turn = {
+    return {
       id: `${sessionName}.turn-${turnCounter}`,
       messages: [],
       trace: [],
@@ -2142,10 +2322,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       steps: [],
       statusCards: [],
       dropped: [],
-      // The turns before this one are what L6 may show; this turn's intent is recorded for the ones after it.
-      priorTurns: [...started],
+      priorTurns,
       modelCalls: 0,
-      signal: turnOptions.signal,
+      signal,
       phase: 'started',
       notes: [],
       deciding: false,
@@ -2155,6 +2334,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       wireReplies: [],
       wireSteps: new Map(),
     };
+  }
+
+  async function runTurn(intent: string, turnOptions: TurnOptions, first: (turn: Turn) => Promise<Settled>): Promise<TurnReport> {
+    // The turns before this one are what L6 may show; this turn's intent is recorded for the ones after it.
+    const turn = newTurn(turnOptions.signal, [...started]);
     started.push({ turnId: turn.id, intent });
     running.set(turn.id, turn);
     phase(turn, 'started');
@@ -2201,6 +2385,21 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const parsed = parsePlan(plan);
       return runTurn(intent, turnOptions, (turn) =>
         parsed.ok ? givenPlanTurn(turn, parsed.value) : Promise.resolve<Settled>({ status: 'failed', askBack: askBackFor(parsed.error) }),
+      );
+    },
+
+    stageOnly: (steps: readonly PlanStep[], turnOptions: TurnOptions = {}): Promise<StageOnlyResult> => stageSteps(steps, turnOptions),
+
+    submitStaged(
+      intent: string,
+      plan: unknown,
+      proposals: readonly unknown[],
+      revisions: readonly (StepRevisions | undefined)[],
+      turnOptions: TurnOptions = {},
+    ): Promise<TurnReport> {
+      const parsed = parsePlan(plan);
+      return runTurn(intent, turnOptions, (turn) =>
+        parsed.ok ? stagedTurn(turn, parsed.value, proposals, revisions) : Promise.resolve<Settled>({ status: 'failed', askBack: askBackFor(parsed.error) }),
       );
     },
 

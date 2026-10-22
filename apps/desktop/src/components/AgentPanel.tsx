@@ -34,6 +34,8 @@ import { ConfirmDialog, EmptyState, useReport, useSession } from './shared.js';
 import { AgentQueue, type HeldNote } from './AgentQueue.js';
 import { openDialog } from './dialog-requests.js';
 import { PlanCard } from './PlanCard.js';
+import { PlanOfferCard } from './PlanOfferCard.js';
+import { BackgroundTasks } from './BackgroundTasks.js';
 import { TaskChecklist } from './TaskChecklist.js';
 
 export interface AgentPanelProps {
@@ -222,6 +224,10 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
           ) : null}
 
           <AgentQueue agent={agent} snapshot={snapshot} held={heldNow} cardKey={cardKey} onHold={setHeld} onRelease={() => setHeld(null)} />
+
+          <BackgroundTasks agent={agent} tasks={agent.taskViews()} />
+
+          {snapshot.offer !== null ? <PlanOfferCard agent={agent} view={snapshot.offer} /> : null}
 
           {sample && snapshot.turns.length === 0 ? (
             <div className="agent-demos" role="group" aria-label="Demo intents">

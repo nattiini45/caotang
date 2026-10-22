@@ -47,6 +47,23 @@ describe('the user guide matches what the app does', () => {
     expect(storyboard).toMatch(/\*\*Derive shots from “Scene”\*\*/);
   });
 
+  it('names the offer before a big plan and the Background tasks controls in the words the panel shows, and lists what background tasks do not do yet', () => {
+    // PlanOfferCard.tsx and BackgroundTasks.tsx are the words the guide names; the threshold is the harness's constant.
+    const offer = read('apps/desktop/src/components/PlanOfferCard.tsx');
+    for (const label of ['Run now', 'Run in background', 'Cancel']) expect(offer).toContain(label);
+    expect(read('packages/harness/src/agent/background.ts')).toMatch(/BACKGROUND_OFFER_MIN_CALLS = 5;/);
+    const tasks = read('apps/desktop/src/components/BackgroundTasks.tsx');
+    for (const label of ['Background tasks', 'Review', 'Resume', 'Cancel', 'Dismiss']) expect(tasks).toContain(label);
+    const agent = guide.slice(guide.indexOf('## The agent'), guide.indexOf('## Skills'));
+    expect(agent).toContain('**Run now**, **Run in background** or **Cancel**');
+    expect(agent).toContain('A task is drafted only while the project is open in this tab.');
+    expect(agent).toContain('Nothing is written until you choose **Review**');
+    const missing = guide.slice(guide.indexOf('## What is not in this build yet'));
+    expect(missing).toContain('**Background tasks.** A task is drafted only while the project is open in this tab');
+    expect(missing).toContain('A coherence review cannot be queued yet');
+    expect(changelog).toContain('there is no Web Worker (no typing jank has been measured)');
+  });
+
   it('lists the stop a tab shows when Caotang was updated in another tab, with what to do', () => {
     expect(read('apps/desktop/src/components/StaleTabNotice.tsx')).toMatch(/'Caotang was updated in another tab'/);
     const wrong = guide.slice(guide.indexOf('## When something seems wrong'));

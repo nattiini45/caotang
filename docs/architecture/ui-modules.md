@@ -34,6 +34,7 @@
 - **Window width.** The shell's minimum is **960 px** (the workspace's `min-width`); below it the page scrolls sideways, and that is not a supported layout. From 1100 px down the rails narrow and the toolbar wraps onto a second line, so 1024 px fits with no sideways scroll (e2e/shell.spec.ts). Focus mode keeps one column: the toolbar on the first row and the centre under it, so the Focus button always leaves the mode.
 - **Focus mode and the Writing setting.** With Settings › Writing's "hide the binder and the inspector" off, focus mode keeps both, and the status line says so when focus mode turns on: "Focus mode is on. The binder and inspector stay open, as set in Settings › Writing." "Settings › Writing" is a button inside the sentence, drawn as a link, whose visible words are its name; it opens Settings at the Writing section.
 - The **agent panel** is a bottom drawer in the editor pane (harness §8): plan cards, checkpoint rows, ghost controls live there; it never overlaps the editor's ghost region.
+- The agent panel also carries a **Background tasks** section and, while a big plan waits for its answer, a plan offer card with **Run now**, **Run in background** and **Cancel** (harness §8). The tasks are view state read from the app database, never project state.
 
 ## 2. Binder (module 2.2)
 

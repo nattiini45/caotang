@@ -127,6 +127,7 @@ interface ProviderAdapter {
 
 - `Usage` from each response chunk is accumulated **per agent turn and per calendar day**, stored locally: `usageLedger: {date, profileId, model, role, promptTokens, completionTokens, requests}`.
 - `role` is the task role (`chat` | `drafting` | `background`) the request ran under, so cost is visible per role. Activity log shows per-turn totals (harness) and settings shows per-day totals (gateway ledger). This is local-only accounting; no quota enforcement beyond display (D4 below).
+- **Background tasks** (agent-harness §2) stage under the `background` role, on the profile, model and thinking the role resolves to, with the task's id as the session name, so the ledger's rows for a task carry `role: background` and a turn id that names it, and the task's row in the panel shows their totals. Priority between the foreground and the background is cooperative: the task's runner makes one call at a time and waits before each while a foreground turn is busy. A call already in flight is not preempted, so it still counts against a rate-limited key. A gateway limiter that ranks foreground requests ahead of background ones is not built.
 
 ## 7. Key storage (v0.1 shape)
 
