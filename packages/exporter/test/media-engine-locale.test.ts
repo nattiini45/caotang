@@ -109,11 +109,11 @@ describe('dialogue table: the engine target picks the file', () => {
     expect(output.files[0]?.mimeType).toBe('text/csv;charset=utf-8');
     expect(linesOf(output.files[0]?.text)).toEqual([
       'language,id,text,file,node,lineNumber,lock,comment',
-      'en-GB,line:l_0000000001,The innkeeper looks up.,The innkeeper,start,2,,start',
-      'en-GB,line:l_0000000002,"Innkeeper: Ah, a traveller. What\'ll it be?",The innkeeper,start,3,,start',
-      'en-GB,line:l_0000000003_c,Order an ale,The innkeeper,start,4,,start',
-      'en-GB,line:l_0000000004_c,Leave quietly,The innkeeper,start,5,,start',
-      'en-GB,line:l_0000000005,"Ale arrives, foaming.",The innkeeper,ale,7,,ale',
+      'en-GB,line:l_0000000001,The innkeeper looks up.,The innkeeper,start,2,daae1dc5,start',
+      'en-GB,line:l_0000000002,"Innkeeper: Ah, a traveller. What\'ll it be?",The innkeeper,start,3,44cf300e,start',
+      'en-GB,line:l_0000000003_c,Order an ale,The innkeeper,start,4,94133bcd,start',
+      'en-GB,line:l_0000000004_c,Leave quietly,The innkeeper,start,5,87cbc5ee,start',
+      'en-GB,line:l_0000000005,"Ale arrives, foaming.",The innkeeper,ale,7,bbbc8cad,ale',
     ]);
     expect(output.blockCount).toBe(5);
   });
@@ -139,16 +139,16 @@ describe('dialogue table: the engine target picks the file', () => {
       },
     ];
     const lines = linesOf(renderMedia(requestFor(state, 'dialogue-csv')).files[0]?.text);
-    expect(lines).toContain('en,line:l_0000000001,Anna: The innkeeper looks up.,The innkeeper,start,2,,start / Anna');
+    expect(lines).toContain('en,line:l_0000000001,Anna: The innkeeper looks up.,The innkeeper,start,2,7eaade17,start / Anna');
     // A choice label is an option, so it carries no speaker.
-    expect(lines).toContain('en,line:l_0000000003_c,Order an ale,The innkeeper,start,4,,start / Anna');
+    expect(lines).toContain('en,line:l_0000000003_c,Order an ale,The innkeeper,start,4,94133bcd,start / Anna');
   });
 
   it('guards the Yarn text cells as the table guards its own', () => {
     const state = makeMediaProject({ innkeeper: ['=== start ===', '=1+1 # lineId: l_0000000301', '-> END'].join('\n') });
     withSettings({ engineTarget: 'yarn-csv' }, state);
     const lines = linesOf(renderMedia(requestFor(state, 'dialogue-csv')).files[0]?.text);
-    expect(lines[1]).toBe("en,line:l_0000000301,'=1+1,The innkeeper,start,2,,start");
+    expect(lines[1]).toBe("en,line:l_0000000301,'=1+1,The innkeeper,start,2,bac90eef,start");
   });
 
   it('guards a hand-edited locale in both files, from the container and from the project language', () => {
@@ -160,7 +160,7 @@ describe('dialogue table: the engine target picks the file', () => {
     const table = linesOf(output.files[0]?.text);
     const yarn = linesOf(output.files[1]?.text);
     expect(table[1]).toBe("l_0000000201,Mara,It is cold down here.,cellar,,'@SUM(1)");
-    expect(yarn[1]).toBe(`"'=HYPERLINK(""x"")",line:l_0000000001,The innkeeper looks up.,The innkeeper,start,2,,start`);
+    expect(yarn[1]).toBe(`"'=HYPERLINK(""x"")",line:l_0000000001,The innkeeper looks up.,The innkeeper,start,2,daae1dc5,start`);
   });
 
   it('writes both files when the selection mixes a Yarn container and a table container', () => {
