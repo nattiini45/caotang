@@ -11,7 +11,8 @@
  *  - **connect**: until headers arrive, 10s after the attempt starts;
  *  - **first token**: until the first output, 30s after the attempt starts;
  *  - **idle**: between chunks once output has started, 60s;
- * with the whole request capped at 5 minutes, across retries.
+ * with the whole request capped at 5 minutes, across retries. A call may carry its own
+ * deadlines (`CallSpec.timeouts`): a model server on this computer loads its model first.
  *
  * Retry is allowed only while nothing has been delivered to the caller. Once a single
  * delta has been yielded, a failure is final, because a second attempt would repeat
@@ -25,6 +26,7 @@ import type { RequestLog, RequestOutcome } from './request-log.js';
 import { redact } from './redact.js';
 import { createSseParser, type SseEvent } from './sse.js';
 import { CallerCancelled, DeadlineReached, guard, sleep } from './timing.js';
+import { classifyLocalFailure, loopbackPermission, supportsTargetAddressSpace, type LocalHint } from './local.js';
 import { estimateTokens } from './tokens.js';
 import type { StreamParser } from './adapters/types.js';
 import type { ChatChunk, FinishReason, ReasoningBlock, ToolCall, Usage } from './types.js';
@@ -45,6 +47,10 @@ export interface TransportDeps {
    * travel to an origin it was not entered for.
    */
   readonly profileOrigin: (profileId: string) => string | undefined;
+  /** Whether `fetch` takes `targetAddressSpace`. Defaults to detecting it; tests say so. */
+  readonly supportsAddressSpace?: () => boolean;
+  /** The browser's `loopback-network` permission state, to tell a denial from a refused connection. Defaults to asking the browser. */
+  readonly loopbackPermission?: () => Promise<string | undefined>;
 }
 
 /** One logical call: everything a request needs, with the secrets attached for this call only. */
@@ -78,6 +84,12 @@ export interface CallSpec {
   readonly signal?: AbortSignal;
   /** overrides the policy's retry count. The §5 probe makes exactly one attempt. */
   readonly maxRetries?: number;
+  /** Declares the target a local-network-aware browser should expect (Chrome's Local Network Access). Sent only where fetch supports it. */
+  readonly addressSpace?: 'loopback';
+  /** Deadlines for this call, over the transport's own. */
+  readonly timeouts?: Partial<TransportTimeouts>;
+  /** Set for a model server on this computer: a failed call is explained with the preset's own fix. */
+  readonly local?: LocalHint;
 }
 
 /** Counts attempts and records the usage the ledger should see, whatever the outcome. */
@@ -156,6 +168,11 @@ function keepHead(head: string, text: string): string {
   return head.length >= HEAD_LIMIT ? head : head + text.slice(0, HEAD_LIMIT - head.length);
 }
 
+/** The deadlines one call runs under: the transport's, with the call's own laid over them. */
+function scoped(deps: TransportDeps, spec: CallSpec): TransportDeps {
+  return spec.timeouts === undefined ? deps : { ...deps, timeouts: { ...deps.timeouts, ...spec.timeouts } };
+}
+
 function networkError(spec: CallSpec, reason: string): ProviderError {
   const detail = clean(reason, spec);
   return new ProviderError('network', providerMessages.network(spec.host, detail), { detail });
@@ -164,6 +181,54 @@ function networkError(spec: CallSpec, reason: string): ProviderError {
 function protocolError(spec: CallSpec, raw: string): ProviderError {
   const excerpt = clean(raw, spec);
   return new ProviderError('protocol', providerMessages.protocol(spec.host, excerpt), { detail: excerpt });
+}
+
+/**
+ * True when a request that needs no CORS reaches the server at all: any HTTP answer, however opaque, resolves it. It is a bare
+ * GET with no headers, body or credentials, so it carries nothing of the writer's. A no-cors request must follow redirects
+ * (the browser refuses `manual` for that mode), which is why this one does, unlike the real call.
+ */
+async function serverAnswers(deps: TransportDeps, spec: CallSpec): Promise<boolean> {
+  const controller = new AbortController();
+  try {
+    const pending = deps.fetch(spec.url, { method: 'GET', mode: 'no-cors', signal: controller.signal });
+    const response = await guard(pending, Math.min(deps.timeouts.connectMs, 5_000), deps.clock, spec.signal, () => {
+      controller.abort();
+      pending.then(
+        (late) => void late.body?.cancel().catch(() => undefined),
+        () => undefined,
+      );
+    });
+    void response.body?.cancel().catch(() => undefined);
+    return true;
+  } catch (err) {
+    if (err instanceof CallerCancelled) throw err;
+    return false;
+  }
+}
+
+/**
+ * A rejected fetch to a model server on this computer, explained. A browser reports a CORS refusal, a refused
+ * connection and a Local Network Access denial identically, so an opaque failure is told apart by asking whether the
+ * server answers a request that needs no CORS (it does: the browser blocked the real one), and failing that, whether the
+ * browser's loopback permission was denied. None of these changes on a second try, so none is retried.
+ */
+async function localFailure(deps: TransportDeps, spec: CallSpec, err: unknown): Promise<ProviderError | undefined> {
+  if (spec.local === undefined) return undefined;
+  const found = classifyLocalFailure(err);
+  if (found === undefined) return undefined;
+  let kind: 'cors' | 'refused' | 'denied';
+  if (found !== 'opaque') kind = found;
+  else if (await serverAnswers(deps, spec)) kind = 'cors';
+  else kind = (await (deps.loopbackPermission ?? loopbackPermission)()) === 'denied' ? 'denied' : 'refused';
+  const { product, corsFix } = spec.local;
+  const message =
+    kind === 'cors'
+      ? providerMessages.localCors(product, corsFix)
+      : kind === 'denied'
+        ? providerMessages.localDenied(product)
+        : providerMessages.localRefused(product, spec.host);
+  return new ProviderError('network', message, { detail: clean(describe(err), spec), permanent: true });
 }
 
 /**
@@ -274,6 +339,10 @@ async function statusError(deps: TransportDeps, spec: CallSpec, response: Respon
     return new ProviderError('auth', providerMessages.auth(spec.host), { status });
   }
   if (status === 404) {
+    // A local server answers 404 for a model it has not pulled; "no endpoint at ..." would send the writer to the wrong setting.
+    if (spec.local !== undefined && excerpt.toLowerCase().includes('model')) {
+      return new ProviderError('provider', providerMessages.provider(spec.host, status, excerpt), { status, detail: excerpt });
+    }
     return new ProviderError('endpoint', providerMessages.endpoint(spec.path, spec.baseUrl), { status, detail: excerpt });
   }
   if (status === 429) {
@@ -311,10 +380,13 @@ async function connect(deps: TransportDeps, spec: CallSpec, deadline: Deadline, 
       body: spec.body,
       redirect: 'manual',
       signal: controller.signal,
+      ...(spec.addressSpace !== undefined && (deps.supportsAddressSpace ?? supportsTargetAddressSpace)()
+        ? { targetAddressSpace: spec.addressSpace }
+        : {}),
     });
   } catch (err) {
     // A fetch that throws rather than rejecting is still a failure to reach the provider.
-    throw networkError(spec, describe(err));
+    throw (await localFailure(deps, spec, err)) ?? networkError(spec, describe(err));
   }
   const limit = limitAt(
     deps,
@@ -336,7 +408,7 @@ async function connect(deps: TransportDeps, spec: CallSpec, deadline: Deadline, 
   } catch (err) {
     if (err instanceof DeadlineReached) throw networkError(spec, limit.reason);
     if (err instanceof CallerCancelled) throw err;
-    throw networkError(spec, describe(err));
+    throw (await localFailure(deps, spec, err)) ?? networkError(spec, describe(err));
   }
 
   if (response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400)) {
@@ -490,10 +562,11 @@ async function* readStream(
  * thrown as a `ProviderError`, or as an `EgressDeniedError` for a refused request.
  */
 export async function* streamChat(
-  deps: TransportDeps,
+  base: TransportDeps,
   spec: CallSpec,
   stats: StreamStats,
 ): AsyncGenerator<ChatChunk, void, undefined> {
+  const deps = scoped(base, spec);
   const { clock } = deps;
   const maxRetries = spec.maxRetries ?? deps.retry.maxRetries;
   const totalAt = clock.now() + deps.timeouts.totalMs;
@@ -566,7 +639,8 @@ export async function* streamChat(
  * A non-streaming GET (the model list), with the same retry and timeout policy. The body
  * is read whole, under the whole-request deadline. Returns the parsed JSON.
  */
-export async function requestJson(deps: TransportDeps, spec: CallSpec): Promise<unknown> {
+export async function requestJson(base: TransportDeps, spec: CallSpec): Promise<unknown> {
+  const deps = scoped(base, spec);
   const { clock } = deps;
   const maxRetries = spec.maxRetries ?? deps.retry.maxRetries;
   const totalAt = clock.now() + deps.timeouts.totalMs;
@@ -650,7 +724,8 @@ async function readWhole(deps: TransportDeps, spec: CallSpec, response: Response
  * whose body names `response_format`. A 400 about anything else, such as a bad model
  * name, is not an answer about the format, so it is thrown and not cached.
  */
-export async function probeJsonObject(deps: TransportDeps, spec: CallSpec): Promise<boolean> {
+export async function probeJsonObject(base: TransportDeps, spec: CallSpec): Promise<boolean> {
+  const deps = scoped(base, spec);
   const deadline: Deadline = { attemptStart: deps.clock.now(), totalAt: deps.clock.now() + deps.timeouts.totalMs };
   const controller = new AbortController();
   try {

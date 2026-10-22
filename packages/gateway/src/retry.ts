@@ -73,6 +73,7 @@ export function parseRetryAfter(value: string | null, now: number): number | und
  * every try, so retrying them only delays the message.
  */
 export function isRetryable(error: ProviderError): boolean {
+  if (error.permanent) return false;
   if (error.kind === 'network' || error.kind === 'rate_limit') return true;
   return error.kind === 'provider' && error.status !== undefined && error.status >= 500;
 }
