@@ -807,6 +807,21 @@ importers:
         specifier: workspace:*
         version: link:../store
 
+  packages/scan:
+    dependencies:
+      '@caotang/codex':
+        specifier: workspace:*
+        version: link:../codex
+      '@caotang/coherence':
+        specifier: workspace:*
+        version: link:../coherence
+      '@caotang/exporter':
+        specifier: workspace:*
+        version: link:../exporter
+      '@caotang/store':
+        specifier: workspace:*
+        version: link:../store
+
   packages/screenplay:
     dependencies:
       '@caotang/pdf-fonts':
