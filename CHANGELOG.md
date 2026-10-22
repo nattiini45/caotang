@@ -6,6 +6,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Changed
 
+- **MCP server.** A confirmation open when the server restarts ends with it, and the server now says so. A 2025-era connection that asks for a session the server no longer holds is answered `404` "Session not found" with a note that a confirmation open on it ended too and nothing was written. A 2026-07-28 retry with a `requestState` from an earlier run is refused as before, with the SDK's "Invalid or expired requestState"; nothing is written, and the change is asked for again. The README and the spec name both, and no key is stored on disk.
 - **MCP server.** A confirmation on a 2025-era connection waits 60 seconds for its answer instead of ten minutes, so a dialog nobody answers frees its connection's place in a minute. The question and the `initialize` instructions say how long it waits, and a refused `initialize` (every connection busy) names the limit, how many are busy and the wait, with a `Retry-After` header. A confirmation that times out writes nothing, and the host's next call asks again.
 
 ### Added
