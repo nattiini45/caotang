@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import { caretOfNode, dialogueModelOf } from '../../apps/desktop/src/media/dialogue-model.js';
 import { knotCompletion } from '../../apps/desktop/src/media/ink-keys.js';
 import { inkSegments, type Segment } from '../../apps/desktop/src/media/source-decor.js';
+import { loadInkCompiler } from '../../packages/dialogue/src/index.js';
 
 const INK = '=== start ===\nAlice: Hello.\n* [Wave] -> wave\n* [Leave] -> END\n\n=== wave ===\nAlice: Bye. # lineId: l_0000000001\n-> END\n';
 
@@ -14,6 +15,11 @@ function textOf(source: string, segments: readonly Segment[]): string {
 function classOf(source: string, segments: readonly Segment[], exact: string): string | null | undefined {
   return segments.find((segment) => source.slice(segment.from, segment.to) === exact)?.cls;
 }
+
+// The Ink compiler loads on demand, as it does in the app (dialogue ink-loader.ts); these specs read the Ink with it.
+test.beforeAll(async () => {
+  await loadInkCompiler();
+});
 
 test.describe('the Ink source decorations', () => {
   test('the segments of an Ink body concatenate back to the body', () => {

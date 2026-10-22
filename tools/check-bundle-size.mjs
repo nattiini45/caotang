@@ -30,19 +30,18 @@ export const BUDGET = {
   chunkLimit: 500_000,
   /**
    * Chunks allowed over the limit, by chunk name (the file name without its hash), each with its own cap.
-   * `fontkit.es` is one indivisible library, already loaded only for CJK and emoji text in a PDF. `index` and `src` are debt: `index`
-   * is the entry (the app, the agent harness and gateway, the exporters, the coherence checks), and `src` is the shared chunk the
-   * stores, the command bus, the Ink compiler and the media packages land in because the first screen and the lazy views both import
-   * them. Each is capped a little above what it measured, so a feature that adds to the entry is a deliberate cap change here rather
-   * than a surprise; the caps come down as the Ink compiler loads on demand and the rest is split (#31).
+   * `fontkit.es` is one indivisible library, already loaded only for CJK and emoji text in a PDF. `index` is debt: the entry (the app,
+   * the agent harness and gateway, the exporters, the coherence checks and the stores). It is capped a little above what it measured,
+   * so a feature that adds to the entry is a deliberate cap change here rather than a surprise; the cap comes down as the rest is split
+   * (#31). The Ink compiler (`ink-full`, 244 kB) loads when a project holds a dialogue container, which took the shared `src` chunk
+   * under the limit, so `src` has no entry any more.
    */
   allow: {
     'fontkit.es': 750_000,
-    index: 1_205_000,
-    src: 655_000,
+    index: 1_220_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
-  initialGzip: 810_000,
+  initialGzip: 750_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%.
