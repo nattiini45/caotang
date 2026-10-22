@@ -18,48 +18,18 @@
  *
  * ## Embedding
  *
- * pdf-lib's own font embedding writes one ToUnicode entry per glyph, from the code points fontkit reports for it, and fontkit
- * reports some of them short (a skin tone that the monochrome font draws as the plain figure is not among them). So this file
- * writes the font itself, as a Type 0 font over a TrueType subset that fontkit cuts: every distinct cluster gets CIDs of its
- * own, mapped to its glyphs by a CIDToGIDMap and to its exact text by the ToUnicode map, so copying a 👍🏽 gives 👍🏽 back,
- * and 👍 gives 👍, though the two draw the same glyph.
+ * The font is embedded by hand, as the CJK font is (cid-embedding.ts, over the CID-font writer both PDFs share): a CID for each
+ * distinct glyph-and-text pair, so copying a 👍🏽 gives 👍🏽 back, and 👍 gives 👍, though the two draw the same glyph.
  */
 
-import { encodeSubset } from '@caotang/pdf-fonts';
 import type * as PdfLib from 'pdf-lib';
 
-/** The parts of a fontkit glyph this file reads. */
-interface FontkitGlyph {
-  readonly id: number;
-  readonly advanceWidth: number;
-  readonly path: { readonly commands: readonly unknown[] };
-}
+import { CidEmbedding, type CidGlyph, type FontkitFont, type FontkitGlyph } from './cid-embedding.js';
 
-/** The parts of a fontkit font this file reads. */
-export interface FontkitFont {
-  readonly unitsPerEm: number;
-  readonly ascent: number;
-  readonly descent: number;
-  readonly capHeight: number;
-  readonly italicAngle: number;
-  readonly postscriptName: string | null;
-  readonly bbox: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number };
-  layout(text: string): { readonly glyphs: readonly FontkitGlyph[] };
-  createSubset(): FontkitSubset;
-}
-
-interface FontkitSubset {
-  includeGlyph(glyph: number): number;
-  encodeStream(): { on(event: string, listener: (value?: unknown) => void): unknown };
-}
+export type { FontkitFont };
 
 /** One glyph an emoji draws: its id in the font, its advance in font units, and the text it stands for when copied. */
-export interface EmojiGlyph {
-  readonly id: number;
-  readonly advance: number;
-  /** The part of the cluster this glyph gives back when the text is copied; the cluster's first glyph carries it all. */
-  readonly text: string;
-}
+export type EmojiGlyph = CidGlyph;
 
 const ZWJ = '\u200d';
 
@@ -114,157 +84,9 @@ function carrying(glyphs: readonly FontkitGlyph[], text: string): EmojiGlyph[] {
   return glyphs.map((glyph, index) => ({ id: glyph.id, advance: glyph.advanceWidth, text: index === 0 ? text : '' }));
 }
 
-/** A ToUnicode CMap holds at most 100 entries per `beginbfchar` block (PDF 32000-1 §9.10.3, Adobe TN 5411). */
-const BFCHAR_BLOCK = 100;
-
-/** A code point as UTF-16 hex, as a ToUnicode destination writes it. */
-function utf16Hex(text: string): string {
-  let hex = '';
-  for (let i = 0; i < text.length; i += 1) hex += text.charCodeAt(i).toString(16).toUpperCase().padStart(4, '0');
-  return hex;
-}
-
-const hex4 = (value: number): string => value.toString(16).toUpperCase().padStart(4, '0');
-
-/**
- * The emoji font as it is embedded in one PDF: a Type 0 font (Identity-H) over a CIDFontType2 subset. A CID is given to each
- * distinct glyph-and-text pair the file draws, in the order first drawn, so one compile writes one file. The font objects
- * are written by {@link finish}, once every page is drawn; until then the pages point at {@link ref}.
- */
-export class EmojiEmbedding {
-  readonly ref: PdfLib.PDFRef;
-  private readonly subset: FontkitSubset;
-  private readonly cids = new Map<string, number>();
-  private readonly entries: { readonly gid: number; readonly advance: number; readonly text: string }[] = [];
-  private readonly keys = new Map<PdfLib.PDFPage, PdfLib.PDFName>();
-
-  constructor(
-    private readonly lib: typeof PdfLib,
-    private readonly doc: PdfLib.PDFDocument,
-    readonly face: EmojiFace,
-  ) {
-    this.ref = doc.context.nextRef();
-    this.subset = face.font.createSubset();
-  }
-
-  /** Whether any glyph has been drawn. */
-  get used(): boolean {
-    return this.entries.length > 0;
-  }
-
-  /** Draws the glyphs of one or more clusters from a baseline start, in a colour. */
-  draw(page: PdfLib.PDFPage, glyphs: readonly EmojiGlyph[], x: number, y: number, size: number, ink: { r: number; g: number; b: number }): void {
-    const { pushGraphicsState, popGraphicsState, beginText, endText, setFontAndSize, setFillingRgbColor, moveText, showText, PDFHexString } = this.lib;
-    let key = this.keys.get(page);
-    if (key === undefined) {
-      key = page.node.newFontDictionary('NotoEmoji', this.ref);
-      this.keys.set(page, key);
-    }
-    const codes = glyphs.map((glyph) => hex4(this.cidOf(glyph))).join('');
-    page.pushOperators(
-      pushGraphicsState(),
-      setFillingRgbColor(ink.r, ink.g, ink.b),
-      beginText(),
-      setFontAndSize(key, size),
-      moveText(x, y),
-      showText(PDFHexString.of(codes)),
-      endText(),
-      popGraphicsState(),
-    );
-  }
-
-  private cidOf(glyph: EmojiGlyph): number {
-    const key = `${glyph.id}\u0000${glyph.text}`;
-    const known = this.cids.get(key);
-    if (known !== undefined) return known;
-    const gid = this.subset.includeGlyph(glyph.id);
-    this.entries.push({ gid, advance: glyph.advance, text: glyph.text });
-    const cid = this.entries.length;
-    this.cids.set(key, cid);
-    return cid;
-  }
-
-  /**
-   * Writes the font objects: the subset program, its widths, the CID-to-glyph map and the ToUnicode map. Writes nothing when no
-   * glyph was drawn, since no page points at {@link ref} then, and a font with no glyphs is no font to embed.
-   */
-  async finish(): Promise<void> {
-    if (!this.used) return;
-    const { PDFString } = this.lib;
-    const context = this.doc.context;
-    const font = this.face.font;
-    const scale = 1000 / font.unitsPerEm;
-    const name = `CAOTEM+${font.postscriptName ?? 'NotoEmoji-Regular'}`;
-
-    const program = await encodeSubset(this.subset);
-
-    const cidToGid = new Uint8Array((this.entries.length + 1) * 2);
-    this.entries.forEach((entry, index) => {
-      cidToGid[(index + 1) * 2] = entry.gid >> 8;
-      cidToGid[(index + 1) * 2 + 1] = entry.gid & 0xff;
-    });
-
-    const mapped = this.entries.flatMap((entry, index) => (entry.text === '' ? [] : [`<${hex4(index + 1)}> <${utf16Hex(entry.text)}>`]));
-    const blocks: string[] = [];
-    for (let i = 0; i < mapped.length; i += BFCHAR_BLOCK) {
-      const block = mapped.slice(i, i + BFCHAR_BLOCK);
-      blocks.push(`${block.length} beginbfchar\n${block.join('\n')}\nendbfchar`);
-    }
-    const toUnicode = [
-      '/CIDInit /ProcSet findresource begin',
-      '12 dict begin',
-      'begincmap',
-      '/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def',
-      '/CMapName /Adobe-Identity-UCS def',
-      '/CMapType 2 def',
-      '1 begincodespacerange',
-      '<0000> <FFFF>',
-      'endcodespacerange',
-      ...blocks,
-      'endcmap',
-      'CMapName currentdict /CMap defineresource pop',
-      'end',
-      'end',
-    ].join('\n');
-
-    const fontFile = context.register(context.flateStream(program));
-    const descriptor = context.register(
-      context.obj({
-        Type: 'FontDescriptor',
-        FontName: name,
-        Flags: 4,
-        FontBBox: [font.bbox.minX * scale, font.bbox.minY * scale, font.bbox.maxX * scale, font.bbox.maxY * scale],
-        ItalicAngle: font.italicAngle,
-        Ascent: font.ascent * scale,
-        Descent: font.descent * scale,
-        CapHeight: (font.capHeight || font.ascent) * scale,
-        StemV: 0,
-        FontFile2: fontFile,
-      }),
-    );
-    const widths = this.entries.map((entry) => Math.round(entry.advance * scale * 1000) / 1000);
-    const cidFont = context.register(
-      context.obj({
-        Type: 'Font',
-        Subtype: 'CIDFontType2',
-        BaseFont: name,
-        CIDSystemInfo: { Registry: PDFString.of('Adobe'), Ordering: PDFString.of('Identity'), Supplement: 0 },
-        FontDescriptor: descriptor,
-        DW: 0,
-        W: widths.length === 0 ? [] : [1, widths],
-        CIDToGIDMap: context.register(context.flateStream(cidToGid)),
-      }),
-    );
-    context.assign(
-      this.ref,
-      context.obj({
-        Type: 'Font',
-        Subtype: 'Type0',
-        BaseFont: name,
-        Encoding: 'Identity-H',
-        DescendantFonts: [cidFont],
-        ToUnicode: context.register(context.flateStream(toUnicode)),
-      }),
-    );
+/** The emoji font as it is embedded in one PDF (cid-embedding.ts), with the face that lays its clusters out. */
+export class EmojiEmbedding extends CidEmbedding {
+  constructor(lib: typeof PdfLib, doc: PdfLib.PDFDocument, readonly face: EmojiFace) {
+    super(lib, doc, face.font, { resource: 'NotoEmoji', tag: 'CAOTEM', postscriptName: face.font.postscriptName ?? 'NotoEmoji-Regular' });
   }
 }

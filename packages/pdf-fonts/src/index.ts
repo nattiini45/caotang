@@ -16,6 +16,7 @@ export {
   type CidSubset,
   type CidUnit,
   type PdfObject,
+  type SubsetSource,
   type PdfValue,
 } from './cid-font.js';
 export { emojiFontHasSequence, emojiFontHasTonedSequence, emojiFontMaps, fallbackCovers, inRanges } from './coverage.js';

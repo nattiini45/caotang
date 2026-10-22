@@ -61,12 +61,24 @@ export async function cutCidSubset(font: Font, units: readonly CidUnit[], postsc
   return describeSubset(font, await encodeSubset(subset), entries, postscriptName);
 }
 
-/** The subset's name, box and vertical metrics, taken from the font it was cut from, scaled to 1000 to the em. */
-export function describeSubset(font: Font, program: Uint8Array, entries: readonly CidEntry[], postscriptName: string): CidSubset {
+/** What {@link describeSubset} reads of a font. */
+export interface SubsetSource {
+  readonly unitsPerEm: number;
+  readonly ascent: number;
+  readonly descent: number;
+  readonly capHeight: number;
+  readonly bbox: { readonly minX: number; readonly minY: number; readonly maxX: number; readonly maxY: number };
+}
+
+/**
+ * The subset's name, box and vertical metrics, taken from the font it was cut from, scaled to 1000 to the em. The name's
+ * six-letter tag comes from the glyph list unless the host fixes one.
+ */
+export function describeSubset(font: SubsetSource, program: Uint8Array, entries: readonly CidEntry[], postscriptName: string, tag?: string): CidSubset {
   const scale = 1000 / font.unitsPerEm;
   const bbox = font.bbox;
   return {
-    baseFont: `${subsetTag(entries.map((entry) => `${entry.text}:${entry.gid}`).join(' '))}+${postscriptName}`,
+    baseFont: `${tag ?? subsetTag(entries.map((entry) => `${entry.text}:${entry.gid}`).join(' '))}+${postscriptName}`,
     program,
     entries,
     bbox: [bbox.minX, bbox.minY, bbox.maxX, bbox.maxY].map((v) => Math.round(v * scale)) as [number, number, number, number],

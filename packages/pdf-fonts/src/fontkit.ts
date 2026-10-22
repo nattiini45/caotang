@@ -97,7 +97,7 @@ interface TtfSubsetInternals {
  * (TTFSubset._addGlyph). A font whose glyphs are not padded would shift every glyph after one of odd length by a byte.
  * Each glyph copied into the subset is padded to an even length here; a pad byte after a glyph is ignored.
  */
-export function padGlyphs(subset: FontkitSubset): void {
+export function padGlyphs(subset: object): void {
   const internals = subset as unknown as TtfSubsetInternals;
   const add = internals._addGlyph.bind(subset);
   internals._addGlyph = (gid) => {

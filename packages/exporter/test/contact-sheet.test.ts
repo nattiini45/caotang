@@ -489,6 +489,16 @@ describe('contact-sheet-pdf — text outside Latin script, in the Noto Sans Mono
     expect(bytes.byteLength).toBeLessThan(40_000);
   });
 
+  it('gives characters the font draws with one glyph a CID each, so each copies back as itself', async () => {
+    // ‧ U+2027 and ・ U+30FB, ① U+2460 and ➀ U+2780: each pair is one glyph in Noto Sans Mono CJK SC.
+    const { pdf } = await compileSheet(rig({ state: withAction('Dots ‧ and ・, circled ① and ➀.'), loadFallbackFont: loadCjkFontInNode }).exporter);
+    const entries = toUnicodeEntries(pdf);
+    for (const char of ['‧', '・', '①', '➀']) expect(entries, char).toContain(char);
+    // The glyph is stored once however many CIDs name it: four characters, two glyphs, and .notdef.
+    const subset = fontkit.create(embeddedFontFiles(pdf)[0] as Uint8Array) as unknown as { numGlyphs: number };
+    expect(subset.numGlyphs).toBe(3);
+  });
+
   it('switches font inside a line of mixed text', async () => {
     const state = withAction('Mei 走进茶馆, orders 龙井, and waits.');
     const { pdf } = await compileSheet(rig({ state, loadFallbackFont: loadCjkFontInNode }).exporter);
