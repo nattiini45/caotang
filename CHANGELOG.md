@@ -51,6 +51,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Storyboards.** A shot's picture whose file has gone is dropped when the project opens, from the projects list too, with a notice on the open and on the board, and not when the storyboard opens. A folder Caotang cannot attach (a different file under a picture's name, or a compile log it cannot read) is still read for its pictures, so a shot keeps one that only the folder holds. A folder file that differs from the browser's copy counts as present, and the board shows the browser's copy. Nothing is dropped when the project's pictures could not be listed.
 - **Providers.** A thinking level on an Anthropic profile no longer makes every request fail; Claude 5 models get adaptive thinking with the chosen effort, and the Thinking block shows their summary. On routes that take a thinking budget, the output cap is raised so it always exceeds the budget.
 
+### Known limits
+
+- A continuity scan for a writer's own CI exists as a library (`@caotang/scan`): the deterministic checks over a project folder with no model and no key, the file and line of each open finding, and text, Markdown, JSON and GitHub annotation output. The `caotang scan` command and the CI workflow template are not in this build, so nothing runs the library yet.
+
 ## 0.1.0
 
 The first public version: a free, local-first writing studio for novels, scripts and story worlds, with an agent that works through the app's own commands on the writer's own provider key. The version is 0.1.0 rather than 1.0 because the project file format may still change.
