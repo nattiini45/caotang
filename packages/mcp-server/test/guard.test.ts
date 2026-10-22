@@ -5,7 +5,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { guardBatch, guardMessage, hardDeniedError } from '../src/index.js';
+import { RECOVER_APPLY_TOOL, RECOVER_TOOL, guardBatch, guardDegraded, guardMessage, hardDeniedError, openProjectOrOffer } from '../src/index.js';
+import { brokenFolder, removeDir } from './support.js';
 
 function call(name: string, id: number | string = 1) {
   return { jsonrpc: '2.0', id, method: 'tools/call', params: { name, arguments: {} } };
@@ -65,5 +66,53 @@ describe('hardDeniedError', () => {
     expect(hardDeniedError('project.deleteNode')).toBeDefined();
     expect(hardDeniedError('meta.set')).toBeUndefined();
     expect(hardDeniedError('nonsense')).toBeUndefined();
+  });
+});
+
+describe('guardMessage on a degraded server', () => {
+  async function withDegraded(allowWrites: boolean, run: (policy: Parameters<typeof guardMessage>[1]) => void): Promise<void> {
+    const root = await brokenFolder('guard-degraded', 'snapshot');
+    const session = await openProjectOrOffer({ root, allowWrites });
+    try {
+      if (!('degraded' in session)) throw new Error('the folder opened as a project');
+      run({ allowWrites, degraded: (name) => guardDegraded(session, name) });
+    } finally {
+      await session.close();
+      removeDir(root);
+    }
+  }
+
+  it('refuses every other tool with the named reason, as a tool result, writes or not', async () => {
+    for (const allowWrites of [false, true]) {
+      await withDegraded(allowWrites, (policy) => {
+        for (const name of ['project.overview', 'doc.read', 'meta.set', 'binder.restructure', 'export.compile', 'not.a.tool']) {
+          const refusal = guardMessage(call(name, 7), policy);
+          expect(refusal?.id).toBe(7);
+          expect(refusal?.result.isError).toBe(true);
+          expect(refusal?.result.resultType).toBe('complete');
+          expect(refusal?.result.structuredContent.error.message).toContain('this project could not be opened; recover it first');
+          expect(refusal?.result.structuredContent.error.correctiveHint).toContain(RECOVER_TOOL);
+        }
+      });
+    }
+  });
+
+  it('lets the two recovery tools reach their handlers, and keeps the hard-deny and the read-only refusal in front', async () => {
+    await withDegraded(true, (policy) => {
+      expect(guardMessage(call(RECOVER_TOOL), policy)).toBeUndefined();
+      expect(guardMessage(call(RECOVER_APPLY_TOOL), policy)).toBeUndefined();
+      expect(guardMessage(call('project.deleteNode'), policy)?.result.structuredContent.error.code).toBe('hard-denied');
+    });
+    await withDegraded(false, (policy) => {
+      expect(guardMessage(call(RECOVER_TOOL), policy)).toBeUndefined();
+      expect(guardMessage(call(RECOVER_APPLY_TOOL), policy)?.result.structuredContent.error.message).toContain('--allow-writes');
+    });
+  });
+
+  it('refuses a batch that carries a call a degraded server refuses', async () => {
+    await withDegraded(true, (policy) => {
+      expect(guardBatch([call(RECOVER_TOOL), call('doc.read', 2)], policy)?.result.structuredContent.error.code).toBe('invalid-params');
+      expect(guardBatch([call(RECOVER_TOOL)], policy)).toBeUndefined();
+    });
   });
 });

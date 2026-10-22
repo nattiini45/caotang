@@ -6,7 +6,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -19,7 +19,9 @@ import {
   NodeArtifactFs,
   createToolRuntime,
   openProject,
+  openProjectOrOffer,
   startHttpServer,
+  type DegradedSession,
   type ProjectSession,
   type RunningHttpServer,
 } from '../src/index.js';
@@ -300,4 +302,67 @@ export function coherenceOnDisk(root: string): CoherenceFile {
   const outcome = parseCoherenceFile(readFileSync(join(root, 'coherence.json'), 'utf8'));
   if (outcome.kind !== 'ok') throw new Error(`coherence.json in ${root} is ${outcome.kind}`);
   return outcome.file;
+}
+
+/** Text a corrupt `caotang.json` carries, so a test can tell whether the unreadable bytes were shown to a caller or kept. */
+export const CORRUPT_MARKER = 'CORRUPT-MANIFEST-MARKER';
+
+/** A manifest that was cut off by a partial write: it carries the marker and does not parse. */
+export const CORRUPT_MANIFEST = `{"app":"caotang","note":"${CORRUPT_MARKER}","tree":[`;
+
+/**
+ * A project folder whose `caotang.json` no longer parses, in the three states the ladder tells apart. `snapshot`: the project was saved
+ * twice, so `caotang.json.bak.1` holds the first save (the project under its first name). `rebuild`: one save, so there is no snapshot and
+ * the documents are all there is. `bare`: nothing but the broken manifest. `codex` adds a codex entry before the manifest breaks.
+ */
+export async function brokenFolder(label: string, kind: 'snapshot' | 'rebuild' | 'bare', options: { readonly codex?: boolean } = {}): Promise<string> {
+  const root = tempDir(label);
+  if (kind !== 'bare') {
+    await seedProject(root, 'The Lighthouse Keeper');
+    if (options.codex === true) await seedCodexEntry(root);
+    if (kind === 'snapshot') {
+      const fs = new NodeArtifactFs(root);
+      const { state } = await readProject(fs, { now: OPENED });
+      state.manifest.project.name = 'The Lighthouse Keeper, second save';
+      await writeProject(fs, state, { now: new Date(OPENED.getTime() + 60_000) });
+    }
+  }
+  writeFileSync(join(root, 'caotang.json'), CORRUPT_MANIFEST);
+  return root;
+}
+
+export interface DegradedFixture {
+  readonly root: string;
+  readonly session: DegradedSession;
+  readonly server: RunningHttpServer;
+  readonly token: string;
+  readonly url: string;
+  /** The lines the session reported to the operator. */
+  readonly reports: string[];
+  /** Stops the server and releases the folder, and leaves it for a later open. */
+  stop(): Promise<void>;
+}
+
+/** A running server over a folder whose manifest will not load, as `caotang-mcp serve` starts it. */
+export async function startDegraded(root: string, allowWrites: boolean): Promise<DegradedFixture> {
+  const reports: string[] = [];
+  const session = await openProjectOrOffer({ root, allowWrites, report: (line) => reports.push(line) });
+  if (!('degraded' in session)) throw new Error('the folder opened as a project; it was meant to be unreadable');
+  const token = testToken();
+  const server = await startHttpServer(createToolRuntime(session), { port: 0, token });
+  let stopped = false;
+  return {
+    root,
+    session,
+    server,
+    token,
+    url: server.url,
+    reports,
+    async stop() {
+      if (stopped) return;
+      stopped = true;
+      await server.close();
+      await session.close();
+    },
+  };
 }

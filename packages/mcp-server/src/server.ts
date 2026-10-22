@@ -36,8 +36,9 @@ import { serveStdio, StdioServerTransport, type StdioServerHandle } from '@model
 
 import { bearerAccepted } from './auth.js';
 import { createConfirmLedger, createRoundCodec } from './confirm.js';
-import { guardBatch, guardMessage, type RefusalResponse } from './guard.js';
+import { guardBatch, guardMessage, type GuardPolicy, type RefusalResponse } from './guard.js';
 import { LegacySessions, type LegacySessionOptions } from './legacy-sessions.js';
+import { degradedInstructions, guardDegraded, registerRecoveryTools, type DegradedSession, type RecoveryRuntime } from './recovery.js';
 import { registerCaotangTools, type ToolRuntime } from './tools.js';
 import type { ProjectSession } from './session.js';
 import { MCP_PATH, VERSION } from './version.js';
@@ -65,15 +66,30 @@ const INSTRUCTIONS =
   'A refused call says why, and the corrective step is in the refusal.';
 
 /** The instructions of a connection whose confirmations wait `roundMs`: they say how long, so a host can tell the user. */
-function instructionsFor(roundMs: number | undefined): string {
-  if (roundMs === undefined) return INSTRUCTIONS;
+function instructionsFor(runtime: ServerRuntime, roundMs: number | undefined): string {
+  const base = 'recovery' in runtime ? degradedInstructions(runtime.recovery) : INSTRUCTIONS;
+  if (roundMs === undefined) return base;
   const seconds = Math.ceil(roundMs / 1000);
-  return `${INSTRUCTIONS} A confirmation waits ${seconds} seconds for the user's answer; after that the call fails, nothing changes, and the call can be made again.`;
+  return `${base} A confirmation waits ${seconds} seconds for the user's answer; after that the call fails, nothing changes, and the call can be made again.`;
 }
 
+/** What a server runs over: an open project, or a folder that would not open and is offered its recovery (recovery.ts). */
+export type ServerRuntime = ToolRuntime | RecoveryRuntime;
+
 /** Everything a server needs: the session, and the confirmation machinery bound to this process. */
-export function createToolRuntime(session: ProjectSession): ToolRuntime {
-  return { session, codec: createRoundCodec(), ledger: createConfirmLedger() };
+export function createToolRuntime(session: ProjectSession): ToolRuntime;
+export function createToolRuntime(session: DegradedSession): RecoveryRuntime;
+export function createToolRuntime(session: ProjectSession | DegradedSession): ServerRuntime;
+export function createToolRuntime(session: ProjectSession | DegradedSession): ServerRuntime {
+  const machinery = { codec: createRoundCodec(), ledger: createConfirmLedger() };
+  return 'degraded' in session ? { recovery: session, ...machinery } : { session, ...machinery };
+}
+
+/** The guard's policy for a runtime: whether writes are exposed, and on a degraded server which names reach a handler. */
+function policyOf(runtime: ServerRuntime): GuardPolicy {
+  if (!('recovery' in runtime)) return { allowWrites: runtime.session.allowWrites };
+  const { recovery } = runtime;
+  return { allowWrites: recovery.allowWrites, degraded: (name) => guardDegraded(recovery, name) };
 }
 
 /**
@@ -94,15 +110,16 @@ export interface McpServerOptions {
 }
 
 /** A fresh MCP server over the runtime: its tools registered, and its `requestState` verified by the codec. */
-export function buildMcpServer(runtime: ToolRuntime, options: McpServerOptions = {}): McpServer {
+export function buildMcpServer(runtime: ServerRuntime, options: McpServerOptions = {}): McpServer {
   const { codec } = runtime;
   const { roundTimeoutMs } = options;
   const server = new McpServer(
     { name: 'caotang', title: 'Caotang', version: VERSION },
     {
-      instructions: instructionsFor(roundTimeoutMs),
+      instructions: instructionsFor(runtime, roundTimeoutMs),
       // The tools are fixed when the project is opened (a write tool is listed only with --allow-writes), so the list never
-      // changes during a session and no list-changed notice is ever sent. The 2025 initialize result says so, and the SDK's
+      // changes during a session and no list-changed notice is ever sent. A degraded server's list is fixed too: after a recovery
+      // its tools answer that the server must be restarted, rather than the list changing under the host. The 2025 initialize result says so, and the SDK's
       // default of `true` would promise a notice this server never sends.
       capabilities: { tools: { listChanged: false } },
       supportedProtocolVersions: [MODERN_PROTOCOL_VERSION, ...SUPPORTED_PROTOCOL_VERSIONS],
@@ -110,7 +127,8 @@ export function buildMcpServer(runtime: ToolRuntime, options: McpServerOptions =
       ...(roundTimeoutMs === undefined ? {} : { inputRequired: { roundTimeoutMs } }),
     },
   );
-  registerCaotangTools(server, runtime, roundTimeoutMs);
+  if ('recovery' in runtime) registerRecoveryTools(server, runtime, roundTimeoutMs);
+  else registerCaotangTools(server, runtime, roundTimeoutMs);
   return server;
 }
 
@@ -166,7 +184,7 @@ async function readBody(req: IncomingMessage): Promise<string> {
 async function answer(
   req: IncomingMessage,
   res: ServerResponse,
-  runtime: ToolRuntime,
+  runtime: ServerRuntime,
   options: HttpServerOptions,
   http: HttpSurface,
 ): Promise<void> {
@@ -183,7 +201,7 @@ async function answer(
     return;
   }
 
-  const policy = { allowWrites: runtime.session.allowWrites };
+  const policy = policyOf(runtime);
   let parsed: unknown;
   if (req.method === 'POST') {
     let text: string;
@@ -273,7 +291,7 @@ interface HttpSurface {
  * mounted `NodeStreamableHTTPServerTransport` directly, per request; the SDK's pinned
  * client then failed its `server/discover` probe, so the era-classifying entry is used.
  */
-export async function startHttpServer(runtime: ToolRuntime, options: HttpServerOptions): Promise<RunningHttpServer> {
+export async function startHttpServer(runtime: ServerRuntime, options: HttpServerOptions): Promise<RunningHttpServer> {
   const handler = createMcpHandler(() => buildMcpServer(runtime), {
     legacy: 'stateless',
     onerror: (error) => {
@@ -361,8 +379,8 @@ class GuardedStdioTransport implements Transport {
 }
 
 /** Serves the MCP endpoint over this process's stdin and stdout, until stdin closes. */
-export function startStdioServer(runtime: ToolRuntime): StdioServerHandle {
-  const policy = { allowWrites: runtime.session.allowWrites };
+export function startStdioServer(runtime: ServerRuntime): StdioServerHandle {
+  const policy = policyOf(runtime);
   const transport = new GuardedStdioTransport(new StdioServerTransport(), (message) => guardMessage(message, policy));
   return serveStdio(() => buildMcpServer(runtime), { legacy: 'serve', transport });
 }

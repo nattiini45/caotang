@@ -386,6 +386,8 @@ Each call asks you to confirm in your AI host. Decline it, and nothing is writte
 
 A coherence scan run from your host on a server started with `--allow-writes` is saved to the folder, and its findings and run show in the **Findings** tab after the folder is opened in Caotang again.
 
+If the folder's `caotang.json` is damaged, the server still starts, and says in your host that the project could not be opened. Ask the host to run `project.recover`: it shows which earlier copy of `caotang.json` would be restored, or that the project would be rebuilt from its documents, which loses the folder structure and the status and label terms. On a server started with `--allow-writes`, `project.recoverApply` applies it after you accept the host's dialog, which names the file it restores from and the copy of the damaged file it keeps (`caotang.json.corrupt-` and a time). A rebuild is asked for separately. Nothing is written if another program changed the folder in the meantime. Afterwards restart the server, or reconnect the host, to open the recovered project. A folder from another app or a newer Caotang is refused, as it is in the app. The server holds the folder's lock until it stops, so the app asks before it saves there.
+
 To bring writing in:
 
 1. Make a project folder with the server, and allow writes:

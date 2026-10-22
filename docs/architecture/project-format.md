@@ -173,6 +173,8 @@ Loader steps when `caotang.json` is unparseable:
 3. After any recovery, the rebuilt project is written as a **new** manifest; the corrupt original is preserved as `caotang.json.corrupt-<timestamp>`.
 4. **Codex recovery (codex.md §3):** the rebuild pass also scans `codex/*.md`; entries are restored from their redundancy files (description, aliases, policies survive; dangling attachment ids dropped with warning). Orphan codex files with no manifest entry are imported the same way orphan `docs/*.md` are.
 
+**Reachable from both hosts.** The desktop app offers the ladder in a dialog. The MCP server (`caotang-mcp`, extensibility §9) offers it through `project.recover` (read-only, nothing written) and, with `--allow-writes`, `project.recoverApply`, whose confirmation in the host's dialog is the writer's yes: it names the exact source file and the loss, a rebuild needs its own confirmation, and the folder must still hold the `caotang.json` text and the document and codex digests the offer read. A refused manifest (another app, or a newer format) gets no ladder in either host.
+
 ## 6. Versioning & migrations
 
 - `formatVersion` is an integer; v1 is the first stable format.
