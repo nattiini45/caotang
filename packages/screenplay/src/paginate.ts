@@ -20,6 +20,10 @@
  * column, the second in the right. A pair moves to the next page whole and never splits; a pair
  * taller than a page is laid one block after the other, which splits by the dialogue rules.
  *
+ * A line that prints an element's own text carries that element's source range (`LayoutLine.source`), so a position on the
+ * page maps back to the Fountain text. The range is the whole element: a wrapped line, an uppercased cue and both columns of a
+ * dual pair point at their own element. Generated text (`(MORE)`, `(CONT'D)`, page and scene numbers, the title page) has none.
+ *
  * A paragraph has a direction (Para.dir): an Arabic or Hebrew paragraph is right-aligned inside its own column and its lines are
  * marked `rtl`; the page itself is not mirrored (screenplay.md §5.3).
  *
@@ -36,7 +40,7 @@ import { needsBidi } from '@caotang/pdf-fonts';
 import { paragraphDirection, type Direction } from '@caotang/pdf-fonts/bidi';
 
 import { printedText, sceneNumberOf, stripSceneNumber } from './classify.js';
-import type { ScreenplayElement } from './types.js';
+import type { LocatedElement, ScreenplayElement, TextRange } from './types.js';
 import { breakPieces, splitColumns, textColumns } from './width.js';
 
 /**
@@ -121,6 +125,11 @@ export interface LayoutLine {
   readonly scene: number | null;
   /** Set on a line of a right-to-left paragraph, which the writer lays out from its right edge; absent on every other line. */
   readonly rtl?: true;
+  /**
+   * The span of the Fountain text of the element this line prints, when the elements were located (the parser's own are).
+   * Null for generated text and for the title page; the writers ignore it.
+   */
+  readonly source: TextRange | null;
 }
 
 export interface LayoutPage {
@@ -190,6 +199,8 @@ interface Para {
   readonly sceneIndex: number | null;
   /** The cue as printed, on a character element. `(CONT'D)` is appended to it on the next page. */
   readonly cueName: string;
+  /** The element's span in the source, null when the element was not located. */
+  readonly source: TextRange | null;
 }
 
 /** A cue block still being read: its lead, its cue, its leading parentheticals, and what follows them. */
@@ -324,6 +335,7 @@ function makePara(
     readonly sceneIndex?: number;
     readonly sceneNumber?: string;
     readonly cueName?: string;
+    readonly source?: TextRange | null;
     readonly indent?: number;
     readonly width?: number;
     /** The direction of a paragraph that is wrapped again to a column, which keeps the one it had. */
@@ -347,6 +359,7 @@ function makePara(
     sceneNumber: extra.sceneNumber ?? null,
     sceneIndex: extra.sceneIndex ?? null,
     cueName: extra.cueName ?? '',
+    source: extra.source ?? null,
   };
 }
 
@@ -386,9 +399,9 @@ function dualSide(open: OpenCue, column: 'left' | 'right'): DualSide {
   const at = LAYOUT.dual[column];
   const width = LAYOUT.dual.width;
   const rewrap = (para: Para, kind: 'parenthetical' | 'dialogue'): Para =>
-    makePara(kind, joinLines(para), false, { indent: at[kind], width: width[kind], dir: para.dir });
+    makePara(kind, joinLines(para), false, { indent: at[kind], width: width[kind], dir: para.dir, source: para.source });
   return {
-    cue: makePara('character', open.cue.cueName, true, { cueName: open.cue.cueName, indent: at.character, width: width.character, dir: open.cue.dir }),
+    cue: makePara('character', open.cue.cueName, true, { cueName: open.cue.cueName, indent: at.character, width: width.character, dir: open.cue.dir, source: open.cue.source }),
     body: [...open.parens, ...open.items].map((para) => rewrap(para, para.kind === 'parenthetical' ? 'parenthetical' : 'dialogue')),
   };
 }
@@ -431,7 +444,9 @@ function glueToPrevious(units: Unit[], para: Para): void {
  * interrupt a block; an element that prints no text closes a block but adds no unit.
  */
 function buildUnits(elements: readonly ScreenplayElement[], neutral: Direction): Unit[] {
-  const paraOf: typeof makePara = (kind, text, blankBefore, extra = {}) => makePara(kind, text, blankBefore, { ...extra, neutral });
+  // The span of the element being read; every paragraph it makes points at it.
+  let source: TextRange | null = null;
+  const paraOf: typeof makePara = (kind, text, blankBefore, extra = {}) => makePara(kind, text, blankBefore, { ...extra, neutral, source });
   const units: Unit[] = [];
   let open: OpenCue | null = null;
   // The first speaker of a dual pair, held while the second block (the cue marked `^`) is read.
@@ -445,6 +460,7 @@ function buildUnits(elements: readonly ScreenplayElement[], neutral: Direction):
   };
 
   for (const el of elements) {
+    source = (el as Partial<LocatedElement>).range ?? null;
     if (
       el.type === 'title_page' ||
       el.type === 'section' ||
@@ -622,7 +638,7 @@ class Pager {
       let row = top;
       for (const para of [side.cue, ...side.body]) {
         for (const text of para.lines) {
-          this.current.push({ kind: para.kind, text, x: LAYOUT.marginLeft + columnOf(para, text) * LAYOUT.charWidth, y: rowY(row), row, scene: null, ...(para.dir === 'rtl' ? { rtl: true as const } : {}) });
+          this.current.push({ kind: para.kind, text, x: LAYOUT.marginLeft + columnOf(para, text) * LAYOUT.charWidth, y: rowY(row), row, scene: null, ...(para.dir === 'rtl' ? { rtl: true as const } : {}), source: para.source });
           row += 1;
         }
       }
@@ -646,13 +662,13 @@ class Pager {
     if (this.used > 0 && this.used < LAYOUT.linesPerPage) this.used += 1;
   }
 
-  private line(kind: LineKind, text: string, col: number, scene: number | null = null, sceneNumber: string | null = null, rtl = false): void {
+  private line(kind: LineKind, text: string, col: number, source: TextRange | null, scene: number | null = null, sceneNumber: string | null = null, rtl = false): void {
     // Every caller makes room first. A line past the foot would be a unit broken without its rules.
     if (this.used >= LAYOUT.linesPerPage) throw new Error('paginate: a line was placed past the foot of its page');
     const row = this.used;
     this.used += 1;
     const y = rowY(row);
-    this.current.push({ kind, text, x: LAYOUT.marginLeft + col * LAYOUT.charWidth, y, row, scene, ...(rtl ? { rtl: true as const } : {}) });
+    this.current.push({ kind, text, x: LAYOUT.marginLeft + col * LAYOUT.charWidth, y, row, scene, ...(rtl ? { rtl: true as const } : {}), source });
     if (sceneNumber !== null) {
       const width = textColumns(sceneNumber) * LAYOUT.charWidth;
       if (!SCENE_NUMBER_PLACEMENTS.includes(this.sceneNumbers)) {
@@ -660,11 +676,11 @@ class Pager {
         throw new Error(`Unknown scene-number placement: ${String(this.sceneNumbers)}`);
       }
       if (this.sceneNumbers === 'left' || this.sceneNumbers === 'both') {
-        this.current.push({ kind: 'sceneNumber', text: sceneNumber, x: LAYOUT.sceneNumberLeftX, y, row: null, scene });
+        this.current.push({ kind: 'sceneNumber', text: sceneNumber, x: LAYOUT.sceneNumberLeftX, y, row: null, scene, source: null });
       }
       if (this.sceneNumbers === 'right' || this.sceneNumbers === 'both') {
         const x = LAYOUT.pageWidth - LAYOUT.sceneNumberRightInset - width;
-        this.current.push({ kind: 'sceneNumber', text: sceneNumber, x, y, row: null, scene });
+        this.current.push({ kind: 'sceneNumber', text: sceneNumber, x, y, row: null, scene, source: null });
       }
     }
   }
@@ -672,7 +688,7 @@ class Pager {
   private textLine(para: Para, text: string, first: boolean): void {
     const number = first && para.kind === 'scene' ? para.sceneNumber : null;
     const scene = first && para.kind === 'scene' ? para.sceneIndex : null;
-    this.line(para.kind, text, columnOf(para, text), scene, number, para.dir === 'rtl');
+    this.line(para.kind, text, columnOf(para, text), para.source, scene, number, para.dir === 'rtl');
   }
 
   /** Lines of one paragraph that are known to fit. */
@@ -702,12 +718,12 @@ class Pager {
 
   private more(): void {
     const col = LAYOUT.indent.dialogue + Math.floor((LAYOUT.width.dialogue - '(MORE)'.length) / 2);
-    this.line('more', '(MORE)', col);
+    this.line('more', '(MORE)', col, null);
   }
 
   private continuation(cue: Para): void {
     if (!this.continued) return;
-    this.line('continued', `${cue.cueName} (CONT'D)`, LAYOUT.indent.character);
+    this.line('continued', `${cue.cueName} (CONT'D)`, LAYOUT.indent.character, null);
   }
 
   /** Atomic paragraphs move as one when they fit a page; a larger run splits at the page edge without rules. */
@@ -862,6 +878,7 @@ function titleLine(kind: LineKind, text: string, col: number, row: number): Layo
     y: rowY(row),
     row: null,
     scene: null,
+    source: null,
   };
 }
 
@@ -896,6 +913,7 @@ function pageNumberLine(number: number): LayoutLine {
     y: LAYOUT.pageNumberY,
     row: null,
     scene: null,
+    source: null,
   };
 }
 
