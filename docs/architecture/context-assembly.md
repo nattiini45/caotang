@@ -7,6 +7,8 @@
 
 This module owns the **read half of every model call**: given a task (tool call) + app state, produce the exact `messages[]` for `ProviderGateway.complete()`. The write half (parsing tool calls, plans, verify steps) stays in the harness. Assembly is a **pure function of (task, project state, config)** — same inputs, same prompt bytes — because §9 evals assert on stable assembled context.
 
+`assemble()` also backs the MCP server's prompts ([extensibility.md](extensibility.md) §9): the server runs it on the same `AgentTask` the in-app tool builds (`sceneTask`, `synopsisInstruction`, `continuityTask`), with the default `ContextConfig` (the writer's in-app budgets live in the browser, not in the folder), no tool list and no earlier turns, and hands the messages to the host's model. Same task, same bytes: the server's golden files (`packages/mcp-server/test/golden/`) pin them. The server calls no model.
+
 Competitive evidence settled the strategy question: **synopsis-tree + mention-keyed codex assembly, zero embeddings in v0.1.** This spec turns that verdict into budgets, ordering, and failure behavior.
 
 ## 2. Layer stack (fixed order)

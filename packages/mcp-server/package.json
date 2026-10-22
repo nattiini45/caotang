@@ -18,6 +18,7 @@
     "@modelcontextprotocol/server": "2.3.1",
     "@caotang/bus": "workspace:*",
     "@caotang/coherence": "workspace:*",
+    "@caotang/context": "workspace:*",
     "@caotang/exporter": "workspace:*",
     "@caotang/font-noto-arabic": "workspace:*",
     "@caotang/font-noto-cjk": "workspace:*",

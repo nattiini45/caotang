@@ -48,7 +48,10 @@ export {
   type StepResult,
 } from './plan.js';
 export {
+  continuityTask,
   createAgentSession,
+  sceneTask,
+  synopsisInstruction,
   type AgentSession,
   type AgentSessionOptions,
   type OfferAnswer,
@@ -91,7 +94,11 @@ export {
   type WriterAction,
   type WriterMoment,
 } from './agent/eval.js';
-export { createAgentPorts, previewFor, codexReadPort, sceneDraftPort, synopsisFillPort, continuityScanPort } from './agent/ports.js';
+export { createAgentPorts, draftModeRefusal, previewFor, codexReadPort, sceneDraftPort, synopsisFillPort, continuityScanPort } from './agent/ports.js';
+// The reads an MCP resource serves, whole, and the node lookups the server's prompts share with the tools (extensibility §9).
+export { codexInOrder, readBody, readCodexEntry, readNotes, type BodyRead, type NotesRead } from './resource-reads.js';
+export { ANY_NODE, CONTAINER, DOCUMENT, childrenOf, descendantsOf, resolveNode } from './resolve.js';
+export { CONTINUITY_MAX_DOCS } from './tools/ports.js';
 export {
   createContextPort,
   dropLinesOf,

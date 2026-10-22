@@ -50,6 +50,11 @@ describe('the bundle manifest', () => {
     expect(manifestProblems(realManifest(), BUNDLE)).toEqual([]);
   });
 
+  it('says its prompts are generated, because the server builds each from the open project and the manifest has no text for one', () => {
+    expect(realManifest()['prompts_generated']).toBe(true);
+    expect(realManifest()['prompts']).toBeUndefined();
+  });
+
   it('declares the package version, as the server advertises it', () => {
     const pkg = JSON.parse(readFileSync(join(PACKAGE_DIR, 'package.json'), 'utf8')) as { version: string };
     expect(realManifest()['version']).toBe(pkg.version);

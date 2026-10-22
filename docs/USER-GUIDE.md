@@ -388,6 +388,14 @@ On a Mac, Cmd takes the place of Ctrl. The element chords are the one exception:
 
 The tabs on the left (**Binder**, **Codex**, **Activity** and **Findings**) and the **Editor** and **Corkboard** buttons take the arrow keys, Home and End. In a menu, the arrow keys move between items, and Enter or Space chooses one.
 
+## Attaching your writing in an AI tool
+
+An AI tool connected to the MCP server can attach your documents, a document's notes and your codex entries to a conversation, as resources. In Claude Code, type `@` and pick `caotang`; in Cursor, use the resource picker. What you attach is the whole text, not a cut-down copy. A document over 2 MiB is refused and says so, and is never trimmed.
+
+The server also offers five prompts, which your tool lists as commands: **draft-scene**, **fill-synopsis**, **continuity-check**, **codex-from-doc** and **revise-with-codex**. Each one builds the same context Caotang's agent would send for that job, with the codex entries a scene mentions, the structure and the story so far, and hands it to your tool's own model. Caotang makes no model call and holds no key, so the text goes to the model you chose in that tool. A prompt refuses what the matching tool in Caotang would refuse: **draft-scene** on a document that already has text, or on a folder. On a server started without `--allow-writes`, a prompt tells the model to show you the result, and not to try to save it.
+
+On a server started with `--allow-writes`, a tool that subscribed to a document's notes is told when they change. The server does not watch the folder: it tells your tool of its own changes, and once of a change another program made, which also stops its writes.
+
 ## Bringing existing writing in through the MCP server
 
 If your writing is somewhere else, such as in notes, a wiki or an old draft, the MCP server can bring it into a Caotang project. Two tools do that:

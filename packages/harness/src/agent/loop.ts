@@ -561,12 +561,25 @@ export function sceneTask(
   };
 }
 
+/** continuity.scan's task (context-assembly §2): the documents to check, and the aspects asked for, if any. */
+export function continuityTask(scope: readonly string[], aspects: readonly string[]): AgentTask {
+  return {
+    tool: 'continuity.scan',
+    instruction:
+      aspects.length === 0
+        ? 'Check these documents for continuity problems.'
+        : `Check these documents for continuity problems in these aspects: ${aspects.join(', ')}.`,
+    params: { aspects },
+    scope,
+  };
+}
+
 /**
  * synopsis.fill's task text for one document (L7). The notes are in it for `notes` and `both`. For `notes` the
  * text is not sent, and the task says so: the focus layer lists an empty body as empty, and it has no stand-in
  * for a full document, so the model is told in words that the synopsis is drafted from the notes alone.
  */
-function synopsisInstruction(node: TreeNode, source: 'text' | 'notes' | 'both'): string {
+export function synopsisInstruction(node: TreeNode, source: 'text' | 'notes' | 'both'): string {
   const notes = source !== 'text' && node.notes.trim() !== '' ? `\nNotes:\n${node.notes.trim()}` : '';
   const withheld = source === 'notes' ? '\nThe text of this document is not sent: write the synopsis from the notes alone.' : '';
   return `Document "${node.title}":${notes}${withheld}\nBrief: write the synopsis of this document.`;
@@ -1162,15 +1175,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const aspects = Array.isArray(step.params['aspects']) ? (step.params['aspects'] as readonly string[]) : [];
     const call = context.assemble({
       ...history,
-      task: {
-        tool: 'continuity.scan',
-        instruction:
-          aspects.length === 0
-            ? 'Check these documents for continuity problems.'
-            : `Check these documents for continuity problems in these aspects: ${aspects.join(', ')}.`,
-        params: { aspects },
-        scope: scope.map((node) => node.id),
-      },
+      task: continuityTask(scope.map((node) => node.id), aspects),
       role: continuityRole(aspects),
     });
     turn.dropped.push(...dropLinesOf(call.prompt));
