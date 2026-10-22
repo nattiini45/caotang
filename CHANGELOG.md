@@ -7,6 +7,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 ### Added
 
 - **Agent.** A live task list for multi-step turns, in the agent header and at the top of the turn, with the model-call budget. The header says "Step 3 of 5 · Drafting “The Landing”", or "Waiting for you · Plan, 3 steps", with the drawer open or closed. The list is worked out from the plan and the tool calls, so it costs no model tokens and shows only work that ran.
+- **Releases.** The MCP bundle and its SHA-256 are attached to each GitHub release, built from the tagged source by a workflow that stops when the tag, `package.json`, `manifest.json` and `server.json` name different versions. The landing page and the bundle name the maker as "@nattiini45 and contributors".
 
 ## 0.1.0
 

@@ -1,0 +1,66 @@
+# Publishes a GitHub release when a version tag is pushed: the MCP server bundle (.mcpb) built from the tagged source, and its
+# SHA-256 in SHA256SUMS. CONTRIBUTING.md ("Releasing") says how to cut one.
+#
+# Details that are load-bearing rather than tidy:
+#   - The tag must be v<version>, and that version must be the one in packages/mcp-server/package.json, packages/mcp-server/manifest.json
+#     and server.json (tools/release.mjs). The check runs first, so a mismatch publishes nothing.
+#   - The release notes are the CHANGELOG.md section of that version; a version with no section there stops the release.
+#   - permissions is `contents: write`, the one thing creating a release needs. Only tags can start this workflow, and only people who
+#     can push tags can push one. No third-party action runs with that token: the release is made with the gh CLI that the runner has.
+#   - The server.json hash is not stamped here. The registry entry names the file by its SHA-256, so after the release exists, copy
+#     the hash from SHA256SUMS into server.json (CONTRIBUTING.md) before publishing it with mcp-publisher.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable corepack (pnpm from packageManager)
+        run: corepack enable
+
+      - name: Check that the tag names the version being released
+        run: node tools/release.mjs check "$TAG"
+        env:
+          TAG: ${{ github.ref_name }}
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint, typecheck, unit tests
+        run: pnpm verify
+
+      - name: Pack the MCP server bundle (manifest checked by the pinned MCPB CLI)
+        run: pnpm --filter @caotang/mcp-server run pack
+
+      - name: Write the SHA-256 of the bundle
+        working-directory: packages/mcp-server/dist
+        run: |
+          sha256sum caotang-mcp-*.mcpb > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create the release with the bundle and its SHA-256
+        run: |
+          node tools/release.mjs notes "${TAG#v}" > release-notes.md
+          gh release create "$TAG" packages/mcp-server/dist/caotang-mcp-*.mcpb packages/mcp-server/dist/SHA256SUMS \
+            --verify-tag --title "Caotang ${TAG#v}" --notes-file release-notes.md
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
