@@ -8,11 +8,21 @@
  */
 
 export { VERSION, MCP_PATH } from './version.js';
-export { ArtifactPathError, NodeArtifactFs, byteArtifactsOver, resolveWithin } from './node-fs.js';
-export { LOCK_FILE, LOCK_TAKEOVER_FILE, ProjectLockedError, acquireProjectLock, type ProjectLock } from './lock.js';
+// The Node folder session moved to the SDK (`@caotang/sdk/folder`); these re-exports keep the names a host embedding the server imports.
 export {
+  ArtifactPathError,
   FolderChangedError,
+  LOCK_FILE,
+  LOCK_TAKEOVER_FILE,
   NoProjectError,
+  NodeArtifactFs,
+  ProjectLockedError,
+  acquireProjectLock,
+  byteArtifactsOver,
+  resolveWithin,
+  type ProjectLock,
+} from '@caotang/sdk/folder';
+export {
   ProjectContentError,
   externalTurn,
   openProject,

@@ -255,7 +255,7 @@ export class NodeArtifactFs implements ArtifactFs {
  * The exporter's binary port, over the same folder and the same atomic path, so a
  * DOCX or EPUB lands in `exports/` exactly as a Markdown file does.
  */
-export function byteArtifactsOver(fs: NodeArtifactFs): ByteArtifacts {
+export function byteArtifactsOver(fs: Pick<ArtifactFs, 'writeBytesAtomic' | 'remove' | 'listFiles'>): ByteArtifacts {
   return {
     writeBytes: (path, bytes) => fs.writeBytesAtomic(path, bytes),
     removeBytes: (path) => fs.remove(path),
