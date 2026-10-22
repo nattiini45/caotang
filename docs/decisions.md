@@ -263,6 +263,7 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - A read never saves the project folder. Why: reads have no side effects on disk. [delegated]
 - Hard-deny is enforced server-side regardless of the caller. Why: the bus gate is the same gate. [delegated]
 - The `.mcpb` bundle ships unsigned, with install steps explaining the "Install Anyway" prompt; signing waits for a fixed `mcpb` release and real users. Why: the current signer produces bundles hosts refuse. [owner]
+- The MCPB write setting stays fail-closed: only the exact string `true` in `CAOTANG_MCP_ALLOW_WRITES` turns writes on; if a real host sends another value, add that one token with a test, never general truthiness; the server logs only the classified setting (unset, true, false, other), never the raw value; HOST-CHECKS.md records real-host runs and stays "not yet run" until a human runs it. Why: a substitution quirk must not silently enable writes, and a template must not read as a pass. [delegated]
 
 ## Media track
 

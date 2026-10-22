@@ -371,6 +371,17 @@ Two limits to know:
 
 With writes allowed, an outside tool can also compile the manuscript, one item, or a saved recipe, in any format the Export dialog offers, EPUB included. The host asks you to confirm each compile first, as it does for any other change.
 
+## Installing the MCP bundle
+
+The MCP server also comes as a `.mcpb` file that a host such as Claude Desktop can install. Build it as the [README](../README.md#caotang-as-an-mcp-server) says, or take it from the latest release. In the host:
+
+1. Drag the file onto the host, or open it with the host.
+2. In the dialog, choose a **Project folder** that already holds a Caotang project.
+3. Leave **Allow changes** off to let the assistant read the project only. Turn it on to let it change the project; some changes still ask you to confirm them first.
+4. If the host warns that the bundle is not signed and offers **Install Anyway**, that is expected. The host cannot name a publisher for it, because the signing tool today produces bundles that hosts refuse. The code is open, and you can build the same file from source.
+
+The server runs on your computer and opens no network port. Uninstalling it leaves your project folder untouched. The dialog's wording differs between hosts and versions. The bundle is not signed, and it has not been tested in a real host yet.
+
 ## When something seems wrong
 
 - **The agent says it cannot do that.** The built-in demo provider answers only three requests. Add a provider in Settings › Providers.
@@ -398,4 +409,5 @@ With writes allowed, an outside tool can also compile the manuscript, one item, 
 - **Word contents.** How Word and LibreOffice handle the contents field in a `.docx` file has not been tested.
 - **The Pages view.** The Pages view of a screenplay is a read-only preview. It draws a dual-dialogue pair side by side, as the PDF does, but it closes up the blank lines and is not the page's exact height.
 - **Undo and reloads.** The toolbar's Undo and the Undo in Activity last for the open tab; checkpoints survive a reload. Undo on a screenplay's Source tab and in Ink text is the browser's own.
+- **The MCP bundle.** The `.mcpb` bundle is not signed, so a host asks you to confirm the install, and it has not been tested in a real host.
 - **The desktop app.** Caotang runs in the browser. A desktop wrapper is not in this build.
