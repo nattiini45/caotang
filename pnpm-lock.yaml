@@ -631,6 +631,9 @@ importers:
       '@caotang/bus':
         specifier: workspace:*
         version: link:../bus
+      '@caotang/gateway':
+        specifier: workspace:*
+        version: link:../gateway
       '@caotang/ids':
         specifier: workspace:*
         version: link:../ids

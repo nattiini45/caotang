@@ -220,3 +220,68 @@ test('the agent panel shows the model’s streamed thinking collapsed, apart fro
   await expect(row).toContainText('Chat');
   await expect(row).toContainText('test-model');
 });
+
+test('the local model servers sit under "On this computer", save with no key, and say where the text stays', async ({ page }) => {
+  const seen: Record<string, string>[] = [];
+  await endpointRoute(page, 'http://127.0.0.1:11434', planThenAnswer({ reply: 'unused' }), ['llama3.2', 'qwen3']);
+  await page.route('http://127.0.0.1:11434/**', async (route) => {
+    if (route.request().method() !== 'OPTIONS') seen.push(route.request().headers());
+    await route.fallback();
+  });
+  const settings = await openSettings(page);
+  await settings.getByRole('button', { name: 'Add a provider' }).click();
+  const form = settings.getByRole('form', { name: 'New provider' });
+
+  // The group holds exactly the three local servers; the hosted presets stay outside it.
+  const picker = form.getByRole('combobox', { name: 'Provider' });
+  const group = picker.locator('optgroup[label="On this computer"] option');
+  await expect(group).toHaveText(['Ollama', 'LM Studio', 'llama.cpp (llama-server)']);
+  await expect(picker.locator('optgroup[label="On this computer"] option', { hasText: 'Anthropic' })).toHaveCount(0);
+
+  // A local pick: the address is the preset's loopback default and editable, the key is optional, the setup is said in words, and so is
+  // the permission prompt Chrome shows, before any request is made. The privacy line follows the address.
+  await picker.selectOption('ollama');
+  const address = form.getByLabel('Server address (on this computer, ending in /v1)');
+  await expect(address).toHaveValue('http://127.0.0.1:11434/v1');
+  await expect(form.getByLabel('API key (optional — only if you set one on the server)')).toBeVisible();
+  await expect(form.getByText(/OLLAMA_CONTEXT_LENGTH/)).toBeVisible();
+  await expect(form.getByText(/Chrome and Edge ask whether this site may connect to apps on your device/)).toBeVisible();
+  await expect(form.getByText(/Safari is unverified/)).toBeVisible();
+  await expect(form.getByRole('link', { name: 'Ollama documentation' })).toHaveAttribute('href', /docs\.ollama\.com/);
+  await expect(form.getByText('Until the server says more: 4,096-token window, no native tools, no image input.')).toBeVisible();
+  await expect(form.getByText('Your text stays on this computer.')).toBeVisible();
+  await expect(form.getByRole('group', { name: 'Extra request headers (optional)' })).toHaveCount(0);
+
+  // An address that is not this computer is refused by the gateway with the reason, and nothing is saved.
+  await form.getByLabel('Name').fill('Ollama here');
+  await address.fill('http://192.168.1.20:11434/v1');
+  await expect(form.getByText('Your text stays on this computer.')).toHaveCount(0);
+  await form.getByRole('button', { name: 'Save profile' }).click();
+  await expect(settings.getByRole('alert')).toContainText('plain http is allowed only to this computer');
+  await expect(settings.locator('[data-profile="Ollama here"]')).toHaveCount(0);
+
+  // Back on loopback it saves with no key, lists the server's models, and the profile row carries the privacy line.
+  await address.fill('http://127.0.0.1:11434/v1');
+  await form.getByRole('button', { name: 'Save profile' }).click();
+  await expect(settings.getByText('Saved “Ollama here”.')).toBeVisible();
+  await expect(settings.getByRole('region', { name: 'Models listed by Ollama here' })).toContainText('qwen3');
+  const row = settings.locator('[data-profile="Ollama here"]');
+  await expect(row).toContainText('Ollama · http://127.0.0.1:11434/v1 · llama3.2');
+  await expect(row).toContainText('Your text stays on this computer');
+  // No key header went to the server, and the hosted demo row does not claim the privacy line.
+  expect(seen.length).toBeGreaterThan(0);
+  expect(seen.every((headers) => headers['authorization'] === undefined)).toBe(true);
+  await expect(settings.locator('[data-profile="Demo (no key)"]')).not.toContainText('stays on this computer');
+});
+
+test('a generic endpoint still refuses plain http to loopback: the exemption is for the three local presets only', async ({ page }) => {
+  const settings = await openSettings(page);
+  await settings.getByRole('button', { name: 'Add a provider' }).click();
+  const form = settings.getByRole('form', { name: 'New provider' });
+  await form.getByLabel('Name').fill('Sneaky');
+  await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill('http://127.0.0.1:11434/v1');
+  await form.getByLabel('Model', { exact: true }).fill('m');
+  await form.getByRole('button', { name: 'Save profile' }).click();
+  await expect(settings.getByRole('alert')).toContainText('must start with https://');
+  await expect(settings.locator('[data-profile="Sneaky"]')).toHaveCount(0);
+});

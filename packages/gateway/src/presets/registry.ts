@@ -37,6 +37,19 @@ const CLAUDE_CAPS = {
   denylist: CLAUDE_DENY,
 } as const satisfies Partial<ModelCaps>;
 
+/**
+ * A local server loads its model from disk before it answers, so the headers, the first token and the gaps between
+ * chunks all wait longer than a hosted API's (provider-gateway §4). The total stays at the gateway's five minutes.
+ */
+const LOCAL_TIMEOUTS = { connectMs: 180_000, firstTokenMs: 180_000, idleMs: 120_000 } as const;
+
+/**
+ * What a local server's `/v1/models` does not report is its context window, and these servers often run with a small
+ * one. The row states a conservative one, so assembly warns before it overruns rather than the server silently
+ * truncating. The profile's output cap stays the writer's override.
+ */
+const LOCAL_WINDOW_FALLBACK = 4_096;
+
 export const PRESETS: readonly PresetDef[] = [
   {
     id: 'anthropic',
@@ -619,6 +632,69 @@ export const PRESETS: readonly PresetDef[] = [
       // qwen-3.8-27b documents `none` for Off.
       { pattern: 'qwen-3.8-27b', caps: { tools: true, vision: true, effortStyle: 'reasoning_effort', effortLevels: ['off', 'low', 'medium', 'high'] } },
     ],
+  },
+  {
+    // The three local presets share a shape: a server on this computer, `http` to a literal loopback address, no key unless
+    // the writer set one on the server, and conservative capabilities — no native tools and no images — so the agent
+    // speaks the JSON-in-text wire. They differ in the default port and in the one setting that lets a page call them.
+    id: 'ollama',
+    name: 'Ollama',
+    adapter: 'openai-chat',
+    baseUrl: 'http://127.0.0.1:11434/v1',
+    defaultModel: 'llama3.2',
+    keyOptional: true,
+    keylessModels: true,
+    quirks: {},
+    cors: 'local',
+    docsUrl: 'https://docs.ollama.com/faq',
+    local: {
+      product: 'Ollama',
+      corsFix: 'Start Ollama with OLLAMA_ORIGINS set to this app’s address (for caotang.app: OLLAMA_ORIGINS=https://caotang.app) and restart it.',
+      setup:
+        'Install Ollama, pull a model (ollama pull llama3.2) and leave it running. Ollama starts with a small context window: raise it with OLLAMA_CONTEXT_LENGTH if replies lose the start of your scene.',
+    },
+    timeouts: LOCAL_TIMEOUTS,
+    models: [{ pattern: '*', caps: {}, contextWindow: LOCAL_WINDOW_FALLBACK }],
+  },
+  {
+    id: 'lmstudio',
+    name: 'LM Studio',
+    adapter: 'openai-chat',
+    baseUrl: 'http://127.0.0.1:1234/v1',
+    defaultModel: 'local-model',
+    keyOptional: true,
+    keylessModels: true,
+    quirks: {},
+    cors: 'local',
+    docsUrl: 'https://lmstudio.ai/docs/developer/core/server',
+    local: {
+      product: 'LM Studio',
+      corsFix: 'Turn on Enable CORS in LM Studio’s server settings (or start the server with lms server start --cors).',
+      setup:
+        'In LM Studio, load a model and start the local server, with Enable CORS on. The context length is set when the model loads: raise it there if replies lose the start of your scene.',
+    },
+    timeouts: LOCAL_TIMEOUTS,
+    models: [{ pattern: '*', caps: {}, contextWindow: LOCAL_WINDOW_FALLBACK }],
+  },
+  {
+    id: 'llamacpp',
+    name: 'llama.cpp (llama-server)',
+    adapter: 'openai-chat',
+    baseUrl: 'http://127.0.0.1:8080/v1',
+    defaultModel: 'default',
+    keyOptional: true,
+    keylessModels: true,
+    quirks: {},
+    cors: 'local',
+    docsUrl: 'https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md',
+    local: {
+      product: 'llama-server',
+      corsFix: 'Start llama-server with --cors-origins set to this app’s address (for caotang.app: --cors-origins https://caotang.app); a server started with --tools or --agent only admits localhost pages.',
+      setup:
+        'Start llama-server with a model (llama-server -m model.gguf --port 8080); it serves that one model whatever name you enter. Set its context window with -c (--ctx-size) if replies lose the start of your scene.',
+    },
+    timeouts: LOCAL_TIMEOUTS,
+    models: [{ pattern: '*', caps: {}, contextWindow: LOCAL_WINDOW_FALLBACK }],
   },
   {
     // A hand-rolled endpoint: the person types the base URL. Caps stay conservative —

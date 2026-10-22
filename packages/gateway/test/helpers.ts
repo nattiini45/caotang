@@ -177,6 +177,8 @@ export interface HarnessOptions {
   timeouts?: Parameters<typeof createGateway>[0]['timeouts'];
   retry?: Parameters<typeof createGateway>[0]['retry'];
   random?: () => number;
+  supportsAddressSpace?: () => boolean;
+  loopbackPermission?: () => Promise<string | undefined>;
   /** the mock provider that answers mock profiles; defaults to the shipped script library */
   mock?: MockProvider;
 }
@@ -199,6 +201,9 @@ export function harness(options: HarnessOptions = {}): Harness {
     random: options.random ?? (() => 0.5),
     timeouts: options.timeouts,
     retry: options.retry,
+    // Off unless a test says so: Node's fetch has no Local Network Access, and the permission query must not reach a real browser.
+    supportsAddressSpace: options.supportsAddressSpace ?? (() => false),
+    loopbackPermission: options.loopbackPermission ?? (async () => undefined),
     ...(options.mock === undefined ? {} : { mock: options.mock }),
   });
   return { clock, keys, profiles, net, gateway };

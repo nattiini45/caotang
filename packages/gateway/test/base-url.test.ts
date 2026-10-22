@@ -5,8 +5,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { isLoopbackHost } from '../src/base-url.js';
-import { isLoopbackBase, normalizeBaseUrl, ProfileError } from '../src/index.js';
+import { isLocalBase, isLoopbackHost, isLoopbackLiteral } from '../src/base-url.js';
+import { isLoopbackBase, normalizeBaseUrl, normalizeLocalBaseUrl, ProfileError } from '../src/index.js';
 
 const rejects = (input: string): ProfileError => {
   try {
@@ -51,7 +51,7 @@ describe('normalizeBaseUrl — refused shapes', () => {
     expect(rejects('https://api.example.com/api').message).toMatch(/pathless or carry a version/);
   });
 
-  it('refuses plain http anywhere — the endpoint contract is HTTPS-only, with no loopback exemption', () => {
+  it('refuses plain http anywhere, loopback included: the generic kind stays HTTPS-only, and a local server goes through a local preset', () => {
     expect(rejects('http://example.com/v1').message).toMatch(/https/);
     for (const loopback of ['http://localhost:1234/v1', 'http://127.0.0.1:11434/v1/', 'http://[::1]:1234/v1']) {
       expect(() => normalizeBaseUrl(loopback)).toThrow(ProfileError);
@@ -112,5 +112,97 @@ describe('isLoopbackHost', () => {
     expect(isLoopbackHost('127.0.0')).toBe(false);
     expect(isLoopbackHost('127.0.0.1')).toBe(true);
     expect(isLoopbackHost('128.0.0.1')).toBe(false);
+  });
+});
+
+const localRejects = (input: string): ProfileError => {
+  try {
+    normalizeLocalBaseUrl(input);
+  } catch (error) {
+    if (error instanceof ProfileError) return error;
+    throw error;
+  }
+  throw new Error(`expected ${JSON.stringify(input)} to be rejected`);
+};
+
+describe('normalizeLocalBaseUrl — a local model server, on this computer only', () => {
+  it.each([
+    ['http://127.0.0.1:11434/v1', 'http://127.0.0.1:11434/v1'],
+    ['http://localhost:1234/v1/', 'http://localhost:1234/v1'],
+    ['http://[::1]:8080/v1', 'http://[::1]:8080/v1'],
+    ['  HTTP://LocalHost:8080/v1  ', 'http://localhost:8080/v1'],
+    ['http://127.0.0.2:8080', 'http://127.0.0.2:8080'],
+    ['http://127.255.255.254:1234/v1', 'http://127.255.255.254:1234/v1'],
+    // The URL parser writes a short form out in full, so what is stored is the literal address.
+    ['http://127.1:1234/v1', 'http://127.0.0.1:1234/v1'],
+    ['https://127.0.0.1:8443/v1', 'https://127.0.0.1:8443/v1'],
+  ])('accepts %s as %s', (input, expected) => {
+    expect(normalizeLocalBaseUrl(input)).toBe(expected);
+  });
+
+  it.each([
+    ['a LAN address', 'http://192.168.1.20:11434/v1'],
+    ['a 10.x address', 'http://10.0.0.5:1234/v1'],
+    ['a .local name', 'http://box.local:11434/v1'],
+    ['a .localhost name, which is a name and not a literal', 'http://app.localhost:11434/v1'],
+    ['a look-alike with a 127. prefix', 'http://127.evil.example/v1'],
+    ['a look-alike with a full dotted quad prefix', 'http://127.0.0.1.evil.example:11434/v1'],
+    ['a public host over https', 'https://api.openai.com/v1'],
+    ['an unspecified address', 'http://0.0.0.0:11434/v1'],
+    ['a trailing-dot name', 'http://localhost.:11434/v1'],
+    ['an IPv4-mapped IPv6 address', 'http://[::ffff:7f00:1]:11434/v1'],
+  ])('refuses %s and says why', (_name, input) => {
+    const error = localRejects(input);
+    expect(error.field).toBe('baseUrl');
+    expect(error.message).toMatch(/this computer/);
+    expect(error.message).toMatch(/never sent unencrypted over a network/);
+  });
+
+  it('refuses an octet out of range, which the URL parser itself rejects', () => {
+    expect(() => normalizeLocalBaseUrl('http://127.0.0.256:11434/v1')).toThrow(ProfileError);
+  });
+
+  it('refuses credentials in the URL, including a loopback-looking userinfo in front of another host', () => {
+    expect(localRejects('http://127.0.0.1@evil.example/v1').message).toMatch(/username or password/);
+    expect(localRejects('http://user:pass@127.0.0.1:11434/v1').message).toMatch(/username or password/);
+  });
+
+  it.each(['ftp://127.0.0.1/v1', 'mock://caotang', 'file:///etc/passwd', 'ws://127.0.0.1:1234/v1'])('refuses the scheme in %s', (input) => {
+    expect(localRejects(input).message).toMatch(/http:[/][/] or https:[/][/]/);
+  });
+
+  it('keeps the shape rules of the https normaliser: no query, no endpoint path, a version or nothing', () => {
+    expect(localRejects('http://127.0.0.1:11434/v1?x=1').message).toMatch(/query string/);
+    expect(localRejects('http://127.0.0.1:11434/v1/chat/completions').message).toMatch(/full endpoint path/);
+    expect(localRejects('http://127.0.0.1:11434/api').message).toMatch(/pathless or carry a version/);
+    expect(() => normalizeLocalBaseUrl('   ')).toThrow(/is empty/);
+    expect(() => normalizeLocalBaseUrl('not a url')).toThrow(/not a URL/);
+  });
+
+  it('names a local example, not the hosted one', () => {
+    expect(localRejects('not a url').message).toContain('http://127.0.0.1:11434/v1');
+    expect(rejects('not a url').message).toContain('https://api.openai.com/v1');
+  });
+
+  it('leaves the https normaliser as it was: loopback http still fails there', () => {
+    expect(() => normalizeBaseUrl('http://127.0.0.1:11434/v1')).toThrow(/https/);
+  });
+});
+
+describe('isLoopbackLiteral and isLocalBase — literals only', () => {
+  it('accepts localhost, 127.0.0.0/8 and [::1], and no name under .localhost', () => {
+    for (const host of ['localhost', 'LOCALHOST', '127.0.0.1', '127.10.20.30', '[::1]']) expect(isLoopbackLiteral(host), host).toBe(true);
+    for (const host of ['app.localhost', '127.evil.example', '127.0.0.256', '::1', '0.0.0.0', 'localhost.']) {
+      expect(isLoopbackLiteral(host), host).toBe(false);
+    }
+    // The shared predicate the MCP client uses still takes the names.
+    expect(isLoopbackHost('app.localhost')).toBe(true);
+  });
+
+  it('reads a base by its parsed host', () => {
+    expect(isLocalBase('http://127.0.0.1:11434/v1')).toBe(true);
+    expect(isLocalBase('http://app.localhost:11434/v1')).toBe(false);
+    expect(isLocalBase('https://api.openai.com/v1')).toBe(false);
+    expect(isLocalBase('not a url')).toBe(false);
   });
 });

@@ -1,7 +1,8 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import { PRESETS, presetFor } from '../packages/gateway/src/index.js';
 import { adapterFor } from '../packages/gateway/src/adapters/index.js';
+import { startLocalStub, type LocalStub, type StubConfig } from './local-stub.js';
 
 /**
  * The CORS support sweep (provider-gateway §9, providers-browser-cors.md §2). For every shipped preset this asks the
@@ -43,7 +44,8 @@ test('every preset answers or honestly fails a browser CORS request', async ({ p
 
   const results: SweepResult[] = [];
   for (const preset of PRESETS) {
-    if (preset.id === 'mock') continue;
+    // The mock is no network call, and a local server is not on the internet: the stub tests below stand in for it.
+    if (preset.id === 'mock' || preset.local !== undefined) continue;
     const request = requestFor(preset.id);
     const outcome = await page.evaluate(
       async ({ url, headers }) => {
@@ -87,4 +89,79 @@ test('every preset answers or honestly fails a browser CORS request', async ({ p
     }
     // 'unknown' rows are only recorded.
   }
+});
+
+/*
+ * The local model servers, against a stub that imitates each product's CORS default (provider-gateway §9). The browser runs a
+ * real CORS check against a real loopback server, so the fix the app names is the one that makes the same save succeed. What this
+ * proves is the wiring and the messages; whether Ollama, LM Studio and llama-server behave as the stub does is a manual check.
+ */
+
+interface LocalProduct {
+  readonly preset: 'ollama' | 'lmstudio' | 'llamacpp';
+  readonly name: string;
+  /** The server as it starts out of the box for a web page on another origin. */
+  readonly refusing: StubConfig;
+  /** The same server after the setting the message names. */
+  readonly configured: (pageOrigin: string) => StubConfig;
+}
+
+const LOCAL_PRODUCTS: readonly LocalProduct[] = [
+  { preset: 'ollama', name: 'Ollama', refusing: { product: 'ollama' }, configured: (origin) => ({ product: 'ollama', origins: [origin] }) },
+  { preset: 'lmstudio', name: 'LM Studio', refusing: { product: 'lmstudio' }, configured: () => ({ product: 'lmstudio', cors: true }) },
+  // llama-server reflects any origin by default; the case that fails is one started with --cors-origins for another site.
+  { preset: 'llamacpp', name: 'llama.cpp (llama-server)', refusing: { product: 'llamacpp', origins: ['https://caotang.app'] }, configured: () => ({ product: 'llamacpp' }) },
+];
+
+async function saveLocal(page: Page, product: LocalProduct, address: string): Promise<ReturnType<Page['getByTestId']>> {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByTestId('settings');
+  await settings.getByRole('button', { name: 'Add a provider' }).click();
+  const form = settings.getByRole('form', { name: 'New provider' });
+  await form.getByRole('combobox', { name: 'Provider' }).selectOption(product.preset);
+  await form.getByLabel('Name').fill('Stub');
+  await form.getByLabel('Server address (on this computer, ending in /v1)').fill(address);
+  await form.getByRole('button', { name: 'Save profile' }).click();
+  return settings;
+}
+
+for (const product of LOCAL_PRODUCTS) {
+  test(`${product.name}: a stub that refuses the page makes the save name the preset's own fix, and the configured stub saves`, async ({ page }) => {
+    const fix = presetFor(product.preset)!.local!.corsFix;
+    let stub: LocalStub = await startLocalStub(product.refusing);
+    try {
+      const settings = await saveLocal(page, product, stub.baseUrl);
+      // The profile is saved, the probe is not verified, and the message is the product's setting and nobody else's.
+      await expect(settings.getByText(/Saved “Stub”, but/)).toBeVisible();
+      await expect(settings.locator('.form-message')).toContainText(fix);
+      await expect(settings.locator('.form-message')).toContainText(product.name === 'llama.cpp (llama-server)' ? 'llama-server' : product.name);
+      // The model list reached the server (a simple GET needs no preflight) and the browser withheld the answer; no key header was
+      // ever on a request, since none was set.
+      expect(stub.requests.some((request) => request.method === 'GET' && request.path === '/v1/models')).toBe(true);
+      expect(stub.requests.every((request) => request.headers['authorization'] === undefined)).toBe(true);
+      await stub.close();
+
+      stub = await startLocalStub(product.configured(new URL(page.url()).origin));
+      const configured = await saveLocal(page, product, stub.baseUrl);
+      await expect(configured.getByText('Saved “Stub”.')).toBeVisible();
+      await expect(configured.getByRole('region', { name: 'Models listed by Stub' })).toContainText('stub-model');
+      // The format probe's POST crossed the preflight too (a JSON body is not a simple request), and still carried no key.
+      expect(stub.requests.some((request) => request.method === 'OPTIONS')).toBe(true);
+      expect(stub.requests.some((request) => request.method === 'POST' && request.path === '/v1/chat/completions')).toBe(true);
+      expect(stub.requests.every((request) => request.headers['authorization'] === undefined)).toBe(true);
+    } finally {
+      await stub.close();
+    }
+  });
+}
+
+test('a local server that is not running is named as not running, with its address', async ({ page }) => {
+  const stub = await startLocalStub({ product: 'ollama' });
+  const address = stub.baseUrl;
+  await stub.close();
+  const settings = await saveLocal(page, LOCAL_PRODUCTS[0]!, address);
+  await expect(settings.getByText(/Saved “Stub”, but/)).toBeVisible();
+  await expect(settings.locator('.form-message')).toContainText(`Nothing is listening on ${new URL(address).host}`);
+  await expect(settings.locator('.form-message')).toContainText('Is Ollama running?');
 });

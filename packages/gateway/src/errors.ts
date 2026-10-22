@@ -27,6 +27,8 @@ export interface ProviderErrorInit {
   detail?: string;
   /** the `Retry-After` the provider asked for, in milliseconds */
   retryAfterMs?: number;
+  /** A second attempt cannot change the answer, whatever the kind says (a browser's CORS refusal of a local server). */
+  permanent?: boolean;
 }
 
 /** A failure the harness can act on. Thrown from `complete` and `listModels`. */
@@ -35,6 +37,7 @@ export class ProviderError extends Error {
   readonly status: number | undefined;
   readonly detail: string | undefined;
   readonly retryAfterMs: number | undefined;
+  readonly permanent: boolean;
 
   constructor(kind: ProviderErrorKind, message: string, init: ProviderErrorInit = {}) {
     super(message);
@@ -43,6 +46,7 @@ export class ProviderError extends Error {
     this.status = init.status;
     this.detail = init.detail;
     this.retryAfterMs = init.retryAfterMs;
+    this.permanent = init.permanent === true;
   }
 }
 
@@ -64,6 +68,13 @@ export const providerMessages = {
   protocol: (host: string, excerpt: string): string => `${host} sent a response Caotang could not read: ${excerpt}`,
   contextLength: (promptTokens: number, window: number | string): string =>
     `Prompt ≈ ${promptTokens} tokens exceeds model window (${window}). Reduce context: see activity log token budget.`,
+  /** A model server on this computer that the browser could not use. `fix` is the preset's exact setting. */
+  localCors: (product: string, fix: string): string =>
+    `${product} did not accept the request from this page, so the browser blocked it. ${fix}`,
+  localRefused: (product: string, address: string): string =>
+    `Nothing is listening on ${address}. Is ${product} running? Start it, or correct the address in Settings.`,
+  localDenied: (product: string): string =>
+    `Your browser blocked this page from reaching ${product} on this computer. Allow this site to connect to apps on your device in the browser’s site settings, then try again.`,
   missingKey: (name: string): string =>
     `The key stored for "${name}" cannot be read on this device. Enter it again in Settings.`,
   aborted: 'The request was aborted.',

@@ -70,7 +70,7 @@ X-Content-Type-Options: nosniff
 Referrer-Policy: no-referrer
 ```
 
-`connect-src *` is deliberate: the agent talks to whichever provider and MCP servers you configure, straight from your browser.
+`connect-src *` is deliberate: the agent talks to whichever provider and MCP servers you configure, straight from your browser. If you tighten it, list the providers you use, and `http://127.0.0.1:*` if you use a local model preset (Ollama, LM Studio, llama.cpp).
 
 For **Netlify** or **Cloudflare Pages**, put the headers in a `_headers` file in `apps/desktop/dist/` (or in `apps/desktop/public/`, so each build copies it):
 
@@ -123,7 +123,7 @@ The scripted demo is [`e2e/demo.spec.ts`](e2e/demo.spec.ts). It builds a three-c
 
 - **Bring your own key.** Add a provider in **Settings › Providers**: pick a preset (its address and authentication are filled in) or a generic endpoint of your own, choose a model, and paste the key. When you save, Caotang lists the provider's models to check it works.
 - **Your key stays in this browser.** It is sealed with a key the page cannot export, and it is never written into a project file. Sealing keeps a stored key from being read out of storage. It does not protect against code running in the page while Caotang is open.
-- **Requests go to the provider you chose.** The agent sends requests only to the endpoint of the profile each task role resolves to. The built-in demo provider makes no network request at all.
+- **Requests go to the provider you chose.** The agent sends requests only to the endpoint of the profile each task role resolves to. A local model preset (Ollama, LM Studio, llama.cpp) talks to a server on your own computer, over plain http at a loopback address only, so the text stays on the machine; every other provider needs https. The built-in demo provider makes no network request at all.
 - **Your text goes to that provider when the agent works.** The parts of the project the agent needs are sent with each request. The agent panel shows what it left out. A model review on the Findings tab sends the text it reads, after you approve its plan.
 - **MCP servers are off until you turn them on.** **Settings › MCP & tools** is off by default, and while it is off no server is contacted. Once you turn it on and connect a server, Caotang sends requests to that server's address (https, or http on your own computer): to list its tools, and to check a tool before the agent calls it. When the agent calls a tool, the arguments it chose for that call go to that server, and the result comes back to Caotang. Caotang does not contact a server you have not connected.
 - **No account, no Caotang server, no analytics.** Projects live in your browser. Export a bundle to keep a copy you can open anywhere.

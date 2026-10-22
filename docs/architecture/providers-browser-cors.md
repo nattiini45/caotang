@@ -21,7 +21,7 @@ pnpm exec playwright test e2e/providers-cors.spec.ts
 
 The sweep needs no keys — a preflight that fails fails before auth is consulted, and one that succeeds yields a 401/200 the sweep can read either way.
 
-The registry's `cors` field records the swept answer; presets that cannot answer a browser request are shown disabled in Settings as **"Desktop app or hosted only"** rather than pretending to work.
+The registry's `cors` field records the swept answer; presets that cannot answer a browser request are shown disabled in Settings as **"Desktop app or hosted only"** rather than pretending to work. The local model presets (`cors: 'local'`) are not swept: they are on this computer, and §4 covers them.
 
 ## 3. The real-key round
 
@@ -53,8 +53,28 @@ gh workflow run provider-smoke.yml -f presets="anthropic deepseek"   # blank pre
 
 With no secret set the spec skips and the run is green. Under GitHub Actions a failure names only the preset, the stage and the HTTP status, never a response body or model text, because a provider's error body can echo part of a key that Actions does not mask; each preset appends its stage table (pass, fail, not claimed, not reached) to the job summary. The workflow has no pull-request, push, schedule or workflow-run trigger, uploads nothing, and is never a required check. A guard test (`test/provider-smoke.test.ts`) holds that shape.
 
-## 4. What the round does not cover
+## 4. Local model servers
 
-- Local/loopback servers (Ollama, LM Studio) are out of scope for this release — provider profiles are https-only.
+Ollama, LM Studio and llama.cpp's `llama-server` are presets that may use `http` to a literal loopback address (provider-gateway §2). A web page calling them is cross-origin, and two things decide whether it works.
+
+**The server's CORS setting.** The registry names the fix per product (`PresetDef.local.corsFix`), and a failed call shows it:
+
+| Product | Default for a web page on another origin | Fix |
+|---|---|---|
+| Ollama (`http://127.0.0.1:11434/v1`) | Admits `localhost`, `127.0.0.1` and `0.0.0.0` origins and the `app://`, `file://`, `tauri://` and `vscode-webview://` schemes; a deployed web origin is refused. | Start it with `OLLAMA_ORIGINS` set to the app's address (for caotang.app: `OLLAMA_ORIGINS=https://caotang.app`). |
+| LM Studio (`http://127.0.0.1:1234/v1`) | **Enable CORS** is off. | Turn it on in the server settings, or `lms server start --cors`. An optional API token ("Require Authentication") is sent as the key. |
+| llama-server (`http://127.0.0.1:8080/v1`) | Reflects any `Origin`; with `--tools` or `--agent` it admits localhost pages only. | `--cors-origins` with the app's address. A key set with `--api-key` is sent as the key. |
+
+These defaults are transcribed from the vendors' documentation as of 2026-10 and are not re-read from the products here.
+
+**The browser's permission.** Chrome and Edge ship Local Network Access: a public https page that fetches a loopback address asks the person once ("connect to apps on your device"; a separate `loopback-network` permission in newer versions). The transport passes `targetAddressSpace: 'loopback'` where `fetch` takes it. A denial looks like any other failed fetch, so the transport tells the three failures apart (provider-gateway §4) and names the matching fix. Whether Firefox and Safari ask, or block, has not been checked: **Firefox is unverified and Safari is unverified**, and the app makes no promise for Safari. The built app's `connect-src *` admits loopback; a self-hosted policy must allow `http://127.0.0.1:*`.
+
+**What is tested.** `e2e/providers-cors.spec.ts` starts a stub server per product (`e2e/local-stub.ts`) that imitates the table above, and drives a real Chromium page against it: the refused save names the product's own fix, the configured one saves, the key header is absent when none is set, and a stopped server is reported as not running. Unit tests in `packages/gateway/test/local-models.test.ts` script the browser-shaped errors. This proves the wiring and the wording, not the real products' behaviour. The stub models a deployed origin (it refuses a web origin Ollama would only admit if configured), because the page under test is itself served from loopback.
+
+**Still to check by hand,** and to record in the pull request whatever the result: Chrome (the Local Network Access prompt), Firefox and Safari against real Ollama with `OLLAMA_ORIGINS=https://caotang.app`, LM Studio with CORS on, and llama-server with defaults.
+
+## 5. What the round does not cover
+
+- Reading each local server's own model details (context window, tool support) is not built, so the local presets stay on conservative capabilities.
 - Rate limits, quota exhaustion, and regional endpoint variants are live-account checks, not the sweep's.
 - A provider that passes the sweep can still fail a real account — the row's `cors` field says what the sweep found, not a guarantee.
