@@ -16,7 +16,7 @@
 
 import type { ActivityEntry, UndoGroup } from '@caotang/bus';
 
-import { activityRows, titleOf, visibleActivityCount, type ActivityRow } from '../app/activity-model.js';
+import { activityRows, isViewEvent, titleOf, visibleActivityCount, type ActivityRow } from '../app/activity-model.js';
 
 /**
  * How many rows the Activity panel shows at once.
@@ -66,7 +66,7 @@ export function activityWindow(
     groupOf: options.groupOf,
     limit: options.limit,
   });
-  const pinned = pinNewestUndoable(entries, rows, options.groupOf, options.newestUndoGroupId);
+  const pinned = pinNewestUndoable(entries, rows, options.groupOf, options.newestUndoGroupId, options.showViews);
   const shown = pinned === null ? rows : [...rows, pinned];
   const hidden = Math.max(0, visibleActivityCount(entries, options.showViews) - shown.length);
   return { rows: shown, hidden, showOlder: hidden > 0 ? `Show older (${hidden} more)` : null };
@@ -88,12 +88,19 @@ export function showOlderWindow(limit: number): number {
  * the middle of an agent's turn mints a newer group whose rows are older in the log than the turn's
  * later rows, so a scan from the newest finds the turn's group — whose Undo is disabled — and pins
  * that, and the one Undo the panel offers stays behind the window.
+ *
+ * The row the scan looks for is the group's newest row the panel SHOWS, which is the row
+ * `activityRows` gives the group its Undo on. A row the panel leaves out (a view event, while the
+ * panel's own toggle is off) is no row the window can carry: pinning it would put a row the panel
+ * does not show behind the rows it does, and count a row the panel never showed among the ones it
+ * hides.
  */
 function pinNewestUndoable(
   entries: readonly ActivityEntry[],
   rows: readonly ActivityRow[],
   groupOf: (id: string) => UndoGroup | undefined,
   newestUndoGroupId: string | null,
+  showViews: boolean,
 ): ActivityRow | null {
   if (newestUndoGroupId === null) return null;
   // The window already carries the row that offers the Undo: there is nothing to pin.
@@ -104,6 +111,9 @@ function pinNewestUndoable(
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index];
     if (entry === undefined) continue;
+    // A row the panel does not show is not the row that carries the claim: the same rule
+    // `activityRows` walks, so the two agree on which row of the group is the group's.
+    if (!showViews && isViewEvent(entry.command)) continue;
     if (entry.undoGroupId !== newestUndoGroupId) continue;
     return { index, entry, title: titleOf(entry.command), undo };
   }

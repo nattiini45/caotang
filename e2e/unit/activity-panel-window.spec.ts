@@ -195,6 +195,37 @@ test('a window full of view changes still shows the newest undo', async () => {
   }
 });
 
+test('the pinned undo row is a row the panel shows, and not one it leaves out', async () => {
+  const session = await sessionFor();
+  try {
+    session.dispatch('doc.write', { docId: IDS.sceneA, body: 'one' });
+    const group = session.newestUndoGroupId();
+    // Rows the panel shows, all of them newer than the group's own row, push that row out of the window.
+    for (let index = 0; index < 5; index += 1) session.log.append(aRow('command.filler'));
+    // And the group's newest row in the whole log is a view event: a row the panel leaves out while
+    // its own toggle is off.
+    session.log.append(aRow('view.setScroll', group ?? undefined));
+
+    const panel = activityWindow(session.log.entries(), {
+      showViews: false,
+      groupOf: (id) => session.undo.group(id),
+      newestUndoGroupId: session.newestUndoGroupId(),
+      limit: 2,
+    });
+
+    // The pinned row is the group's own row, the one the panel shows, and not the view event behind it.
+    const pinned = panel.rows[panel.rows.length - 1];
+    expect(pinned?.entry.command).toBe('doc.write');
+    expect(pinned?.undo?.id).toBe(group);
+    // The rows are newest first, the pinned row last.
+    expect(panel.rows.map((row) => row.index)).toEqual([5, 4, 0]);
+    // And the rows the panel hides are the rows it shows and does not: the view event is not one of them.
+    expect(panel.hidden).toBe(3);
+  } finally {
+    await session.close();
+  }
+});
+
 test('the window keeps the row of the Undo the panel offers, even when an older turn has the newest rows', async () => {
   const session = await sessionFor();
   try {
