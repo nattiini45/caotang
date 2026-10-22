@@ -179,6 +179,25 @@ describe('a coherence.json the app changed meanwhile is merged, never replaced',
     expect(coherenceOnDisk(root).sceneMeta[LANDING]).toEqual({ dayOffset: 4 });
   });
 
+  it('keeps the knowledge facts and the learns and knows the app saved, both when it opens and when they arrive in between', async () => {
+    const { root } = await folderWithAppFindings('cw-knowledge');
+    const fact = { id: 'k_SECRET0001', text: 'Mara is the heir', createdAt: '2026-10-08T09:00:00.000Z', updatedAt: '2026-10-08T09:00:00.000Z' };
+    const pair = { entryId: 'c_MAG0A00001', factId: fact.id };
+    appWrites(root, (file) => {
+      file.knowledge = [fact];
+      file.sceneMeta[LANDING] = { learns: [pair] };
+    });
+    const running = await run(root, true);
+    appWrites(root, (file) => {
+      file.knowledge.push({ ...fact, id: 'k_MAP0000001', text: 'The map is a forgery' });
+    });
+    await scan(running.client);
+    await running.client.close();
+    const saved = coherenceOnDisk(root);
+    expect(saved.knowledge.map((candidate) => candidate.id)).toEqual(['k_SECRET0001', 'k_MAP0000001']);
+    expect(saved.sceneMeta[LANDING]).toEqual({ learns: [pair] });
+  });
+
   it('does not let a changed coherence.json stop a manuscript write', async () => {
     const { root } = await folderWithAppFindings('cw-drift');
     const running = await run(root, true);
