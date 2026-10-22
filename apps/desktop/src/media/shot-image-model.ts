@@ -42,7 +42,7 @@ export function missingPictureLabelOf(listing: PictureListing): string {
   return 'Checking the project’s pictures';
 }
 
-/** A listing the asset hook holds: the folder it was taken from, the session version it was taken at, its records and its state. */
+/** A listing the asset hook holds: the folder it was taken from, the version it was taken at, its records and its state. */
 export interface HeldListing<Source, Item> {
   readonly source: Source | undefined;
   readonly version: number | null;
@@ -52,7 +52,7 @@ export interface HeldListing<Source, Item> {
 
 /**
  * What the asset hook (`useAssetListing`) shows, from the listing it holds. With no folder nothing can be listed, so it is `failed`. A
- * listing of another folder is not shown, and reads as `pending`. A listing taken at an earlier session version is shown, but reads as
+ * listing of another folder is not shown, and reads as `pending`. A listing taken at an earlier version is shown, but reads as
  * `pending`, so a picture added since is not called missing before the new listing has it.
  */
 export function shownListingOf<Source, Item>(

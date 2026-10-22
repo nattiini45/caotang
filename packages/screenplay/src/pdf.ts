@@ -358,6 +358,9 @@ function infoString(text: string): string {
  * content stream. An embedded font adds its descriptor and its program after the pages, a CJK fallback that prints at
  * least one character adds its five objects after those, and an emoji font that prints at least one unit its six after
  * those. Every page names each font the file has.
+ *
+ * A document with nothing to print writes one blank page: PDF 1.7 §7.7.3.2 asks the page tree to hold at least one
+ * page, and a reader refuses a file whose page tree is empty.
  */
 export function writePdf(
   pages: readonly (readonly PdfText[])[],
@@ -368,20 +371,22 @@ export function writePdf(
 ): Uint8Array<ArrayBuffer> {
   const fallback = cjk === undefined || cjk.glyphs.size === 0 ? undefined : cjk;
   const emoji = emojiFont === undefined || emojiFont.glyphs.size === 0 ? undefined : emojiFont;
+  // A page tree with no page in it is a file a reader refuses, so a script that prints nothing still writes one page.
+  const written: readonly (readonly PdfText[])[] = pages.length === 0 ? [[]] : pages;
   const pageId = (i: number): number => 5 + 2 * i;
   const bodies: string[] = [];
   bodies[0] = '<< /Type /Catalog /Pages 2 0 R >>';
-  bodies[1] = `<< /Type /Pages /Kids [${pages.map((_, i) => `${pageId(i)} 0 R`).join(' ')}] /Count ${pages.length} >>`;
+  bodies[1] = `<< /Type /Pages /Kids [${written.map((_, i) => `${pageId(i)} 0 R`).join(' ')}] /Count ${written.length} >>`;
   if (font === undefined) {
     bodies[2] = '<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>';
   } else {
-    const descriptorId = pageId(pages.length);
+    const descriptorId = pageId(written.length);
     const objects = embeddedFontObjects(font, descriptorId, descriptorId + 1);
     bodies[2] = objects.font;
     bodies[descriptorId - 1] = objects.descriptor;
     bodies[descriptorId] = objects.file;
   }
-  const fallbackId = pageId(pages.length) + (font === undefined ? 0 : 2);
+  const fallbackId = pageId(written.length) + (font === undefined ? 0 : 2);
   if (fallback !== undefined) {
     fallbackFontObjects(fallback, fallbackId).forEach((body, i) => {
       bodies[fallbackId - 1 + i] = body;
@@ -397,7 +402,7 @@ export function writePdf(
     '/F1 3 0 R' + (fallback === undefined ? '' : ` /F2 ${fallbackId} 0 R`) + (emoji === undefined ? '' : ` /F3 ${emojiId} 0 R`);
   const author = info.author === undefined || info.author.trim() === '' ? '' : ` /Author ${infoString(info.author)}`;
   bodies[3] = `<< /Title ${infoString(info.title ?? 'Screenplay')}${author} /Producer ${infoString(info.producer ?? 'Caotang')} >>`;
-  pages.forEach((lines, i) => {
+  written.forEach((lines, i) => {
     const stream = contentStream(lines, fallback, emoji);
     bodies[pageId(i) - 1] =
       `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${LAYOUT.pageWidth} ${LAYOUT.pageHeight}] ` +

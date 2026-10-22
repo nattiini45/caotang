@@ -26,12 +26,15 @@
  * replay cache (`runtime.ts`) keys on the plan's canonical form.
  */
 
-import { ok, type CommandError, type Result } from '@caotang/bus';
+import { ok, type CommandError, type CommandErrorCode, type CommandErrorDetails, type Result } from '@caotang/bus';
 
 import { invalidParams, refusal } from './errors.js';
 import { param, type ObjectSpec } from './schema.js';
 import { checkParams } from './validate.js';
 import type { CallParams, ToolCall, ToolOutcome, ToolValue, TurnContext } from './types.js';
+
+/** The plan step bound, one number for every batch surface the planner can carry. `OPS_MAX` is the structural batch limit. */
+export const PLAN_STEPS_MAX = 30;
 
 /** The plan's own schema. A step's params are checked by the step's tool, so the plan says only "an object". */
 export const planParams: ObjectSpec = param.object(
@@ -48,7 +51,7 @@ export const planParams: ObjectSpec = param.object(
         },
         ['tool', 'params', 'expect'],
       ),
-      { minItems: 1 },
+      { minItems: 1, maxItems: PLAN_STEPS_MAX },
     ),
   },
   ['steps'],
@@ -161,14 +164,37 @@ function mayCreate(step: PlanStep): boolean {
 }
 
 /**
+ * An ambiguous name: `resolveNode` refuses it as `invalid-params` carrying the
+ * `candidates` it matched, so a caller can pick one without reading the prose.
+ *
+ * The anchor refusal carries `candidates` too, and it is not one: it names its
+ * own case in `details.askBackCode`, and its candidates may be empty. A name
+ * that matched nothing is not an ambiguous name either, so the array has to hold
+ * at least one candidate to count.
+ */
+function isAmbiguousName(error: { readonly code?: CommandErrorCode; readonly details?: CommandErrorDetails }): boolean {
+  return (
+    error.code === 'invalid-params' &&
+    error.details?.['askBackCode'] !== 'anchor_unresolvable' &&
+    Array.isArray(error.details?.['candidates']) &&
+    error.details['candidates'].length > 0
+  );
+}
+
+/**
  * Whether a refusal is a name that did not resolve. A batch tool wraps its per-op
  * failures in `invalid-params`, so the lookup failure sits in `details.failures`,
- * and both shapes count.
+ * and both shapes count. An ambiguous name counts too: `resolveNode` refuses it as
+ * `invalid-params` carrying the `candidates` it matched, and a step earlier in the
+ * plan may still create the document that makes the name exact by the time this
+ * step runs.
  */
 function isLookupFailure(error: CommandError): boolean {
   if (error.code === 'not-found') return true;
+  if (isAmbiguousName(error)) return true;
   const failures = error.details?.['failures'];
-  return Array.isArray(failures) && failures.some((failure) => (failure as { code?: unknown }).code === 'not-found');
+  if (!Array.isArray(failures)) return false;
+  return failures.some((failure) => failure.code === 'not-found' || isAmbiguousName(failure));
 }
 
 /** Checks every step from the plan's start, in order, with no effect. */

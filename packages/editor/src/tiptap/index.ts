@@ -6,7 +6,12 @@
  * (§4) is the headless half of the editor for exactly that reason. Everything here needs a
  * DOM, `@tiptap/core` and `@caotang/store`, so it is a separate door.
  */
-export { createTiptapEditorApi, StaleMountError, UnsavedEditsError } from './adapter.js';
+export {
+  createTiptapEditorApi,
+  StaleMountError,
+  UnreadablePendingBodyError,
+  UnsavedEditsError,
+} from './adapter.js';
 export type {
   EditorSaveStatus,
   LoadResult,

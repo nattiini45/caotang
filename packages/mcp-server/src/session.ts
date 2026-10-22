@@ -106,17 +106,23 @@ export class ProjectContentError extends Error {
  * raised (a save that was refused) or whether it was refused before it began (a write
  * made after the folder changed). Either way writes stop until the server restarts and
  * reads the folder again. `cause` names what was found, in words.
+ *
+ * The message names the project by name, never by the folder path: it is read by an
+ * external caller, and the machine's own path to the project is a stronger identifier
+ * than any file name (§4 rule 5). The path stays on the operator's own lines, which
+ * `openProject`'s caller writes to stderr.
  */
 export class FolderChangedError extends Error {
   constructor(
     readonly root: string,
+    readonly project: string,
     readonly applied: boolean,
     cause: string = 'changed or removed caotang.json',
     /** The change was written to the folder before another program changed caotang.json after it, so the folder may not hold it. */
     readonly saved: boolean = false,
   ) {
     super(
-      `the project folder ${root} changed on disk since caotang-mcp last saved it, because another program ${cause}. ` +
+      `the project “${project}” changed on disk since caotang-mcp last saved it, because another program ${cause}. ` +
         `Writes are stopped, so that this copy cannot overwrite that work. ${outcomeWords(applied, saved)} ` +
         'Restart caotang-mcp to reload the folder.',
     );
@@ -454,7 +460,7 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
 
     const stopWith = (cause: string, wasSaved = false): never => {
       markChanged(cause, wasSaved);
-      throw new FolderChangedError(root, true, cause, wasSaved);
+      throw new FolderChangedError(root, state.manifest.project.name, true, cause, wasSaved);
     };
 
     /**
@@ -468,7 +474,7 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
     };
 
     const saveOnce = async (): Promise<void> => {
-      if (changed) throw new FolderChangedError(root, true, stoppedBy, stoppedSaved);
+      if (changed) throw new FolderChangedError(root, state.manifest.project.name, true, stoppedBy, stoppedSaved);
       // A change is refused before anything is written.
       const cause = await driftCause();
       if (cause !== undefined) stopWith(cause);
@@ -532,7 +538,7 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
       window,
 
       async callDirect(name, callId, params, turnId) {
-        if (changed && changesProject(name)) throw new FolderChangedError(root, false, stoppedBy);
+        if (changed && changesProject(name)) throw new FolderChangedError(root, state.manifest.project.name, false, stoppedBy);
         const before = harness.log.length;
         const outcome = harness.external.call({ name, callId, params }, { turnId });
         harness.external.endTurn(turnId);
@@ -543,7 +549,7 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
       },
 
       async callConfirmed(name, callId, params, turnId) {
-        if (changed) throw new FolderChangedError(root, false, stoppedBy);
+        if (changed) throw new FolderChangedError(root, state.manifest.project.name, false, stoppedBy);
         assetRecords = await heldAssetsOf(fs);
         const turn = externalTurn(turnId);
         const before = harness.log.length;
@@ -559,7 +565,8 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
       check(name, params) {
         // A folder that changed stops every write (callConfirmed), so a write is refused here, as the accept would refuse it, and no
         // question is asked for it.
-        if (changed && changesProject(name)) return notMadeError(name, new FolderChangedError(root, false, stoppedBy));
+        if (changed && changesProject(name))
+          return notMadeError(name, new FolderChangedError(root, state.manifest.project.name, false, stoppedBy));
         // A plan of one step is checked by the tool's own prepare, with no effect (plan.ts), which is the check the accept runs first. A step
         // is deferred only when an earlier step may create what it names, and a plan of one has none, so a refusal here is final.
         const preflight = harness.previewPlan({ steps: [{ tool: name, params, expect: 'the call as the host asked it' }] });

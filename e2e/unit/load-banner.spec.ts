@@ -17,6 +17,9 @@ test('a group of losses names how many there are, what they are, what a save doe
   expect(
     describeLossGroup(group({ code: 'lossy-attribute', mdastType: 'listItem', nodes: 3, line: 12 })),
   ).toBe('3 task-list items: a detail not kept (line 12).');
+  expect(describeLossGroup(group({ code: 'lossy-attribute', mdastType: 'code', line: 2 }))).toBe(
+    '1 code block: a detail not kept (line 2).',
+  );
 });
 
 test('a construct the list does not name is still said by its own type, rather than dropped', () => {

@@ -80,6 +80,11 @@ export class McpApp {
       onChange: (mcp) => {
         void this.settings.update({ mcp });
       },
+      // A credential that a change dropped is taken out of the vault: the settings no longer name
+      // it, and a token that nothing names is a token that is kept for ever. The removal is
+      // awaited, like the removals below it: a vault that cannot be written is then the caller's
+      // to see, and not a rejection that vanishes and leaves the sealed token behind.
+      onTokenDropped: (ref) => options.keys.remove(ref),
     });
   }
 
@@ -122,11 +127,9 @@ export class McpApp {
     return updated.ok ? { ok: true } : { ok: false, message: updated.error };
   }
 
-  /** Removes a server, its tools and its token. */
+  /** Removes a server, its tools and its token. The client hands the token back when the server is gone. */
   async removeServer(key: string): Promise<void> {
-    const server = this.client.serverFor(key);
     await this.client.removeServer(key);
-    if (server !== undefined && server.auth.kind === 'bearer') await this.keys.remove(server.auth.tokenRef);
   }
 
   /** Whether a server's bearer token is in the vault. A server with no bearer auth never needs one, so it reports true. */

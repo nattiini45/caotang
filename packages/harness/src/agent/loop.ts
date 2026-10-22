@@ -130,6 +130,7 @@ import {
   REPLY_SCHEMA_HINT,
   resultsMessage,
   retryMessage,
+  stepsRefusalMessage,
   type Reply,
 } from './protocol.js';
 import { previewFor, sceneDraftPreflight, shotsDeriveScenePreflight } from './ports.js';
@@ -301,6 +302,12 @@ interface Decided {
   readonly editable: EditableSteps;
   readonly edits: number;
   readonly retries: number;
+  /**
+   * The writer approved a cut card with `acceptTruncated` (agent-harness §8): the apply strips
+   * `cut: true` from the proposals so the ports see a complete proposal. Without it, a cut
+   * proposal reaches the port and is refused as truncated.
+   */
+  readonly acceptedCut?: boolean;
   readonly error?: CommandError;
 }
 
@@ -485,6 +492,18 @@ function stuck(editable: EditableSteps, edits: number, retries: number): Decided
       correctiveHint: 'fix the step the card names, or cancel the card',
     }),
   };
+}
+
+/**
+ * The writer approved a cut card with `acceptTruncated` (agent-harness §8). The proposal the port sees must not carry
+ * `cut: true`, or the port refuses it as truncated. Return the proposals with `cut` stripped on every cut entry.
+ */
+function stripCut(proposals: readonly unknown[]): readonly unknown[] {
+  return proposals.map((proposal) => {
+    if (!isRecord(proposal) || proposal['cut'] !== true) return proposal;
+    const { cut: _omit, ...rest } = proposal as { cut?: unknown } & Record<string, unknown>;
+    return rest;
+  });
 }
 
 /** The settled outcome for a turn that stopped on a failure outside its steps: a model call, a stream, or the bound. */
@@ -1188,7 +1207,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (decision.action === 'cancel') return { settled: 'cancelled', editable, edits, retries };
       if (decision.action === 'approve') {
         if (shown.card.approvable || (decision.acceptTruncated === true && shown.card.canAcceptCut)) {
-          return { settled: 'approved', editable, edits, retries };
+          return {
+            settled: 'approved',
+            editable,
+            edits,
+            retries,
+            ...(decision.acceptTruncated === true && shown.card.canAcceptCut ? { acceptedCut: true } : {}),
+          };
         }
         notice = noticeFor(shown.card);
         stalls += 1;
@@ -1246,8 +1271,16 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * The undo group a run produces is recorded on the turn here, whatever the outcome, so an applied
    * step is never left out of the turn's checkpoint.
    */
-  async function execute(turn: Turn, editable: EditableSteps, from: number, kind: 'plan' | 'confirm', prefix: string, grant: 'auto' | 'confirmed'): Promise<Executed> {
-    const executed = await runCard(turn, editable, from, kind, prefix, grant);
+  async function execute(
+    turn: Turn,
+    editable: EditableSteps,
+    from: number,
+    kind: 'plan' | 'confirm',
+    prefix: string,
+    grant: 'auto' | 'confirmed',
+    acceptedCut: boolean = false,
+  ): Promise<Executed> {
+    const executed = await runCard(turn, editable, from, kind, prefix, grant, acceptedCut);
     if (executed.undoGroupId !== undefined) turn.undoGroupId ??= executed.undoGroupId;
     return executed;
   }
@@ -1312,7 +1345,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * does. An external write asks first, on a one-step confirm card of its own, because an external call is confirmed per call
    * (§4 rule 2). A writer who declines that card stops the run: the steps before it stay applied, and the turn says so.
    */
-  async function runMixed(turn: Turn, editable: EditableSteps, from: number, prefix: string): Promise<Executed> {
+  async function runMixed(turn: Turn, editable: EditableSteps, from: number, prefix: string, acceptedCut: boolean = false): Promise<Executed> {
     const completed: number[] = [];
     let undoGroupId: string | undefined;
     let index = from;
@@ -1326,7 +1359,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (awaited(step.tool)) {
         if (loadedExternal(step.tool) === undefined) {
           // A native async step (coherence.review) of an approved plan: the plan's approval covers it, so it runs at once.
-          const native = await runAwaited(turn, index, step, id, 'plan', editable.proposals[index]);
+          const proposal = acceptedCut ? stripCut([editable.proposals[index]])[0] : editable.proposals[index];
+          const native = await runAwaited(turn, index, step, id, 'plan', proposal);
           if (!native.ok) {
             cancelAfter(turn, editable, index, 'plan', prefix);
             return { ...native, completed, ...(undoGroupId === undefined ? {} : { undoGroupId }) };
@@ -1387,7 +1421,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const result = harness.executePlan(
         { steps: editable.steps.slice(0, end) },
         { turnId: turn.id, callId: `${prefix}.s${index}` },
-        { from: index, proposals: editable.proposals.slice(0, end) },
+        { from: index, proposals: acceptedCut ? stripCut(editable.proposals.slice(0, end)) : editable.proposals.slice(0, end) },
       );
       if (!result.ok) {
         cancelAfter(turn, editable, index - 1, 'plan', prefix);
@@ -1450,17 +1484,25 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * run under the approval the plan card carries (the harness passes that itself). An external step is
    * called through `mcp.invoke`, under the confirmation its own card gave.
    */
-  async function runCard(turn: Turn, editable: EditableSteps, from: number, kind: 'plan' | 'confirm', prefix: string, grant: 'auto' | 'confirmed'): Promise<Executed> {
+  async function runCard(
+    turn: Turn,
+    editable: EditableSteps,
+    from: number,
+    kind: 'plan' | 'confirm',
+    prefix: string,
+    grant: 'auto' | 'confirmed',
+    acceptedCut: boolean = false,
+  ): Promise<Executed> {
     if (kind === 'plan' && editable.steps.some((step) => awaited(step.tool))) {
-      return runMixed(turn, editable, from, prefix);
+      return runMixed(turn, editable, from, prefix, acceptedCut);
     }
     if (kind === 'confirm' && awaited((editable.steps[from] as PlanStep).tool)) {
-      return runAwaited(turn, from, editable.steps[from] as PlanStep, callIdFor(kind, prefix, from), 'confirmed', editable.proposals[from]);
+      return runAwaited(turn, from, editable.steps[from] as PlanStep, callIdFor(kind, prefix, from), 'confirmed', acceptedCut ? stripCut([editable.proposals[from]])[0] : editable.proposals[from]);
     }
     if (kind === 'confirm') {
       const step = editable.steps[from] as PlanStep;
       const id = callIdFor(kind, prefix, from);
-      const proposal = editable.proposals[from];
+      const proposal = acceptedCut ? stripCut([editable.proposals[from]])[0] : editable.proposals[from];
       cardFor(turn, id, step.tool, step.params, grant === 'auto' ? 'running' : 'pending-approval');
       moveCard(turn, id, 'running');
       const outcome: ToolOutcome = harness.call(
@@ -1490,7 +1532,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       };
     }
 
-    const result = harness.executePlan({ steps: editable.steps }, { turnId: turn.id, callId: prefix }, { from, proposals: editable.proposals });
+    const result = harness.executePlan(
+      { steps: editable.steps },
+      { turnId: turn.id, callId: prefix },
+      { from, proposals: acceptedCut ? stripCut(editable.proposals) : editable.proposals },
+    );
     if (!result.ok) return { ok: false, failedAt: from, effect: false, completed: [], askBack: askBackFor(result.error) };
     const outcome = result.value;
     if (outcome.status === 'refused') {
@@ -1640,7 +1686,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
       turn.cards.push({ kind, tools, decision: 'approved', edits, retries });
       phase(turn, 'running');
-      const executed = await execute(turn, editable, from, kind, attemptPrefix, 'confirmed');
+      const acceptedCut = decided.acceptedCut === true;
+      const executed = await execute(turn, editable, from, kind, attemptPrefix, 'confirmed', acceptedCut);
       editable = { ...editable, completed: [...editable.completed, ...executed.completed.map((index) => editable.origins[index] ?? index)] };
       if (executed.ok) return settle(turn, executed);
       // A writer declined an external write's card mid-run: the steps before it are applied and kept, and the turn ends as cancelled.
@@ -1749,6 +1796,18 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
             role: 'user',
             content: malformed.map((refused) => `Step ${refused.index + 1} (${refused.tool}) was refused: ${refused.message}`).join('\n'),
           });
+          continue;
+        }
+        // The native reply is bound by the same plan schema as the JSON reply (plan.ts `PLAN_STEPS_MAX`):
+        // an over-bound reply is refused back to the model, answered by every call's id, and none of it
+        // runs — the JSON wire's own feedback, instead of a turn that fails at the card or runs unbounded
+        // reads. The validated copy is only the check; the steps below stay the objects `wireSteps` keys on.
+        const bounded = parsePlan({ steps });
+        if (!bounded.ok) {
+          const words = stepsRefusalMessage(bounded.error);
+          for (const call of calls) pending.results.set(call.id, { ok: false, body: words });
+          flushWire(turn);
+          turn.messages.push({ role: 'user', content: words });
           continue;
         }
         plan = { steps };

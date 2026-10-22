@@ -322,6 +322,16 @@ function pdfOutput(request: MediaRequest): MediaOutput {
     sceneNumbers: request.sceneNumbers ?? 'off',
     continued: request.continued ?? true,
   });
+  // A scene that survives the gate can still print nothing: a body of only notes, boneyard or blank scenes yields no
+  // script page, and the paginator writes one blank page so the PDF is valid — a blank book that reports success. The
+  // gate refuses it as it refuses a selection with no scene, before anything is reserved or written.
+  if (layout.scriptPageCount === 0) {
+    throw new MediaRefusedError('pdf', [
+      'the selection holds no screenplay text that prints, so there is nothing to print',
+      ...left,
+      ...flat.skippedDocs.map((label) => `"${label}" is empty`),
+    ]);
+  }
   const pages = layout.scriptPageCount;
   const titled = layout.pages.length > pages ? ', and a title page' : '';
   return {

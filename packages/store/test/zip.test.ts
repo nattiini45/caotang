@@ -214,6 +214,34 @@ describe('§7 round-trip (export is lossless both ways)', () => {
     expect(await imported.fs.read(`docs/${folder.id}.md`)).toBe('a file named for a folder\n');
   });
 
+  // The mirror of the document refusal, and the hole it leaves: a file whose bytes
+  // are not UTF-8 has no text to carry, so the bundle would simply not carry it —
+  // silently, with no error, and no trace of it in the bundle.
+  it('refuses an export of a codex file that is not UTF-8 text, rather than leaving it out of the bundle', async () => {
+    const source = new MemoryArtifactFs();
+    await writeProject(source, sample(), { now: NOW });
+    // An orphan codex file whose bytes are not UTF-8: the loader declines it, and
+    // there is no text to travel with the state.
+    await source.writeBytesAtomic('codex/c_VANSHED002.md', new Uint8Array([0xff, 0xfe, 0x41, 0x00]));
+    const loaded = await readProject(source, { now: NOW });
+    expect([...loaded.state.declinedCodexFiles]).toEqual(['c_VANSHED002.md']);
+
+    await expect(exportProjectZip(loaded.state, { now: NOW })).rejects.toThrow(/not UTF-8/);
+  });
+
+  it('leaves that same file alone when the save is in place — only the copy that would lose it refuses', async () => {
+    const source = new MemoryArtifactFs();
+    await writeProject(source, sample(), { now: NOW });
+    const bytes = new Uint8Array([0xff, 0xfe, 0x41, 0x00]);
+    await source.writeBytesAtomic('codex/c_VANSHED002.md', bytes);
+    const loaded = await readProject(source, { now: NOW });
+
+    const report = await writeProject(source, loaded.state, { now: NOW });
+
+    expect(report.pruned).toEqual([]);
+    expect(await source.readBytes('codex/c_VANSHED002.md')).toEqual(bytes);
+  });
+
   it('carries no file for a document the project deleted', async () => {
     // The mirror of the `docs/` prune, and the one that is **inert** rather than
     // load-bearing: the bundle is assembled into a fresh `MemoryArtifactFs`, so a

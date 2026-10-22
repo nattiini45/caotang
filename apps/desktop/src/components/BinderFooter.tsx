@@ -23,7 +23,7 @@ import { SPRINT_CHOICES, formatRemaining, goalSentence, goalStateWords, unitOf }
 import type { RuntimeStore, SessionRecord } from '@caotang/store';
 
 import { filterResultFor, furnitureFor, goalProbeOf, unknownTermsOf } from '../app/furniture-store.js';
-import { sessionsEverywhere, todayLine, type TargetProgress } from '../app/session-progress.js';
+import { nextReadDelay, sessionsEverywhere, todayLine, type TargetProgress } from '../app/session-progress.js';
 import type { ProjectSession } from '../app/session.js';
 import { selectNode } from './actions.js';
 import { formatCount, useSession } from './shared.js';
@@ -51,20 +51,43 @@ export function BinderFooter({
   const hasWindowGoal = furniture.goals.some((goal) => goal.kind === 'weekly' || goal.kind === 'monthly');
   useEffect(() => {
     if (!hasWindowGoal) return;
-    let alive = true;
+    let lastReadAt: number | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    // The reading lands in the session's store, which outlives this footer: the inspector's goals read the log from the same
+    // store (furniture-store.ts is one store per session), so a reading that resolves after the footer unmounts — a rail
+    // switch, focus mode — still belongs there, and nothing here is gated on the footer staying mounted.
     const load = (): void => {
+      lastReadAt = Date.now();
       void sessionsEverywhere(runtime).then(
-        (records) => {
-          if (alive) store.setSessions(records);
-        },
+        (records) => store.setSessions(records),
         () => {},
       );
     };
+    // The log only moves when a sitting is recorded, so a change of the session does not need its own reading of it: the reading
+    // waits for the window, and the last change of a burst still gets one. Reading every project's log on every keystroke is what
+    // this waits out.
+    const schedule = (): void => {
+      if (timer !== null) return;
+      timer = setTimeout(
+        () => {
+          timer = null;
+          load();
+        },
+        nextReadDelay(lastReadAt, Date.now()),
+      );
+    };
     load();
-    const unsubscribe = session.subscribe(load);
+    const unsubscribe = session.subscribe(schedule);
     return () => {
-      alive = false;
       unsubscribe();
+      // A change landed inside the reading's window and its trailing read is still pending. The pending read is the only one
+      // that change will ever get, so it runs now instead of being dropped: without this, a switch of the rail right after a
+      // sitting is recorded leaves the session's log stale for every reader until the footer mounts again.
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+        load();
+      }
     };
   }, [hasWindowGoal, runtime, session, store]);
 

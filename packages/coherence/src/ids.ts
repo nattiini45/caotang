@@ -7,7 +7,7 @@
  * prefix (the union carries these three, rather than
  * borrowing `c` and swapping the prefix afterwards). The body is ten Crockford
  * characters from the family's randomness, and the spec's uniqueness rule still
- * applies: `taken` re-rolls on collision, and an exhausted re-roll is a throw.
+ * applies: a minted id is never one `taken` already holds.
  */
 
 import { newId, type RandomBytes } from '@caotang/ids';
@@ -22,11 +22,9 @@ export function isCoherenceId(prefix: CoherenceIdPrefix, value: unknown): value 
 }
 
 /**
- * Mint an id not already in `taken`. `newId` re-rolls on collision itself; it falls
- * back to a longer id only when every attempt collided, and a coherence id has to
- * be the ten-character shape the spec fixes, so that fallback is refused here
- * rather than stored. Exhausting the attempts is a bug in the randomness source,
- * so it throws rather than returning a duplicate.
+ * Mint an id not already in `taken`. A coherence id has to be the ten-character
+ * shape the spec fixes, so whatever the ids package hands back, a candidate that
+ * `taken` holds or {@link isCoherenceId} rejects is a throw, never a returned id.
  */
 export function mintCoherenceId(
   prefix: CoherenceIdPrefix,

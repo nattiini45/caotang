@@ -45,6 +45,7 @@ import {
   type RoundState,
 } from './confirm.js';
 import { FolderChangedError, notMadeError, type ProjectSession } from './session.js';
+import { projectFileLabel, projectFileTitles } from '@caotang/store';
 
 /** Everything a tool needs to run: the open project, and the confirmation machinery. */
 export interface ToolRuntime {
@@ -135,13 +136,47 @@ function changedAfterWrite(name: string, error: FolderChangedError): CommandErro
  * began says that nothing was written. A write that was made and then not saved is `changedAfterWrite`
  * when the folder changed, and `unsaved` for any other failure.
  */
-function failed(name: string, error: unknown): CallToolResult {
+function failed(name: string, error: unknown, session: ProjectSession): CallToolResult {
   if (error instanceof FolderChangedError) return refusal(error.applied ? changedAfterWrite(name, error) : notMadeError(name, error));
-  return unsaved(name, reason(error));
+  return unsaved(name, reason(error, session));
 }
 
-function reason(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+/**
+ * A failure in words for the caller: its class, and the file it hit named by its title. A raw
+ * error message carries the machine's own path to that file, and a refusal names a file by its
+ * title and name, never by path or id (§4 rule 5). The words come from the state the session
+ * holds, so a document the call named is named for the reader by the words they know it by.
+ */
+function reason(error: unknown, session: ProjectSession): string {
+  const kind = errorCodeOf(error);
+  const label = fileLabelOf(error, session);
+  return label === undefined ? kind : `${kind}, on ${label}`;
+}
+
+/** The class of a failure, as the operating system reports it: `EISDIR`, `EACCES`, or the error's own name. */
+function errorCodeOf(error: unknown): string {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const code = (error as { code: unknown }).code;
+    if (typeof code === 'string') return code;
+  }
+  return error instanceof Error ? error.name : 'Error';
+}
+
+/**
+ * The project file a failure named, in the store's words, or `undefined` when the error names
+ * none. The path is read out of the message only to find the file's id; the words that come back
+ * are the store's own, so no path and no id reaches the caller.
+ */
+function fileLabelOf(error: unknown, session: ProjectSession): string | undefined {
+  const texts = error instanceof Error ? [error.message, error.stack ?? ''] : [String(error)];
+  // An error names the file by its absolute path, and a project file sits directly in `docs/` or
+  // `codex/`, so the last such segment is the project's own.
+  const found = texts
+    .map((text) => [...text.matchAll(/(?:^|[\s"'(\\/])((?:docs|codex)[\\/][^\\/\s"':,)]+)\.[A-Za-z0-9]+/g)].at(-1)?.[1])
+    .find((candidate) => candidate !== undefined);
+  if (found === undefined) return undefined;
+  const titles = projectFileTitles(session.state);
+  return projectFileLabel(found.replace(/\\/g, '/'), titles, titles, 'this copy');
 }
 
 /**
@@ -181,7 +216,7 @@ async function runDirect(runtime: ToolRuntime, name: string, params: Structured)
     const outcome = await runtime.session.callDirect(name, callId, params, turnId);
     return toCallResult(outcome);
   } catch (error) {
-    return failed(name, error);
+    return failed(name, error, runtime.session);
   }
 }
 
@@ -194,7 +229,7 @@ async function applyConfirmed(runtime: ToolRuntime, name: string, bound: RoundSt
   try {
     return toCallResult(await runtime.session.callConfirmed(name, bound.callId, params, bound.turnId));
   } catch (error) {
-    return failed(name, error);
+    return failed(name, error, runtime.session);
   }
 }
 
@@ -225,7 +260,7 @@ async function runConfirmed(
   } catch (error) {
     return refusal({
       code: 'io-error',
-      message: `"${name}" was not made: the project folder could not be read (${reason(error)}). Nothing was written.`,
+      message: `"${name}" was not made: the project folder could not be read (${reason(error, runtime.session)}). Nothing was written.`,
       correctiveHint: 'make sure the project folder can be read, then make the change again',
       target: name,
     });
