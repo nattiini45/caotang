@@ -52,6 +52,7 @@ export { createEmptyManifest, isFixedRoot, nextSiblingOrder } from './create.js'
 export {
   ArtifactNotFoundError,
   MemoryArtifactFs,
+  assertContained,
   dirName,
   joinPath,
   type ArtifactFs,

@@ -127,11 +127,15 @@ export async function startFixture(options: {
   readonly seed?: boolean;
   /** With `seed`: the project also holds a storyboard folder with one shot. */
   readonly shot?: boolean;
+  /** With `seed`: the richer project of `seedWriting` (prose, a screenplay scene, a dialogue container, notes and a codex), in place of the plain one. */
+  readonly writing?: boolean;
   /** With `shot`: the shot's action, in place of "The harbour, empty." */
   readonly shotAction?: string;
 }): Promise<Fixture> {
   const root = tempDir(options.label);
-  if (options.seed === true) {
+  if (options.seed === true && options.writing === true) {
+    await seedWriting(root);
+  } else if (options.seed === true) {
     await seedProject(root, 'The Lighthouse Keeper', {
       shot: options.shot === true,
       ...(options.shotAction === undefined ? {} : { shotAction: options.shotAction }),
@@ -365,4 +369,62 @@ export async function startDegraded(root: string, allowWrites: boolean): Promise
       await session.close();
     },
   };
+}
+
+export const STORM = 'n_STRM000001';
+export const CHAPTER_TWO = 'n_CHAPTR0002';
+export const HARBOUR = 'n_HARBR00001';
+export const FERRYMAN = 'n_FERRY00001';
+export const ELENA = 'c_ENA0000001';
+export const KESTREL = 'c_KSTR000001';
+export const LANDING_NOTES = 'Fix the pacing in the last three paragraphs.';
+export const STORM_BODY = 'Rain on the glass.\n\n***\n\nThe lamp failed.';
+export const HARBOUR_BODY = 'INT. HARBOUR - NIGHT\n\nELENA waits.\n\nELENA\nIs it still running?\n';
+export const FERRYMAN_BODY = '=== start ===\nThe ferryman nods.\n-> END\n';
+
+/**
+ * A project a writer could have: prose, a screenplay scene and a dialogue container across two chapters, notes and keywords on a
+ * document, and two codex entries. Binder order is Chapter 1 (The Landing, The Storm), Chapter 2 (Harbour, Ferryman).
+ */
+export async function seedWriting(root: string): Promise<void> {
+  mkdirSync(root, { recursive: true });
+  const fs = new NodeArtifactFs(root);
+  const state = createProjectState(createEmptyManifest('The Lighthouse Keeper', OPENED));
+  addFolder(state, { parentId: 'manuscript', title: 'Chapter 1', now: OPENED, id: CHAPTER_ONE });
+  addDocument(state, {
+    parentId: CHAPTER_ONE,
+    title: 'The Landing',
+    body: LANDING_BODY,
+    now: OPENED,
+    id: LANDING,
+    synopsis: 'Elena returns.',
+    notes: LANDING_NOTES,
+    keywords: ['sea', 'grief'],
+  });
+  addDocument(state, { parentId: CHAPTER_ONE, title: 'The Storm', body: STORM_BODY, now: OPENED, id: STORM });
+  addFolder(state, { parentId: 'manuscript', title: 'Chapter 2', now: OPENED, id: CHAPTER_TWO });
+  addDocument(state, { parentId: CHAPTER_TWO, title: 'Harbour', body: HARBOUR_BODY, now: OPENED, id: HARBOUR, kind: 'screenplay' });
+  addDocument(state, { parentId: CHAPTER_TWO, title: 'Ferryman', body: FERRYMAN_BODY, now: OPENED, id: FERRYMAN, type: 'dialogue', kind: 'branching' });
+  const stamp = OPENED.toISOString();
+  const entry = (id: string, name: string, type: string, description: string, aliases: string[]) => ({
+    id,
+    name,
+    aliases,
+    type,
+    description,
+    includePolicy: 'detected' as const,
+    caseSensitive: false,
+    exclude: [],
+    attachments: [],
+    keywords: [],
+    origin: 'manual' as const,
+    sources: [],
+    createdAt: stamp,
+    updatedAt: stamp,
+  });
+  (state.manifest.codex ??= []).push(
+    entry(KESTREL, 'Kestrel', 'other', 'The bird on the rail.', []),
+    entry(ELENA, 'Elena', 'character', 'The keeper’s daughter, back after ten years.', ['Lena']),
+  );
+  await writeProject(fs, state, { now: OPENED });
 }

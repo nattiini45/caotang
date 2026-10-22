@@ -27,8 +27,11 @@ export interface TurnsPlan {
 
 function turnBody(turn: RecentTurn, activity: readonly ActivityEntry[]): string {
   const rows = activity.filter((entry) => entry.turnId === turn.turnId);
-  const outcome = unique(rows.map((row) => row.summary.trim()).filter((text) => text !== '')).join('; ');
-  const groups = unique(rows.map((row) => row.undoGroupId).filter((id): id is string => id !== undefined));
+  // The activity rows are the record. A turn with none (a reply writes none, and a reload empties the log) reads the turn's own fields.
+  const fromRows = unique(rows.map((row) => row.summary.trim()).filter((text) => text !== '')).join('; ');
+  const outcome = fromRows !== '' ? fromRows : (turn.outcome ?? '').trim();
+  const rowGroups = unique(rows.map((row) => row.undoGroupId).filter((id): id is string => id !== undefined));
+  const groups = rowGroups.length > 0 || turn.undoGroupId === undefined ? rowGroups : [turn.undoGroupId];
   return [
     `- Turn ${turn.turnId}`,
     `  Intent: ${clip(turn.intent, INTENT_CHARS)}`,

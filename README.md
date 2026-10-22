@@ -25,7 +25,7 @@ Caotang is free and MIT-licensed. There are no accounts, no subscriptions, no cr
 - **Export.** Markdown, plain text, Word (`.docx`) and EPUB, for the whole manuscript or one part of it. For screenplays, dialogue and storyboards: Fountain, Final Draft (`.fdx`, not yet checked in Final Draft itself), a paginated screenplay PDF, an Ink story, a dialogue table, a shot list and a storyboard contact sheet (PDF). Also a coherence report. Recipes keep your export settings.
 - **Settings.** Provider profiles, the agent's context budgets, the daily target and autosave delay, coherence checks, light and dark themes, checkpoint limits, **MCP & tools**, and data.
 - **MCP & tools.** Settings can connect external [Model Context Protocol](https://modelcontextprotocol.io) servers over Streamable HTTP. Each server's tool list is reviewed before its tools are used, and a tool can be switched off. The agent calls an enabled tool at once only when its server is trusted for reads and the tool is read-only. Any other call waits for your approval.
-- **Caotang as an MCP server.** Other AI tools can read a project folder. With writes allowed, they can change it, and each change that asks is confirmed in the host. See [Caotang as an MCP server](#caotang-as-an-mcp-server).
+- **Caotang as an MCP server.** Other AI tools can read a project folder, attach its documents, notes and codex as resources, and run prompts that carry the context Caotang gathers for a scene. With writes allowed, they can change it, and each change that asks is confirmed in the host. See [Caotang as an MCP server](#caotang-as-an-mcp-server).
 
 Not in this build yet: the desktop wrapper. [docs/USER-GUIDE.md](docs/USER-GUIDE.md#what-is-not-in-this-build-yet) lists it with the rest, and [docs/ROADMAP.md](docs/ROADMAP.md) has the order.
 
@@ -195,6 +195,8 @@ node packages/mcp-server/dist/caotang-mcp.mjs serve --project ~/Writing/my-novel
 }
 ```
 
+Besides the tools, the server offers the project's text as **resources**, which you attach on purpose (in Claude Code, `@caotang:caotang://doc/…`; in Cursor, the resource picker), and five **prompts** that hand your host's model the context Caotang builds for a job: `draft-scene`, `fill-synopsis`, `continuity-check`, `codex-from-doc` and `revise-with-codex`. A resource carries a whole document, and one over 2 MiB is refused, never cut. The prompts run on your host's model, so the text they carry goes to that model, as it does when the host reads a document through a tool; Caotang calls no model and holds no key. See the server's README, Resources and Prompts.
+
 Three things to know before you connect:
 
 - A change that needs confirmation is refused, with nothing written, if the host cannot show a confirmation. The host must support MCP elicitation.
@@ -214,6 +216,38 @@ The tools that need a model, `scene.draft`, `synopsis.fill`, `continuity.scan`, 
 The server runs on your computer over stdio and opens no network port. Uninstalling the bundle removes the server and leaves your project folder as it was. The wording of the dialog differs between hosts and versions.
 
 The bundle is not signed, and it has not been tested in a real host yet. [packages/mcp-server/HOST-CHECKS.md](packages/mcp-server/HOST-CHECKS.md) lists the checks and holds the results; it has none so far. The release lists the file's SHA-256 in `SHA256SUMS`.
+
+## Caotang from the command line
+
+`caotang agent` runs one turn of the agent on a project folder and exits, for a terminal, a Makefile, a cron job or CI. It is read-only unless you say otherwise: without `--write` nothing in the folder changes, and the files that would change are printed as a diff. Build it with `pnpm --filter @caotang/cli build`, which writes `packages/cli/dist/caotang.mjs` (one file; run it with `node`, and keep its `fonts/` folder beside it).
+
+```sh
+# The demo provider: no key, no network. Prints the reply, exits 0, writes nothing.
+node dist/caotang.mjs agent -p "Check the manuscript for continuity problems." --mock --project ~/Writing/my-novel
+
+# A review with your own key, read-only. The key comes from the environment, never from a flag.
+CAOTANG_API_KEY=... node dist/caotang.mjs agent -p "Check the manuscript for continuity problems." \
+  --provider openrouter --project ~/Writing/my-novel --output-format json
+
+# Approve every card the plan shows, save the folder, and print what changed.
+CAOTANG_API_KEY=... node dist/caotang.mjs agent -p "Fill in the synopses for Chapter 1." \
+  --provider openrouter --project ~/Writing/my-novel --permission approve-all --write
+```
+
+| Flag | Meaning |
+|---|---|
+| `-p <intent>` | What to ask. `-p -` reads it from stdin. |
+| `--project <dir>` | The project folder (default: the working directory). |
+| `--mock` or `--provider <preset>` | The demo provider, or a provider preset (`--base-url`, `--model` and `--thinking` refine it). |
+| `--key-env <VAR>` | The environment variable that holds the key (default `CAOTANG_API_KEY`). There is no flag for the key itself: it would show in `ps` and in your shell history. |
+| `--permission <mode>` | `read-only` (default): every card is cancelled. `auto`: a change that needs no card runs, every card is cancelled. `approve-all`: every card is approved as shown, and a draft the provider cut off never is. |
+| `--approve-tools <tool,...>` | With `approve-all`: approve a card only if every step is one of these tools. A card with any other step in it is cancelled, whole. |
+| `--write` | Save the folder after the turn. Needs `auto` or `approve-all`. |
+| `--plan-file <plan.json>` | Run a plan you wrote, `{ "steps": [{ "tool", "params", "expect" }] }`, with no planner call. |
+| `--output-format` | `text` (default), `json` (one object when the turn ends) or `stream-json` (one line per event, a `decision` line for each card, then the result). |
+| `--max-model-calls <n>` | The most model calls a turn may make (default 8). |
+
+Standard output carries only the chosen format; progress and notes go to standard error. The exit code is **0** when the turn is done, **1** for an internal error, **2** for a wrong command line or a folder that holds no project, **3** when another writer (the app, or `caotang-mcp serve`) holds the folder, **4** when the turn needs input (a card was cancelled by the permission mode, a bound was reached, or the provider failed), **5** for a conflict, **6** when verification failed, and **130** and **143** after SIGINT and SIGTERM. The undo history of a `--write` run ends with the command, so keep the folder in git. `caotang mcp serve` starts the MCP server with the same flags as `caotang-mcp serve`.
 
 ## Scripting Caotang
 

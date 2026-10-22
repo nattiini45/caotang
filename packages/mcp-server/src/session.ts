@@ -37,6 +37,8 @@ import {
 } from '@caotang/store';
 
 import { sourceWindow, type SourceWindow } from './attribution.js';
+import { createChangeFeed, type ChangeFeed } from './changes.js';
+import { changeOf } from './uris.js';
 
 /**
  * The folder holds a project's files without its `caotang.json`, and `--create` was asked for.
@@ -110,6 +112,11 @@ export interface ProjectSession {
   readonly notices: readonly LoadNotice[];
   /** The source window over the harness log, for approved writes. */
   readonly window: SourceWindow;
+  /**
+   * What the writes made here changed, announced once each is on disk (changes.ts). Nothing is announced for a read, and nothing for a
+   * change another program made, except that it stopped the writes: that is announced once, as a drift.
+   */
+  readonly changes: ChangeFeed;
   /**
    * Runs a read, or an auto-applied write, as an external caller. The harness binds
    * the source to `mcp` and refuses a write the project has not opened. A write that
@@ -208,6 +215,26 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
     // and those tools would draft with Caotang's model, not the caller's.
     const harness = createProductHarness({ state, registry: folder.registry, externalWrites: options.allowWrites, ports: 'external' });
     const window = sourceWindow(harness.log);
+    const changes = createChangeFeed();
+    // The folder changing under the server stops its writes for good, so it is announced once: a host that is subscribed reads again.
+    let driftSaid = false;
+    const sayDrift = (): void => {
+      if (!folder.changed || driftSaid) return;
+      driftSaid = true;
+      changes.emit({ updated: [], listChanged: true, drift: true });
+    };
+    // A save that went through announces what the log rows since `before` changed. One that failed announces nothing but a drift.
+    const saved = async (before: number, save: () => Promise<void>): Promise<void> => {
+      try {
+        await save();
+      } catch (error) {
+        sayDrift();
+        throw error;
+      }
+      const rows = harness.log.entries().slice(before);
+      const change = changeOf(state, rows);
+      if (change.updated.length > 0 || change.listChanged) changes.emit(change);
+    };
 
     return {
       root: folder.root,
@@ -219,6 +246,7 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
       created: folder.created,
       notices: folder.notices,
       window,
+      changes,
 
       async callDirect(name, callId, params, turnId) {
         if (folder.changed && changesProject(name)) throw folder.stoppedError(false);
@@ -229,7 +257,7 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
         // the project's files. The run belongs in coherence.json, which a server with --allow-writes appends to, as it does for a finding
         // marked fixed; a server without it writes nothing.
         const logged = harness.log.length !== before;
-        if (options.allowWrites && changesProject(name) && logged) await folder.persist();
+        if (options.allowWrites && changesProject(name) && logged) await saved(before, () => folder.persist());
         if (options.allowWrites && logged && COHERENCE_TOOLS.has(name)) await folder.persistCoherence();
         return outcome;
       },
@@ -244,7 +272,7 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
         );
         harness.endTurn(turn);
         await exporter.idle();
-        if (harness.log.length !== before || outcome.ok) await folder.persist();
+        if (harness.log.length !== before || outcome.ok) await saved(before, () => folder.persist());
         await folder.persistCoherence();
         return outcome;
       },
@@ -267,7 +295,10 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
 
       refreshAssets: () => folder.refreshAssets(),
       persist: () => folder.persist(),
-      verifyFolder: () => folder.verifyFolder(),
+      async verifyFolder() {
+        await folder.verifyFolder();
+        sayDrift();
+      },
       close: () => folder.close(),
       releaseLockSync: () => folder.releaseLockSync(),
     };

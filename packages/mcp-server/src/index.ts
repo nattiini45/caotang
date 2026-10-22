@@ -81,3 +81,4 @@ export {
   type RunIo,
   type ServeOptions,
 } from './cli.js';
+export { untilDone } from './process.js';

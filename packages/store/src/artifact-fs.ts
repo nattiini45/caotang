@@ -67,7 +67,7 @@ export function dirName(path: string): string {
 }
 
 /** Reject absolute paths and `..` escapes — a project root is the whole world. */
-function assertContained(path: string): void {
+export function assertContained(path: string): void {
   if (path === '') return;
   if (path.startsWith('/') || /^[A-Za-z]:/.test(path)) {
     throw new Error(`artifact path must be project-relative: ${path}`);

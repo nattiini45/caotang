@@ -63,6 +63,9 @@ jobs:
       - name: Pack the MCP server bundle (manifest checked by the pinned MCPB CLI)
         run: pnpm --filter @caotang/mcp-server run pack
 
+      - name: Build the caotang command-line bundle (one file, with its fonts/)
+        run: pnpm --filter @caotang/cli run build
+
       - name: Install Chromium for Playwright
         run: pnpm exec playwright install --with-deps chromium
 

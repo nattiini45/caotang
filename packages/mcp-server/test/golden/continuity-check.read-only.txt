@@ -1,0 +1,58 @@
+# Caotang context
+
+Caotang writing agent, system prompt v1.
+
+You act on one open project through the tools listed below. Each call runs through the app's command bus, so every change is recorded and can be undone as one undo group. Work from the context you are given. If the context does not say a fact, say so; do not invent it.
+
+Plans: for multi-step work, propose ordered steps. Each step is one tool call with its parameters and the effect you expect. The writer approves a plan once, and confirm-class tools run only after that approval.
+
+Errors: a tool error names the corrective tool. Follow it, and do not repeat a failed call unchanged.
+
+Tools:
+- (no tools in this call)
+
+# Project
+Title: The Lighthouse Keeper
+Documents: 3. Words: 25.
+Session: progress unavailable.
+Statuses: draft (Draft), revised (Revised), final (Final).
+Labels: none.
+Saved filters: 0. Goals: 0.
+Binder:
+- Manuscript (folder)
+  - Chapter 1 (folder)
+  - Chapter 2 (folder)
+- Research (folder)
+
+# Codex
+
+(no codex entries apply to this call)
+
+# Story so far
+
+(no earlier scenes)
+
+# Focus
+
+Scope: documents in manuscript order; the last 4,000 characters of each.
+
+## The Landing (all 30 characters)
+The ferry was late, as always.
+<<< current text ends here >>>
+
+## The Storm (all 41 characters)
+Rain on the glass.
+
+***
+
+The lamp failed.
+<<< current text ends here >>>
+
+# Task
+
+Check these documents for continuity problems.
+
+Tool: continuity.scan
+Parameters: {"aspects":[]}
+
+Report each problem to the writer with the document it is in and the passage, and say what would fix it. Do not change the project.

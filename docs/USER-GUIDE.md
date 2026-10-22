@@ -278,6 +278,8 @@ The Intent box stays open while the agent works. **Enter** queues what you type 
 
 Queued messages show under the box as **Queued messages**. Each can be edited, removed, moved with ↑ and ↓ or by dragging, or sent now to the running turn with **Steer now**. They run one at a time, each after the turn before it has ended, and a queued message is never joined to another or to a note. If a turn ends on a question, the queue waits: answer the question or choose **Run the queue**. A note typed while a card waits does not go at once, because the card is yours to decide: choose **Send with Cancel** to cancel the card and give the agent the note, or **Queue as next turn** to keep the card and run the note after the turn. A note the agent did not read before its turn ended becomes the first queued message.
 
+The agent remembers your last two requests in this tab: what you asked and what came of it, a changed passage or the answer it gave. The drafts it writes are given them as background, and changing the provider, the model or the thinking level in between does not clear them. Closing or reloading the tab does.
+
 Reading the agent's work:
 
 - **Progress.** While the agent works, the header of the agent panel says where it is: "Step 3 of 5 · Drafting “The Landing”", or "Waiting for you · Plan, 3 steps" when a card needs you. It shows with the panel open or closed. At the top of the turn, a checklist lists the steps with one in progress, each marked in words as Queued, Waiting for you, In progress, Done, Skipped or Failed (a failed step gives its reason). A step you drop from the card is Skipped, and so is a step that did not run after a failure or a cancel. The checklist folds when the turn ends and stays in the turn. Under it, **Model calls: 3 of 8** counts the requests the turn has made to the model; at 7 and 8 it turns to a warning, and at 8 the turn stops and asks you how to go on. The list is built from the agent's plan and its calls, not by asking the model, so it never shows a step as done that did not run.
@@ -386,6 +388,14 @@ On a Mac, Cmd takes the place of Ctrl. The element chords are the one exception:
 
 The tabs on the left (**Binder**, **Codex**, **Activity** and **Findings**) and the **Editor** and **Corkboard** buttons take the arrow keys, Home and End. In a menu, the arrow keys move between items, and Enter or Space chooses one.
 
+## Attaching your writing in an AI tool
+
+An AI tool connected to the MCP server can attach your documents, a document's notes and your codex entries to a conversation, as resources. In Claude Code, type `@` and pick `caotang`; in Cursor, use the resource picker. What you attach is the whole text, not a cut-down copy. A document over 2 MiB is refused and says so, and is never trimmed.
+
+The server also offers five prompts, which your tool lists as commands: **draft-scene**, **fill-synopsis**, **continuity-check**, **codex-from-doc** and **revise-with-codex**. Each one builds the same context Caotang's agent would send for that job, with the codex entries a scene mentions, the structure and the story so far, and hands it to your tool's own model. Caotang makes no model call and holds no key, so the text goes to the model you chose in that tool. A prompt refuses what the matching tool in Caotang would refuse: **draft-scene** on a document that already has text, or on a folder. On a server started without `--allow-writes`, a prompt tells the model to show you the result, and not to try to save it.
+
+On a server started with `--allow-writes`, a tool that subscribed to a document's notes is told when they change. The server does not watch the folder: it tells your tool of its own changes, and once of a change another program made, which also stops its writes.
+
 ## Bringing existing writing in through the MCP server
 
 If your writing is somewhere else, such as in notes, a wiki or an old draft, the MCP server can bring it into a Caotang project. Two tools do that:
@@ -469,3 +479,4 @@ A developer can run the agent against a project folder from a Node script, a com
 - **Skill scripts and files.** Skills that include scripts: Caotang uses their instructions and does not run the scripts. The agent cannot read the other files kept with a skill, a skill's list of allowed tools does not limit the agent, and there are no skills shared across projects and no way to run a skill by name. Only the project's `.agents/skills` folder is read.
 - **Background tasks.** A task is drafted only while the project is open in this tab: close the tab and it stops, and **Resume** finishes it when you open the project again. A coherence review cannot be queued yet; it runs now. A background call waits for the agent to be free, but one already sent still counts against a rate-limited key.
 - **The desktop app.** Caotang runs in the browser. A desktop wrapper is not in this build.
+- **The hosted instance.** Sign-up, synced end-to-end encrypted projects and the provider relay are planned and not in this build; Caotang stores everything in this browser or a folder you choose.
