@@ -34,9 +34,27 @@ export type IdPrefix = 'p' | 'n' | 'c' | 'cmd' | 'f' | 'r' | 'w' | 'prv';
  *
  * **It is not a promise that nothing else restates the length.** The bus takes
  * no dependencies, so its own id patterns spell the length out; the id fixtures
- * in the test suites are literals an id has to match. The export takes the restatement out of the
- * code that mints and checks ids in the packages that can reach it, and the
- * copies that remain are named here rather than left for a reader to find.
+ * in the test suites are literals an id has to match. The export takes the
+ * restatement out of the code that mints and checks ids in the packages that
+ * can reach it, and the copies that remain are named here rather than left for
+ * a reader to find:
+ *
+ * - **The bus**, which takes no dependencies: `packages/bus/src/descriptors.ts`
+ *   (`NODE_ID_PATTERN`, `VISUAL_REF_PATTERN`),
+ *   `packages/bus/src/descriptors-project.ts` (`ASSET_ID_PATTERN`) and
+ *   `packages/bus/src/descriptors-furniture.ts` (`FILTER_ID`, `GOAL_ID`).
+ * - **Packages that can reach this one** and still spell the length out:
+ *   `packages/dialogue/src/ink-parse.ts` (`LINE_ID_PATTERN` — the checker
+ *   beside the minter that reads `ID_LENGTH`, so the two drift the moment the
+ *   length changes), `packages/mcp-client/src/config.ts` (`MCP_KEY_PATTERN`
+ *   and the ten bytes `newServerKey` draws), `packages/storyboard/src/ids.ts`
+ *   (`ASSET_ID_PATTERN`), `packages/store/src/commands-furniture.ts` (the ten
+ *   bytes `mintId` draws) and `apps/desktop/src/app/furniture-store.ts` (the
+ *   ten bytes `furnitureId` draws).
+ * - **Packages that cannot reach this one**:
+ *   `packages/exporter/src/exporter.ts` (`ASSET_ID`) and
+ *   `packages/gateway/src/profiles.ts` (`PROFILE_ID_PATTERN` and the ten bytes
+ *   `mintProfileId` draws).
  */
 export const ID_LENGTH = 10;
 
