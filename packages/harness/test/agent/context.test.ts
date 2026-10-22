@@ -70,6 +70,20 @@ describe('the role text is the system message, and L0 is measured on it (context
   });
 });
 
+describe('the port is the product assembler: a scene draft carries L3 and L4 (context-assembly §2)', () => {
+  it('assembles the structure and the story so far, from @caotang/context and not from a local assembler', () => {
+    const call = createContextPort({ state: makeState() }).assemble({
+      task: { tool: 'scene.draft', instruction: 'Brief: the lamp fails.', focus: STORM, mode: 'continue' },
+      role: ROLE,
+    });
+    const layers = call.prompt.layers;
+    expect(layers.filter((layer) => layer.included).map((layer) => layer.id)).toEqual(['L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7']);
+    expect(layers.find((layer) => layer.id === 'L3')?.kept.length).toBeGreaterThan(0);
+    expect(layers.find((layer) => layer.id === 'L4')?.kept.map((item) => item.label)).toContain('The Landing');
+    expect(call.messages[1]?.content).toContain('Elena returns to the island.');
+  });
+});
+
 describe('the earlier turns are L6 (context-assembly §2)', () => {
   it('the last two earlier turns reach the call with their intents, and an older one does not', () => {
     const turns = [
