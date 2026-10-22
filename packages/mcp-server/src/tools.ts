@@ -168,9 +168,12 @@ function errorCodeOf(error: unknown): string {
  * are the store's own, so no path and no id reaches the caller.
  */
 function fileLabelOf(error: unknown, session: ProjectSession): string | undefined {
-  const text = error instanceof Error ? `${error.message} ${error.stack ?? ''}` : String(error);
-  const match = text.match(/(?:^|[\s"'(])((?:docs|codex)[\\/][^\s"':,)]+)\.[A-Za-z0-9]+/);
-  const found = match?.[1];
+  const texts = error instanceof Error ? [error.message, error.stack ?? ''] : [String(error)];
+  // An error names the file by its absolute path, and a project file sits directly in `docs/` or
+  // `codex/`, so the last such segment is the project's own.
+  const found = texts
+    .map((text) => [...text.matchAll(/(?:^|[\s"'(\\/])((?:docs|codex)[\\/][^\\/\s"':,)]+)\.[A-Za-z0-9]+/g)].at(-1)?.[1])
+    .find((candidate) => candidate !== undefined);
   if (found === undefined) return undefined;
   const titles = projectFileTitles(session.state);
   return projectFileLabel(found.replace(/\\/g, '/'), titles, titles, 'this copy');
