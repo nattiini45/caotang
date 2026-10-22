@@ -283,7 +283,7 @@ describe('export.compile — the whole manuscript', () => {
     expect(result.log.notes.some((note) => note.startsWith('epub: cover below common retail minimums'))).toBe(true);
   });
 
-  it('compiles the EPUB without a cover when the asset reader does not hold the named file', async () => {
+  it('compiles the EPUB without a cover when the asset reader does not hold the named file, and says so in the log', async () => {
     const r = rig({
       bytes: true,
       metadata: { identifier: EPUB_IDENTIFIER, coverAssetId: 'a_ABCDEFGHJK' },
@@ -296,6 +296,10 @@ describe('export.compile — the whole manuscript', () => {
     const output = (outcome.result as { output: string }).output;
     const files = unzipSync(r.bytes.get(output) ?? new Uint8Array());
     expect(strFromU8(files['OEBPS/content.opf'] ?? new Uint8Array())).not.toContain('cover-image');
+    // The writer set a cover; dropping it silently would read as if it were never considered. The book is still valid
+    // without one, so this is a note and not a refusal.
+    const notes = (logRows(r.fs)[0]?.['notes'] ?? []) as string[];
+    expect(notes.some((note) => note.includes('cover asset on record') && note.includes('no cover'))).toBe(true);
   });
 
   it('undoes a binary compile by removing it from the byte binding', async () => {
@@ -326,13 +330,15 @@ describe('export.compileSelection — a part', () => {
     expect(r.fs.snapshot()[output]).not.toContain('## ');
   });
 
-  it('reports an id the tree does not hold as a note, and compiles what it can', async () => {
+  it('refuses a selection that names a node the tree does not hold, as the recipe path does', () => {
     const r = rig();
-    await r.exporter.ready();
-    const outcome = okValue(r.run('export.compileSelection', { includeRootIds: [IDS.morning, 'n_NOSUCHNODE'], format: 'txt' }));
-    const digest = outcome.result as { notes: string[]; sceneCount: number };
-    expect(digest.sceneCount).toBe(1);
-    expect(digest.notes).toContain('no node "n_NOSUCHNODE" in the tree, so it contributed nothing');
+    const outcome = r.run('export.compileSelection', { includeRootIds: [IDS.morning, 'n_NOSUCHNODE'], format: 'txt' });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.error.code).toBe('not-found');
+    expect(outcome.error.message).toContain('n_NOSUCHNODE');
+    expect(r.bus.log.length).toBe(0);
+    expect(r.undo.groups()).toHaveLength(0);
   });
 
   it('refuses an empty selection before the exporter is asked anything', () => {
@@ -427,6 +433,10 @@ describe('refusals — nothing is written, logged or grouped', () => {
     expect(outcome.error.code).toBe('invalid-params');
     expect(outcome.error.correctiveHint ?? '', 'the hint says what to do').toBeTruthy();
     expect(outcome.error.correctiveHint ?? '').not.toContain('defect in the apply');
+    // The hint names only formats the same gate accepts without a byte store. EPUB is a binary artifact
+    // (BINARY_FORMATS), so pointing the writer at it would send them into the identical refusal.
+    expect(outcome.error.correctiveHint ?? '').toContain('compile as md or txt');
+    expect(outcome.error.correctiveHint ?? '').not.toContain('epub');
   });
 
   it('refuses a format this build does not compile, and names the formats it does', () => {

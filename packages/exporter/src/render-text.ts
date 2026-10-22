@@ -47,7 +47,10 @@ export function renderMarkdown(input: RenderInput): string {
         lines.push(`## ${chapterLabel(input.template, block.number, block.title)}`, '');
         break;
       case 'scene':
-        lines.push(block.body.trim(), '');
+        // The body *is* Markdown, so it is written as the author wrote it. Only the blank lines that would leave a gap
+        // under the heading are dropped and the file's own trailing newlines are trimmed; the leading indentation of the
+        // first line is kept, because it is what makes an indented code block a code block.
+        lines.push(block.body.replace(/^\n+/, '').trimEnd(), '');
         break;
       case 'separator':
         lines.push(input.template.separator.md, '');
