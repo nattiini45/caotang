@@ -941,6 +941,35 @@ export function writeCoherenceFiles(store: RuntimeStore, projectId: string, file
 }
 
 /**
+ * Replaces the project's skills with `skills` (ProjectRow.skillFiles): one `put` of the project row, read and written in one
+ * transaction. The manifest and the bodies are not touched, so a change to a skill does not restate the manuscript.
+ */
+export function writeProjectSkills(
+  store: RuntimeStore,
+  projectId: string,
+  skills: ReadonlyMap<string, readonly { readonly path: string; readonly bytes: Uint8Array }[]>,
+): Promise<void> {
+  return transact<void>(store.db, [PROJECT_STORE], 'readwrite', (tx, done, fail) => {
+    const projects = tx.objectStore(PROJECT_STORE);
+    const request = projects.get(projectId);
+    request.onsuccess = guarded(fail, () => {
+      const row = request.result as ProjectRow | undefined;
+      if (!row) {
+        fail(new ProjectNotFoundError(projectId));
+        return;
+      }
+      const next: ProjectRow = { ...row };
+      delete next.skillFiles;
+      const files: Record<string, Uint8Array> = {};
+      for (const [folder, list] of skills) for (const file of list) files[`${folder}/${file.path}`] = file.bytes.slice();
+      if (Object.keys(files).length > 0) next.skillFiles = files;
+      projects.put(next);
+      done(undefined);
+    });
+  });
+}
+
+/**
  * Append one line to a project's session log — one transaction, one `add`.
  *
  * §4: "`sessions.jsonl` — append-only, never rewritten, survives everything

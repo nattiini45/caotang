@@ -4,7 +4,7 @@
  * leaves the skill's folder is refused rather than cleaned.
  */
 
-import type { SkillFile, SkillName } from './types.js';
+import type { SkillName } from './types.js';
 
 export const SKILL_LIMITS = {
   /** Skills in one project. */
@@ -70,6 +70,12 @@ export function skillPathProblem(path: string): string | undefined {
   return undefined;
 }
 
+/** What the caps need to know of a file: its path and how long its bytes are. A {@link SkillFile} is one, and so is a file not yet read. */
+export interface SkillFileSize {
+  readonly path: string;
+  readonly bytes: { readonly length: number };
+}
+
 /** A refusal of a set of files, in words, with the cap it names. */
 export interface SkillFilesProblem {
   readonly code: 'bad_path' | 'duplicate_path' | 'no_skill_md' | 'too_many_files' | 'file_too_large' | 'skill_too_large';
@@ -87,7 +93,7 @@ export function sizeInWords(bytes: number): string {
  * The first reason a skill folder's files cannot be taken, or `undefined`. It checks the paths, that `SKILL.md` is there, and the
  * three caps, and names the cap it hit, so the writer is told what to cut.
  */
-export function skillFilesProblem(folder: string, files: readonly SkillFile[]): SkillFilesProblem | undefined {
+export function skillFilesProblem(folder: string, files: readonly SkillFileSize[]): SkillFilesProblem | undefined {
   const seen = new Set<string>();
   let total = 0;
   for (const file of files) {

@@ -12,7 +12,7 @@
  * and no gate looks at it.
  */
 
-import { parseSkillFolder, isOffered, type SkillFile, type SkillState } from '@caotang/skills';
+import { parseSkillFolder, isOffered, type Skill, type SkillFile, type SkillLoadIssue, type SkillState } from '@caotang/skills';
 import type { ProjectState } from '@caotang/store';
 
 import { failure, limitExceeded, notFound } from '../errors.js';
@@ -44,12 +44,16 @@ function parseOnce(folder: string, files: readonly SkillFile[]): Parsed {
   return fresh;
 }
 
+/** Every skill folder the project holds, read: the skill when it is valid, and the reasons when it is not. The Skills panel lists both. */
+export function parsedSkillsOf(state: ProjectState): readonly { readonly folder: string; readonly skill?: Skill; readonly issues: readonly SkillLoadIssue[] }[] {
+  return [...state.skills].map(([folder, files]) => ({ folder, ...parseOnce(folder, files) }));
+}
+
 /** The project's skills that parse, with the writer's two decisions about each. A folder that does not parse is not a skill here. */
 export function skillStatesOf(state: ProjectState, source: SkillsOption): readonly SkillState[] {
   const off = new Set(state.manifest.disabledSkills ?? []);
   const states: SkillState[] = [];
-  for (const [folder, files] of state.skills) {
-    const { skill } = parseOnce(folder, files);
+  for (const { skill } of parsedSkillsOf(state)) {
     if (skill === undefined) continue;
     states.push({ skill, enabled: !off.has(skill.frontMatter.name), reviewed: source.reviewedPin(skill.frontMatter.name) === skill.pin });
   }

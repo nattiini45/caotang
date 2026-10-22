@@ -250,6 +250,9 @@ importers:
       '@caotang/screenplay':
         specifier: workspace:*
         version: link:../../packages/screenplay
+      '@caotang/skills':
+        specifier: workspace:*
+        version: link:../../packages/skills
       '@caotang/store':
         specifier: workspace:*
         version: link:../../packages/store

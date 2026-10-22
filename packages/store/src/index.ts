@@ -318,6 +318,7 @@ export {
   readSessions,
   writeBodySnapshot,
   writeCoherenceFiles,
+  writeProjectSkills,
   writeDocumentBody,
   writeProjectState,
   type DocumentRow,

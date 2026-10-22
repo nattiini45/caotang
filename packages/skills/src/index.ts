@@ -16,6 +16,7 @@ export {
   sizeInWords,
   skillFilesProblem,
   skillPathProblem,
+  type SkillFileSize,
   type SkillFilesProblem,
 } from './limits.js';
 export { FrontMatterError, readFrontMatter, type FieldValue, type ReadFrontMatter } from './frontmatter.js';

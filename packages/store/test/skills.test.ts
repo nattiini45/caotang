@@ -23,7 +23,7 @@ import {
   type ProjectState,
 } from '../src/index.js';
 import { MemoryIndexedDb } from '../src/runtime/memory-idb.js';
-import { commitProject, openRuntimeStore, readProjectState, writeProjectState } from '../src/runtime/store.js';
+import { commitProject, openRuntimeStore, readProjectState, writeProjectSkills, writeProjectState } from '../src/runtime/store.js';
 
 const NOW = new Date('2026-10-01T00:00:00.000Z');
 const enc = (text: string): Uint8Array => new TextEncoder().encode(text);
@@ -291,6 +291,23 @@ describe('skills in the browser store', () => {
       state.skills.delete('slug-lines');
       await writeProjectState(store, state, { now: NOW });
       expect([...(await readProjectState(store, state.manifest.project.id)).skills.keys()]).toEqual(['close-third']);
+    } finally {
+      store.close();
+    }
+  });
+
+  it('are replaced alone by writeProjectSkills, which leaves the manuscript as it is', async () => {
+    const store = await openRuntimeStore(new MemoryIndexedDb(), 'skills-test-alone');
+    try {
+      const state = withSkills();
+      await writeProjectState(store, state, { now: NOW });
+      const id = state.manifest.project.id;
+      await writeProjectSkills(store, id, new Map([['only-one', [{ path: 'SKILL.md', bytes: enc(skillMd('only-one')) }]]]));
+      const back = await readProjectState(store, id);
+      expect([...back.skills.keys()]).toEqual(['only-one']);
+      expect([...back.documents.values()].map((record) => record.body)).toEqual(['Cold open.']);
+      await writeProjectSkills(store, id, new Map());
+      expect((await readProjectState(store, id)).skills.size).toBe(0);
     } finally {
       store.close();
     }
