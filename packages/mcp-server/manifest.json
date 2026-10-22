@@ -6,7 +6,8 @@
   "description": "Serve a Caotang writing project to an MCP host: read it, and, when you allow it, change it.",
   "long_description": "Caotang's tools over MCP, on stdio. The project stays in its folder on your computer, and the server makes no network connection. The project is read-only until you turn on \"Allow changes\" in this extension's settings. Then a write tool either asks you to confirm it in the host before it changes anything, or applies at once. Each tool's description says which.",
   "author": {
-    "name": "The Caotang Authors"
+    "name": "nattiini45",
+    "url": "https://github.com/nattiini45"
   },
   "server": {
     "type": "node",
