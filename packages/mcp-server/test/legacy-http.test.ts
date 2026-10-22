@@ -281,6 +281,7 @@ describe('the 2025-era connections are kept, bounded and closed', () => {
     expect(answer.status).toBe(404);
     const error = answer.message?.['error'] as { message: string } | undefined;
     expect(error?.message).toContain('Session not found');
+    expect(error?.message).toContain('nothing was written');
   });
 
   it('the host ends its connection with DELETE, and the id answers 404 afterwards', async () => {
