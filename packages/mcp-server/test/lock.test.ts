@@ -107,35 +107,49 @@ describe('the project lock', () => {
   it('refuses a lock it cannot read, and says how to clear it, because nothing proves whose it is', async () => {
     const path = join(root, LOCK_FILE);
     writeFileSync(path, '{"pid":');
-    const error = await acquireProjectLock(root).then(
-      () => undefined,
-      (caught: unknown) => caught,
-    );
-    expect(error).toBeInstanceOf(ProjectLockedError);
-    expect((error as ProjectLockedError).refusal.unreadableLock).toBe(path);
-    expect((error as ProjectLockedError).message).toContain(path);
-    expect((error as ProjectLockedError).message).toMatch(/delete that file/);
-    expect((error as ProjectLockedError).message).toMatch(/no other Caotang or MCP process is using the folder/);
-    // The lock is left alone: a writer that is writing it right now would lose it.
-    expect(existsSync(path)).toBe(true);
+    try {
+      const error = await acquireProjectLock(root).then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+      expect(error).toBeInstanceOf(ProjectLockedError);
+      expect((error as ProjectLockedError).refusal.unreadableLock).toBe(path);
+      expect((error as ProjectLockedError).message).toContain(path);
+      expect((error as ProjectLockedError).message).toMatch(/delete that file/);
+      expect((error as ProjectLockedError).message).toMatch(/no other Caotang or MCP process is using the folder/);
+      // The lock is left alone: a writer that is writing it right now would lose it.
+      expect(existsSync(path)).toBe(true);
+    } finally {
+      clearLock(root);
+    }
   });
 
   it('refuses a lock it cannot read whatever its age is, so no clock decides it', async () => {
     const path = join(root, LOCK_FILE);
     writeFileSync(path, '{"pid":');
-    // An old lock whose body is lost, and a lock whose time is in the future because the clock
-    // was stepped back. Neither is proof of a dead holder, and neither is taken over.
-    const old = new Date(Date.now() - 60_000);
-    utimesSync(path, old, old);
-    const future = new Date(Date.now() + 60_000);
-    utimesSync(path, future, future);
-    const error = await acquireProjectLock(root).then(
-      () => undefined,
-      (caught: unknown) => caught,
-    );
-    expect(error).toBeInstanceOf(ProjectLockedError);
-    expect((error as ProjectLockedError).refusal.unreadableLock).toBe(path);
-    expect(existsSync(path)).toBe(true);
+    try {
+      // An old lock whose body is lost, and a lock whose time is in the future because the clock
+      // was stepped back. Neither is proof of a dead holder, and neither is taken over.
+      const old = new Date(Date.now() - 60_000);
+      utimesSync(path, old, old);
+      const oldError = await acquireProjectLock(root).then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+      expect(oldError).toBeInstanceOf(ProjectLockedError);
+      expect((oldError as ProjectLockedError).refusal.unreadableLock).toBe(path);
+      const future = new Date(Date.now() + 60_000);
+      utimesSync(path, future, future);
+      const futureError = await acquireProjectLock(root).then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+      expect(futureError).toBeInstanceOf(ProjectLockedError);
+      expect((futureError as ProjectLockedError).refusal.unreadableLock).toBe(path);
+      expect(existsSync(path)).toBe(true);
+    } finally {
+      clearLock(root);
+    }
   });
 
   it('gives a stale lock to exactly one of the writers that race for it', async () => {
@@ -229,6 +243,11 @@ describe('a takeover marker left behind by a writer that died', () => {
     const marker = join(root, LOCK_TAKEOVER_FILE);
     // The marker of a takeover that has created the file and not written its body yet.
     writeFileSync(marker, '');
+    // The marker is pinned to a time in the future, so the refusal says it is being marked right
+    // now however long this test takes: a marker read five seconds after it was written looks
+    // like an orphan, and then the clock would decide the outcome instead of the code.
+    const beingMarked = new Date(Date.now() + 60_000);
+    utimesSync(marker, beingMarked, beingMarked);
     try {
       const error = await acquireProjectLock(root).then(
         () => undefined,
@@ -311,6 +330,10 @@ describe('a takeover marker left behind by a writer that died', () => {
     writeFileSync(join(root, LOCK_FILE), JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() }));
     const marker = join(root, LOCK_TAKEOVER_FILE);
     writeFileSync(marker, JSON.stringify({ pid: process.pid, token: 'marker', startedAt: new Date().toISOString() }));
+    // The marker is pinned to a time in the future, so the unreadable branch is the one that is
+    // reported however long this test takes.
+    const beingMarked = new Date(Date.now() + 60_000);
+    utimesSync(marker, beingMarked, beingMarked);
     try {
       await withFs(
         {
@@ -331,6 +354,12 @@ describe('a takeover marker left behind by a writer that died', () => {
           // not a marker that is gone.
           expect((error as ProjectLockedError).refusal.takeoverMarker).toBe(marker);
           expect((error as ProjectLockedError).message).toContain(marker);
+          // The marker on disk names this process, so a read that went through would report its
+          // pid and say that the writer that marked it is still running. The pid is undefined and
+          // the refusal is the unreadable branch, so the read that failed is what is reported.
+          expect((error as ProjectLockedError).refusal.takeoverPid).toBeUndefined();
+          expect((error as ProjectLockedError).message).toMatch(/being marked right now/);
+          expect((error as ProjectLockedError).message).not.toMatch(/still running/);
         },
       );
     } finally {
@@ -372,6 +401,42 @@ describe('a takeover that finds a lock another writer is writing', () => {
           (caught: unknown) => caught,
         );
         expect(error).toBeInstanceOf(lock.ProjectLockedError);
+        // The winner's lock is still there: the loser refused the folder rather than take it.
+        expect(existsSync(path)).toBe(true);
+      },
+    );
+  });
+
+  it('does not call a lock unreadable once it can be read, so the refusal does not tell the person to delete it', async () => {
+    const pid = await deadPid();
+    const path = join(root, LOCK_FILE);
+    const stale = JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() });
+    const winner = JSON.stringify({ pid: process.pid, token: 'winner', startedAt: new Date().toISOString() });
+    writeFileSync(path, stale);
+    let reads = 0;
+    await withFs(
+      {
+        readFile: (async (target: string, options?: unknown) => {
+          if (String(target) !== path) return realFs.readFile(target, options as never);
+          reads += 1;
+          // The first read is the judgment, and sees the stale lock. The second is the takeover's
+          // re-read, and fails: the winner's lock is being written at that moment. The third is
+          // the read that follows it, and sees the winner's lock, whole.
+          if (reads === 1) return stale;
+          if (reads === 2) return '';
+          return winner;
+        }) as unknown as typeof realFs.readFile,
+      },
+      async (lock) => {
+        const error = await lock.acquireProjectLock(root).then(
+          () => undefined,
+          (caught: unknown) => caught,
+        );
+        expect(error).toBeInstanceOf(lock.ProjectLockedError);
+        // The lock can be read, so the refusal does not say it cannot: the advice to delete the
+        // file is not given for the lock of a writer that is holding the folder.
+        expect((error as ProjectLockedError).refusal.unreadableLock).toBeUndefined();
+        expect((error as ProjectLockedError).message).not.toMatch(/could not be read/);
         // The winner's lock is still there: the loser refused the folder rather than take it.
         expect(existsSync(path)).toBe(true);
       },

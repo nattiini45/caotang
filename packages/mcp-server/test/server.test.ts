@@ -781,8 +781,13 @@ describe('the registry seam', () => {
         await roClient?.close();
       }
     } finally {
-      await writable?.close();
-      await readOnly.close();
+      // Each fixture is closed on its own: a close that fails must not skip the other one, or the
+      // server and the temp dir of the first fixture are left behind.
+      try {
+        await writable?.close();
+      } finally {
+        await readOnly.close();
+      }
     }
   }, 30_000);
 });
