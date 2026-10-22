@@ -11,6 +11,7 @@ import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, pickDirectory, type DirectoryHandleLike } from '../app/fs-access.js';
 import { folderWithPermission, rememberedFolder } from '../app/folder-memory.js';
 import type { FolderDiffersAnswer } from '../app/integrity-model.js';
+import { dropHistoryOf } from '../app/history-store.js';
 import { clearPending } from '../app/pending-journal.js';
 import { browserStorage, clearUnsentCopy } from '../app/unsent-copy.js';
 import { encodingAskerFor, type EncodingDecision } from '../app/encoding-review.js';
@@ -329,6 +330,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
       // The words a stopped tab kept for this project go with it: nothing can open the project again to offer them back (unsent-copy.ts).
       clearUnsentCopy(browserStorage(), target.id);
       clearPending(browserStorage(), target.id);
+      await dropHistoryOf(target.id, null);
       setNotice(`Removed “${target.name}” from this browser. A bundle you exported still opens anywhere.`);
       await refresh();
     });

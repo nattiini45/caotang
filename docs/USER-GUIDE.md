@@ -17,7 +17,7 @@ Caotang asks your browser to keep its storage, but the browser decides. If it ha
 
 A project can be open in one tab at a time. A second tab waits a moment, then says the project is open in another tab. Switch to that tab, or close it, then open the project again. Opening a folder of a project that another tab holds is refused in the same way.
 
-Undo is kept while the tab is open, and a reload clears it. Caotang saves a moment after you stop typing (800 ms by default). If the tab closes or reloads before a save finishes, Caotang keeps the words in this browser and saves them when you open the project again, and says so. If the project has newer text by then, the words are offered in the binder footer instead, to put back as new documents or discard.
+Undo of your typing in a scene survives a reload (redo may not). The toolbar's Undo and the Undo in Activity last while the tab is open, and a checkpoint can still take a turn back after a reload. Undo on a screenplay's Source tab and in Ink text is the browser's own, and a reload clears it. Caotang saves a moment after you stop typing (800 ms by default). If the tab closes or reloads before a save finishes, Caotang keeps the words in this browser and saves them when you open the project again, and says so. If the project has newer text by then, the words are offered in the binder footer instead, to put back as new documents or discard.
 
 ## Projects
 
@@ -104,7 +104,7 @@ Select a scene in the binder to write in it.
 - Caotang saves as you type. The toolbar says **All changes saved in this browser** once it has. The pause before a save is 800 ms by default. **Settings › Writing** changes it, for the projects you open after you save.
 - If a scene holds Markdown that Caotang would save differently, a notice names it when the scene opens. Your text is kept.
 - The footer under the editor shows the scene's word count, a session ring that fills toward your daily target, and whether the scene is saved. Choose the ring or today's line to set the target there. Zero clears it.
-- **Ctrl+Z** undoes your typing in the scene. The **Undo** button in the toolbar takes back the last change Caotang made, such as a move or a deletion.
+- **Ctrl+Z** undoes your typing in the scene, one burst at a time, and still does after a reload. An agent's draft is never part of it. The **Undo** button in the toolbar takes back the last change Caotang made, such as a move or a deletion.
 - **Focus** in the toolbar, or Ctrl+Shift+F, hides the binder and the inspector and leaves the text. **Settings › Writing** has the setting **In focus mode, hide the binder and the inspector**. When it is off, focus mode leaves the panels shown. The status line says so when you turn focus on, and its **Settings › Writing** opens that setting. The Focus button stays on the toolbar, so you can leave focus mode from it.
 - When the agent drafts a scene, its words appear in the scene as they are written, and a draft preview bar offers **Apply**, **Retry** and **Discard**. See [The agent](#the-agent).
 - The window needs at least 960 px of width. Under 1100 px the toolbar wraps onto a second row, and the side panels narrow.
@@ -380,5 +380,5 @@ With writes allowed, an outside tool can also compile the manuscript, one item, 
 - **Final Draft files.** Import and export of `.fdx` files have not been checked against files that Final Draft wrote or opened. The scene numbers and page headers that Caotang writes are not yet confirmed to show in Final Draft.
 - **Word contents.** How Word and LibreOffice handle the contents field in a `.docx` file has not been tested.
 - **The Pages view.** The Pages view of a screenplay is a read-only preview.
-- **Undo and reloads.** Undo lasts for the open tab.
+- **Undo and reloads.** The toolbar's Undo and the Undo in Activity last for the open tab; checkpoints survive a reload. Undo on a screenplay's Source tab and in Ink text is the browser's own.
 - **The desktop app.** Caotang runs in the browser. A desktop wrapper is not in this build.

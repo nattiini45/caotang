@@ -87,6 +87,16 @@ import type {
 import { caotangExtensions } from './extensions.js';
 import { createGhostPreview } from './ghost.js';
 import type { GhostCallbacks, GhostPreview } from './ghost.js';
+import {
+  HISTORY_JOURNAL_VERSION,
+  HISTORY_MAX_ENTRIES,
+  createHistoryRing,
+  freshState,
+  historyKindOf,
+  replayEntries,
+  schemaSignature,
+} from './history-journal.js';
+import type { HistoryJournal, HistoryPort } from './history-journal.js';
 import { insertedSpans, reachesScope, replacedSpans, shrinkSpan, unionSpan } from './undo-scope.js';
 import type { Span } from './undo-scope.js';
 
@@ -111,6 +121,11 @@ export interface TiptapMountOptions extends EditorMountOptions {
   autosave?: Autosave;
   /** §8's Apply, Retry and Discard handlers. */
   ghost?: GhostCallbacks;
+  /**
+   * §7: Lane 1's history across a reload. The app hands in the journal it kept for the document and is told when the history changes. The
+   * journal rebuilds the user's undo only if it replays to the body the editor opened with (`history-journal.ts`).
+   */
+  history?: HistoryPort;
   /** §10's empty-document hint. */
   placeholder?: string;
   /** Default `true`, which is Tiptap's own default. Pass `false` if the app owns the stylesheet. */
@@ -266,6 +281,11 @@ export interface TiptapEditorInstance extends EditorInstance {
    * The indicator reads this, so a failed flush shows as an error and a pending edit does not.
    */
   saveStatus(): EditorSaveStatus;
+  /**
+   * The persisted form of Lane 1's history (`history-journal.ts`), or `null` when there is none to keep. It serializes the ring's base, so a
+   * caller asks once per write. It answers after teardown with what the editor held.
+   */
+  historyJournal(): HistoryJournal | null;
   /** Lane 1: the user's own undo. Never reverts an agent apply. */
   undo(): boolean;
   /** Lane 1: the user's own redo. */
@@ -395,7 +415,13 @@ export const createTiptapEditorApi = (): TiptapEditorApi => ({
         ? await settleStoreWork(opts.autosave, opts.docId, { body: opts.initialBody, revision: opts.revision })
         : { body: opts.initialBody, revision: opts.revision };
     const loaded = await parseWithDiagnostics(seed.body);
-    return createInstance(element, opts, loaded, seed);
+    // The document the kept history started at, parsed here because the parse is asynchronous (§5) and the instance is built synchronously.
+    const journal = opts.history?.journal;
+    const historyBase =
+      journal !== undefined && journal.version === HISTORY_JOURNAL_VERSION && journal.entries.length > 0
+        ? await parseWithDiagnostics(journal.baseBody).catch(() => null)
+        : null;
+    return createInstance(element, opts, loaded, seed, historyBase);
   },
 });
 
@@ -404,6 +430,7 @@ const createInstance = (
   opts: TiptapMountOptions,
   loaded: ParseResult,
   seed: MountSeed,
+  historyBase: ParseResult | null,
 ): TiptapEditorInstance => {
   const doc = host.ownerDocument;
   const docId = opts.docId;
@@ -450,6 +477,17 @@ const createInstance = (
     // D9: off unless the app turns it on, and set explicitly so the attribute says what the editor does.
     editorProps: { attributes: { spellcheck: opts.spellcheck === true ? 'true' : 'false' } },
   });
+
+  // --- Lane 1's history journal (history-journal.ts) ---------------------------------
+  const liveSchema = editor.schema;
+  const ring = createHistoryRing();
+  ring.reset(editor.state.doc);
+  /** The state before the transaction being handled, which tells an undo from a redo. */
+  let lastState = editor.state;
+  const serializeDoc = (node: PmNode): string => serialize(caotangSchema.nodeFromJSON(node.toJSON()));
+  const readJournal = (): HistoryJournal | null => ring.snapshot(serializeDoc, liveSchema);
+  /** Tells the app the ring changed. Cheap by contract: the app reads the journal when it writes. */
+  const announceHistory = (): void => opts.history?.onChange(readJournal);
 
   // --- Derived state, per document state (decisions 1 and 2) ---------------------
   interface Snapshot {
@@ -602,6 +640,10 @@ const createInstance = (
       }),
     );
     scope = null;
+    // The journal restarts with the history it records: a reload must not rebuild undo across the text that emptied it.
+    lastState = editor.state;
+    ring.reset(editor.state.doc);
+    announceHistory();
   };
 
   /**
@@ -646,16 +688,36 @@ const createInstance = (
   };
 
   // --- The view's events -------------------------------------------------------
-  editor.on('transaction', ({ transaction, appendedTransactions }) => {
-    if (destroyed || !transaction.docChanged) return;
-    // Every transaction moves the scope with the text it covers, so the scope never points
-    // at text that has moved. A user transaction, undo and redo included, grows it to cover
-    // what it changed. An agent transaction does not, because agent text is not the user's.
-    if (scope !== null) {
-      for (const tr of [transaction, ...appendedTransactions]) scope = shrinkSpan(scope, tr.mapping);
+  /**
+   * The scope after a transaction. Every transaction moves it with the text it covers, so the scope never points at text that has moved. A
+   * user transaction, undo and redo included, grows it to cover what it changed. An agent transaction does not, because agent text is not
+   * the user's.
+   */
+  const followScope = (from: Span | null, transaction: Transaction, appended: readonly Transaction[]): Span | null => {
+    if (!transaction.docChanged) return from;
+    let next = from;
+    if (next !== null) {
+      for (const tr of [transaction, ...appended]) next = shrinkSpan(next, tr.mapping);
     }
-    if (transaction.getMeta('addToHistory') === false) return;
-    for (const span of insertedSpans(transaction, appendedTransactions)) scope = unionSpan(scope, span);
+    if (transaction.getMeta('addToHistory') === false) return next;
+    for (const span of insertedSpans(transaction, appended)) next = unionSpan(next, span);
+    return next;
+  };
+  editor.on('transaction', ({ transaction, appendedTransactions }) => {
+    const before = lastState;
+    lastState = editor.state;
+    if (destroyed || !transaction.docChanged) return;
+    scope = followScope(scope, transaction, appendedTransactions);
+    // §7: a Lane 2 change starts a new ring at the document it leaves, and a Lane 1 change is added to the ring.
+    if (transaction.getMeta('addToHistory') === false) {
+      ring.reset(editor.state.doc);
+    } else {
+      const kind = historyKindOf(before, editor.state, transaction);
+      if (kind === null) ring.recordEdit(transaction);
+      else ring.recordHistory(kind);
+      if (ring.size() > HISTORY_MAX_ENTRIES) ring.compact((doc) => freshState(doc, editor.state.plugins), editor.state.doc);
+    }
+    announceHistory();
   });
   editor.on('update', ({ transaction }) => {
     if (destroyed) return;
@@ -665,6 +727,30 @@ const createInstance = (
     opts.onChange?.();
   });
   editor.on('selectionUpdate', announce);
+
+  // A kept history is rebuilt only if it replays to the body this editor opened with. Anything else leaves the empty history it started with.
+  if (opts.history?.journal !== undefined) {
+    const journal = opts.history.journal;
+    if (historyBase !== null && journal.schema === schemaSignature(liveSchema)) {
+      try {
+        const start = freshState(liveSchema.nodeFromJSON(historyBase.doc.toJSON()), editor.state.plugins);
+        let followed: Span | null = null;
+        const rebuilt = replayEntries(start, journal.entries, (tr, appended) => {
+          followed = followScope(followed, tr, appended);
+        });
+        if (rebuilt !== null && serializeDoc(rebuilt.doc) === serializeDoc(editor.state.doc)) {
+          editor.view.updateState(rebuilt);
+          lastState = editor.state;
+          scope = followed;
+          ring.restore(start.doc, journal.entries);
+        }
+      } catch {
+        // A journal that cannot be read is dropped like one that does not replay.
+      }
+    }
+    // Told either way: a journal that did not rebuild is for the app to drop, or it would be tried again at every open.
+    announceHistory();
+  }
 
   const ghost = createGhostPreview(ghostEl, opts.ghost);
 
@@ -807,6 +893,8 @@ const createInstance = (
       if (destroyed || autosave === undefined) return [];
       return autosave.flush(docId);
     },
+
+    historyJournal: readJournal,
 
     undo: (): boolean => (destroyed ? false : editor.commands.undo()),
 

@@ -365,6 +365,7 @@ test.describe('a session writes the journal on the lifecycle events', () => {
   let previous: { document: unknown; window: unknown; localStorage: PropertyDescriptor | undefined } | null = null;
   const storage = mapStorage();
   const win = new EventTarget();
+  const doc = new EventTarget();
 
   test.beforeAll(() => {
     previous = {
@@ -372,7 +373,7 @@ test.describe('a session writes the journal on the lifecycle events', () => {
       window: globals['window'],
       localStorage: Object.getOwnPropertyDescriptor(globalThis, 'localStorage'),
     };
-    globals['document'] = new EventTarget();
+    globals['document'] = doc;
     globals['window'] = win;
     Object.defineProperty(globalThis, 'localStorage', { value: storage, configurable: true, writable: true });
   });
@@ -384,7 +385,7 @@ test.describe('a session writes the journal on the lifecycle events', () => {
     else Object.defineProperty(globalThis, 'localStorage', previous.localStorage);
   });
 
-  for (const signal of ['beforeunload', 'pagehide']) {
+  for (const signal of ['beforeunload', 'pagehide', 'visibilitychange']) {
     test(`${signal} writes the typing not yet saved before the handler returns`, async () => {
       storage.rows.clear();
       const state = project();
@@ -395,7 +396,7 @@ test.describe('a session writes the journal on the lifecycle events', () => {
       // A producer, as the editor offers: the text is read when the journal needs it.
       session.autosave.noteEdit(IDS.sceneA, () => 'Four little words here, typed in the last moment');
 
-      win.dispatchEvent(new Event(signal));
+      (signal === 'visibilitychange' ? doc : win).dispatchEvent(new Event(signal));
 
       // Read at once, with no await between the event and the read: this is what a page that is going away leaves behind.
       expect(readPending(storage, session.projectId).map((e) => [e.docId, e.body, e.baseRevision])).toEqual([

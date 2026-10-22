@@ -14,8 +14,13 @@
 
 /** The database name. No project uses it, and the project store has its own. */
 export const APP_DB_NAME = 'caotang-app';
-const APP_DB_VERSION = 1;
+/** Version 2 adds the editor's history journals (`STORE_HISTORY`); the `kv` records are untouched by the upgrade. */
+const APP_DB_VERSION = 2;
 const STORE_KV = 'kv';
+/** Per-document undo journals (history-store.ts), keyed `<projectId>:<docId>`. Per-viewer state: no export, bundle or agent reads it. */
+const STORE_HISTORY = 'editor-history';
+/** One small row for each journal (project, document, when it was last written), so a sweep reads these and not the journals. */
+const STORE_HISTORY_META = 'editor-history-meta';
 
 /** The record keys. One value per key, so a save replaces a whole record at once. */
 export const APP_KEYS = {
@@ -25,11 +30,37 @@ export const APP_KEYS = {
   requests: 'requests',
 } as const;
 
+/** A kept undo journal. The journal is the editor's (`HistoryJournal`); this database only stores it. */
+export interface HistoryRecord {
+  readonly key: string;
+  readonly projectId: string;
+  readonly docId: string;
+  readonly updatedAt: number;
+  readonly journal: unknown;
+}
+
+/** What is known about a kept journal without reading it. */
+export type HistoryMeta = Omit<HistoryRecord, 'journal'>;
+
+/** The journals of the editor's history, in the database's `editor-history` stores (history-store.ts). */
+export interface HistoryDb {
+  /** The journal kept under `key`, or `undefined`. */
+  get(key: string): Promise<HistoryRecord | undefined>;
+  /** Replaces the journal kept for a document. The journal and its row in the index are written in one transaction. */
+  put(record: HistoryRecord): Promise<void>;
+  /** Removes the journals kept under these keys. */
+  delete(keys: readonly string[]): Promise<void>;
+  /** Every kept journal's project, document and last write, without the journals. */
+  list(): Promise<readonly HistoryMeta[]>;
+}
+
 export interface AppDb {
   /** The value stored under `key`, or `undefined` when nothing has been stored there. */
   get<T>(key: string): Promise<T | undefined>;
   /** Replaces the value under `key`. Resolves when the transaction has committed. */
   put(key: string, value: unknown): Promise<void>;
+  /** The editor's undo journals. Absent on a stand-in that keeps only settings; the editor then keeps no undo across a reload. */
+  readonly history?: HistoryDb;
   close(): void;
 }
 
@@ -46,6 +77,15 @@ function requestOf<T>(request: IDBRequest<T>, tx: IDBTransaction): Promise<T> {
   });
 }
 
+/** Resolves once the transaction has committed, for a transaction that makes several requests. */
+function committed(tx: IDBTransaction): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error('The app database transaction failed.'));
+    tx.onabort = () => reject(tx.error ?? new Error('The app database transaction was aborted.'));
+  });
+}
+
 /**
  * Opens the app database. `factory` is the browser's `indexedDB`, or a stand-in in a test. Rejects when the open fails,
  * which the caller turns into a notice and an app that runs on defaults.
@@ -55,7 +95,10 @@ export function openAppDb(factory: IDBFactory, name: string = APP_DB_NAME): Prom
     const request = factory.open(name, APP_DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
+      // Each store is made only when it is missing, so an upgrade from version 1 keeps the `kv` records and adds the journals.
       if (!db.objectStoreNames.contains(STORE_KV)) db.createObjectStore(STORE_KV, { keyPath: 'key' });
+      if (!db.objectStoreNames.contains(STORE_HISTORY)) db.createObjectStore(STORE_HISTORY, { keyPath: 'key' });
+      if (!db.objectStoreNames.contains(STORE_HISTORY_META)) db.createObjectStore(STORE_HISTORY_META, { keyPath: 'key' });
     };
     request.onsuccess = () => {
       const db = request.result;
@@ -68,6 +111,36 @@ export function openAppDb(factory: IDBFactory, name: string = APP_DB_NAME): Prom
         async put(key: string, value: unknown): Promise<void> {
           const tx = db.transaction(STORE_KV, 'readwrite');
           await requestOf(tx.objectStore(STORE_KV).put({ key, value }) as IDBRequest<IDBValidKey>, tx);
+        },
+        history: {
+          async get(key: string): Promise<HistoryRecord | undefined> {
+            const tx = db.transaction([STORE_HISTORY, STORE_HISTORY_META], 'readonly');
+            const journal = tx.objectStore(STORE_HISTORY).get(key) as IDBRequest<{ key: string; journal: unknown } | undefined>;
+            const meta = tx.objectStore(STORE_HISTORY_META).get(key) as IDBRequest<HistoryMeta | undefined>;
+            await committed(tx);
+            if (journal.result === undefined || meta.result === undefined) return undefined;
+            return { ...meta.result, journal: journal.result.journal };
+          },
+          async put(record: HistoryRecord): Promise<void> {
+            const tx = db.transaction([STORE_HISTORY, STORE_HISTORY_META], 'readwrite');
+            const { journal, ...meta } = record;
+            tx.objectStore(STORE_HISTORY).put({ key: record.key, journal });
+            tx.objectStore(STORE_HISTORY_META).put(meta);
+            await committed(tx);
+          },
+          async delete(keys: readonly string[]): Promise<void> {
+            if (keys.length === 0) return;
+            const tx = db.transaction([STORE_HISTORY, STORE_HISTORY_META], 'readwrite');
+            for (const key of keys) {
+              tx.objectStore(STORE_HISTORY).delete(key);
+              tx.objectStore(STORE_HISTORY_META).delete(key);
+            }
+            await committed(tx);
+          },
+          async list(): Promise<readonly HistoryMeta[]> {
+            const tx = db.transaction(STORE_HISTORY_META, 'readonly');
+            return requestOf(tx.objectStore(STORE_HISTORY_META).getAll() as IDBRequest<HistoryMeta[]>, tx);
+          },
         },
         close(): void {
           db.close();

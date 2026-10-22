@@ -6,6 +6,7 @@
 
 import type { WireFactory } from '@caotang/mcp-client';
 
+import { sweepHistory } from './history-store.js';
 import { APP_KEYS, openAppDb, setActiveAppDb, type AppDb } from './app-db.js';
 import { McpApp } from './mcp.js';
 import { ProviderService } from './providers.js';
@@ -97,6 +98,8 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
   // An MCP server that did not load is named, and the rest of the settings are kept (extensibility §8).
   notices.push(...mcpLoadWarnings(stored));
   setActiveAppDb(db);
+  // The undo journals not written for 30 days go (history-store.ts). Not awaited: the app opens without them.
+  void sweepHistory(db);
 
   const { service, notices: providerNotices } = await ProviderService.open({ db, vault: factory });
   notices.push(...providerNotices);

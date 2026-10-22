@@ -110,6 +110,7 @@ import { ProjectAssets, coverFileHeld } from './project-assets.js';
 import type { DirectoryHandleLike } from './fs-access.js';
 import { Persistence } from './persistence.js';
 import type { Shadow } from './persistence-plan.js';
+import { dropHistoryOf } from './history-store.js';
 import { PendingJournal, type PendingFailure } from './pending-journal.js';
 import { browserStorage, stopKeptInBrowser } from './unsent-copy.js';
 
@@ -505,6 +506,9 @@ export class ProjectSession {
     const result = execute(command, this.bus, this.registry);
     if (!result.ok) {
       this.rejections.push({ command: command.name, issuedBy: command.issuedBy, code: result.error.code });
+    } else if (command.name === 'project.deleteNode') {
+      // The undo kept for a document that was deleted goes with it (history-store.ts).
+      void dropHistoryOf(this.projectId, new Set(this.state.documents.keys()));
     }
     this.afterCommand();
     return result;
