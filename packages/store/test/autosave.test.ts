@@ -1466,6 +1466,63 @@ describe('§9 — the body is produced when the write needs it, not when the key
     expect(autosave.status(DOC)).toMatchObject({ state: 'error', dirty: true });
   });
 
+  it('an explicit flush asks a failed producer again, once the budget is spent', async () => {
+    // The budget bounds the window's own retry: that automatic retry is the
+    // loop this file refuses. A flush a caller asked for is not that loop, and
+    // §4's last chance to store the text is exactly the moment the editor's
+    // text may have become readable again.
+    const { autosave, clock, writer } = harness();
+    autosave.open(DOC, { body: 'a', revision: 0 });
+
+    let attempts = 0;
+    autosave.noteEdit(DOC, () => {
+      attempts += 1;
+      if (attempts <= 2) throw new Error('the editor is mid-teardown');
+      return 'typed text';
+    });
+
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS * 2);
+
+    // The budget is spent: nothing is scheduled, and the failure stands.
+    expect(attempts).toBe(2);
+    expect(writer.calls).toHaveLength(0);
+    expect(clock.armed).toBe(0);
+    expect(autosave.status(DOC)).toMatchObject({ state: 'error', dirty: true });
+
+    // The explicit flush is a new chance, and the text is stored.
+    const reports = await autosave.flush(DOC);
+
+    expect(attempts).toBe(3);
+    expect(reports[0]).toMatchObject({ outcome: 'saved', revision: 1 });
+    expect(writer.calls).toHaveLength(1);
+    expect(writer.calls[0]?.body).toBe('typed text');
+    expect(autosave.status(DOC)).toMatchObject({ state: 'clean', dirty: false, lastError: null });
+  });
+
+  it('a lifecycle flush asks a failed producer again too', async () => {
+    // The same chance, from §4's own signal: the tab is going away, and this is
+    // the last moment to store the text.
+    const { autosave, clock, hide, writer } = harness();
+    autosave.open(DOC, { body: 'a', revision: 0 });
+
+    let attempts = 0;
+    autosave.noteEdit(DOC, () => {
+      attempts += 1;
+      if (attempts <= 2) throw new Error('the editor is mid-teardown');
+      return 'typed text';
+    });
+
+    await clock.advance(AUTOSAVE_DEBOUNCE_MS * 2);
+    expect(attempts).toBe(2);
+    expect(writer.calls).toHaveLength(0);
+
+    await hide();
+
+    expect(attempts).toBe(3);
+    expect(writer.calls).toHaveLength(1);
+    expect(writer.calls[0]?.body).toBe('typed text');
+  });
+
   it('a new edit gives a failed producer its one retry again', async () => {
     const { autosave, clock, writer } = harness();
     autosave.open(DOC, { body: 'a', revision: 0 });
@@ -1525,10 +1582,19 @@ describe('§9 — the body is produced when the write needs it, not when the key
     // caller that reads on every keystroke cannot turn the failure into a loop.
     expect(autosave.pendingBodyOf(DOC)).toBeNull();
     expect(attempts).toBe(1);
+    // The second read does not tell the subscribers again: it is the failure
+    // they were told, and a notice per read would be a notice per keystroke.
+    expect(noticed).toEqual(['pending']);
 
     // The flush is what reports the failure in its own report, and what arms the
-    // one retry.
-    await clock.advance(AUTOSAVE_DEBOUNCE_MS);
+    // one retry. The report is what a caller gets — the window's own flush has
+    // no caller — so this one is explicit.
+    const reports = await autosave.flush(DOC);
+    expect(reports[0]?.outcome).toBe('failed');
+    expect(reports[0]?.error).toBeInstanceOf(Error);
+    // The retry is armed, so a flush *is* scheduled, and the state says so.
+    expect(clock.armed).toBe(1);
+    expect(autosave.status(DOC)).toMatchObject({ state: 'pending', dirty: true });
     expect(writer.calls).toHaveLength(0);
     expect(autosave.status(DOC).lastError).toBeInstanceOf(Error);
   });

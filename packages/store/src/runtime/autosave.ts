@@ -87,12 +87,22 @@
  * explicit `flush()` retries it — and the pending source is kept either way, so
  * the text is never the thing that is lost.
  *
+ * **The budget counts the window's own retry, and nothing else.** That one
+ * automatic retry is what the loop needs bounded; a flush a caller or a
+ * lifecycle event asked for is not a loop, and §4's last chance to store the
+ * text is exactly the moment the editor's text may have become readable again.
+ * So `flush()` — which is what `visibilitychange` and `pagehide` call — asks a
+ * failed producer again, exactly as a new edit does. The producer is asked
+ * twice per chance and not once more: the attempt, and the retry the window
+ * arms.
+ *
  * **A failed producer is `pending` while its retry is armed.** `error` means
  * "the last flush failed and nothing is scheduled to retry it", and that is
- * exactly what a failed write is. A failed producer is not that: its one retry
- * *is* scheduled, so the slot says `pending` — unsaved work, a flush scheduled
- * — and `lastError` is where the failure is visible. The state is `error` once
- * that retry is spent and the failure stands.
+ * what a failed write is *when no newer edit has answered it*. A failed
+ * producer is not that: its one retry *is* scheduled, so the slot says
+ * `pending` — unsaved work, a flush scheduled — and `lastError` is where the
+ * failure is visible. The state is `error` once that retry is spent and the
+ * failure stands.
  *
  * A **conflict** is a different failure and must not be retried at all: the
  * stored revision has moved to somebody else's write, so re-sending the same
@@ -412,9 +422,13 @@ export type AutosaveOptions = AutosaveCommonOptions &
  *
  * A producer runs **inside** the scheduler, so it must not wait for the write it
  * is part of. A `flush()` it calls joins the flush that is running — that call
- * reports `skipped`, and no second write starts — and a `noteEdit()` it makes is
- * a newer edit: it keeps its place in the slot, and the write that follows
- * stores the text as it was read.
+ * reports `skipped`, and no second write starts — as long as the flush that is
+ * running is the one that is running the producer. A producer asked for the
+ * body outside a flush (a read, through `pendingBodyOf`) is in no flush at all:
+ * a `flush()` it calls there flushes for real, and a `flush()` with no document
+ * flushes every dirty document for real. A `noteEdit()` it makes is a newer
+ * edit: it keeps its place in the slot, and the write that follows stores the
+ * text as it was read.
  */
 export type BodySource = string | (() => string);
 
@@ -439,7 +453,14 @@ export interface Autosave {
    * is when it is called, so the newest edit is what the write stores.
    */
   noteEdit(docId: string, body: BodySource): void;
-  /** Flush now, bypassing the debounce. One document, or every dirty one. */
+  /**
+   * Flush now, bypassing the debounce. One document, or every dirty one.
+   *
+   * An explicit flush is a new chance for a producer that failed: the budget
+   * bounds the window's own retry, and a flush a caller or a lifecycle event
+   * asked for is not that loop. So the producer is asked again, and the text
+   * it could not read is written if it can be read now.
+   */
   flush(docId?: string): Promise<FlushReport[]>;
   status(docId: string): AutosaveStatus;
   /** Documents with unsaved work — what §8's close-if-dirty asks. */
@@ -606,9 +627,12 @@ export function createAutosave(options: AutosaveOptions): Autosave {
    *
    * `forWrite` says what the body is needed for. A **write** may ask a producer
    * that has failed again — that is the one retry — and does so within the
-   * budget of two attempts per edit. A **read** asks once: a producer that has
-   * already failed for this edit is not asked again, so a caller that reads on
-   * every keystroke cannot turn the failure into a loop.
+   * budget of two attempts per edit. The budget is the window's own retry and
+   * nothing else: an explicit `flush()` resets it, because a flush a caller or
+   * a lifecycle event asked for is not the loop the budget is there to stop. A
+   * **read** asks once: a producer that has already failed for this edit is not
+   * asked again, so a caller that reads on every keystroke cannot turn the
+   * failure into a loop.
    *
    * A producer that throws is a failure like any other, and the caller decides
    * what it means: a flush arms the one retry and reports it, a read records it
@@ -729,8 +753,9 @@ export function createAutosave(options: AutosaveOptions): Autosave {
       // next attempt may well succeed. So the window is armed again, once — a
       // producer that fails every time would otherwise be retried forever, and a
       // loop is what this file's header refuses. After that one retry the failure
-      // stands like any other, and the next edit, the next lifecycle flush or an
-      // explicit `flush()` retries it.
+      // stands like any other — the next edit, the next lifecycle flush or an
+      // explicit `flush()` asks the producer again, because those are not the
+      // automatic loop the budget bounds.
       //
       // **The state follows the retry.** While the retry is armed a flush *is*
       // scheduled, so the slot says `pending` and `lastError` names the failure;
@@ -882,6 +907,14 @@ export function createAutosave(options: AutosaveOptions): Autosave {
       while (slot.inFlight !== null) {
         await slot.inFlight.catch(() => undefined);
       }
+      // **An explicit flush is a new chance for a producer that failed**, exactly
+      // as a new edit is. The budget bounds the window's own retry, because that
+      // is the loop this file refuses; a flush a caller or a lifecycle event
+      // asked for is not a loop, and §4's last chance to store the text is
+      // exactly the moment the editor's text may have become readable again.
+      // The producer is asked twice per chance and not once more: the attempt,
+      // and the retry the window arms.
+      slot.producerAttempts = 0;
       reports.push(await runFlush(id));
     }
     return reports;
