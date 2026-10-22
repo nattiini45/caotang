@@ -15,7 +15,7 @@ Caotang is free and MIT-licensed. There are no accounts, no subscriptions, no cr
 - **Corkboard.** The scenes of a chapter, or the chapters of the manuscript, as cards in three sizes. Drag to reorder.
 - **Inspector.** Synopsis, notes, keywords, status and label, codex links and scene declarations for the selected item, and the container settings of a dialogue.
 - **Editor.** Scenes are Markdown and save as you type. Word counts, a daily target and focus mode. Agent drafts appear in the scene first, in a preview bar.
-- **Screenplays.** A scene is Fountain, with a Script view, a Source view and a read-only Pages view. Import a `.fountain` or `.fdx` script as sections and scenes. Final Draft files have not yet been checked against Final Draft itself.
+- **Screenplays.** A scene is Fountain, with a Script view, a Source view and a Pages view, which opens a line in the Source view. Import a `.fountain` or `.fdx` script as sections and scenes. Final Draft files have not yet been checked against Final Draft itself.
 - **Dialogue.** A container is an Ink story, with an outline, a branch graph, findings and line ids. Import a `.ink` story as one container for each group of knots that divert to one another.
 - **Storyboards.** Shot cards with pictures (chosen, dropped or pasted), an animatic total, script coverage, a prompt for each target video model, and a prompt pack that exports as JSON, Markdown or CSV.
 - **Codex.** Characters, locations, objects, lore, subplots and other entries, with aliases, include policies, excluded phrases and a list of the documents each name appears in.
