@@ -330,17 +330,21 @@ export async function writeProject(
           // next load of it would be a fatal one. The author's file stays where
           // it is.
           const target = bodyFile(node);
+          const declinedPath = `${DOCS_DIR}/${declined}`;
           const text = node.type === 'dialogue' ? '' : serializeDocumentFile(frontMatterFor(node), '', { newline });
           await guard(target);
           await fs.writeAtomic(target, text);
           report.written.push(target);
-          // The copy holds this file as an empty shell, not the author's text: it says so rather than
-          // claiming to have left the file out, which is what the codex case does.
-          (report.emptied ??= []).push(target);
           // The file the load declined is the author's own, and it is left where it is. Where that file
-          // is the copy's own file, the copy holds it (empty), so there is nothing left out; where it is
-          // the older name beside it, the copy does not hold that one at all.
-          if (`${DOCS_DIR}/${declined}` !== target) (report.omitted ??= []).push(`${DOCS_DIR}/${declined}`);
+          // is the copy's own file, the copy holds it (empty), so there is nothing left out and the copy
+          // says it holds the file empty; where it is the older name beside it, the copy does not hold
+          // that one at all, and the copy says it leaves that one out.
+          //
+          // The two are told apart by the name the load declined, not by the file the copy writes: the
+          // file the copy writes is the node's own, and in the older-name case that file was never read
+          // and never declined, so it is not a file the copy holds empty in place of the author's text.
+          if (declinedPath === target) (report.emptied ??= []).push(target);
+          else (report.omitted ??= []).push(declinedPath);
           continue;
         }
         // Named by title, in the writer's words: the file is the writer's, and the project folder still holds it.
