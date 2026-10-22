@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { PendingCard, PlanCardView, TurnReport } from '@caotang/harness';
 
-import { allowsAutoWrites, askBackFor, decisionFor, withAskBack, withoutAutoWrites } from '../src/approval.js';
+import { allowsAutoWrites, askBackFor, decisionFor, explainDecision, withAskBack, withoutAutoWrites } from '../src/approval.js';
 
 const card = (over: Partial<PlanCardView> = {}): PendingCard => ({
   kind: 'confirm',
@@ -48,6 +48,43 @@ describe('the built-in policies', () => {
     expect(allowsAutoWrites('auto')).toBe(true);
     expect(allowsAutoWrites('approve-all')).toBe(true);
     expect(allowsAutoWrites(() => ({ action: 'cancel' }))).toBe(true);
+  });
+});
+
+describe('approveTools', () => {
+  const step = (tool: string, status: 'ready' | 'done' = 'ready'): PlanCardView['steps'][number] => ({
+    index: 0, origin: 0, tool, expect: 'x', risk: 'write-confirm', params: {}, status, badges: [], stale: false, cut: false,
+  });
+  const policy = { approveTools: ['synopsis.fill'] };
+
+  it('approves a card whose every step is a listed tool', () => {
+    expect(decisionFor(policy, card({ steps: [step('synopsis.fill')] }))).toEqual({ action: 'approve' });
+  });
+
+  it('cancels the whole card when one step is not listed, and names that tool', () => {
+    const mixed = card({ steps: [step('synopsis.fill'), step('binder.restructure')] });
+    const { decision, reason } = explainDecision(policy, mixed);
+    expect(decision).toEqual({ action: 'cancel' });
+    expect(reason).toContain('binder.restructure is not in the approved tools');
+    expect(reason).not.toContain('synopsis.fill is');
+  });
+
+  it('does not count a step that already ran', () => {
+    expect(decisionFor(policy, card({ steps: [step('binder.restructure', 'done'), step('synopsis.fill')] }))).toEqual({ action: 'approve' });
+  });
+
+  it('never keeps a cut draft, even a listed tool’s', () => {
+    expect(decisionFor(policy, card({ steps: [step('synopsis.fill')], approvable: false, canAcceptCut: true, cut: true }))).toEqual({ action: 'cancel' });
+  });
+
+  it('is reported as the turn needing input, with the unlisted tool named', () => {
+    const askBack = askBackFor(policy, [card({ steps: [step('synopsis.fill'), step('binder.restructure')] })]);
+    expect(askBack.code).toBe('needs_input');
+    expect(askBack.reason).toContain('binder.restructure is not in the approved tools');
+  });
+
+  it('lets a write that needs no card run, as approve-all does', () => {
+    expect(allowsAutoWrites(policy)).toBe(true);
   });
 });
 

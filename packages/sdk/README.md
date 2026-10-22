@@ -20,6 +20,7 @@ console.log(report.status, report.summary);
 
 - `openProject(options)` opens a folder that holds a Caotang project, takes the folder's single-writer lock (`.caotang-mcp.lock`) and resolves to a `CaotangProject`. A second `openProject` on the same folder is refused with `ProjectLockedError` while the first is open, and so is a folder the desktop app or an MCP server holds.
 - `project.run(intent, { signal })` runs one turn and returns an `AgentRun`: an async iterator of the loop's events (`turn`, `model.delta`, `card`, `plan`, `checkpoint`, `report`, ...) and a `report` promise for the `TurnReport`. The last event is the `report` event, and it equals `await run.report`. You may read only the events, or only the report. Turns run one at a time, in the order they were started.
+- `project.run(intent, { plan })` runs a plan the caller wrote (`{ steps: [{ tool, params, expect }] }`) with no planner call. The plan is checked as a planner's is, its drafts are staged, and its card is decided by the policy like any other.
 - `project.call(tool, params)` is one registry call, gated exactly as an MCP caller's is: it runs no model and no plan, a read runs, and a tool that needs approval is refused with its reason. A refusal is a result (`{ ok: false, error }`), never a thrown error.
 - `project.diff()` lists what saving would change in the folder, file by file, as plain text (`added`, `changed`, `removed`, with `before` and `after`), before anything is saved.
 - `project.save()` writes the folder, and `project.close()` (or `await using`) saves if the project is open for writing and releases the lock.
@@ -34,9 +35,10 @@ The loop asks for a decision on every card and does nothing until it is answered
 | `'read-only'` (default) | cancelled | refused |
 | `'auto'` | cancelled | runs |
 | `'approve-all'` | approved as shown | runs |
+| `{ approveTools: ['synopsis.fill'] }` | approved as shown when every step still to run is a listed tool; any other card is cancelled, whole | runs |
 | `(pending) => Decision` | your function decides | runs |
 
-A card a built-in policy cancels ends the turn as `cancelled`, with `askBack.code === 'needs_input'` on the report, which names the step and the policy. `'approve-all'` never keeps a draft the provider cut off at its output limit: that card is cancelled, and the report says why. A function policy can accept the cut text with `{ action: 'approve', acceptTruncated: true }`, knowingly. A function that throws cancels the card, and the turn's report rejects with its error once the turn has ended. Aborting the `signal` cancels a card that is waiting.
+A card a built-in policy cancels ends the turn as `cancelled`, with `askBack.code === 'needs_input'` on the report, which names the step and the policy. `'approve-all'` never keeps a draft the provider cut off at its output limit: that card is cancelled, and the report says why. A function policy can accept the cut text with `{ action: 'approve', acceptTruncated: true }`, knowingly. `approveTools` filters whole cards, not primitives: a plan card that holds `synopsis.fill` and `binder.restructure` is cancelled when only `synopsis.fill` is listed, and the report names `binder.restructure`. It keeps `approve-all`'s rule for a cut draft. `onDecision(record)` is called with every answer to every card, whichever policy gave it, with the turn, the card's kind, the action and the rule that applied, so an unattended run can be audited. A function that throws cancels the card, and the turn's report rejects with its error once the turn has ended. Aborting the `signal` cancels a card that is waiting.
 
 ## Writing, and the safety net
 

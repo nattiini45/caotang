@@ -27,7 +27,7 @@ import {
 } from '@caotang/harness';
 import type { LoadNotice, ProjectState } from '@caotang/store';
 
-import { allowsAutoWrites, askBackFor, decisionFor, withAskBack, withoutAutoWrites, type ApprovalPolicy } from './approval.js';
+import { allowsAutoWrites, askBackFor, explainDecision, withAskBack, withoutAutoWrites, type ApprovalPolicy, type DecisionRecord } from './approval.js';
 import { diffFolder, renderOwned, type FileChange } from './diff.js';
 import { openFolder } from './folder.js';
 import { createNodeProviders, type ProviderConfig } from './providers.js';
@@ -41,6 +41,8 @@ export interface OpenOptions {
   readonly provider: ProviderConfig | 'mock';
   /** Who answers the cards. Default `'read-only'`. */
   readonly approval?: ApprovalPolicy;
+  /** Called with every card's answer and the rule that gave it, in the order they were given: the audit trail of an unattended run. */
+  readonly onDecision?: (record: DecisionRecord) => void;
   /** false (default): changes stay in memory and `diff()` shows them; true: the folder is written after each turn. */
   readonly write?: boolean;
   /** The most model calls one turn may make, retries and drafts included. Default 8. */
@@ -50,13 +52,19 @@ export interface OpenOptions {
   readonly clock?: () => number;
 }
 
+export interface RunOptions {
+  readonly signal?: AbortSignal;
+  /** A plan the caller wrote (`{ steps: [{ tool, params, expect }] }`): the turn runs it with no planner call, and its cards are decided like any other. */
+  readonly plan?: unknown;
+}
+
 export interface CaotangProject extends AsyncDisposable {
   readonly root: string;
   /** A read-only view; every change goes through `run()` or `call()`. */
   readonly state: Readonly<ProjectState>;
   readonly notices: readonly LoadNotice[];
   /** Runs one turn. Turns run one at a time, in the order they were started. */
-  run(intent: string, options?: { readonly signal?: AbortSignal }): AgentRun;
+  run(intent: string, options?: RunOptions): AgentRun;
   /** One registry call, gated exactly as an MCP caller's is (no model, no plan runner). */
   call(tool: string, params: unknown): Promise<ToolOutcome>;
   /** What saving would change in the folder. */
@@ -132,22 +140,30 @@ export async function openProject(options: OpenOptions): Promise<CaotangProject>
 
     const decide = async (pending: PendingCard): Promise<Decision> => {
       const turn = current;
-      if (typeof policy !== 'function') {
-        const decision = decisionFor(policy, pending);
-        if (decision.action === 'cancel') turn?.refused.push(pending);
+      const record = (decision: Decision, reason: string): Decision => {
+        options.onDecision?.({ turnId: pending.turnId, kind: pending.kind, action: decision.action, reason });
         return decision;
+      };
+      if (typeof policy !== 'function') {
+        const { decision, reason } = explainDecision(policy, pending);
+        if (decision.action === 'cancel') turn?.refused.push(pending);
+        return record(decision, reason);
       }
       try {
         const answer = Promise.resolve(policy(pending));
         const signal = turn?.signal;
-        if (signal === undefined) return await answer;
-        if (signal.aborted) return CANCEL;
+        if (signal === undefined) {
+          const decision = await answer;
+          return record(decision, 'the policy function answered');
+        }
+        if (signal.aborted) return record(CANCEL, 'the run was stopped');
         // A stopped turn answers the card with Cancel, as the app's Stop does, so the turn ends as a cancelled one.
         const aborted = new Promise<Decision>((resolve) => signal.addEventListener('abort', () => resolve(CANCEL), { once: true }));
-        return await Promise.race([answer, aborted]);
+        const decision = await Promise.race([answer, aborted]);
+        return record(decision, signal.aborted ? 'the run was stopped' : 'the policy function answered');
       } catch (error) {
         if (turn !== undefined) turn.policyError = error;
-        return CANCEL;
+        return record(CANCEL, 'the policy function threw');
       }
     };
 
@@ -215,7 +231,8 @@ export async function openProject(options: OpenOptions): Promise<CaotangProject>
           };
           current = turn;
           try {
-            const result = await agent.submit(intent, signal === undefined ? {} : { signal });
+            const turnOptions = signal === undefined ? {} : { signal };
+            const result = await (runOptions.plan === undefined ? agent.submit(intent, turnOptions) : agent.submitPlan(intent, runOptions.plan, turnOptions));
             if (turn.policyError !== undefined) throw turn.policyError;
             await saveIfWriting();
             return reported ?? amend(result);
