@@ -276,6 +276,8 @@ class McpClientImpl implements McpClient {
   private readonly callTimeoutMs: number;
   private readonly onChange: ((settings: McpSettings) => void) | undefined;
   private readonly onTokenDropped: (tokenRef: string) => void | Promise<void>;
+  /** The hand-back of a reference that is under way, so one reference is handed back once. */
+  private readonly drops = new Map<string, Promise<void>>();
 
   constructor(options: McpClientOptions) {
     this.config = { enabled: options.settings.enabled, servers: options.settings.servers.map(cloneServer) };
@@ -531,6 +533,14 @@ class McpClientImpl implements McpClient {
     return ok(cloneServer(server));
   }
 
+  /**
+   * Changes one server. The result says whether the change was refused.
+   *
+   * One failure is not a refusal but a rejection: the change was made and written, and the
+   * credential it dropped could not be handed back to the vault. The promise rejects then, so the
+   * caller is told about a sealed token that nothing names any more, instead of being told that
+   * the change did not happen — it did happen, and the record says so.
+   */
   async updateServer(key: string, patch: UpdateServerPatch): Promise<Result<McpServerConfig, string>> {
     const server = this.config.servers.find((candidate) => candidate.key === key);
     if (server === undefined) return err(`no MCP server with key ${key} is configured`);
@@ -593,11 +603,17 @@ class McpClientImpl implements McpClient {
     // the settings do not make a reference unique, and that server would lose a credential its
     // own settings name.
     if (before.kind === 'bearer' && (server.auth.kind !== 'bearer' || server.auth.tokenRef !== before.tokenRef)) {
-      if (!this.tokenRefNamed(before.tokenRef, key)) await this.onTokenDropped(before.tokenRef);
+      if (!this.tokenRefNamed(before.tokenRef, key)) await this.handBack(before.tokenRef);
     }
     return ok(cloneServer(server));
   }
 
+  /**
+   * Removes one server, its tools and its token. The promise rejects when the token could not be
+   * handed back to the vault: the server is gone by then and the record no longer names the
+   * reference, so the failure is the caller's to see, and not a sealed token that is kept for ever
+   * with nothing left to name it.
+   */
   async removeServer(key: string): Promise<void> {
     const closed = this.dropConnection(key);
     const server = this.config.servers.find((candidate) => candidate.key === key);
@@ -611,7 +627,7 @@ class McpClientImpl implements McpClient {
     // the vault does not keep a sealed token for ever. A reference another server still names is
     // not handed back.
     if (server?.auth.kind === 'bearer' && !this.tokenRefNamed(server.auth.tokenRef, key)) {
-      await this.onTokenDropped(server.auth.tokenRef);
+      await this.handBack(server.auth.tokenRef);
     }
   }
 
@@ -852,6 +868,32 @@ class McpClientImpl implements McpClient {
     return this.config.servers.some(
       (other) => other.key !== exceptKey && other.auth.kind === 'bearer' && other.auth.tokenRef === ref,
     );
+  }
+
+  /**
+   * Hands a reference back to the vault, once. Two servers can name one reference, and both can
+   * drop it in the same moment: each has switched its own credentials off, so neither sees the
+   * other naming the token any more, and both would hand it back. The hand-back is therefore made
+   * once, and a second caller joins the first one instead of writing to the vault twice: a vault
+   * that is asked to take back a token that is already gone may refuse, and the caller would hear
+   * about a failure that never happened.
+   *
+   * A hand-back that failed is not remembered as done: the token is still in the vault, and a
+   * later attempt has to be able to try again.
+   */
+  private handBack(ref: string): Promise<void> {
+    const underWay = this.drops.get(ref);
+    if (underWay !== undefined) return underWay;
+    const drop = (async (): Promise<void> => {
+      await this.onTokenDropped(ref);
+    })();
+    this.drops.set(ref, drop);
+    // The rejection is the caller's to see; this handler only forgets the attempt, so a later
+    // one can try again. The promise it handles is the one returned above.
+    void drop.catch(() => {
+      this.drops.delete(ref);
+    });
+    return drop;
   }
 }
 
