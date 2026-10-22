@@ -1,11 +1,13 @@
 /**
  * What the fallback fonts print, known before either font loads, so a PDF can name the characters that print as "?" before it
  * reads a font ([screenplay.md §5.3](../../../docs/architecture/screenplay.md)). The tables are generated from the font files
- * (scripts/cjk-coverage.mjs, scripts/emoji-coverage.mjs), and the tests check them against the files.
+ * (scripts/cjk-coverage.mjs, scripts/emoji-coverage.mjs, scripts/arabic-hebrew-coverage.mjs), and the tests check them against the files.
  */
 
+import { NOTO_ARABIC_RANGES } from './coverage/noto-arabic-coverage.js';
 import { NOTO_CJK_RANGES } from './coverage/noto-cjk-coverage.js';
 import { NOTO_EMOJI_RANGES, NOTO_EMOJI_SEQUENCES, NOTO_EMOJI_TONED } from './coverage/noto-emoji-coverage.js';
+import { NOTO_HEBREW_RANGES } from './coverage/noto-hebrew-coverage.js';
 
 type Ranges = readonly (readonly [number, number])[];
 
@@ -41,6 +43,8 @@ export function inRanges(code: number, ranges: Ranges): boolean {
 }
 
 let cjk: Ranges | undefined;
+let arabic: Ranges | undefined;
+let hebrew: Ranges | undefined;
 let emoji: Ranges | undefined;
 let sequences: ReadonlySet<string> | undefined;
 let toned: ReadonlySet<string> | undefined;
@@ -49,6 +53,18 @@ let toned: ReadonlySet<string> | undefined;
 export function fallbackCovers(ch: string): boolean {
   cjk ??= decodeRanges(NOTO_CJK_RANGES);
   return inRanges(ch.codePointAt(0) ?? 0, cjk);
+}
+
+/** Whether Noto Sans Arabic maps a character. */
+export function arabicFontMaps(ch: string): boolean {
+  arabic ??= decodeRanges(NOTO_ARABIC_RANGES);
+  return inRanges(ch.codePointAt(0) ?? 0, arabic);
+}
+
+/** Whether Noto Sans Hebrew maps a character. */
+export function hebrewFontMaps(ch: string): boolean {
+  hebrew ??= decodeRanges(NOTO_HEBREW_RANGES);
+  return inRanges(ch.codePointAt(0) ?? 0, hebrew);
 }
 
 /** Whether the emoji fallback font (Noto Emoji) maps a code point to a glyph of its own. */

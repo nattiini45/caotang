@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Font } from '@pdf-lib/fontkit';
+import { NOTO_ARABIC_CODE_POINTS } from '../src/coverage/noto-arabic-coverage.js';
 import { NOTO_CJK_CODE_POINTS } from '../src/coverage/noto-cjk-coverage.js';
 import {
   NOTO_EMOJI_CODE_POINTS,
@@ -15,10 +16,11 @@ import {
   NOTO_EMOJI_SEQUENCES,
   NOTO_EMOJI_TONED,
 } from '../src/coverage/noto-emoji-coverage.js';
-import { emojiFontMaps, fallbackCovers } from '../src/coverage.js';
-import { CJK_FONT_FILE, EMOJI_FONT_FILE } from '../src/font-files.js';
+import { NOTO_HEBREW_CODE_POINTS } from '../src/coverage/noto-hebrew-coverage.js';
+import { arabicFontMaps, emojiFontMaps, fallbackCovers, hebrewFontMaps } from '../src/coverage.js';
+import { ARABIC_FONT_FILE, CJK_FONT_FILE, EMOJI_FONT_FILE, HEBREW_FONT_FILE } from '../src/font-files.js';
 import { loadFont } from '../src/fontkit.js';
-import { loadCjkFontInNode, loadEmojiFontInNode } from '../src/node-loader.js';
+import { loadArabicFontInNode, loadCjkFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '../src/node-loader.js';
 
 const VENDOR = new URL('../../../vendor/', import.meta.url);
 const EMOJI_TEST_PATH = new URL('./fixtures/emoji-test-17.0.txt', import.meta.url);
@@ -39,6 +41,8 @@ describe('the vendored font files', () => {
   it.each([
     ['noto-sans-cjk', CJK_FONT_FILE],
     ['noto-emoji', EMOJI_FONT_FILE],
+    ['noto-sans-arabic', ARABIC_FONT_FILE],
+    ['noto-sans-hebrew', HEBREW_FONT_FILE],
   ])('%s/%s is the file its SHA256SUMS pins, byte for byte', (directory, file) => {
     const digest = pinned(directory, file);
     expect(digest).toMatch(/^[0-9a-f]{64}$/);
@@ -67,6 +71,30 @@ describe('the CJK coverage table', () => {
 
   it('covers Hanzi, kana, Hangul, Greek and Cyrillic', () => {
     for (const ch of '草堂東京のアパート서울거리，。「」αЯ') expect(fallbackCovers(ch), ch).toBe(true);
+  });
+});
+
+describe('the Arabic and Hebrew coverage tables', () => {
+  let arabic: Font;
+  let hebrew: Font;
+  beforeAll(async () => {
+    arabic = await loadFont(loadArabicFontInNode, 'Arabic font');
+    hebrew = await loadFont(loadHebrewFontInNode, 'Hebrew font');
+  });
+
+  it.each([
+    ['Arabic', () => arabic, NOTO_ARABIC_CODE_POINTS, arabicFontMaps],
+    ['Hebrew', () => hebrew, NOTO_HEBREW_CODE_POINTS, hebrewFontMaps],
+  ] as const)('have every code point the %s font maps, and no other', (_name, font, count, maps) => {
+    const set = font().characterSet;
+    expect(set.length).toBe(count);
+    for (const code of set) expect(maps(String.fromCodePoint(code)), code.toString(16)).toBe(true);
+    for (const ch of ['😀', 'ꙮ', 'ά', 'a'.repeat(1), 'ا', 'א']) expect(maps(ch), ch).toBe(set.includes(ch.codePointAt(0) ?? 0));
+  });
+
+  it('cover the letters the tests print', () => {
+    for (const ch of 'السلام عليكم؟پچگژٹڈںے٠١٢۰۱۲') if (ch !== ' ') expect(arabicFontMaps(ch), ch).toBe(true);
+    for (const ch of 'שלוםךםןףץ־״׳') expect(hebrewFontMaps(ch), ch).toBe(true);
   });
 });
 
