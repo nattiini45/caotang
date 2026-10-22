@@ -9,6 +9,7 @@ import { useRef, type ReactNode } from 'react';
 import { planInkImport } from '@caotang/dialogue';
 
 import { explain } from './actions.js';
+import { requestInkCompiler } from '../app/ink-compiler.js';
 import type { ProjectSession } from '../app/session.js';
 import { useReport, useSession } from './shared.js';
 
@@ -40,6 +41,8 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
 
   const importInk = async (file: File): Promise<void> => {
     const text = await file.text();
+    // The imported containers are read with the Ink compiler, so it loads before they are made (ink-compiler.ts).
+    await requestInkCompiler();
     const plan = planInkImport(text);
     if (plan.containers.length === 0) {
       report({ text: `${file.name} has no knot to import. An Ink story makes one container for each knot.`, tone: 'error' });

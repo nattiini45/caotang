@@ -68,6 +68,7 @@ import { nodeById } from '@caotang/store';
 
 import { documentIdFor, draftCheckOf, newTurnView, reduceTurn, type DraftCheck, type GhostView, type TurnView } from './agent-model.js';
 import { fixPlanFor } from './findings-model.js';
+import { requestInkCompilerFor } from './ink-compiler.js';
 import type { ProviderService } from './providers.js';
 import type { ProjectSession, RestoreResult } from './session.js';
 import { TaskQueue, type TaskAgent } from './task-queue.js';
@@ -362,6 +363,8 @@ export class AgentController {
         this.message = NO_PROVIDER;
         return null;
       }
+      // The dialogue tools compile Ink synchronously, so the compiler is loaded before the turn plans (ink-compiler.ts).
+      await requestInkCompilerFor(this.session.state);
       this.turnOwner = owner;
       this.intentForNextTurn = intent;
       this.providerForNextTurn = profile.name;
