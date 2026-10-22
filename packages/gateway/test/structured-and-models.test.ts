@@ -168,6 +168,22 @@ describe('listModels (§3)', () => {
   });
 });
 
+describe('the capability row of a mock profile (modelCaps)', () => {
+  it('answers a mock profile from the mock itself, so the mock\'s own row is reachable', async () => {
+    const h = harness({ mock: createMockProvider({ capsTools: true }) });
+    const mock = await h.profiles.create({ name: 'Offline', kind: 'mock' });
+
+    expect(h.gateway.modelCaps(mock.id)).toEqual({ tools: true });
+  });
+
+  it('reports the conservative empty row for the shipped mock', async () => {
+    const h = harness();
+    const mock = await h.profiles.create({ name: 'Offline', kind: 'mock' });
+
+    expect(h.gateway.modelCaps(mock.id)).toEqual({});
+  });
+});
+
 describe('the mock provider keeps its own ledger (accountTokens hook)', () => {
   it('records the hook call against the mock ledger, dated from its manual clock rather than real time', () => {
     const mock = createMockProvider();
