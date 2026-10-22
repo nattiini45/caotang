@@ -119,8 +119,12 @@ export interface WriteOptions {
    * the state holds rather than refusing: a codex file the load could not read
    * has no entry and no text, so the copy leaves it out; a document the load
    * held has no body, so the copy writes the empty body it shows. Both are
-   * named in the report — the codex file as one the copy leaves out, the
-   * document as one the copy holds empty — and the author's own file is never
+   * named in the report — the codex file as one the copy leaves out, and the
+   * document as one the copy holds empty, but only when the file the load
+   * declined is the document's own file. When the load declined an older name
+   * beside it and never read the document's own file, the copy leaves the
+   * declined name out and writes the document's own file instead, which the
+   * report names among the files it wrote. The author's own file is never
    * touched.
    */
   copyFor?: 'user' | 'internal';
