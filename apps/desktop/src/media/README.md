@@ -147,8 +147,6 @@ One exception is open: `ScreenplayPreview.tsx` imports `paginate` and `LAYOUT` f
 10. **The agent's derive plan is not verified.** The derive offers send their request to the agent (*What a writer can do*,
     *Derive shots*), and the plan the agent proposes for it, its folder and its shots, needs a model that proposes shots, which
     no test drives.
-11. **The card rows show the stored tokens.** A card's spec row (`MCU · birds · dolly-in · 4 s · 35mm · dissolve`) keeps the enum
-    values, as storyboard.md §3.1 writes the row. The shot editor shows the words.
 
 ## Tests
 

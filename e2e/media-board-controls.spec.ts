@@ -45,6 +45,11 @@ test('the card sizes show what storyboard.md 3.1 names: S the number and picture
   await page.getByLabel('Lens').fill('35mm');
   await page.getByLabel('Transition out').selectOption('dissolve');
   await page.getByLabel('Action', { exact: true }).fill('She turns toward the door.');
+  // The editor's dropdowns word the stored values; the card's row says the same words, not the tokens.
+  const shown = async (label: string): Promise<string> => (await page.getByLabel(label).locator('option:checked').textContent()) ?? '';
+  const words = [await shown('Shot size'), await shown('Camera angle'), await shown('Camera movement')];
+  const transition = await shown('Transition out');
+  expect(words).toEqual(['Medium close-up (MCU)', 'Bird’s-eye view', 'Dolly in']);
   await page.getByRole('button', { name: 'Save shot' }).click();
   await expect(page.getByText('Saved.', { exact: true })).toBeVisible();
 
@@ -54,7 +59,8 @@ test('the card sizes show what storyboard.md 3.1 names: S the number and picture
   await expect(board).toHaveClass(/zoom-M/);
   await expect(card.locator('.card-title')).toBeVisible();
   await expect(card.locator('.sb-spec')).toHaveCount(1);
-  await expect(card.locator('.sb-spec')).toHaveText('MCU · birds · dolly-in · 4 s · 35mm · dissolve');
+  await expect(card.locator('.sb-spec')).toHaveText(`${words.join(' · ')} · 4 s · 35mm · ${transition}`);
+  await expect(card.locator('.sb-spec')).toHaveText('Medium close-up (MCU) · Bird’s-eye view · Dolly in · 4 s · 35mm · Dissolve');
   await expect(card.getByText('0 lines covered', { exact: true })).toBeVisible();
   await expect(card.locator('.sb-action')).toHaveCount(0);
   await expect(card.locator('.chip-status')).toHaveCount(0);

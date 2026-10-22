@@ -18,7 +18,9 @@ import {
   SHOT_META_KEYS,
   SHOT_SIZES,
   TRANSITIONS,
+  cardSpecRowOf,
   durationText,
+  enumLabelOf,
   isScreenplayDocument,
   isShotNode,
   isStoryboardFolder,
@@ -90,20 +92,45 @@ describe('the ShotMeta fields are the spec’s fields', () => {
 });
 
 describe('spec row and duration text', () => {
-  it('joins the present parts with a middle dot, in the spec order', () => {
+  it('joins the present parts with a middle dot, in the spec order, each value as the shot editor words it', () => {
     expect(specRowOf({ shotSize: 'WS', cameraAngle: 'low', cameraMovement: 'dolly-in', durationSec: 2.5 })).toBe(
-      'WS · low · dolly-in · 2.5 s',
+      'Wide shot (WS) · Low angle · Dolly in · 2.5 s',
+    );
+    expect(specRowOf({ shotSize: 'MCU', cameraAngle: 'birds', cameraMovement: 'dolly-in', durationSec: 4 })).toBe(
+      'Medium close-up (MCU) · Bird’s-eye view · Dolly in · 4 s',
     );
   });
 
   it('leaves an absent part out rather than leaving a gap', () => {
-    expect(specRowOf({ cameraAngle: 'eye' })).toBe('eye');
-    expect(specRowOf({ shotSize: 'CU', durationSec: 3 })).toBe('CU · 3 s');
+    expect(specRowOf({ cameraAngle: 'eye' })).toBe('Eye level');
+    expect(specRowOf({ shotSize: 'CU', durationSec: 3 })).toBe('Close-up (CU) · 3 s');
+    expect(specRowOf({ shotSize: '', cameraMovement: 7 })).toBe('');
     expect(specRowOf({})).toBe('');
   });
 
-  it('shows a value the load kept as unknown, because the writer needs to see what they typed', () => {
+  it('shows a value the load kept as unknown as it is, because the writer needs to see what they typed', () => {
     expect(specRowOf({ shotSize: 'XYZ' })).toBe('XYZ');
+    expect(specRowOf({ cameraAngle: 'constructor', cameraMovement: 'toString' })).toBe('constructor · toString');
+  });
+
+  it('adds the lens and the transition after the duration, the transition in words too, and leaves out a blank lens', () => {
+    expect(
+      cardSpecRowOf({ shotSize: 'MCU', cameraAngle: 'birds', cameraMovement: 'dolly-in', durationSec: 4, lens: ' 35mm ', transition: 'match-on-action' }),
+    ).toBe('Medium close-up (MCU) · Bird’s-eye view · Dolly in · 4 s · 35mm · Match on action');
+    expect(cardSpecRowOf({ lens: '  ' })).toBe('');
+    expect(cardSpecRowOf({ transition: 'dissolve' })).toBe('Dissolve');
+    expect(cardSpecRowOf({ transition: 'wobble' })).toBe('wobble');
+    expect(cardSpecRowOf({ shotSize: 'CU' })).toBe(specRowOf({ shotSize: 'CU' }));
+  });
+
+  it('words a closed-list value as the editor’s label, and an unlisted one, including an inherited name, as it is', () => {
+    expect(enumLabelOf('cameraAngle', 'birds')).toBe('Bird’s-eye view');
+    expect(enumLabelOf('cameraMovement', 'dolly-in')).toBe('Dolly in');
+    expect(enumLabelOf('transition', 'match-on-action')).toBe('Match on action');
+    expect(enumLabelOf('shotSize', 'MCU')).toBe('Medium close-up (MCU)');
+    expect(enumLabelOf('cameraAngle', 'tilted-sideways')).toBe('tilted-sideways');
+    expect(enumLabelOf('cameraAngle', 'constructor')).toBe('constructor');
+    expect(enumLabelOf('transition', 'toString')).toBe('toString');
   });
 
   it('ignores a non-numeric duration rather than printing it', () => {

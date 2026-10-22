@@ -44,7 +44,7 @@ import { nodeById, type ArtifactFs, type ProjectState } from '@caotang/store';
 import { animaticTotals } from './animatic.js';
 import { graphemesOf, isEmojiPicture } from '@caotang/pdf-fonts';
 import { readImage, type LoadedImage } from './assets.js';
-import { durationText, isStoryboardFolder, specRowOf } from './model.js';
+import { cardSpecRowOf, durationText, isStoryboardFolder } from './model.js';
 import { shotFieldOf } from './nodes.js';
 import { exportNumbers, shotsInBinderOrder } from './ordering.js';
 import { readShotMeta, storedOf } from './shot-meta.js';
@@ -68,10 +68,18 @@ export const SHEET_LAYOUT = {
   imageAspect: 9 / 16,
   /** Text lines of action each card shows. The spec's "action line" is one line; two lines keep a useful excerpt. */
   actionLines: 2,
+  /**
+   * Text lines of the spec row each card shows. The row is the shot editor's words, about a third longer than the tokens, so it takes
+   * two lines at {@link specFontSize}; the longest all-set row fits them on A4 and Letter.
+   */
+  specLines: 2,
   gap: 4,
+  /** The space above the spec row and below the action. Smaller than {@link gap} so the second spec line leaves 15 cards on A4. */
+  textGap: 3,
   lineHeight: 10,
+  specLineHeight: 8.5,
   chipFontSize: 8,
-  specFontSize: 8,
+  specFontSize: 7,
   actionFontSize: 8,
   headerFontSize: 11,
   /** The header's second line: the shot count and the animatic total. */
@@ -275,7 +283,8 @@ export interface PlacedCard {
   readonly hasImage: boolean;
   readonly chip: PlacedRect;
   readonly chipText: PlacedText;
-  readonly spec: PlacedText;
+  /** The spec row's lines: none for an empty row, otherwise up to {@link SHEET_LAYOUT}`.specLines`, the last cut with an ellipsis. */
+  readonly spec: readonly PlacedText[];
   readonly action: readonly PlacedText[];
   readonly placeholder?: PlacedText;
   /**
@@ -338,12 +347,12 @@ export function paginate(cards: readonly SheetCard[], options: PaginateOptions =
     throw new Error('contact-sheet columns must be a whole number from 1 to 6');
   }
 
-  const { margin, headerHeight, gutter, gap, lineHeight, actionLines, imageAspect } = SHEET_LAYOUT;
+  const { margin, headerHeight, gutter, textGap, lineHeight, specLineHeight, specLines, actionLines, imageAspect } = SHEET_LAYOUT;
   const geometry: SheetGeometry = { width: size.width, height: size.height, margin, headerHeight, gutter, columns };
   const contentWidth = size.width - 2 * margin;
   const cardWidth = (contentWidth - gutter * (columns - 1)) / columns;
   const imageHeight = cardWidth * imageAspect;
-  const cardHeight = imageHeight + gap + lineHeight + actionLines * lineHeight + gap;
+  const cardHeight = imageHeight + textGap + specLines * specLineHeight + actionLines * lineHeight + textGap;
   const contentHeight = size.height - 2 * margin - headerHeight;
   const rows = Math.floor((contentHeight + gutter) / (cardHeight + gutter));
   if (rows < 1) throw new Error('the page is too small for one contact-sheet card at this column count');
@@ -404,7 +413,7 @@ function placeCard(
   cardHeight: number,
   imageHeight: number,
 ): PlacedCard {
-  const { margin, headerHeight, gutter, gap, lineHeight, actionLines, chipFontSize, chipHeight, specFontSize, actionFontSize } = SHEET_LAYOUT;
+  const { margin, headerHeight, gutter, gap, textGap, lineHeight, specLineHeight, specLines, actionLines, chipFontSize, chipHeight, specFontSize, actionFontSize } = SHEET_LAYOUT;
   const column = slot % columns;
   const row = Math.floor(slot / columns);
   const x = margin + column * (cardWidth + gutter);
@@ -412,8 +421,9 @@ function placeCard(
 
   const chipText = String(card.shotNumber);
   const chipWidth = Math.max(14, measureText(chipText, chipFontSize) + 6);
-  const specY = y + imageHeight + gap + specFontSize;
-  const specText = wrapText(card.specRow, cardWidth, specFontSize, 1)[0] ?? '';
+  const specY = y + imageHeight + textGap + specFontSize;
+  const actionY = y + imageHeight + textGap + specLines * specLineHeight + actionFontSize;
+  const specText = wrapText(card.specRow, cardWidth, specFontSize, specLines);
   const actionText = wrapText(card.action, cardWidth, actionFontSize, actionLines);
   const fallback: PlacedText = {
     text: wrapText(card.placeholder, cardWidth - 2 * gap, actionFontSize, 1)[0] ?? '',
@@ -431,11 +441,11 @@ function placeCard(
     hasImage: card.image,
     chip: { x: x + gap, y: y + gap, width: chipWidth, height: chipHeight },
     chipText: { text: chipText, x: x + gap + 3, y: y + gap + chipFontSize + 1, fontSize: chipFontSize },
-    spec: { text: specText, x, y: specY, fontSize: specFontSize },
+    spec: specText.map((text, index) => ({ text, x, y: specY + index * specLineHeight, fontSize: specFontSize })),
     action: actionText.map((text, index) => ({
       text,
       x,
-      y: specY + lineHeight + index * lineHeight,
+      y: actionY + index * lineHeight,
       fontSize: actionFontSize,
     })),
     ...(placeholder !== undefined ? { placeholder } : {}),
@@ -478,15 +488,10 @@ export interface ContactSheetPlan {
 
 /**
  * The spec row a contact-sheet card prints: the board's M-size row (§3.1), `shotSize · cameraAngle · cameraMovement ·
- * durationSec s`, with `lens · transition` after it when they are set.
+ * durationSec s`, with `lens · transition` after it when they are set, in the shot editor's words ({@link cardSpecRowOf}).
  */
 export function sheetSpecRowOf(stored: Readonly<Record<string, unknown>>): string {
-  const parts = [specRowOf(stored)];
-  for (const field of ['lens', 'transition'] as const) {
-    const value = stored[field];
-    if (typeof value === 'string' && value.trim() !== '') parts.push(value.trim());
-  }
-  return parts.filter((part) => part !== '').join(' · ');
+  return cardSpecRowOf(stored);
 }
 
 /**

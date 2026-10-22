@@ -85,7 +85,7 @@ test.describe('the cards', () => {
       { id: 'n_SHOTA00001', title: 'Wide', stored: { shotSize: 'MS', cameraAngle: 'low', cameraMovement: 'dolly-in', durationSec: 4.5 } },
       { id: 'n_SHOTB00001', title: 'Blank' },
     ]);
-    expect(cardOf(state, 'Wide').spec).toBe('MS · low · dolly-in · 4.5 s');
+    expect(cardOf(state, 'Wide').spec).toBe('Medium shot (MS) · Low angle · Dolly in · 4.5 s');
     expect(cardOf(state, 'Blank').spec).toBe('');
   });
 

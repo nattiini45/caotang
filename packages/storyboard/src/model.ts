@@ -229,17 +229,48 @@ export function durationText(seconds: number): string {
 }
 
 /**
- * The spec row a card shows: `shotSize · cameraAngle · cameraMovement · durationSec s`
- * (§3.1). A part that is absent is left out, so the row never has an empty slot. Reads the
- * stored object, so a value kept as unknown still shows, which is what the writer needs to see.
+ * The words the shot editor shows for one closed-list value. The stored value stays the enum value; this is only what the writer reads.
+ * A value the list does not have (a kept unknown) is returned as it is, because the writer has to see what the file holds.
  */
-export function specRowOf(stored: Readonly<Record<string, unknown>>): string {
+export function enumLabelOf(field: ShotEnumField, value: string): string {
+  const labels: Readonly<Record<string, string>> = SHOT_ENUM_LABELS[field];
+  return Object.prototype.hasOwnProperty.call(labels, value) ? (labels[value] ?? value) : value;
+}
+
+function labelledEnumOf(stored: Readonly<Record<string, unknown>>, field: ShotEnumField): string | undefined {
+  const value = stored[field];
+  return typeof value === 'string' && value !== '' ? enumLabelOf(field, value) : undefined;
+}
+
+function specPartsOf(stored: Readonly<Record<string, unknown>>): string[] {
   const parts: string[] = [];
   for (const field of ['shotSize', 'cameraAngle', 'cameraMovement'] as const) {
-    const value = stored[field];
-    if (typeof value === 'string' && value !== '') parts.push(value);
+    const label = labelledEnumOf(stored, field);
+    if (label !== undefined) parts.push(label);
   }
   const duration = stored.durationSec;
   if (typeof duration === 'number' && Number.isFinite(duration)) parts.push(`${durationText(duration)} s`);
+  return parts;
+}
+
+/**
+ * The spec row a card shows: `shotSize · cameraAngle · cameraMovement · durationSec s` (§3.1), each closed-list value as the shot
+ * editor words it ({@link enumLabelOf}). A part that is absent is left out, so the row never has an empty slot. Reads the stored
+ * object, so a value kept as unknown still shows as it is, which is what the writer needs to see.
+ */
+export function specRowOf(stored: Readonly<Record<string, unknown>>): string {
+  return specPartsOf(stored).join(' · ');
+}
+
+/**
+ * The whole row the board's M card and the contact sheet print: {@link specRowOf}'s parts, then the lens and the transition when they
+ * are set, the transition in the editor's words too. One builder, so no surface can print a transition as its token.
+ */
+export function cardSpecRowOf(stored: Readonly<Record<string, unknown>>): string {
+  const parts = specPartsOf(stored);
+  const lens = stored.lens;
+  if (typeof lens === 'string' && lens.trim() !== '') parts.push(lens.trim());
+  const transition = labelledEnumOf(stored, 'transition');
+  if (transition !== undefined) parts.push(transition);
   return parts.join(' · ');
 }
