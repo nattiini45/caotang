@@ -3,8 +3,9 @@
  * (apps/desktop/src/app/fallback-fonts.ts), so this file is a subpath of its own (`@caotang/pdf-fonts/node-loader`) and the
  * package's index never imports it: the browser bundle never sees `node:fs`.
  *
- * Four fonts, each a {@link FontLoader}: Noto Sans Mono CJK SC (`@caotang/font-noto-cjk`), Noto Emoji
- * (`@caotang/font-noto-emoji`), Noto Sans Arabic (`@caotang/font-noto-arabic`) and Noto Sans Hebrew (`@caotang/font-noto-hebrew`).
+ * Five fonts, each a {@link FontLoader}: Noto Sans Mono CJK SC (`@caotang/font-noto-cjk`), Noto Emoji
+ * (`@caotang/font-noto-emoji`), Noto Sans Arabic (`@caotang/font-noto-arabic`), Noto Sans Hebrew (`@caotang/font-noto-hebrew`) and
+ * Noto Sans Devanagari (`@caotang/font-noto-devanagari`).
  * Where each loader looks, in order:
  *
  * 1. `fonts/<file>` beside the running module. The MCPB bundle stages the files there, beside `caotang-mcp.mjs`, so the
@@ -18,12 +19,13 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { FontLoader } from './font-bytes.js';
-import { ARABIC_FONT_FILE, CJK_FONT_FILE, EMOJI_FONT_FILE, HEBREW_FONT_FILE } from './font-files.js';
+import { ARABIC_FONT_FILE, CJK_FONT_FILE, DEVANAGARI_FONT_FILE, EMOJI_FONT_FILE, HEBREW_FONT_FILE } from './font-files.js';
 
 const CJK_PACKAGE = '@caotang/font-noto-cjk';
 const EMOJI_PACKAGE = '@caotang/font-noto-emoji';
 const ARABIC_PACKAGE = '@caotang/font-noto-arabic';
 const HEBREW_PACKAGE = '@caotang/font-noto-hebrew';
+const DEVANAGARI_PACKAGE = '@caotang/font-noto-devanagari';
 
 /** The places a font file is read from, in the order they are tried. */
 function fontCandidates(file: string, pkg: string, moduleUrl: string): string[] {
@@ -79,3 +81,11 @@ export const loadArabicFontInNode: FontLoader = async () => readFirst(ARABIC_FON
 
 /** Reads Noto Sans Hebrew, the font for Hebrew text. */
 export const loadHebrewFontInNode: FontLoader = async () => readFirst(HEBREW_FONT_FILE, hebrewFontCandidates());
+
+/** The places {@link loadDevanagariFontInNode} reads, in the order it tries them. */
+export function devanagariFontCandidates(moduleUrl: string = import.meta.url): string[] {
+  return fontCandidates(DEVANAGARI_FONT_FILE, DEVANAGARI_PACKAGE, moduleUrl);
+}
+
+/** Reads Noto Sans Devanagari, the font for Hindi, Marathi, Nepali and Sanskrit text. */
+export const loadDevanagariFontInNode: FontLoader = async () => readFirst(DEVANAGARI_FONT_FILE, devanagariFontCandidates());

@@ -1,6 +1,6 @@
 /**
  * The screenplay PDF's fallback fonts (screenplay.md §5.3). A script with Chinese text and an emoji prints them in the two
- * Noto files the contact sheet uses too (Arabic and Hebrew print in two more, below): the app fetches one CJK file (7.2 MB, not the 16 MB OTF it was) and one emoji file
+ * Noto files the contact sheet uses too (Arabic, Hebrew and Devanagari print in three more, below): the app fetches one CJK file (7.2 MB, not the 16 MB OTF it was) and one emoji file
  * from its own origin, only for an export that needs them, and the PDF carries the characters as text a reader can copy.
  */
 
@@ -98,4 +98,18 @@ test('a script with Arabic and Hebrew loads the one Arabic file and the one Hebr
   // Each word is marked content that carries its logical text: "שלום" is U+05E9 U+05DC U+05D5 U+05DD, as UTF-16 hex.
   expect(pdf).toContain('/ActualText <FEFF05E905DC05D505DD>');
   expect([...new Set(fonts)].sort()).toEqual(['NotoSansArabic-Regular.ttf', 'NotoSansHebrew-Regular.ttf']);
+});
+
+test('a script with Hindi loads the one Devanagari file, and the PDF embeds it with the words as text and no question marks', async ({ page }) => {
+  const fonts = watchFonts(page);
+  await createProject(page, PROJECT);
+  await makeScene(page, 'INT. घर - NIGHT\n\nराम हिन्दी में क्षत्रिय श्रीमान् की बात करता है।\n\n@राम\nमैं हिन्दी बोलता हूँ। क्या आप भी बोलते हैं\n');
+  const pdf = await compilePdf(page);
+
+  expect(pdf.startsWith('%PDF-')).toBe(true);
+  expect(pdf).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSansDevanagari-Regular/);
+  expect(pdf).not.toMatch(/\(\?+\) Tj/);
+  // Each word is marked content that carries its typed text: हिन्दी is U+0939 U+093F U+0928 U+094D U+0926 U+0940, as UTF-16 hex.
+  expect(pdf).toContain('/ActualText <FEFF0939093F0928094D09260940>');
+  expect([...new Set(fonts)].sort()).toEqual(['NotoSansDevanagari-Regular.ttf']);
 });

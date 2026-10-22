@@ -132,6 +132,8 @@ export interface MediaRequest {
   readonly loadArabicFont?: FontLoader;
   /** Reads Noto Sans Hebrew (`@caotang/font-noto-hebrew`). The screenplay PDF and the contact sheet read it, and only when the file holds Hebrew text. */
   readonly loadHebrewFont?: FontLoader;
+  /** Reads Noto Sans Devanagari (`@caotang/font-noto-devanagari`). The screenplay PDF and the contact sheet read it, and only when the file holds Devanagari text. */
+  readonly loadDevanagariFont?: FontLoader;
   /** The project's language (a BCP 47 tag), when it has one. In a right-to-left language the screenplay PDF lays out a paragraph with no strong character right to left. */
   readonly language?: string;
 }
@@ -315,7 +317,7 @@ function fountainOutput(request: MediaRequest): MediaOutput {
 /**
  * The screenplay PDF (screenplay.md §5.3). The selection, the gate and the pagination are the plan's, so a refusal writes
  * nothing and the log row can give the page count. The file is drawn in the queue, with Courier Prime embedded, and the CJK, emoji,
- * Arabic and Hebrew fonts when the script needs them. A script with Arabic or Hebrew is laid out twice: here, before any font is
+ * Arabic, Hebrew and Devanagari fonts when the script needs them. A script with any of them is laid out twice: here, before any font is
  * read, with a column for each letter of a word, which is what the gate and the page count in the log are made of; and again when the
  * file is drawn, with the words measured in their fonts (screenplay.md §5.3). When the measured layout has another page count, the
  * log says so.
@@ -357,13 +359,14 @@ function pdfOutput(request: MediaRequest): MediaOutput {
             ...(request.loadEmojiFont === undefined ? {} : { emoji: request.loadEmojiFont }),
             ...(request.loadArabicFont === undefined ? {} : { arabic: request.loadArabicFont }),
             ...(request.loadHebrewFont === undefined ? {} : { hebrew: request.loadHebrewFont }),
+            ...(request.loadDevanagariFont === undefined ? {} : { devanagari: request.loadDevanagariFont }),
           });
           const bytes = drawPdf(prepared.layout, prepared.font, prepared.cjk, prepared.emoji, prepared.rtl);
           const counted = prepared.layout.scriptPageCount;
           if (counted === pages) return bytes;
           return {
             contents: bytes,
-            notes: [`pdf: with Arabic and Hebrew words measured in their fonts the script is ${counted} ${counted === 1 ? 'page' : 'pages'}, not ${pages}`],
+            notes: [`pdf: with the words of Arabic, Hebrew and Devanagari measured in their fonts the script is ${counted} ${counted === 1 ? 'page' : 'pages'}, not ${pages}`],
           };
         },
       },
@@ -392,8 +395,9 @@ function unloadedFontNotes(layout: PdfLayout, request: MediaRequest): string[] {
   return [
     ...(request.loadFallbackFont === undefined ? missing(layout.fallbackCharacters, 'CJK fallback font') : []),
     ...(request.loadEmojiFont === undefined ? missing(layout.emojiCharacters, 'emoji font') : []),
-    ...(request.loadArabicFont === undefined && layout.rtlScripts.includes('arabic') ? ['pdf: this compile has no Arabic font, so the Arabic text is printed as "?"'] : []),
-    ...(request.loadHebrewFont === undefined && layout.rtlScripts.includes('hebrew') ? ['pdf: this compile has no Hebrew font, so the Hebrew text is printed as "?"'] : []),
+    ...(request.loadArabicFont === undefined && layout.shapedScripts.includes('arabic') ? ['pdf: this compile has no Arabic font, so the Arabic text is printed as "?"'] : []),
+    ...(request.loadHebrewFont === undefined && layout.shapedScripts.includes('hebrew') ? ['pdf: this compile has no Hebrew font, so the Hebrew text is printed as "?"'] : []),
+    ...(request.loadDevanagariFont === undefined && layout.shapedScripts.includes('devanagari') ? ['pdf: this compile has no Devanagari font, so the Devanagari text is printed as "?"'] : []),
   ];
 }
 
@@ -803,6 +807,8 @@ function contactSheetOutput(request: MediaRequest): MediaOutput {
             ...(request.loadEmojiFont === undefined ? {} : { loadEmojiFont: request.loadEmojiFont }),
             ...(request.loadArabicFont === undefined ? {} : { loadArabicFont: request.loadArabicFont }),
             ...(request.loadHebrewFont === undefined ? {} : { loadHebrewFont: request.loadHebrewFont }),
+            ...(request.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: request.loadDevanagariFont }),
+            ...(request.language === undefined ? {} : { language: request.language }),
             at,
           }),
       },

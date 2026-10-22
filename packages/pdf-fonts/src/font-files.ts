@@ -23,3 +23,9 @@ export const HEBREW_FONT_FILE = 'NotoSansHebrew-Regular.ttf';
 
 /** The Hebrew font's name, as the compile log names it. */
 export const HEBREW_FONT_NAME = 'Noto Sans Hebrew';
+
+/** The Devanagari font's file name in `@caotang/font-noto-devanagari` (vendor/noto-sans-devanagari). */
+export const DEVANAGARI_FONT_FILE = 'NotoSansDevanagari-Regular.ttf';
+
+/** The Devanagari font's name, as the compile log names it. */
+export const DEVANAGARI_FONT_NAME = 'Noto Sans Devanagari';

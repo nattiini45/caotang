@@ -11,10 +11,10 @@
  * tarball command, and it would never reach this script.
  *
  * The steps, each of which stops the pack when it fails:
- *  1. Stage `dist/mcpb/`: `server/caotang-mcp.mjs` (the built bundle), `server/fonts/` (the CJK, emoji, Arabic and Hebrew fonts
- *     both PDFs set text in: `@caotang/font-noto-cjk`, `@caotang/font-noto-emoji`, `@caotang/font-noto-arabic` and
- *     `@caotang/font-noto-hebrew`, staged as `NotoSansMonoCJKsc-Regular.woff`, `NotoEmoji-Regular.woff`,
- *     `NotoSansArabic-Regular.ttf` and `NotoSansHebrew-Regular.ttf`, where the Node loaders look first, packages/pdf-fonts/src/node-loader.ts), `manifest.json`,
+ *  1. Stage `dist/mcpb/`: `server/caotang-mcp.mjs` (the built bundle), `server/fonts/` (the CJK, emoji, Arabic, Hebrew and Devanagari fonts
+ *     both PDFs set text in: `@caotang/font-noto-cjk`, `@caotang/font-noto-emoji`, `@caotang/font-noto-arabic`,
+ *     `@caotang/font-noto-hebrew` and `@caotang/font-noto-devanagari`, staged as `NotoSansMonoCJKsc-Regular.woff`,
+ *     `NotoEmoji-Regular.woff`, `NotoSansArabic-Regular.ttf`, `NotoSansHebrew-Regular.ttf` and `NotoSansDevanagari-Regular.ttf`, where the Node loaders look first, packages/pdf-fonts/src/node-loader.ts), `manifest.json`,
  *     `THIRD-PARTY-NOTICES.md` for this bundle's production dependencies (tools/third-party-notices.mjs), and the repository's
  *     LICENSE.
  *  2. Check the manifest against what the bundle is: the version, the entry point, the settings the arguments read, and the
@@ -191,6 +191,7 @@ async function main() {
       createRequire(import.meta.url).resolve('@caotang/font-noto-emoji/NotoEmoji-Regular.woff'),
       createRequire(import.meta.url).resolve('@caotang/font-noto-arabic/NotoSansArabic-Regular.ttf'),
       createRequire(import.meta.url).resolve('@caotang/font-noto-hebrew/NotoSansHebrew-Regular.ttf'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-devanagari/NotoSansDevanagari-Regular.ttf'),
     ],
   });
   process.stdout.write(`packed ${result.bundle}\n${result.info}`);

@@ -32,7 +32,7 @@ import { ApplyRefusal } from '@caotang/bus';
 import { COHERENCE_FILE } from '@caotang/coherence';
 import { assetRecordsOf, createExporter, exportMetadataOf, type ExporterService } from '@caotang/exporter';
 import { isIdWithPrefix } from '@caotang/ids';
-import { loadArabicFontInNode, loadCjkFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
+import { loadArabicFontInNode, loadCjkFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
 import {
   ArtifactNotFoundError,
   bodyStemOf,
@@ -351,9 +351,10 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
       loadFallbackFont: loadCjkFontInNode,
       // Their emoji font (Noto Emoji, monochrome): from fonts/ beside the bundle, or from @caotang/font-noto-emoji.
       loadEmojiFont: loadEmojiFontInNode,
-      // Their Arabic and Hebrew fonts: from fonts/ beside the bundle, or from @caotang/font-noto-arabic and @caotang/font-noto-hebrew.
+      // Their Arabic, Hebrew and Devanagari fonts: from fonts/ beside the bundle, or from @caotang/font-noto-arabic, @caotang/font-noto-hebrew and @caotang/font-noto-devanagari.
       loadArabicFont: loadArabicFontInNode,
       loadHebrewFont: loadHebrewFontInNode,
+      loadDevanagariFont: loadDevanagariFontInNode,
     });
     await exporter.ready();
 

@@ -1,10 +1,11 @@
 /**
  * What the fallback fonts print, known before either font loads, so a PDF can name the characters that print as "?" before it
  * reads a font ([screenplay.md §5.3](../../../docs/architecture/screenplay.md)). The tables are generated from the font files
- * (scripts/cjk-coverage.mjs, scripts/emoji-coverage.mjs, scripts/arabic-hebrew-coverage.mjs), and the tests check them against the files.
+ * (scripts/cjk-coverage.mjs, scripts/emoji-coverage.mjs, scripts/script-font-coverage.mjs: Arabic, Hebrew, Devanagari), and the tests check them against the files.
  */
 
 import { NOTO_ARABIC_RANGES } from './coverage/noto-arabic-coverage.js';
+import { NOTO_DEVANAGARI_RANGES } from './coverage/noto-devanagari-coverage.js';
 import { NOTO_CJK_RANGES } from './coverage/noto-cjk-coverage.js';
 import { NOTO_EMOJI_LAYOUT, NOTO_EMOJI_RANGES, NOTO_EMOJI_SEQUENCES, NOTO_EMOJI_TONED } from './coverage/noto-emoji-coverage.js';
 import { NOTO_HEBREW_RANGES } from './coverage/noto-hebrew-coverage.js';
@@ -45,6 +46,7 @@ export function inRanges(code: number, ranges: Ranges): boolean {
 let cjk: Ranges | undefined;
 let arabic: Ranges | undefined;
 let hebrew: Ranges | undefined;
+let devanagari: Ranges | undefined;
 let emoji: Ranges | undefined;
 let sequences: ReadonlySet<string> | undefined;
 let toned: ReadonlySet<string> | undefined;
@@ -66,6 +68,12 @@ export function arabicFontMaps(ch: string): boolean {
 export function hebrewFontMaps(ch: string): boolean {
   hebrew ??= decodeRanges(NOTO_HEBREW_RANGES);
   return inRanges(ch.codePointAt(0) ?? 0, hebrew);
+}
+
+/** Whether Noto Sans Devanagari maps a character. */
+export function devanagariFontMaps(ch: string): boolean {
+  devanagari ??= decodeRanges(NOTO_DEVANAGARI_RANGES);
+  return inRanges(ch.codePointAt(0) ?? 0, devanagari);
 }
 
 /** Whether the emoji fallback font (Noto Emoji) maps a code point to a glyph of its own. */

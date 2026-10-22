@@ -9,7 +9,7 @@ import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
-import { ARABIC_FONT_FILE, CJK_FONT_FILE, EMOJI_FONT_FILE, HEBREW_FONT_FILE } from '@caotang/pdf-fonts';
+import { ARABIC_FONT_FILE, CJK_FONT_FILE, DEVANAGARI_FONT_FILE, EMOJI_FONT_FILE, HEBREW_FONT_FILE } from '@caotang/pdf-fonts';
 import { cjkFontCandidates, emojiFontCandidates } from '@caotang/pdf-fonts/node-loader';
 
 import { BUNDLE_ENTRY, BUNDLE_FONTS, manifestProblems, mcpbCliPath, packBundle, runMcpb, stageBundle } from '../scripts/pack-mcpb.mjs';
@@ -191,17 +191,18 @@ describe('staging and packing', () => {
     }
   });
 
-  it('has exactly one CJK, one emoji, one Arabic and one Hebrew font to stage, from their packages, 8.0 MB together', () => {
+  it('has exactly one CJK, one emoji, one Arabic, one Hebrew and one Devanagari font to stage, from their packages, 8.2 MB together', () => {
     const require = createRequire(import.meta.url);
     const sizes = [
       `@caotang/font-noto-cjk/${CJK_FONT_FILE}`,
       `@caotang/font-noto-emoji/${EMOJI_FONT_FILE}`,
       `@caotang/font-noto-arabic/${ARABIC_FONT_FILE}`,
       `@caotang/font-noto-hebrew/${HEBREW_FONT_FILE}`,
+      `@caotang/font-noto-devanagari/${DEVANAGARI_FONT_FILE}`,
     ].map((specifier) => statSync(require.resolve(specifier)).size);
-    expect(sizes).toEqual([7219856, 579236, 142140, 16836]);
+    expect(sizes).toEqual([7219856, 579236, 142140, 16836, 184228]);
     // Against 25,065,212 bytes of four font files before the two PDFs shared one of each.
-    expect(sizes.reduce((sum, size) => sum + size, 0)).toBeLessThan(8_100_000);
+    expect(sizes.reduce((sum, size) => sum + size, 0)).toBeLessThan(8_300_000);
   });
 
   it('stages the fonts where the Node loader looks first, from the server bundle it stages', () => {

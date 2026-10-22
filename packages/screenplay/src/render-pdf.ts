@@ -21,11 +21,12 @@
  * coverage too, so it knows which emoji print whole, which print as their first emoji (a sequence newer than the font),
  * and which print as "?". {@link loadEmojiFallback} loads it, by a dynamic import, only for a layout with an emoji it prints.
  *
- * Arabic and Hebrew print in Noto Sans Arabic and Noto Sans Hebrew (rtl-font.ts). A word is shaped, and takes the whole columns
- * its width needs, so the layout of a document with either script asks the fonts for the width of each word: {@link layoutPdf}
- * takes a `measure` for it, and {@link preparePdf} loads the fonts and the shaper first and lays out again with it. Without a
- * measure a word counts a column for each of its letters, which is the layout a compile plans with before any font is read; the
- * file is drawn from the measured one. {@link loadRtlFallback} cuts the subsets and plans the lines.
+ * Arabic, Hebrew and Devanagari print in Noto Sans Arabic, Noto Sans Hebrew and Noto Sans Devanagari (rtl-font.ts). A word is
+ * shaped, and takes the whole columns its width needs, so the layout of a document with any of the scripts asks the fonts for the
+ * width of each word: {@link layoutPdf} takes a `measure` for it, and {@link preparePdf} loads the fonts and the shapers first and
+ * lays out again with it. Without a measure a word counts a column for each of its letters (for Devanagari, of its clusters),
+ * which is the layout a compile plans with before any font is read; the file is drawn from the measured one.
+ * {@link loadRtlFallback} cuts the subsets and plans the lines.
  *
  * None of the font files belongs to this package. The host passes a {@link FontLoader} for each (the app fetches the files from
  * its own origin, Node reads them from their packages), the same files and loaders the contact sheet uses.
@@ -33,10 +34,13 @@
 
 import {
   countMarks,
+  devanagariFontMaps,
+  devanagariFontPrints,
   emojiFontMaps,
   emojiPrint,
   fallbackCovers,
   firstCodePoint,
+  hasDevanagari,
   hasRtlScript,
   isBidiControl,
   isEmojiCluster,
@@ -45,6 +49,7 @@ import {
   isRtlMark,
   type FontLoader,
   type RtlScript,
+  type ShapedScript,
 } from '@caotang/pdf-fonts';
 import { languageDirection } from '@caotang/pdf-fonts/bidi';
 
@@ -60,7 +65,10 @@ export const PDF_MIME = 'application/pdf';
 
 export type PdfRenderOptions = FountainRenderOptions &
   Pick<PaginateOptions, 'titlePage' | 'sceneNumbers' | 'continued'> & {
-    /** The project's language (a BCP 47 tag). In a right-to-left one, a paragraph with no strong character is laid out right to left. */
+    /**
+     * The project's language (a BCP 47 tag). In a right-to-left one, a paragraph with no strong character is laid out right to
+     * left. Devanagari is shaped in it: Marathi and Nepali use other forms of some letters than Hindi does.
+     */
     readonly language?: string;
   };
 
@@ -80,8 +88,8 @@ export interface PdfLayout {
    * emoji font is not loaded.
    */
   readonly emojiCharacters: readonly string[];
-  /** The scripts of the text that the Arabic and Hebrew fonts print. Empty: neither font is loaded. */
-  readonly rtlScripts: readonly RtlScript[];
+  /** The scripts of the text that the Arabic, Hebrew and Devanagari fonts print. Empty: none of them is loaded. */
+  readonly shapedScripts: readonly ShapedScript[];
 }
 
 export interface PdfRenderResult {
@@ -100,8 +108,8 @@ interface Unprintable {
   readonly partial: string[];
   /** What no font has: printed as "?". */
   readonly missing: string[];
-  /** The scripts the Arabic and Hebrew fonts print, in order of first use. */
-  readonly scripts: RtlScript[];
+  /** The scripts the Arabic, Hebrew and Devanagari fonts print, in order of first use. */
+  readonly scripts: ShapedScript[];
 }
 
 function unprintable(pages: readonly LayoutPage[]): Unprintable {
@@ -121,10 +129,14 @@ function unprintable(pages: readonly LayoutPage[]): Unprintable {
         }
         const base = firstCodePoint(unit);
         if (isPrintable(base)) continue;
-        // A bidirectional control character prints nothing, and the Arabic and Hebrew fonts print their own scripts.
+        // A bidirectional control character prints nothing, and the Arabic, Hebrew and Devanagari fonts print their own scripts.
         if (isBidiControl(base)) continue;
-        const script = rtlFontPrints(base);
-        if (script !== undefined) {
+        const script = rtlFontPrints(base) ?? (devanagariFontPrints(base) ? 'devanagari' : undefined);
+        if (script === 'devanagari') {
+          if (!found.scripts.includes(script)) found.scripts.push(script);
+          // A character of the cluster the font has no glyph for (a Vedic sign it lacks) is printed as the font's own empty glyph: named.
+          for (const ch of unit) if (!devanagariFontMaps(ch) && !found.missing.includes(ch)) found.missing.push(ch);
+        } else if (script !== undefined) {
           if (!found.scripts.includes(script)) found.scripts.push(script);
         } else if (fallbackCovers(base)) {
           if (!found.cjk.includes(base)) found.cjk.push(base);
@@ -135,6 +147,9 @@ function unprintable(pages: readonly LayoutPage[]): Unprintable {
   }
   return found;
 }
+
+/** What the compile log calls each script. */
+const SCRIPT_NAMES: Readonly<Record<ShapedScript, string>> = { arabic: 'Arabic', hebrew: 'Hebrew', devanagari: 'Devanagari' };
 
 /** "this character … it is" or "these N characters … they are", for the log. */
 function counted(list: readonly string[], one: string, many: string): { what: string; verb: string; shown: string } {
@@ -165,7 +180,7 @@ export function layoutPdf(blocks: readonly FlatBlock[], opts: PdfRenderOptions, 
   const fountain = renderFountain(blocks, opts);
   const parsed = parseFountain(fountain.text);
   const holdsRtl = hasRtlScript(fountain.text);
-  const pages = withMeasure(holdsRtl ? measure : undefined, () =>
+  const pages = withMeasure(holdsRtl || hasDevanagari(fountain.text) ? measure : undefined, () =>
     paginate(parsed.elements, {
       titlePage: opts.titlePage,
       title: opts.title,
@@ -204,15 +219,15 @@ export function layoutPdf(blocks: readonly FlatBlock[], opts: PdfRenderOptions, 
     notes,
     fallbackCharacters: outside.cjk,
     emojiCharacters: outside.emoji,
-    rtlScripts: outside.scripts,
+    shapedScripts: outside.scripts,
   };
 }
 
 /**
  * Draws a layout as a PDF. With a font, the font is embedded; without one the file names the base-14 Courier. With a
  * fallback ({@link loadCjkFallback}), the characters WinAnsi cannot encode print in it; with an emoji font
- * ({@link loadEmojiFallback}), the emoji print in it; with the Arabic and Hebrew fonts ({@link loadRtlFallback}), the two scripts
- * print in them; without them they print as "?".
+ * ({@link loadEmojiFallback}), the emoji print in it; with the Arabic, Hebrew and Devanagari fonts ({@link loadRtlFallback}), the
+ * scripts print in them; without them they print as "?".
  */
 export function drawPdf(layout: PdfLayout, font?: PdfFont, fallback?: PdfCidFont, emoji?: PdfEmojiFont, rtl?: PdfRtlFonts): Uint8Array<ArrayBuffer> {
   return writePdf(
@@ -247,13 +262,13 @@ export async function loadEmojiFallback(layout: PdfLayout, load?: FontLoader): P
 }
 
 /**
- * The Arabic and Hebrew subsets a layout needs and the plan of its lines, or undefined when it needs none or the host passes no
- * loader for a font it needs. Only a layout with either script loads rtl-font.ts, the shaper, bidi-js and the font files, by a
- * dynamic import. `support` is what {@link loadRtlSupport} gave for the same document; the layout must have been laid out with
+ * The Arabic, Hebrew and Devanagari subsets a layout needs and the plan of its lines, or undefined when it needs none or the host
+ * passes no loader for a font it needs. Only a layout with one of the scripts loads rtl-font.ts, the shapers, bidi-js and the font
+ * files, by a dynamic import. `support` is what {@link loadRtlSupport} gave for the same document; the layout must have been laid out with
  * its measure ({@link preparePdf} does both).
  */
 export async function loadRtlFallback(layout: PdfLayout, support: RtlSupport | undefined): Promise<PdfRtlFonts | undefined> {
-  if (layout.rtlScripts.length === 0 || support === undefined) return undefined;
+  if (layout.shapedScripts.length === 0 || support === undefined) return undefined;
   const { subsetRtl } = await import('./rtl-font.js');
   return subsetRtl(layout.pages, support);
 }
@@ -295,9 +310,9 @@ export function renderPdf(
     const { what, verb, shown } = counted(unprinted, 'character', 'characters');
     notes.push(`pdf: the CJK or emoji fallback font that prints ${what} was not passed to renderPdf, or has no glyph for ${unprinted.length === 1 ? 'it' : 'them'}, so ${verb} not printed as written: ${shown}`);
   }
-  for (const script of layout.rtlScripts) {
+  for (const script of layout.shapedScripts) {
     if (rtl?.[script] === undefined) {
-      notes.push(`pdf: the ${script === 'arabic' ? 'Arabic' : 'Hebrew'} font was not passed to renderPdf, so its text is printed as "?"`);
+      notes.push(`pdf: the ${SCRIPT_NAMES[script]} font was not passed to renderPdf, so its text is printed as "?"`);
     }
   }
   // A script that prints nothing writes one blank page (writePdf), so the reported count agrees with the file.
@@ -314,7 +329,7 @@ export interface PdfFontLoaders extends RtlFontLoaders {
   readonly emoji?: FontLoader;
 }
 
-/** Everything {@link drawPdf} needs, loaded: the layout (measured with the Arabic and Hebrew fonts when it needs them) and the fonts. */
+/** Everything {@link drawPdf} needs, loaded: the layout (measured with the Arabic, Hebrew and Devanagari fonts when it needs them) and the fonts. */
 export interface PreparedPdf {
   readonly layout: PdfLayout;
   readonly font: PdfFont;
@@ -325,15 +340,15 @@ export interface PreparedPdf {
 
 /**
  * Lays the blocks out, loads the fonts the layout needs, and lays them out again when the Arabic or Hebrew fonts change the
- * widths: a document with either script is measured with the shaper before its lines are broken. A document without either
- * is laid out once, with no shaper and no Arabic or Hebrew font loaded.
+ * widths: a document with Arabic, Hebrew or Devanagari is measured with the shaper before its lines are broken. A document
+ * without any is laid out once, with no shaper and no such font loaded.
  */
 export async function preparePdf(blocks: readonly FlatBlock[], opts: PdfRenderOptions, loaders: PdfFontLoaders = {}): Promise<PreparedPdf> {
   let layout = layoutPdf(blocks, opts);
   let support: RtlSupport | undefined;
-  if (layout.rtlScripts.length > 0 && (loaders.arabic !== undefined || loaders.hebrew !== undefined)) {
+  if (layout.shapedScripts.length > 0 && (loaders.arabic !== undefined || loaders.hebrew !== undefined || loaders.devanagari !== undefined)) {
     const { loadRtlSupport } = await import('./rtl-font.js');
-    support = await loadRtlSupport(layout.rtlScripts, loaders);
+    support = await loadRtlSupport(layout.shapedScripts, loaders, undefined, opts.language === undefined ? {} : { language: opts.language });
     layout = layoutPdf(blocks, opts, support.measure);
   }
   const [font, cjk, emoji, rtl] = await Promise.all([
@@ -345,7 +360,7 @@ export async function preparePdf(blocks: readonly FlatBlock[], opts: PdfRenderOp
   return { layout, font, ...(cjk === undefined ? {} : { cjk }), ...(emoji === undefined ? {} : { emoji }), ...(rtl === undefined ? {} : { rtl }) };
 }
 
-/** The renderer seam of screenplay.md §5.3. Its files always embed Courier Prime, and the CJK, emoji, Arabic and Hebrew fonts when the script needs them and the host gave a loader. */
+/** The renderer seam of screenplay.md §5.3. Its files always embed Courier Prime, and the CJK, emoji, Arabic, Hebrew and Devanagari fonts when the script needs them and the host gave a loader. */
 export function createPdfRenderer(loaders: PdfFontLoaders = {}): PdfRenderer {
   return {
     async emit(blocks, opts) {
