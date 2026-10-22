@@ -1064,7 +1064,7 @@ describe('the confirmation round trip on the wire', () => {
     }
   }, 30_000);
 
-  it('export.compile draws a contact sheet with Chinese text in the Noto Sans CJK fallback font, read from its package', async () => {
+  it('export.compile draws a contact sheet with Chinese text in the Noto Sans Mono CJK fallback font, read from its package', async () => {
     const fixture = await startFixture({ label: 'export-cjk', allowWrites: true, seed: true, shot: true, shotAction: '港口空无一人。' });
     const client = await connectClient(fixture.url, fixture.token, () => ({ action: 'accept', content: { confirmed: true } }));
     try {

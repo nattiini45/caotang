@@ -34,7 +34,6 @@ export * from './assets.js';
 export * from './derive.js';
 export * from './annotate.js';
 export * from './render-csv.js';
-export * from './emoji.js';
 export * from './render-contact-sheet.js';
 export * from './tools.js';
 export * from './command-port.js';

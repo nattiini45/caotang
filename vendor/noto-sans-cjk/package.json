@@ -3,14 +3,14 @@
   "version": "2.4.0",
   "license": "OFL-1.1",
   "private": true,
-  "description": "Noto Sans CJK SC Regular 2.004 as a TrueType WOFF: the fallback font the PDF exporter embeds, subset, for Chinese, Japanese and Korean text",
+  "description": "Noto Sans Mono CJK SC Regular 2.004 as a TrueType WOFF: the fallback font both PDFs embed, subset, for Chinese, Japanese and Korean text",
   "repository": "https://github.com/notofonts/noto-cjk",
   "exports": {
-    "./NotoSansCJKsc-Regular.woff": "./NotoSansCJKsc-Regular.woff",
+    "./NotoSansMonoCJKsc-Regular.woff": "./NotoSansMonoCJKsc-Regular.woff",
     "./package.json": "./package.json"
   },
   "files": [
-    "NotoSansCJKsc-Regular.woff",
+    "NotoSansMonoCJKsc-Regular.woff",
     "LICENSE",
     "README.md",
     "SHA256SUMS",

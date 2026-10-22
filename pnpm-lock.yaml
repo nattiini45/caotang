@@ -244,6 +244,9 @@ importers:
       '@caotang/mcp-client':
         specifier: workspace:*
         version: link:../../packages/mcp-client
+      '@caotang/pdf-fonts':
+        specifier: workspace:*
+        version: link:../../packages/pdf-fonts
       '@caotang/screenplay':
         specifier: workspace:*
         version: link:../../packages/screenplay
@@ -510,12 +513,9 @@ importers:
       '@caotang/dialogue':
         specifier: workspace:*
         version: link:../dialogue
-      '@caotang/font-noto-cjk':
+      '@caotang/pdf-fonts':
         specifier: workspace:*
-        version: link:../../vendor/noto-sans-cjk
-      '@caotang/font-noto-emoji':
-        specifier: workspace:*
-        version: link:../../vendor/noto-emoji
+        version: link:../pdf-fonts
       '@caotang/screenplay':
         specifier: workspace:*
         version: link:../screenplay
@@ -656,6 +656,9 @@ importers:
       '@caotang/ids':
         specifier: workspace:*
         version: link:../ids
+      '@caotang/pdf-fonts':
+        specifier: workspace:*
+        version: link:../pdf-fonts
       '@caotang/store':
         specifier: workspace:*
         version: link:../store
@@ -673,8 +676,26 @@ importers:
         specifier: 2.3.1
         version: 2.3.1
 
+  packages/pdf-fonts:
+    dependencies:
+      '@caotang/font-noto-cjk':
+        specifier: workspace:*
+        version: link:../../vendor/noto-sans-cjk
+      '@caotang/font-noto-emoji':
+        specifier: workspace:*
+        version: link:../../vendor/noto-emoji
+      '@pdf-lib/fontkit':
+        specifier: 1.1.1
+        version: 1.1.1
+      fflate:
+        specifier: 0.8.3
+        version: 0.8.3
+
   packages/screenplay:
     dependencies:
+      '@caotang/pdf-fonts':
+        specifier: workspace:*
+        version: link:../pdf-fonts
       '@pdf-lib/fontkit':
         specifier: 1.1.1
         version: 1.1.1
@@ -702,6 +723,9 @@ importers:
       '@caotang/ids':
         specifier: workspace:*
         version: link:../ids
+      '@caotang/pdf-fonts':
+        specifier: workspace:*
+        version: link:../pdf-fonts
       '@caotang/store':
         specifier: workspace:*
         version: link:../store

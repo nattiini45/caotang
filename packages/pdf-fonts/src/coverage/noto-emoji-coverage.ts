@@ -17,7 +17,7 @@ export const NOTO_EMOJI_RANGES =
 export const NOTO_EMOJI_CODE_POINTS = 1489;
 
 /**
- * The sequences the font lays out as one glyph, by key (src/emoji.ts): space-separated, each one's code points in base 36
+ * The sequences the font lays out as one glyph, by key (emoji.ts): space-separated, each one's code points in base 36
  * joined by dots.
  */
 export const NOTO_EMOJI_SEQUENCES =

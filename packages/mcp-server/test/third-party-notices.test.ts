@@ -61,6 +61,15 @@ describe('THIRD-PARTY-NOTICES.md', () => {
     expect(() => bundledAssetNotices(repoRoot, [moved])).toThrow(`is shipped as ${moved.shippedAs}, which does not exist`);
   });
 
+  it('carries the CJK font copyright holder and Reserved Font Name, which the OFL requires in each copy', () => {
+    for (const text of [
+      readFileSync(resolve(repoRoot, 'vendor/noto-sans-cjk/LICENSE'), 'utf8'),
+      readFileSync(resolve(repoRoot, NOTICES_FILE), 'utf8'),
+    ]) {
+      expect(text).toContain("Copyright 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'.");
+    }
+  });
+
   it('leaves jszip elected under MIT', () => {
     expect(ELECTED_LICENSES.jszip).toBe('MIT');
   });
