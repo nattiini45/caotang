@@ -73,6 +73,36 @@ describe('parseJsonReply', () => {
     expect(() => parseJsonReply('not json', 'extraction')).toThrow(MalformedReplyError);
     expect(() => parseJsonReply('[1, 2]', 'extraction')).toThrow(/top level is not an object/);
   });
+
+  it('unwraps a fence the way the old pattern did: tag case, CRLF, padding, bare fences, other text', () => {
+    const obj = { a: 1 };
+    expect(parseJsonReply('```\n{"a": 1}\n```', 'extraction')).toEqual(obj);
+    expect(parseJsonReply('```JSON\r\n{"a": 1}\r\n```', 'extraction')).toEqual(obj);
+    expect(parseJsonReply('  \n```json   \n\n  {"a": 1}  \n\n  ```\n ', 'extraction')).toEqual(obj);
+    expect(parseJsonReply('```json{"a": 1}```', 'extraction')).toEqual(obj);
+    expect(parseJsonReply('```{"a": 1}```', 'extraction')).toEqual(obj);
+    expect(parseJsonReply('```json\n{"a": "é\u00a0\u2028"}\n```', 'extraction')).toEqual({ a: 'é\u00a0\u2028' });
+    // Empty or whitespace-only fences hold no object; text that is not wholly one fence is not unwrapped.
+    expect(() => parseJsonReply('``````', 'extraction')).toThrow(MalformedReplyError);
+    expect(() => parseJsonReply('```json \n\n ```', 'extraction')).toThrow(MalformedReplyError);
+    expect(() => parseJsonReply('```json\n{"a": 1}', 'extraction')).toThrow(MalformedReplyError);
+    expect(() => parseJsonReply('``', 'extraction')).toThrow(MalformedReplyError);
+    expect(() => parseJsonReply('', 'extraction')).toThrow(MalformedReplyError);
+    expect(() => parseJsonReply('   ', 'extraction')).toThrow(MalformedReplyError);
+    expect(() => parseJsonReply('Here you go:\n```json\n{"a": 1}\n```', 'extraction')).toThrow(MalformedReplyError);
+  });
+
+  it('reads a long run of whitespace after the fence in linear time', () => {
+    for (const filler of [' ', '\n', ' \n']) {
+      const reply = '```' + filler.repeat(50_000) + 'x';
+      const started = performance.now();
+      expect(() => parseJsonReply(reply, 'extraction')).toThrow(MalformedReplyError);
+      expect(performance.now() - started).toBeLessThan(500);
+    }
+    const started = performance.now();
+    expect(parseJsonReply('```json' + '\n'.repeat(50_000) + '{"a": 1}' + '\n'.repeat(50_000) + '```', 'extraction')).toEqual({ a: 1 });
+    expect(performance.now() - started).toBeLessThan(500);
+  });
 });
 
 describe('parseExtraction (Stage 1 contract)', () => {

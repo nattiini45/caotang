@@ -17,7 +17,8 @@ import { SPANS_PER_DOCUMENT } from './prompts.js';
 
 type Obj = Record<string, unknown>;
 
-const FENCE = /^```(?:json)?\s*\n?([\s\S]*?)\n?```$/i;
+const FENCE = '```';
+const JSON_TAG = /^json$/i;
 const NOTE_CHARS = 300;
 
 function isRecord(value: unknown): value is Obj {
@@ -29,13 +30,26 @@ function isOffset(value: unknown): value is number {
 }
 
 /**
+ * The text inside a code fence that spans all of `text`, or `undefined` when it is not
+ * one. Scans for the two fences directly: a single regex with `\s*` and a lazy group
+ * between them backtracks quadratically on a long run of whitespace. The result is
+ * not trimmed.
+ */
+function unfence(text: string): string | undefined {
+  if (text.length < 2 * FENCE.length || !text.startsWith(FENCE) || !text.endsWith(FENCE)) return undefined;
+  const tagEnd = FENCE.length + 4;
+  const start = JSON_TAG.test(text.slice(FENCE.length, tagEnd)) ? tagEnd : FENCE.length;
+  return text.slice(start, text.length - FENCE.length);
+}
+
+/**
  * Parses a reply to a JSON object. A fenced block is unwrapped, since providers
  * often wrap one. Anything else that is not an object is a malformed reply.
  */
 export function parseJsonReply(content: string, stage: string): Obj {
   let text = content.trim();
-  const fenced = FENCE.exec(text);
-  if (fenced !== null) text = (fenced[1] ?? '').trim();
+  const fenced = unfence(text);
+  if (fenced !== undefined) text = fenced.trim();
   let value: unknown;
   try {
     value = JSON.parse(text);
