@@ -13,7 +13,7 @@ There is **no backend server, no account, no telemetry**. The app is static file
 | Language | TypeScript `^6.0.3` (strict) |
 | App | React `19.3`, Vite `8.3.2` (rolldown/oxc, not esbuild) |
 | Unit tests | Vitest `5.0.3` (node environment) |
-| E2E | Playwright `1.63` (Chromium only) |
+| E2E | Playwright `1.63` (Chromium on every pull request; Firefox and WebKit nightly) |
 | Lint | ESLint `10` + typescript-eslint |
 
 Workspace globs (`pnpm-workspace.yaml`): `apps/*`, `packages/*`, `vendor/*`.
