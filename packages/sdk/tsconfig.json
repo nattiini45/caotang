@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Node-only at runtime: the SDK reads the project folder with node:fs and calls the provider with the global fetch. DOM is
+    // here for the type check alone, as in the harness and MCP server tsconfigs: this package type-checks `@caotang/store` and
+    // `@caotang/gateway` sources, whose IndexedDB types live in `lib.dom`. The ESLint `no-restricted-globals` rule on
+    // `src/` is what keeps a browser API from being called (eslint.config.js).
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "../editor/src/ambient.d.ts"]
+}

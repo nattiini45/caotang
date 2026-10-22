@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { ArtifactNotFoundError } from '@caotang/store';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { ArtifactPathError, NodeArtifactFs, byteArtifactsOver, resolveWithin } from '../src/index.js';
+import { ArtifactPathError, NodeArtifactFs, byteArtifactsOver, resolveWithin } from '../src/folder-api.js';
 import { removeDir, tempDir } from './support.js';
 
 describe('resolveWithin', () => {

@@ -26,6 +26,7 @@
     "@caotang/harness": "workspace:*",
     "@caotang/ids": "workspace:*",
     "@caotang/pdf-fonts": "workspace:*",
+    "@caotang/sdk": "workspace:*",
     "@caotang/store": "workspace:*"
   },
   "devDependencies": {

@@ -134,7 +134,7 @@ describe('the user guide’s reviewed claims match the code', () => {
 
   it('says the model review sends each scene only the codex entries its include policies select', () => {
     expect(guide).toContain('The review sends each scene only the codex entries its include policies select for that scene');
-    expect(read('apps/desktop/src/app/coherence-review.ts')).toContain('selectCandidates({ entries, tree: state.manifest.tree, focusDocId: docId, detected })');
+    expect(read('packages/harness/src/coherence-review-context.ts')).toContain('selectCandidates({ entries, tree: state.manifest.tree, focusDocId: docId, detected })');
   });
 
   it('says a large scope asks on the status line at more than 20 documents, and Scan it anyway runs the scope that asked', () => {

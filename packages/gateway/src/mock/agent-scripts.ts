@@ -329,8 +329,8 @@ const verificationScript: MockScript = {
 };
 
 /**
- * What the demo says to a request none of its three intents matches. The words are the desktop's planner fallback
- * (apps/desktop/src/app/providers.ts, DEMO_FALLBACK_REPLY). The gateway cannot import them, so they are held here as well.
+ * What the demo says to a request none of its three intents matches. The words are the planner's fallback reply
+ * in the product's demo provider (app-provider.ts, DEMO_FALLBACK_REPLY), which is built from this one constant.
  */
 export const DEMO_REFUSAL =
   'The built-in demo answers only the three demo requests. Add a provider in Settings > Providers to ask for anything else.';

@@ -11,9 +11,10 @@
 
 import { parseArgs } from 'node:util';
 
+import { LOCK_FILE, NoProjectError, ProjectLockedError } from '@caotang/sdk/folder';
+
 import { DEFAULT_TOKEN_ENV, resolveToken } from './auth.js';
-import { LOCK_FILE, ProjectLockedError } from './lock.js';
-import { NoProjectError, openProject, ProjectContentError, type ProjectSession } from './session.js';
+import { openProject, ProjectContentError, type ProjectSession } from './session.js';
 import { createToolRuntime, startHttpServer, startStdioServer, type RunningHttpServer } from './server.js';
 import { VERSION } from './version.js';
 

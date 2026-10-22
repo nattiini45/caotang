@@ -27,6 +27,10 @@ export {
   type ToolRisk,
 } from './metadata.js';
 export { createHarness, type ExternalHarness, type Harness, type HarnessOptions, type ToolListing } from './runtime.js';
+export { createProductHarness, type ProductHarnessOptions } from './product.js';
+// The coherence module's two ports the agent's scan and review read through, and the gateway as the review's model.
+export { DIALOGUE_CONTAINER_TYPE, containersOf, dialogueFactsOf } from './coherence-facts.js';
+export { gatewayCoherenceModel, reviewContextOf } from './coherence-review-context.js';
 export {
   askBackFor,
   parsePlan,

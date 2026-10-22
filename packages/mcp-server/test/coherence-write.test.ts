@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { serializeCoherenceFile, type CoherenceFile } from '@caotang/coherence';
 import type { Client } from '@modelcontextprotocol/client';
 
-import { mergeServerDelta } from '../src/coherence-file.js';
+import { mergeServerDelta } from '@caotang/sdk/folder';
 import {
   LANDING,
   coherenceOnDisk,

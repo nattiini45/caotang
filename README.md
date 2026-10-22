@@ -215,6 +215,10 @@ The server runs on your computer over stdio and opens no network port. Uninstall
 
 The bundle is not signed, and it has not been tested in a real host yet. [packages/mcp-server/HOST-CHECKS.md](packages/mcp-server/HOST-CHECKS.md) lists the checks and holds the results; it has none so far. The release lists the file's SHA-256 in `SHA256SUMS`.
 
+## Scripting Caotang
+
+The agent can also run from a Node script, a CLI or CI, against a project folder, with an approval policy in place of the cards. The package is `@caotang/sdk`, and its [README](packages/sdk/README.md) has three examples: the demo provider, a read-only review with your own key, and an approve-everything run that writes the folder. Changes stay in memory until you save, `diff()` shows them first, and the key is held in memory and sent only to your provider.
+
 ## Documents
 
 - [docs/USER-GUIDE.md](docs/USER-GUIDE.md): the guide for writers.

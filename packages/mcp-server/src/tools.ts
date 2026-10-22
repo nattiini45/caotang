@@ -44,7 +44,9 @@ import {
   type ConfirmLedger,
   type RoundState,
 } from './confirm.js';
-import { FolderChangedError, notMadeError, type ProjectSession } from './session.js';
+import { FolderChangedError } from '@caotang/sdk/folder';
+
+import { notMadeError, type ProjectSession } from './session.js';
 import { projectFileLabel, projectFileTitles } from '@caotang/store';
 
 /** Everything a tool needs to run: the open project, and the confirmation machinery. */
