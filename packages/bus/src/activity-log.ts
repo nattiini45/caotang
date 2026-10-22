@@ -58,8 +58,9 @@
  * leave two rows: the effect it made, and — after the fact — a defect the bus
  * found in the apply. **The pairing is not guaranteed.** The effect row is
  * written only when the dispatch registered an undo group or reported an
- * attempt (`pipeline.ts`), so a dispatch that registered neither — an apply
- * that threw before it captured anything — leaves the defect row on its own.
+ * attempt (`pipeline.ts`), so a dispatch that registered neither leaves the
+ * defect row on its own: an apply that stashed its scope, threw before it
+ * captured or reported, and captured from its timer later is exactly that case.
  * The defect row is marked (`defect`), reports nothing that ran, and
  * carries no undo group, so the rule this section states is the rule for the
  * **rows that report an effect**. A reader of the entries can tell the two
