@@ -36,6 +36,7 @@ export interface FontkitFont {
   layout(text: string): { readonly glyphs: readonly FontkitGlyph[] };
   hasGlyphForCodePoint(code: number): boolean;
   glyphForCodePoint(code: number): FontkitGlyph;
+  getGlyph(id: number): FontkitGlyph;
   createSubset(): FontkitSubset;
 }
 

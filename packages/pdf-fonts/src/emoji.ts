@@ -22,7 +22,7 @@
  * keeps the tone. {@link emojiPrint} says what the font prints for a cluster, from the coverage tables.
  */
 
-import { emojiFontHasSequence, emojiFontHasTonedSequence, emojiFontMaps } from './coverage.js';
+import { emojiFontHasSequence, emojiFontHasTonedSequence, emojiFontLayoutGlyph, emojiFontMaps } from './coverage.js';
 
 /** The grapheme clusters of a text: a letter with its combining marks, an emoji sequence, as a reader sees one character. */
 export function graphemesOf(text: string): string[] {
@@ -92,11 +92,20 @@ export function firstCodePoint(cluster: string): string {
 }
 
 /**
+ * The glyph HarfBuzz lays an emoji cluster out as, for a cluster the font draws as one glyph that fontkit does not reach
+ * (🚶‍♀️‍➡️, the woman walking facing right: fontkit gives its parts), or undefined. Both PDFs draw this glyph first.
+ */
+export function emojiLayoutGlyph(cluster: string): number | undefined {
+  return emojiFontLayoutGlyph(emojiKey(cluster));
+}
+
+/**
  * What Noto Emoji prints for an emoji cluster: `whole`, one glyph for the sequence; `base`, the glyph of its first code
- * point, for a sequence the font has no glyph for (🚶‍➡️ prints as 🚶); `none`, nothing, so it prints as "?".
+ * point, for a sequence newer than the font (it would print as its first emoji); `none`, nothing, so it prints as "?".
  */
 export function emojiPrint(cluster: string): 'whole' | 'base' | 'none' {
   const key = emojiKey(cluster);
+  if (emojiFontLayoutGlyph(key) !== undefined) return 'whole';
   if ([...key].length === 1 ? emojiFontMaps(key) : emojiFontHasSequence(key)) return 'whole';
   if (HAS_MODIFIER.test([...cluster].slice(1).join('')) && emojiFontHasTonedSequence(key)) return 'whole';
   return emojiFontMaps(firstCodePoint(cluster)) ? 'base' : 'none';

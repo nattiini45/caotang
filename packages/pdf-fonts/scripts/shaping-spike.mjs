@@ -3,11 +3,11 @@
 // globals it reads here rather than widening the config for one file.
 /**
  * The spike that gated Arabic and Hebrew printing (issue #34): @pdf-lib/fontkit 1.1.1 against HarfBuzz on the vendored
- * Noto Sans Arabic and Noto Sans Hebrew. It is a scratch script, not part of any build: harfbuzzjs is NOT a dependency of
- * any package. To run it, install harfbuzzjs 1.6.3 in a directory of its own and point HARFBUZZJS at it:
+ * Noto Sans Arabic and Noto Sans Hebrew. It is a scratch script, not part of any build. harfbuzzjs 1.6.3 is a devDependency of
+ * this package only, for scripts/emoji-coverage.mjs and the emoji tests; nothing that ships loads it. To run the spike, point
+ * HARFBUZZJS at the package's dist/index.mjs:
  *
- *   mkdir /tmp/spike && cd /tmp/spike && npm init -y && npm install --save-exact harfbuzzjs@1.6.3
- *   HARFBUZZJS=/tmp/spike/node_modules/harfbuzzjs/dist/index.mjs node packages/pdf-fonts/scripts/shaping-spike.mjs
+ *   HARFBUZZJS=packages/pdf-fonts/node_modules/harfbuzzjs/dist/index.mjs node packages/pdf-fonts/scripts/shaping-spike.mjs
  *
  * It shapes every sample of SAMPLES with both engines and writes test/fixtures/shaping/golden.json: for each sample the
  * HarfBuzz result (the reference), the fontkit result, and whether they agree. Glyphs are listed left to right as drawn.

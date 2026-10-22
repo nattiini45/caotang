@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import * as fontkitModule from '@pdf-lib/fontkit';
 import type { Font } from '@pdf-lib/fontkit';
-import { emojiKey, emojiPrint, isEmojiCluster } from '@caotang/pdf-fonts';
+import { emojiKey, emojiLayoutGlyph, emojiPrint, isEmojiCluster } from '@caotang/pdf-fonts';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { FlatBlock } from '../src/index.js';
 import {
@@ -26,6 +26,7 @@ import {
   unitColumns,
   LAYOUT,
 } from '../src/index.js';
+import { harfbuzzEmoji } from '../../pdf-fonts/test/harfbuzz-reference.js';
 import { emojiGlyph, subsetNotoEmoji } from '../src/emoji-font.js';
 import { SCRIPT_ONE_ACT, SCRIPT_WITH_TITLE_PAGE, text } from './fixtures/corpus.js';
 import { LOADERS, sourceEmoji } from './fixtures/fonts.js';
@@ -121,8 +122,8 @@ function extract(pdf: string): string[] {
 const NEW_EMOJI = ['🫩', '🫆', '🪾', '🫜', '🪉', '🪏', '🫟', '🇨🇶', '🫪', '🛘'];
 
 /**
- * The 36 fully-qualified emoji fontkit lays out as several glyphs: the woman and the man walking, kneeling and running,
- * facing right, plain and in each of the five skin tones.
+ * The 36 fully-qualified emoji fontkit lays out as several glyphs though the font draws each as one: the woman and the man
+ * walking, kneeling and running, facing right, plain and in each of the five skin tones.
  */
 const FACING_RIGHT = new Set(
   ['🚶', '🧎', '🏃'].flatMap((person) =>
@@ -186,12 +187,23 @@ describe('the emoji fallback font', () => {
       expect(font.layout(emoji).glyphs.some((glyph) => glyph.id === 0), `${emoji} has a .notdef`).toBe(false);
       if (print === 'whole') {
         const forms = [emoji, emoji.replace(/\uFE0F/g, ''), emojiKey(emoji)];
-        expect(forms.some((form) => font.layout(form).glyphs.length === 1), `${emoji} is one glyph`).toBe(true);
+        // Fontkit lays out one glyph for each but the allow-list, which has the glyph HarfBuzz gives it.
+        const one = forms.some((form) => font.layout(form).glyphs.length === 1);
+        expect(one || emojiLayoutGlyph(emoji) !== undefined, `${emoji} is one glyph`).toBe(true);
+        expect(!one, emoji).toBe(FACING_RIGHT.has(emoji));
       } else base.push(emoji);
     }
-    // Everything is one glyph but the allow-list: fontkit does not lay the people "facing right" out as one, though the
-    // font has them (HarfBuzz does). They print as their first emoji until the PDFs lay them out another way.
-    expect(new Set(base)).toEqual(FACING_RIGHT);
+    // No fully-qualified emoji of the version the font supports prints as its first emoji.
+    expect(base).toEqual([]);
+  }, 120_000);
+
+  it('draws every fully-qualified emoji of Unicode 17.0 as the one glyph HarfBuzz lays out, the people facing right included', async () => {
+    const harfbuzz = await harfbuzzEmoji();
+    const qualified = emojiList().filter((row) => row.status === 'fully-qualified');
+    for (const { emoji, name } of qualified) expect(emojiGlyph(font, emoji)?.id, name).toBe(harfbuzz(emoji)[0]);
+    const facingRight = qualified.filter((row) => row.name.includes('facing right'));
+    expect(facingRight).toHaveLength(108);
+    expect(facingRight.filter((row) => FACING_RIGHT.has(row.emoji))).toHaveLength(36);
   }, 120_000);
 
   it('prints a minimally-qualified or unqualified emoji as the glyph of its fully-qualified form', () => {
@@ -292,8 +304,8 @@ describe('the PDF with emoji', () => {
   });
 
   it('prints every fully-qualified emoji of Unicode 17.0 in one PDF with no "?" and no note, and a reader copies each back', async () => {
-    const all = emojiList().filter((row) => row.status === 'fully-qualified' && !FACING_RIGHT.has(row.emoji)).map((row) => row.emoji);
-    expect(all.length).toBe(3944 - FACING_RIGHT.size);
+    const all = emojiList().filter((row) => row.status === 'fully-qualified').map((row) => row.emoji);
+    expect(all.length).toBe(3944);
     const source = text('INT. A - DAY', '', all.join(' '));
     expect(layoutPdf(blocksOf(source), { title: 'T' }).notes).toEqual([]);
     const lines = extract(await pdfOf(source));
@@ -309,9 +321,34 @@ describe('the PDF with emoji', () => {
   });
 
   it('prints a sequence the font has no glyph for as its first emoji, and the log says so', () => {
-    const layout = layoutPdf(blocksOf(text('INT. A - DAY', '', 'She walks off 🚶‍♀️‍➡️.')), { title: 'T' });
-    expect(layout.notes).toEqual(['pdf: the emoji font has no glyph for this emoji sequence, so it is printed as its first emoji: 🚶‍♀️‍➡️']);
-    expect(layout.emojiCharacters).toEqual(['🚶‍♀️‍➡️']);
+    // No Emoji version has a cat joined to a sloth.
+    const catSloth = '\u{1F408}‍\u{1F9A5}';
+    const layout = layoutPdf(blocksOf(text('INT. A - DAY', '', `A pet ${catSloth}.`)), { title: 'T' });
+    expect(layout.notes).toEqual([`pdf: the emoji font has no glyph for this emoji sequence, so it is printed as its first emoji: ${catSloth}`]);
+    expect(layout.emojiCharacters).toEqual([catSloth]);
+  });
+
+  it('prints the woman and man walking, kneeling and running facing right as one glyph in two columns, copied back as typed, with no note', async () => {
+    const harfbuzz = await harfbuzzEmoji();
+    const people = [...FACING_RIGHT];
+    expect(people).toHaveLength(36);
+    const source = text('INT. A - DAY', '', `She walks off ${people[0]}.`, '', people.join(' '));
+    const layout = layoutPdf(blocksOf(source), { title: 'T' });
+    expect(layout.notes).toEqual([]);
+    expect(layout.emojiCharacters).toEqual(expect.arrayContaining(people));
+    for (const person of people) expect(unitColumns(person), person).toBe(2);
+    // Each typed sequence has a CID of its own and copies back whole, though six glyphs draw all 36.
+    const lines = extract(await pdfOf(source));
+    expect(lines).toContain(`She walks off ${people[0]}.`);
+    expect(textUnits(lines.join(' ')).filter((unit) => isEmojiCluster(unit))).toEqual([people[0], ...people]);
+    const subset = await subsetNotoEmoji(font, people);
+    expect(subset.glyphs.size).toBe(36);
+    expect(new Set(subset.entries.map((entry) => entry.gid)).size).toBe(3);
+    const read = fontkit.create(subset.program as Buffer);
+    for (const [unit, glyph] of subset.glyphs) {
+      expect(glyph.width, unit).toBe(1440);
+      expect(read.getGlyph(subset.entries[glyph.cid - 1]?.gid ?? 0).path.toSVG(), unit).toBe(font.getGlyph(harfbuzz(unit)[0] ?? 0).path.toSVG());
+    }
   });
 
   it('keeps every byte ASCII and every xref offset exact with three fonts in the file', async () => {

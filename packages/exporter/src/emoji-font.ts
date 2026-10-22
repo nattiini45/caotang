@@ -12,9 +12,9 @@
  * An emoji can be many code points that draw as one picture: a ZWJ sequence (👨‍👩‍👧), a skin tone (👍🏽), a flag (🇩🇪), a
  * keycap (1️⃣), a tag sequence (🏴󠁧󠁢󠁳󠁣󠁴󠁿). The font draws each through its GSUB ligatures (`ccmp`), so each grapheme cluster
  * is laid out with fontkit's `font.layout`, and the glyphs it gives are what is drawn. A ZWJ sequence the font has no ligature
- * for is drawn as its parts, as Unicode's emoji spec recommends: of Emoji 17.0's people "facing right", the woman and man walking,
- * kneeling or running (🚶‍♀️‍➡️ as 🚶, ♀️ and ➡️; fontkit does not lay them out as one glyph, though the font has them); every other
- * person facing right (🚶‍➡️, or with a white cane or in a wheelchair) is one glyph.
+ * for is drawn as its parts, as Unicode's emoji spec recommends. None of Emoji 17.0's is: the woman and man walking, kneeling or
+ * running facing right (🚶‍♀️‍➡️), which fontkit lays out as parts though the font has one glyph for each, have the glyph HarfBuzz
+ * gives them in a generated table (`emojiLayoutGlyph`, `@caotang/pdf-fonts`), which is used first.
  *
  * ## Embedding
  *
@@ -22,6 +22,7 @@
  * distinct glyph-and-text pair, so copying a 👍🏽 gives 👍🏽 back, and 👍 gives 👍, though the two draw the same glyph.
  */
 
+import { emojiLayoutGlyph } from '@caotang/pdf-fonts';
 import type * as PdfLib from 'pdf-lib';
 
 import { CidEmbedding, type CidGlyph, type FontkitFont, type FontkitGlyph } from './cid-embedding.js';
@@ -57,6 +58,8 @@ export class EmojiFace {
   }
 
   private resolve(cluster: string): readonly EmojiGlyph[] | null {
+    const reference = emojiLayoutGlyph(cluster);
+    if (reference !== undefined) return carrying([this.font.getGlyph(reference)], cluster);
     const whole = this.shape(cluster);
     if (whole !== null && whole.length > 0 && (whole.length === 1 || !cluster.includes(ZWJ))) return carrying(whole, cluster);
     if (!cluster.includes(ZWJ)) return null;

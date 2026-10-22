@@ -26,6 +26,7 @@ import { addShotNode, planContactSheet } from '@caotang/storyboard';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
 import { emojiStyleOf, graphemesOf, sfntFromWoff, type FontLoader } from '@caotang/pdf-fonts';
 import { loadArabicFontInNode, loadCjkFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
+import { harfbuzzEmoji } from '../../pdf-fonts/test/harfbuzz-reference.js';
 import { EmojiEmbedding, EmojiFace, type FontkitFont } from '../src/emoji-font.js';
 import {
   CONTACT_SHEET_HEADER,
@@ -793,11 +794,26 @@ describe('contact-sheet-pdf — emoji, in the Noto Emoji fallback font', () => {
     expect(first).not.toBe(second);
   });
 
-  it('draws a ZWJ sequence the font has no ligature for as its parts, and the whole sequence extracts back', async () => {
-    const walking = '🚶‍♀️‍➡️';
-    const { pdf, result } = await compileSheet(rig({ state: withAction(walking), loadEmojiFont: loadEmojiFontInNode }).exporter);
-    expect(emojiShows(pdf, 0).map((hex) => hex.length / 4)).toEqual([3]);
-    expect(toUnicodeEntries(pdf).join('')).toBe(walking);
+  it('draws a ZWJ sequence no Emoji version has as its parts, and the whole sequence extracts back', async () => {
+    const catSloth = '\u{1F408}\u200D\u{1F9A5}';
+    const { pdf, result } = await compileSheet(rig({ state: withAction(catSloth), loadEmojiFont: loadEmojiFontInNode }).exporter);
+    expect(emojiShows(pdf, 0).map((hex) => hex.length / 4)).toEqual([2]);
+    expect(toUnicodeEntries(pdf).join('')).toBe(catSloth);
+    expect(result.log.notes.some((note) => note.includes('drawn as "?"'))).toBe(false);
+  });
+
+  it('draws the woman and man walking, kneeling and running facing right as one glyph each, which extracts back as typed', async () => {
+    const harfbuzz = await harfbuzzEmoji();
+    const people = fullyQualifiedEmoji().filter(({ name }) => /^(woman|man) (walking|kneeling|running) facing right/.test(name));
+    expect(people).toHaveLength(36);
+    // The six plain ones and two toned (a card holds two lines; the every-emoji sheet below prints all 108): one CID each, one glyph each.
+    const shown = people.filter(({ name }) => !name.includes('skin tone') || name.endsWith('dark skin tone')).slice(0, 8);
+    const { pdf, result } = await compileSheet(rig({ state: withAction(shown.map(({ emoji }) => emoji).join(' ')), loadEmojiFont: loadEmojiFontInNode }).exporter);
+    for (const hex of emojiShows(pdf, 0)) expect(hex.length / 4, hex).toBe(1);
+    expect(new Set(toUnicodeEntries(pdf))).toEqual(new Set(shown.map(({ emoji }) => emoji)));
+    const face = await noto();
+    for (const { emoji, name } of people) expect(face.glyphsOf(emoji)?.map((glyph) => glyph.id), name).toEqual(harfbuzz(emoji));
+    expect(new Set(people.map(({ emoji }) => harfbuzz(emoji)[0])).size).toBe(3);
     expect(result.log.notes.some((note) => note.includes('drawn as "?"'))).toBe(false);
   });
 
@@ -927,8 +943,9 @@ describe('the emoji font file covers Unicode Emoji 17.0', () => {
     expect(ALL).toHaveLength(3944);
   });
 
-  it('draws every fully-qualified emoji with no .notdef, each as one glyph or, for a ZWJ sequence with no ligature, one per part', async () => {
+  it('draws every fully-qualified emoji with no .notdef, as the one glyph HarfBuzz lays out for it, copied back as typed', async () => {
     const face = await noto();
+    const harfbuzz = await harfbuzzEmoji();
     const missing: string[] = [];
     const split: string[] = [];
     for (const { emoji, name } of ALL) {
@@ -936,23 +953,24 @@ describe('the emoji font file covers Unicode Emoji 17.0', () => {
       expect(graphemesOf(emoji), name).toHaveLength(1);
       const glyphs = face.glyphsOf(emoji);
       if (glyphs === null) missing.push(name);
-      else if (glyphs.length !== 1) {
-        split.push(name);
-        expect(glyphs.length, name).toBe(emoji.split('\u200d').length);
-      }
+      else if (glyphs.length !== 1) split.push(name);
+      expect(glyphs?.map((glyph) => glyph.id), name).toEqual(harfbuzz(emoji));
       // The text the glyphs give back, joined, is the sequence as it was typed.
       if (glyphs !== null) expect(glyphs.map((glyph) => glyph.text).join(''), name).toBe(emoji);
     }
     expect(missing).toEqual([]);
-    // The woman and man walking, kneeling or running facing right (36 with their skin tones) are the only sequences drawn in
-    // parts: fontkit does not lay them out as one glyph, though the font has them (HarfBuzz does). The other 72 "facing right"
-    // people (the person form, and everyone with a white cane or in a wheelchair) are one glyph. The guide and the changelog
-    // say exactly this.
-    const facingRight = ALL.filter(({ name }) => name.includes('facing right')).map(({ name }) => name);
+    // None is drawn in parts, the 108 people "facing right" included, and each is as wide as any emoji.
+    expect(split).toEqual([]);
+    const facingRight = ALL.filter(({ name }) => name.includes('facing right'));
     expect(facingRight).toHaveLength(108);
-    expect(facingRight.filter((name) => !split.includes(name))).toHaveLength(72);
-    expect(split.every((name) => /^(woman|man) (walking|kneeling|running) facing right/.test(name))).toBe(true);
-    expect(split).toHaveLength(36);
+    for (const { emoji, name } of facingRight) expect(face.widthOf(face.glyphsOf(emoji) ?? [], 8), name).toBe((8 * 2600) / 2048);
+  });
+
+  it('draws a ZWJ sequence no Emoji version has as its parts, as Unicode recommends', async () => {
+    const face = await noto();
+    // A cat joined to a sloth: no ligature, so the cat, then the sloth, the joiner copied with the sloth.
+    const glyphs = face.glyphsOf('\u{1F408}\u200D\u{1F9A5}');
+    expect(glyphs?.map((glyph) => glyph.text)).toEqual(['\u{1F408}', '\u200D\u{1F9A5}']);
   });
 
   it('draws the emoji of 16.0 and 17.0 as one glyph each, copied back as typed', async () => {
@@ -980,7 +998,7 @@ describe('the emoji font file covers Unicode Emoji 17.0', () => {
 
   it('prints every fully-qualified emoji in a contact sheet without one "?"', async () => {
     const state = makeMediaProject();
-    // Six emoji to a card, three to a line: a line of three "facing right" people, each drawn in two glyphs, still fits.
+    // Six emoji to a card, three to a line.
     const per = 6;
     for (let i = 0; i * per < ALL.length; i += 1) {
       const chunk = ALL.slice(i * per, (i + 1) * per).map(({ emoji }) => emoji);
@@ -996,9 +1014,7 @@ describe('the emoji font file covers Unicode Emoji 17.0', () => {
     expect(result.log.notes.filter((note) => note.includes('drawn as "?"'))).toEqual([]);
     const entries = new Set(toUnicodeEntries(pdf));
     for (const { emoji, name } of ALL) {
-      const whole = entries.has(emoji);
-      const parts = emoji.split('\u200d').every((part, index) => entries.has(index === 0 ? part : `\u200d${part}`));
-      expect(whole || parts, name).toBe(true);
+      expect(entries.has(emoji), name).toBe(true);
     }
   }, 120_000);
 });
