@@ -28,6 +28,7 @@
   "devDependencies": {
     "@likecoin/epubcheck-ts": "0.7.0",
     "@types/mdast": "4.0.4",
+    "pdfjs-dist": "6.4.299",
     "sax": "1.6.1"
   },
   "scripts": {
