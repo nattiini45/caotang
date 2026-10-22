@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { createSseParser } from '../src/sse.js';
 import { anthropicMessagesAdapter } from '../src/adapters/anthropic-messages.js';
+import { parseModels } from '../src/adapters/models.js';
 import type { AdapterContext, BodyInput, QuirkFlags, StreamParser, StreamPiece } from '../src/adapters/types.js';
 import type { ChatRequest, ModelCaps, ThinkingLevel } from '../src/types.js';
 
@@ -356,5 +357,30 @@ describe('anthropic-messages paths and model listing', () => {
   it('reads the data/models envelope', () => {
     expect(anthropicMessagesAdapter.parseModels({ data: [{ id: 'claude-sonnet-4' }] })).toEqual([{ id: 'claude-sonnet-4' }]);
     expect(anthropicMessagesAdapter.parseModels(42)).toBeUndefined();
+  });
+
+  it('reads the window from max_input_tokens and the output cap from max_tokens', () => {
+    expect(anthropicMessagesAdapter.parseModels({ data: [{ id: 'claude-sonnet-5-5', max_input_tokens: 1_000_000, max_tokens: 128_000 }] })).toEqual([
+      { id: 'claude-sonnet-5-5', contextWindow: 1_000_000, maxOutputTokens: 128_000 },
+    ]);
+  });
+
+  it('leaves the field out for a null or zero, which the schema allows', () => {
+    expect(
+      anthropicMessagesAdapter.parseModels({
+        data: [
+          { id: 'a', max_input_tokens: null, max_tokens: null },
+          { id: 'b', max_input_tokens: 0, max_tokens: 0 },
+          { id: 'c', max_input_tokens: 200_000, max_tokens: null },
+        ],
+      }),
+    ).toEqual([{ id: 'a' }, { id: 'b' }, { id: 'c', contextWindow: 200_000 }]);
+  });
+
+  it('a window name the shared reader knows still wins, and the other adapters never read max_tokens', () => {
+    expect(anthropicMessagesAdapter.parseModels({ data: [{ id: 'm', context_length: 8_000, max_input_tokens: 9_000 }] })).toEqual([
+      { id: 'm', contextWindow: 8_000 },
+    ]);
+    expect(parseModels({ data: [{ id: 'm', max_input_tokens: 9_000, max_tokens: 4_000 }] })).toEqual([{ id: 'm' }]);
   });
 });

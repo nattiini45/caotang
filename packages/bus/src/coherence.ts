@@ -26,6 +26,7 @@ export const TIMELINE_MODES = [
   'backstory',
   'simultaneous',
   'circular',
+  'time-skip',
 ] as const;
 
 export type TimelineModeName = (typeof TIMELINE_MODES)[number];

@@ -10,7 +10,7 @@
  * `pnpm list --prod`, which walks the same lockfile the build uses, so the list cannot name a package the build does not
  * contain. Development tools are not shipped, so they are not listed. Caotang's own packages are MIT, under LICENSE, and
  * are not repeated here, except the workspace packages that hold third-party work under its own license
- * (VENDORED_WORKSPACE_PACKAGES): the Noto Sans CJK and Noto Emoji fonts, under the SIL Open Font License, are listed like any
+ * (VENDORED_WORKSPACE_PACKAGES): the Noto Sans Mono CJK and Noto Emoji fonts, under the SIL Open Font License, are listed like any
  * other package.
  *
  * Why each license text is kept. MIT and Apache-2.0 both require the copyright notice and the license to travel with
@@ -37,8 +37,8 @@ const LICENSE_FILE = /^(licen[cs]e|copying|notice)([.-][\w.-]*)?$/i;
 /**
  * Third-party files that ship inside a Caotang package rather than as a dependency, so the lockfile does not list them. Each
  * names the file it ships as, its license, its source, and the license text kept beside it in the repository (a path from the
- * repository root), which is reproduced in full. The screenplay PDF embeds Courier Prime, a subset of Noto Sans Mono CJK SC
- * for the characters Courier Prime cannot print, and a subset of Noto Emoji for emoji (docs/architecture/screenplay.md §5.3).
+ * repository root), which is reproduced in full. The screenplay PDF embeds Courier Prime. The two Noto fonts both PDFs fall
+ * back to are vendored workspace packages (VENDORED_WORKSPACE_PACKAGES below), so each is listed once (docs/architecture/screenplay.md §5.3).
  */
 export const BUNDLED_ASSETS = Object.freeze([
   Object.freeze({
@@ -48,22 +48,6 @@ export const BUNDLED_ASSETS = Object.freeze([
     repository: 'https://github.com/quoteunquoteapps/CourierPrime',
     shippedAs: 'packages/screenplay/src/fonts/courier-prime-regular.ts',
     licenseFile: 'packages/screenplay/src/fonts/OFL.txt',
-  }),
-  Object.freeze({
-    name: 'Noto Sans Mono CJK SC Regular (font)',
-    version: '2.004',
-    license: 'OFL-1.1',
-    repository: 'https://github.com/notofonts/noto-cjk',
-    shippedAs: 'packages/screenplay/src/fonts/NotoSansMonoCJKsc-Regular.otf',
-    licenseFile: 'packages/screenplay/src/fonts/OFL-NotoSansMonoCJK.txt',
-  }),
-  Object.freeze({
-    name: 'Noto Emoji Regular (font)',
-    version: '3.002',
-    license: 'OFL-1.1',
-    repository: 'https://github.com/google/fonts',
-    shippedAs: 'packages/screenplay/src/fonts/NotoEmoji-Regular.ttf',
-    licenseFile: 'packages/screenplay/src/fonts/OFL-NotoEmoji.txt',
   }),
 ]);
 
@@ -78,7 +62,7 @@ export const ELECTED_LICENSES = Object.freeze({
 
 /**
  * Workspace packages that vendor third-party work: they are linked like Caotang's own packages, but carry their own license,
- * so they are listed with it. `@caotang/font-noto-cjk` is Noto Sans CJK SC (OFL-1.1), in vendor/noto-sans-cjk, and
+ * so they are listed with it. `@caotang/font-noto-cjk` is Noto Sans Mono CJK SC (OFL-1.1), in vendor/noto-sans-cjk, and
  * `@caotang/font-noto-emoji` is Noto Emoji (OFL-1.1), in vendor/noto-emoji.
  */
 export const VENDORED_WORKSPACE_PACKAGES = Object.freeze(['@caotang/font-noto-cjk', '@caotang/font-noto-emoji']);

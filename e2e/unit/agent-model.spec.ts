@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import type { AgentEvent, PlanCardView, PlanStepView, StatusCard, TurnReport } from '../../packages/harness/src/index.js';
+import { headerLineOf, type AgentEvent, type PlanCardView, type PlanStepView, type StatusCard, type TurnReport } from '../../packages/harness/src/index.js';
 import { DOCUMENT, resolveNode } from '../../packages/harness/src/resolve.js';
 import { addDocument } from '../../packages/store/src/index.js';
 
@@ -292,4 +292,30 @@ test('each showing of a plan card is a new plan event, so a card the loop shows 
   expect(turn.planSeq).toBe(3);
   expect(turn.provider).toBe('Demo (no key)');
   expect(newTurnView(TURN, 'Fill it.').provider).toBeNull();
+});
+
+test('the task list is folded with the turn, shows documents by their titles, and ignores the events of another turn', () => {
+  const draft = stepOf(0, 'scene.draft', { doc: 'doc_landing' });
+  const titles = new Map([['doc_landing', 'The Landing']]);
+  const nameOf = (ref: string): string => titles.get(ref) ?? ref;
+  const events: AgentEvent[] = [
+    { type: 'turn', turnId: TURN, phase: 'started' },
+    { type: 'turn', turnId: TURN, phase: 'planning' },
+    { type: 'model.call', turnId: TURN, used: 1, limit: 8 },
+    { type: 'card', turnId: TURN, card: card(`${TURN}:p1.0`, 'pending-approval', { args: { doc: 'doc_landing' } }) },
+    { type: 'plan', turnId: TURN, card: cardOf([draft]) },
+    { type: 'turn', turnId: TURN, phase: 'awaiting-approval' },
+  ];
+  const turn = events.reduce((view, event) => reduceTurn(view, event, nameOf), newTurnView(TURN, 'Draft it.'));
+
+  expect(turn.tasks.items.map((item) => [item.content, item.state])).toEqual([
+    ['Plan', 'done'],
+    ['Draft “The Landing”', 'waiting'],
+  ]);
+  expect(turn.tasks.modelCalls).toEqual({ used: 1, limit: 8 });
+  expect(headerLineOf(turn.tasks)).toBe('Waiting for you · Plan, 1 step');
+
+  const other = reduceTurn(turn, { type: 'turn', turnId: 'sess.turn-2', phase: 'running' }, nameOf);
+  expect(other).toBe(turn);
+  expect(other.tasks).toBe(turn.tasks);
 });

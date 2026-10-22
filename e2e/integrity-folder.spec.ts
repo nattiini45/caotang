@@ -9,7 +9,9 @@
 
 import { chromium, expect, test, type Page } from '@playwright/test';
 
-import { binderTitle, createProject, waitForSaved } from './support.js';
+import { binderTitle, createProject, FOLDER_ACCESS_ONLY, waitForSaved } from './support.js';
+
+test.skip(({ browserName }) => browserName !== 'chromium', FOLDER_ACCESS_ONLY);
 
 /** The folder the stand-in picker hands out in a test: a directory in the page's own storage, named for the test. */
 async function standInFolderPicker(page: Page, folder: string): Promise<void> {

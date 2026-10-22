@@ -1,16 +1,17 @@
 /**
- * What the two fallback fonts share (font-file.ts): cutting a subset into a font program. A failure while fontkit encodes
- * the subset must reach the caller as a rejection, so a compile fails with it instead of hanging or crashing the process.
+ * What both PDFs share (fontkit.ts): cutting a subset into a font program. A failure while fontkit encodes the subset must
+ * reach the caller as a rejection, so a compile fails with it instead of hanging or crashing the process.
  */
 
 import { EventEmitter } from 'node:events';
 import { readFileSync } from 'node:fs';
-import * as fontkitModule from '@pdf-lib/fontkit';
 import { describe, expect, it } from 'vitest';
-import { encodeSubset } from '../src/font-file.js';
+import { encodeSubset, openFont, subsetTag } from '../src/fontkit.js';
+import { sfntFromWoff } from '../src/font-bytes.js';
 
-const fontkit = ((fontkitModule as unknown as { default?: typeof fontkitModule }).default ?? fontkitModule) as typeof fontkitModule;
-const EMOJI_FONT = new URL('../src/fonts/NotoEmoji-Regular.ttf', import.meta.url);
+const EMOJI_FONT = new URL('../../../vendor/noto-emoji/NotoEmoji-Regular.woff', import.meta.url);
+
+const emojiFont = async () => openFont(await sfntFromWoff(readFileSync(EMOJI_FONT)));
 
 type Subset = Parameters<typeof encodeSubset>[0];
 
@@ -29,11 +30,11 @@ async function settled(promise: Promise<unknown>, ms = 2000): Promise<unknown> {
 
 describe('encodeSubset', () => {
   it('gives the font program of a real subset', async () => {
-    const font = fontkit.create(readFileSync(EMOJI_FONT));
+    const font = await emojiFont();
     const subset = font.createSubset();
     subset.includeGlyph(font.glyphForCodePoint(0x1f44d));
     const program = await encodeSubset(subset);
-    expect(fontkit.create(program as Buffer).numGlyphs).toBeGreaterThanOrEqual(2);
+    expect((await openFont(program)).numGlyphs).toBeGreaterThanOrEqual(2);
   });
 
   it('rejects when the stream emits an error, instead of never settling', async () => {
@@ -51,7 +52,7 @@ describe('encodeSubset', () => {
   });
 
   it('rejects when fontkit throws while it encodes, which it does on the next tick, outside the stream', async () => {
-    const font = fontkit.create(readFileSync(EMOJI_FONT));
+    const font = await emojiFont();
     const subset = font.createSubset();
     subset.includeGlyph(font.glyphForCodePoint(0x1f44d));
     (subset as unknown as { encode: () => void }).encode = () => {
@@ -60,5 +61,13 @@ describe('encodeSubset', () => {
     const outcome = await settled(encodeSubset(subset));
     expect(outcome).toBeInstanceOf(Error);
     expect((outcome as Error).message).toBe('encode failed');
+  });
+});
+
+describe('subsetTag', () => {
+  it('is six capital letters, the same for the same glyph list', () => {
+    expect(subsetTag('abc')).toMatch(/^[A-Z]{6}$/);
+    expect(subsetTag('abc')).toBe(subsetTag('abc'));
+    expect(subsetTag('abc')).not.toBe(subsetTag('abd'));
   });
 });

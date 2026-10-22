@@ -42,7 +42,7 @@
 import { nodeById, type ArtifactFs, type ProjectState } from '@caotang/store';
 
 import { animaticTotals } from './animatic.js';
-import { graphemesOf, isEmojiCluster } from './emoji.js';
+import { graphemesOf, isEmojiPicture } from '@caotang/pdf-fonts';
 import { readImage, type LoadedImage } from './assets.js';
 import { durationText, isStoryboardFolder, specRowOf } from './model.js';
 import { shotFieldOf } from './nodes.js';
@@ -129,7 +129,7 @@ const NO_LINE_END = new Set([...'（「『【〔〈《〖〘〚｛［〝‘“']
 export function measureText(text: string, fontSize: number): number {
   let ems = 0;
   for (const cluster of graphemesOf(text)) {
-    if (isEmojiCluster(cluster)) ems += SHEET_LAYOUT.emojiWidthEm;
+    if (isEmojiPicture(cluster)) ems += SHEET_LAYOUT.emojiWidthEm;
     else for (const char of cluster) ems += isWide(char) ? SHEET_LAYOUT.wideCharWidthEm : SHEET_LAYOUT.charWidthEm;
   }
   return ems * fontSize;
@@ -158,7 +158,7 @@ function piecesOf(word: string): string[] {
   const raw: string[] = [];
   let narrow = '';
   for (const char of graphemesOf(word)) {
-    if ((isWide(char) && !isHangul(char)) || isEmojiCluster(char) || NO_LINE_START.has(char) || NO_LINE_END.has(char)) {
+    if ((isWide(char) && !isHangul(char)) || isEmojiPicture(char) || NO_LINE_START.has(char) || NO_LINE_END.has(char)) {
       if (narrow !== '') raw.push(narrow);
       narrow = '';
       raw.push(char);

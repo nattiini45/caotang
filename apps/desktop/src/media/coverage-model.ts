@@ -48,9 +48,11 @@ export interface SelectedText {
 type Captured = { readonly ok: true; readonly anchor: TextAnchor } | { readonly ok: false; readonly message: string };
 
 /**
- * The anchor for the writer's selection in one document, captured against the stored body now. The offsets are used as the
- * picker showed them when the stored text has no carriage returns, because then the shown text and the stored text are the same
- * string. Otherwise the selected words are located in the stored text, and only a single place is accepted.
+ * The anchor for the writer's selection in one document, captured against the stored body now. The selected words are located
+ * in the stored text whatever its line endings, and only a single place is accepted: a passage that appears twice is refused,
+ * with how many places, since no one range is the one meant. A text area holds line feeds only, so the search runs with every
+ * line ending on both sides read as one line feed, and the range found is mapped back to the stored body, which is what the
+ * anchor addresses (a stored CRLF inside the passage stays in the anchor's `exact`).
  */
 export function captureSelection(state: ProjectState, docId: string, selected: SelectedText): Captured {
   const node = nodeById(state, docId);
@@ -58,16 +60,29 @@ export function captureSelection(state: ProjectState, docId: string, selected: S
   if (selected.text.trim() === '') return { ok: false, message: 'select the words the shot covers in the text above, then cover them' };
   const body = getBody(state, docId);
   const revision = getRevision(state, docId);
-  if (!body.includes('\r')) {
-    if (body.slice(selected.from, selected.to) !== selected.text) {
-      return { ok: false, message: 'the text changed since it was selected, so select it again' };
-    }
-    return anchorOf(body, selected.from, selected.to, revision);
+  const lines = lineFeedsOf(body);
+  const located = locateQuote(lines.text, selected.text.replace(/\r\n?/g, '\n'));
+  if (located.status === 'many') {
+    return { ok: false, message: `that text appears more than once in the document (${located.count} places); select a longer passage` };
   }
-  const located = locateQuote(body, selected.text);
-  if (located.status === 'many') return { ok: false, message: 'that text appears more than once in the document; select a longer passage' };
   if (located.status === 'none') return { ok: false, message: 'the selected text could not be found in the stored text, so select it again' };
-  return anchorOf(body, located.from, located.to, revision);
+  return anchorOf(body, lines.starts[located.from] ?? body.length, lines.ends[located.to - 1] ?? body.length, revision);
+}
+
+/** The body with each CRLF and lone CR read as one LF, and where each character of that text begins and ends in the body. */
+function lineFeedsOf(body: string): { readonly text: string; readonly starts: readonly number[]; readonly ends: readonly number[] } {
+  const starts: number[] = [];
+  const ends: number[] = [];
+  let text = '';
+  for (let at = 0; at < body.length; ) {
+    const char = body.charAt(at);
+    const width = char === '\r' && body.charAt(at + 1) === '\n' ? 2 : 1;
+    text += char === '\r' ? '\n' : char;
+    starts.push(at);
+    ends.push(at + width);
+    at += width;
+  }
+  return { text, starts, ends };
 }
 
 function anchorOf(body: string, from: number, to: number, revision: number): Captured {

@@ -47,7 +47,7 @@ import {
   type RuntimeStore,
 } from '@caotang/store';
 
-import { planPersistence, type PersistPlan, type Shadow } from './persistence-plan.js';
+import { planPersistence, type DocumentShadow, type PersistPlan, type Shadow } from './persistence-plan.js';
 import { noteStopCause } from './integrity-model.js';
 import {
   browserStorage,
@@ -72,6 +72,11 @@ export function isStaleWrite(error: unknown): boolean {
 
 export class Persistence {
   private shadow: Shadow | null;
+  /**
+   * The bodies and revisions the store holds, as the last pass that landed left them. Unlike the shadow it survives a failed pass (which drops the
+   * shadow so the next pass restates everything), because the store still holds what it held: the pending journal reads it (pending-journal.ts).
+   */
+  private stored: ReadonlyMap<string, DocumentShadow> | null;
   private status: PersistenceStatus = 'idle';
   private lastError: unknown = null;
   private again = false;
@@ -96,6 +101,12 @@ export class Persistence {
     shadow: Shadow | null,
   ) {
     this.shadow = shadow;
+    this.stored = shadow?.docs ?? null;
+  }
+
+  /** What the store holds for a document, as far as this session knows, or `undefined` for a document it has not stored. */
+  storedDocument(docId: string): DocumentShadow | undefined {
+    return this.stored?.get(docId);
   }
 
   /** Ask for the store to be brought up to date. Coalesces: at most one pass is ever queued behind a running one. */
@@ -158,6 +169,7 @@ export class Persistence {
     try {
       await this.execute(plan);
       this.shadow = plan.next;
+      this.stored = plan.next.docs;
       this.setStatus('idle', null);
     } catch (error) {
       if (isStaleWrite(error)) {

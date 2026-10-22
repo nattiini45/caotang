@@ -68,6 +68,7 @@ const CHECK_LABELS: Readonly<Record<string, string>> = {
   'branch.loose-end': 'A dialogue branch runs out without an ending',
   'branch.dead-end': 'A dialogue knot can never be reached',
   'dialogue.speaker-unknown': 'A dialogue speaker matches no codex entry',
+  'timeline.gap': 'A scene is days after the scene before it',
 };
 
 /**

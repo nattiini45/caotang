@@ -84,8 +84,6 @@ export {
   type PdfText,
 } from './pdf.js';
 
-export { emojiKey, emojiPrint, isEmojiCluster } from './emoji.js';
-
 export { breakBetween, charColumns, textColumns, textUnits, unitColumns } from './width.js';
 
 export { COURIER_PRIME_METRICS } from './fonts/courier-prime-metrics.js';
@@ -94,12 +92,12 @@ export {
   PDF_MIME,
   createPdfRenderer,
   drawPdf,
-  fallbackCovers,
   layoutPdf,
   loadCjkFallback,
   loadEmojiFallback,
   loadCourierPrime,
   renderPdf,
+  type PdfFontLoaders,
   type PdfLayout,
   type PdfRenderOptions,
   type PdfRenderResult,

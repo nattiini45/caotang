@@ -3,12 +3,12 @@
  * and [editor-engine.md §9](docs/architecture/editor-engine.md).
  *
  * §4, quoted: "Debounced autosave: flush **≥ 800 ms after last edit**, plus
- * flush on `visibilitychange`/`pagehide`."
+ * flush on `visibilitychange`/`pagehide`/`beforeunload`."
  *
  * §9, quoted: "**Dirty pipeline:** `onChange` → debounce **800 ms** → dispatch
  * `doc.write {docId, body, expectedRevision}` (`issuedBy: 'user'`) → store write
  * (one IndexedDB transaction) → `doc.revision` bump → subscribers. Plus flush on
- * `visibilitychange`/`pagehide` ([project-format.md](project-format.md) §4).
+ * `visibilitychange`/`pagehide`/`beforeunload` ([project-format.md](project-format.md) §4).
  * Flush failure → dirty flag + non-blocking 'unsaved changes' indicator; next
  * flush retries; IndexedDB atomicity makes partial writes impossible."
  *
@@ -194,9 +194,9 @@ export const systemClock: AutosaveClock = {
 /**
  * Where the §4 lifecycle flush comes from.
  *
- * `visibilitychange` and `pagehide` have no `node` equivalent, so the events are
- * a port for the same reason the IndexedDB factory is: the production binding is
- * two `addEventListener` calls, and a test can drive them exactly.
+ * `visibilitychange`, `pagehide` and `beforeunload` have no `node` equivalent, so the
+ * events are a port for the same reason the IndexedDB factory is: the production
+ * binding is three `addEventListener` calls, and a test can drive them exactly.
  */
 export interface FlushSignalSource {
   /** Begin signalling; returns an unsubscribe. */
@@ -206,7 +206,7 @@ export interface FlushSignalSource {
 export interface FlushSignalTargets {
   /** `document` — fires `visibilitychange`. */
   readonly visibility: EventTarget;
-  /** `window` — fires `pagehide`. */
+  /** `window` — fires `pagehide` and `beforeunload`. */
   readonly page: EventTarget;
 }
 
@@ -215,8 +215,9 @@ export interface FlushSignalTargets {
  *
  * The handler is **unconditional** — it flushes on a `visibilitychange` to
  * *visible* as readily as to `hidden`, and on a `pagehide` that the page will
- * resume from the back/forward cache as readily as one it will not. §4 says
- * "flush on `visibilitychange`/`pagehide`" without qualifying either, and the
+ * resume from the back/forward cache as readily as one it will not, and on a
+ * `beforeunload` that the writer then cancels. §4 says "flush on
+ * `visibilitychange`/`pagehide`/`beforeunload`" without qualifying any, and the
  * qualification is unnecessary: a document with nothing pending flushes nothing,
  * so the redundant fire costs no transaction and no revision. A filtered
  * handler would need its filter to be right in every case, and getting it wrong
@@ -225,18 +226,23 @@ export interface FlushSignalTargets {
  * Note what a `pagehide` flush can and cannot promise: it *starts* the write
  * before the page goes away, which in the ordinary case is all that is needed
  * because `visibilitychange`→hidden has already fired and had the whole tab to
- * finish in. Whether a browser completes an IndexedDB transaction started during
- * teardown is not this app's to decide — which is exactly why the dirty state is
- * observable rather than assumed away.
+ * finish in, and `beforeunload` is the earliest teardown event of a reload or a close,
+ * so it gives the write the most time to start. Whether a browser completes an
+ * IndexedDB transaction started during teardown is not this app's to decide — which
+ * is exactly why the dirty state is observable rather than assumed away, and why the
+ * app also keeps the pending text where a synchronous write reaches it (the pending
+ * journal, `apps/desktop/src/app/pending-journal.ts`).
  */
 export function domFlushSignals(targets: FlushSignalTargets): FlushSignalSource {
   return {
     subscribe(listener) {
       targets.visibility.addEventListener('visibilitychange', listener);
       targets.page.addEventListener('pagehide', listener);
+      targets.page.addEventListener('beforeunload', listener);
       return () => {
         targets.visibility.removeEventListener('visibilitychange', listener);
         targets.page.removeEventListener('pagehide', listener);
+        targets.page.removeEventListener('beforeunload', listener);
       };
     },
   };

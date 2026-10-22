@@ -20,6 +20,7 @@ import {
   type UndoStore,
 } from '@caotang/bus';
 import { createProjectCommandRegistry, MemoryArtifactFs, type ExportRecipe, type ProjectState } from '@caotang/store';
+import { loadCjkFontInNode, loadEmojiFontInNode } from '@caotang/pdf-fonts/node-loader';
 import { createExporter, EXPORT_MIME, isBinaryFormat, isMediaFormat, MediaRefusedError, type ByteArtifacts, type ExporterService } from '../src/index.js';
 import { COMPILED_AT } from './fixture.js';
 import { ASSETS, MEDIA_IDS, PROJECT_NAME, makeMediaProject } from './media-fixture.js';
@@ -37,7 +38,7 @@ interface Rig {
 
 let serial = 0;
 
-function rig(options: { bytes?: boolean; state?: ProjectState } = {}): Rig {
+function rig(options: { bytes?: boolean; state?: ProjectState; fonts?: boolean } = {}): Rig {
   const state = options.state ?? makeMediaProject();
   const fs = new MemoryArtifactFs();
   const clock = { now: () => COMPILED_AT };
@@ -53,6 +54,7 @@ function rig(options: { bytes?: boolean; state?: ProjectState } = {}): Rig {
     clock,
     metadata: () => ({ author: 'Ada Lovelace' }),
     assets: () => ASSETS,
+    ...(options.fonts === false ? {} : { loadFallbackFont: loadCjkFontInNode, loadEmojiFont: loadEmojiFontInNode }),
   });
   const registry = createProjectCommandRegistry({ clock, exporter: exporter.commandPort() });
   const undo: UndoStore = createUndoStore({ dispatch: (command) => execute(command, bus, registry) });
@@ -146,10 +148,22 @@ describe('pdf — through the §4 API', () => {
     const pdf = ascii(new Uint8Array(await blob.arrayBuffer()));
     expect(pdf).toContain('/BaseFont /CourierPrime');
     expect(pdf).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSansMonoCJKsc-Regular/);
-    expect(pdf).toContain('/Subtype /CIDFontType0C');
+    expect(pdf).not.toContain('CIDFontType0');
     expect(pdf).toContain('/ToUnicode ');
     expect(pdf).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoEmoji-Regular/);
     expect(pdf).toContain('/Subtype /CIDFontType2');
+  });
+
+  it('prints CJK text and emoji as "?", and says so, when the compile has no font loaders', async () => {
+    const state = makeMediaProject();
+    const kitchen = state.documents.get(MEDIA_IDS.kitchen);
+    if (kitchen === undefined) throw new Error('the fixture has no body for the kitchen scene');
+    state.documents.set(MEDIA_IDS.kitchen, { ...kitchen, body: 'INT. KITCHEN - DAY\n\nMARA\nThe sign says 草堂 🎬.' });
+    const { log, blob } = await rig({ state, fonts: false }).exporter.compile({ includeRootIds: ['manuscript'] }, 'pdf');
+    expect(log.notes).toContain('pdf: this compile has no CJK fallback font, so these 2 characters are printed as "?": 草 堂');
+    expect(log.notes).toContain('pdf: this compile has no emoji font, so this character is printed as "?": 🎬');
+    const pdf = ascii(new Uint8Array(await blob.arrayBuffer()));
+    expect(pdf).not.toContain('CIDFontType2');
   });
 });
 

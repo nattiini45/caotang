@@ -13,6 +13,7 @@
   "dependencies": {
     "@caotang/bus": "workspace:*",
     "@caotang/ids": "workspace:*",
+    "@caotang/pdf-fonts": "workspace:*",
     "@caotang/store": "workspace:*"
   },
   "scripts": {

@@ -17,7 +17,7 @@ Caotang asks your browser to keep its storage, but the browser decides. If it ha
 
 A project can be open in one tab at a time. A second tab waits a moment, then says the project is open in another tab. Switch to that tab, or close it, then open the project again. Opening a folder of a project that another tab holds is refused in the same way.
 
-Undo is kept while the tab is open, and a reload clears it. Caotang saves a moment after you stop typing (800 ms by default), so text typed in the moment before a reload may not be saved yet.
+Undo of your typing in a scene survives a reload (redo may not). The toolbar's Undo and the Undo in Activity last while the tab is open, and a checkpoint can still take a turn back after a reload. Undo on a screenplay's Source tab and in Ink text is the browser's own, and a reload clears it. Caotang saves a moment after you stop typing (800 ms by default). If the tab closes or reloads before a save finishes, Caotang keeps the words in this browser and saves them when you open the project again, and says so. If the project has newer text by then, the words are offered in the binder footer instead, to put back as new documents or discard.
 
 ## Projects
 
@@ -93,7 +93,7 @@ The panel on the right shows the selected item:
 - **Goals**: for a folder, or for the manuscript. Choose the **Comparison** (**At least**, **At most** or **About**) and the **Measure** (**Words** or **Characters**), type the target, and choose an optional **By** date for a project goal. On the manuscript, **Kind** also offers **Weekly** and **Monthly**. A weekly or monthly goal counts the words of the sessions that ended in the current week or month, across all your projects in this browser. Choose when it starts with **Week starts on** (the first day of the week where you live, unless you pick another day) or **Month starts on** (the 1st, unless you pick a day up to the 28th or the last day of the month). Choose **Add goal**, then **Edit** or **Remove** beside a goal to change or delete it.
 - **Status and label**: the menus described above.
 - **Codex**: the codex entries attached to the item, with **Attach a codex entry**. The **Mentioned in this document** list shows the codex names the text contains.
-- **Scene declarations**: for a scene, its **Point of view**, **Day offset**, **Duration in days** and **Timeline mode**, the scenes listed under **Follows these scenes**, and the codex entries listed under **Expected to appear**. The continuity checks read these.
+- **Scene declarations**: for a scene, its **Point of view**, **Day offset**, **Duration in days** and **Timeline mode** (Linear, Flashback, Flash-forward, Parallel, Frame, Dream, Mythic, Backstory, Simultaneous, Circular or Time skip), the scenes listed under **Follows these scenes**, and the codex entries listed under **Expected to appear**. The continuity checks read these.
 - **Container settings**: for a dialogue container, described in [Writing dialogue](#writing-dialogue).
 
 ## The editor
@@ -104,7 +104,7 @@ Select a scene in the binder to write in it.
 - Caotang saves as you type. The toolbar says **All changes saved in this browser** once it has. The pause before a save is 800 ms by default. **Settings › Writing** changes it, for the projects you open after you save.
 - If a scene holds Markdown that Caotang would save differently, a notice names it when the scene opens. Your text is kept.
 - The footer under the editor shows the scene's word count, a session ring that fills toward your daily target, and whether the scene is saved. Choose the ring or today's line to set the target there. Zero clears it.
-- **Ctrl+Z** undoes your typing in the scene. The **Undo** button in the toolbar takes back the last change Caotang made, such as a move or a deletion.
+- **Ctrl+Z** undoes your typing in the scene, one burst at a time, and still does after a reload. An agent's draft is never part of it. The **Undo** button in the toolbar takes back the last change Caotang made, such as a move or a deletion.
 - **Focus** in the toolbar, or Ctrl+Shift+F, hides the binder and the inspector and leaves the text. **Settings › Writing** has the setting **In focus mode, hide the binder and the inspector**. When it is off, focus mode leaves the panels shown. The status line says so when you turn focus on, and its **Settings › Writing** opens that setting. The Focus button stays on the toolbar, so you can leave focus mode from it.
 - When the agent drafts a scene, its words appear in the scene as they are written, and a draft preview bar offers **Apply**, **Retry** and **Discard**. See [The agent](#the-agent).
 - The window needs at least 960 px of width. Under 1100 px the toolbar wraps onto a second row, and the side panels narrow.
@@ -115,7 +115,7 @@ Choose **New screenplay scene here** from a folder's menu. A screenplay scene is
 
 - **Script** draws the scene as it reads.
 - **Source** is the Fountain text. Headings, cues, parentheticals, transitions and notes are drawn in their own styles as you type.
-- **Pages** shows the scene paginated. It is read only, and it is a preview. To get a PDF, compile the screenplay as **Screenplay PDF**.
+- **Pages** shows the scene paginated. It is read only, and it is a preview: a dual-dialogue pair stands side by side, as in the PDF, but the blank lines between elements are closed up. To get a PDF, compile the screenplay as **Screenplay PDF**.
 
 On the Source tab:
 
@@ -140,7 +140,7 @@ Compile a screenplay from **Compile…**, in the Media group, as Fountain, as Fi
 - Script pages count from 1. The number is printed at the top right from page 2.
 - A scene heading is never left alone at the foot of a page. A character name always stays with its first line of dialogue. A transition never starts a page.
 - A speech that crosses a page breaks after a sentence. **(MORE)** ends the page and the name returns with **(CONT’D)** on the next one. You can turn this off in the recipe: clear **(MORE) and (CONT’D) where a speech crosses a page**.
-- Dual dialogue (a second name marked `^`) is printed side by side, in two columns.
+- Dual dialogue (a second name marked `^`) is printed side by side, in two columns. The Pages view draws it the same way.
 - **Scene numbers** can be printed in the left margin, the right margin or both. They are off unless you choose them. A heading's own number, such as `#24A#`, is used when it has one.
 - Notes (`[[…]]`), boneyard text (`/* … */`), sections and synopses are not printed.
 
@@ -188,13 +188,13 @@ Choose **New storyboard here** from a folder's menu. A storyboard holds shots, a
 
 **Pictures.** In a shot's **Image** section, choose **Choose an image file** (PNG, JPEG or WebP). You can also drop a picture on a card, or paste one while the card is selected. **Or use an image already in the project** points the shot at a picture the project holds, and **No image** removes the shot's picture. The picture is kept in this browser, and also in the project folder when you save to one. Export a bundle to keep a copy. If the browser refuses storage, a picture lasts only while the tab is open. Select a picture to see it larger, and choose **Close** or press Escape to return. A picture whose file has gone is dropped when the storyboard opens, and a notice on the board says so.
 
-**Script coverage.** In a shot's **Script coverage** section, choose a scene or a document, select the words of its text that the shot covers, then choose **Cover the selected text**. **Remove** takes a coverage back. If a passage appears twice in the text, Caotang refuses it, so select more words around the one you mean.
+**Script coverage.** In a shot's **Script coverage** section, choose a scene or a document, select the words of its text that the shot covers, then choose **Cover the selected text**. **Remove** takes a coverage back. If a passage appears more than once in the text, in any file, Caotang refuses it and says how many places, so select more words around the one you mean. A selection across a line break is covered.
 
 **The shot's prompt.** The **Prompt** section writes one target model's prompt for the shot: its camera, subject, action, context and style; its audio; the negative prompt; the clip length, aspect ratio, resolution and seed; and its references. Use **Vendor for this prompt** to choose the model. **Save prompt** saves that vendor's prompt, and the other vendors' prompts are kept as they were. The text you type for one vendor stays when you switch to another vendor and back. A change to the stored prompt, such as an undo or the agent's draft, can replace it, and then the section says so. **Remove this prompt** deletes it. Each check under the fields names a problem, and **Go to the field** brings that field into view. **Writer's note for this shot** is for you, and it is not sent to the model. **Add a reference** adds a codex entry or a picture the prompt sends with the shot, and **Best take** records the take you kept from your own generation.
 
 **Contact sheet.** To print a storyboard, choose **Compile…** and **Storyboard contact sheet (.pdf)**, with **Only “…”** for one storyboard or **The whole manuscript** for every shot. The PDF lays the shots out as cards in board order, 15 to an A4 page or 12 to a US Letter page. Each card shows the picture, the shot number, the camera details and duration, and the first two lines of the action. Each page's header gives the project, the storyboard, the date, the page number, the number of shots and the animatic total. A shot with no picture shows its caption. **Paper size** in the recipe's settings chooses A4 or US Letter.
 
-Chinese, Japanese and Korean text prints in the Noto Sans CJK font. Lines break between Chinese and Japanese characters, and at spaces in Korean. Caotang loads the font only when a sheet holds such text, and the PDF carries only the characters it uses. Greek and Cyrillic print in the same font.
+Chinese, Japanese and Korean text prints in the Noto Sans Mono CJK font. Lines break between Chinese and Japanese characters, and at spaces in Korean. Caotang loads the font only when a sheet holds such text, and the PDF carries only the characters it uses. Greek and Cyrillic print in the same font.
 
 Emoji print too, in black and white, in the Noto Emoji font: every emoji up to Unicode Emoji 15.1 prints, and an emoji newer than that prints as `?` (see the limits below). A family, a profession, a skin tone, a flag or a keycap prints as one picture and wraps as one character, and copying it out of the PDF gives back what you typed. Caotang loads this font only when a sheet holds an emoji. Skin tones print as the plain figure, since the font has no colour.
 
@@ -226,6 +226,8 @@ The **Findings** tab checks the manuscript. It has two kinds of check:
 
 Choose the **Scope**: **This document**, **Changed since the last scan**, or **Whole manuscript**. A scope of more than 20 documents asks first: the status line asks, and the panel shows **Scan it anyway**. **Scan it anyway** runs the scope that asked, and **Run again** on a large scope asks the same way.
 
+A scan also notes two scenes whose day offsets are a week or more apart, one after the other in day order. If the jump is meant, set the later or earlier scene's **Timeline mode** to **Time skip** (a **Dream** or **Mythic** scene also silences it), or dismiss the note.
+
 Findings are grouped as **Errors**, **Warnings** and **Notes**. **Show** filters them to **Open**, **Dismissed**, **Marked fixed** or **All**. Each finding quotes the passages it is about. Choose a quote to see that passage in its scene. On an open finding:
 
 - **Fix with agent** starts a turn in the agent to rewrite one passage. The passage is the first quote in the binder: the one in the document that sits higher in the binder, and in that document the earlier one. A finding whose first quote is in a dialogue container has no Fix, so edit that passage in the Ink text. The agent drafts prose and screenplay scenes, not dialogue. On the demo provider, Fix with agent rewrites only the demo's own sample passages, and it refuses any other.
@@ -242,6 +244,7 @@ Type what you want in **Intent**, then choose **Send**. With a provider you have
 
 Reading the agent's work:
 
+- **Progress.** While the agent works, the header of the agent panel says where it is: "Step 3 of 5 · Drafting “The Landing”", or "Waiting for you · Plan, 3 steps" when a card needs you. It shows with the panel open or closed. At the top of the turn, a checklist lists the steps with one in progress, each marked in words as Queued, Waiting for you, In progress, Done, Skipped or Failed (a failed step gives its reason). A step you drop from the card is Skipped, and so is a step that did not run after a failure or a cancel. The checklist folds when the turn ends and stays in the turn. Under it, **Model calls: 3 of 8** counts the requests the turn has made to the model; at 7 and 8 it turns to a warning, and at 8 the turn stops and asks you how to go on. The list is built from the agent's plan and its calls, not by asking the model, so it never shows a step as done that did not run.
 - **Plan card.** The agent lists its steps. Move a step up or down, drop a step, or change the settings of a drafted step. Then choose **Approve plan**, or **Cancel**. Nothing in the plan is written until you approve it.
 - **One-step card.** A single change shows a card with **Approve**.
 - **Coherence review.** The agent can plan a model review as one step. It shows the plan on a card, and it reads the manuscript only after you approve.
@@ -369,7 +372,7 @@ With writes allowed, an outside tool can also compile the manuscript, one item, 
 - **A scene is missing from the export.** Empty scenes are left out. The status line names how many.
 - **Compile says what stopped it.** A dialogue line with no id, or a selection with no scene, is named in the dialog.
 - **The Ink does not compile.** The dialogue view lists the errors. Fix them in the Ink text.
-- **A passage is refused for script coverage.** It appears twice in the text. Select more words around the one you mean.
+- **A passage is refused for script coverage.** It appears more than once in the text, and the message says how many places. Select more words around the one you mean.
 - **The browser warns that it has not promised to keep your words.** Export a bundle now, and again from time to time.
 - **A card is hidden under the agent panel.** Close the panel to reach it.
 
@@ -379,6 +382,6 @@ With writes allowed, an outside tool can also compile the manuscript, one item, 
 - **Contact sheet pictures and characters.** The contact sheet does not draw WebP pictures; their cards show the caption. Characters that none of its fonts has, such as Arabic, Hindi and emoji newer than Unicode Emoji 15.1 (🫩, for one), print as `?`. The compile log names them. Emoji print in black and white, and skin tones as the plain figure. Of Emoji 15.1's people "facing right", a person walking, kneeling or running prints as one picture; a woman or a man walking, kneeling or running, and a person, woman or man with a white cane or in a wheelchair, print as their parts side by side (the figure, then any gender sign, then the cane or wheelchair where the sequence has one, then an arrow). Chinese, Japanese and Korean text has no bold, and Han characters take their Simplified Chinese forms.
 - **Final Draft files.** Import and export of `.fdx` files have not been checked against files that Final Draft wrote or opened. The scene numbers and page headers that Caotang writes are not yet confirmed to show in Final Draft.
 - **Word contents.** How Word and LibreOffice handle the contents field in a `.docx` file has not been tested.
-- **The Pages view.** The Pages view of a screenplay is a read-only preview.
-- **Undo and reloads.** Undo lasts for the open tab, and text typed in the moment before a reload may not be saved yet.
+- **The Pages view.** The Pages view of a screenplay is a read-only preview. It draws a dual-dialogue pair side by side, as the PDF does, but it closes up the blank lines and is not the page's exact height.
+- **Undo and reloads.** The toolbar's Undo and the Undo in Activity last for the open tab; checkpoints survive a reload. Undo on a screenplay's Source tab and in Ink text is the browser's own.
 - **The desktop app.** Caotang runs in the browser. A desktop wrapper is not in this build.

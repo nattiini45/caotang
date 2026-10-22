@@ -9,7 +9,7 @@ import { DETERMINISTIC_CHECK_IDS, type DeterministicCheckId } from '../model.js'
 import type { CheckInput, CheckOutput, DraftFinding } from './common.js';
 import { checkAliasCollisions, checkNeverMentioned } from './codex.js';
 import { checkPovCoverage, checkPresenceExpected } from './presence.js';
-import { checkOrderDrift, checkOverlap, checkRelation, checkWindow } from './timeline.js';
+import { checkGap, checkOrderDrift, checkOverlap, checkRelation, checkWindow } from './timeline.js';
 import { checkCueCollision, checkCueConsistency, checkShotCoverage } from './script.js';
 import { checkBranch } from './branch.js';
 
@@ -31,6 +31,7 @@ export const DETERMINISTIC_CHECKS: Readonly<Record<DeterministicCheckId, (input:
   'branch.loose-end': checkBranch('branch.loose-end'),
   'branch.dead-end': checkBranch('branch.dead-end'),
   'dialogue.speaker-unknown': checkBranch('dialogue.speaker-unknown'),
+  'timeline.gap': checkGap,
 };
 
 /**
@@ -57,7 +58,8 @@ export function runChecks(input: CheckInput, ids: readonly DeterministicCheckId[
     if (!wanted.has(id)) continue;
     const output = DETERMINISTIC_CHECKS[id](shared);
     drafts.push(...output.drafts);
-    notes.push(...output.notes);
+    // Two timeline checks count the same unscheduled scenes; a note a run already holds is not said twice.
+    for (const note of output.notes) if (!notes.includes(note)) notes.push(note);
   }
   return { drafts, notes };
 }

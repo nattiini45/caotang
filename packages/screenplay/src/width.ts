@@ -19,8 +19,7 @@
  * A line may break before or after an emoji with no space, as between Hanzi, and never inside one.
  */
 
-import { emojiFontMaps, fallbackCovers, inRanges } from './coverage.js';
-import { isEmojiCluster } from './emoji.js';
+import { emojiFontMaps, fallbackCovers, inRanges, isEmojiCluster } from '@caotang/pdf-fonts';
 import { isPrintable } from './winansi.js';
 
 /** Wide and Fullwidth ranges (UAX #11), inclusive, in code point order. */

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Builds NotoSansCJKsc-Regular.woff from the upstream Noto Sans CJK SC Regular OTF.
+"""Builds NotoSansMonoCJKsc-Regular.woff from the upstream Noto Sans Mono CJK SC Regular OTF.
 
-Run: python3 vendor/noto-sans-cjk/build.py <path to NotoSansCJKsc-Regular.otf>
+Run: python3 vendor/noto-sans-cjk/build.py <path to NotoSansMonoCJKsc-Regular.otf>
 
 The source is the file README.md names, at the tag it names, and its SHA-256 is checked before anything is built. The
 output is written beside this script, and its SHA-256 is compared with SHA256SUMS: the build fails when they differ, and
@@ -11,12 +11,12 @@ give the same bytes.
 The steps:
 
 1. The CFF outlines become TrueType (glyf) outlines, quadratic curves within 1 font unit of the cubic ones. pdf-lib's
-   fontkit subsets a TrueType font correctly; it writes a broken subset of a CID-keyed CFF font, which Noto Sans CJK is.
+   fontkit subsets a TrueType font correctly; it writes a broken subset of a CID-keyed CFF font, which Noto Sans Mono CJK is.
    Each glyph is padded to 4 bytes, because fontkit's subsetter copies glyph data as it finds it.
 2. Every character the font maps is kept. The glyphs no character reaches (the vertical, regional and other alternates
-   that only OpenType layout reaches) are dropped, with the layout tables, the vertical metrics and the hinting. The PDF
-   exporter draws horizontal text with no layout features, so none of them is used.
-3. The result is stored as WOFF 1.0 (zlib), which the exporter unpacks before fontkit reads it.
+   that only OpenType layout reaches) are dropped, with the layout tables, the vertical metrics and the hinting. Both PDF writers draw horizontal text with no layout
+   features, so none of them is used.
+3. The result is stored as WOFF 1.0 (zlib), which the PDF writers unpack before fontkit reads it.
 """
 
 import hashlib
@@ -31,8 +31,8 @@ from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont, newTable
 
 FONTTOOLS_VERSION = "4.61.1"
-SOURCE_SHA256 = "2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b"
-OUTPUT = "NotoSansCJKsc-Regular.woff"
+SOURCE_SHA256 = "ec04cc376b34887cedbdf84074e2e226ed2761eeabdcb9173fc1dd7bfd153ef7"
+OUTPUT = "NotoSansMonoCJKsc-Regular.woff"
 HERE = Path(__file__).resolve().parent
 
 

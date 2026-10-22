@@ -13,15 +13,15 @@
  * is the same either way.
  *
  * Characters WinAnsi cannot encode are printed in a second font when the caller passes one: the CJK fallback, a
- * subset of Noto Sans Mono CJK SC cut for the document (cjk-font.ts), embedded as a Type 0 font with a CIDFontType0
- * descendant (`FontFile3`, `CIDFontType0C`), `Identity-H` and a `ToUnicode` map, so the text can be copied and searched.
+ * subset of Noto Sans Mono CJK SC cut for the document (cjk-font.ts), embedded as a Type 0 font with a CIDFontType2
+ * descendant (`FontFile2`, TrueType outlines), `Identity-H`, a `CIDToGIDMap` and a `ToUnicode` map, so the text can be copied
+ * and searched.
  * Each fallback glyph starts at its grid cell and advances the cell's width: two columns for a CJK character
  * (width.ts). The glyph is drawn from the cell's left edge, so the text extracts with no gaps between characters. A line with no such
  * character is written exactly as it was before the fallback existed, and a document with none has no second font.
  *
- * Emoji print in a third font when the caller passes one: a subset of Noto Emoji (emoji-font.ts), embedded as a Type 0
- * font with a CIDFontType2 descendant (`FontFile2`, TrueType outlines), `Identity-H`, a `CIDToGIDMap` and a `ToUnicode`
- * map. An emoji is one grapheme cluster, however many code points it has (👨‍👩‍👧, 🇩🇪, 1️⃣): one CID, one glyph, two
+ * Emoji print in a third font when the caller passes one: a subset of Noto Emoji (emoji-font.ts), embedded the same way
+ * (`@caotang/pdf-fonts` writes both). An emoji is one grapheme cluster, however many code points it has (👨‍👩‍👧, 🇩🇪, 1️⃣): one CID, one glyph, two
  * columns, set at 10 points and centred in its cell so it fits the 12-point line. Its ToUnicode entry is the whole
  * cluster, so a reader copies the sequence the writer typed. A line with no emoji is written as it was without this font.
  *
@@ -30,13 +30,17 @@
  * offsets, and the tests can check them exactly.
  */
 
+import { cidFontObjects, isEmojiCluster, type CidSubset, type PdfValue } from '@caotang/pdf-fonts';
+
 import { COURIER_PRIME_METRICS } from './fonts/courier-prime-metrics.js';
-import { isEmojiCluster } from './emoji.js';
 import { LAYOUT } from './paginate.js';
 import { WIN_ANSI_EXTRA, isPrintable } from './winansi.js';
 import { textUnits, unitColumns } from './width.js';
 
 export { isPrintable };
+
+/** How many objects a CID font takes (`cidFontObjects`). */
+const CID_FONT_OBJECTS = 6;
 
 export interface PdfText {
   readonly text: string;
@@ -65,20 +69,10 @@ export interface PdfCidGlyph {
   readonly width: number;
 }
 
-/** A CID-keyed CFF subset to print the characters WinAnsi cannot encode (cjk-font.ts cuts it). */
-export interface PdfCidFont {
-  /** The subset's name: a six-letter tag, a plus, the PostScript name. */
-  readonly baseFont: string;
-  /** The bare CFF font program, CIDs numbered from 1. */
-  readonly program: Uint8Array;
+/** A TrueType subset to print the characters WinAnsi cannot encode (cjk-font.ts cuts it), written as `@caotang/pdf-fonts` writes any CID font. */
+export interface PdfCidFont extends CidSubset {
   /** The glyph each character the subset prints is drawn with. */
   readonly glyphs: ReadonlyMap<string, PdfCidGlyph>;
-  /** The stated width of CID 1, 2, … in order. */
-  readonly widths: readonly number[];
-  readonly bbox: readonly [number, number, number, number];
-  readonly ascent: number;
-  readonly descent: number;
-  readonly capHeight: number;
 }
 
 /** One glyph of the emoji subset. */
@@ -92,25 +86,14 @@ export interface PdfEmojiGlyph {
 }
 
 /**
- * A TrueType subset to print emoji (emoji-font.ts cuts it): a Type 0 font with a CIDFontType2 descendant. Each unit it
- * prints (an emoji cluster, or a character only it has) has its own CID; several CIDs can share one glyph.
+ * A TrueType subset to print emoji (emoji-font.ts cuts it). Each unit it prints (an emoji cluster, or a character only it
+ * has) has its own CID; several CIDs can share one glyph.
  */
-export interface PdfEmojiFont {
-  readonly baseFont: string;
-  /** The TrueType font program of the subset. */
-  readonly program: Uint8Array;
+export interface PdfEmojiFont extends CidSubset {
   /** The size it is set in, in points. */
   readonly size: number;
   /** The glyph each unit prints with, by the unit's text. */
   readonly glyphs: ReadonlyMap<string, PdfEmojiGlyph>;
-  /** The glyph index in the program of CID 1, 2, … in order (the CIDToGIDMap). */
-  readonly gids: readonly number[];
-  /** The stated width of CID 1, 2, … in order. */
-  readonly widths: readonly number[];
-  readonly bbox: readonly [number, number, number, number];
-  readonly ascent: number;
-  readonly descent: number;
-  readonly capHeight: number;
 }
 
 /** The WinAnsi byte for a character. Anything it cannot encode becomes a question mark. */
@@ -271,79 +254,27 @@ function utf16Hex(text: string): string {
   return out;
 }
 
-/**
- * The ToUnicode CMap (PDF 1.7 §9.10.3): each fallback CID back to its text, so the text extracts. Both subsets give each
- * character or unit its own CID, even where two share a glyph (cjk-font.ts, emoji-font.ts), so every entry is kept.
- */
-function toUnicodeCMap(entries: Iterable<readonly [string, { readonly cid: number }]>): string {
-  const pairs = [...entries].map(([text, glyph]) => [glyph.cid, text] as const).sort((a, b) => a[0] - b[0]);
-  const blocks: string[] = [];
-  for (let i = 0; i < pairs.length; i += 100) {
-    const chunk = pairs.slice(i, i + 100);
-    blocks.push(
-      `${chunk.length} beginbfchar\n${chunk.map(([cid, ch]) => `<${cid.toString(16).toUpperCase().padStart(4, '0')}> <${utf16Hex(ch)}>`).join('\n')}\nendbfchar`,
-    );
-  }
-  return [
-    '/CIDInit /ProcSet findresource begin',
-    '12 dict begin',
-    'begincmap',
-    '/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def',
-    '/CMapName /Adobe-Identity-UCS def',
-    '/CMapType 2 def',
-    '1 begincodespacerange',
-    '<0000> <FFFF>',
-    'endcodespacerange',
-    ...blocks,
-    'endcmap',
-    'CMapName currentdict /CMap defineresource pop',
-    'end',
-    'end',
-  ].join('\n');
+/** A PDF value as the file writes it. */
+function valueText(value: PdfValue, first: number): string {
+  if (typeof value === 'number') return num(value);
+  if (Array.isArray(value)) return `[${(value as readonly PdfValue[]).map((item) => valueText(item, first)).join(' ')}]`;
+  const object = value as Exclude<PdfValue, number | readonly PdfValue[]>;
+  if ('name' in object) return `/${object.name}`;
+  if ('string' in object) return `(${pdfString(object.string)})`;
+  if ('ref' in object) return `${first + object.ref} 0 R`;
+  return `<< ${Object.entries(object.dict).map(([key, item]) => `/${key} ${valueText(item, first)}`).join(' ')} >>`;
 }
 
-/** The five objects of the fallback font: the Type 0 font, its CIDFontType0 descendant, the descriptor, the program, the ToUnicode map. */
-function fallbackFontObjects(fallback: PdfCidFont, first: number): string[] {
-  const [cidId, descriptorId, fileId, mapId] = [first + 1, first + 2, first + 3, first + 4];
-  const program = hex(fallback.program);
-  const map = toUnicodeCMap(fallback.glyphs);
-  return [
-    `<< /Type /Font /Subtype /Type0 /BaseFont /${fallback.baseFont} /Encoding /Identity-H /DescendantFonts [${cidId} 0 R] /ToUnicode ${mapId} 0 R >>`,
-    `<< /Type /Font /Subtype /CIDFontType0 /BaseFont /${fallback.baseFont} ` +
-      `/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor ${descriptorId} 0 R ` +
-      `/DW 1000 /W [1 [${fallback.widths.join(' ')}]] >>`,
-    `<< /Type /FontDescriptor /FontName /${fallback.baseFont} /Flags 4 /FontBBox [${fallback.bbox.join(' ')}] /ItalicAngle 0 ` +
-      `/Ascent ${fallback.ascent} /Descent ${fallback.descent} /CapHeight ${fallback.capHeight} /StemV 80 /FontFile3 ${fileId} 0 R >>`,
-    `<< /Subtype /CIDFontType0C /Length ${program.length} /Filter /ASCIIHexDecode >>\nstream\n${program}\nendstream`,
-    `<< /Length ${map.length} >>\nstream\n${map}\nendstream`,
-  ];
-}
-
-/**
- * The six objects of the emoji font: the Type 0 font, its CIDFontType2 descendant, the descriptor, the TrueType program,
- * the ToUnicode map, and the CIDToGIDMap, which maps each CID to its glyph (several CIDs can share one).
- */
-function emojiFontObjects(emoji: PdfEmojiFont, first: number): string[] {
-  const [cidId, descriptorId, fileId, mapId, gidMapId] = [first + 1, first + 2, first + 3, first + 4, first + 5];
-  const program = hex(emoji.program);
-  const map = toUnicodeCMap(emoji.glyphs);
-  const gidBytes = new Uint8Array(2 * (emoji.gids.length + 1));
-  emoji.gids.forEach((gid, i) => {
-    gidBytes[2 * (i + 1)] = gid >> 8;
-    gidBytes[2 * (i + 1) + 1] = gid & 0xff;
+/** The objects of a CID font (`@caotang/pdf-fonts`, cid-font.ts) as file text, the first one numbered `first`. A binary stream is written in hexadecimal. */
+function cidFontText(font: CidSubset, first: number): string[] {
+  return cidFontObjects(font).map((object) => {
+    const dict = Object.entries(object.dict).map(([key, item]) => `/${key} ${valueText(item, first)}`);
+    const { stream } = object;
+    if (stream === undefined) return `<< ${dict.join(' ')} >>`;
+    const body = typeof stream === 'string' ? stream : hex(stream);
+    const filter = typeof stream === 'string' ? [] : ['/Filter /ASCIIHexDecode'];
+    return `<< /Length ${body.length} ${[...dict, ...filter].join(' ')} >>\nstream\n${body}\nendstream`;
   });
-  const gidMap = hex(gidBytes);
-  return [
-    `<< /Type /Font /Subtype /Type0 /BaseFont /${emoji.baseFont} /Encoding /Identity-H /DescendantFonts [${cidId} 0 R] /ToUnicode ${mapId} 0 R >>`,
-    `<< /Type /Font /Subtype /CIDFontType2 /BaseFont /${emoji.baseFont} ` +
-      `/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor ${descriptorId} 0 R ` +
-      `/DW 1000 /W [1 [${emoji.widths.join(' ')}]] /CIDToGIDMap ${gidMapId} 0 R >>`,
-    `<< /Type /FontDescriptor /FontName /${emoji.baseFont} /Flags 4 /FontBBox [${emoji.bbox.join(' ')}] /ItalicAngle 0 ` +
-      `/Ascent ${emoji.ascent} /Descent ${emoji.descent} /CapHeight ${emoji.capHeight} /StemV 80 /FontFile2 ${fileId} 0 R >>`,
-    `<< /Length ${program.length} /Length1 ${emoji.program.length} /Filter /ASCIIHexDecode >>\nstream\n${program}\nendstream`,
-    `<< /Length ${map.length} >>\nstream\n${map}\nendstream`,
-    `<< /Length ${gidMap.length} /Filter /ASCIIHexDecode >>\nstream\n${gidMap}\nendstream`,
-  ];
 }
 
 /** An info-dictionary string: a literal in WinAnsi when every character is printable, UTF-16BE with a byte order mark otherwise. */
@@ -356,7 +287,7 @@ function infoString(text: string): string {
  * Writes one PDF from pages of positioned text. Object 1 is the catalogue, 2 the page tree,
  * 3 the font, 4 the info dictionary. Each page then takes two objects: the page, and its
  * content stream. An embedded font adds its descriptor and its program after the pages, a CJK fallback that prints at
- * least one character adds its five objects after those, and an emoji font that prints at least one unit its six after
+ * least one character adds its six objects after those, and an emoji font that prints at least one unit its six after
  * those. Every page names each font the file has.
  *
  * A document with nothing to print writes one blank page: PDF 1.7 §7.7.3.2 asks the page tree to hold at least one
@@ -388,13 +319,13 @@ export function writePdf(
   }
   const fallbackId = pageId(written.length) + (font === undefined ? 0 : 2);
   if (fallback !== undefined) {
-    fallbackFontObjects(fallback, fallbackId).forEach((body, i) => {
+    cidFontText(fallback, fallbackId).forEach((body, i) => {
       bodies[fallbackId - 1 + i] = body;
     });
   }
-  const emojiId = fallbackId + (fallback === undefined ? 0 : 5);
+  const emojiId = fallbackId + (fallback === undefined ? 0 : CID_FONT_OBJECTS);
   if (emoji !== undefined) {
-    emojiFontObjects(emoji, emojiId).forEach((body, i) => {
+    cidFontText(emoji, emojiId).forEach((body, i) => {
       bodies[emojiId - 1 + i] = body;
     });
   }

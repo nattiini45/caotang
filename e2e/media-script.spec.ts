@@ -4,7 +4,7 @@
  * from its element menu, and the Pages tab shows the scene as it prints, read only. media/README.md says what each view does; these tests read the app through its gestures.
  */
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { binderTitle, bodyOf, createProject, firstChapter, idOf, traceNames, treeOf, waitForSaved } from './support.js';
 
@@ -173,6 +173,90 @@ test('the Pages tab shows the scene as it prints, read only', async ({ page }) =
   await waitForSaved(page);
   const id = await idOf(page, 'Untitled scene');
   await expect.poll(() => bodyOf(page, id)).toContain('MARCUS');
+});
+
+/** The Pages tab of a new scene holding this Fountain source. */
+async function pagesOf(page: Page, fountain: string) {
+  await createProject(page, PROJECT);
+  await makeScene(page);
+  await page.getByRole('radio', { name: 'Source', exact: true }).click();
+  await source(page).fill(fountain);
+  await page.getByRole('radio', { name: 'Pages', exact: true }).click();
+  const sheet = page.getByRole('region', { name: 'Page 1' });
+  await expect(sheet).toBeVisible();
+  return sheet;
+}
+
+/** The box of the sheet's line with exactly this text. */
+async function boxOf(sheet: Locator, text: string) {
+  const box = await sheet.locator('.sp-line', { hasText: new RegExp(`^${text.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')}$`) }).boundingBox();
+  if (box === null) throw new Error(`no line ${text}`);
+  return box;
+}
+
+const DUAL = ['INT. HALL - DAY', '', 'ANNA', '(softly)', 'I go left.', '', 'BEN ^', 'I go right.'].join('\n');
+
+test('the Pages tab draws a dual-dialogue pair side by side, and keeps the reading order', async ({ page }) => {
+  const sheet = await pagesOf(page, DUAL);
+  const heading = await boxOf(sheet, 'INT. HALL - DAY');
+  const anna = await boxOf(sheet, 'ANNA');
+  const ben = await boxOf(sheet, 'BEN');
+  const aside = await boxOf(sheet, '(softly)');
+  const left = await boxOf(sheet, 'I go left.');
+  const right = await boxOf(sheet, 'I go right.');
+  // The right cue stands on the left cue's line, 30 characters (216px at 12px Courier) to its right.
+  expect(ben.y).toBeCloseTo(anna.y, 1);
+  expect(ben.x - anna.x).toBeCloseTo(30 * 7.2, 0);
+  // The right dialogue starts beside the left parenthetical, and the left speech is still one row above the next.
+  expect(right.y).toBeCloseTo(aside.y, 1);
+  expect(right.x - left.x).toBeCloseTo(30 * 7.2, 0);
+  expect(aside.y - anna.y).toBeCloseTo(14, 1);
+  expect(left.y - aside.y).toBeCloseTo(14, 1);
+  // The blank row before the pair stays collapsed.
+  expect(anna.y - heading.y).toBeCloseTo(14, 1);
+  // The lines are in the paginator's order: the left speech whole, then the right speech whole.
+  await expect(sheet.locator('.sp-line')).toHaveText([
+    'INT. HALL - DAY',
+    'ANNA',
+    '(softly)',
+    'I go left.',
+    'BEN',
+    'I go right.',
+  ]);
+  // The tab is still a preview: nothing in it takes input, and its note is the same.
+  const preview = page.getByLabel('Paginated preview');
+  await expect(preview.locator('input, textarea, [contenteditable="true"]')).toHaveCount(0);
+  await expect(preview.getByText('Read only. The page breaks follow the screenplay page: about 55 lines a page, 12 point Courier.')).toBeVisible();
+});
+
+test('a script page without a pair keeps one 14px row to each line, from the sheet\'s own padding', async ({ page }) => {
+  const sheet = await pagesOf(page, SCENE);
+  const frame = await sheet.boundingBox();
+  const heading = await boxOf(sheet, 'INT. HOUSE - DAY');
+  const cue = await boxOf(sheet, 'MARCUS');
+  const dialogue = await boxOf(sheet, 'Hi.');
+  if (frame === null) throw new Error('no sheet');
+  // A 1px border and 24px padding above the first row, 16px beside it; the heading is at the left margin, 15 characters in.
+  expect(heading.y - frame.y).toBeCloseTo(25, 1);
+  expect(heading.x - frame.x).toBeCloseTo(1 + 16 + 15 * 7.2, 0);
+  expect(cue.y - heading.y).toBeCloseTo(14, 1);
+  expect(dialogue.y - cue.y).toBeCloseTo(14, 1);
+  expect(cue.x - heading.x).toBeCloseTo(22 * 7.2, 0);
+  expect(frame.height).toBeCloseTo(2 + 48 + 14 * 4, 0);
+  // A bold heading does not move the columns: the advance is the same in either weight.
+  const advances = await page.evaluate(() => {
+    const measure = (weight: string) => {
+      const probe = document.createElement('span');
+      probe.style.cssText = `position:absolute;white-space:pre;font:${weight} 12px 'Courier Prime', 'Courier New', Courier, monospace`;
+      probe.textContent = 'x'.repeat(40);
+      document.body.append(probe);
+      const width = probe.getBoundingClientRect().width;
+      probe.remove();
+      return width;
+    };
+    return [measure('400'), measure('700')];
+  });
+  expect(advances[1]).toBeCloseTo(advances[0] ?? 0, 3);
 });
 
 test('the scene\'s heading and cue carry their decoration after a reload', async ({ page }) => {

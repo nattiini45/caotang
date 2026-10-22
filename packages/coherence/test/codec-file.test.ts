@@ -212,7 +212,7 @@ describe('coherence.json codec', () => {
       formatVersion: 1,
       findings: [],
       runs: [],
-      sceneMeta: { sA: { dayOffset: 2, timelineMode: 'time-skip' }, sB: { timelineMode: 'time-skip' } },
+      sceneMeta: { sA: { dayOffset: 2, timelineMode: 'montage' }, sB: { timelineMode: 'montage' } },
       worldRules: [],
       reviewState: {},
     };
@@ -222,7 +222,7 @@ describe('coherence.json codec', () => {
     expect(outcome.file.sceneMeta['sA']).toEqual({ dayOffset: 2 });
     const modeNotices = outcome.notices.filter((n) => n.code === 'unknown-timeline-mode');
     expect(modeNotices).toHaveLength(1);
-    expect(modeNotices[0]?.message).toContain('"time-skip"');
+    expect(modeNotices[0]?.message).toContain('"montage"');
   });
 
   it('drops one malformed declaration field and keeps the others', () => {

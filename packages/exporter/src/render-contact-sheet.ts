@@ -15,13 +15,13 @@
  * ## The fallback font
  *
  * Helvetica's built-in encoding is WinAnsi: Latin letters with their accents, and common punctuation. Text outside it is set
- * in Noto Sans CJK SC (`./cjk-font.ts`), embedded through `@pdf-lib/fontkit` (exact pin, MIT) as a subset that carries only
+ * in Noto Sans Mono CJK SC (`@caotang/font-noto-cjk`), embedded through `@pdf-lib/fontkit` (exact pin, MIT) as a subset that carries only
  * the glyphs the file draws. Each run of text switches font per character cluster: Helvetica for what WinAnsi encodes, the
  * fallback for the rest. The font is read through the input's `loadFallbackFont`, and only when a run needs it, so a
  * Latin-only sheet never reads it and its bytes do not change.
  *
  * Emoji are set in Noto Emoji (`./emoji-font.ts`), monochrome, the last fallback: a cluster in emoji presentation (🎬, ❤️,
- * 👨‍👩‍👧, 🇩🇪, 1️⃣, 👍🏽) goes to it directly; a pictograph whose default is text (☺, ✌) tries Helvetica and Noto Sans CJK first.
+ * 👨‍👩‍👧, 🇩🇪, 1️⃣, 👍🏽) goes to it directly; a pictograph whose default is text (☺, ✌) tries Helvetica and Noto Sans Mono CJK first.
  * Each emoji is laid out through the font's ligatures as one grapheme cluster, so a sequence is measured, cut and drawn as one
  * unit, and the ToUnicode map gives the exact sequence back when it is copied. The emoji font is read only when a sheet holds
  * an emoji, through the input's `loadEmojiFont`.
@@ -35,11 +35,13 @@
  * does not parse) gets the card's caption in its box instead, and the log names the picture once.
  */
 
+import { CJK_FONT_NAME, EMOJI_FONT_NAME, emojiStyleOf, graphemesOf, loadFont, type FontLoader } from '@caotang/pdf-fonts';
 import type * as PdfLib from 'pdf-lib';
-import { emojiStyleOf, graphemesOf, sniffImage, type PlacedCard, type PlacedText, type SheetPlan } from '@caotang/storyboard';
+import { sniffImage, type PlacedCard, type PlacedText, type SheetPlan } from '@caotang/storyboard';
 
-import { CJK_FONT_NAME, sfntFromWoff, type FontLoader } from './cjk-font.js';
-import { EMOJI_FONT_NAME, EmojiEmbedding, EmojiFace, type EmojiGlyph, type FontkitFont } from './emoji-font.js';
+import type { FontkitFont } from './cid-embedding.js';
+import { CjkEmbedding, CjkFace } from './cjk-font.js';
+import { EmojiEmbedding, EmojiFace, type EmojiGlyph } from './emoji-font.js';
 
 export const PDF_MIME = 'application/pdf';
 
@@ -58,7 +60,7 @@ export interface ContactSheetPdfInput {
   /** The moment the compile ran: the document's creation and modification dates, so one compile writes one file. */
   readonly at: Date;
   /**
-   * Reads the fallback font for text outside WinAnsi (`./cjk-font.ts`). Called at most once, and only when the sheet holds such
+   * Reads the fallback font for text outside WinAnsi (`@caotang/font-noto-cjk`). Called at most once, and only when the sheet holds such
    * text. Without it, that text is drawn as `?` and the log says so.
    */
   readonly loadFallbackFont?: FontLoader;
@@ -88,7 +90,7 @@ const FRAME_LINE: Shade = { r: 0.7, g: 0.7, b: 0.7 };
 const CHIP_FILL: Shade = { r: 0.15, g: 0.15, b: 0.15 };
 const PAPER: Shade = { r: 1, g: 1, b: 1 };
 
-/** The fonts a piece of text can be set in: Helvetica (or Helvetica-Bold), Noto Sans CJK, Noto Emoji. */
+/** The fonts a piece of text can be set in: Helvetica (or Helvetica-Bold), Noto Sans Mono CJK, Noto Emoji. */
 type Face = 'base' | 'cjk' | 'emoji';
 
 /** One grapheme cluster of a line, resolved to the font that draws it. An emoji carries the glyphs its layout gave. */
@@ -150,15 +152,10 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
   /** What WinAnsi encodes: the same set for Helvetica and Helvetica-Bold. */
   const builtIn = new Set(regular.getCharacterSet());
 
-  // The fonts are imported once, the first time a fallback font is needed.
-  let fontkitModule: Promise<{ default: { create(bytes: Uint8Array): unknown } }> | undefined;
-  const fontkitOnce = (): Promise<{ default: { create(bytes: Uint8Array): unknown } }> =>
-    (fontkitModule ??= import('@pdf-lib/fontkit') as unknown as Promise<{ default: { create(bytes: Uint8Array): unknown } }>);
-
   // The fallback font, embedded the first time a run needs it. `null` once it is known to be unavailable, with the reason.
-  let fallback: { font: PdfLib.PDFFont; covers: Set<number> } | null | undefined;
+  let fallback: CjkEmbedding | null | undefined;
   let fallbackError = '';
-  const fallbackFont = async (): Promise<{ font: PdfLib.PDFFont; covers: Set<number> } | null> => {
+  const fallbackFont = async (): Promise<CjkEmbedding | null> => {
     if (fallback !== undefined) return fallback;
     fallback = null;
     if (input.loadFallbackFont === undefined) {
@@ -166,10 +163,7 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
       return fallback;
     }
     try {
-      const [bytes, fontkit] = await Promise.all([input.loadFallbackFont(), fontkitOnce()]);
-      pdf.registerFontkit(fontkit.default as Parameters<PdfLib.PDFDocument['registerFontkit']>[0]);
-      const font = await pdf.embedFont(await sfntFromWoff(bytes), { subset: true });
-      fallback = { font, covers: new Set(font.getCharacterSet()) };
+      fallback = new CjkEmbedding(lib, pdf, new CjkFace((await loadFont(input.loadFallbackFont, 'the fallback font')) as unknown as FontkitFont));
     } catch (error) {
       fallbackError = `the fallback font could not be read (${error instanceof Error ? error.message : String(error)})`;
     }
@@ -188,8 +182,7 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
       return emoji;
     }
     try {
-      const [bytes, fontkit] = await Promise.all([input.loadEmojiFont(), fontkitOnce()]);
-      const face = new EmojiFace(fontkit.default.create(await sfntFromWoff(bytes)) as FontkitFont);
+      const face = new EmojiFace((await loadFont(input.loadEmojiFont, 'the emoji font')) as unknown as FontkitFont);
       emoji = new EmojiEmbedding(lib, pdf, face);
     } catch (error) {
       emojiError = `the emoji font could not be read (${error instanceof Error ? error.message : String(error)})`;
@@ -241,9 +234,10 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
       }
       const loaded = await fallbackFont();
       if (loaded !== null) {
-        const kept = textCodes.filter((code) => loaded.covers.has(code) || !isJoinerOrSelector(code));
-        if (kept.length > 0 && kept.every((code) => loaded.covers.has(code))) {
-          pieces.push({ text: String.fromCodePoint(...kept), face: 'cjk' });
+        const kept = textCodes.filter((code) => loaded.face.covers(code) || !isJoinerOrSelector(code));
+        const glyphs = kept.length > 0 && kept.every((code) => loaded.face.covers(code)) ? loaded.face.glyphsOf(String.fromCodePoint(...kept)) : null;
+        if (glyphs !== null) {
+          pieces.push({ text: String.fromCodePoint(...kept), face: 'cjk', glyphs });
           continue;
         }
       } else {
@@ -274,14 +268,13 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
     return runs;
   };
 
-  /** The PDF font a text run is set in. */
-  const pdfFontOf = (face: Face, base: PdfLib.PDFFont): PdfLib.PDFFont => (face === 'cjk' && fallback ? fallback.font : base);
-
   /** The width of one run at a size, in its own font. */
   const runWidth = (run: readonly Piece[], base: PdfLib.PDFFont, size: number): number => {
     const face = run[0]?.face ?? 'base';
-    if (face === 'emoji') return emoji ? emoji.face.widthOf(run.flatMap((piece) => piece.glyphs ?? []), size) : 0;
-    return pdfFontOf(face, base).widthOfTextAtSize(run.map((piece) => piece.text).join(''), size);
+    const glyphs = run.flatMap((piece) => piece.glyphs ?? []);
+    if (face === 'emoji') return emoji ? emoji.face.widthOf(glyphs, size) : 0;
+    if (face === 'cjk') return fallback ? fallback.face.widthOf(glyphs, size) : 0;
+    return base.widthOfTextAtSize(run.map((piece) => piece.text).join(''), size);
   };
 
   /** The width of pieces at a size, each run measured in its own font. */
@@ -310,11 +303,10 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
     let at = x;
     for (const run of runsOf(pieces)) {
       const face = run[0]?.face ?? 'base';
-      if (face === 'emoji' && emoji) {
-        emoji.draw(page, run.flatMap((piece) => piece.glyphs ?? []), at, y, size, ink);
-      } else {
-        page.drawText(run.map((piece) => piece.text).join(''), { x: at, y, size, font: pdfFontOf(face, base), color: color(ink) });
-      }
+      const glyphs = run.flatMap((piece) => piece.glyphs ?? []);
+      if (face === 'emoji' && emoji) emoji.draw(page, glyphs, at, y, size, ink);
+      else if (face === 'cjk' && fallback) fallback.draw(page, glyphs, at, y, size, ink);
+      else page.drawText(run.map((piece) => piece.text).join(''), { x: at, y, size, font: base, color: color(ink) });
       at += runWidth(run, base, size);
     }
   };
@@ -421,6 +413,7 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
 
   // A sheet whose only emoji the font lacks loaded the font and drew nothing in it: no font is written then.
   if (emoji?.used === true) await emoji.finish();
+  if (fallback?.used === true) await fallback.finish();
 
   if (fallback) notes.push(`contact sheet: text outside Latin script is set in ${CJK_FONT_NAME}, embedded with only the glyphs it uses`);
   if (emoji?.used === true) notes.push(`contact sheet: emoji are set in ${EMOJI_FONT_NAME}, in monochrome, embedded with only the glyphs they use`);

@@ -4,7 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { ZIP_ENGINE } from '../packages/store/src/index.js';
 
-import { binderTitle, bodyOf, createProject, idOf, projectIdOf, waitForSaved } from './support.js';
+import { binderTitle, bodyOf, createProject, FOLDER_ACCESS_ONLY, idOf, projectIdOf, waitForSaved } from './support.js';
 
 /**
  * Two tabs on one project (project-lease.ts, persistence.ts). Two pages of one browser context share the browser's storage, as two
@@ -88,7 +88,9 @@ test('a project another tab has open is refused, the first tab keeps its words, 
 test('a folder whose project another tab has open is refused as the list refuses it, and no second copy of the book is made', async ({
   page,
   context,
+  browserName,
 }) => {
+  test.skip(browserName !== 'chromium', FOLDER_ACCESS_ONLY);
   // The folder picker is a directory in the page's own storage, for both tabs (as media-storyboard-folder.spec.ts stands one in).
   await context.addInitScript(() => {
     const host = globalThis as unknown as { showDirectoryPicker: () => Promise<unknown> };

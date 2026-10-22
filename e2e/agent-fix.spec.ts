@@ -30,7 +30,7 @@ test('a demo draft lands with its Apply bar in view above the agent drawer, and 
   await expect(bar).toBeVisible();
   const drawer = page.getByTestId('agent-panel');
   // The turn is waiting on the writer's decision, so the header says so and does not say the agent is working.
-  await expect(drawer.locator('.agent-busy')).toHaveText('Waiting for you');
+  await expect(drawer.locator('.agent-busy')).toContainText('Waiting for you');
 
   // Without scrolling, the Apply button is inside the editor's visible area and above the drawer.
   const apply = bar.getByRole('button', { name: 'Apply', exact: true });

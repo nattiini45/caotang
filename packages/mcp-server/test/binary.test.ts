@@ -53,11 +53,6 @@ function waitForStderr(child: ChildProcess, pattern: RegExp, ms = 20_000): Promi
   });
 }
 
-/** Escapes `text` for use as a literal inside a RegExp; the backslash is among the escaped characters. */
-function escapeRegExp(text: string): string {
-  return text.replace(/[\\^$.*+?()[\]{}|-]/g, '\\$&');
-}
-
 function exited(child: ChildProcess): Promise<number | null> {
   if (child.exitCode !== null) return Promise.resolve(child.exitCode);
   return new Promise((resolve) => child.once('exit', (code) => resolve(code)));
@@ -103,18 +98,6 @@ async function stdioHost(folder: string, answer?: Answer, legacy = false): Promi
   return client;
 }
 
-describe('escapeRegExp', () => {
-  it('matches the text literally, and escapes the backslash itself', () => {
-    for (const text of ['NotoSansMonoCJKsc-Regular.otf', 'a\\b', 'a\\.b', '\\', '^$.*+?()[]{}|-', '']) {
-      expect(new RegExp(`^${escapeRegExp(text)}$`).test(text), text).toBe(true);
-    }
-    // A backslash in the input must not turn the next character into an escape (or pair with the escape added for it).
-    expect(new RegExp(`^${escapeRegExp('a\\.b')}$`).test('a\\.b')).toBe(true);
-    expect(new RegExp(`^${escapeRegExp('a\\.b')}$`).test('a.b')).toBe(false);
-    expect(new RegExp(`^${escapeRegExp('a.b')}$`).test('axb')).toBe(false);
-  });
-});
-
 describe('the built caotang-mcp binary', () => {
   let root: string;
 
@@ -139,16 +122,13 @@ describe('the built caotang-mcp binary', () => {
     expect(stdout).toContain('usage: caotang-mcp serve');
   }, 60_000);
 
-  it('puts the screenplay PDF’s fallback fonts in dist/fonts/, where the bundle’s untouched font URLs point', () => {
+  it('reads the PDFs’ fallback fonts from fonts/ beside the bundle, which the pack stages, and builds none of its own', () => {
     const bundle = readFileSync(BUNDLE, 'utf8');
-    for (const name of ['NotoSansMonoCJKsc-Regular.otf', 'NotoEmoji-Regular.ttf']) {
-      // The build leaves `new URL('./fonts/…', import.meta.url)` as the screenplay package wrote it, so it resolves beside the
-      // bundle. A rebased or inlined asset URL would read a path the build did not fill.
-      expect(bundle, name).toMatch(new RegExp(`new URL\\((["'])\\./fonts/${escapeRegExp(name)}\\1, import\\.meta\\.url\\)`));
-      const shipped = join(PACKAGE, 'dist', 'fonts', name);
-      expect(existsSync(shipped), name).toBe(true);
-      expect(readFileSync(shipped).equals(readFileSync(join(PACKAGE, '..', 'screenplay', 'src', 'fonts', name))), name).toBe(true);
-    }
+    // The Node loader's first candidate is fonts/<file> beside the running module (packages/pdf-fonts/src/node-loader.ts);
+    // the pack script copies the one CJK and the one emoji file there. The build itself emits no font.
+    expect(bundle).toMatch(/["']fonts["'], file/);
+    expect(bundle).not.toMatch(/new URL\((["'])\.\/fonts\//);
+    expect(existsSync(join(PACKAGE, 'dist', 'fonts'))).toBe(false);
   });
 
   it('serves a project over Streamable HTTP with the token from the environment, and answers with real data', async () => {

@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@caotang/pdf-fonts": "workspace:*",
     "@pdf-lib/fontkit": "1.1.1"
   }
 }

@@ -7,14 +7,14 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import * as fontkitModule from '@pdf-lib/fontkit';
-import { describe, expect, it } from 'vitest';
+import type { Font } from '@pdf-lib/fontkit';
+import { emojiPrint, isEmojiCluster } from '@caotang/pdf-fonts';
+import { beforeAll, describe, expect, it } from 'vitest';
 import type { FlatBlock } from '../src/index.js';
 import {
   createPdfRenderer,
   drawPdf,
-  emojiPrint,
   importFountainScript,
-  isEmojiCluster,
   layoutPdf,
   loadCjkFallback,
   loadCourierPrime,
@@ -27,16 +27,17 @@ import {
   LAYOUT,
 } from '../src/index.js';
 import { emojiGlyph, subsetNotoEmoji } from '../src/emoji-font.js';
-import { NOTO_EMOJI_CODE_POINTS, NOTO_EMOJI_RANGES, NOTO_EMOJI_SEQUENCES, NOTO_EMOJI_TONED } from '../src/fonts/noto-emoji-coverage.js';
 import { SCRIPT_ONE_ACT, SCRIPT_WITH_TITLE_PAGE, text } from './fixtures/corpus.js';
+import { LOADERS, sourceEmoji } from './fixtures/fonts.js';
 
 const fontkit = ((fontkitModule as unknown as { default?: typeof fontkitModule }).default ?? fontkitModule) as typeof fontkitModule;
-const FONT_PATH = new URL('../src/fonts/NotoEmoji-Regular.ttf', import.meta.url);
-const FONT_SHA256 = 'c170291ac225588dc58595df2ad1e3a91b4fddab78f3f5fcdbe0da0feb1f14d6';
-const EMOJI_TEST_PATH = new URL('./fixtures/emoji-test-15.1.txt', import.meta.url);
-const EMOJI_TEST_SHA256 = 'd876ee249aa28eaa76cfa6dfaa702847a8d13b062aa488d465d0395ee8137ed9';
+// Unicode's list is kept with the coverage tables it generates (packages/pdf-fonts/scripts/emoji-coverage.mjs).
+const EMOJI_TEST_PATH = new URL('../../pdf-fonts/test/fixtures/emoji-test-15.1.txt', import.meta.url);
 
-const font = fontkit.create(readFileSync(FONT_PATH));
+let font: Font;
+beforeAll(async () => {
+  font = await sourceEmoji();
+});
 
 function blocksOf(source: string): FlatBlock[] {
   return importFountainScript(source).nodes.map((node, i): FlatBlock => {
@@ -49,7 +50,7 @@ const decode = (bytes: Uint8Array): string => new TextDecoder().decode(bytes);
 const linesOf = (source: string) => paginate(parseFountain(source).elements).flatMap((page) => page.lines);
 
 async function pdfOf(source: string, title = 'T'): Promise<string> {
-  const blob = await createPdfRenderer().emit(blocksOf(source), { title });
+  const blob = await createPdfRenderer(LOADERS).emit(blocksOf(source), { title });
   return decode(new Uint8Array(await blob.arrayBuffer()));
 }
 
@@ -155,28 +156,11 @@ describe('emoji as grapheme clusters', () => {
 });
 
 describe('the emoji fallback font', () => {
-  it('is the Noto Emoji Regular instance the README names, byte for byte', () => {
-    expect(createHash('sha256').update(readFileSync(FONT_PATH)).digest('hex')).toBe(FONT_SHA256);
+  it('is Noto Emoji Regular, with TrueType outlines', () => {
     expect(font.postscriptName).toBe('NotoEmoji-Regular');
-    // TrueType outlines, so the subset is a glyf font and the CFF subset bugs of fontkit 1.1.1 do not apply.
-    expect(readFileSync(FONT_PATH).subarray(0, 4)).toEqual(Buffer.from([0, 1, 0, 0]));
-  });
-
-  it('has the coverage tables the layout reads, generated from the font', () => {
-    const set = font.characterSet;
-    expect(set.length).toBe(NOTO_EMOJI_CODE_POINTS);
-    expect(NOTO_EMOJI_RANGES.length).toBeGreaterThan(0);
-    for (const table of [NOTO_EMOJI_SEQUENCES, NOTO_EMOJI_TONED]) {
-      for (const seq of table.split(' ')) {
-        const key = String.fromCodePoint(...seq.split('.').map((part) => parseInt(part, 36)));
-        // A sequence is one glyph as its key; a toned key is one glyph only with its tones.
-        expect(font.layout(key).glyphs.length === 1, key).toBe(table === NOTO_EMOJI_SEQUENCES);
-      }
-    }
   });
 
   it('maps every fully-qualified emoji of Unicode 15.1, the version the font supports, to a glyph', () => {
-    expect(createHash('sha256').update(readFileSync(EMOJI_TEST_PATH)).digest('hex')).toBe(EMOJI_TEST_SHA256);
     const qualified = emojiList().filter((row) => row.status === 'fully-qualified');
     expect(qualified.length).toBe(3773);
     const base: string[] = [];
@@ -217,10 +201,10 @@ describe('the emoji fallback font', () => {
     const subset = await subsetNotoEmoji(font, units);
     expect(subset.baseFont).toMatch(/^[A-Z]{6}\+NotoEmoji-Regular$/);
     expect(subset.glyphs.size).toBe(units.length);
-    expect(new Set(subset.gids).size).toBe(units.length - 1);
-    const read = fontkit.create(subset.program);
+    expect(new Set(subset.entries.map((entry) => entry.gid)).size).toBe(units.length - 1);
+    const read = fontkit.create(subset.program as Buffer);
     for (const [unit, glyph] of subset.glyphs) {
-      const gid = subset.gids[glyph.cid - 1] ?? 0;
+      const gid = subset.entries[glyph.cid - 1]?.gid ?? 0;
       expect(read.getGlyph(gid).path.toSVG(), unit).toBe(emojiGlyph(font, unit)?.path.toSVG());
       expect(glyph.width, unit).toBe(1440);
     }
@@ -309,8 +293,8 @@ describe('a script with no emoji', () => {
   it.each(BEFORE.map((row, i) => [...row, HASHES[i]] as const))('is byte for byte the Latin file it was: %s', async (_name, source, embed, opts, hash) => {
     const layout = layoutPdf(blocksOf(source), { title: 'T', author: 'A', ...opts });
     expect(layout.emojiCharacters).toEqual([]);
-    expect(await loadEmojiFallback(layout)).toBeUndefined();
-    const bytes = drawPdf(layout, embed ? await loadCourierPrime() : undefined, await loadCjkFallback(layout), await loadEmojiFallback(layout));
+    expect(await loadEmojiFallback(layout, LOADERS.emoji)).toBeUndefined();
+    const bytes = drawPdf(layout, embed ? await loadCourierPrime() : undefined, await loadCjkFallback(layout, LOADERS.cjk), await loadEmojiFallback(layout, LOADERS.emoji));
     expect(createHash('sha256').update(bytes).digest('hex')).toBe(hash);
   });
 

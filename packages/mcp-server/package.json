@@ -22,6 +22,7 @@
     "@caotang/font-noto-emoji": "workspace:*",
     "@caotang/harness": "workspace:*",
     "@caotang/ids": "workspace:*",
+    "@caotang/pdf-fonts": "workspace:*",
     "@caotang/store": "workspace:*"
   },
   "devDependencies": {

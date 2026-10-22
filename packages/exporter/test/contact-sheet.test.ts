@@ -3,7 +3,7 @@
  * drawn by this package's pdf-lib emitter. The plan's own geometry is tested in the storyboard package; these tests read the
  * file the compile produced back with pdf-lib and check what the spec says the file is: one page per planned page, on A4 or
  * Letter, the pictures embedded once, a caption, with a note, where a picture cannot be drawn, and text outside Latin script
- * set in the Noto Sans CJK fallback font, which is read only when a sheet needs it.
+ * set in the Noto Sans Mono CJK fallback font, which is read only when a sheet needs it.
  */
 
 import { readFileSync } from 'node:fs';
@@ -11,7 +11,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PDFArray, PDFDict, PDFDocument, PDFName, PDFRawStream } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import { unzlibSync, zlibSync } from 'fflate/browser';
+import { unzlibSync } from 'fflate/browser';
 import {
   createActivityLog,
   createIdempotencyCache,
@@ -22,24 +22,18 @@ import {
   type Command,
 } from '@caotang/bus';
 import { createProjectCommandRegistry, MemoryArtifactFs, type ProjectState } from '@caotang/store';
-import { addShotNode, emojiStyleOf, graphemesOf, planContactSheet } from '@caotang/storyboard';
+import { addShotNode, planContactSheet } from '@caotang/storyboard';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
-import { cjkFontCandidates, emojiFontCandidates, loadCjkFontInNode, loadEmojiFontInNode } from '../src/fallback-fonts-node.js';
+import { emojiStyleOf, graphemesOf, sfntFromWoff, type FontLoader } from '@caotang/pdf-fonts';
+import { loadCjkFontInNode, loadEmojiFontInNode } from '@caotang/pdf-fonts/node-loader';
 import { EmojiEmbedding, EmojiFace, type FontkitFont } from '../src/emoji-font.js';
 import {
-  CJK_FONT_FILE,
   CONTACT_SHEET_HEADER,
-  EMOJI_FONT_FILE,
-  MAX_SFNT_BYTES,
-  checkFontBytes,
   containIn,
   createExporter,
   drawContactSheet,
   fitToWidth,
-  looksLikeFont,
   renderMedia,
-  sfntFromWoff,
-  type FontLoader,
   type ByteArtifacts,
   type ExporterService,
 } from '../src/index.js';
@@ -465,7 +459,7 @@ describe('the page size: A4 or Letter (storyboard.md §6)', () => {
   });
 });
 
-describe('contact-sheet-pdf — text outside Latin script, in the Noto Sans CJK fallback font', () => {
+describe('contact-sheet-pdf — text outside Latin script, in the Noto Sans Mono CJK fallback font', () => {
   const CHINESE = '草堂的早晨，繁體字也行';
   const JAPANESE = 'ひらがなとカタカナ';
   const KOREAN = '한국어 문장';
@@ -477,7 +471,7 @@ describe('contact-sheet-pdf — text outside Latin script, in the Noto Sans CJK 
     expect(loader.calls()).toBe(1);
     const extracted = toUnicodeText(pdf);
     for (const char of `${CHINESE}${JAPANESE}${KOREAN}`.replace(/\s/g, '')) expect(extracted).toContain(char);
-    expect(result.log.notes).toContain('contact sheet: text outside Latin script is set in Noto Sans CJK SC, embedded with only the glyphs it uses');
+    expect(result.log.notes).toContain('contact sheet: text outside Latin script is set in Noto Sans Mono CJK SC, embedded with only the glyphs it uses');
     expect(result.log.notes.some((note) => note.includes('drawn as "?"'))).toBe(false);
   });
 
@@ -493,6 +487,16 @@ describe('contact-sheet-pdf — text outside Latin script, in the Noto Sans CJK 
     for (let id = 1; id < subset.numGlyphs; id += 1) expect(subset.getGlyph(id).path.commands.length).toBeGreaterThan(0);
     // The whole font is megabytes; the file carries a few kilobytes of it.
     expect(bytes.byteLength).toBeLessThan(40_000);
+  });
+
+  it('gives characters the font draws with one glyph a CID each, so each copies back as itself', async () => {
+    // ‧ U+2027 and ・ U+30FB, ① U+2460 and ➀ U+2780: each pair is one glyph in Noto Sans Mono CJK SC.
+    const { pdf } = await compileSheet(rig({ state: withAction('Dots ‧ and ・, circled ① and ➀.'), loadFallbackFont: loadCjkFontInNode }).exporter);
+    const entries = toUnicodeEntries(pdf);
+    for (const char of ['‧', '・', '①', '➀']) expect(entries, char).toContain(char);
+    // The glyph is stored once however many CIDs name it: four characters, two glyphs, and .notdef.
+    const subset = fontkit.create(embeddedFontFiles(pdf)[0] as Uint8Array) as unknown as { numGlyphs: number };
+    expect(subset.numGlyphs).toBe(3);
   });
 
   it('switches font inside a line of mixed text', async () => {
@@ -532,7 +536,7 @@ describe('contact-sheet-pdf — text outside Latin script, in the Noto Sans CJK 
     const state = withAction('雨 ⲁ and ب');
     const { result, pdf } = await compileSheet(rig({ state, loadFallbackFont: loadCjkFontInNode }).exporter);
     expect(result.log.notes).toContain(
-      'contact sheet: 2 characters neither the PDF\'s built-in font nor Noto Sans CJK SC can show were drawn as "?": ⲁ (U+2C81), ب (U+0628)',
+      'contact sheet: 2 characters neither the PDF\'s built-in font nor Noto Sans Mono CJK SC can show were drawn as "?": ⲁ (U+2C81), ب (U+0628)',
     );
     expect(toUnicodeText(pdf)).toContain('雨');
   });
@@ -580,88 +584,6 @@ describe('contact-sheet-pdf — text outside Latin script, in the Noto Sans CJK 
     expect(toUnicodeText(pdf)).toBe('山');
   });
 });
-
-describe('the fallback font file', () => {
-  it('is found by the Node loader in @caotang/font-noto-cjk, and unpacks from WOFF to a TrueType font', async () => {
-    // Separator-agnostic: `cjkFontCandidates` joins with `node:path`, so the
-    // candidate carries `\` on Windows and `/` elsewhere.
-    expect(cjkFontCandidates().some((path) => {
-      const norm = path.replaceAll('\\', '/');
-      return norm.endsWith(`font-noto-cjk/${CJK_FONT_FILE}`) || norm.endsWith(`noto-sans-cjk/${CJK_FONT_FILE}`);
-    })).toBe(true);
-    const woff = await loadCjkFontInNode();
-    expect(new TextDecoder().decode(woff.slice(0, 4))).toBe('wOFF');
-    const sfnt = await sfntFromWoff(woff);
-    expect([...sfnt.slice(0, 4)]).toEqual([0, 1, 0, 0]);
-    const font = fontkit.create(sfnt) as unknown as { familyName: string; hasGlyphForCodePoint(code: number): boolean };
-    expect(font.familyName).toBe('Noto Sans CJK SC');
-    for (const char of '中體かカ한Яα') expect(font.hasGlyphForCodePoint(char.codePointAt(0) ?? 0)).toBe(true);
-  });
-
-  it('leaves bytes that are not WOFF as they are', async () => {
-    const bytes = new Uint8Array([0, 1, 0, 0, 9, 9]);
-    expect(await sfntFromWoff(bytes)).toBe(bytes);
-  });
-
-  it('unpacks a well-formed WOFF table to its stated length', async () => {
-    const table = new Uint8Array(1000).fill(7);
-    const sfnt = await sfntFromWoff(woffOf({ data: zlibSync(table), origLength: 1000 }));
-    expect(sfnt.byteLength).toBe(12 + 16 + 1000);
-    expect([...sfnt.subarray(28, 1028)]).toEqual([...table]);
-  });
-
-  it('refuses a WOFF that says it unpacks to more than a font may, before inflating anything', async () => {
-    await expect(sfntFromWoff(woffOf({ data: zlibSync(new Uint8Array(10)), origLength: 10, totalSfntSize: MAX_SFNT_BYTES + 1 }))).rejects.toThrow(
-      `the WOFF file says it unpacks to ${MAX_SFNT_BYTES + 1} bytes, more than a font may (${MAX_SFNT_BYTES})`,
-    );
-    // A table whose stated length is past the file's stated size: refused before it is inflated.
-    await expect(sfntFromWoff(woffOf({ data: zlibSync(new Uint8Array(10)), origLength: 0xffffffff, totalSfntSize: 1024 }))).rejects.toThrow(
-      'the WOFF tables unpack to more than the file says it holds',
-    );
-  });
-
-  it('stops inflating a WOFF table one byte past its stated length, and refuses it', async () => {
-    // A stream of about 1 KB that decodes to 1 MB, in a table that says it holds 2000 bytes.
-    const bomb = zlibSync(new Uint8Array(1024 * 1024));
-    expect(bomb.byteLength).toBeLessThan(2000);
-    await expect(sfntFromWoff(woffOf({ data: bomb, origLength: 2000 }))).rejects.toThrow('a WOFF table did not inflate to its stated length');
-  });
-
-  it('knows a font file by its first bytes, and names what was served in its place', async () => {
-    expect(looksLikeFont(await loadCjkFontInNode())).toBe(true);
-    expect(looksLikeFont(await loadEmojiFontInNode())).toBe(true);
-    for (const head of [[0, 1, 0, 0], [...'OTTO'], [...'true'], [...'ttcf'], [...'wOF2']]) {
-      const bytes = new Uint8Array(head.map((byte) => (typeof byte === 'number' ? byte : byte.charCodeAt(0))));
-      expect(looksLikeFont(bytes)).toBe(true);
-    }
-    const html = new TextEncoder().encode('<!doctype html><html></html>');
-    expect(looksLikeFont(html)).toBe(false);
-    expect(looksLikeFont(new Uint8Array([0x77]))).toBe(false);
-    expect(() => checkFontBytes(html, '/assets/NotoEmoji-Regular.woff')).toThrow(
-      '/assets/NotoEmoji-Regular.woff did not serve a font file (28 bytes, starting "<!doctype html><")',
-    );
-    const woff = await loadCjkFontInNode();
-    expect(checkFontBytes(woff, 'x')).toBe(woff);
-  });
-});
-
-/** A WOFF 1.0 file with one table, whose header states what the test asks, true or not. */
-function woffOf(table: { data: Uint8Array; origLength: number; totalSfntSize?: number }): Uint8Array {
-  const offset = 44 + 20;
-  const bytes = new Uint8Array(offset + table.data.byteLength);
-  const view = new DataView(bytes.buffer);
-  view.setUint32(0, 0x774f4646);
-  view.setUint32(4, 0x00010000);
-  view.setUint32(8, bytes.byteLength);
-  view.setUint16(12, 1);
-  view.setUint32(16, table.totalSfntSize ?? 12 + 16 + table.origLength);
-  view.setUint32(44, 0x74657374); // 'test'
-  view.setUint32(48, offset);
-  view.setUint32(52, table.data.byteLength);
-  view.setUint32(56, table.origLength);
-  bytes.set(table.data, offset);
-  return bytes;
-}
 
 /** Each ToUnicode entry of the file's Type 0 fonts, decoded: the text one CID gives back when it is copied. */
 function toUnicodeEntries(pdf: PDFDocument): string[] {
@@ -796,6 +718,27 @@ describe('contact-sheet-pdf — emoji, in the Noto Emoji fallback font', () => {
     expect(doc.context.lookup(embedding.ref)).toBeUndefined();
   });
 
+  it('rejects when fontkit throws while it encodes the emoji subset, which it does on the next tick, instead of hanging', async () => {
+    const lib = await import('pdf-lib');
+    const doc = await PDFDocument.create();
+    const face = await noto();
+    const embedding = new EmojiEmbedding(lib, doc, face);
+    const page = doc.addPage();
+    const glyphs = face.glyphsOf('👍');
+    if (glyphs === null) throw new Error('the font draws 👍');
+    embedding.draw(page, glyphs, 10, 10, 12, { r: 0, g: 0, b: 0 });
+    const subset = (embedding as unknown as { subset: { encode: () => void } }).subset;
+    subset.encode = () => {
+      throw new Error('encode failed');
+    };
+    const outcome = await Promise.race([
+      embedding.finish().then(() => 'resolved', (error: unknown) => error),
+      new Promise((resolve) => setTimeout(() => resolve('pending'), 2000)),
+    ]);
+    expect(outcome).toBeInstanceOf(Error);
+    expect((outcome as Error).message).toBe('encode failed');
+  });
+
   it('draws emoji as "?", and says why, when the compile has no emoji font or it cannot be read', async () => {
     const none = await compileSheet(rig({ state: withAction('🎬') }).exporter);
     expect(none.result.log.notes).toContain(
@@ -908,24 +851,6 @@ describe('the emoji font file covers Unicode Emoji 15.1', () => {
   }, 120_000);
 });
 
-describe('the emoji font file', () => {
-  it('is found by the Node loader in @caotang/font-noto-emoji, and unpacks from WOFF to a static TrueType font', async () => {
-    // Separator-agnostic, like the CJK loader's assertion above.
-    expect(emojiFontCandidates().some((path) => {
-      const norm = path.replaceAll('\\', '/');
-      return norm.endsWith(`font-noto-emoji/${EMOJI_FONT_FILE}`) || norm.endsWith(`noto-emoji/${EMOJI_FONT_FILE}`);
-    })).toBe(true);
-    const woff = await loadEmojiFontInNode();
-    expect(new TextDecoder().decode(woff.slice(0, 4))).toBe('wOFF');
-    const sfnt = await sfntFromWoff(woff);
-    expect([...sfnt.slice(0, 4)]).toEqual([0, 1, 0, 0]);
-    const font = fontkit.create(sfnt) as unknown as { familyName: string; variationAxes: Record<string, unknown>; hasGlyphForCodePoint(code: number): boolean };
-    expect(font.familyName).toBe('Noto Emoji');
-    expect(Object.keys(font.variationAxes)).toEqual([]);
-    for (const char of ['🎬', '😀', '❤']) expect(font.hasGlyphForCodePoint(char.codePointAt(0) ?? 0)).toBe(true);
-  });
-});
-
 describe('the emitter draws the plan it is given', () => {
   it('draws exactly the pages the plan lists, from a plan with no project around it', async () => {
     const state = manyShots(14); // 16 shots
@@ -980,12 +905,15 @@ describe('pdf-lib is loaded lazily', () => {
 
   it('loads fontkit with a dynamic import() too, and keeps the Node font loader out of the package index', () => {
     const source = readFileSync(resolve(__dirname, '../src/render-contact-sheet.ts'), 'utf8');
-    expect(source).toMatch(/import\('@pdf-lib\/fontkit'\)/);
-    expect(source).not.toMatch(/^import [^\n]*from '@pdf-lib\/fontkit'/m);
-    const woff = readFileSync(resolve(__dirname, '../src/cjk-font.ts'), 'utf8');
+    expect(source).not.toMatch(/^import (?!type )[^\n]*from '@pdf-lib\/fontkit'/m);
+    // The shared module loads it, on first use.
+    const shared = readFileSync(resolve(__dirname, '../../pdf-fonts/src/fontkit.ts'), 'utf8');
+    expect(shared).toMatch(/import\('@pdf-lib\/fontkit'\)/);
+    expect(shared).not.toMatch(/^import (?!type )[^\n]*from '@pdf-lib\/fontkit'/m);
+    const woff = readFileSync(resolve(__dirname, '../../pdf-fonts/src/font-bytes.ts'), 'utf8');
     expect(woff).toMatch(/await import\('fflate\/browser'\)/);
     expect(woff).not.toMatch(/^import (?!type )[^;]*from 'fflate[^']*';/m);
-    for (const file of ['exporter.ts', 'media.ts', 'index.ts', 'render-contact-sheet.ts', 'cjk-font.ts', 'emoji-font.ts']) {
+    for (const file of ['exporter.ts', 'media.ts', 'index.ts', 'render-contact-sheet.ts', 'emoji-font.ts']) {
       const text = readFileSync(resolve(__dirname, `../src/${file}`), 'utf8');
       expect(text).not.toMatch(/from '\.\/fallback-fonts-node\.js'/);
       expect(text).not.toMatch(/^import (?!type )[^\n]*from 'pdf-lib'/m);

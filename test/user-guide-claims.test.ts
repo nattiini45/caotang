@@ -179,7 +179,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(pdfSection).toContain('Korean breaks at spaces.');
     expect(pdfSection).not.toMatch(/such as Chinese or emoji, prints as a question mark/);
     const render = read('packages/screenplay/src/render-pdf.ts');
-    expect(render).toContain('if (layout.fallbackCharacters.length === 0) return undefined;');
+    expect(render).toContain('if (layout.fallbackCharacters.length === 0 || load === undefined) return undefined;');
     expect(render).toContain("await import('./cjk-font.js')");
     expect(read('packages/screenplay/src/width.ts')).toContain("return inRanges(ch.codePointAt(0) ?? 0, WIDE) ? 2 : 1;");
     expect(read('packages/screenplay/src/cjk-font.ts')).toContain("NOTO_CJK_POSTSCRIPT_NAME = 'NotoSansMonoCJKsc-Regular'");
@@ -225,7 +225,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(pdfSection).toContain('A character no font has prints as a question mark, and the compile log names it.');
     expect(pdfSection).not.toMatch(/such as an emoji, prints as a question mark/);
     const render = read('packages/screenplay/src/render-pdf.ts');
-    expect(render).toContain('if (layout.emojiCharacters.length === 0) return undefined;');
+    expect(render).toContain('if (layout.emojiCharacters.length === 0 || load === undefined) return undefined;');
     expect(render).toContain("await import('./emoji-font.js')");
     expect(read('packages/screenplay/src/width.ts')).toContain('if ((unit.length > 1 || unit.charCodeAt(0) >= 0x231a) && isEmojiCluster(unit)) return 2;');
     expect(read('packages/screenplay/src/emoji-font.ts')).toContain("NOTO_EMOJI_POSTSCRIPT_NAME = 'NotoEmoji-Regular'");

@@ -1,0 +1,101 @@
+# The end-to-end suite in Firefox and WebKit. Nightly and on demand, not on pull requests: ci.yml gates a pull request on Chromium.
+#
+# What runs:
+#   - The `firefox` and `webkit` projects of playwright.config.ts (they exist only with CAOTANG_E2E_BROWSERS=all), each in two
+#     shards, so four jobs in parallel. They skip e2e/unit, the production smoke and the provider specs, and the specs that need
+#     File System Access skip themselves outside Chromium. e2e/non-chromium-storage.spec.ts covers the bundle-only path instead.
+#   - Each shard writes a blob report. One job merges them into a single HTML report, uploaded when any shard failed.
+#
+# Details that are load-bearing rather than tidy:
+#   - WebKit on Linux is not Safari: it catches engine differences, not every macOS Safari quirk.
+#   - A failure here is a real cross-browser bug or a flake to fix, not a leg to mark continue-on-error.
+#   - permissions stay `contents: read`: sharding and merging need only the artifact actions, which use the run's own token.
+name: e2e-browsers
+
+on:
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-browsers-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: e2e (${{ matrix.browser }} ${{ matrix.shard }}/2)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [firefox, webkit]
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable corepack (pnpm from packageManager)
+        run: corepack enable
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install ${{ matrix.browser }} for Playwright
+        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+
+      - name: End-to-end (${{ matrix.browser }}, shard ${{ matrix.shard }} of 2)
+        run: pnpm exec playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/2 --reporter=blob
+        env:
+          CI: 'true'
+          CAOTANG_E2E_BROWSERS: all
+
+      - name: Upload the blob report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: blob-report-${{ matrix.browser }}-${{ matrix.shard }}
+          path: blob-report/
+          retention-days: 7
+
+  merge-reports:
+    name: merge reports
+    needs: e2e
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable corepack (pnpm from packageManager)
+        run: corepack enable
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: all-blob-reports
+          pattern: blob-report-*
+          merge-multiple: true
+
+      - name: Merge into one HTML report
+        run: pnpm exec playwright merge-reports --reporter=html ./all-blob-reports
+
+      - name: Upload the HTML report when a shard failed
+        if: ${{ needs.e2e.result != 'success' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

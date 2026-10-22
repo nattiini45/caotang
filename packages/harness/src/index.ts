@@ -49,6 +49,7 @@ export {
   matchCards,
   matchTrace,
   runScenario,
+  taskListFailures,
   type CallExpect,
   type CardExpect,
   type Evaluation,
@@ -98,8 +99,25 @@ export {
   type StatusState,
   type StepCost,
 } from './agent/cards.js';
+// The turn's task list (agent-harness §8): derived from the events, shown in the agent header and at the top of the turn.
+export {
+  TASK_PHRASES,
+  budgetLevelOf,
+  emptyTaskList,
+  firstSentence,
+  headerLineOf,
+  phraseFor,
+  reduceTaskList,
+  type NameOf,
+  type TaskItem,
+  type TaskList,
+  type TaskPhrase,
+  type TaskPhraseFn,
+  type TaskState,
+} from './agent/progress.js';
 export {
   CHECKPOINT_LABEL,
+  DEFAULT_MAX_MODEL_CALLS,
   EXTERNAL_CHECKPOINT_NOTE,
   type AgentEvent,
   type CardRecord,

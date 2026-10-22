@@ -438,7 +438,7 @@ describe('§4 — the dispatch option routes a flush through doc.write', () => {
   });
 });
 
-describe('§4 — flush on visibilitychange / pagehide', () => {
+describe('§4 — flush on visibilitychange / pagehide / beforeunload', () => {
   it('flushes on visibilitychange without waiting out the debounce', async () => {
     const { autosave, writer, hide } = harness();
     autosave.open(DOC, { body: 'a', revision: 0 });
@@ -457,6 +457,17 @@ describe('§4 — flush on visibilitychange / pagehide', () => {
     page.dispatchEvent(new Event('pagehide'));
     await settle();
     expect(writer.calls).toHaveLength(1);
+  });
+
+  it('flushes on beforeunload, the earliest teardown event of a reload', async () => {
+    const { autosave, writer, page } = harness();
+    autosave.open(DOC, { body: 'a', revision: 0 });
+    autosave.noteEdit(DOC, 'b');
+
+    page.dispatchEvent(new Event('beforeunload'));
+    await settle();
+    expect(writer.calls).toHaveLength(1);
+    expect(writer.calls[0]?.body).toBe('b');
   });
 
   it('a lifecycle signal with nothing pending opens no transaction', async () => {
@@ -478,15 +489,18 @@ describe('§4 — flush on visibilitychange / pagehide', () => {
     const seen: string[] = [];
     visibility.addEventListener('visibilitychange', () => seen.push('visibility'));
     page.addEventListener('pagehide', () => seen.push('pagehide'));
+    page.addEventListener('beforeunload', () => seen.push('beforeunload'));
 
     const stop = domFlushSignals({ visibility, page }).subscribe(() => seen.push('flush'));
     visibility.dispatchEvent(new Event('visibilitychange'));
     page.dispatchEvent(new Event('pagehide'));
-    expect(seen).toEqual(['visibility', 'flush', 'pagehide', 'flush']);
+    page.dispatchEvent(new Event('beforeunload'));
+    expect(seen).toEqual(['visibility', 'flush', 'pagehide', 'flush', 'beforeunload', 'flush']);
 
     stop();
     visibility.dispatchEvent(new Event('visibilitychange'));
-    expect(seen.filter((entry) => entry === 'flush')).toHaveLength(2);
+    page.dispatchEvent(new Event('beforeunload'));
+    expect(seen.filter((entry) => entry === 'flush')).toHaveLength(3);
   });
 });
 

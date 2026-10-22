@@ -99,6 +99,39 @@ describe('modelLimits (context-assembly §5)', () => {
     expect(h.gateway.modelLimits(profile.id)).toEqual({ maxOutputTokens: 1_000, pricePer1k: { prompt: 5, completion: 7 } });
   });
 
+  it('an Anthropic profile reports the preset row’s window before any listing, and the row’s price', async () => {
+    const h = harness();
+    const profile = await addEndpoint(h, { preset: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', defaultModel: 'claude-sonnet-5-5' });
+
+    const limits = h.gateway.modelLimits(profile.id);
+
+    expect(limits.contextWindow).toBe(1_000_000);
+    expect(limits.pricePer1k).toEqual({ prompt: 0.002, completion: 0.01 });
+    expect(limits.maxOutputTokens).toBe(DEFAULT_MAX_OUTPUT_TOKENS); // the row's 128K is informational: the profile's cap is sent
+    expect(h.net.calls).toHaveLength(0);
+  });
+
+  it('keeps the row’s window when the Anthropic listing says nothing, and the listing wins when it states one', async () => {
+    const net = new ScriptedFetch()
+      .push(() => jsonResponse(200, { data: [{ id: 'claude-sonnet-5-5', max_input_tokens: null, max_tokens: 0 }] }))
+      .push(() => jsonResponse(200, { data: [{ id: 'claude-sonnet-5-5', max_input_tokens: 200_000, max_tokens: 64_000 }] }));
+    const h = harness({ net });
+    const profile = await addEndpoint(h, { preset: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', defaultModel: 'claude-sonnet-5-5' });
+
+    await h.gateway.listModels(profile.id);
+    expect(h.gateway.modelLimits(profile.id).contextWindow).toBe(1_000_000);
+
+    await h.gateway.listModels(profile.id);
+    expect(h.gateway.modelLimits(profile.id).contextWindow).toBe(200_000);
+  });
+
+  it('an Anthropic id the table does not name has no window until the listing states one', async () => {
+    const h = harness();
+    const profile = await addEndpoint(h, { preset: 'anthropic', baseUrl: 'https://api.anthropic.com/v1', defaultModel: 'claude-future-9-9' });
+
+    expect(h.gateway.modelLimits(profile.id)).not.toHaveProperty('contextWindow');
+  });
+
   it('reports the window of the model it is asked about, not the profile’s default one', async () => {
     const net = new ScriptedFetch().push(() => jsonResponse(200, { data: [{ id: 'model-x', context_length: 8_192 }, { id: 'other', context_length: 4_096 }] }));
     const h = harness({ net });

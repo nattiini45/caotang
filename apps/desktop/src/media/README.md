@@ -136,11 +136,12 @@ One exception is open: `ScreenplayPreview.tsx` imports `paginate` and `LAYOUT` f
 6. **Screenplay source affordances.** The element menu offers no section or synopsis: a section is a binder folder, and a
    scene's synopsis is the binder's (screenplay.md §2.2). Its digits work while the menu is open; there is no chord for each
    element outside it.
-7. **Coverage in a file with carriage returns.** The text area shows the stored text with line feeds, so a selection in a
-   body stored with Windows line endings is located by its words, and a passage that appears twice is refused.
+7. **Coverage of a repeated passage.** The text area shows the stored text with line feeds, so a selection is always located
+   by its words in the stored text, whatever its line endings. A passage that appears more than once is refused in every
+   file, with how many places; the writer selects more words around the one meant.
 8. **Page preview.** The Pages tab is `paginate()`'s output, read only, and it is not the PDF. The PDF is the `pdf` export
-   format (screenplay.md §5.3), from the Compile dialog. The preview draws a dual-dialogue pair one block after the other;
-   the PDF draws it side by side.
+   format (screenplay.md §5.3), from the Compile dialog. The preview draws a dual-dialogue pair side by side, as the PDF
+   does: the pair's two columns share their rows, and the blank rows stay collapsed, so the preview is not page-accurate.
 9. **Ink line ids on import.** An imported container keeps the Ink as written. Line ids are minted by the Add line ids
     action or by a container whose `autoLineIds` is on, not by the import.
 10. **The agent's derive plan is not verified.** The derive offers send their request to the agent (*What a writer can do*,

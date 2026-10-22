@@ -10,8 +10,11 @@
 
 import type { TimelineMode } from './model.js';
 
-/** The three timeline checks a mode can exempt. */
-export type TimelineCheck = 'timeline.order-drift' | 'timeline.window' | 'timeline.overlap';
+/** The four timeline checks a mode can exempt. */
+export type TimelineCheck = 'timeline.order-drift' | 'timeline.window' | 'timeline.overlap' | 'timeline.gap';
+
+/** Story days between two consecutive scenes, start to start, at which `timeline.gap` speaks (StoryLine's threshold, §5.2.1). */
+export const GAP_THRESHOLD_DAYS = 7;
 
 export type ModeTreatment = 'checked' | 'exempt' | 'per-strand';
 
@@ -19,13 +22,15 @@ const EXEMPTIONS: Readonly<Record<TimelineMode, Partial<Record<TimelineCheck, Mo
   linear: {},
   flashback: { 'timeline.order-drift': 'exempt' },
   'flash-forward': { 'timeline.order-drift': 'exempt' },
-  dream: { 'timeline.order-drift': 'exempt', 'timeline.window': 'exempt' },
-  mythic: { 'timeline.order-drift': 'exempt', 'timeline.window': 'exempt' },
+  dream: { 'timeline.order-drift': 'exempt', 'timeline.window': 'exempt', 'timeline.gap': 'exempt' },
+  mythic: { 'timeline.order-drift': 'exempt', 'timeline.window': 'exempt', 'timeline.gap': 'exempt' },
   backstory: { 'timeline.order-drift': 'exempt', 'timeline.window': 'exempt' },
   parallel: { 'timeline.order-drift': 'per-strand' },
   frame: { 'timeline.order-drift': 'per-strand' },
   simultaneous: { 'timeline.overlap': 'exempt' },
   circular: { 'timeline.order-drift': 'exempt' },
+  // A gap legitimizer, not a date-order exemption: the scene stays in the main order group (§5.2.1).
+  'time-skip': { 'timeline.gap': 'exempt' },
 };
 
 /** The treatment a scene's mode gives one timeline check. Unlisted cells are `checked`. */

@@ -25,6 +25,7 @@
     "@caotang/harness": "workspace:*",
     "@caotang/ids": "workspace:*",
     "@caotang/mcp-client": "workspace:*",
+    "@caotang/pdf-fonts": "workspace:*",
     "@caotang/screenplay": "workspace:*",
     "@caotang/storyboard": "workspace:*",
     "@caotang/store": "workspace:*",
