@@ -8,14 +8,13 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import * as fontkitModule from '@pdf-lib/fontkit';
 import type { Font } from '@pdf-lib/fontkit';
+import { emojiPrint, isEmojiCluster } from '@caotang/pdf-fonts';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { FlatBlock } from '../src/index.js';
 import {
   createPdfRenderer,
   drawPdf,
-  emojiPrint,
   importFountainScript,
-  isEmojiCluster,
   layoutPdf,
   loadCjkFallback,
   loadCourierPrime,

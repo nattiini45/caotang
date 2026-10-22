@@ -25,12 +25,11 @@
  * its own origin, Node reads them from their packages), the same two files and loaders the contact sheet uses.
  */
 
-import { emojiFontMaps, fallbackCovers, type FontLoader } from '@caotang/pdf-fonts';
+import { emojiFontMaps, emojiPrint, fallbackCovers, firstCodePoint, isEmojiCluster, type FontLoader } from '@caotang/pdf-fonts';
 
 import type { FlatBlock } from './flat-block.js';
 import { paginate, type LayoutPage, type PaginateOptions } from './paginate.js';
 import { parseFountain } from './parse.js';
-import { emojiPrint, firstCodePoint, isEmojiCluster } from './emoji.js';
 import { isPrintable, writePdf, type PdfCidFont, type PdfEmojiFont, type PdfFont } from './pdf.js';
 import { renderFountain, type FountainRenderOptions } from './render-fountain.js';
 import { textUnits } from './width.js';

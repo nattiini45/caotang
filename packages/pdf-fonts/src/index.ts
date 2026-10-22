@@ -19,4 +19,14 @@ export {
   type SubsetSource,
   type PdfValue,
 } from './cid-font.js';
+export {
+  emojiKey,
+  emojiPrint,
+  emojiStyleOf,
+  firstCodePoint,
+  graphemesOf,
+  isEmojiCluster,
+  isEmojiPicture,
+  type EmojiStyle,
+} from './emoji.js';
 export { emojiFontHasSequence, emojiFontHasTonedSequence, emojiFontMaps, fallbackCovers, inRanges } from './coverage.js';

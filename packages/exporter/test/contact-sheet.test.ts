@@ -22,9 +22,9 @@ import {
   type Command,
 } from '@caotang/bus';
 import { createProjectCommandRegistry, MemoryArtifactFs, type ProjectState } from '@caotang/store';
-import { addShotNode, emojiStyleOf, graphemesOf, planContactSheet } from '@caotang/storyboard';
+import { addShotNode, planContactSheet } from '@caotang/storyboard';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
-import { sfntFromWoff, type FontLoader } from '@caotang/pdf-fonts';
+import { emojiStyleOf, graphemesOf, sfntFromWoff, type FontLoader } from '@caotang/pdf-fonts';
 import { loadCjkFontInNode, loadEmojiFontInNode } from '@caotang/pdf-fonts/node-loader';
 import { EmojiEmbedding, EmojiFace, type FontkitFont } from '../src/emoji-font.js';
 import {

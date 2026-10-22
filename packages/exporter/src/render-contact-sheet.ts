@@ -35,9 +35,9 @@
  * does not parse) gets the card's caption in its box instead, and the log names the picture once.
  */
 
-import { CJK_FONT_NAME, EMOJI_FONT_NAME, loadFont, type FontLoader } from '@caotang/pdf-fonts';
+import { CJK_FONT_NAME, EMOJI_FONT_NAME, emojiStyleOf, graphemesOf, loadFont, type FontLoader } from '@caotang/pdf-fonts';
 import type * as PdfLib from 'pdf-lib';
-import { emojiStyleOf, graphemesOf, sniffImage, type PlacedCard, type PlacedText, type SheetPlan } from '@caotang/storyboard';
+import { sniffImage, type PlacedCard, type PlacedText, type SheetPlan } from '@caotang/storyboard';
 
 import type { FontkitFont } from './cid-embedding.js';
 import { CjkEmbedding, CjkFace } from './cjk-font.js';

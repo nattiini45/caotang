@@ -30,10 +30,9 @@
  * offsets, and the tests can check them exactly.
  */
 
-import { cidFontObjects, type CidSubset, type PdfValue } from '@caotang/pdf-fonts';
+import { cidFontObjects, isEmojiCluster, type CidSubset, type PdfValue } from '@caotang/pdf-fonts';
 
 import { COURIER_PRIME_METRICS } from './fonts/courier-prime-metrics.js';
-import { isEmojiCluster } from './emoji.js';
 import { LAYOUT } from './paginate.js';
 import { WIN_ANSI_EXTRA, isPrintable } from './winansi.js';
 import { textUnits, unitColumns } from './width.js';

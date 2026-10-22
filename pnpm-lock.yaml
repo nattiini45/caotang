@@ -723,6 +723,9 @@ importers:
       '@caotang/ids':
         specifier: workspace:*
         version: link:../ids
+      '@caotang/pdf-fonts':
+        specifier: workspace:*
+        version: link:../pdf-fonts
       '@caotang/store':
         specifier: workspace:*
         version: link:../store

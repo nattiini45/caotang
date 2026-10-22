@@ -15,10 +15,9 @@
  * prints.
  */
 
-import { cutCidSubset, loadFont, type FontLoader } from '@caotang/pdf-fonts';
+import { cutCidSubset, emojiKey, firstCodePoint, isEmojiCluster, loadFont, type FontLoader } from '@caotang/pdf-fonts';
 import type { Font, Glyph } from '@pdf-lib/fontkit';
 
-import { emojiKey, firstCodePoint, isEmojiCluster } from './emoji.js';
 import type { PdfEmojiFont, PdfEmojiGlyph } from './pdf.js';
 import { LAYOUT } from './paginate.js';
 import { unitColumns } from './width.js';

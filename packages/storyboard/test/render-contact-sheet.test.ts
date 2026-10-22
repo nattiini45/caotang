@@ -15,8 +15,6 @@ import {
   addShotNode,
   fillTemplate,
   importImage,
-  emojiStyleOf,
-  graphemesOf,
   isWide,
   measureText,
   shotsInBinderOrder,
@@ -277,26 +275,10 @@ describe('emoji in the plan: one unit per grapheme cluster', () => {
   // At 10 points an emoji is 1.3 em, 13 units, so a 60-unit line holds 4 of them.
   const FAMILY = '👨‍👩‍👧‍👦';
 
-  it('says which clusters are emoji, by Unicode presentation', () => {
-    for (const emoji of ['🎬', FAMILY, '🧑🏽‍💻', '👍🏽', '🇩🇪', '1️⃣', '#️⃣', '🏴󠁧󠁢󠁳󠁣󠁴󠁿', '❤️', '🏳️‍🌈']) expect(emojiStyleOf(emoji), emoji).toBe('emoji');
-    // Default text presentation, or VS15: a text font is tried first.
-    for (const pictograph of ['☺', '✌', '❤', '☺︎', '🎬︎']) expect(emojiStyleOf(pictograph), pictograph).toBe('text');
-    // Digits, Latin-1's © and ®, letters and CJK are no emoji.
-    for (const text of ['1', '#', '©', '®', 'a', 'é', '草', '?']) expect(emojiStyleOf(text), text).toBeNull();
-  });
-
-  it('reads VS15 as text presentation only after an emoji, and as nothing after a letter, digit or Chinese character', () => {
-    // A pictograph, a keycap sequence and a flag letter with VS15 ask for text presentation.
-    for (const cluster of ['✌\uFE0E', '©\uFE0E', '1\uFE0E\u20E3', '🇩\uFE0E']) expect(emojiStyleOf(cluster), cluster).toBe('text');
-    // Anything else with VS15 is no emoji: it is measured as the text it is, and does not open a break inside a word.
-    for (const cluster of ['a\uFE0E', 'e\uFE0E', '1\uFE0E', '草\uFE0E', '\uFE0E']) expect(emojiStyleOf(cluster), cluster).toBeNull();
+  it('measures and wraps a letter with VS15 as the text it is, with no break opened inside the word', () => {
     expect(measureText('cafe\uFE0E', 10)).toBeCloseTo(measureText('cafe', 10) + 5.5, 9);
     expect(wrapText('cafe\uFE0E cafe', 1000, 10, 1)).toEqual(['cafe\uFE0E cafe']);
     expect(wrapText('cafe\uFE0E', 28, 10, 2)).toEqual(['cafe\uFE0E']);
-  });
-
-  it('segments a text into grapheme clusters, so a sequence is one unit', () => {
-    expect(graphemesOf(`a${FAMILY}🇩🇪1️⃣e\u0301`)).toEqual(['a', FAMILY, '🇩🇪', '1️⃣', 'e\u0301']);
   });
 
   it('counts an emoji as 1.3 em however many code points it has', () => {
