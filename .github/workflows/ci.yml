@@ -1,8 +1,8 @@
 # The standing gate: lint, typecheck, unit tests, the production build, then the Playwright suite.
 #
 # What runs, and on which Node:
-#   - One job, on Node 24 only. There is deliberately no Node version matrix: Actions minutes are limited, and
-#     the engines range (22.12 or later in 22, 24, and 26 or later) is stated in the README, not tested here.
+#   - Two jobs, `verify` and `pdf-validate`, both on Node 24 only. There is deliberately no Node version matrix: Actions minutes are
+#     limited, and the engines range (22.12 or later in 22, 24, and 26 or later) is stated in the README, not tested here.
 #   - `pnpm verify` runs lint, typecheck and the vitest suites (packages/ and test/). The desktop's pure model specs live in
 #     e2e/unit as Playwright specs, so they run under `pnpm test:e2e`, not under `pnpm verify`.
 #   - `pnpm build` builds the desktop app, which writes THIRD-PARTY-NOTICES.md beside it. `tools/check-bundle-size.mjs` then checks
@@ -10,6 +10,10 @@
 #     checks its manifest with the pinned MCPB CLI.
 #   - `pnpm test:e2e` runs the dev-server suite, and the production-preview project, which smoke-tests the build from the step
 #     above on its own port (e2e/prod-smoke.spec.ts).
+#   - `pdf-validate` writes the PDF corpus through the exporter (packages/exporter/test/pdf-write-corpus.test.ts, which writes only when
+#     CAOTANG_PDF_OUT is set, so `pnpm verify` is unchanged) and checks every file with tools/pdf-validate/check.mjs: pdf.js in Node,
+#     then qpdf, Poppler, Ghostscript and MuPDF. Those are installed from apt for this job alone; they never ship, and a tool that is
+#     missing fails the job rather than being skipped.
 #
 # Details that are load-bearing rather than tidy:
 #   - permissions stay `contents: read`: the workflow needs no write token, so a pull request from a fork cannot use it to
@@ -73,4 +77,41 @@ jobs:
         with:
           name: playwright-report
           path: playwright-report/
+          retention-days: 7
+
+  pdf-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CAOTANG_PDF_OUT: ${{ runner.temp }}/pdfs
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable corepack (pnpm from packageManager)
+        run: corepack enable
+
+      - name: Install the PDF tools (CI only; none of them ships)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qpdf poppler-utils ghostscript mupdf-tools
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Write the PDF corpus
+        run: pnpm exec vitest run packages/exporter/test/pdf-write-corpus.test.ts
+
+      - name: Validate the corpus (pdf.js, qpdf, Poppler, Ghostscript, MuPDF)
+        run: node tools/pdf-validate/check.mjs "$CAOTANG_PDF_OUT" --external
+
+      - name: Upload the corpus and the tool logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pdf-corpus
+          path: ${{ runner.temp }}/pdfs/
           retention-days: 7
