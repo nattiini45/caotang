@@ -195,6 +195,15 @@ describe('the cost estimate (§5, display only)', () => {
     expect(buildPreview(assembled).cost).toEqual({ promptUsd: 0, completionUsd: 1, totalUsd: 1 });
   });
 
+  it('adds the thinking a set level can spend to the reply side and says so', () => {
+    const assembled = assemble(CONTINUE, buildApp(), {
+      model: { pricePer1k: { prompt: 0, completion: 1 }, maxOutputTokens: 1_000, thinkingTokens: 2_000 },
+    });
+    const preview = buildPreview(assembled);
+    expect(preview.completionTokens).toBe(3_000);
+    expect(preview.cost).toEqual({ promptUsd: 0, completionUsd: 3, totalUsd: 3, includesThinking: true });
+  });
+
   it('has no cost section without a price', () => {
     expect(buildPreview(assemble(CONTINUE, buildApp())).cost).toBeUndefined();
   });

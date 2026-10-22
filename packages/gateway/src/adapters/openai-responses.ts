@@ -238,7 +238,8 @@ export const openaiResponsesAdapter: ProviderAdapter = {
   },
 
   buildBody(input: BodyInput): Record<string, unknown> {
-    const { req, ctx, temperature, maxTokens } = input;
+    const { req, ctx, temperature, effective } = input;
+    const maxTokens = effective.maxTokens;
     const { instructions, input: items } = wireInput(req);
     const deny = new Set(ctx.caps.denylist ?? []);
     const body: Record<string, unknown> = {
@@ -260,7 +261,7 @@ export const openaiResponsesAdapter: ProviderAdapter = {
     }
     if (ctx.quirks.store === true) body.store = false;
     if (ctx.quirks.includeEncryptedReasoning === true) body.include = ['reasoning.encrypted_content'];
-    applyEffort(body, ctx.caps.effortStyle, req.thinking, ctx.caps);
+    applyEffort(body, ctx.caps.effortStyle, effective.level, ctx.caps, effective.budget);
     return body;
   },
 

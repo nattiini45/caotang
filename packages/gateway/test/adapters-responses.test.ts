@@ -7,8 +7,9 @@
 import { describe, expect, it } from 'vitest';
 import { createSseParser } from '../src/sse.js';
 import { openaiResponsesAdapter } from '../src/adapters/openai-responses.js';
-import type { AdapterContext, BodyInput, QuirkFlags, StreamParser, StreamPiece } from '../src/adapters/types.js';
+import type { AdapterContext, QuirkFlags, StreamParser, StreamPiece } from '../src/adapters/types.js';
 import type { ChatRequest, ModelCaps } from '../src/types.js';
+import { bodyInput, type BodyOver } from './helpers.js';
 
 const CTX: AdapterContext = { baseUrl: 'https://api.example/v1', model: 'gpt-5.1', quirks: {}, caps: {} };
 
@@ -19,8 +20,8 @@ const ctx = (quirks: QuirkFlags = {}, caps: ModelCaps = {}, model = 'gpt-5.1'): 
   caps,
 });
 
-const body = (req: ChatRequest, overrides: Partial<BodyInput> = {}): Record<string, unknown> =>
-  openaiResponsesAdapter.buildBody({ req, ctx: CTX, temperature: 0.7, maxTokens: 4096, jsonObject: false, ...overrides });
+const body = (req: ChatRequest, over: BodyOver = {}): Record<string, unknown> =>
+  openaiResponsesAdapter.buildBody(bodyInput(req, over.ctx ?? CTX, over));
 
 const frame = (payload: unknown, event?: string): string =>
   `${event === undefined ? '' : `event: ${event}\n`}data: ${typeof payload === 'string' ? payload : JSON.stringify(payload)}\n\n`;
@@ -167,24 +168,16 @@ describe('openai-responses headers', () => {
 
 describe('openai-responses effort and denylist', () => {
   it('maps thinking through reasoning.effort, the Responses style', () => {
-    const built = openaiResponsesAdapter.buildBody({
-      req: { messages: [], thinking: 'high' },
-      ctx: ctx({}, { effortStyle: 'reasoning.effort', effortLevels: ['off', 'low', 'medium', 'high', 'max'] }),
-      temperature: 0.7,
-      maxTokens: 4096,
-      jsonObject: false,
-    });
+    const built = openaiResponsesAdapter.buildBody(
+      bodyInput({ messages: [], thinking: 'high' }, ctx({}, { effortStyle: 'reasoning.effort', effortLevels: ['off', 'low', 'medium', 'high', 'max'] })),
+    );
     expect(built.reasoning).toEqual({ effort: 'high' });
   });
 
   it('sends no effort fields for a level the row does not list', () => {
-    const built = openaiResponsesAdapter.buildBody({
-      req: { messages: [], thinking: 'high' },
-      ctx: ctx({}, { effortStyle: 'reasoning.effort', effortLevels: ['low'] }),
-      temperature: 0.7,
-      maxTokens: 4096,
-      jsonObject: false,
-    });
+    const built = openaiResponsesAdapter.buildBody(
+      bodyInput({ messages: [], thinking: 'high' }, ctx({}, { effortStyle: 'reasoning.effort', effortLevels: ['low'] })),
+    );
     expect(built).not.toHaveProperty('reasoning');
   });
 

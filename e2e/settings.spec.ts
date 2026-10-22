@@ -64,6 +64,9 @@ test('saving an endpoint lists its models and probes its response format at save
   const log = settings.getByTestId('request-log');
   await expect(log).toContainText('/v1/models');
   await expect(log.locator('tr[data-outcome="ok"]').filter({ hasText: '/v1/chat/completions' })).toHaveCount(1);
+  // The line shows the output cap the probe was sent with (provider-gateway §3), so a writer can see why a call cost more output.
+  await expect(log.getByRole('columnheader', { name: 'Max tokens' })).toBeVisible();
+  await expect(log.locator('tr[data-outcome="ok"]').filter({ hasText: '/v1/chat/completions' }).locator('td').nth(5)).toHaveText('16');
 });
 
 test('the endpoint profile and its activation survive a reload, and the restored profile keeps its id', async ({ page }) => {

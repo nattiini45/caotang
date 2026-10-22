@@ -7,9 +7,36 @@
  * each call with a responder the test wrote for it, and records the call for assertions.
  */
 
+import { effectiveOutput } from '../src/adapters/effort.js';
+import type { AdapterContext, BodyInput } from '../src/adapters/types.js';
 import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore, type FetchLike, type ManualClock } from '../src/index.js';
 import type { MockProvider } from '../src/mock/index.js';
-import type { ChatChunk, NewProfile } from '../src/types.js';
+import type { ChatChunk, ChatRequest, NewProfile } from '../src/types.js';
+
+/** What a test may change about the input an adapter's `buildBody` is given. */
+export interface BodyOver {
+  readonly ctx?: AdapterContext;
+  readonly temperature?: number;
+  readonly maxTokens?: number;
+  readonly jsonObject?: boolean;
+}
+
+/** A `BodyInput` the way the gateway builds one: the cap and thinking settled by `effectiveOutput` from the request and the row. */
+export function bodyInput(req: ChatRequest, ctx: AdapterContext, over: BodyOver = {}): BodyInput {
+  return {
+    req,
+    ctx,
+    temperature: over.temperature ?? 0.7,
+    jsonObject: over.jsonObject ?? false,
+    effective: effectiveOutput({
+      cap: over.maxTokens ?? 4096,
+      ...(req.thinking === undefined ? {} : { level: req.thinking }),
+      ...(req.reasoningBudget === undefined ? {} : { budget: req.reasoningBudget }),
+      caps: ctx.caps,
+      ...(ctx.modelMaxOutput === undefined ? {} : { modelMaxOutput: ctx.modelMaxOutput }),
+    }),
+  };
+}
 
 /** A key with the shape of a real one, so the `sk-` pattern scrubber has something to catch. */
 export const KEY = 'sk-test-CAOTANG-SECRET-0123456789abcdef';

@@ -101,6 +101,8 @@ export interface ModelLimits {
   readonly pricePer1k?: { readonly prompt: number; readonly completion: number };
   /** The tool's default output cap. The completion estimate on the plan card uses it. */
   readonly maxOutputTokens?: number;
+  /** What one call may spend on thinking at the level the caller asked for; the completion estimate adds it to the cap. */
+  readonly thinkingTokens?: number;
 }
 
 export interface ContextConfig {
@@ -249,5 +251,11 @@ export interface PromptPreview {
   readonly focus?: { readonly head: string; readonly summary: string };
   readonly window?: { readonly contextWindow: number; readonly warning?: string };
   /** Display-only estimate from `pricePer1k` (provider-gateway §6). */
-  readonly cost?: { readonly promptUsd: number; readonly completionUsd: number; readonly totalUsd: number };
+  readonly cost?: {
+    readonly promptUsd: number;
+    readonly completionUsd: number;
+    readonly totalUsd: number;
+    /** The reply side counts the thinking a set level can spend as well as the output cap; the card says "including thinking". */
+    readonly includesThinking?: true;
+  };
 }

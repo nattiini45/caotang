@@ -531,7 +531,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     options.context ??
     createContextPort({
       state: () => harness.state,
-      config: () => ({ model: gateway.modelLimits(options.profileId, options.model) }),
+      config: () => ({ model: gateway.modelLimits(options.profileId, options.model, options.thinking) }),
     });
   const emit = (event: AgentEvent): void => options.emit?.(event);
   const now = options.clock ?? Date.now;
@@ -915,7 +915,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // active model's price applied to the plan (cards.ts `reviewCostAt`, which the Findings tab reads too); an unpriced model adds nothing to the proposal.
       const planned = harness.reviewPlan(step.params);
       if (!planned.ok) return refusedDraft(planned.error.message);
-      const cost = reviewCostAt(planned.value, gateway, options.profileId, options.model);
+      const cost = reviewCostAt(planned.value, gateway, options.profileId, options.model, options.thinking);
       return { ok: true, proposal: cost === undefined ? planned.value : { ...planned.value, cost } };
     }
     if (step.tool === 'dialogue.draft') {

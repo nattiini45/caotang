@@ -296,6 +296,7 @@ const ROLE_LEVEL_NAMES: Readonly<Record<ThinkingLevel, string>> = {
   low: 'Low',
   medium: 'Medium',
   high: 'High',
+  xhigh: 'Extra high',
   max: 'Max',
 };
 
@@ -923,6 +924,7 @@ function RequestLogPanel({ services }: { services: AppServices }): ReactNode {
               <th scope="col">Attempt</th>
               <th scope="col">Outcome</th>
               <th scope="col">Status</th>
+              <th scope="col">Max tokens</th>
               <th scope="col">Address</th>
               <th scope="col">Note</th>
             </tr>
@@ -935,6 +937,7 @@ function RequestLogPanel({ services }: { services: AppServices }): ReactNode {
                 <td>{entry.attempt}</td>
                 <td>{entry.outcome}</td>
                 <td>{entry.status ?? ''}</td>
+                <td>{entry.maxTokens ?? ''}</td>
                 <td className="request-url">{entry.url.replace(/^https?:\/\//, '')}</td>
                 <td>{entry.note ?? entry.errorKind ?? ''}</td>
               </tr>

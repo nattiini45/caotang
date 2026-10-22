@@ -192,6 +192,7 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - Native tool calling where the model supports it, with the JSON-in-text protocol as fallback; a plan is the tool calls of one assistant message; thinking blocks and reasoning content are replayed verbatim on tool turns. [owner]
 - Three task roles (Chat and agent, Drafting, Background), each a profile, model and thinking level; Drafting and Background follow Chat by default; reasoning shows collapsed in the agent panel, never in the editor; cost is recorded per role. [owner]
 - A request goes only to the resolved profile's origin, and that profile must be in the set the role points at. Why: union-membership alone would carry one profile's key to another's origin. [delegated]
+- Claude models that think adaptively get `output_config.effort`, never `budget_tokens`; the output cap always exceeds any thinking budget. Why: the old shape is a 400 on Claude 5 models, and a budget above `max_tokens` is rejected. [delegated]
 - Providers a browser cannot reach (CORS) show disabled as "Desktop app or hosted only"; the reachability sweep is a committed spec re-run before each release. [owner]
 - OpenCode presets cover Zen and the keyless free models, sending `User-Agent: caotang` on runtimes that allow the header (browsers drop it); Go is left out until general-app use is confirmed. [owner]
 - Real-key smoke tests are an env-gated Playwright spec (`CAOTANG_SMOKE_*`), skipped by default and never run in CI. [owner]

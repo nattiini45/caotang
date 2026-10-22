@@ -9,8 +9,10 @@ import { describe, expect, it } from 'vitest';
 import { createSseParser } from '../src/sse.js';
 import { anthropicMessagesAdapter } from '../src/adapters/anthropic-messages.js';
 import { parseModels } from '../src/adapters/models.js';
-import type { AdapterContext, BodyInput, QuirkFlags, StreamParser, StreamPiece } from '../src/adapters/types.js';
+import { resolveRoute } from '../src/presets/index.js';
+import type { AdapterContext, QuirkFlags, StreamParser, StreamPiece } from '../src/adapters/types.js';
 import type { ChatRequest, ModelCaps, ThinkingLevel } from '../src/types.js';
+import { bodyInput, type BodyOver } from './helpers.js';
 
 const CTX: AdapterContext = { baseUrl: 'https://api.anthropic.com/v1', model: 'claude-sonnet-4', quirks: {}, caps: {} };
 
@@ -21,8 +23,8 @@ const ctx = (quirks: QuirkFlags = {}, caps: ModelCaps = {}, model = 'claude-sonn
   caps,
 });
 
-const body = (req: ChatRequest, overrides: Partial<BodyInput> = {}): Record<string, unknown> =>
-  anthropicMessagesAdapter.buildBody({ req, ctx: CTX, temperature: 0.7, maxTokens: 8192, jsonObject: false, ...overrides });
+const body = (req: ChatRequest, over: BodyOver = {}): Record<string, unknown> =>
+  anthropicMessagesAdapter.buildBody(bodyInput(req, over.ctx ?? CTX, { maxTokens: 8192, ...over }));
 
 const frame = (payload: unknown, event?: string): string =>
   `${event === undefined ? '' : `event: ${event}\n`}data: ${typeof payload === 'string' ? payload : JSON.stringify(payload)}\n\n`;
@@ -224,23 +226,57 @@ describe('anthropic-messages headers', () => {
 
 describe('anthropic-messages thinking mapping', () => {
   const think = (level: ThinkingLevel | undefined, caps: ModelCaps = {}): Record<string, unknown> =>
-    anthropicMessagesAdapter.buildBody({
-      req: { messages: [{ role: 'user', content: 'hi' }], thinking: level },
-      ctx: ctx({}, { effortStyle: 'anthropic', effortLevels: ['off', 'low', 'medium', 'high', 'max'], ...caps }),
-      temperature: 0.7,
-      maxTokens: 8192,
-      jsonObject: false,
-    });
+    anthropicMessagesAdapter.buildBody(
+      bodyInput(
+        { messages: [{ role: 'user', content: 'hi' }], thinking: level },
+        ctx({}, { effortStyle: 'anthropic', effortLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'], ...caps }),
+        { maxTokens: 8192 },
+      ),
+    );
 
-  it('writes thinking {enabled, budget_tokens} plus output_config.effort per level', () => {
-    expect(think('low')).toMatchObject({ thinking: { type: 'enabled', budget_tokens: 1024 }, output_config: { effort: 'low' } });
-    expect(think('medium')).toMatchObject({ thinking: { type: 'enabled', budget_tokens: 4096 }, output_config: { effort: 'medium' } });
-    expect(think('high')).toMatchObject({ thinking: { type: 'enabled', budget_tokens: 16384 }, output_config: { effort: 'high' } });
-    expect(think('max')).toMatchObject({ thinking: { type: 'enabled', budget_tokens: 32768 }, output_config: { effort: 'max' } });
+  const adaptive: ModelCaps = { thinkingShape: 'adaptive', thinkingDisplay: 'summarized' };
+
+  it('writes thinking {adaptive, summarized} plus output_config.effort per level, and never budget_tokens', () => {
+    for (const level of ['low', 'medium', 'high', 'xhigh', 'max'] as const) {
+      const built = think(level, adaptive);
+      expect(built.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
+      expect(built.output_config).toEqual({ effort: level });
+      expect(JSON.stringify(built)).not.toContain('budget_tokens');
+      expect(built.max_tokens).toBe(8192);
+    }
   });
 
-  it('drops temperature when thinking is enabled — the route rejects the pair', () => {
+  it('asks for the omitted display only when the row says the route cannot summarise', () => {
+    expect(think('low', { thinkingShape: 'adaptive', thinkingDisplay: 'omitted' }).thinking).toEqual({ type: 'adaptive', display: 'omitted' });
+  });
+
+  it('writes thinking {enabled, budget_tokens} plus output_config.effort on a budget row, with max_tokens above the budget', () => {
+    const budget: ModelCaps = { thinkingShape: 'budget' };
+    expect(think('low', budget)).toMatchObject({ thinking: { type: 'enabled', budget_tokens: 1024 }, output_config: { effort: 'low' }, max_tokens: 9216 });
+    expect(think('medium', budget)).toMatchObject({ thinking: { type: 'enabled', budget_tokens: 4096 }, output_config: { effort: 'medium' }, max_tokens: 12288 });
+    expect(think('high', budget)).toMatchObject({ thinking: { type: 'enabled', budget_tokens: 16384 }, output_config: { effort: 'high' } });
+    expect(think('max', budget)).toMatchObject({ thinking: { type: 'enabled', budget_tokens: 32768 }, output_config: { effort: 'max' }, max_tokens: 40960 });
+  });
+
+  it('treats a row that names no thinkingShape as a budget row', () => {
+    expect(think('low')).toMatchObject({ thinking: { type: 'enabled', budget_tokens: 1024 } });
+  });
+
+  it('sends reasoningBudget as the budget on a budget row and ignores it beside off', () => {
+    const asked = (thinking: ThinkingLevel | undefined, caps: ModelCaps): Record<string, unknown> =>
+      anthropicMessagesAdapter.buildBody(
+        bodyInput({ messages: [], thinking, reasoningBudget: 2_000 }, ctx({}, { effortStyle: 'anthropic', effortLevels: ['off', 'low', 'medium', 'high', 'xhigh', 'max'], ...caps }), { maxTokens: 8192 }),
+      );
+    expect(asked('high', { thinkingShape: 'budget' })).toMatchObject({ thinking: { type: 'enabled', budget_tokens: 2000 }, max_tokens: 10192 });
+    expect(asked(undefined, { thinkingShape: 'budget' })).toMatchObject({ thinking: { type: 'enabled', budget_tokens: 2000 }, output_config: { effort: 'low' } });
+    expect(asked('off', { thinkingShape: 'budget' }).thinking).toEqual({ type: 'disabled' });
+    expect(asked('high', adaptive)).toMatchObject({ thinking: { type: 'adaptive' }, output_config: { effort: 'high' }, max_tokens: 8192 });
+  });
+
+  it('drops temperature whenever thinking is on, adaptive and budget alike', () => {
     expect(think('high')).not.toHaveProperty('temperature');
+    expect(think('high', adaptive)).not.toHaveProperty('temperature');
+    expect(think('xhigh', { thinkingShape: 'budget' })).not.toHaveProperty('temperature');
   });
 
   it('off disables thinking, keeps temperature, and sends no output_config', () => {
@@ -260,13 +296,7 @@ describe('anthropic-messages thinking mapping', () => {
   it('sends nothing without a requested level or without a levels row', () => {
     expect(think(undefined)).not.toHaveProperty('thinking');
     expect(think('high', { effortLevels: [] })).not.toHaveProperty('thinking');
-    const noRow = anthropicMessagesAdapter.buildBody({
-      req: { messages: [], thinking: 'high' },
-      ctx: ctx({}, {}),
-      temperature: 0.7,
-      maxTokens: 8192,
-      jsonObject: false,
-    });
+    const noRow = anthropicMessagesAdapter.buildBody(bodyInput({ messages: [], thinking: 'high' }, ctx({}, {}), { maxTokens: 8192 }));
     expect(noRow).not.toHaveProperty('thinking');
   });
 });
@@ -319,6 +349,35 @@ describe('anthropic-messages stream parsing', () => {
       frame({ type: 'message_start', message: { usage: { input_tokens: 12, output_tokens: 1 } } }, 'message_start') +
       frame({ type: 'message_delta', delta: {}, usage: { output_tokens: 9 } }, 'message_delta');
     expect(parseStream(text).pieces).toEqual([{ usage: { promptTokens: 12, completionTokens: 9 } }]);
+  });
+
+  it('shows the summarised thinking of a Claude 5.x row and replays the signed block verbatim', () => {
+    const route = resolveRoute({ preset: 'anthropic', baseUrl: 'https://api.anthropic.com/v1' }, 'claude-opus-5-5');
+    const five = ctx(route.quirks, route.caps, 'claude-opus-5-5');
+    const text =
+      frame({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '', signature: '' } }, 'content_block_start') +
+      frame({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'Weighing the two openings.' } }, 'content_block_delta') +
+      frame({ type: 'content_block_delta', index: 0, delta: { type: 'signature_delta', signature: 'sig-5' } }, 'content_block_delta') +
+      frame({ type: 'content_block_stop', index: 0 }, 'content_block_stop');
+    const { pieces, terminal } = parseStream(text, five);
+    expect(pieces).toEqual([{ reasoning: 'Weighing the two openings.' }]);
+    const block = { type: 'thinking', thinking: 'Weighing the two openings.', signature: 'sig-5' };
+    expect(terminal.reasoning).toEqual([{ text: 'Weighing the two openings.', raw: block }]);
+    const wire = anthropicMessagesAdapter.buildBody(
+      bodyInput(
+        {
+          messages: [
+            { role: 'user', content: 'go' },
+            { role: 'assistant', content: '', reasoning: terminal.reasoning, toolCalls: [{ id: 't1', name: 'x', argumentsJson: '{}' }] },
+            { role: 'tool', content: 'ok', toolCallId: 't1' },
+          ],
+          thinking: 'high',
+        },
+        five,
+      ),
+    );
+    expect((wire.messages as { content: unknown }[])[1]?.content).toEqual([block, { type: 'tool_use', id: 't1', name: 'x', input: {} }]);
+    expect(wire.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
   });
 
   it('captures a redacted_thinking block for verbatim replay', () => {
