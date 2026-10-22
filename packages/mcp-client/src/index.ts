@@ -84,17 +84,23 @@ export {
   CLIENT_VERSION,
   MODERN_REVISION,
   WireError,
+  WireLoadError,
   corsProbe,
-  createStreamableHttpWire,
-  type McpWire,
-  type WireAnnotations,
-  type WireCallResult,
-  type WireDeps,
   type WireErrorKind,
-  type WireFactory,
-  type WireOptions,
-  type WireTool,
+} from './wire-error.js';
+
+// Only types come from wire.ts: it holds the MCP SDK, which `lazy-wire.ts` loads on first connect.
+export type {
+  McpWire,
+  WireAnnotations,
+  WireCallResult,
+  WireDeps,
+  WireFactory,
+  WireOptions,
+  WireTool,
 } from './wire.js';
+
+export { createStreamableHttpWire } from './lazy-wire.js';
 
 export {
   EXCERPT_CHARS,

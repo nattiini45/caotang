@@ -9,7 +9,8 @@
  */
 
 import type { McpError } from './errors.js';
-import { WireError, type McpWire, type WireCallResult, type WireFactory, type WireOptions, type WireTool } from './wire.js';
+import { WireError } from './wire-error.js';
+import type { McpWire, WireCallResult, WireFactory, WireOptions, WireTool } from './wire.js';
 
 export interface MockMcpScript {
   /** What the server lists now. Read on every listing, so a test changes the listing by assigning this. */
