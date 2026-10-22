@@ -12,7 +12,7 @@ import type { Client } from '@modelcontextprotocol/client';
 import { mcpExposure, metadataFor, TOOL_METADATA } from '@caotang/harness';
 import { ArtifactNotFoundError, parseDocumentFile } from '@caotang/store';
 
-import { createToolRuntime, startHttpServer, type RunningHttpServer } from '../src/index.js';
+import { createToolRuntime, LEGACY_ROUND_TIMEOUT_MS, LegacySessions, startHttpServer, type RunningHttpServer } from '../src/index.js';
 import { openProject, ProjectContentError, type ProjectSession } from '../src/index.js';
 import { NodeArtifactFs } from '../src/node-fs.js';
 import { manifestOnDisk } from '../src/session.js';
@@ -1159,6 +1159,32 @@ describe('the confirmation round trip on the wire', () => {
       await client.close();
       await fixture.close();
     }
+  });
+
+  it('a 2025 connection is told its confirmations wait 60 seconds, and a 2026-07-28 request, which holds nothing open, is told no deadline', async () => {
+    const fixture = await startFixture({ label: 'deadline', allowWrites: true, seed: true });
+    const legacy = new LegacyClient({ name: 'legacy-test', version: '0.0.0' }, { capabilities: {} });
+    const modern = await connectClient(fixture.url, fixture.token);
+    try {
+      await legacy.connect(
+        new StreamableHTTPClientTransport(new URL(fixture.url), {
+          requestInit: { headers: { authorization: `Bearer ${fixture.token}` } },
+        }),
+      );
+      expect(LEGACY_ROUND_TIMEOUT_MS).toBe(60_000);
+      expect(legacy.getInstructions()).toContain('A confirmation waits 60 seconds');
+      expect(modern.getInstructions()).not.toContain('waits');
+    } finally {
+      await legacy.close();
+      await modern.close();
+      await fixture.close();
+    }
+  });
+
+  it('a fresh table of 2025-era connections has none busy, and reports its limit', () => {
+    const none = new LegacySessions();
+    expect(none.busyCount).toBe(0);
+    expect(none.limit).toBe(16);
   });
 });
 

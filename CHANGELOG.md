@@ -4,6 +4,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ## Unreleased
 
+### Changed
+
+- **MCP server.** A confirmation on a 2025-era connection waits 60 seconds for its answer instead of ten minutes, so a dialog nobody answers frees its connection's place in a minute. The question and the `initialize` instructions say how long it waits, and a refused `initialize` (every connection busy) names the limit, how many are busy and the wait, with a `Retry-After` header. A confirmation that times out writes nothing, and the host's next call asks again.
+
 ### Added
 
 - **Agent.** A live task list for multi-step turns, in the agent header and at the top of the turn, with the model-call budget. The header says "Step 3 of 5 · Drafting “The Landing”", or "Waiting for you · Plan, 3 steps", with the drawer open or closed. The list is worked out from the plan and the tool calls, so it costs no model tokens and shows only work that ran.

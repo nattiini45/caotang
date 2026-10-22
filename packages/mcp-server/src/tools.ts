@@ -240,6 +240,7 @@ async function runConfirmed(
   params: Structured,
   ctx: ServerContext,
   runtime: ToolRuntime,
+  waitSeconds: number | undefined,
 ): Promise<CallToolResult | InputRequiredResult> {
   const name = listing.name;
   const digest = argsDigest(name, params);
@@ -327,6 +328,7 @@ async function runConfirmed(
             (id) => titleOfNode(runtime.session.state, id),
             (id) => codexEntryNameOf(runtime.session.state, id),
           ),
+          waitSeconds,
         ),
         requestedSchema: CONFIRMATION_SCHEMA,
       }),
@@ -335,8 +337,12 @@ async function runConfirmed(
   });
 }
 
-/** Registers every exposed harness tool on `server`. Returns the names registered, in table order. */
-export function registerCaotangTools(server: McpServer, runtime: ToolRuntime): readonly string[] {
+/**
+ * Registers every exposed harness tool on `server`. Returns the names registered, in table order. `roundWaitMs` is the
+ * deadline of a confirmation on this server's connection, when it has one; the question says so (confirm.ts).
+ */
+export function registerCaotangTools(server: McpServer, runtime: ToolRuntime, roundWaitMs?: number): readonly string[] {
+  const waitSeconds = roundWaitMs === undefined ? undefined : Math.ceil(roundWaitMs / 1000);
   const registered: string[] = [];
   for (const listing of runtime.session.harness.tools()) {
     const exposure = mcpExposure(listing);
@@ -362,7 +368,7 @@ export function registerCaotangTools(server: McpServer, runtime: ToolRuntime): r
       },
       async (args: Structured, ctx: ServerContext): Promise<CallToolResult | InputRequiredResult> => {
         const params: Structured = args ?? {};
-        if (listing.risk === 'write-confirm') return runConfirmed(server, listing, params, ctx, runtime);
+        if (listing.risk === 'write-confirm') return runConfirmed(server, listing, params, ctx, runtime, waitSeconds);
         return runDirect(runtime, listing.name, params);
       },
     );
