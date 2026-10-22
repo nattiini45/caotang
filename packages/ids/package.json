@@ -4,7 +4,7 @@
   "license": "MIT",
   "private": true,
   "type": "module",
-  "description": "Crockford base32 id generation — one generator family for project, node, codex, and command ids",
+  "description": "Crockford base32 id generation — one generator family for project, node, codex, and command ids — and the canonical JSON that pins are hashed from",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {

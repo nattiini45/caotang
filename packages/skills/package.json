@@ -1,0 +1,19 @@
+{
+  "name": "@caotang/skills",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "Agent Skills folders (SKILL.md, agentskills.io): the reader, the limits, the review pin and the model's catalog (extensibility.md §10)",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@caotang/ids": "workspace:*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}
