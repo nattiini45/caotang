@@ -49,7 +49,8 @@ describe('the preview a derive card shows (storyboard.md §4 row 18)', () => {
     expect(preview.folder).toBe(FOLDER_TITLE);
     expect(preview.shots.map((shot) => shot.number)).toEqual([1, 2]);
     expect(preview.shots.map((shot) => shot.title)).toEqual(['The lamp fails.', 'The keeper climbs the stair.']);
-    expect(preview.shots[0]?.spec).toContain('WS');
+    expect(preview.shots[0]?.spec).toBe('Wide shot (WS) · Eye level · 4 s');
+    expect(preview.lines.find((line) => line.includes('+ shot 1'))).toContain('Wide shot (WS) · Eye level · 4 s');
     expect(preview.shots[1]?.spec).toBe('');
     // The tree diff is the folder the apply creates, then one line per shot, in the order the cards take in it.
     expect(preview.lines[0]).toContain(`+ folder "${FOLDER_TITLE}"`);

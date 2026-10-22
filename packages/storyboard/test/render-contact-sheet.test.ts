@@ -11,6 +11,7 @@ import {
   SHEET_LAYOUT,
   planContactSheet,
   sheetSpecRowOf,
+  specRowOf,
   sheetSummaryOf,
   addShotNode,
   fillTemplate,
@@ -65,6 +66,17 @@ describe('capacity: how many cards fit a page', () => {
     expect(plan.pageSize).toBe('A4');
     expect(plan.cardsPerPage).toBe(15);
     expect(plan.cardWidth).toBeCloseTo((595.28 - 2 * 36 - 2 * 12) / 3, 6);
+  });
+
+  it('keeps 15 cards on A4 although the spec row takes two lines: the card is 136.62 pt tall and the fifth row ends inside the page', () => {
+    const plan = paginate(cards(1));
+    const { margin, headerHeight, gutter } = SHEET_LAYOUT;
+    expect(plan.cardHeight).toBeCloseTo(plan.cardWidth * (9 / 16) + 3 + 2 * 8.5 + 2 * 10 + 3, 6);
+    expect(plan.cardHeight).toBeCloseTo(136.62, 2);
+    // Five rows end at or above the bottom margin, and a sixth does not fit.
+    const bottom = 841.89 - margin;
+    expect(margin + headerHeight + 5 * plan.cardHeight + 4 * gutter).toBeLessThanOrEqual(bottom);
+    expect(margin + headerHeight + 6 * plan.cardHeight + 5 * gutter).toBeGreaterThan(bottom);
   });
 
   it('fits 12 cards on a Letter page of three columns, which is shorter', () => {
@@ -156,8 +168,8 @@ describe('the text on a card', () => {
   it('shows the number on the chip and the spec row beneath the picture', () => {
     const placed = allCards(paginate([card(6, { specRow: 'CU · eye · 4 s' })]))[0];
     expect(placed?.chipText.text).toBe('7');
-    expect(placed?.spec.text).toBe('CU · eye · 4 s');
-    expect(placed?.spec.y).toBeGreaterThan((placed?.image.y ?? 0) + (placed?.image.height ?? 0));
+    expect(placed?.spec.map((line) => line.text)).toEqual(['CU · eye · 4 s']);
+    expect(placed?.spec[0]?.y).toBeGreaterThan((placed?.image.y ?? 0) + (placed?.image.height ?? 0));
   });
 
   it('cuts a long action to the two lines the card has, with an ellipsis on the last', () => {
@@ -175,9 +187,41 @@ describe('the text on a card', () => {
     expect(placed?.frame.height).toBeCloseTo(plan.cardHeight, 6);
   });
 
-  it('cuts a spec row that is too long for one line', () => {
-    const placed = allCards(paginate([card(0, { specRow: 'x'.repeat(80) })]))[0];
-    expect(placed?.spec.text.endsWith('…')).toBe(true);
+  it('cuts a spec row that is too long for its two lines, with an ellipsis on the second', () => {
+    const placed = allCards(paginate([card(0, { specRow: 'x'.repeat(200) })]))[0];
+    expect(placed?.spec).toHaveLength(SHEET_LAYOUT.specLines);
+    expect(placed?.spec[1]?.text.endsWith('…')).toBe(true);
+  });
+
+  it('puts the longest all-set row in words on two lines with no ellipsis, on A4 and on Letter', () => {
+    const row = sheetSpecRowOf({
+      shotSize: 'MCU',
+      cameraAngle: 'birds',
+      cameraMovement: 'dolly-in',
+      durationSec: 4,
+      lens: '35mm',
+      transition: 'match-on-action',
+    });
+    expect(row).toBe('Medium close-up (MCU) · Bird’s-eye view · Dolly in · 4 s · 35mm · Match on action');
+    for (const pageSize of ['A4', 'Letter'] as const) {
+      const plan = paginate([card(0, { specRow: row })], { pageSize });
+      const placed = allCards(plan)[0];
+      expect(placed?.spec).toHaveLength(2);
+      expect(placed?.spec.map((line) => line.text).join(' ')).toBe(row);
+      for (const line of placed?.spec ?? []) {
+        expect(measureText(line.text, line.fontSize)).toBeLessThanOrEqual(plan.cardWidth + EPS);
+      }
+    }
+  });
+
+  it('sets the second spec line below the first and the action below both, inside the card', () => {
+    const placed = allCards(paginate([card(0, { specRow: 'Medium close-up (MCU) · Bird’s-eye view · Dolly in · 4 s', action: 'one two three' })]))[0];
+    const [first, second] = placed?.spec ?? [];
+    expect(second?.y).toBeCloseTo((first?.y ?? 0) + SHEET_LAYOUT.specLineHeight, 6);
+    expect(placed?.action[0]?.y).toBeGreaterThan((second?.y ?? 0) + SHEET_LAYOUT.specFontSize * 0.2);
+    const frame = placed?.frame;
+    const last = placed?.action[placed.action.length - 1] ?? second;
+    expect(last?.y ?? 0).toBeLessThanOrEqual((frame?.y ?? 0) + (frame?.height ?? 0));
   });
 
   it('draws a placeholder with the alt text for a card with no picture, and none for one with a picture', () => {
@@ -348,7 +392,7 @@ describe('the renderer: the page plan, the images, and the PDF port', () => {
   it('writes the spec row the card shows, from the same values the CSV reads', async () => {
     const { fixture, fs } = await project();
     const document = await new ContactSheetPdfRenderer().build(fs, fixture.state, ['board1']);
-    expect(allCards(document.plan)[0]?.spec.text).toBe('WS · low · 2.5 s');
+    expect(allCards(document.plan)[0]?.spec.map((line) => line.text)).toEqual(['Wide shot (WS) · Low angle · 2.5 s']);
   });
 
   it('numbers the chips the way the CSV does, from 1 in binder order', async () => {
@@ -457,12 +501,18 @@ describe('the header summary: the shot count and the animatic total', () => {
 });
 
 describe('the card spec row on the sheet', () => {
-  it('is the board’s M-size row: the camera values and the duration, then the lens and the transition when set', () => {
+  it('is the board’s M-size row in the editor’s words: the camera values and the duration, then the lens and the transition when set', () => {
     expect(sheetSpecRowOf({ shotSize: 'CU', cameraAngle: 'low', cameraMovement: 'pan', durationSec: 3, lens: '35mm', transition: 'cut' })).toBe(
-      'CU · low · pan · 3 s · 35mm · cut',
+      'Close-up (CU) · Low angle · Pan · 3 s · 35mm · Cut',
     );
     expect(sheetSpecRowOf({ lens: '  ' })).toBe('');
-    expect(sheetSpecRowOf({ transition: 'dissolve' })).toBe('dissolve');
+    expect(sheetSpecRowOf({ transition: 'dissolve' })).toBe('Dissolve');
+    expect(sheetSpecRowOf({ transition: 'wobble' })).toBe('wobble');
+  });
+
+  it('starts with the same words the board’s row has, so the two surfaces read alike', () => {
+    const stored = { shotSize: 'WS', cameraAngle: 'high', cameraMovement: 'crane', durationSec: 2, lens: '50mm', transition: 'wipe' };
+    expect(sheetSpecRowOf(stored)).toBe(`${specRowOf(stored)} · 50mm · Wipe`);
   });
 });
 

@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 
-import { derivableSceneOf, deriveIntentOf, emptyBoardCopyOf, enumLabelOf, shotCardsOf, shotsFolderOf } from '../../apps/desktop/src/media/storyboard-model.js';
+import { ENUM_OPTIONS, derivableSceneOf, deriveIntentOf, emptyBoardCopyOf, shotCardsOf, shotsFolderOf } from '../../apps/desktop/src/media/storyboard-model.js';
 import { missingPictureLabelOf, shownListingOf } from '../../apps/desktop/src/media/shot-image-model.js';
-import { addShotNode, addStoryboardFolder } from '../../packages/storyboard/src/index.js';
+import { addShotNode, addStoryboardFolder, enumLabelOf } from '../../packages/storyboard/src/index.js';
 import { addDocument, createEmptyManifest, createProjectState, nodeById, type ProjectState, type TreeNode } from '../../packages/store/src/index.js';
 
 /**
@@ -48,6 +48,42 @@ test.describe('the labels the shot editor shows', () => {
   test('a name that only the object prototype has is not mistaken for a label', () => {
     expect(enumLabelOf('cameraAngle', 'constructor')).toBe('constructor');
     expect(enumLabelOf('transition', 'toString')).toBe('toString');
+  });
+});
+
+test.describe('the card row and the editor speak one language', () => {
+  test('a card’s row is the words the editor’s dropdown shows for the stored values, lens and transition included', () => {
+    const state = project();
+    addShotNode(state, {
+      parentId: FOLDER,
+      title: 'One',
+      stored: { shotSize: 'MCU', cameraAngle: 'birds', cameraMovement: 'dolly-in', durationSec: 4, lens: '35mm', transition: 'dissolve' },
+      now: NOW,
+      id: 'n_SHOTONE001',
+    });
+    const [card] = shotCardsOf(state, FOLDER);
+    expect(card?.spec).toBe('Medium close-up (MCU) · Bird’s-eye view · Dolly in · 4 s · 35mm · Dissolve');
+    expect(card?.spec).toBe(
+      [enumLabelOf('shotSize', 'MCU'), enumLabelOf('cameraAngle', 'birds'), enumLabelOf('cameraMovement', 'dolly-in'), '4 s', '35mm', enumLabelOf('transition', 'dissolve')].join(' · '),
+    );
+    // The stored shape keeps the tokens: a label is only what the writer reads.
+    expect(card?.meta).toMatchObject({ shotSize: 'MCU', cameraAngle: 'birds', cameraMovement: 'dolly-in', transition: 'dissolve' });
+  });
+
+  test('every value of every list reads on a card as the label the dropdown offers for it', () => {
+    for (const [field, options] of Object.entries(ENUM_OPTIONS) as [keyof typeof ENUM_OPTIONS, readonly string[]][]) {
+      for (const option of options) {
+        const state = project();
+        addShotNode(state, { parentId: FOLDER, title: 'One', stored: { [field]: option }, now: NOW, id: 'n_SHOTONE001' });
+        expect(shotCardsOf(state, FOLDER)[0]?.spec).toBe(enumLabelOf(field, option));
+      }
+    }
+  });
+
+  test('a value outside its list is shown as stored, in the row as in the dropdown', () => {
+    const state = project();
+    addShotNode(state, { parentId: FOLDER, title: 'One', stored: { cameraAngle: 'tilted-sideways', transition: 'iris' }, now: NOW, id: 'n_SHOTONE001' });
+    expect(shotCardsOf(state, FOLDER)[0]?.spec).toBe('tilted-sideways · iris');
   });
 });
 

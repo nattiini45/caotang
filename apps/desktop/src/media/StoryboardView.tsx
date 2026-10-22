@@ -21,13 +21,13 @@ import { commitShotCommand } from './commit.js';
 import { ShotCoverage } from './ShotCoverage.js';
 import { ShotLightbox } from './ShotLightbox.js';
 import { ShotPromptEditor } from './ShotPromptEditor.js';
-import { ENUM_OPTIONS, EDITABLE_FIELDS, derivableSceneOf, deriveIntentOf, draftAfterStoredChange, emptyBoardCopyOf, draftOf, enumLabelOf, moveShotCommand, newShotParams, shotCardsOf, shotEditCommand, type EditableField, type ShotCard, type ShotDraft } from './storyboard-model.js';
+import { ENUM_OPTIONS, EDITABLE_FIELDS, derivableSceneOf, deriveIntentOf, draftAfterStoredChange, emptyBoardCopyOf, draftOf, moveShotCommand, newShotParams, shotCardsOf, shotEditCommand, type EditableField, type ShotCard, type ShotDraft } from './storyboard-model.js';
 import { IMAGE_ACCEPT, assignImageCommand, clearImageCommand, firstPicture, missingPictureLabelOf, type PictureListing } from './shot-image-model.js';
 import { useAssetListing, useImageUrl } from './hooks.js';
 import { PromptPackPanel } from './PromptPackPanel.js';
 import type { PromptFieldKey } from './prompt-edit-model.js';
 import type { MediaPorts } from './ports.js';
-import { ACTION_MAX_CHARS, SHOT_ENUMS, type AssetRecord } from './engines.js';
+import { ACTION_MAX_CHARS, SHOT_ENUMS, enumLabelOf, type AssetRecord } from './engines.js';
 
 export interface StoryboardViewProps {
   readonly session: ProjectSession;
@@ -418,7 +418,7 @@ function ShotCardView({
   // every size, because a value the load kept as unknown must be seen (storyboard.md §2.2).
   const detail = zoom !== 'S';
   const showAction = zoom === 'L' && card.action !== '';
-  const specRow = [card.spec, card.lens, card.transition].filter((part) => part !== '').join(' · ');
+  const specRow = card.spec;
   return (
     <article
       className={`card sb-card${selected ? ' is-selected' : ''}${dropping ? ' is-drop-target' : ''}`}

@@ -117,7 +117,7 @@ test('a shot is made in a storyboard as a binder.create, and its fields survive 
   await binderTitle(page, 'Storyboard').click();
   const card = page.getByRole('article', { name: 'Shot 1: New shot' });
   await expect(card.locator('.sb-spec')).toHaveCount(1);
-  await expect(card.locator('.sb-spec')).toHaveText('MCU · 4 s · 35mm');
+  await expect(card.locator('.sb-spec')).toHaveText('Medium close-up (MCU) · 4 s · 35mm');
 });
 
 test('each media format compiles through the bus from the Compile dialog, and downloads', async ({ page }) => {

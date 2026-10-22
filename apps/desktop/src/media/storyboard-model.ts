@@ -13,10 +13,10 @@ import {
   CAMERA_ANGLES,
   CAMERA_MOVEMENTS,
   DERIVE_FOLDER_SUFFIX,
-  SHOT_ENUM_LABELS,
   SHOT_SIZES,
   TRANSITIONS,
   checkShotMeta,
+  cardSpecRowOf,
   displayNumbers,
   isShotNode,
   isStoryboardFolder,
@@ -24,10 +24,8 @@ import {
   readShotMeta,
   shotFieldOf,
   shotsIn,
-  specRowOf,
   storedValueOf,
   type ShotCommand,
-  type ShotEnumField,
   type ShotMeta,
   type StoryboardRefusal,
   type StoryboardResult,
@@ -47,7 +45,7 @@ export interface ShotCard {
   /** The asset id of the card's image, when the shot has one. */
   readonly image: string | null;
   readonly imageAlt: string;
-  /** `shotSize · cameraAngle · cameraMovement · durationSec s`, as the corkboard shows it (storyboard.md §3.1). */
+  /** The row the card prints, in the shot editor's words: `shotSize · cameraAngle · cameraMovement · durationSec s · lens · transition` (storyboard.md §3.1). */
   readonly spec: string;
   readonly action: string;
   readonly lens: string;
@@ -81,15 +79,6 @@ export const ENUM_OPTIONS: Readonly<Record<'shotSize' | 'cameraAngle' | 'cameraM
 };
 
 export type ShotDraft = Readonly<Record<EditableField, string>>;
-
-/**
- * The words the editor shows for one closed-list value. The option's value stays the enum value, so the save writes what the list
- * holds. A value the list does not have (a kept unknown) is shown as it is, because the writer has to see what the file holds.
- */
-export function enumLabelOf(field: ShotEnumField, value: string): string {
-  const labels: Readonly<Record<string, string>> = SHOT_ENUM_LABELS[field];
-  return Object.prototype.hasOwnProperty.call(labels, value) ? (labels[value] ?? value) : value;
-}
 
 /**
  * The storyboard folder a scene's shots live in, when one exists: the folder `shots.derive` makes for the scene, `<Scene Title> — Shots`
@@ -157,7 +146,7 @@ export function shotCardsOf(state: ProjectState, folderId: string): readonly Sho
     const raw = shotFieldOf(node);
     const read = readShotMeta(raw);
     const meta = read.meta;
-    // The spec row reads the stored shape, so a value kept as unknown still shows (specRowOf).
+    // The spec row reads the stored shape, so a value kept as unknown still shows (cardSpecRowOf).
     const visible: Record<string, unknown> = { ...meta, ...read.unknownValues };
     const status = node.status === null ? undefined : state.manifest.vocabulary.statuses.find((term) => term.id === node.status);
     const label = node.label === null ? undefined : state.manifest.vocabulary.labels.find((term) => term.id === node.label);
@@ -169,7 +158,7 @@ export function shotCardsOf(state: ProjectState, folderId: string): readonly Sho
       count: shots.length,
       image: meta.image ?? null,
       imageAlt: meta.imageAlt ?? '',
-      spec: specRowOf(visible),
+      spec: cardSpecRowOf(visible),
       action: meta.action ?? '',
       lens: meta.lens ?? '',
       transition: meta.transition ?? '',

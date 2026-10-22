@@ -317,7 +317,7 @@ describe('contact-sheet-pdf — the storyboard as a PDF of shot cards', () => {
     expect(card?.chipText.text).toBe('3');
     expect(card?.hasImage).toBe(false);
     expect(card?.placeholder?.text).toBe('No image');
-    expect(card?.spec.text).toBe('');
+    expect(card?.spec).toEqual([]);
     expect(card?.action).toEqual([]);
     expect(pageContent(pdf, 0)).toContain(`<${hexOf('No image')}> Tj`);
   });

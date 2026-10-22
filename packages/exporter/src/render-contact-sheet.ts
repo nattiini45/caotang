@@ -392,7 +392,7 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
     });
     await drawText(page, card.chipText, bold, card.chip.width, PAPER);
 
-    await drawText(page, card.spec, regular, card.frame.width);
+    for (const line of card.spec) await drawText(page, line, regular, card.frame.width);
     for (const line of card.action) await drawText(page, line, regular, card.frame.width);
   };
 
