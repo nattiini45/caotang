@@ -168,7 +168,7 @@ Serve a project folder over HTTP, on `127.0.0.1` only:
 node packages/mcp-server/dist/caotang-mcp.mjs serve --project ~/Writing/my-novel
 ```
 
-The server is read-only unless you add `--allow-writes`, or set `CAOTANG_MCP_ALLOW_WRITES=true`. With writes allowed, four tools apply their change at once (`meta.set`, `notes.append`, `coherence.setFindingStatus` and `shots.annotate`), and five ask you to confirm each call in the host before anything is written (`binder.restructure`, `codex.write`, `codex.import`, `doc.import` and `export.compile`). Add `--create "New Book"` to make a new project in a folder that does not have one yet. `--create` is refused for a folder that already holds document or codex files, or manifest copies (`caotang.json.*`), so it cannot take them over.
+The server is read-only unless you add `--allow-writes`, or set `CAOTANG_MCP_ALLOW_WRITES=true`. With writes allowed, seven tools apply their change at once (`meta.set`, `notes.append`, `synopsis.set`, `filter.save`, `goal.save`, `coherence.setFindingStatus` and `shots.annotate`), and seven ask you to confirm each call in the host before anything is written (`binder.restructure`, `codex.write`, `codex.import`, `doc.import`, `export.compile`, `notes.replace` and `vocabulary.upsert`). Add `--create "New Book"` to make a new project in a folder that does not have one yet. `--create` is refused for a folder that already holds document or codex files, or manifest copies (`caotang.json.*`), so it cannot take them over.
 
 **Token.** Over HTTP the server prints a bearer token once, when it starts. To choose the token yourself, set `CAOTANG_MCP_TOKEN` to at least 16 characters before you start the server. Every request must send `Authorization: Bearer <token>`.
 

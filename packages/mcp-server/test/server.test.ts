@@ -211,6 +211,25 @@ describe('the tool surface', () => {
     }
   });
 
+  it('is described by the root README with the same write tools it lists', async () => {
+    const client = await connectClient(writable.url, writable.token);
+    try {
+      const { tools } = await client.listTools();
+      const writes = tools.filter((tool) => tool.annotations?.readOnlyHint === false);
+      const confirm = writes.filter((tool) => tool.description?.startsWith('Requires user confirmation.')).map((tool) => tool.name);
+      const auto = writes.filter((tool) => !confirm.includes(tool.name)).map((tool) => tool.name);
+      const readme = readFileSync(new URL('../../../README.md', import.meta.url), 'utf8');
+      const paragraph = readme.split('\n').find((line) => line.startsWith('The server is read-only unless'));
+      expect(paragraph).toBeDefined();
+      const names = (text: string) => [...text.matchAll(/`([a-z]+\.[A-Za-z]+)`/g)].map((match) => match[1]).sort();
+      const [autoText, confirmText] = paragraph!.split(', and ');
+      expect(names(autoText!)).toEqual([...auto].sort());
+      expect(names(confirmText!.split('Add `--create')[0]!)).toEqual([...confirm].sort());
+    } finally {
+      await client.close();
+    }
+  });
+
   it('marks write-confirm tools as needing confirmation, and reads as read-only', async () => {
     const client = await connectClient(writable.url, writable.token);
     try {
