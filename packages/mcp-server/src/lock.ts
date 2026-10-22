@@ -16,7 +16,9 @@
  * A lock is taken over only when its body says whose it is and that holder is gone. A lock
  * whose body cannot be read says nothing, so it is never taken over: a writer that is writing
  * it right now would lose it, and the age of a file is not proof of anything. The folder is
- * refused instead, and the refusal names the file and says how to clear it.
+ * refused instead, and the refusal names the file and says how to clear it. The price of that
+ * rule is a writer that is killed between creating the lock and writing its body: it leaves a
+ * lock that nobody may take over, and the folder is cleared by hand.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -208,6 +210,16 @@ async function removeStale(path: string, staleToken: string): Promise<Takeover> 
       // stale lock left to remove, and removing whatever is at the path now would remove the
       // lock of the writer that took it over.
       if (!(await exists(path))) return 'taken';
+      // The path is occupied, but the body may have become readable in the meantime: the writer
+      // that won the takeover writes its own lock there. The body is read once more, so a lock
+      // that is readable is never called unreadable — the refusal would tell the person to
+      // delete the lock of a writer that is holding the folder.
+      const again = parseBody(await readFile(path, 'utf8').catch(() => ''));
+      if (again !== undefined) {
+        if (again.token !== staleToken) return 'replaced';
+        await unlink(path).catch(() => undefined);
+        return 'taken';
+      }
       return 'unreadable';
     }
     await unlink(path).catch(() => undefined);
@@ -282,14 +294,20 @@ export async function acquireProjectLock(root: string, now: Date = new Date()): 
       };
     }
     const text = await readFile(path, 'utf8').catch(() => undefined);
-    const holder = text === undefined ? undefined : parseBody(text);
+    let holder = text === undefined ? undefined : parseBody(text);
     if (holder === undefined) {
       // The lock cannot be read. Nothing says whose it is, so it cannot be proven stale, and a
       // writer that is writing it right now would lose it: the folder is refused, and the
       // refusal names the file and says how to clear it. A lock that is gone is one another
       // writer took over, and this one tries the lock again.
       if (!(await exists(path))) continue;
-      throw new ProjectLockedError(root, undefined, { unreadableLock: path });
+      // The path is occupied, but the body may have become readable in the meantime: a writer
+      // that took the lock over writes its own body there. The body is read once more, so a
+      // lock that is readable is never refused as one that cannot be read, and the advice to
+      // delete it is never given for the lock of a writer that is holding the folder.
+      const again = await readFile(path, 'utf8').catch(() => undefined);
+      holder = again === undefined ? undefined : parseBody(again);
+      if (holder === undefined) throw new ProjectLockedError(root, undefined, { unreadableLock: path });
     }
     if (processAlive(holder.pid)) {
       // The holder is alive, so the folder is refused for it. A marker of a takeover left beside
