@@ -259,6 +259,18 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(read('packages/dialogue/src/table.ts')).toContain("export const YARN_COLUMNS = ['language', 'id', 'text', 'file', 'node', 'lineNumber', 'lock', 'comment'] as const;");
   });
 
+  it('says the Yarn strings file fills lock with the first 8 hex characters of the SHA-256 of the text, and what the file is for', () => {
+    expect(guide).toContain("Its `lock` column holds the first 8 hex characters of the SHA-256 of the line's `text` cell, the hash Yarn Spinner for Unity writes");
+    expect(guide).toContain("It is a localisation file for a Yarn project whose lines carry Caotang's `#line:` ids, not the base-language strings Yarn generates from its own scripts.");
+    expect(guide).not.toContain('Its `lock` column is empty.');
+    expect(changelog).toContain("The `lock` column is filled. It holds the first 8 hex characters of the SHA-256 of the row's `text` cell as written before the spreadsheet guard");
+    expect(changelog).not.toContain('leaves its `lock` column empty');
+    const table = read('packages/dialogue/src/table.ts');
+    expect(table).toContain('sha256Hex(text).slice(0, 8),');
+    expect(table).not.toContain('leaves it empty');
+    expect(read('docs/architecture/dialogue-narrative.md')).not.toContain('`lock` = empty');
+  });
+
   it('says which leading characters get the Yarn guard apostrophe, that it is written into the cell, and that Yarn Spinner was not checked', () => {
     const claim =
       "In the Yarn strings file, a line or choice whose text cell starts with `=`, `+`, `-`, `@`, a tab or a carriage return gets an apostrophe in front, as in every CSV export, so a spreadsheet does not run it as a formula.";
