@@ -3,8 +3,9 @@
  * picks a scene or a prose document, selects words in its text, and covers them. The anchor is captured then, against the stored
  * text (coverage-model.ts), and the coverage is one `shot.setMeta`.
  *
- * The text shown is the document's stored body, verbatim, so an offset in the text is an offset in the body. The picker is a
- * read-only text area, so the writer selects but cannot change the script from here.
+ * The text shown is the document's stored body, but a text area holds line feeds only, so for a body stored with carriage returns
+ * an offset in the text is not an offset in the body. The capture therefore locates the selected words (coverage-model.ts), not
+ * the offsets. The picker is a read-only text area, so the writer selects but cannot change the script from here.
  */
 
 import { useRef, useState, type ReactNode } from 'react';
