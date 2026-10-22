@@ -2712,6 +2712,17 @@ dialog.confirm::backdrop {
   white-space: pre-wrap;
 }
 
+/* A notes rewrite, old to new: an added run is underlined and a removed one is struck, so the difference does not rest on colour. */
+.notes-diff ins {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.notes-diff del {
+  color: var(--danger);
+  text-decoration: line-through;
+}
+
 .agent-on {
   margin: 2px 0 0;
   font-size: 12px;
