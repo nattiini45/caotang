@@ -124,6 +124,25 @@ describe('usage ledger — turn rows (§6)', () => {
     expect(h.gateway.ledger.turnTotals('no-such-turn')).toMatchObject({ requests: 0 });
   });
 
+  it('splits a turn by the delegated agent that made each request, and still totals the whole turn', async () => {
+    const h = harness();
+    const mock = await h.profiles.create({ name: 'Offline', kind: 'mock' });
+
+    await collect(h.gateway.complete({ ...userMessage('own'), turnId: 'turn-9' }));
+    await collect(h.gateway.complete({ ...userMessage('child'), turnId: 'turn-9', agentPath: 'turn-9/reader#1' }));
+    await collect(h.gateway.complete({ ...userMessage('child'), turnId: 'turn-9', agentPath: 'turn-9/reader#1' }));
+
+    const rows = h.gateway.ledger.turnRows();
+    expect(rows.map((row) => [row.agentPath, row.requests])).toEqual([
+      [undefined, 1],
+      ['turn-9/reader#1', 2],
+    ]);
+    expect(rows.every((row) => row.profileId === mock.id)).toBe(true);
+    expect(h.gateway.ledger.turnTotals('turn-9')).toMatchObject({ requests: 3 });
+    // The day row has no agent path: it counts the day, and the split is the turn's.
+    expect(h.gateway.ledger.dayRows()).toHaveLength(1);
+  });
+
   it('keeps only the most recent turns, so a long session cannot grow the ledger without bound', () => {
     const h = harness();
     for (let i = 0; i < MAX_TURN_ROWS + 5; i += 1) {
