@@ -363,12 +363,6 @@ describe('preflight · the outcome classifier measures the construct, not a stri
     // read-back is the one place in the measurement that parses the *output*
     // rather than the input. The input is the fence-with-meta one, so the
     // output differs from it and the read-back is reached at all.
-    //
-    // **The row cannot be a byte-identical one.** `byteIdentical` says the
-    // output is the input plus the trailing newline, and remark has already
-    // parsed the input by then — so an output that remark cannot read back
-    // is never a byte-identical output. That is why the loss below does not
-    // contradict the bytes.
     vi.resetModules();
     const input = '```js title=x\nconst a = 1;\n```\n';
     vi.doMock('unified', async (importOriginal) => {
