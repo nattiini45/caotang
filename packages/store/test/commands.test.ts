@@ -553,9 +553,20 @@ describe('binder.setMeta — the inverse of a field the request could not expres
     }));
     expect(node(h.state, LANDING).keywords).toEqual(['grief', 'sea']);
     expect(node(h.state, LANDING).updatedAt).not.toBe(before);
+    // **Both halves of the inverse are pinned.** The forward removed 'sea' and
+    // added it back, so the inverse has to do the same: an inverse that carried
+    // only `keywords_remove` would make the undo delete 'sea' — a silent
+    // keyword loss the stamp assertions below would not notice.
+    expect(inverseOf(h, outcome.undoGroupId).params).toEqual({
+      nodeId: LANDING,
+      patch: { keywords_add: ['sea'], keywords_remove: ['sea'] },
+    });
     const undone = h.undoGroup(outcome.undoGroupId!);
     expect(undone.failures).toEqual([]);
     expect(node(h.state, LANDING).updatedAt).toBe(before);
+    // …and the replay leaves the list it found: a keyword the undo dropped
+    // would be lost in silence, with every other assertion still green.
+    expect(node(h.state, LANDING).keywords).toEqual(['grief', 'sea']);
   });
 
   it('writes nothing when a patch clears a status the node does not hold at all', () => {
