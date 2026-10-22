@@ -224,6 +224,7 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - Every EPUB fixture must pass epubcheck (`@likecoin/epubcheck-ts`, exact pin, dev-only) with zero errors. Why: a validated floor. [delegated]
 - `{date}` on the title page is the writer's local day; the compile log and EPUB modified time stay UTC. Why: the date the writer sees is today. [delegated]
 - A cover below 1,400 px on its short side is noted in the compile log. Why: retailer minimums. [delegated]
+- A scene's export style is a writer's declaration from a closed vocabulary (`normal`, `section`), stored on its binder node; the format decides how it looks, and a style a format cannot express is named in the compile log. Why: free text per format ships typos that look fine. [delegated]
 - The exporter's gates run before any confirmation is asked, and refusals show inside the Export dialog beside Compile. Why: never ask for a compile that would be refused. [delegated]
 - A prompt pack must name its vendor template, or it is refused. Why: the pack is written for one vendor. [delegated]
 - The dialogue table's `charLimit` is a recipe option from 1 to 10,000. Why: localisation length budgets. [delegated]
