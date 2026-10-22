@@ -107,7 +107,7 @@ describe('runScan', () => {
   it('places the finding on the same line when the file starts with a byte order mark, as the loader reads it', async () => {
     const { fs } = await seedProject();
     const path = `docs/${HARBOUR}.md`;
-    fs.putFile(path, `﻿${await fs.read(path)}`);
+    fs.putFile(path, `\uFEFF${await fs.read(path)}`);
     const result = await runScan(fs, { now: NOW });
     expect(result.findings[0]).toMatchObject({ file: path, line: 10, endLine: 11 });
   });
