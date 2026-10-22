@@ -171,6 +171,21 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(workspace).toContain('if (place !== null) focusAfterDelete(place);');
   });
 
+  it('says the screenplay PDF prints Arabic, Persian, Urdu and Hebrew in their own fonts, ordered by UAX #9, loaded only when needed, with the page not mirrored', () => {
+    const pdfSection = guide.slice(guide.indexOf('### The screenplay PDF'), guide.indexOf('## Writing dialogue'));
+    expect(pdfSection).toContain('Arabic, Persian, Urdu and Hebrew print in Noto Sans Arabic and Noto Sans Hebrew, which are loaded only for a script that has them');
+    expect(pdfSection).toContain('the margins, the page numbers, the transitions and the order of dual dialogue are not mirrored');
+    expect(pdfSection).toContain('a character name in them needs a `@` in front');
+    expect(pdfSection).toContain('are left out of the print');
+    expect(pdfSection).toContain('Nastaliq');
+    const render = read('packages/screenplay/src/render-pdf.ts');
+    expect(render).toContain('if (layout.rtlScripts.length === 0 || support === undefined) return undefined;');
+    expect(render).toContain("await import('./rtl-font.js')");
+    expect(read('packages/pdf-fonts/src/bidi.ts')).toContain("const RTL_LANGUAGES: ReadonlySet<string> = new Set(['ar', 'fa', 'ur', 'he', 'yi']);");
+    expect(read('packages/screenplay/src/paginate.ts')).toContain('\\u061f\\u06d4\\u061b');
+    expect(changelog).toContain('machine-verified, not reader-verified');
+  });
+
   it('says the screenplay PDF prints CJK in its fallback font, two columns a character, loaded only when needed', () => {
     const pdfSection = guide.slice(guide.indexOf('### The screenplay PDF'), guide.indexOf('## Writing dialogue'));
     expect(pdfSection).toContain('Other characters, such as Chinese, Japanese and Korean, print in Noto Sans Mono CJK SC.');
