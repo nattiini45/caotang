@@ -201,10 +201,7 @@ function parseBlockScalar(indicator: string, blockLines: readonly string[]): str
       if (parts.length > 0 && !parts[parts.length - 1]?.endsWith('\n')) parts.push(' ');
       parts.push(line);
     }
-    value = parts
-      .join('')
-      .replace(/\n(?!\n)/g, '\n')
-      .replace(/[ ]+\n/g, '\n');
+    value = parts.join('').replace(/[ ]+\n/g, '\n');
   } else {
     value = content.join('\n');
   }
