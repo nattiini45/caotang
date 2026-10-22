@@ -17,7 +17,7 @@ Caotang asks your browser to keep its storage, but the browser decides. If it ha
 
 A project can be open in one tab at a time. A second tab waits a moment, then says the project is open in another tab. Switch to that tab, or close it, then open the project again. Opening a folder of a project that another tab holds is refused in the same way.
 
-Undo is kept while the tab is open, and a reload clears it. Caotang saves a moment after you stop typing (800 ms by default), so text typed in the moment before a reload may not be saved yet.
+Undo is kept while the tab is open, and a reload clears it. Caotang saves a moment after you stop typing (800 ms by default). If the tab closes or reloads before a save finishes, Caotang keeps the words in this browser and saves them when you open the project again, and says so. If the project has newer text by then, the words are offered in the binder footer instead, to put back as new documents or discard.
 
 ## Projects
 
@@ -380,5 +380,5 @@ With writes allowed, an outside tool can also compile the manuscript, one item, 
 - **Final Draft files.** Import and export of `.fdx` files have not been checked against files that Final Draft wrote or opened. The scene numbers and page headers that Caotang writes are not yet confirmed to show in Final Draft.
 - **Word contents.** How Word and LibreOffice handle the contents field in a `.docx` file has not been tested.
 - **The Pages view.** The Pages view of a screenplay is a read-only preview.
-- **Undo and reloads.** Undo lasts for the open tab, and text typed in the moment before a reload may not be saved yet.
+- **Undo and reloads.** Undo lasts for the open tab.
 - **The desktop app.** Caotang runs in the browser. A desktop wrapper is not in this build.

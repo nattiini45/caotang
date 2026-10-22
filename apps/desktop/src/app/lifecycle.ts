@@ -110,6 +110,7 @@ import {
   type FolderSaveVerdict,
 } from './integrity-model.js';
 import { sampleProjectState } from './demo.js';
+import { recoverPending, recoveryNotice } from './pending-journal.js';
 import { copyState, shadowOf, type Shadow } from './persistence-plan.js';
 import { acquireProjectLease, ProjectOpenElsewhereError, type ProjectLease } from './project-lease.js';
 import { ProjectSession, type FolderBaseline, type SessionCoherence } from './session.js';
@@ -212,6 +213,8 @@ async function sessionFor(
       onClosed: () => lease.release(),
     });
     await attachCoherence(session, store, folder);
+    // Words the last page held when it went away are put back (or offered) before the editor mounts (pending-journal.ts).
+    session.setReloadNotice(recoveryNotice(await recoverPending(session)));
   } catch (error) {
     lease.release();
     throw error;

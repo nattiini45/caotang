@@ -192,6 +192,8 @@ function noticeFor(opened: Opened): string | null {
   }
   // Each line is a whole sentence (lifecycle `noticesOf`, `openNoticeLines`), so joining them with a space reads as prose.
   lines.push(...opened.notices);
+  const recovered = opened.session.reloadNotice();
+  if (recovered !== null) lines.push(recovered);
   const dropped = droppedFieldsSentence(opened.droppedFields);
   if (dropped !== null) lines.push(dropped);
   return lines.length === 0 ? null : lines.join(' ');
