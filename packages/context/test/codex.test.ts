@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { assemble, type AgentTask, type AssembledPrompt, type LayerId } from '../src/index.js';
-import { TAIL, buildApp, FOCUS_ID, IDS } from './fixtures.js';
+import { TAIL, buildApp, FOCUS_ID, IDS, heavyAlwaysApp } from './fixtures.js';
 
 const CONTINUE: AgentTask = {
   tool: 'scene.draft',
@@ -152,5 +152,53 @@ describe('the mention cache (codex.md §4)', () => {
     const warm = assemble(task, buildApp({ mentions: true }));
     expect(warm.messages).toEqual(cold.messages);
     expect(layer(warm, 'L2').kept).toEqual(layer(cold, 'L2').kept);
+  });
+});
+
+describe('the always entries are reserved before the rest of the layer is fitted (context-assembly A3)', () => {
+  // Four always rules of 1,200 characters, about 300 tokens each, with Harbor: well over the 1,000-token budget.
+  const OVER = 1_000;
+
+  it('sends every always entry whole when they alone exceed the layer, and says so in a note', () => {
+    const assembled = assemble(CONTINUE, heavyAlwaysApp(4, 1_200));
+    const codex = layer(assembled, 'L2');
+    const always = codex.kept.filter((item) => item.reason === 'always').map((item) => item.label);
+    expect(always.sort()).toEqual(['Harbor', 'Rule 1', 'Rule 2', 'Rule 3', 'Rule 4']);
+    const text = codexSection(assembled.messages[1]?.content ?? '');
+    for (const label of always) expect(text).toContain(`## ${label} (`);
+    expect(text).toContain(`Rule 4: ${'w'.repeat(1_200)}`);
+    expect(codex.tokens).toBeGreaterThan(OVER);
+    expect(codex.notes).toEqual([
+      expect.stringMatching(/^the codex's always entries need [\d,]+ tokens; the layer's budget is 1,000\. They are sent whole, and no other codex entry is\.$/),
+    ]);
+  });
+
+  it('names the overflow in the drop list, once, and not as a bare budget cut of an always entry', () => {
+    const codex = layer(assemble(CONTINUE, heavyAlwaysApp(4, 1_200)), 'L2');
+    const overflow = codex.drops.filter((drop) => drop.reason.kind === 'reserve-overflow');
+    expect(overflow).toHaveLength(1);
+    expect(overflow[0]?.label).toBe('always entries');
+    expect(overflow[0]?.reason).toMatchObject({ kind: 'reserve-overflow', layer: 'L2', budget: OVER });
+    const budgetCuts = codex.drops.filter((drop) => drop.reason.kind === 'budget').map((drop) => drop.label);
+    expect(budgetCuts).toEqual(['Captain Hale', 'Elena', 'Lighthouse', 'Mara']);
+  });
+
+  it('cuts the detected and manual entries for the budget, with the existing reason', () => {
+    const codex = layer(assemble(CONTINUE, heavyAlwaysApp(4, 1_200)), 'L2');
+    expect(codex.dropped).toContain('Elena: dropped budget (L2, 1000 tokens, rank 7)');
+  });
+
+  it('adds no overflow when the always entries fit', () => {
+    const codex = layer(assemble(CONTINUE, buildApp()), 'L2');
+    expect(codex.notes).toEqual([]);
+    expect(codex.drops.some((drop) => drop.reason.kind === 'reserve-overflow')).toBe(false);
+  });
+
+  it('leaves the always entries in the prompt when the whole prompt is over, and reports it', () => {
+    const assembled = assemble(CONTINUE, heavyAlwaysApp(4, 1_200), { contextBudget: 500 });
+    expect(assembled.overBudget).toBe(true);
+    const codex = layer(assembled, 'L2');
+    expect(codex.kept.filter((item) => item.reason === 'always')).toHaveLength(5);
+    expect(codex.notes.at(-1)).toBe('The prompt is over the total budget: the always entries are never cut to reach it.');
   });
 });

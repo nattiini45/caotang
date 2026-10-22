@@ -72,9 +72,18 @@ describe('a layer the budget empties says its entries were not sent (§7)', () =
     const text = user(CONTINUE, { layerBudgets: { L2: 0, L3: 0, L4: 0 } });
     expect(text).toContain('# Structure\n\n(structure not sent)');
     expect(text).toContain('# Story so far\n\n(story so far not sent)');
-    expect(text).toContain('# Codex\n\n(codex entries not sent)');
     expect(text).not.toContain('(no enclosing folders or earlier siblings)');
     expect(text).not.toContain('(no earlier scenes)');
+  });
+
+  it('the codex says so when the budget empties it, unless an always entry is reserved (A3)', () => {
+    const app = buildApp();
+    const harbor = (app.state.manifest.codex ?? []).find((item) => item.name === 'Harbor');
+    if (harbor !== undefined) harbor.includePolicy = 'detected';
+    const text = assemble(CONTINUE, app, { layerBudgets: { L2: 0 } }).messages[1]?.content ?? '';
+    expect(text).toContain('# Codex\n\n(codex entries not sent)');
+    // With the always entry in place, the same budget sends it whole.
+    expect(user(CONTINUE, { layerBudgets: { L2: 0 } })).toContain('# Codex\n\n## Harbor (location)');
   });
 
   it('a layer with nothing to send still says there is nothing', () => {
