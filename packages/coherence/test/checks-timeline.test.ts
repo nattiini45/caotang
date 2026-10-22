@@ -257,9 +257,9 @@ describe('timeline.gap (§5.1)', () => {
         { id: 'c', title: 'Gamma', body: 'C.' },
       ],
     });
-    // Binder order a, b, c; day order a (0), c (3), b (20): only c -> b is a gap.
-    const out = drafts(state, withMeta({ a: { dayOffset: 0 }, b: { dayOffset: 20 }, c: { dayOffset: 3 } }), GAP);
-    expect(out.drafts.map((d) => d.message)).toEqual(['"Beta" happens 17 days after "Gamma"']);
+    // Binder order a, b, c; day order b (0), a (3), c (20): only a -> c is a gap, measured in days and not as b -> c.
+    const out = drafts(state, withMeta({ a: { dayOffset: 3 }, b: { dayOffset: 0 }, c: { dayOffset: 20 } }), GAP);
+    expect(out.drafts.map((d) => d.message)).toEqual(['"Gamma" happens 17 days after "Alpha"']);
   });
 
   it.each(['time-skip', 'dream', 'mythic'] as const)('raises nothing when either side is %s (positive control)', (mode) => {
@@ -330,13 +330,17 @@ describe('timeline.gap (§5.1)', () => {
     expect(out.drafts.map((d) => d.checkId)).toEqual(['timeline.order-drift']);
   });
 
-  it('reports a binder-reversed pair 7 or more days apart twice, once for the order and once for the size, under separate fact groups', () => {
+  it('leaves a binder-reversed pair 7 or more days apart to order-drift alone, so one dismissal is enough', () => {
     const file = withMeta({ before: { dayOffset: 20 }, after: { dayOffset: 1 } });
     const out = drafts(twoScenes(), file, ['timeline.order-drift', 'timeline.gap']);
-    expect(out.drafts.map((d) => d.checkId)).toEqual(['timeline.order-drift', 'timeline.gap']);
-    const [drift, gap] = out.drafts;
-    expect(drift?.factGroup).not.toBe(gap?.factGroup);
-    expect(gap?.message).toBe('"Before" happens 19 days after "After"');
+    expect(out.drafts.map((d) => d.checkId)).toEqual(['timeline.order-drift']);
+    expect(drafts(twoScenes(), file, GAP).drafts).toEqual([]);
+  });
+
+  it('still notes a binder-reversed pair that order-drift does not cover, a flashback on one side', () => {
+    const file = withMeta({ before: { dayOffset: 20, timelineMode: 'flashback' }, after: { dayOffset: 1 } });
+    const out = drafts(twoScenes(), file, ['timeline.order-drift', 'timeline.gap']);
+    expect(out.drafts.map((d) => d.checkId)).toEqual(['timeline.gap']);
   });
 
   it('keys the finding on the pair, so an unrelated edit leaves the dismissal in place', () => {

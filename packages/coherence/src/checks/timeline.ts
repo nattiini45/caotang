@@ -79,6 +79,9 @@ function gapsIn(list: readonly ScannedScene[], strand: string | undefined): Draf
     if (early === undefined || late === undefined) continue;
     const days = (dayOf(late) ?? 0) - (dayOf(early) ?? 0);
     if (days < GAP_THRESHOLD_DAYS) continue;
+    // A pair whose binder order disagrees with the days is `timeline.order-drift`'s already, and one finding is enough for one mistake.
+    const reversed = early.binderIndex > late.binderIndex;
+    if (reversed && (strand !== undefined || [early, late].every((scene) => treatmentOf(modeOf(scene), 'timeline.order-drift') === 'checked'))) continue;
     if ([early, late].some((scene) => treatmentOf(modeOf(scene), 'timeline.gap') === 'exempt')) continue;
     drafts.push({
       checkId: 'timeline.gap',
@@ -96,7 +99,7 @@ function gapsIn(list: readonly ScannedScene[], strand: string | undefined): Draf
 /**
  * §5.1 `timeline.gap`: consecutive scheduled scenes in day order that are a week or more apart. Information only, a prompt to
  * declare a `time-skip` rather than a rule. Order is not this check's concern: a pair whose binder order disagrees with the
- * days is `timeline.order-drift`, and one that is also a week apart is a second fact under its own group. `parallel` and
+ * days is `timeline.order-drift`'s and is not reported here a second time. `parallel` and
  * `frame` scenes are compared within their own strand, as for order drift.
  */
 export function checkGap(input: CheckInput): CheckOutput {
