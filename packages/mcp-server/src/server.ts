@@ -39,9 +39,11 @@ import { createConfirmLedger, createRoundCodec } from './confirm.js';
 import { guardBatch, guardMessage, type GuardPolicy, type RefusalResponse } from './guard.js';
 import { LegacySessions, type LegacySessionOptions } from './legacy-sessions.js';
 import { degradedInstructions, guardDegraded, registerRecoveryTools, type DegradedSession, type RecoveryRuntime } from './recovery.js';
+import { registerCaotangResources } from './resources.js';
+import { forwardChanges, forwardToListeners } from './subscriptions.js';
 import { registerCaotangTools, type ToolRuntime } from './tools.js';
 import type { ProjectSession } from './session.js';
-import { MCP_PATH, VERSION } from './version.js';
+import { MCP_PATH, MODERN_PROTOCOL_VERSION, VERSION } from './version.js';
 
 /** The most body a POST may carry. The SDK's own default is the same 4 MiB. */
 export const MAX_BODY_BYTES = 4 * 1024 * 1024;
@@ -60,7 +62,9 @@ export const LEGACY_ROUND_TIMEOUT_MS = 60_000;
  * confirmation sentence (tools.ts reads the same marker through the harness's exposure). The others apply at once.
  */
 const INSTRUCTIONS =
-  'Caotang is a writing project. Read it first: project.overview for the summary, then binder.read_tree for the structure, and doc.read for a document. ' +
+  'Caotang is a writing project. Its text is served as resources, which the writer attaches on purpose: caotang://binder lists the structure with the ids, ' +
+  'caotang://doc/{id} is a document whole, caotang://notes/{id} its synopsis and notes, caotang://codex lists the codex and caotang://codex/{id} is one entry. ' +
+  'A host that reads through tools reads it first with project.overview for the summary, then binder.read_tree for the structure, and doc.read for a document. ' +
   'Writes are exposed only when the project was started with --allow-writes. A write tool whose description starts with "Requires user confirmation." ' +
   'asks the user to confirm it in the host before it changes anything. The other write tools apply at once. ' +
   'A refused call says why, and the corrective step is in the refusal.';
@@ -82,7 +86,7 @@ export function createToolRuntime(session: DegradedSession): RecoveryRuntime;
 export function createToolRuntime(session: ProjectSession | DegradedSession): ServerRuntime;
 export function createToolRuntime(session: ProjectSession | DegradedSession): ServerRuntime {
   const machinery = { codec: createRoundCodec(), ledger: createConfirmLedger() };
-  return 'degraded' in session ? { recovery: session, ...machinery } : { session, ...machinery };
+  return 'degraded' in session ? { recovery: session, ...machinery } : { session, changes: session.changes, ...machinery };
 }
 
 /** The guard's policy for a runtime: whether writes are exposed, and on a degraded server which names reach a handler. */
@@ -92,14 +96,6 @@ function policyOf(runtime: ServerRuntime): GuardPolicy {
   return { allowWrites: recovery.allowWrites, degraded: (name) => guardDegraded(recovery, name) };
 }
 
-/**
- * The stateless revision this server is built for (extensibility.md §9). The SDK
- * only selects a 2026 revision through `server/discover`, and only when the server
- * lists it, so it is listed ahead of the 2025 entries. Those stay, so a 2025-era client
- * still negotiates the handshake it knows.
- */
-export const MODERN_PROTOCOL_VERSION = '2026-07-28';
-
 export interface McpServerOptions {
   /**
    * How long a confirmation waits for its answer on this server's 2025-era connection, in milliseconds. Left out, the
@@ -107,6 +103,12 @@ export interface McpServerOptions {
    * server, not on `createMcpHandler`, which has no such option.
    */
   readonly roundTimeoutMs?: number;
+  /**
+   * Whether this server outlives the request that built it: a 2025-era connection, or the one server of a stdio connection. Such a server
+   * tells its client what the project's writes changed (subscriptions.ts). A 2026-07-28 request is answered by a server that is gone with
+   * it, and its listeners are served from the handler's own bus.
+   */
+  readonly live?: boolean;
 }
 
 /** A fresh MCP server over the runtime: its tools registered, and its `requestState` verified by the codec. */
@@ -121,14 +123,29 @@ export function buildMcpServer(runtime: ServerRuntime, options: McpServerOptions
       // changes during a session and no list-changed notice is ever sent. A degraded server's list is fixed too: after a recovery
       // its tools answer that the server must be restarted, rather than the list changing under the host. The 2025 initialize result says so, and the SDK's
       // default of `true` would promise a notice this server never sends.
-      capabilities: { tools: { listChanged: false } },
+      // The resources are the project's, so a degraded server has none. A server that cannot write never changes the project
+      // while it runs, so it neither lists a change nor takes a subscription; with --allow-writes it does both (changes.ts).
+      capabilities: {
+        tools: { listChanged: false },
+        ...('recovery' in runtime
+          ? {}
+          : {
+              resources: { listChanged: runtime.session.allowWrites, subscribe: runtime.session.allowWrites },
+              completions: {},
+            }),
+      },
       supportedProtocolVersions: [MODERN_PROTOCOL_VERSION, ...SUPPORTED_PROTOCOL_VERSIONS],
       requestState: { verify: (state, ctx) => codec.verify(state, ctx) },
       ...(roundTimeoutMs === undefined ? {} : { inputRequired: { roundTimeoutMs } }),
     },
   );
-  if ('recovery' in runtime) registerRecoveryTools(server, runtime, roundTimeoutMs);
-  else registerCaotangTools(server, runtime, roundTimeoutMs);
+  if ('recovery' in runtime) {
+    registerRecoveryTools(server, runtime, roundTimeoutMs);
+  } else {
+    registerCaotangTools(server, runtime, roundTimeoutMs);
+    registerCaotangResources(server, runtime);
+    if (options.live === true && runtime.session.allowWrites) forwardChanges(server, runtime);
+  }
   return server;
 }
 
@@ -244,7 +261,7 @@ async function answer(
   }
   if (req.method === 'POST' && isInitializeRequest(parsed)) {
     const roundMs = options.roundTimeoutMs ?? LEGACY_ROUND_TIMEOUT_MS;
-    const opened = await http.legacy.initialize(req, res, parsed, () => buildMcpServer(runtime, { roundTimeoutMs: roundMs }));
+    const opened = await http.legacy.initialize(req, res, parsed, () => buildMcpServer(runtime, { roundTimeoutMs: roundMs, live: true }));
     if (!opened) {
       // A busy connection frees when its POST is answered, and an unanswered confirmation is answered at the deadline.
       const seconds = Math.ceil(roundMs / 1000);
@@ -308,6 +325,8 @@ export async function startHttpServer(runtime: ServerRuntime, options: HttpServe
     }),
     legacy: new LegacySessions(options.legacySessions),
   };
+  // A change the project's writes make reaches the hosts that listen on a 2026-07-28 stream; the 2025-era connections are served by their own servers.
+  const stopForwarding = 'session' in runtime ? runtime.changes.on((change) => forwardToListeners(handler.notify, change)) : undefined;
   const listener = createServer((req, res) => {
     void answer(req, res, runtime, options, http).catch(() => {
       if (!res.headersSent) sendJson(res, 500, { jsonrpc: '2.0', id: null, error: { code: -32603, message: 'Internal error' } });
@@ -329,6 +348,7 @@ export async function startHttpServer(runtime: ServerRuntime, options: HttpServe
     url: `http://127.0.0.1:${port}${MCP_PATH}`,
     port,
     close: async () => {
+      stopForwarding?.();
       await new Promise<void>((resolveClose, rejectClose) => {
         listener.close((error) => (error === undefined || error === null ? resolveClose() : rejectClose(error)));
         listener.closeAllConnections();
@@ -382,5 +402,5 @@ class GuardedStdioTransport implements Transport {
 export function startStdioServer(runtime: ServerRuntime): StdioServerHandle {
   const policy = policyOf(runtime);
   const transport = new GuardedStdioTransport(new StdioServerTransport(), (message) => guardMessage(message, policy));
-  return serveStdio(() => buildMcpServer(runtime), { legacy: 'serve', transport });
+  return serveStdio(() => buildMcpServer(runtime, { live: true }), { legacy: 'serve', transport });
 }
