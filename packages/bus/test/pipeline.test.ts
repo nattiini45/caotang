@@ -898,10 +898,18 @@ describe('§5 — registration is a pipeline step, not an apply courtesy', () =>
     expect(undo.groups()).toHaveLength(1);
 
     expect(() => stashed!.compensate('too late', () => {})).not.toThrow();
+    // **Two late captures, so the cap is actually exercised.** One capture
+    // passes for an implementation that writes a row *per* capture — the very
+    // divergence this test exists to catch, because the async path has to wire
+    // the same capped reporter the sync path does (pipeline.ts). The second
+    // capture is of another kind, so the row that is written names the *first*
+    // capture's kind and an implementation that reported the last would fail.
+    expect(() => stashed!.inverse(cmd({ name: 'view.setActiveDoc' }))).not.toThrow();
     const rows = log.entries();
     expect(rows).toHaveLength(2);
     expect(rows[1]?.defect).toBe('late-undo-capture');
     expect(rows[1]?.summary).toContain('kind "compensable"');
+    expect(rows[1]?.summary).not.toContain('kind "inverse"');
     expect(rows[1]?.undoGroupId).toBeUndefined();
     expect(rows[0]?.defect).toBeUndefined();
   });
