@@ -1,7 +1,7 @@
 /**
  * The screenplay in the app (screenplay.md §2.2, §3). A whole Fountain file is imported as sections and scenes in one
  * command, the Source tab draws the script's elements, answers Enter and Tab on a cue and turns a line into another element
- * from its element menu, and the Pages tab shows the scene as it prints, read only. media/README.md says what each view does; these tests read the app through its gestures.
+ * from its element menu, and the Pages tab shows the scene as it prints and opens a line in the Source tab. media/README.md says what each view does; these tests read the app through its gestures.
  */
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
@@ -158,7 +158,7 @@ test('the element menu closes on Escape and leaves the line as it was', async ({
   await expect(source(page)).toHaveValue('INT. HOUSE - DAY');
 });
 
-test('the Pages tab shows the scene as it prints, read only', async ({ page }) => {
+test('the Pages tab shows the scene as it prints and writes nothing', async ({ page }) => {
   await createProject(page, PROJECT);
   await makeScene(page);
   await page.getByRole('radio', { name: 'Source', exact: true }).click();
@@ -223,10 +223,85 @@ test('the Pages tab draws a dual-dialogue pair side by side, and keeps the readi
     'BEN',
     'I go right.',
   ]);
-  // The tab is still a preview: nothing in it takes input, and its note is the same.
+  // Nothing in the tab takes input, and its note says what a line does.
   const preview = page.getByLabel('Paginated preview');
   await expect(preview.locator('input, textarea, [contenteditable="true"]')).toHaveCount(0);
-  await expect(preview.getByText('Read only. The page breaks follow the screenplay page: about 55 lines a page, 12 point Courier.')).toBeVisible();
+  await expect(preview.getByText('Choose a line to open it in the Source tab. The page breaks follow the screenplay page: about 55 lines a page, 12 point Courier.')).toBeVisible();
+});
+
+/** Where the caret is in the Source tab, as offsets into the text. */
+async function caretOf(page: Page): Promise<[number, number]> {
+  return source(page).evaluate((field) => [(field as HTMLTextAreaElement).selectionStart, (field as HTMLTextAreaElement).selectionEnd] as [number, number]);
+}
+
+const CLICKABLE = ['INT. HOUSE - DAY', '', 'A long action line that surely wraps over the sixty columns of the action width, and then some more words follow it.', '', 'MARCUS', 'Hi there.'].join('\n');
+
+test('a line of the Pages tab opens its element in the Source tab, by click or by Enter', async ({ page }) => {
+  const sheet = await pagesOf(page, CLICKABLE);
+  const preview = page.getByLabel('Paginated preview');
+  const action = CLICKABLE.indexOf('A long action');
+  // The second line of a wrapped element opens the element, not the line.
+  await sheet.getByRole('button', { name: 'of the action width, and then some more words follow it.' }).click();
+  await expect(page.getByRole('radio', { name: 'Source', exact: true })).toBeChecked();
+  await expect(source(page)).toBeFocused();
+  expect(await caretOf(page)).toEqual([action, action]);
+
+  await page.getByRole('radio', { name: 'Pages', exact: true }).click();
+  // One line is in the tab order; Down moves to the next, and Enter opens it.
+  await preview.getByRole('button', { name: 'INT. HOUSE - DAY' }).focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(preview.getByRole('button', { name: /^A long action line/ })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await expect(preview.getByRole('button', { name: 'MARCUS' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(source(page)).toBeFocused();
+  const cue = CLICKABLE.indexOf('MARCUS');
+  expect(await caretOf(page)).toEqual([cue, cue]);
+  // Nothing was written by looking at the pages.
+  await expect(source(page)).toHaveValue(CLICKABLE);
+});
+
+test('the Pages tab leaves the generated lines alone: the title page, page numbers and (MORE) open nothing', async ({ page }) => {
+  const speech = Array.from({ length: 40 }, (_, i) => `Sentence number ${i} says something fairly long about the lamp and the sea.`).join(' ');
+  await createProject(page, PROJECT);
+  await makeScene(page);
+  await page.getByRole('radio', { name: 'Source', exact: true }).click();
+  const text = ['Title: Night Shift', '', 'INT. HOUSE - DAY', '', 'MARCUS', speech].join('\n');
+  await source(page).fill(text);
+  await page.getByRole('radio', { name: 'Pages', exact: true }).click();
+  const preview = page.getByLabel('Paginated preview');
+  await expect(page.getByRole('region', { name: 'Page 2' })).toBeVisible();
+  await expect(preview.getByRole('region', { name: 'Title page' }).getByRole('button')).toHaveCount(0);
+  await expect(preview.locator('.sp-line-more, .sp-line-continued, .sp-line-pageNumber')).not.toHaveCount(0);
+  await expect(preview.locator('.sp-line-more[role="button"], .sp-line-continued[role="button"], .sp-line-pageNumber[role="button"]')).toHaveCount(0);
+  // Only one line is a tab stop for the whole tab.
+  await expect(preview.locator('[role="button"][tabindex="0"]')).toHaveCount(1);
+  // A line on the second page opens the one speech, and the caret is where the speech starts.
+  const start = text.indexOf('Sentence number 0');
+  await page.getByRole('region', { name: 'Page 2' }).locator('.sp-line-dialogue').first().click();
+  await expect(source(page)).toBeFocused();
+  expect(await caretOf(page)).toEqual([start, start]);
+});
+
+test('a line far down the Pages tab opens the Source tab scrolled to its element', async ({ page }) => {
+  const lines = Array.from({ length: 150 }, (_, i) => `Action line number ${i}.`);
+  const text = ['INT. HOUSE - DAY', '', ...lines.flatMap((line) => [line, ''])].join('\n');
+  const sheet = await pagesOf(page, text);
+  await expect(sheet).toBeVisible();
+  const last = page.getByRole('region').filter({ has: page.getByRole('button', { name: 'Action line number 149.' }) });
+  await last.getByRole('button', { name: 'Action line number 149.' }).click();
+  await expect(source(page)).toBeFocused();
+  const at = text.indexOf('Action line number 149.');
+  expect(await caretOf(page)).toEqual([at, at]);
+  // The caret is on screen: the field has scrolled, and the caret's line is inside the part it shows.
+  const shown = await source(page).evaluate((field) => {
+    const box = field as HTMLTextAreaElement;
+    const lineHeight = parseFloat(getComputedStyle(box).lineHeight);
+    const top = (box.value.slice(0, box.selectionStart).split('\n').length - 1) * lineHeight;
+    return top >= box.scrollTop && top <= box.scrollTop + box.clientHeight;
+  });
+  expect(shown).toBe(true);
 });
 
 test('a script page without a pair keeps one 14px row to each line, from the sheet\'s own padding', async ({ page }) => {

@@ -1115,6 +1115,20 @@
   white-space: pre;
 }
 
+/* A line that opens its element in the Source tab. */
+.sp-page-sheet .sp-line.is-linked {
+  cursor: pointer;
+}
+
+.sp-page-sheet .sp-line.is-linked:hover {
+  background: var(--accent-soft, var(--line));
+}
+
+.sp-page-sheet .sp-line.is-linked:focus-visible {
+  outline: 2px solid var(--accent, currentColor);
+  outline-offset: 1px;
+}
+
 .sp-page-sheet .sp-line-scene {
   font-weight: 700;
 }
