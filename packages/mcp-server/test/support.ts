@@ -161,8 +161,8 @@ export async function startFixture(options: {
 }
 
 /** A running server over a folder that already holds a project, as a restart would open it. `close` stops it and leaves the folder. */
-export async function startOver(root: string, allowWrites: boolean): Promise<Fixture> {
-  const session = await openProject({ root, allowWrites });
+export async function startOver(root: string, allowWrites: boolean, report?: (line: string) => void): Promise<Fixture> {
+  const session = await openProject({ root, allowWrites, ...(report === undefined ? {} : { report }) });
   const token = testToken();
   const server = await startHttpServer(createToolRuntime(session), { port: 0, token });
   let stopped = false;

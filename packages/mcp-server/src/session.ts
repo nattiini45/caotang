@@ -23,12 +23,17 @@
  *
  * Within a save that is allowed, only the documents that changed are written, and only
  * the documents this session deleted are removed from `docs/` (project-format §3).
+ *
+ * `coherence.json` is the one file outside that check. It is read at open on either posture, and written only
+ * with `--allow-writes`, on the same queue (`persistCoherence`, coherence-file.ts), because it is derived state
+ * the app writes too: its own digest check merges or refuses, and never stops a manuscript save.
  */
 
 import { mkdir, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { ApplyRefusal, type CommandError } from '@caotang/bus';
+import { COHERENCE_FILE } from '@caotang/coherence';
 import { assetRecordsOf, createExporter, exportMetadataOf, type ExportDispatch, type ExporterService } from '@caotang/exporter';
 import { loadCjkFontInNode, loadEmojiFontInNode } from '@caotang/pdf-fonts/node-loader';
 import { codexReadPort, createHarness, metadataFor, type Harness, type ToolOutcome } from '@caotang/harness';
@@ -65,7 +70,7 @@ import {
 } from '@caotang/store';
 
 import { sourceWindow, type SourceWindow } from './attribution.js';
-import { openCoherence } from './coherence-file.js';
+import { holdCoherence, openCoherence } from './coherence-file.js';
 import { byteArtifactsOver, NodeArtifactFs } from './node-fs.js';
 import { acquireProjectLock, type ProjectLock } from './lock.js';
 
@@ -172,6 +177,8 @@ export interface OpenProjectOptions {
   /** Whether external callers may change the project (`--allow-writes`). Off means read-only. */
   readonly allowWrites: boolean;
   readonly now?: () => Date;
+  /** Where a notice raised after the open is said (a refused write to coherence.json). Defaults to stderr, one line each. */
+  readonly report?: (line: string) => void;
 }
 
 export interface ProjectSession {
@@ -236,6 +243,9 @@ async function isDirectory(path: string): Promise<boolean> {
 export function externalTurn(turnId: string): string {
   return `mcp:${turnId}`;
 }
+
+/** The tools whose effect is on coherence.json: the scan appends a run, and the status change marks a finding fixed. */
+const COHERENCE_TOOLS: ReadonlySet<string> = new Set(['coherence.scan', 'coherence.setFindingStatus']);
 
 /** Whether a tool changes the project when it runs. A read never does, so a folder that changed does not stop one. */
 function changesProject(name: string): boolean {
@@ -410,9 +420,23 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
     let held = await folderDigests(fs);
     const loaded = await readProject(fs, { now: now(), manifestText });
     const state = loaded.state;
-    // coherence.json is read on either posture and written by neither here (the write is persistCoherence's, under --allow-writes).
+    // coherence.json is read on either posture. Its digest is taken first, as the folder's are, so a change made while it is read is one
+    // the next save sees. It is written only under --allow-writes, by persistCoherence.
+    // A file that cannot be read has no digest and is not written (openCoherence holds it unwritable), and it never stops the open.
+    const coherenceDigest = await digestAt(fs, COHERENCE_FILE).catch(() => undefined);
     const coherence = await openCoherence(fs, state);
     const notices = [...loaded.notices, ...coherence.notices];
+    const coherenceHold = holdCoherence({
+      fs,
+      state,
+      opened: coherence,
+      allowWrites: options.allowWrites,
+      digestAtOpen: coherenceDigest,
+      digest: () => digestAt(fs, COHERENCE_FILE),
+      notices,
+      report: options.report ?? ((line) => void process.stderr.write(`${line}
+`)),
+    });
     // The body nodes this copy named when it was last loaded or saved: one that has since left the tree is a document the session deleted.
     let heldBodies = bodyNodeIdsOf(state);
     // The titles the copy held at the same time, so a file a later edit or deletion took out of the state is still named in words.
@@ -518,6 +542,14 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
       return next;
     };
 
+    // coherence.json is derived state (findings and runs), so it is saved on the same queue as the project and never overlaps a project save,
+    // but it is outside driftCause: a findings write by the app must not stop manuscript writes, and a manuscript change does not stop this one.
+    const persistCoherence = (): Promise<void> => {
+      const next = queue.then(coherenceHold.save);
+      queue = next.catch(() => undefined);
+      return next;
+    };
+
     // The folder check a confirmed write runs before the host is asked. It is queued like a save, so it never reads a file a save in flight
     // is still writing, and a change it finds stops the writes exactly as a save's check would.
     const verifyFolder = (): Promise<void> => {
@@ -546,9 +578,12 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
         const before = harness.log.length;
         const outcome = harness.external.call({ name, callId, params }, { turnId });
         harness.external.endTurn(turnId);
-        // Only a write saves the folder. A read can still log a row (coherence.scan logs its run), and that row stays in
-        // memory: a read is not a change to the project's files, and a server without --allow-writes never writes them.
-        if (options.allowWrites && changesProject(name) && harness.log.length !== before) await persist();
+        // Only a write saves the project folder. A read can still log a row (coherence.scan logs its run), and that row is not a change to
+        // the project's files. The run belongs in coherence.json, which a server with --allow-writes appends to, as it does for a finding
+        // marked fixed; a server without it writes nothing.
+        const logged = harness.log.length !== before;
+        if (options.allowWrites && changesProject(name) && logged) await persist();
+        if (options.allowWrites && logged && COHERENCE_TOOLS.has(name)) await persistCoherence();
         return outcome;
       },
 
@@ -563,6 +598,7 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
         harness.endTurn(turn);
         await exporter.idle();
         if (harness.log.length !== before || outcome.ok) await persist();
+        await persistCoherence();
         return outcome;
       },
 

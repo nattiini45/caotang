@@ -349,6 +349,8 @@ If your writing is somewhere else, such as in notes, a wiki or an old draft, the
 
 Each call asks you to confirm in your AI host. Decline it, and nothing is written.
 
+A coherence scan run from your host on a server started with `--allow-writes` is saved to the folder, and its findings and run show in the **Findings** tab after the folder is opened in Caotang again.
+
 To bring writing in:
 
 1. Make a project folder with the server, and allow writes:
