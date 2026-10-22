@@ -21,7 +21,8 @@ binder makes their nodes (`media/create-menu.ts`, through `binder.create`).
   card in the graph moves the caret to that knot's header in the text. Each choice's label is drawn on its arrow, and the
   choices list under the outline keeps it whole. The graph and the findings follow the text once the writer pauses (800 ms),
   and a codex change (an alias, a rename) is read at once. A compile error shows its line once. *Add line ids to N lines* asks first, then writes an id tag into each line that has none. A
-  container whose `autoLineIds` is on also gets its ids when the writer pauses, and the caret stays where it was.
+  container whose `autoLineIds` is on also gets its ids when the writer pauses, and the caret stays where it was. The view is drawn once the Ink compiler has loaded (`components/InkGate.tsx`): a *Loading the Ink compiler…* status line until then, and
+  **Try again** and **Reload** if it cannot be fetched.
 - **Container settings.** The Inspector's *Container settings* section sets a dialogue container's default speaker (a
   codex character), its engine target, its line-id opt-in and its locale. Each change is a `dialogue.setMeta` command.
   The default speaker fills the speaker column of the dialogue table, and the line-id opt-in writes the missing ids into

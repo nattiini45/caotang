@@ -26,6 +26,7 @@ import {
   resultJson,
   seedProject,
   tempDir,
+  TAVERN,
   testToken,
 } from './support.js';
 import { LOCK_FILE } from '../src/index.js';
@@ -197,6 +198,28 @@ describe('the built caotang-mcp binary', () => {
       expect(tools.map((tool) => tool.name)).toContain('binder.read_tree');
       const tree = await client.callTool({ name: 'binder.read_tree', arguments: { root: 'manuscript', depth: 1 } });
       expect(JSON.stringify(resultJson(tree))).toContain('manuscript');
+    } finally {
+      await client.close();
+    }
+  }, 120_000);
+
+  it('compiles Ink in the single file: the Ink compiler is loaded before the project opens, so dialogue.table and the branch checks answer', async () => {
+    const folder = join(root, 'stdio-dialogue');
+    await seedProject(folder, 'Dialogue Book', { dialogue: true });
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [BUNDLE, 'serve', '--project', folder, '--stdio'],
+      env: { PATH: process.env['PATH'] ?? '', SystemRoot: process.env['SystemRoot'] ?? '' },
+      stderr: 'pipe',
+    });
+    const client = new Client({ name: 'caotang-stdio-dialogue', version: '0.0.0' }, { capabilities: {} });
+    await client.connect(transport);
+    try {
+      const table = await client.callTool({ name: 'dialogue.table', arguments: { doc: TAVERN } });
+      expect(table.isError).toBeFalsy();
+      expect(JSON.stringify(resultJson(table))).toContain('Ah, a traveller.');
+      const scan = await client.callTool({ name: 'coherence.scan', arguments: {} });
+      expect(scan.isError).toBeFalsy();
     } finally {
       await client.close();
     }

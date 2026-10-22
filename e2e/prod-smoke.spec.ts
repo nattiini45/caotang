@@ -188,6 +188,34 @@ test('connecting a server loads the MCP SDK from the build, under the policy', a
   expect(await violations(page)).toEqual([]);
 });
 
+test('the Ink compiler is a chunk of its own: a project with no dialogue never fetches it, and one with a dialogue container loads it when it opens', async ({ page }) => {
+  const problems = await watchForProblems(page);
+  const chunks = watchChunks(page);
+  await createProject(page, 'Branching Tale');
+  await page.getByRole('button', { name: 'Create Chapter 1' }).click();
+  await waitForSaved(page);
+  expect(chunks()).not.toContain('ink-full');
+
+  // A dialogue container loads it, from the build, under the policy, and the view then compiles the Ink.
+  await binderTitle(page, await firstChapter(page)).click({ button: 'right' });
+  await page.getByRole('menu', { name: 'Actions for Chapter 1' }).getByRole('menuitem', { name: 'New dialogue here' }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('region', { name: 'Dialogue: Untitled dialogue' })).toBeVisible();
+  expect(chunks()).toContain('ink-full');
+  await page.getByRole('textbox', { name: 'Ink source' }).fill('=== start ===\nAlice: Hello.\n* [Leave] -> END\n');
+  await expect(page.getByRole('button', { name: /^start:/ })).toBeVisible();
+  await waitForSaved(page);
+
+  // Opening the project again fetches it before any container is chosen: the open waits for it.
+  const reopened = watchChunks(page);
+  await page.reload();
+  await page.getByRole('listitem').filter({ hasText: 'Branching Tale' }).getByRole('button', { name: 'Open' }).click();
+  await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
+  expect(reopened()).toContain('ink-full');
+  expect(problems).toEqual([]);
+  expect(await violations(page)).toEqual([]);
+});
+
 test('Settings that cannot be fetched say so with a way out, and the page stays usable', async ({ page }) => {
   await page.route('**/assets/Settings-*.js', (route) => route.abort());
   await page.goto('/');

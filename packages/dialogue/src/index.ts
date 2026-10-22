@@ -60,6 +60,7 @@ export {
 } from './ink-parse.js';
 
 export { compileInk, type InkCompileResult, type InkMessage } from './compile.js';
+export { InkCompilerNotLoaded, inkCompilerLoaded, loadInkCompiler } from './ink-loader.js';
 
 export {
   ensureLineIds,

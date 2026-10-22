@@ -82,3 +82,5 @@ export {
   type ServeOptions,
 } from './cli.js';
 export { untilDone } from './process.js';
+// The Ink compiler loads on demand; a host that embeds the server and builds its own session awaits this first.
+export { loadInkCompiler } from '@caotang/harness';

@@ -100,6 +100,7 @@ import {
 import { newId } from '@caotang/ids';
 import { assetRecordsOf, createExporter, exportMetadataOf, type EmitFailure, type ExporterService } from '@caotang/exporter';
 import { dropDanglingImages, shotCommandPort } from '@caotang/storyboard';
+import { InkCompilerNotLoaded } from '@caotang/dialogue';
 import { createProductHarness, dialogueFactsOf, type Harness } from '@caotang/harness';
 import type { McpClient } from '@caotang/mcp-client';
 import type { SkillFile } from '@caotang/skills';
@@ -107,6 +108,7 @@ import type { SkillFile } from '@caotang/skills';
 import { loadArabicFontOverHttp, loadCjkFontOverHttp, loadDevanagariFontOverHttp, loadEmojiFontOverHttp, loadHebrewFontOverHttp } from './fallback-fonts.js';
 import { CodexMentions } from './codex-model.js';
 import { ExportStore } from './exports.js';
+import { inkCompilerStatus, requestInkCompiler, requestInkCompilerFor } from './ink-compiler.js';
 import { ProjectAssets, coverFileHeld } from './project-assets.js';
 import { SkillReviews } from './skill-reviews.js';
 import { skillsView, type SkillsView } from './skills-model.js';
@@ -558,6 +560,8 @@ export class ProjectSession {
 
   /** What every command owes the UI and the store, whoever issued it: a persistence pass and a re-render. */
   private afterCommand(): void {
+    // A dialogue container made after the open (a new one, an import, the agent's) starts the compiler's download at once.
+    if (inkCompilerStatus() === 'idle') void requestInkCompilerFor(this.state);
     this.persistence.schedule();
     this.queueCoherenceSave();
     this.bump();
@@ -871,6 +875,8 @@ export class ProjectSession {
    * names it reserves come from that listing and the images it names come from the one just read.
    */
   async exportsReady(): Promise<void> {
+    // The Ink story and the dialogue tables compile the containers' Ink, which needs the compiler (ink-compiler.ts).
+    await requestInkCompilerFor(this.state);
     await this.refreshAssetRecords();
     await this.exporterService.ready();
   }
@@ -1143,13 +1149,23 @@ export class ProjectSession {
     // of the open project always sees the containers as they are now.
     const params: Record<string, unknown> = { scope: options.scope ?? { mode: 'full' } };
     if (options.checks !== undefined) params['checks'] = [...options.checks];
+    // The branch checks compile Ink, which needs the compiler loaded. A scan that cannot compile says so and runs nothing, rather than
+    // reporting a project with no branch findings.
+    let dialogue: ReturnType<typeof dialogueFactsOf>;
+    try {
+      dialogue = dialogueFactsOf(this.state);
+    } catch (error) {
+      if (!(error instanceof InkCompilerNotLoaded)) throw error;
+      void requestInkCompiler();
+      return { ok: false, code: 'ink-loading', message: 'The Ink compiler is still loading, so the dialogue checks cannot run yet. Run the scan again in a moment.' };
+    }
     const result = scanTool(params, {
       state: this.state,
       file,
       now: new Date(),
       detector: countInEntries,
       approvedLargeScope: options.approvedLargeScope,
-      dialogue: dialogueFactsOf(this.state),
+      dialogue,
     });
     if (result.ok && result.file !== undefined) {
       this.state.coherence = result.file;
