@@ -88,7 +88,10 @@ export interface MediaProjectOptions {
 }
 
 export function makeMediaProject(options: MediaProjectOptions = {}): ProjectState {
-  const state = createProjectState(createEmptyManifest(PROJECT_NAME, OPENED));
+  // The locale is pinned: `createEmptyManifest` would otherwise read the host's,
+  // and the dialogue-csv rows below carry the project language (`en` on the row),
+  // so a German or French machine would fail every `,en` assertion without this.
+  const state = createProjectState(createEmptyManifest(PROJECT_NAME, OPENED, { locale: 'en-US' }));
   state.manifest.project.id = 'p_9XK2M4Q7RZ';
 
   addFolder(state, { parentId: 'manuscript', title: 'Script', now: OPENED, id: MEDIA_IDS.script });
