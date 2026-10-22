@@ -647,6 +647,9 @@ importers:
       '@caotang/bus':
         specifier: workspace:*
         version: link:../bus
+      '@caotang/coherence':
+        specifier: workspace:*
+        version: link:../coherence
       '@caotang/exporter':
         specifier: workspace:*
         version: link:../exporter

@@ -1,8 +1,8 @@
 /**
- * A read never saves the project folder (extensibility.md §9). `coherence.scan` is a read, but it logs its run in the
+ * A read never changes the manuscript, codex or manifest (extensibility.md §9). `coherence.scan` is a read, but it logs its run in the
  * harness log, and a log row used to make the session save the whole folder: every document body, `caotang.json`, and the
- * rotated backups. A run a read records now stays in the server's memory, on a read-only server and on a writable one
- * alike, and the folder keeps every byte it had.
+ * rotated backups. A read-only server keeps the run in memory and the folder keeps every byte it had. A writable server appends the run
+ * to `coherence.json`, which is derived state, and writes nothing else.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -27,16 +27,19 @@ describe('a read leaves the project folder as it was', () => {
     }
   });
 
-  it('coherence.scan on a writable server also leaves the folder alone, because a read asks for no save', async () => {
+  it('coherence.scan on a writable server appends its run to coherence.json and changes no other file', async () => {
     const fixture = await startFixture({ label: 'rw-scan', allowWrites: true, seed: true });
     const client = await connectClient(fixture.url, fixture.token);
     try {
       const before = folderBytes(fixture.root);
+      expect(before['coherence.json']).toBeUndefined();
       const logged = fixture.session.harness.log.length;
       const result = await client.callTool({ name: 'coherence.scan', arguments: {} });
       expect(result.isError).not.toBe(true);
       expect(fixture.session.harness.log.length).toBeGreaterThan(logged);
-      expect(folderBytes(fixture.root)).toEqual(before);
+      const { 'coherence.json': written, ...after } = folderBytes(fixture.root);
+      expect(after).toEqual(before);
+      expect(JSON.parse(written ?? '{}').runs).toHaveLength(1);
     } finally {
       await client.close();
       await fixture.close();
