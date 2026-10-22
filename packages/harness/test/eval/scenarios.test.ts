@@ -15,6 +15,7 @@ import { mockGateway } from '../agent/gateway.js';
 import { answer, prose, steps, transcript } from '../agent/scripts.js';
 import type { MockScript } from '@caotang/gateway/mock';
 
+const quote = (ref: string): string => `“${ref}”`;
 const storm = (state: ReturnType<typeof makeState>) => state.documents.get(STORM)?.body ?? '';
 const scriptsFor = (...scripts: MockScript[]) => () => mockGateway(scripts);
 /** The Landing's project for the anchor scenario, so its decision can edit the document the card is about. */
@@ -35,6 +36,10 @@ const scenarios: Scenario[] = [
       status: 'applied',
       cards: { matcher: 'strict', items: [{ kind: 'auto', tools: ['meta.set'], decision: 'auto' }] },
       trace: { matcher: 'strict', calls: [{ tool: 'meta.set', outcome: 'ok', params: { label: 'act-2' } }] },
+      tasks: [
+        { content: 'Plan', state: 'done' },
+        { content: `Update ${quote(FRIEND)}`, state: 'done' },
+      ],
       // The planner lists every wired tool's description and schema on each call, so the ceiling tracks the wired set:
       // tool.search and shots.annotate (about 550 tokens), dialogue.table (about 200), the three drafting tools
       // shots.derive, prompt.draft and prompt.variant (about 810), dialogue.draft wired to the agent ports (about 350),
@@ -107,6 +112,12 @@ const scenarios: Scenario[] = [
           { tool: 'synopsis.fill', outcome: 'ok' },
         ],
       },
+      tasks: [
+        { content: 'Plan', state: 'done' },
+        { content: 'Read the project', state: 'done' },
+        { content: `Update ${quote(STORM)}`, state: 'done' },
+        { content: `Fill the synopsis of ${quote(STORM)}`, state: 'done' },
+      ],
       // Three model calls (a read's planner, a plan's planner, a synopsis), each carrying the tool schemas. Each wired tool
       // adds its description and schema to both planner calls: tool.search and shots.annotate, dialogue.table, the three
       // drafting tools (about 810 tokens a planner call), the longer export.compile, project.overview and coherence
@@ -141,6 +152,12 @@ const scenarios: Scenario[] = [
       status: 'applied',
       cards: { matcher: 'strict', items: [{ kind: 'plan', tools: ['meta.set'], decision: 'approved' }] },
       trace: { matcher: 'strict', calls: [{ tool: 'meta.set', outcome: 'ok', params: { targets: [STORM] } }] },
+      // The dropped step stays on the list, skipped, after the step that ran.
+      tasks: [
+        { content: 'Plan', state: 'done' },
+        { content: `Update ${quote(STORM)}`, state: 'done' },
+        { content: `Update ${quote(LANDING)}`, state: 'skipped' },
+      ],
       state: (state) => {
         const landing = state.manifest.tree.find((node) => node.id === LANDING);
         return landing?.label === 'act-1' ? [] : ['The Landing was labelled although its step was dropped'];
@@ -171,6 +188,12 @@ const scenarios: Scenario[] = [
           { tool: 'meta.set', outcome: 'ok', params: { targets: [FRIEND] } },
         ],
       },
+      // The list follows the order the writer set, not the order the model proposed.
+      tasks: [
+        { content: 'Plan', state: 'done' },
+        { content: `Update ${quote(STORM)}`, state: 'done' },
+        { content: `Update ${quote(FRIEND)}`, state: 'done' },
+      ],
     },
   },
   {

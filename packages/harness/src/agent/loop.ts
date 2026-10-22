@@ -89,6 +89,7 @@ import {
 } from './cards.js';
 import {
   CHECKPOINT_LABEL,
+  DEFAULT_MAX_MODEL_CALLS,
   EXTERNAL_CHECKPOINT_NOTE,
   type AgentEvent,
   type CardRecord,
@@ -534,7 +535,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     });
   const emit = (event: AgentEvent): void => options.emit?.(event);
   const now = options.clock ?? Date.now;
-  const maxModelCalls = options.maxModelCalls ?? 8;
+  const maxModelCalls = options.maxModelCalls ?? DEFAULT_MAX_MODEL_CALLS;
   const maxRetries = options.maxRetries ?? 2;
   const sessionName = options.sessionId ?? newId('cmd').slice('cmd_'.length);
   const finished: TurnReport[] = [];
@@ -589,6 +590,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       complete: (request, signal) => {
         if (turn.modelCalls >= maxModelCalls) throw new BudgetExceeded(maxModelCalls);
         turn.modelCalls += 1;
+        emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
         return gateway.complete(role === undefined ? request : { ...request, role }, signal);
       },
     },
