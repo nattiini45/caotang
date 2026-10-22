@@ -63,9 +63,9 @@ binder makes their nodes (`media/create-menu.ts`, through `binder.create`).
 - **Read the prompt pack.** The Prompt pack tab lists each shot's prompt for one target model, the references it sends, and
   which codex entries those references came from (and which entry was named but sent nothing, with the reason). Each check
   there links back to its field on the board. The three exports are the JSON, Markdown and CSV packs.
-- **Compile.** The Compile dialog offers Fountain, Final Draft, the Ink story, the dialogue table and the shot list for
-  the selected item. Each compile is the bus's `export.compileSelection`, and a refusal (a line with no id, a selection
-  with no scene) is named in the dialog.
+- **Compile.** The Compile dialog offers Fountain, Final Draft, the Ink story, the dialogue table, the shot list and the
+  prompt pack for the selected item. Each compile is the bus's `export.compileSelection`, and a refusal (a line with no id,
+  a selection with no scene, a prompt pack with no vendor template) is named in the dialog.
 
 ## How the centre mounts a view
 
@@ -127,27 +127,25 @@ One exception is open: `ScreenplayPreview.tsx` imports `paginate` and `LAYOUT` f
 2. **The dangling check** runs when the storyboard first opens, not when the project opens: the project-list open does not
    settle the session (lifecycle.ts), and the board is the place a picture is shown.
 3. **Shot images, drop and paste, are tested through synthetic events.** The OS drag and the clipboard are not driven.
-4. **Prompt pack in the Compile dialog.** The Compile dialog does not offer the prompt pack: it is written for one vendor
-   template, which the Prompt pack tab chooses, and the dialog does not ask for one.
-5. **Dialogue table and container settings.** The dialogue table's character limit (`charLimit`) is a recipe option, set in the
+4. **Dialogue table and container settings.** The dialogue table's character limit (`charLimit`) is a recipe option, set in the
    export dialog's Character limit field when the dialogue table is chosen, so a `dialogue-csv` or `dialogue-xlsx` export from the app carries it.
    The engine target and the locale reach the exports (*What a writer can do*, *Container settings*). The agent's
    `dialogue.table` tool does not read them: it returns §6's columns.
-6. **Screenplay source affordances.** The element menu offers no section or synopsis: a section is a binder folder, and a
+5. **Screenplay source affordances.** The element menu offers no section or synopsis: a section is a binder folder, and a
    scene's synopsis is the binder's (screenplay.md §2.2). Its digits work while the menu is open; there is no chord for each
    element outside it.
-7. **Coverage of a repeated passage.** The text area shows the stored text with line feeds, so a selection is always located
+6. **Coverage of a repeated passage.** The text area shows the stored text with line feeds, so a selection is always located
    by its words in the stored text, whatever its line endings. A passage that appears more than once is refused in every
    file, with how many places; the writer selects more words around the one meant.
-8. **Page preview.** The Pages tab is `paginate()`'s output, read only, and it is not the PDF. The PDF is the `pdf` export
+7. **Page preview.** The Pages tab is `paginate()`'s output, read only, and it is not the PDF. The PDF is the `pdf` export
    format (screenplay.md §5.3), from the Compile dialog. The preview draws a dual-dialogue pair side by side, as the PDF
    does: the pair's two columns share their rows, and the blank rows stay collapsed, so the preview is not page-accurate.
-9. **Ink line ids on import.** An imported container keeps the Ink as written. Line ids are minted by the Add line ids
+8. **Ink line ids on import.** An imported container keeps the Ink as written. Line ids are minted by the Add line ids
     action or by a container whose `autoLineIds` is on, not by the import.
-10. **The agent's derive plan is not verified.** The derive offers send their request to the agent (*What a writer can do*,
+9. **The agent's derive plan is not verified.** The derive offers send their request to the agent (*What a writer can do*,
     *Derive shots*), and the plan the agent proposes for it, its folder and its shots, needs a model that proposes shots, which
     no test drives.
-11. **The card rows show the stored tokens.** A card's spec row (`MCU · birds · dolly-in · 4 s · 35mm · dissolve`) keeps the enum
+10. **The card rows show the stored tokens.** A card's spec row (`MCU · birds · dolly-in · 4 s · 35mm · dissolve`) keeps the enum
     values, as storyboard.md §3.1 writes the row. The shot editor shows the words.
 
 ## Tests
