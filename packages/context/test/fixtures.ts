@@ -337,3 +337,18 @@ export function scopeApp(count: number): { app: AppSnapshot; ids: string[] } {
   }
   return { app: { state }, ids };
 }
+
+/**
+ * The fixture project with `count` extra `always` entries, each with a description of `chars`
+ * characters, written ahead of the fixture's own codex (or after it, for `rotate`).
+ */
+export function heavyAlwaysApp(count: number, chars: number, rotate = 0): AppSnapshot {
+  const app = buildApp();
+  const extra = Array.from({ length: count }, (_, index) =>
+    entry(`Rule ${index + 1}`, { type: 'lore', includePolicy: 'always', description: `Rule ${index + 1}: ${'w'.repeat(chars)}` }),
+  );
+  const codex = [...extra, ...(app.state.manifest.codex ?? [])];
+  const rotated = [...codex.slice(rotate), ...codex.slice(0, rotate)];
+  app.state.manifest.codex = rotated;
+  return app;
+}

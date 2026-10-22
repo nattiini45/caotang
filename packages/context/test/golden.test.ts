@@ -79,6 +79,18 @@ const CASES: readonly GoldenCase[] = [
     config: { layerBudgets: { L2: 30 } },
   },
   {
+    name: 'scene-continue-always-overflow',
+    describe: 'scene.draft, continue, the codex held to ten tokens, which the always entry alone exceeds: it is sent whole',
+    task: {
+      tool: 'scene.draft',
+      instruction: 'Write the next scene: Elena argues with Captain Hale about the lighthouse light.',
+      mode: 'continue',
+      focus: FOCUS_ID,
+      params: { doc: FOCUS_ID, mode: 'continue' },
+    },
+    config: { layerBudgets: { L2: 10 } },
+  },
+  {
     name: 'synopsis-fill',
     describe: 'synopsis.fill, the whole focus document, structure, no codex',
     task: { tool: 'synopsis.fill', instruction: 'Write a synopsis of this chapter in one paragraph.', focus: FOCUS_ID },

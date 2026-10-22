@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { charsAt, charTable, cheapestKept, fitBlock, newBlock, renderBlock, type BlockItem } from '../src/block.js';
+import { charsAt, charTable, cheapestKept, fitBlock, fitReserved, newBlock, renderBlock, type BlockItem } from '../src/block.js';
 import { describeDrop } from '../src/drops.js';
 import { tokensForChars } from '../src/tokens.js';
 import type { DropReason } from '../src/types.js';
@@ -108,6 +108,69 @@ describe('the fit keeps the longest rank prefix that fits (block.ts)', () => {
   });
 });
 
+/** A block whose first `reserved` entries are protected, as the codex's `always` entries are. */
+function reservedBlock(lengths: readonly number[], reserved: number) {
+  const items: BlockItem[] = lengths.map((length, index) => ({
+    label: `item ${index}`,
+    reason: 'generated',
+    body: `<${index}>${'x'.repeat(length)}`,
+    protected: index < reserved,
+    group: index < reserved ? 'always' : 'detected',
+  }));
+  return newBlock({ id: 'L2', header: '# Codex', empty: '(none)', items, display: items.map((_, index) => index) });
+}
+
+describe('the reserved fit keeps the protected entries whole (block.ts)', () => {
+  it('equals the flat fit at every budget where the protected entries fit', () => {
+    for (let seed = 1; seed <= 12; seed += 1) {
+      const lengths = Array.from({ length: 2 + (seed % 6) }, (_, index) => 5 + ((seed * 37 + index * 91) % 300));
+      for (const budget of [0, 1, 5, 40, 120, 400, 5_000]) {
+        const flat = reservedBlock(lengths, 2);
+        const reserved = reservedBlock(lengths, 2);
+        fitBlock(flat, budget);
+        fitReserved(reserved, budget);
+        if (reserved.overflow === undefined) {
+          expect(reserved.kept, `seed ${seed}, budget ${budget}`).toBe(flat.kept);
+          expect([...reserved.cuts]).toEqual([...flat.cuts]);
+        } else {
+          expect(reserved.kept).toBe(2);
+        }
+      }
+    }
+  });
+
+  it('keeps every protected entry, cuts the rest for the budget, and records what the protected entries need', () => {
+    const block = reservedBlock([300, 300, 20, 20], 2);
+    expect(fitReserved(block, 50)).toBe(2);
+    expect(block.overflow).toEqual({ need: tokensForChars(charsAt(block, 2)), budget: 50 });
+    expect([...block.cuts.entries()]).toEqual([
+      [2, { kind: 'budget', layer: 'L2', budget: 50, rank: 3 }],
+      [3, { kind: 'budget', layer: 'L2', budget: 50, rank: 4 }],
+    ]);
+  });
+
+  it('fits the unprotected entries into what the protected entries leave', () => {
+    const block = reservedBlock([100, 100, 40, 400], 2);
+    const room = tokensForChars(charsAt(block, 3));
+    expect(fitReserved(block, room)).toBe(3);
+    expect(block.overflow).toBeUndefined();
+    expect([...block.cuts.keys()]).toEqual([3]);
+  });
+
+  it('keeps the protected entries when even the header overruns the budget', () => {
+    const block = reservedBlock([10], 1);
+    expect(fitReserved(block, 0)).toBe(1);
+    expect(block.overflow?.budget).toBe(0);
+  });
+
+  it('is the flat fit for a block with nothing protected', () => {
+    const flat = reservedBlock([100, 100], 0);
+    const reserved = reservedBlock([100, 100], 0);
+    expect(fitReserved(reserved, 30)).toBe(fitBlock(flat, 30));
+    expect(reserved.overflow).toBeUndefined();
+  });
+});
+
 describe('the cheapest count (block.ts)', () => {
   /** A block of one-character bodies, so each entry's size is known: `<n>` plus its two-unit separator. */
   function blockWith(bodies: readonly string[], cut: string) {
@@ -158,6 +221,10 @@ describe('the drop-reason text (drops.ts)', () => {
       [
         { kind: 'total-budget', layer: 'L2', total: 12000, rank: 3 },
         'dropped total budget (12000 tokens, L2, rank 3)',
+      ],
+      [
+        { kind: 'reserve-overflow', layer: 'L2', need: 1400, budget: 1000 },
+        "the codex's always entries need 1,400 tokens; the layer's budget is 1,000",
       ],
     ];
     for (const [reason, text] of cases) expect(describeDrop(reason)).toBe(text);

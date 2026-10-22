@@ -211,6 +211,7 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - Visual references are up to ten asset ids from the project's own pictures; a dangling id is kept and reported missing. Why: nothing is uploaded, nothing silently dropped. [delegated]
 - Entry ids are unique per install, so a future series scope needs no migration. Why: multi-book stays possible. [delegated]
 - Each entry shows the documents its name appears in, from the existing mention caches. Why: zero new detection passes. [delegated]
+- The codex layer reserves its `always` entries before fitting the rest; when they alone exceed the layer's budget they are all sent, the other entries are dropped, and the preview names the overflow. Why: a rule the writer set to always must not leave the prompt without a reason they can read. [delegated]
 
 ## Export
 

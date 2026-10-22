@@ -12,6 +12,7 @@ import {
   LAYER_IDS,
   SCOPE_DOCUMENT_LIMIT,
   assemble,
+  buildPreview,
   profileFor,
   type AgentTask,
   type AppSnapshot,
@@ -20,7 +21,7 @@ import {
   type ContextConfig,
   type LayerId,
 } from '../src/index.js';
-import { LONG_FOCUS, buildApp, FOCUS_ID, IDS, longApp, scopeApp } from './fixtures.js';
+import { LONG_FOCUS, buildApp, FOCUS_ID, IDS, heavyAlwaysApp, longApp, scopeApp } from './fixtures.js';
 
 const CONTINUE: AgentTask = {
   tool: 'scene.draft',
@@ -109,6 +110,17 @@ describe('the layers each tool assembles (§3)', () => {
     expect(layer(continuity, 'L5').baseBudget).toBe(SCOPE_DOCUMENT_LIMIT * 1_000 + 1_000);
     const fill = assemble(TASKS['synopsis.fill'], buildApp());
     expect(layer(fill, 'L5').baseBudget).toBe(25_000);
+  });
+
+  it('pins every per-tool codex, story and synopsis budget the reserved fit leaves alone', () => {
+    const budgetOf = (tool: AssemblyTool, id: LayerId) => profileFor(tool).budgets[id];
+    expect(budgetOf('scene.draft', 'L2')).toBe(1_000);
+    expect(budgetOf('continuity.scan', 'L2')).toBe(2_500);
+    expect(budgetOf('continuity.scan', 'L4')).toBe(6_000);
+    expect(budgetOf('synopsis.fill', 'L3')).toBe(1_200);
+    expect(budgetOf('synopsis.fill', 'L5')).toBe(25_000);
+    expect(profileFor('synopsis.fill').layers).not.toContain('L2');
+    expect(budgetOf('synopsis.fill', 'L2')).toBeUndefined();
   });
 
   it('keeps the profile tables and the assembled reports in agreement', () => {
@@ -284,5 +296,29 @@ describe('the scope limit (agent-harness row 10)', () => {
       'Part 29',
       'Part 30',
     ]);
+  });
+});
+
+describe('the codex reservation in the preview (context-assembly A3, §5)', () => {
+  it('names the overflow in the codex drop list when the always entries do not fit, not a bare budget cut', () => {
+    const preview = buildPreview(assemble(CONTINUE, heavyAlwaysApp(4, 1_200)));
+    const overflow = preview.codex.dropped.filter((drop) => drop.reason.startsWith("the codex's always entries need"));
+    expect(overflow).toHaveLength(1);
+    expect(overflow[0]?.reason).toMatch(/^the codex's always entries need [\d,]+ tokens; the layer's budget is 1,000$/);
+    expect(preview.codex.dropped.filter((drop) => /^dropped budget/.test(drop.reason)).map((drop) => drop.name)).toEqual([
+      'Captain Hale',
+      'Elena',
+      'Mara',
+    ]);
+    const layerPreview = preview.layers.find((candidate) => candidate.id === 'L2');
+    expect(layerPreview?.notes).toHaveLength(1);
+    expect(layerPreview?.drops.some((drop) => drop.reason.kind === 'reserve-overflow')).toBe(true);
+  });
+
+  it('holds the continuity scan to its 2,500-token codex budget the same way', () => {
+    const assembled = assemble(TASKS['continuity.scan'], heavyAlwaysApp(9, 1_200));
+    const codex = layer(assembled, 'L2');
+    expect(codex.baseBudget).toBe(2_500);
+    expect(codex.drops.filter((drop) => drop.reason.kind === 'reserve-overflow')).toHaveLength(1);
   });
 });

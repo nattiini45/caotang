@@ -26,8 +26,8 @@ import { isDialogueNodeType } from '@caotang/dialogue';
 import type { ChatMessage } from '@caotang/gateway';
 import { getBody, type CodexEntry, type ProjectState, type TreeNode } from '@caotang/store';
 
-import { charsAt, cheapestKept, cutOne, fitBlock, protectedCount, renderBlock, tokensAt, type Block } from './block.js';
-import { dropLine, dropRecord } from './drops.js';
+import { charsAt, cheapestKept, cutOne, fitBlock, fitReserved, protectedCount, renderBlock, tokensAt, type Block } from './block.js';
+import { describeDrop, dropLine, dropRecord } from './drops.js';
 import { ContextError } from './errors.js';
 import { codexBlock, detectCodex } from './layers/codex.js';
 import { beatStoryBlock, speakerHitsOf } from './layers/dialogue.js';
@@ -55,6 +55,7 @@ import {
   type AssembledPrompt,
   type ContextConfig,
   type DraftMode,
+  type DropReason,
   type DropRecord,
   type FocusReport,
   type LayerId,
@@ -239,7 +240,13 @@ export function assemble(task: AgentTask, app: AppSnapshot, config: ContextConfi
     drops.L2.push(...plan.suppressed);
     const budget = baseOf('L2');
     effective.L2 = budget;
-    fitBlock(codex, budget);
+    fitReserved(codex, budget);
+    if (codex.overflow !== undefined) {
+      const { need } = codex.overflow;
+      const reason: DropReason = { kind: 'reserve-overflow', layer: 'L2', need, budget };
+      drops.L2.push(dropRecord('always entries', reason, 'always'));
+      notes.L2.push(`${describeDrop(reason)}. They are sent whole${codex.cuts.size > 0 ? ', and no other codex entry is' : ''}.`);
+    }
   }
 
   let turns: Block | undefined;
@@ -349,6 +356,9 @@ export function assemble(task: AgentTask, app: AppSnapshot, config: ContextConfi
     }
   }
   const overBudget = promptChars() > limit;
+  if (overBudget && codex?.overflow !== undefined) {
+    notes.L2.push('The prompt is over the total budget: the always entries are never cut to reach it.');
+  }
 
   // Step 5: the messages, and the report of every layer.
   const user = userLayers().map((id) => textOf(id)).join('\n\n');

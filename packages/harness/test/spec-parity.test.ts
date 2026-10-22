@@ -13,6 +13,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import { profileFor } from '@caotang/context';
+
 import { TOOL_METADATA, TOOL_NAMES, metadataFor } from '../src/index.js';
 
 const specPath = resolve(__dirname, '../../../docs/architecture/agent-harness.md');
@@ -139,5 +141,37 @@ describe('the metadata table as a whole', () => {
     const meta = metadataFor('doc.import');
     expect(meta?.risk).toBe('write-confirm');
     expect(meta?.undoable).toBe(true);
+  });
+});
+
+describe('the per-tool context budgets, checked against context-assembly.md §3', () => {
+  const spec = readFileSync(resolve(__dirname, '../../../docs/architecture/context-assembly.md'), 'utf8');
+  const line = spec.split('\n').find((candidate) => candidate.startsWith('- Per-tool defaults:'));
+
+  /** The tokens a spec figure like `2.5k` or `25k` names. */
+  const tokens = (figure: string): number => Math.round(Number(figure.replace('k', '')) * 1_000);
+  const figure = (pattern: RegExp): number => {
+    const match = pattern.exec(line ?? '');
+    expect(match, `${pattern} not found in the per-tool defaults`).not.toBeNull();
+    return tokens(match?.[1] ?? '');
+  };
+
+  it('finds the per-tool defaults line', () => {
+    expect(line).toBeDefined();
+  });
+
+  it('continuity.scan expands L2 and L4 to the figures the spec states', () => {
+    expect(profileFor('continuity.scan').budgets.L2).toBe(figure(/L2 expanded \((\d+(?:\.\d+)?k)\)/));
+    expect(profileFor('continuity.scan').budgets.L4).toBe(figure(/L4 expanded \((\d+(?:\.\d+)?k)\)/));
+  });
+
+  it('synopsis.fill holds the full document at the stated cap, with L3 and no L2', () => {
+    expect(profileFor('synopsis.fill').budgets.L5).toBe(figure(/L5 full doc \(cap (\d+(?:\.\d+)?k)\)/));
+    expect(profileFor('synopsis.fill').layers).toContain('L3');
+    expect(profileFor('synopsis.fill').layers).not.toContain('L2');
+  });
+
+  it('the metadata tools are L0, L1 and L7 only', () => {
+    expect(profileFor('meta').layers).toEqual(['L0', 'L1', 'L7']);
   });
 });

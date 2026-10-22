@@ -142,7 +142,9 @@ export type DropReason =
   /** The layer's own budget was full. `budget` is the effective budget in tokens. */
   | { readonly kind: 'budget'; readonly layer: LayerId; readonly budget: number; readonly rank: number }
   /** The whole prompt was over `contextBudget`, and this item was in the prune order (§2). */
-  | { readonly kind: 'total-budget'; readonly layer: LayerId; readonly total: number; readonly rank: number };
+  | { readonly kind: 'total-budget'; readonly layer: LayerId; readonly total: number; readonly rank: number }
+  /** The codex's `always` entries alone need more than the layer's budget; they are sent whole. */
+  | { readonly kind: 'reserve-overflow'; readonly layer: LayerId; readonly need: number; readonly budget: number };
 
 export interface DropRecord {
   /** The entry's name or the document's title, or a summary label. */

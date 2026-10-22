@@ -209,7 +209,7 @@ Each entry has a name, optional aliases (**Add an alias and press Enter**), a ty
 
 The include policy says when the agent sees an entry:
 
-- **Always**: with every request.
+- **Always**: with every request. These are sent whole even when together they are longer than the codex's share of the prompt; the other entries are then left out, and the prompt preview says how many tokens the Always entries need.
 - **Detected**: when its name or an alias appears in the text being written.
 - **Manual**: only in the documents it is attached to, and in the documents inside a folder it is attached to.
 - **Never**: never sent to the agent. Use it for spoilers and private notes.
