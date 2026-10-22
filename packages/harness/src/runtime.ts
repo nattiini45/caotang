@@ -86,6 +86,7 @@ import {
   type IndexedTools,
   type LoadedTools,
   type McpClient,
+  type NativeIndexRow,
   type UntrustedCallResult,
 } from '@caotang/mcp-client';
 import { newId } from '@caotang/ids';
@@ -242,6 +243,13 @@ export interface Harness {
   loadedAddendum(): string | undefined;
   /** The full descriptors of the external tools loaded this turn, for the turn's tool surface (extensibility §5). */
   loadedExternalTools(): readonly ExternalToolDescriptor[];
+  /** The deferred native rows loaded this turn, by `tool.search` or a preload, in registry order: callable and wired ones only. */
+  loadedNativeTools(): readonly ToolListing[];
+  /**
+   * Loads deferred native rows for a turn without a search: a UI action that starts a turn about one of them, or the context table
+   * (agent-harness §3). A row that is not deferred is already declared, and a name that is not a row is ignored.
+   */
+  preload(turnId: string, names: readonly string[]): void;
 }
 
 /**
@@ -548,7 +556,7 @@ export function createHarness(options: HarnessOptions): Harness {
   // them through `options.ports`.
   const ports: Readonly<Partial<Record<PortToolName, ToolPort>>> = {
     ...coherencePorts(clock, options.coherence),
-    'tool.search': toolSearchPort(index, loaded),
+    'tool.search': toolSearchPort(index, deferredRows, loaded),
     ...(registry['shot.setMeta'].apply === undefined ? {} : storyboardPorts(options.presentAssets ?? (() => new Set<string>()))),
     // The dialogue table is a read of the container's Ink, so it needs no provider and is wired by default
     // (dialogue-narrative.md §7, row 23). `dialogue.draft` is the agent ports' (`createAgentPorts`): it writes the loop's staged Ink.
@@ -937,6 +945,13 @@ export function createHarness(options: HarnessOptions): Harness {
    * reader; nothing in the harness does.
    */
   let cachedTools: readonly ToolListing[] | undefined;
+  /** The rows `tool.search` may load: deferred, callable and wired, in registry order, so a search never offers a tool that would be refused. */
+  function deferredRows(): readonly NativeIndexRow[] {
+    return listTools()
+      .filter((tool) => tool.load === 'deferred' && tool.callable && tool.wired)
+      .map((tool) => ({ source: 'native', name: tool.name, description: tool.description, keywords: tool.keywords ?? [], risk: tool.risk === 'read' ? 'read' : 'write' }));
+  }
+
   function listTools(): readonly ToolListing[] {
     if (cachedTools !== undefined) return cachedTools;
     cachedTools = TOOL_METADATA.map((meta) => {
@@ -1107,6 +1122,15 @@ export function createHarness(options: HarnessOptions): Harness {
     callAsync,
     reviewPlan: (params) => stageReviewPlan(params, state, clock, options.coherence ?? {}),
     loadedAddendum: () => loadedAddendum(loaded.names()),
+    loadedNativeTools: () => {
+      const names = new Set(loaded.nativeNames());
+      return listTools().filter((tool) => names.has(tool.name) && tool.callable && tool.wired);
+    },
+    preload: (turnId, names) => {
+      const deferred = new Set(listTools().filter((tool) => tool.load === 'deferred').map((tool) => tool.name as string));
+      syncLoadedTurn(turnId);
+      loaded.load(names.filter((name) => deferred.has(name)).map((name) => ({ source: 'native', name })));
+    },
     loadedExternalTools: () => index().tools.filter((tool) => loaded.isLoaded(tool.qualifiedName)),
   };
 }

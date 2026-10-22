@@ -90,6 +90,17 @@ describe('§3 of agent-harness.md, read from the file', () => {
   });
 });
 
+describe('the load class of §3, read from the file', () => {
+  // §3 names the core rows in one line; every other registry row is deferred. The line is read back, not copied.
+  it('names the registry’s core rows, and the registry holds no other core row', () => {
+    const spec = readFileSync(specPath, 'utf8');
+    const line = spec.split('\n').find((candidate) => candidate.startsWith('**Core rows'));
+    expect(line, 'the core-rows line is missing from §3').toBeDefined();
+    const named = [...(line ?? '').matchAll(/`([a-z][a-zA-Z._]*)`/g)].map((match) => match[1]);
+    expect(named).toEqual(TOOL_METADATA.filter((meta) => meta.load === 'core').map((meta) => meta.name));
+  });
+});
+
 describe('the metadata table as a whole', () => {
   // Four extension rows follow doc.import: codex.import (codex.md §2 provenance) and the coherence
   // module's three tools (coherence.md §7, registry 14 → 17). The v0.1 surface is still the frozen 14.

@@ -53,6 +53,10 @@ export interface DialogueToolMeta {
   readonly descriptionVersion: number;
   readonly description: string;
   readonly surface: 'extension';
+  /** Every module row is deferred: the planner declares it only once `tool.search` or a preload loads it (agent-harness §3). */
+  readonly load: 'deferred';
+  /** Extra search terms for `tool.search`; never shown to the model. */
+  readonly keywords: readonly string[];
 }
 
 /**
@@ -138,6 +142,8 @@ export const DIALOGUE_TOOL_ENTRIES: readonly DialogueToolEntry[] = [
       descriptionVersion: 1,
       description: DRAFT_DESCRIPTION,
       surface: 'extension',
+      load: 'deferred',
+      keywords: ['dialogue', 'cutscene', 'ink', 'interactive', 'narrative', 'branching'],
     },
     DRAFT_PARAMS,
   ),
@@ -150,6 +156,8 @@ export const DIALOGUE_TOOL_ENTRIES: readonly DialogueToolEntry[] = [
       descriptionVersion: 1,
       description: TABLE_DESCRIPTION,
       surface: 'extension',
+      load: 'deferred',
+      keywords: ['dialogue', 'cutscene', 'ink', 'interactive', 'narrative', 'table'],
     },
     TABLE_PARAMS,
   ),

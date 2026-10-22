@@ -26,10 +26,8 @@ import type { ChatRequest } from '@caotang/gateway';
 import {
   EXTERNAL_CHECKPOINT_NOTE,
   createAgentSession,
-  plannerSystem,
   type AgentEvent,
   type Harness,
-  type ToolListing,
   type TurnReport,
 } from '../src/index.js';
 import { mockGateway } from './agent/gateway.js';
@@ -319,18 +317,6 @@ describe('the model-backed tools stay unwired without a provider (storyboard.md 
   });
 });
 
-describe('plannerSystem states the addendum line it is given (context-assembly §2)', () => {
-  // A unit check of the one line the planner's system text carries. The loop's own path, which is what the planner
-  // receives after a search, is the session test below.
-  it('carries the line it is given after the tool list, and nothing when none is given', () => {
-    const tools: ToolListing[] = [];
-    const bare = plannerSystem(tools);
-    const loaded = plannerSystem(tools, `External tools loaded this turn, callable by their qualified name: ${SEARCH}.`);
-    expect(bare).not.toContain('External tools loaded');
-    expect(loaded).toContain(SEARCH);
-  });
-});
-
 /**
  * One turn of a real session on the real bus, answered by the mock provider. The planner's requests are kept, in order,
  * so a test reads what the model was shown, not what the loop meant to show it.
@@ -359,7 +345,7 @@ describe('the agent loop and a loaded external tool, end to end (extensibility �
     // The planner's second request is the first one after the search. It carries the loaded tool as the model reads it:
     // the qualified name and risk, the description verbatim, and the input schema the server advertised.
     const afterSearch = requests[1]?.messages.map((message) => message.content).join('\n') ?? '';
-    expect(afterSearch).toContain('External tools loaded for this turn.');
+    expect(afterSearch).toContain('Tools loaded for this turn.');
     expect(afterSearch).toContain(`- ${SEARCH} [read] — Search the story bible for an entry.`);
     expect(afterSearch).toContain(
       `  params: ${JSON.stringify({ type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false })}`,
@@ -405,10 +391,10 @@ describe('a load is named to the planner once, in the request that follows it (c
     expect(requests.length).toBeGreaterThanOrEqual(2);
     const before = requests[0]?.messages.map((message) => message.content).join('\n') ?? '';
     const after = requests[1]?.messages.map((message) => message.content).join('\n') ?? '';
-    expect(before).not.toContain('External tools loaded this turn');
+    expect(before).not.toContain('Tools loaded this turn');
     // The descriptors the search sent name the tool, so the one-line addendum for the same set is not sent a second time.
-    expect(after).toContain('External tools loaded for this turn.');
-    expect(after).not.toContain(`External tools loaded this turn, callable by their qualified name: ${SEARCH}.`);
+    expect(after).toContain('Tools loaded for this turn.');
+    expect(after).not.toContain(`Tools loaded this turn, callable by name: ${SEARCH}.`);
   });
 });
 
@@ -439,5 +425,38 @@ describe('a mixed turn names its external side effects on its checkpoint row (ex
     expect(report.status).toBe('applied');
     expect(calls).toEqual(['search_lore']);
     expect(events.find((event) => event.type === 'checkpoint')).toMatchObject({ type: 'checkpoint', note: EXTERNAL_CHECKPOINT_NOTE });
+  });
+});
+
+describe('an unloaded external tool is still refused, whatever a deferred native row is', () => {
+  // Deferral is about context, not trust (agent-harness §3): a native row the turn has not loaded is preflighted, but loading an
+  // external tool is where its pin is bound, so the loop refuses its qualified name until tool.search has loaded it.
+  it('refuses the qualified name before any search, tells the model to call tool.search first, and reaches no server', async () => {
+    const calls: string[] = [];
+    const { client } = await connectedScripted(calls);
+    client.setTrustReads(KEY, true);
+    const harness = makeHarness({ mcp: { client } });
+    const { report, requests } = await turnWith(harness, 'Look Hanne up in the story bible.', [
+      steps({ tool: SEARCH, params: { query: 'Hanne' }, expect: 'the entry about Hanne' }),
+      answer('That tool was not loaded.'),
+    ]);
+    expect(report.status).toBe('replied');
+    expect(calls).toEqual([]);
+    expect(report.trace).toEqual([]);
+    const next = requests[1]?.messages.map((message) => message.content).join('\n') ?? '';
+    expect(next).toContain(`"${SEARCH}" is not an external tool loaded this turn. Nothing was run. Call tool.search first, then call the tool by the qualified name it returns.`);
+  });
+
+  it('lists native rows before external tools in one search, and loads both for the turn', async () => {
+    const calls: string[] = [];
+    const harness = makeHarness({ mcp: { client: (await connectedScripted(calls)).client } });
+    const found = valueOf(run(harness, 'tool.search', { query: '', limit: 20 }, { turnId: 'turn-both' }));
+    const matches = found.data['matches'] as { source: string; name: string }[];
+    const firstExternal = matches.findIndex((match) => match.source === 'external');
+    expect(firstExternal).toBeGreaterThan(0);
+    expect(matches.slice(0, firstExternal).every((match) => match.source === 'native')).toBe(true);
+    expect(matches.slice(firstExternal).map((match) => match.name)).toEqual([SEARCH, WRITE]);
+    expect(harness.loadedExternalTools().map((tool) => tool.qualifiedName)).toEqual([SEARCH, WRITE]);
+    expect(harness.loadedNativeTools().map((tool) => tool.name)).toEqual(matches.slice(0, firstExternal).map((match) => match.name));
   });
 });

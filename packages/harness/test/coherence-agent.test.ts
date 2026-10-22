@@ -256,15 +256,16 @@ describe('project.overview names no write tool to a caller that may not write (e
 });
 
 describe('the planner’s tool list (agent-harness §3, tool 10’s supersession note)', () => {
+  // Every callable row is listed (`all`), because the review is deferred and the supersession is about the offered set, not the loaded one.
   it('offers the review, and not continuity.scan, once the review is wired', () => {
     const { model } = scriptedModel('{"spans": []}');
-    const wired = plannerSystem(makeHarness({ ports: createAgentPorts(), coherence: { model: () => model } }).tools());
+    const wired = plannerSystem(makeHarness({ ports: createAgentPorts(), coherence: { model: () => model } }).tools(), true);
     expect(wired).toContain('- coherence.review [write-confirm]');
     expect(wired).not.toContain('- continuity.scan');
   });
 
   it('still offers continuity.scan when no review is wired, so a harness without a model is unchanged', () => {
-    const plain = plannerSystem(makeHarness({ ports: createAgentPorts() }).tools());
+    const plain = plannerSystem(makeHarness({ ports: createAgentPorts() }).tools(), true);
     expect(plain).toContain('- continuity.scan');
     expect(plain).not.toContain('- coherence.review');
   });

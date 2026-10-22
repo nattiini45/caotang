@@ -285,4 +285,15 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(keyboard).toMatch(/\| Ctrl\+E \| On a screenplay's Source tab, open the element menu for the caret's line\. \|/);
     expect(keyboard).not.toContain('Cmd+E');
   });
+
+  it('names the Agent setting in the words the section shows, and says it is off by default', () => {
+    const section = read('apps/desktop/src/components/Settings.tsx');
+    expect(section).toContain("{ id: 'agent', label: 'Agent' }");
+    expect(section).toContain('<span>Load every tool on every request</span>');
+    expect(read('apps/desktop/src/app/settings.ts')).toContain('DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false })');
+    expect(guide).toContain('**Settings › Agent** has **Load every tool on every request** for a model that searches poorly. It is off by default, and it makes every request longer.');
+    expect(guide).toContain('- **Agent.** **Load every tool on every request**, off by default.');
+    expect(guide).toContain('It has eight sections: Providers, Context, Agent, Writing, Coherence, MCP & tools, Appearance and Data.');
+    expect(changelog).toContain('**Settings › Agent** has **Load every tool on every request**, off by default');
+  });
 });

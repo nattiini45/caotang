@@ -104,6 +104,8 @@ describe('the zero-key demo intents, end to end', () => {
         status: 'replied',
         cards: { matcher: 'strict', items: [] },
         trace: { matcher: 'strict', calls: [{ tool: 'coherence.scan', outcome: 'ok' }] },
+        // The demo's scripted turn names the deferred row directly: the preflight checks it as it checks any step.
+        reached: { 'coherence.scan': 'preflight' },
         maxModelCalls: 3,
         state: (state) => {
           inbox = state.coherence?.findings.length ?? 0;
@@ -129,6 +131,7 @@ describe('the zero-key demo intents, end to end', () => {
         status: 'applied',
         cards: { matcher: 'strict', items: [{ kind: 'confirm', tools: ['coherence.review'], decision: 'approved' }] },
         trace: { matcher: 'strict', calls: [{ tool: 'coherence.review', outcome: 'ok' }] },
+        reached: { 'coherence.review': 'preflight' },
         maxModelCalls: 2,
         state: (state) => {
           inbox = state.coherence?.findings.length ?? 0;

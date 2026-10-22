@@ -35,6 +35,7 @@ import type { ProfileView } from '@caotang/gateway';
 import {
   createAgentSession,
   createContextPort,
+  preloadFor,
   type ContextConfig,
   type AgentEvent,
   type AgentSession,
@@ -42,6 +43,8 @@ import {
   type PendingCard,
   type TurnReport,
 } from '@caotang/harness';
+
+import { nodeById } from '@caotang/store';
 
 import { documentIdFor, draftCheckOf, newTurnView, reduceTurn, type DraftCheck, type GhostView, type TurnView } from './agent-model.js';
 import { fixPlanFor } from './findings-model.js';
@@ -136,6 +139,8 @@ export class AgentController {
     private readonly providers: ProviderService,
     /** The assembler's budgets, read at each turn so a change in Settings applies to the next one (context-assembly §3). */
     private readonly contextConfig: () => ContextConfig = () => ({}),
+    /** Whether every tool is declared on every request, read at each request so Settings › Agent applies to the next one (agent-harness §3). */
+    private readonly loadEveryTool: () => boolean = () => false,
   ) {
     this.snapshotValue = this.buildSnapshot();
   }
@@ -187,7 +192,19 @@ export class AgentController {
   async submit(intent: string, options: SubmitOptions = {}): Promise<TurnReport | null> {
     const trimmed = intent.trim();
     if (trimmed === '') return null;
-    return this.turnWith(trimmed, options, (agent) => agent.submit(trimmed));
+    // A turn about a dialogue container or a storyboard starts with that module's tools loaded (PRELOAD_BY_CONTEXT), so it
+    // costs no search. The node is the one the writer has selected, which is the document the centre pane shows.
+    const preload = preloadFor(this.activeNode());
+    return this.turnWith(trimmed, options, (agent) => agent.submit(trimmed, { preload }));
+  }
+
+  /** The first selected node that still exists, or undefined: a deleted node may linger in view state. */
+  private activeNode() {
+    for (const id of this.session.view.selection) {
+      const node = nodeById(this.session.state, id);
+      if (node !== undefined) return node;
+    }
+    return undefined;
   }
 
   /**
@@ -246,6 +263,7 @@ export class AgentController {
                 decide: (pending) => this.decide(pending),
                 emit: (event) => this.onEvent(event),
                 role: 'chat',
+                loadEveryTool: this.loadEveryTool,
                 profileId: profile.id,
                 ...(model === undefined ? {} : { model }),
                 ...(thinking === undefined ? {} : { thinking }),

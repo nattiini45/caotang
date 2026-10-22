@@ -26,6 +26,7 @@ import type { CoherenceModel, ModelReply, ModelRequest } from '@caotang/coherenc
 import type { ChatRequest, Gateway } from '@caotang/gateway';
 import type { ProjectState } from '@caotang/store';
 
+import { metadataFor, type ToolName } from '../metadata.js';
 import { createHarness } from '../runtime.js';
 import type { AskBackCode } from '../plan.js';
 import { canonicalJson } from '../util.js';
@@ -48,6 +49,12 @@ export type ScenarioCategory =
   | 'demo';
 
 export type Matcher = 'strict' | 'unordered';
+
+/**
+ * How a scenario's turn reached a deferred row (agent-harness §3): the planner searched for it, the scenario preloaded it, or
+ * it named the row directly and the preflight checked it as it checks any step.
+ */
+export type ReachedBy = 'search' | 'preload' | 'preflight';
 
 export interface CardExpect {
   readonly kind: 'plan' | 'confirm' | 'auto';
@@ -97,6 +104,12 @@ export interface Expectation {
   readonly requests?: readonly RequestExpect[];
   /** Each string must appear in some reason the context assembly recorded. */
   readonly dropped?: readonly string[];
+  /**
+   * For each deferred extension row the turn called, how it was reached. A scenario that calls one must say so, and the run is
+   * held to it: a `search` needs an earlier `tool.search` that loaded the row, a `preload` needs the scenario to preload it, and a
+   * `preflight` needs neither.
+   */
+  readonly reached?: Readonly<Record<string, ReachedBy>>;
   /** The turn's prompt and completion tokens together, at most this many. */
   readonly maxTokens?: number;
   readonly maxModelCalls?: number;
@@ -130,6 +143,8 @@ export interface Scenario {
    * Off by default: a wired review adds its schema to every planner call, which other scenarios' token ceilings do not count.
    */
   readonly coherence?: boolean;
+  /** Deferred rows loaded before the planner's first request, as `submit(intent, { preload })` does. */
+  readonly preload?: readonly ToolName[];
   readonly expect: Expectation;
 }
 
@@ -227,7 +242,7 @@ export async function runScenario(scenario: Scenario): Promise<ScenarioRun> {
     ...(scenario.maxRetries === undefined ? {} : { maxRetries: scenario.maxRetries }),
     ...(scenario.modelCallBound === undefined ? {} : { maxModelCalls: scenario.modelCallBound }),
   });
-  const report = await session.submit(scenario.intent);
+  const report = await session.submit(scenario.intent, scenario.preload === undefined ? {} : { preload: scenario.preload });
   if (scenario.expect.restores !== true) return { report, events, requests, pending, state, before };
   const outcome = session.restore(report.turnId);
   const restored = {
@@ -351,6 +366,32 @@ function restoreFailures(run: ScenarioRun): string[] {
   return run.restored.after === run.before ? [] : ['restore: the project after the restore is not the project before the turn'];
 }
 
+/** The deferred rows the turn called, each held to the way the scenario says it was reached (Expectation.reached). */
+function reachedFailures(scenario: Scenario, run: ScenarioRun): string[] {
+  const failures: string[] = [];
+  const reached = scenario.expect.reached ?? {};
+  const called = [...new Set(run.report.trace.map((entry) => entry.tool))].filter((tool) => metadataFor(tool)?.load === 'deferred');
+  for (const tool of called) {
+    const how = reached[tool];
+    if (how === undefined) {
+      failures.push(`reached: ${tool} is a deferred row, so the scenario must say how the turn reached it`);
+      continue;
+    }
+    const first = run.report.steps.findIndex((step) => step.tool === tool);
+    const searched = run.report.steps.some((step, index) => {
+      const surfaced = (step.data as { surfaced?: unknown } | undefined)?.surfaced;
+      return index < first && step.tool === 'tool.search' && Array.isArray(surfaced) && surfaced.includes(tool);
+    });
+    const preloaded = (scenario.preload ?? []).includes(tool as ToolName);
+    const actual: ReachedBy = preloaded ? 'preload' : searched ? 'search' : 'preflight';
+    if (actual !== how) failures.push(`reached: ${tool} was expected by ${how}, and was reached by ${actual}`);
+  }
+  for (const tool of Object.keys(reached)) {
+    if (!called.includes(tool)) failures.push(`reached: ${tool} is listed but the turn did not call it`);
+  }
+  return failures;
+}
+
 /** Checks a run against its expectation. Returns every failure, so one bad field does not hide another. */
 export function checkRun(scenario: Scenario, run: ScenarioRun): string[] {
   const { expect } = scenario;
@@ -385,6 +426,7 @@ export function checkRun(scenario: Scenario, run: ScenarioRun): string[] {
   if (expect.maxModelCalls !== undefined && report.modelCalls > expect.maxModelCalls) {
     failures.push(`model calls: ${report.modelCalls} made, the ceiling is ${expect.maxModelCalls}`);
   }
+  failures.push(...reachedFailures(scenario, run));
   if (expect.state !== undefined) failures.push(...expect.state(run.state, report));
   return failures;
 }

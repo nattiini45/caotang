@@ -73,6 +73,16 @@ export interface ContextSettings {
   readonly layerBudgets: Readonly<Partial<Record<ContextLayerId, number>>>;
 }
 
+/**
+ * The Agent slice (agent-harness §3). The planner declares a small core of tools and loads the rest on demand; `loadEveryTool`
+ * declares every tool on every request instead, for a model that searches poorly. App settings only, never a project file.
+ */
+export interface AgentSettings {
+  readonly loadEveryTool: boolean;
+}
+
+export const DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false });
+
 /** The thinking levels a role may pin, as the gateway's normalised set (provider-gateway §3). */
 const THINKING_LEVELS: readonly ThinkingLevel[] = ['off', 'low', 'medium', 'high', 'xhigh', 'max'];
 
@@ -136,6 +146,8 @@ export interface AppSettings {
   readonly coherence: CoherenceSettings;
   /** The context budgets (context-assembly §3). Empty means the spec's defaults, which is what an unset record means. */
   readonly context: ContextSettings;
+  /** The Agent slice: whether every tool is declared on every request. Absent in a record written before it existed, which reads as off. */
+  readonly agent: AgentSettings;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = Object.freeze({
@@ -148,6 +160,7 @@ export const DEFAULT_SETTINGS: AppSettings = Object.freeze({
   mcp: EMPTY_MCP_SETTINGS,
   coherence: DEFAULT_COHERENCE_SETTINGS,
   context: Object.freeze({ layerBudgets: Object.freeze({}) }),
+  agent: DEFAULT_AGENT_SETTINGS,
 });
 
 /** A patch: any field may be given, and the rest keep their values. A `dailyTargetWords` of 0 clears the target. */
@@ -166,6 +179,7 @@ export interface SettingsPatch {
   readonly coherence?: Partial<CoherenceSettings>;
   /** The whole context record: the Context section saves both budgets together, so a patch replaces them. */
   readonly context?: ContextSettings;
+  readonly agent?: Partial<AgentSettings>;
 }
 
 /**
@@ -288,6 +302,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
       maxFindings: clampInteger(coherence['maxFindings'], 1, MAX_FINDINGS_CAP, MAX_FINDINGS_DEFAULT),
     },
     context: normalizeContext(source['context']),
+    agent: { loadEveryTool: isRecord(source['agent']) && source['agent']['loadEveryTool'] === true },
   };
 }
 
@@ -346,6 +361,7 @@ export function applyPatch(current: AppSettings, patch: SettingsPatch): AppSetti
     mcp: patch.mcp ?? current.mcp,
     coherence: { ...current.coherence, ...(patch.coherence ?? {}) },
     context: patch.context ?? current.context,
+    agent: { ...current.agent, ...(patch.agent ?? {}) },
   };
   return normalizeSettings(next);
 }
