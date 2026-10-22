@@ -34,6 +34,12 @@ export async function loadFont(load: FontLoader, label: string): Promise<Font> {
   return openFont(await sfntFromWoff(checkFontBytes(await load(), label)));
 }
 
+/** {@link loadFont}, and the bytes it parsed, for a second engine that shapes from the same file (indic-shaper.ts). */
+export async function loadFontWithBytes(load: FontLoader, label: string): Promise<{ readonly font: Font; readonly bytes: Uint8Array }> {
+  const bytes = await sfntFromWoff(checkFontBytes(await load(), label));
+  return { font: await openFont(bytes), bytes };
+}
+
 /** What `encodeSubset` reaches past fontkit's types: the stream's `error` event, and the method the stream runs. */
 interface EncodingSubset {
   encode(stream: unknown): void;

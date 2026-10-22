@@ -1,0 +1,1189 @@
+{
+ "harfbuzzjs": "1.6.3",
+ "harfbuzz": "14.6.0",
+ "font": "NotoSansDevanagari-Regular.ttf 2.007",
+ "samples": [
+  {
+   "group": "gate",
+   "text": "हिन्दी",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 544,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 88,
+     "xAdvance": 531,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 245,
+     "xAdvance": 309,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 73,
+     "xAdvance": 531,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 33,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "gate",
+   "text": "क्षत्रिय",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 90,
+     "xAdvance": 717,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 545,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 304,
+     "xAdvance": 552,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 81,
+     "xAdvance": 580,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "gate",
+   "text": "कि",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 545,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 56,
+     "xAdvance": 768,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "gate",
+   "text": "र्क",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 56,
+     "xAdvance": 768,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 506,
+     "xAdvance": 0,
+     "xOffset": -221,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "gate",
+   "text": "श्री",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 317,
+     "xAdvance": 708,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 33,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "gate",
+   "text": "द्ध",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 448,
+     "xAdvance": 799,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "gate",
+   "text": "प्रेम",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 309,
+     "xAdvance": 569,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 40,
+     "xAdvance": 0,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 80,
+     "xAdvance": 598,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "gate",
+   "text": "कार्यक्रम",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 56,
+     "xAdvance": 768,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 31,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 81,
+     "xAdvance": 580,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 506,
+     "xAdvance": 0,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 295,
+     "xAdvance": 768,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 80,
+     "xAdvance": 598,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "gate",
+   "text": "स्त्री",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 256,
+     "xAdvance": 389,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 304,
+     "xAdvance": 552,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 33,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "nukta",
+   "text": "क़",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 221,
+     "xAdvance": 768,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "nukta",
+   "text": "क़",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 221,
+     "xAdvance": 768,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "nukta",
+   "text": "फ़ोन",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 228,
+     "xAdvance": 771,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 42,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 75,
+     "xAdvance": 555,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "locl",
+   "text": "ल",
+   "lang": "mr",
+   "harfbuzz": [
+    {
+     "gid": 478,
+     "xAdvance": 699,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "locl",
+   "text": "ल",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 83,
+     "xAdvance": 678,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "locl",
+   "text": "शाळा",
+   "lang": "mr",
+   "harfbuzz": [
+    {
+     "gid": 482,
+     "xAdvance": 672,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 31,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 89,
+     "xAdvance": 760,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 31,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "locl",
+   "text": "कर्ता",
+   "lang": "mr",
+   "harfbuzz": [
+    {
+     "gid": 56,
+     "xAdvance": 768,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 71,
+     "xAdvance": 570,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 31,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 506,
+     "xAdvance": 0,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "locl",
+   "text": "झ",
+   "lang": "ne",
+   "harfbuzz": [
+    {
+     "gid": 99,
+     "xAdvance": 924,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "locl",
+   "text": "झ",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 64,
+     "xAdvance": 756,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "locl",
+   "text": "२०८१",
+   "lang": "ne",
+   "harfbuzz": [
+    {
+     "gid": 115,
+     "xAdvance": 520,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 113,
+     "xAdvance": 520,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 124,
+     "xAdvance": 520,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 114,
+     "xAdvance": 520,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "locl",
+   "text": "२०८१",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 115,
+     "xAdvance": 520,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 113,
+     "xAdvance": 520,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 121,
+     "xAdvance": 520,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 114,
+     "xAdvance": 520,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "locl",
+   "text": "नेपाल",
+   "lang": "ne",
+   "harfbuzz": [
+    {
+     "gid": 75,
+     "xAdvance": 555,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 40,
+     "xAdvance": 0,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 76,
+     "xAdvance": 568,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 31,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 83,
+     "xAdvance": 678,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "locl",
+   "text": "संस्कृतम्",
+   "lang": "sa",
+   "harfbuzz": [
+    {
+     "gid": 87,
+     "xAdvance": 676,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 100,
+     "xAdvance": 0,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 256,
+     "xAdvance": 389,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 56,
+     "xAdvance": 768,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 36,
+     "xAdvance": 0,
+     "xOffset": -221,
+     "yOffset": 0
+    },
+    {
+     "gid": 71,
+     "xAdvance": 570,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 80,
+     "xAdvance": 598,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 103,
+     "xAdvance": 0,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "words",
+   "text": "वर्षे",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 84,
+     "xAdvance": 556,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 86,
+     "xAdvance": 578,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 514,
+     "xAdvance": 0,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "words",
+   "text": "सर्वे",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 87,
+     "xAdvance": 676,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 84,
+     "xAdvance": 556,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 514,
+     "xAdvance": 0,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "words",
+   "text": "कर्मों",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 56,
+     "xAdvance": 768,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 80,
+     "xAdvance": 598,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 31,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 515,
+     "xAdvance": 0,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "words",
+   "text": "संस्कृत",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 87,
+     "xAdvance": 676,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 100,
+     "xAdvance": 0,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 256,
+     "xAdvance": 389,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 56,
+     "xAdvance": 768,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 36,
+     "xAdvance": 0,
+     "xOffset": -221,
+     "yOffset": 0
+    },
+    {
+     "gid": 71,
+     "xAdvance": 570,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "words",
+   "text": "पुस्तकें",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 76,
+     "xAdvance": 568,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 34,
+     "xAdvance": 0,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 256,
+     "xAdvance": 389,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 71,
+     "xAdvance": 570,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 56,
+     "xAdvance": 768,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 512,
+     "xAdvance": 0,
+     "xOffset": -221,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "words",
+   "text": "ज्ञान",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 91,
+     "xAdvance": 641,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 31,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 75,
+     "xAdvance": 555,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "words",
+   "text": "दृश्य",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 492,
+     "xAdvance": 531,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 254,
+     "xAdvance": 425,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 81,
+     "xAdvance": 580,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "words",
+   "text": "डॉक्टर",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 68,
+     "xAdvance": 535,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 45,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 232,
+     "xAdvance": 545,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 66,
+     "xAdvance": 504,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 82,
+     "xAdvance": 409,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "words",
+   "text": "नमस्ते",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 75,
+     "xAdvance": 555,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 80,
+     "xAdvance": 598,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 256,
+     "xAdvance": 389,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 71,
+     "xAdvance": 570,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 40,
+     "xAdvance": 0,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "words",
+   "text": "पटकथा",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 76,
+     "xAdvance": 568,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 66,
+     "xAdvance": 504,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 56,
+     "xAdvance": 768,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 72,
+     "xAdvance": 639,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 31,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "words",
+   "text": "प्रधानमंत्री",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 309,
+     "xAdvance": 569,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 74,
+     "xAdvance": 615,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 31,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 75,
+     "xAdvance": 555,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 80,
+     "xAdvance": 598,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 100,
+     "xAdvance": 0,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 304,
+     "xAdvance": 552,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 33,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "words",
+   "text": "राष्ट्र",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 82,
+     "xAdvance": 409,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 31,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 467,
+     "xAdvance": 584,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 508,
+     "xAdvance": 0,
+     "xOffset": -74,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "words",
+   "text": "दुःख",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 490,
+     "xAdvance": 531,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 102,
+     "xAdvance": 202,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 57,
+     "xAdvance": 818,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "words",
+   "text": "ऋषि",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 11,
+     "xAdvance": 853,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 546,
+     "xAdvance": 259,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 86,
+     "xAdvance": 578,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "words",
+   "text": "कुँवर",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 56,
+     "xAdvance": 768,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 34,
+     "xAdvance": 0,
+     "xOffset": -221,
+     "yOffset": 0
+    },
+    {
+     "gid": 101,
+     "xAdvance": 0,
+     "xOffset": -208,
+     "yOffset": 0
+    },
+    {
+     "gid": 84,
+     "xAdvance": 556,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 82,
+     "xAdvance": 409,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "words",
+   "text": "पूर्ण",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 76,
+     "xAdvance": 568,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 35,
+     "xAdvance": 0,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 70,
+     "xAdvance": 723,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 506,
+     "xAdvance": 0,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "words",
+   "text": "है।",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 88,
+     "xAdvance": 531,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 41,
+     "xAdvance": 0,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 128,
+     "xAdvance": 379,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "words",
+   "text": "॥",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 129,
+     "xAdvance": 599,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "words",
+   "text": "१२३४५",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 114,
+     "xAdvance": 520,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 115,
+     "xAdvance": 520,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 116,
+     "xAdvance": 520,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 117,
+     "xAdvance": 520,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 118,
+     "xAdvance": 520,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  },
+  {
+   "group": "zwj-half",
+   "text": "क्‍ष",
+   "lang": "hi",
+   "harfbuzz": [
+    {
+     "gid": 232,
+     "xAdvance": 550,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 3,
+     "xAdvance": 0,
+     "xOffset": 0,
+     "yOffset": 0
+    },
+    {
+     "gid": 86,
+     "xAdvance": 578,
+     "xOffset": 0,
+     "yOffset": 0
+    }
+   ]
+  }
+ ]
+}

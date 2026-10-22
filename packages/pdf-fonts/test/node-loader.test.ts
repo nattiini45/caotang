@@ -4,16 +4,18 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ARABIC_FONT_FILE, CJK_FONT_FILE, EMOJI_FONT_FILE, HEBREW_FONT_FILE } from '../src/font-files.js';
+import { ARABIC_FONT_FILE, CJK_FONT_FILE, DEVANAGARI_FONT_FILE, EMOJI_FONT_FILE, HEBREW_FONT_FILE } from '../src/font-files.js';
 import { sfntFromWoff } from '../src/font-bytes.js';
 import { openFont } from '../src/fontkit.js';
 import {
   arabicFontCandidates,
   cjkFontCandidates,
+  devanagariFontCandidates,
   emojiFontCandidates,
   hebrewFontCandidates,
   loadArabicFontInNode,
   loadCjkFontInNode,
+  loadDevanagariFontInNode,
   loadEmojiFontInNode,
   loadHebrewFontInNode,
 } from '../src/node-loader.js';
@@ -54,10 +56,11 @@ describe('the emoji font file', () => {
   });
 });
 
-describe('the Arabic and Hebrew font files', () => {
+describe('the Arabic, Hebrew and Devanagari font files', () => {
   it.each([
     ['Arabic', arabicFontCandidates, loadArabicFontInNode, ARABIC_FONT_FILE, 'Noto Sans Arabic', 'ب'],
     ['Hebrew', hebrewFontCandidates, loadHebrewFontInNode, HEBREW_FONT_FILE, 'Noto Sans Hebrew', 'ש'],
+    ['Devanagari', devanagariFontCandidates, loadDevanagariFontInNode, DEVANAGARI_FONT_FILE, 'Noto Sans Devanagari', 'क'],
   ] as const)('are found by the Node loader in the %s font package, and are static TrueType fonts fontkit reads as they are', async (_name, candidates, load, file, family, letter) => {
     expect(candidates().some((path) => path.endsWith(file))).toBe(true);
     const bytes = await load();

@@ -17,13 +17,14 @@ import {
   NOTO_EMOJI_SEQUENCES,
   NOTO_EMOJI_TONED,
 } from '../src/coverage/noto-emoji-coverage.js';
+import { NOTO_DEVANAGARI_CODE_POINTS } from '../src/coverage/noto-devanagari-coverage.js';
 import { NOTO_HEBREW_CODE_POINTS } from '../src/coverage/noto-hebrew-coverage.js';
-import { arabicFontMaps, emojiFontLayoutGlyph, emojiFontMaps, fallbackCovers, hebrewFontMaps } from '../src/coverage.js';
+import { arabicFontMaps, devanagariFontMaps, emojiFontLayoutGlyph, emojiFontMaps, fallbackCovers, hebrewFontMaps } from '../src/coverage.js';
 import { emojiKey } from '../src/emoji.js';
-import { ARABIC_FONT_FILE, CJK_FONT_FILE, EMOJI_FONT_FILE, HEBREW_FONT_FILE } from '../src/font-files.js';
+import { ARABIC_FONT_FILE, CJK_FONT_FILE, DEVANAGARI_FONT_FILE, EMOJI_FONT_FILE, HEBREW_FONT_FILE } from '../src/font-files.js';
 import { loadFont } from '../src/fontkit.js';
 import { harfbuzzEmoji } from './harfbuzz-reference.js';
-import { loadArabicFontInNode, loadCjkFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '../src/node-loader.js';
+import { loadArabicFontInNode, loadCjkFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '../src/node-loader.js';
 
 const VENDOR = new URL('../../../vendor/', import.meta.url);
 const EMOJI_TEST_PATH = new URL('./fixtures/emoji-test-17.0.txt', import.meta.url);
@@ -46,6 +47,7 @@ describe('the vendored font files', () => {
     ['noto-emoji', EMOJI_FONT_FILE],
     ['noto-sans-arabic', ARABIC_FONT_FILE],
     ['noto-sans-hebrew', HEBREW_FONT_FILE],
+    ['noto-sans-devanagari', DEVANAGARI_FONT_FILE],
   ])('%s/%s is the file its SHA256SUMS pins, byte for byte', (directory, file) => {
     const digest = pinned(directory, file);
     expect(digest).toMatch(/^[0-9a-f]{64}$/);
@@ -77,27 +79,31 @@ describe('the CJK coverage table', () => {
   });
 });
 
-describe('the Arabic and Hebrew coverage tables', () => {
+describe('the Arabic, Hebrew and Devanagari coverage tables', () => {
   let arabic: Font;
   let hebrew: Font;
+  let devanagari: Font;
   beforeAll(async () => {
     arabic = await loadFont(loadArabicFontInNode, 'Arabic font');
     hebrew = await loadFont(loadHebrewFontInNode, 'Hebrew font');
+    devanagari = await loadFont(loadDevanagariFontInNode, 'Devanagari font');
   });
 
   it.each([
     ['Arabic', () => arabic, NOTO_ARABIC_CODE_POINTS, arabicFontMaps],
     ['Hebrew', () => hebrew, NOTO_HEBREW_CODE_POINTS, hebrewFontMaps],
+    ['Devanagari', () => devanagari, NOTO_DEVANAGARI_CODE_POINTS, devanagariFontMaps],
   ] as const)('have every code point the %s font maps, and no other', (_name, font, count, maps) => {
     const set = font().characterSet;
     expect(set.length).toBe(count);
     for (const code of set) expect(maps(String.fromCodePoint(code)), code.toString(16)).toBe(true);
-    for (const ch of ['😀', 'ꙮ', 'ά', 'a'.repeat(1), 'ا', 'א']) expect(maps(ch), ch).toBe(set.includes(ch.codePointAt(0) ?? 0));
+    for (const ch of ['😀', 'ꙮ', 'ά', 'a'.repeat(1), 'ا', 'א', 'क']) expect(maps(ch), ch).toBe(set.includes(ch.codePointAt(0) ?? 0));
   });
 
   it('cover the letters the tests print', () => {
     for (const ch of 'السلام عليكم؟پچگژٹڈںے٠١٢۰۱۲') if (ch !== ' ') expect(arabicFontMaps(ch), ch).toBe(true);
     for (const ch of 'שלוםךםןףץ־״׳') expect(hebrewFontMaps(ch), ch).toBe(true);
+    for (const ch of 'हिन्दीक्षत्रश्रीद्धप्रेमक़ऋॠ।॥०१२३४५६७८९ंँःऽ़ॐ‌‍') expect(devanagariFontMaps(ch), ch).toBe(true);
   });
 });
 
