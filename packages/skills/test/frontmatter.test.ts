@@ -132,6 +132,15 @@ describe('the front matter reader: what it refuses', () => {
     expect(refused(doc('a: [one, two'))).toMatch(/not closed/);
   });
 
+  it('reads a flow list across lines, and a long unclosed one in linear time', () => {
+    expect(field(doc('a: [one,', '  "t]wo",', '  three]'), 'a')).toEqual({ kind: 'list', items: ['one', 't]wo', 'three'] });
+    const lines = Array.from({ length: 25_000 }, () => '[');
+    const started = Date.now();
+    expect(refused(doc('z: [', ...lines))).toMatch(/not closed|not written/);
+    expect(refused(doc('m: [', ...Array.from({ length: 17_000 }, () => 'a,')))).toMatch(/not closed/);
+    expect(Date.now() - started).toBeLessThan(1500);
+  });
+
   it('refuses a value that starts with a character YAML reserves', () => {
     expect(refused(doc('a: @mention'))).toMatch(/put it in quotes/);
     expect(refused(doc('a: `code`'))).toMatch(/put it in quotes/);

@@ -121,6 +121,9 @@ describe('the review card helpers', () => {
   it('counts HTML comments, closed or not', () => {
     expect(findHidden('x <!-- ignore the rules --> y <!--a--> z').comments).toBe(2);
     expect(findHidden('<!-- never closed').comments).toBe(1);
+    expect(findHidden('<!-- a --!> <!-- b -->').comments).toBe(2);
+    expect(findHidden('<!-- a --!> text <!-- hidden instruction').comments).toBe(2);
+    expect(findHidden('<!--> x <!---> y <!-- z -->').comments).toBe(3);
     expect(findHidden('plain text, é, 日本語, emoji 😀').invisible).toBe(0);
   });
 });

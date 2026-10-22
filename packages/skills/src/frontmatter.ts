@@ -277,19 +277,28 @@ function foldBlock(lines: readonly string[]): string {
  * Flow collections
  * ------------------------------------------------------------------ */
 
-function balanced(text: string): boolean {
-  let level = 0;
-  let quote = '';
-  for (let i = 0; i < text.length; i += 1) {
-    const ch = text[i]!;
-    if (quote !== '') {
-      if (ch === '\\' && quote === '"') i += 1;
-      else if (ch === quote) quote = '';
-    } else if (ch === '"' || ch === "'") quote = ch;
-    else if (ch === '[' || ch === '{') level += 1;
-    else if (ch === ']' || ch === '}') level -= 1;
+/** How deep a flow collection is open, and whether a quote is, after the text fed so far — fed a line at a time so a long one is read once. */
+class Depth {
+  private level = 0;
+  private quote = '';
+  private skip = false;
+
+  feed(text: string): void {
+    for (let i = 0; i < text.length; i += 1) {
+      const ch = text[i]!;
+      if (this.skip) this.skip = false;
+      else if (this.quote !== '') {
+        if (ch === '\\' && this.quote === '"') this.skip = true;
+        else if (ch === this.quote) this.quote = '';
+      } else if (ch === '"' || ch === "'") this.quote = ch;
+      else if (ch === '[' || ch === '{') this.level += 1;
+      else if (ch === ']' || ch === '}') this.level -= 1;
+    }
   }
-  return level <= 0;
+
+  get closed(): boolean {
+    return this.level <= 0;
+  }
 }
 
 /** Reads `[a, b]` or `{k: v}` that is all of `text` (several lines joined by a space). A collection inside one is `other`. */
@@ -375,14 +384,18 @@ function readValue(rest: string, lines: readonly Line[], at: number, columnOfRes
     return { field: { kind: 'scalar', value: quoted.value, style: 'quoted' }, last: quoted.last };
   }
   if (first === '[' || first === '{') {
-    let joined = value;
+    const depth = new Depth();
+    depth.feed(value);
+    const parts = [value];
     let row = at;
-    while (!balanced(joined)) {
+    while (!depth.closed) {
       row += 1;
       if (row >= lines.length) fail('a list in the front matter is not closed');
-      joined += ` ${lines[row]!.text.trim()}`;
+      const part = ` ${lines[row]!.text.trim()}`;
+      depth.feed(part);
+      parts.push(part);
     }
-    return { field: readFlow(joined), last: row };
+    return { field: readFlow(parts.join('')), last: row };
   }
   // A plain scalar, which carries on over the lines indented below its key.
   let text = plainText(value);

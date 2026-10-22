@@ -33,7 +33,7 @@ export function isHiddenCode(code: number): boolean {
 export interface HiddenFindings {
   /** Characters that draw nothing, counted. */
   readonly invisible: number;
-  /** `<!-- … -->` comments, counted. */
+  /** `<!-- … -->` comments (closed by `-->` or `--!>`), counted. */
   readonly comments: number;
 }
 
@@ -55,9 +55,17 @@ export function findHidden(text: string): HiddenFindings {
   let at = text.indexOf('<!--');
   while (at >= 0) {
     comments += 1;
-    const end = text.indexOf('-->', at + 4);
-    if (end < 0) break;
-    at = text.indexOf('<!--', end + 3);
+    // `<!-->` and `<!--->` end at once; otherwise `-->` or `--!>`, whichever comes first.
+    let end: number;
+    if (text.startsWith('>', at + 4)) end = at + 5;
+    else if (text.startsWith('->', at + 4)) end = at + 6;
+    else {
+      const close = text.indexOf('-->', at + 4);
+      const bang = text.indexOf('--!>', at + 4);
+      if (close < 0 && bang < 0) break;
+      end = bang >= 0 && (close < 0 || bang < close) ? bang + 4 : close + 3;
+    }
+    at = text.indexOf('<!--', end);
   }
   return { invisible, comments };
 }
