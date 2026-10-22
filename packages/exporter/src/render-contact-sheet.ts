@@ -26,7 +26,13 @@
  * unit, and the ToUnicode map gives the exact sequence back when it is copied. The emoji font is read only when a sheet holds
  * an emoji, through the input's `loadEmojiFont`.
  *
- * A character no font has (Arabic, Devanagari, a reserved pictograph) is drawn as `?`, and the compile log names each
+ * Arabic, Persian, Urdu and Hebrew are set in Noto Sans Arabic and Noto Sans Hebrew (`./rtl-font.ts`), after Helvetica and before
+ * the CJK font. A text line holding either script is resolved by the bidirectional algorithm of UAX #9 (`@caotang/pdf-fonts/bidi`)
+ * after it is cut to its box, so the cut falls between whole grapheme clusters in logical order; a word is shaped and drawn glyph
+ * by glyph (cid-embedding.ts `drawPlaced`), and a line whose paragraph runs right to left ends at the right edge of its box. The
+ * fonts are read through the input's `loadArabicFont` and `loadHebrewFont`, and only when a sheet holds their script.
+ *
+ * A character no font has (Devanagari, a reserved pictograph) is drawn as `?`, and the compile log names each
  * one. So is every character a font would have drawn when that font cannot be read, and the log says why.
  *
  * ## Pictures
@@ -35,13 +41,30 @@
  * does not parse) gets the card's caption in its box instead, and the log names the picture once.
  */
 
-import { CJK_FONT_NAME, EMOJI_FONT_NAME, emojiStyleOf, graphemesOf, loadFont, type FontLoader } from '@caotang/pdf-fonts';
+import {
+  ARABIC_FONT_NAME,
+  CJK_FONT_NAME,
+  EMOJI_FONT_NAME,
+  HEBREW_FONT_NAME,
+  countMarks,
+  emojiStyleOf,
+  graphemesOf,
+  isBidiControl,
+  loadFont,
+  rtlFontPrints,
+  scriptRuns,
+  type FontLoader,
+  type RtlScript,
+} from '@caotang/pdf-fonts';
+import type * as Bidi from '@caotang/pdf-fonts/bidi';
+import type { Shape } from '@caotang/pdf-fonts/shaper';
 import type * as PdfLib from 'pdf-lib';
 import { sniffImage, type PlacedCard, type PlacedText, type SheetPlan } from '@caotang/storyboard';
 
 import type { FontkitFont } from './cid-embedding.js';
 import { CjkEmbedding, CjkFace } from './cjk-font.js';
 import { EmojiEmbedding, EmojiFace, type EmojiGlyph } from './emoji-font.js';
+import { RtlEmbedding, RtlFace, type PlacedGlyph } from './rtl-font.js';
 
 export const PDF_MIME = 'application/pdf';
 
@@ -69,6 +92,10 @@ export interface ContactSheetPdfInput {
    * it, emoji are drawn as `?` and the log says so.
    */
   readonly loadEmojiFont?: FontLoader;
+  /** Reads Noto Sans Arabic (`./rtl-font.ts`). Called at most once, and only when the sheet holds Arabic-script text. Without it, that text is drawn as `?` and the log says so. */
+  readonly loadArabicFont?: FontLoader;
+  /** Reads Noto Sans Hebrew (`./rtl-font.ts`). Called at most once, and only when the sheet holds Hebrew. Without it, Hebrew is drawn as `?` and the log says so. */
+  readonly loadHebrewFont?: FontLoader;
 }
 
 export interface ContactSheetPdf {
@@ -90,14 +117,20 @@ const FRAME_LINE: Shade = { r: 0.7, g: 0.7, b: 0.7 };
 const CHIP_FILL: Shade = { r: 0.15, g: 0.15, b: 0.15 };
 const PAPER: Shade = { r: 1, g: 1, b: 1 };
 
-/** The fonts a piece of text can be set in: Helvetica (or Helvetica-Bold), Noto Sans Mono CJK, Noto Emoji. */
-type Face = 'base' | 'cjk' | 'emoji';
+/** The fonts a piece of text can be set in: Helvetica (or Helvetica-Bold), Noto Sans Mono CJK, Noto Emoji, Noto Sans Arabic, Noto Sans Hebrew. */
+type Face = 'base' | 'cjk' | 'emoji' | RtlScript;
 
-/** One grapheme cluster of a line, resolved to the font that draws it. An emoji carries the glyphs its layout gave. */
+/**
+ * One grapheme cluster of a line, resolved to the font that draws it. An emoji carries the glyphs its layout gave. A letter of
+ * Arabic or Hebrew is a cluster until the line is put in visual order; then each run of them is one piece that holds the glyphs
+ * the shaper placed (`placed`), its width at the size drawn, and the run's logical text.
+ */
 interface Piece {
   readonly text: string;
   readonly face: Face;
   readonly glyphs?: readonly EmojiGlyph[];
+  readonly placed?: readonly PlacedGlyph[];
+  readonly width?: number;
 }
 
 /** The character clusters of a text: a letter with its combining marks, an emoji with its modifiers, as a reader sees one character. */
@@ -195,10 +228,39 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
     return loaded === null ? null : loaded.face.glyphsOf(cluster);
   };
 
+  // The Arabic and Hebrew fonts, read and embedded the first time a cluster of their script needs them, with the bidi module and
+  // the shaper they share. `null` once a font is known to be unavailable, with the reason.
+  const rtl = new Map<RtlScript, RtlEmbedding | null>();
+  const rtlErrors = new Map<RtlScript, string>();
+  let tools: { readonly bidi: typeof Bidi; readonly shape: Shape } | undefined;
+  const rtlFont = async (script: RtlScript): Promise<RtlEmbedding | null> => {
+    const known = rtl.get(script);
+    if (known !== undefined) return known;
+    rtl.set(script, null);
+    const load = script === 'arabic' ? input.loadArabicFont : input.loadHebrewFont;
+    const name = script === 'arabic' ? 'Arabic' : 'Hebrew';
+    if (load === undefined) {
+      rtlErrors.set(script, `this compile has no ${name} font`);
+      return null;
+    }
+    try {
+      tools ??= { bidi: await import('@caotang/pdf-fonts/bidi'), shape: (await import('@caotang/pdf-fonts/shaper')).fontkitShape };
+      const face = new RtlFace(script, (await loadFont(load, `the ${name} font`)) as unknown as FontkitFont, tools.shape);
+      const embedding = new RtlEmbedding(lib, pdf, face);
+      rtl.set(script, embedding);
+      return embedding;
+    } catch (error) {
+      rtlErrors.set(script, `the ${name} font could not be read (${error instanceof Error ? error.message : String(error)})`);
+      return null;
+    }
+  };
+  // The marks of each script that were left out of what is drawn.
+  const marksLeftOut: Record<RtlScript, number> = { arabic: 0, hebrew: 0 };
+
   // Every character drawn as "?", once each, in the order first met, with how many times it was replaced.
   const missing = new Map<string, number>();
   // Which fallback fonts a "?" would have needed: the log names the ones that could not be read.
-  const neededUnavailable = new Set<'cjk' | 'emoji'>();
+  const neededUnavailable = new Set<'cjk' | 'emoji' | RtlScript>();
 
   /**
    * The text as pieces, one per grapheme cluster, each resolved to its font (see the header). A cluster in emoji presentation
@@ -214,6 +276,8 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
         pieces.push({ text: ' ', face: 'base' });
         continue;
       }
+      // A bidirectional control character (a mark, an embedding, an isolate) prints nothing and is not drawn.
+      if (isBidiControl(cluster)) continue;
       const style = emojiStyleOf(cluster);
       if (style === 'emoji') {
         const glyphs = await emojiGlyphs(cluster);
@@ -230,6 +294,18 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
       const textCodes = codes.filter((code) => code !== VS15);
       if (textCodes.length > 0 && textCodes.every((code) => builtIn.has(code))) {
         pieces.push({ text: String.fromCodePoint(...textCodes), face: 'base' });
+        continue;
+      }
+      // Arabic and Hebrew: Noto Sans Arabic and Noto Sans Hebrew, before the CJK font.
+      const script = rtlFontPrints(String.fromCodePoint(codes[0] ?? 0));
+      if (script !== undefined) {
+        if ((await rtlFont(script)) !== null) {
+          pieces.push({ text: cluster, face: script });
+          continue;
+        }
+        neededUnavailable.add(script);
+        missing.set(cluster, (missing.get(cluster) ?? 0) + 1);
+        pieces.push({ text: '?', face: 'base' });
         continue;
       }
       const loaded = await fallbackFont();
@@ -268,12 +344,75 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
     return runs;
   };
 
+  /**
+   * The width of a run of Arabic or Hebrew at a size: the width of each piece that is shaped already, and, for the clusters of a
+   * line not put in visual order yet, of each word and each single character the text is cut into (rtl-script.ts), shaped.
+   */
+  const rtlWidth = (script: RtlScript, run: readonly Piece[], size: number): number => {
+    const embedding = rtl.get(script);
+    if (embedding === null || embedding === undefined) return 0;
+    let width = 0;
+    let loose: string[] = [];
+    const settle = (): void => {
+      for (const part of scriptRuns(loose)) {
+        const word = embedding.face.shapeRun(part.text, 'rtl');
+        if (word !== null) width += embedding.face.widthOf(word, size);
+      }
+      loose = [];
+    };
+    for (const piece of run) {
+      if (piece.width === undefined) loose.push(piece.text);
+      else {
+        settle();
+        width += piece.width;
+      }
+    }
+    settle();
+    return width;
+  };
+
+  /**
+   * A line's pieces in the order they are drawn (UAX #9), when it holds Arabic or Hebrew: the clusters of the line, cut to its box
+   * already and still in logical order, are resolved at the paragraph's direction, and each run of letters of a script becomes
+   * one shaped piece. The marks of a run are left out of its glyphs and counted. A run the engine cannot shape is drawn as "?".
+   * A line with neither script is returned as it is.
+   */
+  const visualPieces = (pieces: readonly Piece[], size: number, direction: 'ltr' | 'rtl'): Piece[] => {
+    if (tools === undefined || !pieces.some((piece) => piece.face === 'arabic' || piece.face === 'hebrew')) return [...pieces];
+    const known = new Map<string, Piece>();
+    for (const piece of pieces) if (!known.has(piece.text)) known.set(piece.text, piece);
+    const unknown: Piece = { text: '?', face: 'base' };
+    const out: Piece[] = [];
+    for (const run of tools.bidi.visualRuns(pieces.map((piece) => piece.text).join(''), direction)) {
+      const embedding = run.script === undefined ? undefined : rtl.get(run.script);
+      if (run.kind === 'other' || run.script === undefined || embedding === null || embedding === undefined) {
+        // The pieces keep their font: a bracket the algorithm turned is the mirror image in Helvetica, if WinAnsi has it.
+        for (const cluster of graphemesOf(run.text)) {
+          out.push(known.get(cluster) ?? (builtIn.has(cluster.codePointAt(0) ?? 0) ? { text: cluster, face: 'base' } : unknown));
+        }
+        continue;
+      }
+      const word = embedding.face.shapeRun(run.source, run.level % 2 === 1 ? 'rtl' : 'ltr');
+      if (word === null) {
+        for (const cluster of graphemesOf(run.source)) {
+          missing.set(cluster, (missing.get(cluster) ?? 0) + 1);
+          out.push(unknown);
+        }
+        continue;
+      }
+      marksLeftOut[run.script] += countMarks(run.source);
+      out.push({ text: run.source, face: run.script, placed: word.glyphs, width: embedding.face.widthOf(word, size) });
+    }
+    return out;
+  };
+
   /** The width of one run at a size, in its own font. */
   const runWidth = (run: readonly Piece[], base: PdfLib.PDFFont, size: number): number => {
     const face = run[0]?.face ?? 'base';
     const glyphs = run.flatMap((piece) => piece.glyphs ?? []);
     if (face === 'emoji') return emoji ? emoji.face.widthOf(glyphs, size) : 0;
     if (face === 'cjk') return fallback ? fallback.face.widthOf(glyphs, size) : 0;
+    if (face === 'arabic' || face === 'hebrew') return rtlWidth(face, run, size);
     return base.widthOfTextAtSize(run.map((piece) => piece.text).join(''), size);
   };
 
@@ -303,6 +442,17 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
     let at = x;
     for (const run of runsOf(pieces)) {
       const face = run[0]?.face ?? 'base';
+      if (face === 'arabic' || face === 'hebrew') {
+        // Each shaped run is drawn glyph by glyph at the positions the shaper gave, with its logical text for copying.
+        const embedding = rtl.get(face);
+        let pen = at;
+        for (const piece of run) {
+          if (embedding && piece.placed !== undefined) embedding.drawPlaced(page, piece.placed, pen, y, size, ink, piece.text);
+          pen += piece.width ?? 0;
+        }
+        at = pen;
+        continue;
+      }
       const glyphs = run.flatMap((piece) => piece.glyphs ?? []);
       if (face === 'emoji' && emoji) emoji.draw(page, glyphs, at, y, size, ink);
       else if (face === 'cjk' && fallback) fallback.draw(page, glyphs, at, y, size, ink);
@@ -357,9 +507,14 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
   const flip = (y: number): number => pageHeight - y;
 
   const drawText = async (page: PdfLib.PDFPage, placed: PlacedText, font: PdfLib.PDFFont, maxWidth: number, ink: Shade = INK): Promise<void> => {
-    const pieces = fitPieces(await piecesOf(placed.text), font, placed.fontSize, maxWidth);
-    if (pieces.length === 0) return;
-    drawPieces(page, pieces, placed.x, flip(placed.y), placed.fontSize, font, ink);
+    const fitted = fitPieces(await piecesOf(placed.text), font, placed.fontSize, maxWidth);
+    if (fitted.length === 0) return;
+    // A line with Arabic or Hebrew is put in visual order after it is cut. A paragraph that runs right to left ends at the right
+    // edge of its box (its direction is that of its first strong character).
+    const direction = tools !== undefined && fitted.some((piece) => piece.face === 'arabic' || piece.face === 'hebrew') ? tools.bidi.paragraphDirection(placed.text) : 'ltr';
+    const pieces = visualPieces(fitted, placed.fontSize, direction);
+    const x = direction === 'rtl' ? placed.x + Math.max(0, maxWidth - widthOf(pieces, font, placed.fontSize)) : placed.x;
+    drawPieces(page, pieces, x, flip(placed.y), placed.fontSize, font, ink);
   };
 
   const drawCard = async (page: PdfLib.PDFPage, card: PlacedCard): Promise<void> => {
@@ -414,17 +569,38 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
   // A sheet whose only emoji the font lacks loaded the font and drew nothing in it: no font is written then.
   if (emoji?.used === true) await emoji.finish();
   if (fallback?.used === true) await fallback.finish();
+  for (const embedding of rtl.values()) if (embedding?.used === true) await embedding.finish();
 
   if (fallback) notes.push(`contact sheet: text outside Latin script is set in ${CJK_FONT_NAME}, embedded with only the glyphs it uses`);
   if (emoji?.used === true) notes.push(`contact sheet: emoji are set in ${EMOJI_FONT_NAME}, in monochrome, embedded with only the glyphs they use`);
+  if (rtl.get('arabic')?.used === true) notes.push(`contact sheet: Arabic, Persian and Urdu text is set in ${ARABIC_FONT_NAME}, embedded with only the glyphs it uses`);
+  if (rtl.get('hebrew')?.used === true) notes.push(`contact sheet: Hebrew text is set in ${HEBREW_FONT_NAME}, embedded with only the glyphs it uses`);
+  if (marksLeftOut.hebrew > 0) {
+    const n = marksLeftOut.hebrew;
+    notes.push(`contact sheet: ${n} Hebrew ${n === 1 ? 'point or cantillation mark is' : 'points and cantillation marks are'} left out of the print, because the font's placement of marks cannot be checked; the text of the file still holds ${n === 1 ? 'it' : 'them'}`);
+  }
+  if (marksLeftOut.arabic > 0) {
+    const n = marksLeftOut.arabic;
+    notes.push(`contact sheet: ${n} Arabic ${n === 1 ? 'mark (a haraka, shadda or the like) is' : 'marks (harakat, shadda and the like) are'} left out of the print, because the font's placement of marks cannot be checked; the text of the file still holds ${n === 1 ? 'it' : 'them'}`);
+  }
   if (missing.size > 0) {
     const count = [...missing.values()].reduce((sum, n) => sum + n, 0);
     const named = [...missing.keys()]
       .map((cluster) => `${cluster} (${[...cluster].map((char) => `U+${(char.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')}`).join(' ')})`)
       .join(', ');
     // The fonts that were read and still had no glyph, and why each font a "?" needed could not be read.
-    const read = [...(fallback ? [CJK_FONT_NAME] : []), ...(emoji ? [EMOJI_FONT_NAME] : [])];
-    const reasons = [...(neededUnavailable.has('cjk') ? [fallbackError] : []), ...(neededUnavailable.has('emoji') ? [emojiError] : [])];
+    const read = [
+      ...(rtl.get('arabic') ? [ARABIC_FONT_NAME] : []),
+      ...(rtl.get('hebrew') ? [HEBREW_FONT_NAME] : []),
+      ...(fallback ? [CJK_FONT_NAME] : []),
+      ...(emoji ? [EMOJI_FONT_NAME] : []),
+    ];
+    const reasons = [
+      ...(neededUnavailable.has('arabic') ? [rtlErrors.get('arabic') ?? ''] : []),
+      ...(neededUnavailable.has('hebrew') ? [rtlErrors.get('hebrew') ?? ''] : []),
+      ...(neededUnavailable.has('cjk') ? [fallbackError] : []),
+      ...(neededUnavailable.has('emoji') ? [emojiError] : []),
+    ];
     const fonts = read.length === 0 ? `the PDF's built-in font cannot show` : `neither the PDF's built-in font nor ${read.join(' nor ')} can show`;
     const why = reasons.length === 0 ? '' : `, and ${reasons.join(', and ')},`;
     notes.push(`contact sheet: ${count} ${count === 1 ? 'character' : 'characters'} ${fonts}${why} ${count === 1 ? 'was' : 'were'} drawn as "?": ${named}`);

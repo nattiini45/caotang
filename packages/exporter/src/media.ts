@@ -128,9 +128,9 @@ export interface MediaRequest {
   readonly loadFallbackFont?: FontLoader;
   /** Reads the emoji font (`@caotang/font-noto-emoji`). The screenplay PDF and the contact sheet read it, and only when the file holds an emoji. */
   readonly loadEmojiFont?: FontLoader;
-  /** Reads Noto Sans Arabic (`@caotang/font-noto-arabic`). The screenplay PDF reads it, and only when the file holds Arabic-script text. */
+  /** Reads Noto Sans Arabic (`@caotang/font-noto-arabic`). The screenplay PDF and the contact sheet read it, and only when the file holds Arabic-script text. */
   readonly loadArabicFont?: FontLoader;
-  /** Reads Noto Sans Hebrew (`@caotang/font-noto-hebrew`). The screenplay PDF reads it, and only when the file holds Hebrew text. */
+  /** Reads Noto Sans Hebrew (`@caotang/font-noto-hebrew`). The screenplay PDF and the contact sheet read it, and only when the file holds Hebrew text. */
   readonly loadHebrewFont?: FontLoader;
   /** The project's language (a BCP 47 tag), when it has one. In a right-to-left language the screenplay PDF lays out a paragraph with no strong character right to left. */
   readonly language?: string;
@@ -801,6 +801,8 @@ function contactSheetOutput(request: MediaRequest): MediaOutput {
             ...(request.author.trim() === '' ? {} : { author: request.author }),
             ...(request.loadFallbackFont === undefined ? {} : { loadFallbackFont: request.loadFallbackFont }),
             ...(request.loadEmojiFont === undefined ? {} : { loadEmojiFont: request.loadEmojiFont }),
+            ...(request.loadArabicFont === undefined ? {} : { loadArabicFont: request.loadArabicFont }),
+            ...(request.loadHebrewFont === undefined ? {} : { loadHebrewFont: request.loadHebrewFont }),
             at,
           }),
       },
