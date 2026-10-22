@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { CROCKFORD_ALPHABET, isFixedRoot, isGeneratedId, isIdWithPrefix, newId, seededId } from '../src/index.js';
+import {
+  CROCKFORD_ALPHABET,
+  CROCKFORD_ALPHABET_ESCAPED,
+  ID_BODY_PATTERN,
+  ID_LENGTH,
+  isFixedRoot,
+  isGeneratedId,
+  isIdWithPrefix,
+  newId,
+  seededId,
+} from '../src/index.js';
 
 describe('ids', () => {
   it('emits the documented prefix + 10 Crockford base32 chars', () => {
@@ -76,5 +86,17 @@ describe('ids', () => {
     expect(isGeneratedId('n_short')).toBe(false);
     expect(isGeneratedId('n_7K2QX9M4AI')).toBe(false); // trailing I is out of alphabet
     expect(isGeneratedId('nope')).toBe(false);
+  });
+
+  // The escape is what keeps a metacharacter in the alphabet from changing the
+  // class's language, so it is pinned by the rule and not by today's alphabet:
+  // that one holds no metacharacter, and a test over it would pass either way.
+  it('escapes the alphabet for a character class, and builds the body pattern from it', () => {
+    expect(CROCKFORD_ALPHABET_ESCAPED.replace(/\\./g, '')).not.toMatch(/[\]^-]/);
+    expect(ID_BODY_PATTERN).toBe(`[${CROCKFORD_ALPHABET_ESCAPED}]{${ID_LENGTH}}`);
+    const body = new RegExp(`^${ID_BODY_PATTERN}$`);
+    expect(body.test(newId('n').slice(2))).toBe(true);
+    expect(body.test('7K2QX9M4A')).toBe(false); // nine chars is not the length
+    expect(body.test('7K2QX9M4AI')).toBe(false); // trailing I is out of alphabet
   });
 });

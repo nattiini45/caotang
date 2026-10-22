@@ -10,13 +10,12 @@
  * applies: `taken` re-rolls on collision, and an exhausted re-roll is a throw.
  */
 
-import { CROCKFORD_ALPHABET, ID_LENGTH, newId, type RandomBytes } from '@caotang/ids';
+import { ID_BODY_PATTERN, newId, type RandomBytes } from '@caotang/ids';
 
 export type CoherenceIdPrefix = 'f' | 'r' | 'w';
 
 /**
- * The body of a coherence id, as a pattern: `ID_LENGTH` Crockford base32
- * characters.
+ * True when `value` is `<prefix>_` followed by `ID_LENGTH` Crockford base32 characters.
  *
  * **Built from `@caotang/ids`' own constants**, so the check and the mint
  * cannot drift apart: if the alphabet or the length ever changes there, this
@@ -24,19 +23,18 @@ export type CoherenceIdPrefix = 'f' | 'r' | 'w';
  * accepts. A second copy of the alphabet here would be a second thing to get
  * wrong — and the failure would surface at the codec load, not at the mint.
  *
- * **The alphabet is escaped, because it goes into a character class.** The
- * alphabet as it stands holds no metacharacter, so the pattern is the same
- * either way — but an unescaped `-` or `]` would build a *valid* regex with
- * the wrong language, and `isCoherenceId` would then accept ids the mint never
- * produces. That is a silent mis-validation, not the load failure the
- * paragraph above promises, so the class is built from an escaped copy.
+ * **The pattern is built from an escaped alphabet**, because it goes into a
+ * character class. `@caotang/ids` escapes it there and this module takes the
+ * escaped fragment rather than building a class of its own: an unescaped `]`
+ * would build a *valid* regex with the wrong language, and `isCoherenceId`
+ * would then accept ids the mint never produces — a silent mis-validation,
+ * not the load failure the paragraph above promises. An unescaped `-` fails
+ * differently again: between descending code points it throws `Range out of
+ * order in character class` at construction, and between ascending ones it
+ * widens the class. Escaping removes both cases.
  */
-const ESCAPED_ALPHABET = CROCKFORD_ALPHABET.replace(/[\\^\]-]/g, '\\$&');
-const BODY_PATTERN = `[${ESCAPED_ALPHABET}]{${ID_LENGTH}}`;
-
-/** True when `value` is `<prefix>_` followed by `ID_LENGTH` Crockford base32 characters. */
 export function isCoherenceId(prefix: CoherenceIdPrefix, value: unknown): value is string {
-  return typeof value === 'string' && new RegExp(`^${prefix}_${BODY_PATTERN}$`).test(value);
+  return typeof value === 'string' && new RegExp(`^${prefix}_${ID_BODY_PATTERN}$`).test(value);
 }
 
 /**

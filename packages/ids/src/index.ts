@@ -17,6 +17,21 @@
 export const CROCKFORD_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
 /**
+ * Crockford base32, **escaped for a regex character class**.
+ *
+ * **Escaped because it goes into a class.** The alphabet as it stands holds no
+ * metacharacter, so the class reads the same either way — but an unescaped `]`
+ * would build a *valid* regex with the wrong language, and a checker built on
+ * it would accept ids the mint never produces. That is a silent
+ * mis-validation, not a loud failure. An unescaped `-` fails differently
+ * again: between descending code points it throws `Range out of order in
+ * character class` at construction — a loud failure, which is the failure the
+ * kind of check this guards wants — and between ascending code points it
+ * widens the class to everything in between. Escaping removes both cases.
+ */
+export const CROCKFORD_ALPHABET_ESCAPED = CROCKFORD_ALPHABET.replace(/[\\^\]-]/g, '\\$&');
+
+/**
  * Every prefix the family uses. `f`, `r` and `w` are the coherence module's
  * (coherence.md §3, §4.1, §4.3): a finding, a run and a world rule are minted by
  * this generator, not by a caller that borrows another family's prefix and swaps it.
@@ -57,6 +72,16 @@ export type IdPrefix = 'p' | 'n' | 'c' | 'cmd' | 'f' | 'r' | 'w' | 'prv';
  *   `mintProfileId` draws).
  */
 export const ID_LENGTH = 10;
+
+/**
+ * An id's body as a regex fragment: `ID_LENGTH` Crockford base32 characters.
+ *
+ * **Built from the constants above**, so a pattern and the mint that has to
+ * match it cannot drift apart: change the alphabet or the length there and
+ * every pattern built from this changes with it. A package that has to check
+ * an id's shape uses this fragment rather than spelling the length out again.
+ */
+export const ID_BODY_PATTERN = `[${CROCKFORD_ALPHABET_ESCAPED}]{${ID_LENGTH}}`;
 
 const FIXED_ROOTS = new Set(['root', 'manuscript', 'research']);
 
