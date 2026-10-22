@@ -24,7 +24,8 @@
  * - an **`internal`** copy mirrors what the state holds: a codex file the load
  *   could not read has no entry and no text, so the copy leaves it out; a
  *   document the load held has no body, so the copy writes the empty body the
- *   browser's own copy shows. Both are named in the report.
+ *   browser's own copy shows. Both are named in the report — the codex file as
+ *   one the copy leaves out, the document as one the copy holds empty.
  *
  * The author's own file is never touched by either: a save in place leaves the
  * file exactly as it is, and an internal copy writes into a copy of its own.
@@ -51,11 +52,31 @@ const NOT_TEXT = new Uint8Array([0xff, 0xfe, 0x41, 0x00]);
 const CHAPTER = 'n_CHAPTR0001';
 const HELD = 'n_HED0000001';
 const STRAY_CODEX = 'codex/c_VANSHED002.md';
+const SCREENPLAY = 'n_SCRPT00001';
 
 function project(): ProjectState {
   const state = createProjectState(createEmptyManifest('Keeper', T0));
   addDocument(state, { parentId: 'manuscript', title: 'Chapter 1', now: T0, id: CHAPTER });
   addDocument(state, { parentId: CHAPTER, title: 'Held', body: 'The ferry was late.', now: T0, id: HELD });
+  return state;
+}
+
+/**
+ * The same book with a screenplay in it. A screenplay's file is its own (`.fountain`), and the `.md` a
+ * save wrote before the kind had one of its own is the older name beside it (paths.ts `bodyNamesOf`).
+ */
+function screenplayProject(): ProjectState {
+  const state = createProjectState(createEmptyManifest('Keeper', T0));
+  addDocument(state, { parentId: 'manuscript', title: 'Chapter 1', now: T0, id: CHAPTER });
+  addDocument(state, {
+    parentId: CHAPTER,
+    title: 'Script',
+    body: 'INT. FERRY - DAY',
+    type: 'document',
+    kind: 'screenplay',
+    now: T0,
+    id: SCREENPLAY,
+  });
   return state;
 }
 
@@ -72,6 +93,19 @@ async function folderWithHeldDocument(): Promise<MemoryArtifactFs> {
   const fs = new MemoryArtifactFs();
   await writeProject(fs, project(), { now: T0 });
   await fs.writeBytesAtomic(`docs/${HELD}.md`, NOT_TEXT);
+  return fs;
+}
+
+/**
+ * A folder whose screenplay's own file is gone and whose older `.md` the load cannot read. The load
+ * falls back to the older name (the dual read), declines that one, and never looks at the screenplay's
+ * own file: it is not in the folder.
+ */
+async function folderWithHeldScreenplay(): Promise<MemoryArtifactFs> {
+  const fs = new MemoryArtifactFs();
+  await writeProject(fs, screenplayProject(), { now: T0 });
+  await fs.remove(`docs/${SCREENPLAY}.fountain`);
+  await fs.writeBytesAtomic(`docs/${SCREENPLAY}.md`, NOT_TEXT);
   return fs;
 }
 
@@ -129,9 +163,11 @@ describe('an internal copy mirrors what the state holds', () => {
     const report = await writeProject(target, loaded.state, { now: T1, copyFor: 'internal' });
 
     expect(await target.exists(STRAY_CODEX)).toBe(false);
-    // The report names every file whose text the copy does not carry — this one
-    // and the held document below.
-    expect(report.omitted).toEqual([STRAY_CODEX, `docs/${HELD}.md`]);
+    // The report names every file whose text the copy does not carry — this one,
+    // and the held document below, which the copy holds empty rather than
+    // leaving out.
+    expect(report.omitted).toEqual([STRAY_CODEX]);
+    expect(report.emptied).toEqual([`docs/${HELD}.md`]);
   });
 
   it('writes the empty body a held document shows, so the copy still loads', async () => {
@@ -141,12 +177,46 @@ describe('an internal copy mirrors what the state holds', () => {
     const target = new MemoryArtifactFs();
     const report = await writeProject(target, loaded.state, { now: T1, copyFor: 'internal' });
 
-    expect(report.omitted).toContain(`docs/${HELD}.md`);
+    // The copy holds the document as an empty shell: it is not left out of the copy.
+    expect(report.emptied).toContain(`docs/${HELD}.md`);
+    expect(report.omitted).not.toContain(`docs/${HELD}.md`);
+    expect(await target.exists(`docs/${HELD}.md`)).toBe(true);
     // The copy names a document, so it has to hold a file for it: a copy whose
     // manifest names a document it does not hold is a fatal load.
     const copied = await readProject(target, { now: T1 });
     expect(copied.report.ok).toBe(true);
     expect(copied.state.documents.get(HELD)?.body).toBe('');
+  });
+
+  it('names the file the load declined, and not the file it writes in its place', async () => {
+    const fs = await folderWithHeldScreenplay();
+    const loaded = await readProject(fs, { now: T1 });
+    // The load fell back to the older name and declined that one. The screenplay's own file was
+    // never in the folder, so nothing about it was ever read.
+    expect(loaded.state.declinedDocFiles.has(`${SCREENPLAY}.md`)).toBe(true);
+    expect(loaded.state.declinedDocFiles.has(`${SCREENPLAY}.fountain`)).toBe(false);
+
+    const target = new MemoryArtifactFs();
+    const report = await writeProject(target, loaded.state, { now: T1, copyFor: 'internal' });
+
+    // The copy names the screenplay, so it holds a file for it: the copy writes the screenplay's own
+    // file, empty, and the copy loads.
+    expect(report.written).toContain(`docs/${SCREENPLAY}.fountain`);
+    expect(await target.exists(`docs/${SCREENPLAY}.fountain`)).toBe(true);
+    const copied = await readProject(target, { now: T1 });
+    expect(copied.report.ok).toBe(true);
+
+    // But that file is not a file the load declined, so the copy does not hold it empty in place of
+    // the author's text, and it does not say it does: a save of the copy writes the empty text to
+    // that new name, not over the file the author wrote.
+    expect(report.emptied ?? []).toEqual([]);
+    // The author's file is the one the load declined, and the copy leaves it out: the copy says so
+    // once, for the one file, and not for two.
+    expect(report.omitted).toEqual([`docs/${SCREENPLAY}.md`]);
+    // The author's file is left exactly as it is: the copy does not write it, and the report does
+    // not name it among the files it wrote.
+    expect(report.written).not.toContain(`docs/${SCREENPLAY}.md`);
+    expect(await target.exists(`docs/${SCREENPLAY}.md`)).toBe(false);
   });
 
   it('leaves the author’s own file exactly as it is', async () => {

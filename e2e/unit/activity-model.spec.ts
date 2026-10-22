@@ -8,6 +8,7 @@ import {
   isViewEvent,
   sourceBadge,
   titleOf,
+  visibleActivityCount,
 } from '../../apps/desktop/src/app/activity-model.js';
 
 /** One executed command, as the bus writes its row (command-bus.md §8). */
@@ -62,6 +63,41 @@ test('a group that has been undone offers nothing, whatever its rows say', () =>
   const log = [row('binder.rename', 'renamed', 'gone')];
   const rows = activityRows(log, { showViews: false, groupOf: () => undefined });
   expect(rows[0]?.undo).toBeNull();
+});
+
+test('the limit keeps exactly the newest rows: zero keeps none, and a fraction is floored', () => {
+  const log = [row('binder.create', 'one'), row('binder.rename', 'two'), row('notes.set', 'three')];
+  const none = () => undefined;
+
+  expect(activityRows(log, { showViews: false, groupOf: none, limit: 0 })).toEqual([]);
+  expect(activityRows(log, { showViews: false, groupOf: none, limit: 2.5 }).map((item) => item.entry.command)).toEqual([
+    'notes.set',
+    'binder.rename',
+  ]);
+  expect(activityRows(log, { showViews: false, groupOf: none, limit: 3 })).toHaveLength(3);
+});
+
+test('a limit that is not a number holds none, so the window keeps the cost it exists to prevent', () => {
+  const log = [row('binder.create', 'one'), row('binder.rename', 'two'), row('notes.set', 'three')];
+  const none = () => undefined;
+
+  // `Math.floor(NaN)` is `NaN`, and a check against `NaN` never ends: the window would hold every row of the log.
+  expect(activityRows(log, { showViews: false, groupOf: none, limit: Number.NaN })).toEqual([]);
+  // A limit of infinity is the one that says "all of them", and it is kept.
+  expect(activityRows(log, { showViews: false, groupOf: none, limit: Number.POSITIVE_INFINITY })).toHaveLength(3);
+  expect(activityRows(log, { showViews: false, groupOf: none })).toHaveLength(3);
+});
+
+test('the count and the rows agree, even over a log with a hole in it', () => {
+  const log: (ActivityEntry | undefined)[] = [row('binder.create', 'one'), row('binder.rename', 'two'), row('notes.set', 'three')];
+  // A hole the log's own append never makes. The rows refuse to build it; a count that saw it would leave "Show older"
+  // one row short of zero forever, and one that read its command would throw.
+  log[1] = undefined;
+  const sparse = log as readonly ActivityEntry[];
+
+  expect(visibleActivityCount(sparse, true)).toBe(2);
+  expect(visibleActivityCount(sparse, false)).toBe(2);
+  expect(activityRows(sparse, { showViews: true, groupOf: () => undefined })).toHaveLength(2);
 });
 
 test('every command has a person’s title, and an unknown name is shown as it is', () => {

@@ -94,14 +94,26 @@ export interface ActivityRow {
 /**
  * The rows to show, newest first. `groupOf` answers from the undo store, so a group that has been
  * undone (and so is gone from it) loses its affordance without any bookkeeping here.
+ *
+ * `limit` keeps the newest rows only, and builds no row for the ones behind them: the log holds a row
+ * for every command of the sitting, and the panel renders on every change of the session
+ * (activity-window.ts).
  */
 export function activityRows(
   entries: readonly ActivityEntry[],
-  options: { readonly showViews: boolean; readonly groupOf: (id: string) => UndoGroup | undefined },
+  options: {
+    readonly showViews: boolean;
+    readonly groupOf: (id: string) => UndoGroup | undefined;
+    readonly limit?: number;
+  },
 ): ActivityRow[] {
   const claimed = new Set<string>();
   const rows: ActivityRow[] = [];
+  // A whole, non-negative count of rows: the check below runs before each push, so `0` builds nothing and a fractional limit is
+  // floored rather than rounded up. Without this the signature would promise "the newest `limit` rows" and hand back one more.
+  const limit = limitOf(options.limit);
   for (let index = entries.length - 1; index >= 0; index -= 1) {
+    if (rows.length >= limit) break;
     const entry = entries[index];
     if (entry === undefined || (!options.showViews && isViewEvent(entry.command))) continue;
     let undo: UndoGroup | null = null;
@@ -115,6 +127,37 @@ export function activityRows(
   return rows;
 }
 
+/**
+ * The number of rows a window holds.
+ *
+ * A whole, non-negative count: `0` holds none, and a fractional count is floored rather than rounded
+ * up. A count that is not a number is not a count at all, and a check against one never ends — so the
+ * window would hold every row of the log, which is the cost it exists to prevent. It holds none
+ * instead. A count of infinity is the one that says "all of them", and it is kept.
+ */
+function limitOf(requested: number | undefined): number {
+  if (requested === undefined) return Number.POSITIVE_INFINITY;
+  if (Number.isNaN(requested)) return 0;
+  return Math.max(0, Math.floor(requested));
+}
+
+/**
+ * How many rows the panel shows: the log's rows, without the view events unless the writer asks for
+ * them. The count is a walk over the log and builds nothing, so the panel knows how many rows it
+ * keeps back without building the rows behind its window (activity-window.ts).
+ */
+export function visibleActivityCount(entries: readonly ActivityEntry[], showViews: boolean): number {
+  let count = 0;
+  // The same walk `activityRows` makes, guarding a hole the same way, so the count and the rows the panel builds agree: a row
+  // `activityRows` refuses to build is a row this does not count, and "Show older" can always reach zero.
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    if (entry === undefined) continue;
+    if (showViews || !isViewEvent(entry.command)) count += 1;
+  }
+  return count;
+}
+
 export interface ActivityMarkdownInput {
   readonly title: string;
   readonly entries: readonly ActivityEntry[];
@@ -124,7 +167,8 @@ export interface ActivityMarkdownInput {
 }
 
 /**
- * The activity log and the agent's turns as one Markdown file (agent-harness §5: "exportable as markdown"). Every executed
+ * The activity log and the agent's turns as one Markdown file (agent-harness §5: the Markdown export carries the whole
+ * log). Every executed
  * command is a row, in the order it ran, with who issued it and where it came from. Each agent turn is a section: its intent,
  * how it ended, what it wrote, and the checkpoint that takes it back. View events are left out, as the panel leaves them out
  * unless asked for.

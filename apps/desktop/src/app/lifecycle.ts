@@ -454,6 +454,15 @@ export interface ExportedBundle {
   readonly filename: string;
   /** Things the writer should know about this copy, phrased for a person (a cover the page does not hold). */
   readonly notices: readonly string[];
+  /**
+   * The notices about the files whose text this copy does not carry, apart from the other notices.
+   *
+   * They are kept apart because they are what an adopt failure has to report: a file the copy left out
+   * is a file the restored copy lacks, and a file the copy holds as an empty shell is one the restored
+   * copy holds empty — either way the text is not in the copy — while a notice about the cover says
+   * nothing about the files.
+   */
+  readonly omissions: readonly string[];
 }
 
 /**
@@ -498,6 +507,9 @@ export async function exportStoredBundle(
  * The bundle of a state, its session log and its images (zip.ts carries `assets/` byte-for-byte). A cover that neither the browser's
  * copy nor an attached folder holds is bundled without its image, and the copy says so: one missing picture is not a reason to refuse
  * a whole backup.
+ *
+ * `copyFor` says who the bundle is for (zip.ts `ExportZipOptions.copyFor`): the writer's own copy
+ * refuses a file it cannot hold, and the app's own copy leaves that file out and says so.
  */
 async function bundleOf(
   state: ProjectState,
@@ -507,6 +519,7 @@ async function bundleOf(
   copyFor: 'user' | 'internal' = 'user',
 ): Promise<ExportedBundle> {
   const notices: string[] = [];
+  const omissions: string[] = [];
   const cover = state.manifest.project.coverAssetId;
   if (cover && !(await coverFileHeld(assets, cover))) {
     notices.push(
@@ -520,7 +533,25 @@ async function bundleOf(
     ...(coherence === undefined ? {} : { coherence }),
     copyFor,
   });
-  return { bytes: exported.bytes, filename: exported.filename, notices };
+  // A file the load declined because its bytes are not UTF-8 has no text to carry, and the copy says what
+  // it does with it rather than losing it silently. The writer's own copy refuses rather than getting here
+  // (write.ts `WriteOptions.copyFor`).
+  //
+  // The two kinds are told apart, because they are not the same thing: a codex file the copy cannot carry
+  // is left out of it altogether, while a document the load held is written as the empty body the browser's
+  // own copy shows — the copy holds that file, and it holds it empty. Saying "leaves it out" of a file the
+  // copy holds would be a lie, and it would hide the hazard: a save of that copy writes the empty text over
+  // the author's file.
+  for (const path of exported.omitted) {
+    omissions.push(`“${path}” is not UTF-8 text, so this copy leaves it out; the file it was opened from still holds its text`);
+  }
+  for (const path of exported.emptied) {
+    omissions.push(
+      `“${path}” is not UTF-8 text, so this copy holds an empty file in its place instead of its text; the file it was opened from still holds its text, and a save of this copy over it would write that empty text over it`,
+    );
+  }
+  notices.push(...omissions);
+  return { bytes: exported.bytes, filename: exported.filename, notices, omissions };
 }
 
 /**
@@ -1037,7 +1068,7 @@ export async function answerFolderDiffers(store: RuntimeStore, differs: FolderDi
     // This browser's copy is held in memory as a bundle before it is removed (its state, session log, pictures and findings), so an adopt
     // that fails puts it back rather than leaving the writer with neither version in this browser. The bundle is the app's own safety
     // net, not a copy the writer takes home, so it is made as an internal copy: a file this load declined because its bytes are not
-    // UTF-8 has no text to carry, and an internal copy omits it and says so in its report rather than refusing — a refusal here would
+    // UTF-8 has no text to carry, and an internal copy omits it and names it in its notices rather than refusing — a refusal here would
     // make 'use-folder' impossible for exactly the projects that hold such a file.
     const kept = await exportStoredBundle(store, differs.projectId, 'internal');
     // The files this load declined are held beside the bundle, because their record lives on the state and not in `caotang.json`: a
@@ -1063,14 +1094,20 @@ export async function answerFolderDiffers(store: RuntimeStore, differs: FolderDi
       // The writer is told both reasons — the adopt's own, and the put-back's if that failed too — and the adopt's
       // error is the cause, so nothing about it is lost.
       const restoreFailure = await restoreBrowserCopy(store, differs.projectId, kept.bytes, keptRecords, keptHeld);
+      const adoptReason = error instanceof Error ? error.message : String(error);
       if (restoreFailure !== null) {
-        const adoptReason = error instanceof Error ? error.message : String(error);
         throw new Error(
           `The folder's version could not be opened (${adoptReason}), and this browser's copy could not be put back (${restoreFailure.message}).`,
           { cause: error },
         );
       }
-      throw error;
+      // The failure is the only moment anyone learns what the safety copy does not hold: a file it left out is a file the
+      // restored copy lacks, so its notice rides out with the failure. The folder the writer chose still holds the text.
+      if (kept.omissions.length === 0) throw error;
+      throw new Error(
+        `${adoptReason} The copy of the project this browser kept, and that was put back, does not hold every file: ${kept.omissions.join(' ')}`,
+        { cause: error },
+      );
     }
     holdFolderCopy(opened.session, root, differs.baselineText, differs.digests);
     await rememberFolder(opened.session.projectId, root);

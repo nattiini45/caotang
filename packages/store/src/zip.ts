@@ -226,10 +226,17 @@ export interface ExportZipResult {
   excluded: string[];
   /**
    * Files whose text this bundle does not carry, because the load declined them
-   * and their bytes are not text. Only an `internal` bundle has any; a `user`
-   * bundle refuses instead of making one.
+   * and their bytes are not text, and which this bundle does not hold at all.
+   * Only an `internal` bundle has any; a `user` bundle refuses instead of
+   * making one.
    */
   omitted: string[];
+  /**
+   * Files this bundle holds as an empty shell in place of the author's text:
+   * the load declined them because their bytes are not text, and a bundle that
+   * left them out would name a document it does not hold.
+   */
+  emptied: string[];
 }
 
 /**
@@ -420,6 +427,7 @@ export async function exportProjectZip(
     rotated: report.rotated,
     excluded,
     omitted: report.omitted ?? [],
+    emptied: report.emptied ?? [],
   };
 }
 

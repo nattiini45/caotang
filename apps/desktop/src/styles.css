@@ -1266,6 +1266,10 @@ dialog.export-dialog::backdrop {
   margin-top: 2px;
 }
 
+.activity-older {
+  align-self: flex-start;
+}
+
 .badge {
   padding: 1px 6px;
   border: 1px solid var(--line-strong);
