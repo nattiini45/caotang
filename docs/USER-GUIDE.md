@@ -331,7 +331,7 @@ The formats come in three groups:
 |---|---|---|
 | Prose | Markdown (`.md`) | Plain Markdown, with a contents list after the title. |
 | Prose | Plain text (`.txt`) | Chapter headings in capitals, with scenes set apart by a line. |
-| Prose | Word (`.docx`) | Styled headings, and a contents field filled with the chapter headings. Word offers to update the field when the file opens. How Word and LibreOffice handle the field has not been tested. |
+| Prose | Word (`.docx`) | Styled headings, and a contents field filled with the chapter headings. Word offers to update the field when the file opens; a file without a contents list does not ask. How Word and LibreOffice handle the field has not been tested. |
 | Prose | EPUB (`.epub`) | A reading-system book, one file per chapter. |
 | Media | Fountain (`.fountain`) | The screenplay as plain Fountain text, for Beat or Highland. |
 | Media | Final Draft (`.fdx`) | The screenplay in Final Draft's XML. Not yet checked in Final Draft itself. |
@@ -475,7 +475,7 @@ A developer can run the agent against a project folder from a Node script, a com
 - **Exports.** The screenplay PDF is US Letter only; there is no A4 page and no choice of font.
 - **Contact sheet characters.** Characters that none of its fonts has, such as Tamil, print as `?`. The compile log names them. Emoji print in black and white, and skin tones as the plain figure. Chinese, Japanese and Korean text has no bold, and Han characters take their Simplified Chinese forms.
 - **Final Draft files.** Import and export of `.fdx` files have not been checked against files that Final Draft wrote or opened. The scene numbers and page headers that Caotang writes are not yet confirmed to show in Final Draft.
-- **Word contents.** How Word and LibreOffice handle the contents field in a `.docx` file has not been tested.
+- **Word contents.** How Word and LibreOffice handle the contents field in a `.docx` file has not been tested. A file without a contents list does not ask Word to update fields.
 - **The Pages view.** You cannot type on the Pages view of a screenplay yet; a line opens its element in the Source tab. It draws a dual-dialogue pair side by side, as the PDF does, but it closes up the blank lines and is not the page's exact height.
 - **Undo and reloads.** The toolbar's Undo and the Undo in Activity last for the open tab; checkpoints survive a reload. Undo on a screenplay's Source tab and in Ink text is the browser's own.
 - **Local models, checked.** The three local model servers have been tried against test servers that imitate their browser settings, not against the real Ollama, LM Studio and llama-server. Firefox has not been tried, and Safari is not verified. A server on another computer on your network is not supported: plain http is allowed only to this computer.
