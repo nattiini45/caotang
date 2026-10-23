@@ -13,7 +13,7 @@
  * A mark (Unicode category Mn) is not drawn: fontkit 1.1.1 cannot be shown to place Arabic tashkeel or Hebrew points as
  * HarfBuzz does (test/fixtures/shaping/README.md), so they are left out of the drawn run and named in the compile log. The
  * text a reader copies keeps them: each is a glyph of its own that draws nothing, with the mark as its ToUnicode text
- * (shaper.ts `withMarkGlyphs`).
+ * (shaper.ts `withMarkGlyphs`; the ones after a word's last letter are flagged `final` for the writers).
  */
 
 import { arabicFontMaps, hebrewFontMaps } from './coverage.js';

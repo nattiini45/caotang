@@ -162,6 +162,21 @@ describe('the text of the marks and joiners that are not drawn', () => {
     expect(run.filter((entry) => entry.id === blank).every((entry) => entry.advance === 0 && entry.dx === 0 && entry.dy === 0)).toBe(true);
   });
 
+  it('flags the marks after the last letter of a right-to-left run, which are drawn first, and no others', () => {
+    // كَتَبَ: drawn left to right, beh (with a dot glyph), teh, kaf; marks on kaf, teh and beh, so the last one is final.
+    const drawn = [glyph(30, 'ب'), glyph(31, '', 0), glyph(20, 'ت'), glyph(10, 'ك')];
+    const run = withMarkGlyphs(drawn, 'كَتَبَ', 'rtl', blank);
+    expect(run.map((entry) => `${entry.text}${entry.final === true ? '*' : ''}`)).toEqual(['َ*', 'ب', '', 'َ', 'ت', 'َ', 'ك']);
+    // Two marks on the last letter are both final, in the order they are drawn; a mark at the start of the word is not.
+    const two = withMarkGlyphs([glyph(30, 'ب'), glyph(10, 'ك')], 'ٌكبَّ', 'rtl', blank);
+    expect(two.map((entry) => `${entry.text}${entry.final === true ? '*' : ''}`)).toEqual(['ّ*', 'َ*', 'ب', 'ك', 'ٌ']);
+    // A reader that reverses the word still gets the typed text.
+    expect([...run].reverse().map((entry) => entry.text).join('')).toBe('كَتَبَ');
+    // A left-to-right run has no final marks, nor a word whose last letter has none.
+    expect(withMarkGlyphs([glyph(10, 'a'), glyph(11, 'b')], 'aَbَ', 'ltr', blank).some((entry) => entry.final === true)).toBe(false);
+    expect(withMarkGlyphs([glyph(20, 'ب'), glyph(10, 'ك')], 'كَب', 'rtl', blank).some((entry) => entry.final === true)).toBe(false);
+  });
+
   it('puts the marks of a left-to-right run after the letter in the order drawn, and a mark at the start first', () => {
     const run = withMarkGlyphs([glyph(10, 'a'), glyph(11, 'b')], 'ًaَb', 'ltr', blank);
     expect(texts(run)).toEqual(['3:ً', '10:a', '3:َ', '11:b']);

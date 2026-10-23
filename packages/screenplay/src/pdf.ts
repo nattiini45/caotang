@@ -33,7 +33,9 @@
  * with no marked content: each has the letter it draws in its ToUnicode entry (a mark or a joiner that is not drawn is a glyph
  * of its own that draws nothing), and a reader puts the word back in logical order by the bidirectional rules, as it does for the
  * right-to-left text of any producer. `/ActualText` would be reversed again by Poppler, which spreads it over the word from left
- * to right. The runs are written in logical order, each at an absolute position. A line without a plan is written as it always was.
+ * to right. The one marked content they have is plain `/Span BMC … EMC` (no text) around the marks after a word's last letter: they
+ * are drawn first, at the word's left end, but pdf.js appends a mark to the text item that is open, so they are written after the
+ * word, and the marked content ends the item the word is in, which leaves the word whole and its marks in an item that follows it. The runs are written in logical order, each at an absolute position. A line without a plan is written as it always was.
  *
  * Devanagari prints in a fourth such font (rtl-font.ts cuts it): a subset of Noto Sans Devanagari, written like the others. A line
  * that holds it is planned the same way (`PdfRtlFonts.lines`): each Devanagari word is a shaped run, set glyph by glyph, because
@@ -118,6 +120,11 @@ export interface PdfShapedGlyph {
   readonly cid: number;
   readonly x: number;
   readonly y: number;
+  /**
+   * A mark or joiner after the last letter of a right-to-left word: drawn at the word's left end, so first among its glyphs, and
+   * written after the others in marked content of its own (see the header).
+   */
+  readonly final?: true;
 }
 
 /** A word of Arabic, Hebrew or Devanagari, set in the font of its script glyph by glyph (see the header). */
@@ -239,6 +246,8 @@ function contentStream(lines: readonly PdfText[], fallback?: PdfCidFont, emoji?:
 const SHAPED_FONT = { arabic: 'F4', hebrew: 'F5', devanagari: 'F6' } as const;
 
 /** The marked content that gives a reader the text a stretch of the page stands for (PDF 32000-1 §14.9.4). */
+/** Marked content with no properties: it ends a text item in pdf.js and carries no text. */
+const PLAIN_SPAN = '/Span BMC';
 const actualText = (text: string): string => `/Span << /ActualText <FEFF${utf16Hex(text)}> >> BDC`;
 
 /**
@@ -263,10 +272,20 @@ function writePlan(
       const marked = item.font === 'devanagari';
       if (marked) parts.push(actualText(item.source));
       setFont(SHAPED_FONT[item.font]);
-      for (const glyph of item.glyphs) {
+      const show = (glyph: PdfShapedGlyph): void => {
         parts.push(`1 0 0 1 ${num(x + glyph.x)} ${num(LAYOUT.pageHeight - line.y + glyph.y)} Tm`, `${cidString([glyph])} Tj`);
-      }
+      };
+      item.glyphs.filter((glyph) => glyph.final !== true).forEach(show);
       if (marked) parts.push('EMC');
+      // The marks after a right-to-left word's last letter are drawn first, at its left end, but pdf.js appends a mark to the text
+      // item that is open, which is the word before. They are written after their word, each run in an item of its own that
+      // marked content ends, so a reader finds the word's item and then its marks, in logical order.
+      const finals = item.glyphs.filter((glyph) => glyph.final === true);
+      if (finals.length > 0) {
+        parts.push(PLAIN_SPAN);
+        finals.forEach(show);
+        parts.push('EMC');
+      }
       continue;
     }
     const copied = item.text !== item.source;

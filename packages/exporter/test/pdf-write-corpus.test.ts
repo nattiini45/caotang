@@ -190,12 +190,18 @@ const CORPUS: readonly Case[] = [
     file: 'screenplay-arabic-hebrew.pdf',
     format: 'pdf',
     // Right-to-left words are drawn glyph by glyph in visual order, each glyph with its text in ToUnicode and no /ActualText, so
-    // pdf.js and Poppler both put them back in logical order (tools/pdf-validate/check.mjs): the needles are the logical words.
+    // pdf.js and Poppler both put them back in logical order (tools/pdf-validate/check.mjs): the needles are the logical words,
+    // each as typed to its last mark. A mark after the last letter is written after its word, in marked content of its own.
     build: () => ({
-      state: sceneWith('INT. A - DAY\n\n@سارة\nمرحبا Bob، هل رأيت الفيلم؟ بِسْمِ الله\n\n@דוד\nשלום עולם, מה שלומך? שָׁלוֹם'),
+      state: sceneWith('INT. A - DAY\n\n@سارة\nمرحبا Bob، هل رأيت الفيلم؟ بِسْمِ الله\nكَتَبَ الوَلَدُ مُحَمَّدٌ اللّٰهِ الرَّحْمٰنِ\n\n@דוד\nשלום עולם, מה שלומך? שָׁלוֹם שָׁמָּה'),
     }),
     options: { titlePage: false },
-    pages: [['INT. A - DAY', 'سارة', 'مرحبا', 'Bob', 'رأيت', 'الفيلم', 'بِسْم', 'الله', 'דוד', 'שלום', 'עולם', 'שלומך', 'שָׁלוֹם']],
+    pages: [
+      [
+        'INT. A - DAY', 'سارة', 'مرحبا', 'Bob', 'رأيت', 'الفيلم', 'بِسْمِ', 'الله', 'كَتَبَ', 'الوَلَدُ', 'مُحَمَّدٌ', 'اللّٰهِ', 'الرَّحْمٰنِ',
+        'דוד', 'שלום', 'עולם', 'שלומך', 'שָׁלוֹם', 'שָׁמָּה',
+      ],
+    ],
     size: LETTER,
     fonts: [COURIER, ARABIC, HEBREW],
   },
@@ -240,8 +246,8 @@ const CORPUS: readonly Case[] = [
     // Right-to-left words on the contact sheet: the same drawing as the screenplay's, through the exporter's own embedding.
     file: 'sheet-arabic-hebrew.pdf',
     format: 'contact-sheet-pdf',
-    build: () => ({ state: sheetWith('World', 'مرحبا سارة، هل رأيت الفيلم؟ בסדר גמור'), files: {} }),
-    pages: [['Mara sets the kettle down.', 'مرحبا', 'سارة', 'رأيت', 'الفيلم', 'בסדר', 'גמור']],
+    build: () => ({ state: sheetWith('World', 'مرحبا سارة، هل رأيت الفيلم؟ كَتَبَ الوَلَدُ בסדר גמור שָׁלוֹם'), files: {} }),
+    pages: [['Mara sets the kettle down.', 'مرحبا', 'سارة', 'رأيت', 'الفيلم', 'كَتَبَ', 'الوَلَدُ', 'בסדר', 'גמור', 'שָׁלוֹם']],
     size: A4,
     fonts: [HELVETICA, ARABIC, HEBREW],
   },

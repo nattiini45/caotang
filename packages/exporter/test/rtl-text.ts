@@ -62,11 +62,19 @@ export function drawnRuns(pdf: PDFDocument, fonts: readonly string[] = ['NotoSan
     }
   }
   const runs: DrawnRun[] = [];
-  for (const block of contentOf(pdf, index).matchAll(/BT\s+\/(\S+) [\d.]+ Tf([\s\S]*?)ET/g)) {
+  const content = contentOf(pdf, index);
+  for (const block of content.matchAll(/BT\s+\/(\S+) [\d.]+ Tf([\s\S]*?)ET/g)) {
     const map = texts.get(block[1] ?? '');
     if (map === undefined) continue;
     const glyphs = [...(block[2] ?? '').matchAll(/1 0 0 1 (\S+) \S+ Tm\s+<([0-9A-F]{4})> Tj/g)];
     const drawn = glyphs.map((glyph) => map.get(parseInt(glyph[2] ?? '', 16)) ?? '');
+    const previous = runs[runs.length - 1];
+    if (previous !== undefined && /\/Span BMC\s*$/.test(content.slice(0, block.index))) {
+      // The marks after a word's last letter, which the writer puts after the word in marked content of their own: drawn first, at its left end.
+      const all = [...drawn, ...previous.drawn];
+      runs[runs.length - 1] = { x: previous.x, drawn: all, word: [...all].reverse().join('') };
+      continue;
+    }
     runs.push({ x: Number(glyphs[0]?.[1] ?? Number.NaN), drawn, word: [...drawn].reverse().join('') });
   }
   return runs;
@@ -97,13 +105,19 @@ export function drawnWords(pdf: PDFDocument, fonts: readonly string[] = ['NotoSa
     if (drawn.length > 0) words.push([...drawn].reverse().join(''));
     drawn = [];
   };
-  for (const op of contentOf(pdf, index).matchAll(/\/(\S+) [\d.]+ Tf|<([0-9A-F]+)> Tj|\((?:[^()\\]|\\.)*\) Tj/g)) {
-    if (op[1] !== undefined) {
+  // The marks after a word's last letter are written after the word in marked content of their own, and are the first drawn.
+  let finals: string[] | undefined;
+  for (const op of contentOf(pdf, index).matchAll(/\/(\S+) [\d.]+ Tf|<([0-9A-F]+)> Tj|\((?:[^()\\]|\\.)*\) Tj|(\/Span BMC)|(EMC)/g)) {
+    if (op[3] !== undefined) finals = [];
+    else if (op[4] !== undefined) {
+      if (finals !== undefined) drawn = [...finals, ...drawn];
+      finals = undefined;
+    } else if (op[1] !== undefined) {
       if (op[1] !== font) flush();
       font = op[1];
       current = font;
     } else if (op[2] !== undefined && texts.has(current)) {
-      drawn.push(texts.get(current)?.get(parseInt(op[2], 16)) ?? '');
+      (finals ?? drawn).push(texts.get(current)?.get(parseInt(op[2], 16)) ?? '');
     } else flush();
   }
   flush();

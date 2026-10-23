@@ -347,6 +347,34 @@ describe('the file', () => {
     expect(drawnTexts(hebrew, fonts?.hebrew).join('')).toBe('םולש');
   });
 
+  it('writes the marks after the last letter of a word after the word, in marked content of their own, because pdf.js reads a mark into the open text item', async () => {
+    const support = await loadRtlSupport(['arabic', 'hebrew'], LOADERS);
+    const source = text('@سارة', 'كَتَبَ الوَلَدُ', 'بِسْمِ שָׁמָּה');
+    const layout = layoutPdf(blocksOf(source), { title: 'T' }, support.measure);
+    const fonts = await loadRtlFallback(layout, support);
+    const items = [...(fonts?.lines.get(rtlLineKey('كَتَبَ الوَلَدُ بِسْمِ שָׁמָּה', true)) ?? [])].filter((item) => item.kind === 'shaped').sort((a, b) => a.order - b.order);
+    expect(items).toHaveLength(4);
+    const finals = items.map((item) => (item.kind === 'shaped' ? item.glyphs.filter((glyph) => glyph.final === true) : []));
+    // The three Arabic words end in a mark, which is drawn first, at the word's left end, and is the only glyph flagged; the Hebrew word does not.
+    expect(finals.map((glyphs) => glyphs.length)).toEqual([1, 1, 1, 0]);
+    for (const item of items.slice(0, 3)) {
+      // Only glyphs with no text of their own (the dots of a letter) can come before it.
+      const at = item.kind === 'shaped' ? item.glyphs.findIndex((glyph) => glyph.final === true) : -1;
+      expect(at).toBeGreaterThanOrEqual(0);
+      expect(drawnTexts(item, fonts?.arabic).slice(0, at).filter((text) => text !== '')).toEqual([]);
+    }
+    // A reader that reverses the word character by character still gets the typed text.
+    expect(items.slice(0, 3).map((item) => copiedRtl(item, fonts?.arabic))).toEqual(['كَتَبَ', 'الوَلَدُ', 'بِسْمِ']);
+    expect(copiedRtl(items[3], fonts?.hebrew)).toBe('שָׁמָּה');
+    // The file: the glyphs of the word, then its final mark between /Span BMC and EMC, and no other marked content for them.
+    const pdf = await pdfOf(source);
+    expect(pdf.match(/\/Span BMC\n1 0 0 1 \S+ \S+ Tm\n<[0-9A-F]{4}> Tj\nEMC/g)).toHaveLength(3);
+    expect(pdf.match(/\/Span BMC/g)).toHaveLength(3);
+    expect(actualTexts(pdf).filter((text) => /[֐-ۿ]/.test(text))).toEqual([]);
+    // A word with no mark at its end, and one whose marks are inside it or at its start, draw no such sequence.
+    expect(await pdfOf(text('@سارة', 'سارة بِسْم שָׁלוֹם'))).not.toContain('/Span BMC');
+  });
+
   it('has an Arabic font object only when the text holds Arabic, and a Hebrew one only when it holds Hebrew', async () => {
     const arabic = await pdfOf(text('@سارة', 'مرحبا.'));
     const hebrew = await pdfOf(text('@דוד', 'שלום.'));

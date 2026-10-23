@@ -114,18 +114,20 @@ export class CidEmbedding {
    * it). pdf-lib's own text operators write advances only, so the offsets that place a joined or marked word are drawn here.
    * With `actual`, the run's logical text, the glyphs are inside marked content that gives it to a reader (`/ActualText`); that
    * is for a left-to-right script. A right-to-left run passes none: its glyphs are in visual order, each with its text in
-   * ToUnicode, and a reader puts the words in logical order itself.
+   * ToUnicode, and a reader puts the words in logical order itself. The `final` glyphs, the marks after the last letter of such
+   * a run, which are drawn first at its left end, are written after the others in marked content of their own: pdf.js appends a
+   * mark to the text item that is open, so first in the stream it would be read into the word drawn before this one.
    */
   drawPlaced(
     page: PdfLib.PDFPage,
-    glyphs: readonly { readonly id: number; readonly advance: number; readonly text: string; readonly dx: number; readonly dy: number }[],
+    glyphs: readonly { readonly id: number; readonly advance: number; readonly text: string; readonly dx: number; readonly dy: number; readonly final?: true }[],
     x: number,
     y: number,
     size: number,
     ink: { r: number; g: number; b: number },
     actual?: string,
   ): void {
-    const { pushGraphicsState, popGraphicsState, beginText, endText, setFontAndSize, setFillingRgbColor, setTextMatrix, showText, PDFHexString, PDFName, PDFOperator, PDFOperatorNames, endMarkedContent } = this.lib;
+    const { pushGraphicsState, popGraphicsState, beginText, endText, setFontAndSize, setFillingRgbColor, setTextMatrix, showText, PDFHexString, PDFName, PDFOperator, PDFOperatorNames, beginMarkedContent, endMarkedContent } = this.lib;
     let key = this.keys.get(page);
     if (key === undefined) {
       key = page.node.newFontDictionary(this.names.resource, this.ref);
@@ -149,11 +151,15 @@ export class CidEmbedding {
       setFontAndSize(key, size),
     ];
     let pen = x;
+    const body: PdfLib.PDFOperator[] = [];
+    const finals: PdfLib.PDFOperator[] = [];
     for (const glyph of glyphs) {
-      operators.push(setTextMatrix(1, 0, 0, 1, pen + glyph.dx * scale, y + glyph.dy * scale), showText(PDFHexString.of(hex4(this.cidOf(glyph)))));
+      (glyph.final === true ? finals : body).push(setTextMatrix(1, 0, 0, 1, pen + glyph.dx * scale, y + glyph.dy * scale), showText(PDFHexString.of(hex4(this.cidOf(glyph)))));
       pen += glyph.advance * scale;
     }
-    operators.push(endText(), ...(actual === undefined ? [] : [endMarkedContent()]), popGraphicsState());
+    operators.push(...body, endText(), ...(actual === undefined ? [] : [endMarkedContent()]));
+    if (finals.length > 0) operators.push(beginMarkedContent('Span'), beginText(), setFontAndSize(key, size), ...finals, endText(), endMarkedContent());
+    operators.push(popGraphicsState());
     page.pushOperators(...operators);
   }
 

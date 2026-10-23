@@ -38,6 +38,13 @@ export interface ShapedGlyph {
    * skips (`CidNumbering`, cid-font.ts).
    */
   readonly text: string;
+  /**
+   * Set on the glyph of a mark or joiner that follows the last letter of a right-to-left run, which is drawn at its left end,
+   * before every letter ({@link withMarkGlyphs}). A writer puts such a glyph after the letters in the content stream, in marked
+   * content of its own, because pdf.js appends a mark to the text item that is open and so would read it into the word drawn
+   * before this one, or into an item of its own that comes before its word.
+   */
+  readonly final?: true;
 }
 
 /** A shaped run: its glyphs from left to right as drawn, whatever the direction of the text. */
@@ -129,6 +136,10 @@ export const fontkitShape: Shape = (text, font, direction, script) => {
  *
  * The texts of the glyphs in logical order (the drawn order reversed for a right-to-left run) are the letters of `source`
  * ({@link clusterTexts}); if they are not, the glyphs come back as they were.
+ *
+ * In a right-to-left run the marks that follow the last letter come out at the left end of the drawn glyphs, before the first
+ * glyph that advances. Those are flagged `final`: a writer cannot leave them first in the content stream (see
+ * {@link ShapedGlyph.final}).
  */
 export function withMarkGlyphs(glyphs: readonly ShapedGlyph[], source: string, direction: 'ltr' | 'rtl', blank: number): readonly ShapedGlyph[] {
   const hidden = [...source].filter((ch) => isRtlMark(ch) || isJoiner(ch));
@@ -150,7 +161,13 @@ export function withMarkGlyphs(glyphs: readonly ShapedGlyph[], source: string, d
     else after[owner[seen - 1] ?? 0]?.push(hiddenGlyph(ch));
   }
   const inLogicalOrder = [...lead, ...logical.flatMap((glyph, index) => [glyph, ...(after[index] ?? [])])];
-  return direction === 'rtl' ? inLogicalOrder.reverse() : inLogicalOrder;
+  if (direction !== 'rtl') return inLogicalOrder;
+  const drawn = inLogicalOrder.reverse();
+  // Everything that advances nothing at the left end of the run belongs to its last letter; the hidden glyphs among it are final.
+  const added = new Set<ShapedGlyph>([...lead, ...after.flat()]);
+  let end = 0;
+  while (end < drawn.length && drawn[end]?.advance === 0) end += 1;
+  return drawn.map((glyph, index) => (index < end && added.has(glyph) ? { ...glyph, final: true as const } : glyph));
 }
 
 /**

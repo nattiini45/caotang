@@ -13,6 +13,8 @@
  * only advances and so drops the offsets of a joined or marked word (cid-embedding.ts `drawPlaced`). The glyphs are in visual order
  * with the letter each draws in ToUnicode and no `/ActualText`, and a mark that is left out of the drawing is a glyph of its own that
  * draws nothing and carries the mark (`shapeKeepingMarks`, the shape the sheet is handed), so a reader puts the word back in logical order by its own rules.
+ * A mark after the last letter is drawn first, so `drawPlaced` writes it after the word in marked content of its own (pdf.js appends a
+ * mark to the open text item).
  * Poppler spreads an `/ActualText` over the word's box and then reverses a right-to-left word, so it would return it backwards.
  */
 

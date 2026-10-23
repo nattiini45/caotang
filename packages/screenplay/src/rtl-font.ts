@@ -14,7 +14,8 @@
  * glyph at the position the shaper gave, and the other runs are the line's other text. The plan is what pdf.ts writes. Marks
  * (harakat, Hebrew points) are left out of the shaped word, which fontkit 1.1.1 cannot be shown to place as HarfBuzz does
  * (`@caotang/pdf-fonts` test/fixtures/shaping), and the text a reader copies keeps them: each mark, and each zero-width joiner, is a
- * glyph of its own that draws nothing and carries the character as its text (`withMarkGlyphs`). The words have no `/ActualText`:
+ * glyph of its own that draws nothing and carries the character as its text (`withMarkGlyphs`; the ones after a word's last letter are
+ * flagged `final`, which pdf.ts writes after the word). The words have no `/ActualText`:
  * the glyphs are drawn in visual order with the letter each draws in ToUnicode, and a reader puts the word in logical order.
  *
  * Devanagari is left to right and needs no bidirectional algorithm. A line that holds it is planned too: each Devanagari word is
@@ -173,7 +174,7 @@ interface Collected {
 const round = (value: number): number => Math.round(value * 100) / 100;
 
 /** The glyphs of a shaped run placed from `start` (points from the run's left edge), each with the CID of its (glyph, text) pair. */
-function placeGlyphs(glyphs: readonly ShapedGlyph[], font: Font, start: number, target: Collected): { cid: number; x: number; y: number }[] {
+function placeGlyphs(glyphs: readonly ShapedGlyph[], font: Font, start: number, target: Collected): { cid: number; x: number; y: number; final?: true }[] {
   const scale = SIZE / font.unitsPerEm;
   let x = start;
   return glyphs.map((glyph) => {
@@ -184,7 +185,7 @@ function placeGlyphs(glyphs: readonly ShapedGlyph[], font: Font, start: number, 
       target.units.push({ glyphId: glyph.id, width: Math.round(glyph.advance * (1000 / font.unitsPerEm)), text: glyph.text, cid });
       target.cids.set(key, cid);
     }
-    const placed = { cid, x: round(x + glyph.dx * scale), y: round(glyph.dy * scale) };
+    const placed = { cid, x: round(x + glyph.dx * scale), y: round(glyph.dy * scale), ...(glyph.final === true ? { final: true as const } : {}) };
     x += glyph.advance * scale;
     return placed;
   });
