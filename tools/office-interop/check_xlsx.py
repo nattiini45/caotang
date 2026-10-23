@@ -58,14 +58,25 @@ def unescape_excel(text: str) -> str:
     return re.sub(r"_x([0-9A-Fa-f]{4})_", lambda m: chr(int(m.group(1), 16)), text)
 
 
+ESCAPE = re.compile(r"_x[0-9A-Fa-f]{4}_")
+
+
+def note(file: str, check: str, message: str) -> None:
+    print(f"NOTE {file} [{check}] {message}")
+
+
 def same_text(want: str, got: str, loose: bool) -> bool:
     if loose and len(want) > LONG:
         return len(got) >= LONG and got[:LONG] == want[:LONG]
     return got == want
 
 
-def compare_cells(file: str, check: str, book: dict[str, Any], ws: Any, strict_flags: bool) -> None:
-    """Compares the sheet's cells with the book's rows: value and type, and the style flags when `strict_flags` (check a)."""
+def compare_cells(file: str, check: str, book: dict[str, Any], ws: Any, strict_flags: bool, resaved: bool = False) -> None:
+    """Compares the sheet's cells with the book's rows: value and type, and the style flags when `strict_flags` (check a).
+
+    `resaved` is LibreOffice's own re-save. LibreOffice reads an escaped literal `_xHHHH_` correctly (the CSV check compares
+    it exactly) but writes it back unescaped, so its re-saved file decodes it to the character. Only that one loss is a note.
+    """
     loose = not strict_flags
     for r, row in enumerate(book["rows"], start=2):
         for c, want in enumerate(row, start=1):
@@ -79,7 +90,9 @@ def compare_cells(file: str, check: str, book: dict[str, Any], ws: Any, strict_f
                     fail(file, check, f"{ref} should be the number {want['v']!r}, got {cell.data_type!r} {cell.value!r}")
             else:
                 got = unescape_excel(cell.value) if isinstance(cell.value, str) else cell.value
-                if cell.data_type != "s" or not isinstance(got, str) or not same_text(want["v"], got, loose):
+                if resaved and cell.data_type == "s" and ESCAPE.search(want["v"]) and got == unescape_excel(want["v"]):
+                    note(file, check, f"{ref}: LibreOffice's re-save wrote the literal _xHHHH_ text unescaped (its writer, not this file)")
+                elif cell.data_type != "s" or not isinstance(got, str) or not same_text(want["v"], got, loose):
                     fail(file, check, f"{ref} should be the text {want['v'][:80]!r}, got {cell.data_type!r} {str(got)[:80]!r}")
                 if strict_flags:
                     if bool(cell.quotePrefix) != bool(want.get("quotePrefix")):
@@ -236,7 +249,7 @@ def check_resaved(book: dict[str, Any], path: Path) -> None:
     if wb.sheetnames != [book["sheet"]]:
         fail(name, "libreoffice-xlsx", f"sheets are {wb.sheetnames!r}, expected {[book['sheet']]!r}")
         return
-    compare_cells(name, "libreoffice-xlsx", book, wb.active, strict_flags=False)
+    compare_cells(name, "libreoffice-xlsx", book, wb.active, strict_flags=False, resaved=True)
 
 
 def main(argv: list[str]) -> int:

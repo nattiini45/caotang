@@ -16,7 +16,7 @@ The `office-interop` job in `.github/workflows/ci.yml` runs on every push to `ma
    - **openpyxl 3.1.5**, with every warning an error: sheet name, title, frozen bold header, and each cell's value, type,
      `quotePrefix` and wrap;
    - **LibreOffice, XLSX to CSV:** the CSV is compared cell for cell (`=SUM(A1)` stays text, CJK, emoji and line breaks survive);
-   - **LibreOffice, XLSX to XLSX:** the re-saved file is read with openpyxl, with the same values and types.
+   - **LibreOffice, XLSX to XLSX:** the re-saved file is read with openpyxl, with the same values and types. One known loss is a note, not a failure: LibreOffice reads a literal `_x0041_` correctly (the CSV step checks it exactly) but writes it back unescaped, so its re-saved file holds an `A`. That is LibreOffice's writer, not the file Caotang wrote.
 
    A cell over 8,000 characters is compared by its first 8,000 under LibreOffice; the cut at 32,767 is checked in full under openpyxl.
    A missing `soffice`, a non-zero exit, an `Error:` line or an empty output fails the run. The corpus and the LibreOffice logs
