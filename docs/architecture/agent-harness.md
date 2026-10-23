@@ -101,7 +101,7 @@ The ask-back renders as a **card in the agent panel** (buttons for the options, 
 The rules that keep this from becoming "every primitive is a tool":
 
 - The tool's risk and undo are read from the command's descriptor at registration. A spec has no field to state them, so a tool cannot differ from its command.
-- The types name what may never be exposed (`NeverExposed`: every delete, `doc.write`, `editor.insert`, `editor.replaceRange`, the `view.*` commands, the staging commands `project.importAsset` and `shot.importImage`, and `mcp.invoke`). A spec that names one does not compile, and a runtime guard refuses a `never`-class or hard-denied command.
+- The types name what may never be exposed (`NeverExposed`: every delete, `doc.write`, `editor.insert`, `editor.replaceRange`, the `view.*` commands, the staging commands `project.importAsset`, `shot.importImage` and `shot.importImages`, and `mcp.invoke`). A spec that names one does not compile, and a runtime guard refuses a `never`-class or hard-denied command.
 - A tool's params are closed and map onto keys its command declares (`DECLARED_PARAMS`). An undeclared key is refused with the accepted set named.
 - Every call passes the ordinary permission gate, the bus `validate` and the plan card's preview. None runs under an inherited grant.
 - A plan step that names a status or label an earlier `vocabulary.upsert` step adds is deferred in the preview, as a step that names a document an earlier create makes is, and is checked again when it runs.

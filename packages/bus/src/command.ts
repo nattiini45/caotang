@@ -121,6 +121,8 @@ export const COMMAND_NAMES = [
   // Storyboard: one shot's image, written from a staged file and set as its `image` in one undo group (storyboard.md
   // §3.1). Its apply is the store's (`commands-shot-image.ts`), and its descriptor is `descriptors-shot-image.ts`.
   'shot.importImage',
+  // The paper-photo round trip's batch (storyboard.md §6): several pictures, each on its shot, written and set as one undo group.
+  'shot.importImages',
   // The whole-script Fountain and FDX import (screenplay.md §2.2), the whole-story Ink import (dialogue-narrative.md
   // §4) and a dialogue container's settings (dialogue-narrative.md §2.1). §9 tabulates them, after shot.importImage.
   // Their applies are the store's (`commands-script.ts`).
@@ -579,6 +581,7 @@ export interface CommandParams {
   'project.saveGoal': ProjectSaveGoalParams;
   'project.deleteGoal': ProjectDeleteGoalParams;
   'shot.importImage': ShotImportImageParams;
+  'shot.importImages': ShotImportImagesParams;
   'screenplay.import': ScreenplayImportParams;
   'dialogue.importInk': DialogueImportInkParams;
   'dialogue.setMeta': DialogueSetMetaParams;
@@ -624,6 +627,12 @@ export type ShotSetMetaCommandParams = {
  * the staging id. The shot is named by its node id, and an apply on a node that is not a shot is refused before any write.
  */
 export type ShotImportImageParams = { nodeId: string; stagingId: string };
+
+/**
+ * `shot.importImages` (storyboard.md §6, the paper-photo round trip): several staged images, each written into `assets/` and set as its
+ * own shot's `image`, as one command and so one undo group. The shots are named by node id, each at most once.
+ */
+export type ShotImportImagesParams = { items: { nodeId: string; stagingId: string }[] };
 
 /**
  * `mcp.invoke`'s params (extensibility.md §6). The bus holds the shape only: the validated call, and the
