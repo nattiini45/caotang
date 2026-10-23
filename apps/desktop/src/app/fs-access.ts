@@ -262,3 +262,13 @@ async function collect(directory: DirectoryHandleLike, kind: 'file' | 'directory
   }
   return names.sort();
 }
+
+/**
+ * Whether two handles name the same folder. The browser answers with `isSameEntry`, which a second handle to the same folder passes.
+ * A handle that cannot answer is taken as another folder, so the copy held for the first is no baseline for it.
+ */
+export async function isSameFolder(a: DirectoryHandleLike, b: DirectoryHandleLike): Promise<boolean> {
+  if (a === b) return true;
+  const { isSameEntry } = a as DirectoryHandleLike & { isSameEntry?: (other: DirectoryHandleLike) => Promise<boolean> };
+  return isSameEntry === undefined ? false : isSameEntry.call(a, b);
+}

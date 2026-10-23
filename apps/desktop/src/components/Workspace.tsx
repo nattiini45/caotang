@@ -534,6 +534,7 @@ export function Workspace({
             reason: outcome.reason,
             files: outcome.files,
             partial: outcome.partial === true,
+            after: outcome.after === true,
             removed: outcome.removed === true,
             answers,
           });
@@ -542,7 +543,8 @@ export function Workspace({
         setFolderOffer(null);
         // From here on the session's exports are written into this folder too (exports.ts).
         await session.attachFolder(folder);
-        report({ text: `Saved the project to the folder “${folder.name}”. Exports go there from now on.`, tone: 'info' });
+        const kept = outcome.backup === undefined ? '' : ` What it replaced is kept in ${outcome.backup}.`;
+        report({ text: `Saved the project to the folder “${folder.name}”.${kept} Exports go there from now on.`, tone: 'info' });
       } catch (error) {
         report({ text: `The folder could not be saved: ${errorText(error)}`, tone: 'error' });
       }
@@ -1029,6 +1031,8 @@ interface FolderOffer {
   readonly files: readonly FolderFileChange[];
   /** The change was found part way through the save, so the files before it and the pictures were written, and these were not. */
   readonly partial: boolean;
+  /** The change was found after the save was written in full: the folder holds the other program's version of these files. */
+  readonly after: boolean;
   /** The folder's caotang.json is gone rather than changed, so there is no newer copy to open. */
   readonly removed: boolean;
   readonly answers: FolderSaveAnswers;
@@ -1054,8 +1058,9 @@ function folderQuestion({
   reason,
   files,
   partial,
+  after,
   removed,
-}: Pick<FolderOffer, 'reason' | 'files' | 'partial' | 'removed'>): {
+}: Pick<FolderOffer, 'reason' | 'files' | 'partial' | 'after' | 'removed'>): {
   readonly title: string;
   readonly body: ReactNode;
   readonly confirm: string;
@@ -1073,10 +1078,16 @@ function folderQuestion({
               them were saved, and these were not:
             </p>
           ) : null}
+          {after ? (
+            <p>
+              Another program changed these files in the folder while Caotang was saving. The save was written, and the folder now holds
+              that program&rsquo;s version of them:
+            </p>
+          ) : null}
           {changedFilesList(files)}
           <p>
-            Saving writes this tab&rsquo;s version over them. The folder&rsquo;s version isn&rsquo;t kept, so if you need anything from
-            it, open the folder in another program and copy it first.
+            Saving writes this tab&rsquo;s version over them. The folder&rsquo;s version is kept first, in <code>.caotang-backup</code> in
+            the folder, so if you need anything from it, copy it from there.
           </p>
         </>
       ),
@@ -1087,7 +1098,13 @@ function folderQuestion({
   if (reason === 'locked') {
     return {
       title: 'Another program may be using this folder',
-      body: (
+      body: after ? (
+        <p>
+          A lock file appeared in this folder while Caotang was saving, so another program, such as the Caotang MCP server, may have read
+          the folder part way through the save. The save was written. Saving again now can overwrite what that program writes. Save again
+          anyway?
+        </p>
+      ) : (
         <p>
           A lock file in this folder says that another program, such as the Caotang MCP server, may be using it. Saving now can overwrite
           what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?
@@ -1121,8 +1138,8 @@ function folderQuestion({
       body: (
         <>
           <p>
-            <code>caotang.json</code> in this folder was changed by another program after Caotang last loaded or saved it, so
-            nothing was written.
+            <code>caotang.json</code> in this folder was changed by another program{' '}
+            {after ? 'while Caotang was saving it, so the folder now holds that program’s version.' : 'after Caotang last loaded or saved it, so nothing was written.'}
           </p>
           <p>
             To see the folder&rsquo;s newer copy, go to Projects and open the folder again: it opens as a separate project. Saving here
@@ -1141,9 +1158,9 @@ function folderQuestion({
       body: (
         <p>
           Caotang has no record of what this folder held when this project was last saved there, so it can&rsquo;t tell which documents
-          changed since. Saving writes this tab&rsquo;s version over the folder&rsquo;s documents. The folder&rsquo;s version isn&rsquo;t
-          kept, apart from a backup of its <code>caotang.json</code>, so if you need anything from it, open the folder in another program
-          and copy it first.
+          changed since. Saving writes this tab&rsquo;s version over the folder&rsquo;s documents. The folder&rsquo;s version of each
+          one it replaces is kept in <code>.caotang-backup</code> in the folder, and an older <code>caotang.json</code> is kept as a backup
+          of its own, so if you need anything from it, copy it from there.
         </p>
       ),
       confirm: 'Save over it',
@@ -1155,7 +1172,8 @@ function folderQuestion({
     body: (
       <p>
         Saving here replaces that project&rsquo;s <code>caotang.json</code> and any of its documents that share an id with this one.
-        Caotang keeps a backup of the <code>caotang.json</code> only, not of the documents.
+        Caotang keeps a backup of that <code>caotang.json</code>, and copies each document it replaces to <code>.caotang-backup</code> in the
+        folder.
       </p>
     ),
     confirm: 'Save over it',

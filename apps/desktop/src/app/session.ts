@@ -151,11 +151,20 @@ export interface Durability {
   readonly quota: number | null;
 }
 
+/** The folder's copy of the findings file was not written, while the browser's was (`CoherencePort.save`). The message says why, in words. */
+export class CoherenceFolderError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CoherenceFolderError';
+  }
+}
+
 /**
  * Where a session's coherence file is written (coherence.md §3): the browser's copy, and the open folder's when one is
  * attached. `save` receives the file as it is when the save runs, so a save never writes an older state than the latest.
  */
 export interface CoherencePort {
+  /** Saves `file` in the browser and in the attached folder. Throws a `CoherenceFolderError` when only the folder's copy was not written. */
   save(file: CoherenceFile): Promise<void>;
   /**
    * Makes an open folder a place the file is saved to from now on, and writes `file` into it now. The folder's own copy is read
@@ -1131,6 +1140,13 @@ export class ProjectSession {
         await port.save(file);
         this.coherenceFailure = null;
       } catch (error) {
+        if (error instanceof CoherenceFolderError) {
+          // The browser's copy was saved; the folder's was not, and the findings tab says why.
+          this.coherenceFailure = null;
+          this.coherenceFolderFailure = `Your findings could not be saved to the folder: ${error.message}`;
+          if (this.coherenceQueued === signature) this.coherenceQueued = null;
+          return;
+        }
         this.coherenceFailure = `Your findings could not be saved in this browser: ${error instanceof Error ? error.message : String(error)}`;
         // Unless a newer file has been queued behind this one, the next change queues this file again.
         if (this.coherenceQueued === signature) this.coherenceQueued = null;

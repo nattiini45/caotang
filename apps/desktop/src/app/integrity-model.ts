@@ -115,8 +115,8 @@ export interface FolderSaveFacts {
  * A folder with no manifest is written only when this session never held one there: a manifest this session did hold, and that another
  * program removed since, is a change (`changed`), so it is asked about rather than recreated. Otherwise the folder must hold the
  * text this session last saw, and then the document and codex files it held, or the writer must have said to replace them. The replaced
- * manifest is kept as a backup by the writer (write.ts rotates it), so a confirmed replacement of the manifest is recoverable. A replaced
- * document is not kept, which is why the question asked about one says so (lifecycle `folderChanges`).
+ * manifest is kept as a backup by the writer (write.ts rotates it), and a replaced document or codex file is copied to `.caotang-backup` first
+ * (folder-guard.ts), so a confirmed replacement is recoverable; the question asked about one says where the copy is (lifecycle `folderChanges`).
  */
 export function folderSaveVerdict(facts: FolderSaveFacts): FolderSaveVerdict {
   if (facts.locked && !facts.lockConfirmed) return 'locked';
