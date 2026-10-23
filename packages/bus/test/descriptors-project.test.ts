@@ -289,6 +289,21 @@ describe('recipe.save', () => {
     }
     expect(save({ continued: 'yes' })).toMatchObject({ ok: false, target: 'options.continued' });
   });
+
+  // storyboard.md §6: the contact sheet's paper frames are a boolean recipe option.
+  it('keeps the contact sheet’s paper frames switch, and refuses a value that is not true or false', () => {
+    const save = (options: Record<string, unknown>) =>
+      check(projectCommands.recipeSave.validate, { name: 'Paper', includeRootIds: [MANUSCRIPT], format: 'contact-sheet-pdf', options });
+    for (const paperFrames of [true, false]) {
+      expect(save({ pageSize: 'A4', paperFrames }), String(paperFrames)).toEqual({
+        ok: true,
+        value: { name: 'Paper', includeRootIds: [MANUSCRIPT], format: 'contact-sheet-pdf', options: { pageSize: 'A4', paperFrames } },
+      });
+    }
+    for (const bad of ['yes', 1, null]) {
+      expect(save({ paperFrames: bad }), String(bad)).toMatchObject({ ok: false, target: 'options.paperFrames' });
+    }
+  });
 });
 
 describe('recipe.delete', () => {

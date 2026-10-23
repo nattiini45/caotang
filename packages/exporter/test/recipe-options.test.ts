@@ -218,3 +218,34 @@ describe('a part under a recipe — the recipe\'s options apply, and its selecti
     expect((outcome.result as { output: string }).output).toBe(`exports/${PROJECT_NAME}.md`);
   });
 });
+
+describe('paper frames — the contact sheet’s option, read by no other format (storyboard.md §6)', () => {
+  /** What one format writes under a recipe carrying `options`, as text. */
+  async function written(format: string, options: Record<string, unknown>): Promise<string> {
+    const state = makeMediaProject();
+    const r = rig(state);
+    await r.exporter.ready();
+    okValue(r.run('recipe.save', { name: 'Switch', includeRootIds: ['manuscript'], format, options }));
+    const outcome = okValue(r.run('export.compile', { format, recipeName: 'Switch' }));
+    await r.exporter.idle();
+    return r.fs.snapshot()[(outcome.result as { output: string }).output] ?? '';
+  }
+
+  it('leaves every other format’s output the same with it on or off', async () => {
+    for (const format of ['md', 'txt', 'fountain', 'ink-json', 'dialogue-csv', 'shot-list-csv', 'coherence-md'] as const) {
+      const off = await written(format, {});
+      expect(off.length, format).toBeGreaterThan(0);
+      expect(await written(format, { paperFrames: true }), format).toBe(off);
+    }
+  });
+
+  it('is saved by recipe.save, survives a read of the recipe, and is refused when it is not a boolean', () => {
+    const r = rig(makeMediaProject());
+    okValue(r.run('recipe.save', { name: 'Paper', includeRootIds: ['manuscript'], format: 'contact-sheet-pdf', options: { paperFrames: true } }));
+    expect(recipesOf(r.state).find((recipe) => recipe.name === 'Paper')?.options).toEqual({ paperFrames: true });
+
+    const refused = r.run('recipe.save', { name: 'Odd', includeRootIds: ['manuscript'], format: 'contact-sheet-pdf', options: { paperFrames: 'yes' } });
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error.message).toContain('params.options.paperFrames must be true or false');
+  });
+});

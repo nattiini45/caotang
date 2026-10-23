@@ -938,6 +938,8 @@ export type RecipeOptionsParams = {
   continued?: boolean;
   /** The contact sheet's paper (storyboard.md §6). */
   pageSize?: RecipePageSize;
+  /** The contact sheet prints blank numbered frames to draw on (storyboard.md §6). */
+  paperFrames?: boolean;
 };
 
 /**

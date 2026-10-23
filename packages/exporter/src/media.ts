@@ -122,6 +122,8 @@ export interface MediaRequest {
   readonly readAsset?: (path: string) => Promise<Uint8Array | null>;
   /** The contact sheet's paper, A4 or US Letter (storyboard.md §6). Absent is A4. Only `contact-sheet-pdf` reads it. */
   readonly pageSize?: PageSize;
+  /** The contact sheet prints blank numbered frames to draw on, not the shots' pictures (storyboard.md §6). Absent is off. Only `contact-sheet-pdf` reads it. */
+  readonly paperFrames?: boolean;
   /** The moment the compile ran, in ms. The contact sheet's PDF dates are set from it. Absent is now. */
   readonly at?: number;
   /** Reads the fallback font for text outside Latin script (`@caotang/font-noto-cjk`). The screenplay PDF and the contact sheet read it, and only when the file holds such text. */
@@ -777,11 +779,13 @@ function contactSheetOutput(request: MediaRequest): MediaOutput {
     throw new MediaRefusedError('contact-sheet-pdf', ['the selection holds no shot, so there is no contact sheet to draw']);
   }
   const pageSize = request.pageSize ?? 'A4';
+  const paper = request.paperFrames === true;
   const planned = planContactSheet(request.state, request.includeRootIds, (assetId) => sheetImageStatus(request.assets, assetId, request.transcodePicture !== undefined), {
     pageSize,
     headerTemplate: CONTACT_SHEET_HEADER,
     project: request.title,
     date: request.date,
+    ...(paper ? { paperFrames: true } : {}),
   });
   const readAsset = request.readAsset;
   const notes = [...planned.notes];
@@ -790,12 +794,13 @@ function contactSheetOutput(request: MediaRequest): MediaOutput {
   }
   const pages = planned.plan.pages.length;
   notes.push(`contact sheet: ${pages} ${pages === 1 ? 'page' : 'pages'} of ${planned.plan.cardsPerPage} shots each, ${pageSize}`);
+  if (paper) notes.push('contact sheet: paper frames, so each card is an empty frame to draw in and no picture is drawn');
   const at = new Date(request.at ?? Date.now());
   const title = planned.plan.pages[0]?.title.text ?? request.title;
   return {
     files: [
       {
-        name: `${request.base} (contact sheet).pdf`,
+        name: `${request.base} (${paper ? 'paper frames' : 'contact sheet'}).pdf`,
         mimeType: PDF_MIME,
         bytes: () =>
           drawContactSheet({
@@ -824,7 +829,7 @@ function contactSheetOutput(request: MediaRequest): MediaOutput {
     sceneCount: 0,
     wordCount: 0,
     skippedDocs: [],
-    notes: [...notes, ...bareShotNotes(request, 'its card shows its number and "No image", with no camera details or action')],
+    notes: [...notes, ...(paper ? [] : bareShotNotes(request, 'its card shows its number and "No image", with no camera details or action'))],
   };
 }
 

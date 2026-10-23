@@ -48,6 +48,11 @@
  * embedded as that PNG; the format is read from the bytes, never the file name. A picture the engine cannot draw (a WebP with no
  * transcoder, bytes that are gone, a file that does not parse) gets the card's caption in its box instead, and the log names the
  * picture once.
+ *
+ * ## The paper sheet
+ *
+ * A plan made with `paperFrames` has paper cards (`PlacedCard.paper`): the emitter draws each as an empty box with a darker 0.75 pt line,
+ * no picture and no placeholder text, and its caption beside the chip. It reads no picture file.
  */
 
 import {
@@ -144,6 +149,8 @@ const INK: Shade = { r: 0.1, g: 0.1, b: 0.1 };
 const MUTED: Shade = { r: 0.4, g: 0.4, b: 0.4 };
 const FRAME_FILL: Shade = { r: 0.93, g: 0.93, b: 0.93 };
 const FRAME_LINE: Shade = { r: 0.7, g: 0.7, b: 0.7 };
+/** The ruled line of a paper sheet's frame: darker than the picture sheet's, since a pencil drawing is to sit inside it. */
+const FRAME_RULE: Shade = { r: 0.3, g: 0.3, b: 0.3 };
 const CHIP_FILL: Shade = { r: 0.15, g: 0.15, b: 0.15 };
 const PAPER: Shade = { r: 1, g: 1, b: 1 };
 
@@ -616,25 +623,28 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
 
   const drawCard = async (page: PdfLib.PDFPage, card: PlacedCard): Promise<void> => {
     const box = card.image;
+    // A paper card is a frame to draw on: an empty box with a darker line, and nothing in it. A picture card's box is shaded.
     page.drawRectangle({
       x: box.x,
       y: flip(box.y + box.height),
       width: box.width,
       height: box.height,
-      color: color(FRAME_FILL),
-      borderColor: color(FRAME_LINE),
-      borderWidth: 0.5,
+      ...(card.paper ? {} : { color: color(FRAME_FILL) }),
+      borderColor: color(card.paper ? FRAME_RULE : FRAME_LINE),
+      borderWidth: card.paper ? 0.75 : 0.5,
     });
-    const assetId = input.pictures.get(card.shotId);
-    const image = card.hasImage && assetId !== undefined ? await pictureOf(assetId, box) : null;
-    if (image !== null) {
-      const fit = containIn(box, image.width, image.height);
-      page.drawImage(image, { x: fit.x, y: flip(fit.y + fit.height), width: fit.width, height: fit.height });
-    } else {
-      await drawText(page, card.placeholder ?? card.fallback, regular, box.width - 2 * (card.fallback.x - box.x), MUTED);
+    if (!card.paper) {
+      const assetId = input.pictures.get(card.shotId);
+      const image = card.hasImage && assetId !== undefined ? await pictureOf(assetId, box) : null;
+      if (image !== null) {
+        const fit = containIn(box, image.width, image.height);
+        page.drawImage(image, { x: fit.x, y: flip(fit.y + fit.height), width: fit.width, height: fit.height });
+      } else {
+        await drawText(page, card.placeholder ?? card.fallback, regular, box.width - 2 * (card.fallback.x - box.x), MUTED);
+      }
     }
 
-    // The number chip sits on the picture, in its top-left corner.
+    // The number chip sits on the picture, in its top-left corner, and a paper card's caption on the line beside it.
     page.drawRectangle({
       x: card.chip.x,
       y: flip(card.chip.y + card.chip.height),
@@ -643,6 +653,7 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
       color: color(CHIP_FILL),
     });
     await drawText(page, card.chipText, bold, card.chip.width, PAPER);
+    if (card.caption !== undefined) await drawText(page, card.caption, regular, card.frame.x + card.frame.width - card.caption.x - 4, INK);
 
     for (const line of card.spec) await drawText(page, line, regular, card.frame.width);
     for (const line of card.action) await drawText(page, line, regular, card.frame.width);
