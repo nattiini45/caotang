@@ -176,8 +176,9 @@ async function createExclusive(path: string, body: string): Promise<boolean> {
       const code = (error as NodeJS.ErrnoException).code;
       if (code === 'EEXIST') return false;
       // A name another writer is deleting is refused with `EPERM` until the delete finishes. The
-      // name is free a moment later, so the create is tried again; a refusal that outlasts the
-      // tries is the folder's, and it is rethrown. Every other error is not about a delete.
+      // name is free a moment later, so the create is tried again. Only `EPERM` is retried: a
+      // refusal that outlasts the tries is treated as the folder's and rethrown, and an error of
+      // another code is not assumed to mean a delete.
       if (code !== 'EPERM' || attempt >= EXCLUSIVE_CREATE_ATTEMPTS) throw error;
       await new Promise((done) => setTimeout(done, EXCLUSIVE_CREATE_RETRY_MS * attempt));
       continue;

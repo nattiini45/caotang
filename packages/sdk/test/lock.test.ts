@@ -278,7 +278,7 @@ describe('a name Windows refuses while another writer is deleting it', () => {
     }
   });
 
-  it('reports a folder that refuses the lock as that, rather than as one another writer holds', async () => {
+  it("reports a refusal that outlasts the tries as the folder's, rather than as lock contention", async () => {
     const lock = join(root, LOCK_FILE);
     let attempts = 0;
     await withFs(
@@ -286,8 +286,8 @@ describe('a name Windows refuses while another writer is deleting it', () => {
         open: (async (target: string, flags: string) => {
           if (String(target) !== lock) return realFs.open(target, flags as never);
           attempts += 1;
-          // A folder this writer may not create files in: every attempt is refused, so the
-          // refusal is the folder's own and is not another writer's lock.
+          // Every attempt is refused. A refusal that outlasts the tries cannot be told apart
+          // from a genuine denial, so it is rethrown as the folder's own, not as lock contention.
           throw Object.assign(new Error(`EPERM: operation not permitted, open '${lock}'`), { code: 'EPERM' });
         }) as unknown as typeof realFs.open,
       },
@@ -324,7 +324,8 @@ describe('a name Windows refuses while another writer is deleting it', () => {
         expect((error as NodeJS.ErrnoException).code).toBe('ENOSPC');
       },
     );
-    // A failure the operating system reports as something else is not a delete in progress.
+    // Only `EPERM` is retried: an error the operating system reports as another code is not
+    // assumed to mean a delete.
     expect(attempts).toBe(1);
   });
 });
