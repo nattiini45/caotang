@@ -50,6 +50,7 @@ binder makes their nodes (`media/create-menu.ts`, through `binder.create`).
   `storyboard.create` does not refuse a title that is taken, so a second folder for a scene would be made. Both offers send the
   same request through `onAgentIntent`, which opens the agent drawer and submits it. The lookup and the request are unit-tested
   (`e2e/unit/media-storyboard-board.spec.ts`), and the offers and their request are checked in `e2e/media-storyboard-board.spec.ts`.
+- **Put photographs of drawings on their shots.** Drop several picture files on the board, outside any card. Each file goes on the shot whose number its name starts with (`7.jpg`, `007.jpg`, `007-ferry.jpg`), the files are imported as one `shot.importImages`, so one Undo takes them all back, and a notice lists every file with the shot it went on or why it did not (`planPictureDrop` and `dropReportOf` in `shot-image-model.ts`; the rule is storyboard.md §6). The matching and the notice are unit-tested in `e2e/unit/media-storyboard-images.spec.ts`, and the drop in `e2e/media-storyboard-images.spec.ts`. The paper sheet the photographs come from is the contact sheet's *Paper frames* setting.
 - **Give a shot a picture.** Choose a PNG, JPEG or WebP file in the shot's *Image* section, drop one on a card, or paste one
   while the card is selected. The file is kept in the project's images and the shot names it, as one undo step
   (`shot.importImage`). The section can also point the shot at an image the project already holds, or remove the picture. A
