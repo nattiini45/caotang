@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import * as mock from '@caotang/gateway/mock';
 
-import { createAgentPorts, createHarness, DRAFT_SYSTEM_PREFIX, PLANNER_SYSTEM_PREFIX, parseReply, plannerSystem, REPLY_SCHEMA_HINT } from '../../src/index.js';
+import { createAgentPorts, createHarness, DRAFT_SYSTEM_PREFIX, PLANNER_SYSTEM_PREFIX, SUBAGENT_SYSTEM_PREFIX, parseReply, plannerSystem, REPLY_SCHEMA_HINT } from '../../src/index.js';
 import { errorSummary, refusalSentence } from '../../src/agent/protocol.js';
 import { PLAN_STEPS_MAX } from '../../src/plan.js';
 import { makeState } from '../fixtures.js';
@@ -118,6 +118,7 @@ describe('the prefixes the gateway’s mock scripts match on', () => {
   it('are the same strings the harness sends, so a demo script answers the harness’s own calls', () => {
     expect(mock.PLANNER_PREFIX).toBe(PLANNER_SYSTEM_PREFIX);
     expect(mock.DRAFT_PREFIX).toBe(DRAFT_SYSTEM_PREFIX);
+    expect(mock.SUBAGENT_PREFIX).toBe(SUBAGENT_SYSTEM_PREFIX);
   });
 });
 

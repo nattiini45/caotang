@@ -6,12 +6,15 @@ export {
   DRAFT_PREFIX,
   EXTRACTOR_PREFIX,
   PLANNER_PREFIX,
+  SUBAGENT_PREFIX,
   VERIFIER_PREFIX,
   demoScripts,
   draftScript,
   isDraftCall,
   isPlannerCall,
+  isSubagentCall,
   plannerScript,
+  subagentScript,
   userTextOf,
 } from './agent-scripts.js';
 export {

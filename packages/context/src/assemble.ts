@@ -109,9 +109,13 @@ function withSpeakers(task: AgentTask, entries: readonly CodexEntry[], detected:
   return merged;
 }
 
+/** The tools whose L4 and L5 are built from a scope of documents rather than from one focus. */
+const scoped = (tool: AgentTask['tool']): boolean => tool === 'continuity.scan' || tool === 'delegate';
+
 function resolveScope(task: AgentTask, tree: TreeIndex): TreeNode[] {
-  if (task.tool !== 'continuity.scan') return [];
-  if (task.scope === undefined) return manuscriptDocuments(tree);
+  if (!scoped(task.tool)) return [];
+  // A scan with no scope reads the whole manuscript; a delegated agent with none is sent no documents and reads by its tools.
+  if (task.scope === undefined) return task.tool === 'delegate' ? [] : manuscriptDocuments(tree);
   const seen = new Set<string>();
   const out: TreeNode[] = [];
   for (const id of task.scope) {
@@ -181,7 +185,7 @@ export function assemble(task: AgentTask, app: AppSnapshot, config: ContextConfi
     const budget = baseOf('L4') + carry;
     effective.L4 = budget;
     const plan =
-      task.tool === 'continuity.scan'
+      scoped(task.tool)
         ? scopeStoryBlock(tree, scopeNodes, SCOPE_DOCUMENT_LIMIT)
         : task.tool === 'dialogue.draft'
           ? beatStoryBlock(focusNode === undefined ? '' : getBody(app.state, focusNode.id))
@@ -197,7 +201,7 @@ export function assemble(task: AgentTask, app: AppSnapshot, config: ContextConfi
   if (active.has('L5')) {
     const budget = baseOf('L5') + carry;
     effective.L5 = budget;
-    if (task.tool === 'continuity.scan') {
+    if (scoped(task.tool)) {
       scope = scopeBlock(app.state, scopeNodes);
       drops.L5.push(...scope.drops);
       notes.L5.push(...scope.notes);

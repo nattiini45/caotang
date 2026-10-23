@@ -75,7 +75,7 @@ import {
 import type { RenderedContents } from './emit.js';
 import { flatten, type FlattenResult } from './flatten.js';
 import type { FontLoader } from '@caotang/pdf-fonts';
-import { drawContactSheet } from './render-contact-sheet.js';
+import { drawContactSheet, type PictureTranscoder } from './render-contact-sheet.js';
 import { XLSX_MIME, prepareSheet, renderXlsx, type XlsxCell, type XlsxSheet } from './render-xlsx.js';
 import { fileStem, suffixName } from './template.js';
 import type { FlatBlock, MediaFormat } from './types.js';
@@ -134,6 +134,8 @@ export interface MediaRequest {
   readonly loadHebrewFont?: FontLoader;
   /** Reads Noto Sans Devanagari (`@caotang/font-noto-devanagari`). The screenplay PDF and the contact sheet read it, and only when the file holds Devanagari text. */
   readonly loadDevanagariFont?: FontLoader;
+  /** Decodes a WebP picture to PNG (`@jsquash/webp` in Node, a canvas in the app). Only the contact sheet reads it. Without it, a WebP picture shows its card's caption. */
+  readonly transcodePicture?: PictureTranscoder;
   /** The project's language (a BCP 47 tag), when it has one. In a right-to-left language the screenplay PDF lays out a paragraph with no strong character right to left. */
   readonly language?: string;
 }
@@ -749,13 +751,16 @@ function bareShotNotes(request: MediaRequest, consequence = 'its columns are bla
 /** The header the contact sheet prints on each page, filled from the template variables (storyboard.md §6). */
 export const CONTACT_SHEET_HEADER = '{project} — {storyboard} — {date}';
 
-/** Whether a stored picture can be drawn on the sheet: PNG and JPEG are embedded; a WebP file and a missing one show the caption. */
-function sheetImageStatus(assets: ReadonlyMap<string, AssetRecord>, assetId: string): SheetImageStatus {
+/**
+ * Whether a stored picture can be drawn on the sheet: PNG and JPEG are embedded, and a WebP when the compile can transcode it
+ * (the bytes decide that at draw time, not the name); a WebP without a transcoder and a missing picture show the caption.
+ */
+function sheetImageStatus(assets: ReadonlyMap<string, AssetRecord>, assetId: string, canTranscode: boolean): SheetImageStatus {
   const record = assets.get(assetId);
   if (record === undefined) {
     return { drawn: false, note: `image ${assetId} is not in assets/, so its cards show the caption` };
   }
-  if (/\.webp$/i.test(record.fileName)) {
+  if (!canTranscode && /\.webp$/i.test(record.fileName)) {
     return { drawn: false, note: `image ${assetId} is a WebP file, which the PDF cannot embed, so its cards show the caption` };
   }
   return { drawn: true };
@@ -772,7 +777,7 @@ function contactSheetOutput(request: MediaRequest): MediaOutput {
     throw new MediaRefusedError('contact-sheet-pdf', ['the selection holds no shot, so there is no contact sheet to draw']);
   }
   const pageSize = request.pageSize ?? 'A4';
-  const planned = planContactSheet(request.state, request.includeRootIds, (assetId) => sheetImageStatus(request.assets, assetId), {
+  const planned = planContactSheet(request.state, request.includeRootIds, (assetId) => sheetImageStatus(request.assets, assetId, request.transcodePicture !== undefined), {
     pageSize,
     headerTemplate: CONTACT_SHEET_HEADER,
     project: request.title,
@@ -808,6 +813,7 @@ function contactSheetOutput(request: MediaRequest): MediaOutput {
             ...(request.loadArabicFont === undefined ? {} : { loadArabicFont: request.loadArabicFont }),
             ...(request.loadHebrewFont === undefined ? {} : { loadHebrewFont: request.loadHebrewFont }),
             ...(request.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: request.loadDevanagariFont }),
+            ...(request.transcodePicture === undefined ? {} : { transcodePicture: request.transcodePicture }),
             ...(request.language === undefined ? {} : { language: request.language }),
             at,
           }),

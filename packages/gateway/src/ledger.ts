@@ -31,6 +31,8 @@ export interface DayUsageRow extends UsageTotals {
 
 export interface TurnUsageRow extends UsageTotals {
   turnId: string;
+  /** the delegated agent inside the turn that the row counts; absent for the turn's own calls */
+  agentPath?: string;
   profileId: string;
   model: string;
   role: TaskRole;
@@ -76,9 +78,16 @@ export class UsageLedger {
     this.days.set(dayKey, day);
 
     if (by.turnId !== undefined) {
-      const turnKey = `${by.turnId}\u0000${by.profileId}\u0000${by.model}\u0000${role}`;
+      const turnKey = `${by.turnId}\u0000${by.agentPath ?? ''}\u0000${by.profileId}\u0000${by.model}\u0000${role}`;
       const existing = this.turns.get(turnKey);
-      const turn = existing ?? { turnId: by.turnId, profileId: by.profileId, model: by.model, role, ...ZERO };
+      const turn = existing ?? {
+        turnId: by.turnId,
+        ...(by.agentPath === undefined ? {} : { agentPath: by.agentPath }),
+        profileId: by.profileId,
+        model: by.model,
+        role,
+        ...ZERO,
+      };
       add(turn, usage, requests);
       if (existing === undefined) this.turns.set(turnKey, turn);
       this.trimTurns();

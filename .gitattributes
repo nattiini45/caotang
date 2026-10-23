@@ -11,6 +11,7 @@
 *.md        text eol=lf
 *.css       text eol=lf
 *.html      text eol=lf
+*.py        text eol=lf
 
 # Never touch these.
 pnpm-lock.yaml binary

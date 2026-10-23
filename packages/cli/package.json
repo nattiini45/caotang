@@ -22,7 +22,8 @@
     "@caotang/gateway": "workspace:*",
     "@caotang/mcp-server": "workspace:*",
     "@caotang/pdf-fonts": "workspace:*",
-    "@caotang/sdk": "workspace:*"
+    "@caotang/sdk": "workspace:*",
+    "@jsquash/webp": "1.5.0"
   },
   "devDependencies": {
     "@caotang/store": "workspace:*"

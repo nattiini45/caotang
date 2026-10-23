@@ -1,5 +1,5 @@
 /**
- * The built binary, run as a process: `dist/caotang.mjs` is built here with the package's own Vite config, copied with its `fonts/`
+ * The built binary, run as a process: `dist/caotang.mjs` is built here with the package's own Vite config, copied with its `fonts/` and `webp_dec.wasm`
  * to a folder that has no `node_modules` above it, and started with plain `node`. This is the artifact a script runs, so it is what
  * the suite must prove works.
  */
@@ -12,6 +12,8 @@ import { fileURLToPath } from 'node:url';
 import { acquireProjectLock } from '@caotang/sdk/folder';
 import { build } from 'vite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+import { webpFixture } from '../../exporter/test/webp-fixtures.js';
 
 import { folderBytes, removeDir, seedProject, SHOTS_FOLDER, tempDir } from './support.js';
 
@@ -66,8 +68,8 @@ describe('the built caotang binary', () => {
     removeDir(root);
   });
 
-  it('is a single file with the PDFs’ fallback fonts in fonts/ beside it, and nothing else', () => {
-    expect(readdirSync(DIST).sort()).toEqual(['caotang.mjs', 'fonts']);
+  it('is a single file with the PDFs’ fallback fonts in fonts/ and the WebP decoder beside it, and nothing else', () => {
+    expect(readdirSync(DIST).sort()).toEqual(['caotang.mjs', 'fonts', 'webp_dec.wasm']);
     expect(readdirSync(join(DIST, 'fonts')).sort()).toEqual(FONTS);
     expect(statSync(join(DIST, 'caotang.mjs')).size).toBeGreaterThan(100_000);
     expect(readFileSync(join(DIST, 'caotang.mjs'), 'utf8').startsWith('#!/usr/bin/env node\n')).toBe(true);
@@ -150,5 +152,24 @@ describe('the built caotang binary', () => {
     const bytes = readFileSync(join(folder, 'exports', pdf[0] ?? '')).toString('latin1');
     expect(bytes.startsWith('%PDF')).toBe(true);
     expect(bytes).toContain(embedded);
+  }, 120_000);
+
+  it('compiles a storyboard contact sheet with a WebP picture, decoded with the webp_dec.wasm beside the bundle', async () => {
+    const folder = join(root, 'sheet-webp');
+    await seedProject(folder, 'The harbour, empty.', 'a_7WEBP4K2QX');
+    mkdirSync(join(folder, 'assets'), { recursive: true });
+    writeFileSync(join(folder, 'assets', 'a_7WEBP4K2QX.webp'), webpFixture('lossless'));
+    const plan = join(root, 'plan-webp.json');
+    writeFileSync(
+      plan,
+      JSON.stringify({ steps: [{ tool: 'export.compile', params: { selection: { root: SHOTS_FOLDER, includeSubtrees: true }, format: 'contact-sheet-pdf' }, expect: 'a contact sheet in exports/' }] }),
+    );
+    const ran = await run(entry, ['agent', '-p', 'Compile the contact sheet.', '--mock', '--project', folder, '--plan-file', plan, '--permission', 'approve-all', '--write']);
+    expect(ran.code, ran.stderr).toBe(0);
+    const pdf = readdirSync(join(folder, 'exports')).filter((name) => name.endsWith('.pdf'));
+    expect(pdf).toHaveLength(1);
+    const bytes = readFileSync(join(folder, 'exports', pdf[0] ?? '')).toString('latin1');
+    expect(bytes.match(/\/Subtype \/Image/g)).toHaveLength(1);
+    expect(bytes).toMatch(/\/Width 80\b/);
   }, 120_000);
 });

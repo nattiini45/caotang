@@ -11,8 +11,9 @@ import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ARABIC_FONT_FILE, CJK_FONT_FILE, DEVANAGARI_FONT_FILE, EMOJI_FONT_FILE, HEBREW_FONT_FILE } from '@caotang/pdf-fonts';
 import { cjkFontCandidates, emojiFontCandidates } from '@caotang/pdf-fonts/node-loader';
+import { WEBP_DECODER_FILE, webpDecoderCandidates } from '@caotang/exporter/picture-transcoder-node';
 
-import { BUNDLE_ENTRY, BUNDLE_FONTS, manifestProblems, mcpbCliPath, packBundle, runMcpb, stageBundle } from '../scripts/pack-mcpb.mjs';
+import { BUNDLE_ENTRY, BUNDLE_FONTS, BUNDLE_SERVER, manifestProblems, mcpbCliPath, packBundle, runMcpb, stageBundle } from '../scripts/pack-mcpb.mjs';
 import { removeDir, tempDir } from './support.js';
 
 const PACKAGE_DIR = resolve(__dirname, '..');
@@ -196,6 +197,40 @@ describe('staging and packing', () => {
     }
   });
 
+  it('stages the WebP decoder beside the server bundle, where the contact sheet’s transcoder looks first', () => {
+    // The two sides of the contract, each from its own package: the pack's folder, and the transcoder's first candidate.
+    expect(BUNDLE_SERVER).toBe(dirname(BUNDLE_ENTRY));
+    expect(WEBP_DECODER_FILE).toBe('webp_dec.wasm');
+    const outDir = tempDir('pack-webp');
+    try {
+      const serverBundle = join(outDir, 'caotang-mcp.mjs');
+      writeFileSync(serverBundle, '#!/usr/bin/env node\n');
+      const decoder = join(outDir, WEBP_DECODER_FILE);
+      writeFileSync(decoder, 'decoder');
+      const { staging, files } = stageBundle({
+        outDir,
+        serverBundle,
+        manifestPath: MANIFEST_PATH,
+        version: '0.1.0',
+        notices: '# notices\n',
+        license: join(REPO_ROOT, 'LICENSE'),
+        serverFiles: [decoder],
+      });
+      expect(files).toContain('server/webp_dec.wasm');
+      const candidates = webpDecoderCandidates(pathToFileURL(join(staging, BUNDLE_ENTRY)).href);
+      expect(candidates[0]).toBe(join(staging, 'server', WEBP_DECODER_FILE));
+      expect(readFileSync(candidates[0] ?? '', 'utf8')).toBe('decoder');
+    } finally {
+      removeDir(outDir);
+    }
+  });
+
+  it('has the one WebP decoder to stage, from @jsquash/webp, a real WebAssembly file of 138 KB', () => {
+    const wasm = createRequire(import.meta.url).resolve('@jsquash/webp/codec/dec/webp_dec.wasm');
+    expect([...readFileSync(wasm).subarray(0, 4)]).toEqual([0x00, 0x61, 0x73, 0x6d]);
+    expect(statSync(wasm).size).toBe(137960);
+  });
+
   it('has exactly one CJK, one emoji, one Arabic, one Hebrew and one Devanagari font to stage, from their packages, 8.2 MB together', () => {
     const require = createRequire(import.meta.url);
     const sizes = [
@@ -246,7 +281,7 @@ describe('staging and packing', () => {
     }
   });
 
-  it('packs a bundle through the pinned CLI, and the archive unpacks to the same four files and the two fonts, with the same notices', () => {
+  it('packs a bundle through the pinned CLI, and the archive unpacks to the same four files, the two fonts and the WebP decoder, with the same notices', () => {
     const outDir = tempDir('pack-run');
     const unpacked = tempDir('pack-unpacked');
     try {
@@ -258,6 +293,8 @@ describe('staging and packing', () => {
         writeFileSync(path, `fixture ${file}`);
         return path;
       });
+      const decoder = join(outDir, WEBP_DECODER_FILE);
+      writeFileSync(decoder, 'fixture decoder');
       const { bundle, info } = packBundle({
         outDir,
         serverBundle,
@@ -266,6 +303,7 @@ describe('staging and packing', () => {
         notices,
         license: join(REPO_ROOT, 'LICENSE'),
         fonts,
+        serverFiles: [decoder],
       });
       expect(bundle).toBe(join(outDir, 'caotang-mcp-0.1.0.mcpb'));
       expect(existsSync(bundle)).toBe(true);
@@ -275,12 +313,13 @@ describe('staging and packing', () => {
       for (const file of [BUNDLE_ENTRY, 'manifest.json', 'THIRD-PARTY-NOTICES.md', 'LICENSE']) {
         expect(existsSync(join(unpacked, file)), `${file} is in the bundle`).toBe(true);
       }
-      for (const file of ['server/fonts/NotoSansMonoCJKsc-Regular.woff', 'server/fonts/NotoEmoji-Regular.woff']) {
+      for (const file of ['server/fonts/NotoSansMonoCJKsc-Regular.woff', 'server/fonts/NotoEmoji-Regular.woff', 'server/webp_dec.wasm']) {
         expect(existsSync(join(unpacked, file)), `${file} is in the bundle`).toBe(true);
       }
       // The installed server finds them where its loader looks first.
       expect(readFileSync(cjkFontCandidates(pathToFileURL(join(unpacked, BUNDLE_ENTRY)).href)[0] ?? '', 'utf8')).toBe(`fixture ${CJK_FONT_FILE}`);
       expect(readFileSync(emojiFontCandidates(pathToFileURL(join(unpacked, BUNDLE_ENTRY)).href)[0] ?? '', 'utf8')).toBe(`fixture ${EMOJI_FONT_FILE}`);
+      expect(readFileSync(webpDecoderCandidates(pathToFileURL(join(unpacked, BUNDLE_ENTRY)).href)[0] ?? '', 'utf8')).toBe('fixture decoder');
       expect(readFileSync(join(unpacked, 'THIRD-PARTY-NOTICES.md'), 'utf8')).toBe(notices);
       expect(readFileSync(join(unpacked, 'manifest.json'), 'utf8')).toBe(readFileSync(MANIFEST_PATH, 'utf8'));
     } finally {

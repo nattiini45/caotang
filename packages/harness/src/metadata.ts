@@ -4,6 +4,7 @@ import { TOOL_SEARCH_META } from '@caotang/mcp-client';
 import { STORYBOARD_TOOL_ENTRIES } from '@caotang/storyboard';
 import { PROMPT_PACK_TOOL_ENTRIES } from '@caotang/video-prompt-pack';
 
+import { SUBAGENT_BLURBS } from './tools/delegate.js';
 import { PRIMITIVE_TOOLS } from './tools/primitive-tools.js';
 import { PRIMITIVE_TOOL_NAMES } from './tools/primitive.js';
 
@@ -77,6 +78,8 @@ export const TOOL_NAMES = [
   'dialogue.table',
   // The project's skills (extensibility.md §10).
   'skill.load',
+  // Delegation to a built-in helper agent (agent-harness §2).
+  'agent.delegate',
   // The allowlisted bus primitives (tools/primitive.ts), each a deferred extension row.
   ...PRIMITIVE_TOOL_NAMES,
 ] as const;
@@ -325,6 +328,20 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
     surface: 'extension',
     load: 'deferred',
     keywords: ['skill', 'skills', 'instructions', 'style', 'conventions', 'guidance'],
+  },
+  // Delegation (agent-harness §2, "Delegate"): a read whose work the agent loop does. The helper has its own context, read tools and
+  // call budget, and can only read and propose steps, so the row is a read like `skill.load`. It is wired where the agent ports are
+  // (`createAgentPorts`) and deferred like the other extension rows: a turn that never delegates is told nothing about it.
+  {
+    name: 'agent.delegate',
+    risk: 'read',
+    undoable: false,
+    response_token_cap: 6000,
+    descriptionVersion: 1,
+    description: `Hand a self-contained piece of reading to a built-in helper agent with its own context, its own read tools and its own small budget of model calls, and get back only its notes. Agents: reader — ${SUBAGENT_BLURBS.reader}; general — ${SUBAGENT_BLURBS.general}. The agent sees only your brief and the scope you name, none of this conversation. Its result carries no approval: it cannot make a change, and a change it proposes happens only if you put it in your own plan and the writer approves that plan. Read-only. A delegate the turn cannot afford is refused: ask for a narrower scope.`,
+    surface: 'extension',
+    load: 'deferred',
+    keywords: ['delegate', 'agent', 'subagent', 'helper', 'research', 'reader', 'summarise', 'long'],
   },
   // The allowlisted bus primitives (agent-harness §3). Their risk and undo are their command's descriptor's, read by the factory.
   ...PRIMITIVE_TOOLS.map((tool) => tool.meta),

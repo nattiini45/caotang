@@ -22,6 +22,8 @@ export interface TraceEntry {
   readonly outcome: 'ok' | 'refused' | 'not-run';
   readonly code?: CommandError['code'];
   readonly params: Readonly<Record<string, unknown>>;
+  /** Set for a row a delegated agent made (agent-harness §2): `turn-3/reader#1`. Its `callId` is derived from the turn and this path. */
+  readonly agentPath?: string;
 }
 
 /** One card decision the turn was asked for, and what the user chose. */

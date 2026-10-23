@@ -2734,6 +2734,34 @@ dialog.confirm::backdrop {
   margin: 4px 0 0;
 }
 
+.delegation {
+  margin: 6px 0 2px;
+  display: grid;
+  gap: 4px;
+}
+
+.delegation-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.delegation-standing {
+  font-weight: 600;
+}
+
+.delegation summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.delegation-trace ol {
+  margin: 4px 0 0;
+  padding-left: 20px;
+}
+
 .status-pill {
   font-size: 11.5px;
   color: var(--muted);

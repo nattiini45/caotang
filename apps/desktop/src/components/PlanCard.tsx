@@ -25,7 +25,7 @@ import {
 } from '@caotang/harness';
 import type { ProjectState } from '@caotang/store';
 
-import type { DraftCheck, DraftedStep } from '../app/agent-model.js';
+import { proposedByWords, type DraftCheck, type DraftedStep } from '../app/agent-model.js';
 import {
   costLineOf,
   formatUsd,
@@ -183,6 +183,11 @@ function StepRow({
           </span>
         ) : null}
         {step.cut ? <span className="badge is-warn">Cut at the output limit</span> : null}
+        {proposedByWords(step) === undefined ? null : (
+          <span className="badge" title="A delegated agent proposed this step as it stands. It is in your plan, and it only runs if you approve the plan.">
+            {proposedByWords(step)}
+          </span>
+        )}
         {!done ? (
           <span className="plan-step-controls">
             <button

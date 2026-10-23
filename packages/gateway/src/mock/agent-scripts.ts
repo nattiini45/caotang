@@ -8,13 +8,14 @@
  * message and by its `responseFormat`:
  *
  * - the **planner** (`PLANNER_PREFIX`, a JSON schema hint): its reply is `{"steps": [...]}` or `{"reply": "..."}`;
- * - a **drafting** call (`DRAFT_PREFIX`): its reply is prose, a synopsis, or a JSON findings list.
+ * - a **drafting** call (`DRAFT_PREFIX`): its reply is prose, a synopsis, or a JSON findings list;
+ * - a **delegated agent's** call (`SUBAGENT_PREFIX`, agent-harness §2): it speaks the planner's reply protocol, `{"steps": [...]}` or `{"reply": "..."}`.
  *
  * Within the planner, a script decides from the transcript alone. A request with no earlier reply is a
  * first call; one after a "Tool results" message is a follow-up; one after a refused step is a retry.
  * So a script is a pure function of its request, and the same request always gets the same bytes.
  *
- * `PLANNER_PREFIX` and `DRAFT_PREFIX` are duplicated from `@caotang/harness` (agent/protocol.ts). The
+ * `PLANNER_PREFIX`, `DRAFT_PREFIX` and `SUBAGENT_PREFIX` are duplicated from `@caotang/harness` (agent/protocol.ts). The
  * gateway must not depend on the harness, and the harness's own test asserts the two copies agree.
  */
 
@@ -25,6 +26,8 @@ import type { MockResponse, MockScript } from './scripts.js';
 export const PLANNER_PREFIX = "You are Caotang's agent.";
 /** The first words of a drafting call's system message. The harness's protocol.ts holds the same string. */
 export const DRAFT_PREFIX = 'You are drafting prose for Caotang.';
+/** The first words of a delegated agent's system message. The harness's protocol.ts holds the same string. */
+export const SUBAGENT_PREFIX = 'You are a delegated agent for Caotang.';
 /**
  * The first words of the coherence review's two model stages (coherence.md §5.3): Stage 1 extracts checkable statements from one
  * document, Stage 2 judges pairs of them. The coherence module's prompts.ts holds the same strings, and a harness test asserts they agree.
@@ -62,6 +65,11 @@ export function isPlannerCall(req: ChatRequest): boolean {
   return systemOf(req).startsWith(PLANNER_PREFIX) && typeof req.responseFormat === 'object';
 }
 
+/** Whether a request is a delegated agent's: its system message starts with the delegate prefix. */
+export function isSubagentCall(req: ChatRequest): boolean {
+  return systemOf(req).startsWith(SUBAGENT_PREFIX);
+}
+
 /** Whether a request is a drafting call for one tool's content. */
 export function isDraftCall(req: ChatRequest): boolean {
   return systemOf(req).startsWith(DRAFT_PREFIX);
@@ -82,6 +90,20 @@ export function plannerScript(reply: (req: ChatRequest) => string | undefined): 
   return {
     match: (req) => isPlannerCall(req) && reply(req) !== undefined,
     respond: (req): MockResponse => ({ content: reply(req) ?? '' }),
+  };
+}
+
+/**
+ * A script that answers a delegated agent's calls with `reply(req)`. The delegate prefix is what selects it, whichever wire the agent speaks: a
+ * reply with `toolCalls` is a native-wire reply (`MockResponse`), and a string is the JSON-in-text reply.
+ */
+export function subagentScript(reply: (req: ChatRequest) => string | MockResponse | undefined): MockScript {
+  return {
+    match: (req) => isSubagentCall(req) && reply(req) !== undefined,
+    respond: (req): MockResponse => {
+      const answer = reply(req);
+      return typeof answer === 'string' ? { content: answer } : (answer ?? { content: '' });
+    },
   };
 }
 

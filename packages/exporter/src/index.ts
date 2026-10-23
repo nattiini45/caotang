@@ -49,7 +49,15 @@ export { SCENE_STYLE_ROWS, type SceneStyleRow } from './scene-style.js';
 export { flatten, documentLabel, type FlattenOptions, type FlattenResult } from './flatten.js';
 export { CONTACT_SHEET_HEADER, renderMedia, type MediaFile, type MediaOutput, type MediaRequest } from './media.js';
 // The storyboard contact sheet's PDF emitter (storyboard.md §6), over pdf-lib, loaded lazily.
-export { PDF_MIME, containIn, drawContactSheet, fitToWidth, type ContactSheetPdf, type ContactSheetPdfInput } from './render-contact-sheet.js';
+export {
+  PDF_MIME,
+  containIn,
+  drawContactSheet,
+  fitToWidth,
+  type ContactSheetPdf,
+  type ContactSheetPdfInput,
+  type PictureTranscoder,
+} from './render-contact-sheet.js';
 // The coherence report's renderers (the one-source compile's Review row). The compile reaches them through `renderMedia`.
 export {
   COHERENCE_JSON_MIME,

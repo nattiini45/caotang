@@ -66,14 +66,16 @@ import { getBody, getRevision, type ProjectState, type TreeNode } from '@caotang
 import { dialogueDraftTool, resolveContainer } from '@caotang/dialogue';
 import { stagePromptDraftTool, stagePromptVariantTool } from '@caotang/video-prompt-pack';
 
-import { refusal } from '../errors.js';
+import { limitExceeded, refusal } from '../errors.js';
 import { askBackFor, parsePlan, type AskBack, type Plan, type PlanPreflight, type PlanStep } from '../plan.js';
 import { DOCUMENT, descendantsOf, resolveNode } from '../resolve.js';
 import type { Harness, ToolListing } from '../runtime.js';
 import type { ToolName } from '../metadata.js';
 import type { CallParams, ToolCall, ToolOutcome } from '../types.js';
-import { isRecord } from '../util.js';
+import { canonicalJson, isRecord } from '../util.js';
 import { CONTINUITY_MAX_DOCS, SYNOPSIS_MAX_DOCS } from '../tools/ports.js';
+import type { DelegateParams } from '../tools/delegate.js';
+import { fitsCap } from '../tokens.js';
 import { LARGE_SCOPE_APPROVAL, LARGE_SCOPE_APPROVAL_KEY } from '../tools/coherence.js';
 import { skillBlock } from '../tools/skills.js';
 import {
@@ -84,6 +86,7 @@ import {
   planCardOf,
   reviewCostAt,
   stagedOf,
+  type DelegationView,
   type EditableSteps,
   type PlanCardView,
   type PlanEdit,
@@ -113,12 +116,12 @@ import {
   draftDialogue,
   draftScene,
   fillSynopses,
+  assistantOf,
   GenerationStopped,
   TurnStopped,
   sceneRole,
   scanContinuity,
   synopsisRole,
-  type Completion,
   type FindingsProposal,
   type ModelCall,
   type SceneProposal,
@@ -126,6 +129,7 @@ import {
   type SynopsisProposal,
 } from './drafting.js';
 import {
+  callArgs,
   errorSummary,
   loadedToolsMessage,
   parseReply,
@@ -144,6 +148,7 @@ import {
 } from './protocol.js';
 import { previewFor, sceneDraftPreflight, shotsDeriveScenePreflight } from './ports.js';
 import { createContextPort, dropLinesOf, mergePreviews, type ContextPort } from './context.js';
+import { createSubagentRunner, framedResult, resultLine, SUBAGENT_SPECS, type ParentTurnHandle } from './subagent.js';
 import {
   BACKGROUND_OFFER_MIN_CALLS,
   backgroundEligibility,
@@ -404,6 +409,10 @@ interface Turn {
   native: boolean;
   /** The native replies whose calls still owe tool messages, oldest first. Empty on the JSON wire. */
   readonly wireReplies: WireReply[];
+  /** The delegated agents this turn has started, so each has a path of its own (`turn-3/reader#1`). */
+  delegations: number;
+  /** What the turn's delegated agents proposed, as `canonicalJson({ tool, params })` keys with the agent that did: a plan step equal to one carries its badge. */
+  readonly proposals: { readonly agent: string; readonly key: string }[];
   /**
    * The wire call a plan step answers, by the step object the plan currently carries. An edit replaces
    * the object, so `reconcileWire` re-binds a step's call to the step the writer left in its place.
@@ -491,38 +500,6 @@ const STOPPED_STEP = 'the writer stopped the turn before this step finished';
 function expectOf(text: string): string {
   const trimmed = text.trim();
   return trimmed === '' ? 'the step the call asks for' : trimmed;
-}
-
-/**
- * A native call's arguments, parsed. A call that names no arguments is read as none; one whose JSON does
- * not parse or is not an object is a refusal the model corrects, like a JSON reply it cannot parse.
- */
-function callArgs(call: WireToolCall): { readonly params?: CallParams; readonly error?: string } {
-  const source = call.argumentsJson.trim();
-  if (source === '') return { params: {} };
-  let value: unknown;
-  try {
-    value = JSON.parse(source);
-  } catch {
-    return { error: 'the call\'s arguments were not valid JSON, so it did not run: send the call again with its arguments as one JSON object' };
-  }
-  if (!isRecord(value)) {
-    return { error: `the call's arguments must be one JSON object, and this call sent ${value === null ? 'null' : Array.isArray(value) ? 'an array' : `a ${typeof value}`}: send the call again with its arguments as one JSON object` };
-  }
-  return { params: value };
-}
-
-/**
- * The reply as the conversation keeps it. A native reply's calls and reasoning blocks ride on the
- * message verbatim — the adapter replays them on the next request, so they are never paraphrased.
- */
-function assistantOf(reply: Completion): ChatMessage {
-  return {
-    role: 'assistant',
-    content: reply.text,
-    ...(reply.toolCalls === undefined || reply.toolCalls.length === 0 ? {} : { toolCalls: reply.toolCalls }),
-    ...(reply.reasoning === undefined || reply.reasoning.length === 0 ? {} : { reasoning: reply.reasoning }),
-  };
 }
 
 /**
@@ -622,6 +599,10 @@ function tooCostly(tool: string, needed: number, left: number, limit: number): s
   }
   return `${tool} needs ${needed} model ${needed === 1 ? 'call' : 'calls'}, and this turn has ${left} left of ${limit}. Ask for a smaller change.`;
 }
+
+/** The refusal for a delegation sent in the same reply as a write. */
+const DELEGATE_ALONE =
+  'agent.delegate runs before anything is written, and its result comes back to you first. Nothing was run. Call it in a reply without write steps (reads may go with it), then plan the writes, including any step the agent proposed.';
 
 /** The ask-back for a turn that used its model-call bound. The user decides what to do with the rest. */
 function budgetAskBack(limit: number): AskBack {
@@ -730,6 +711,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const running = new Map<string, Turn>();
 
   const loadEvery = (): boolean => options.loadEveryTool?.() === true;
+  const subagents = createSubagentRunner({ tools: () => harness.tools(), previewPlan: (plan) => harness.previewPlan(plan), context });
 
   /**
    * A refusal's hint for a deferred native row the turn has not loaded: its params failed against a schema the model has not
@@ -809,6 +791,30 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // turn's reasoning too: the ghost region gets `draft.delta` prose only, so nothing here lands in the editor.
     onReasoning: (delta) => emit({ type: 'model.reasoning', turnId: turn.id, delta }),
   });
+
+  /**
+   * A delegated agent's call site (agent-harness §2, "Delegate"). The turn reserved the agent's calls up front, so these are bound by that
+   * reservation and not counted again against the turn's bound. Each request carries the agent path for the ledger, the turn's id so the
+   * turn's totals sum its children, and the session's own pins. The agent's text and reasoning never stream to the panel.
+   */
+  const agentCall = (turn: Turn, agentPath: string, limit: number): ModelCall => {
+    let used = 0;
+    return {
+      gateway: {
+        complete: (request, signal) => {
+          if (used >= limit) throw new BudgetExceeded(limit);
+          used += 1;
+          return gateway.complete(options.role === undefined ? request : { ...request, role: options.role }, signal);
+        },
+      },
+      turnId: turn.id,
+      agentPath,
+      ...signalOf(turn),
+      ...(turn.pins.profileId === undefined ? {} : { profileId: turn.pins.profileId }),
+      ...(turn.pins.model === undefined ? {} : { model: turn.pins.model }),
+      ...(turn.pins.thinking === undefined ? {} : { thinking: turn.pins.thinking }),
+    };
+  };
 
   /**
    * The tool declarations a native planner call may send, or `undefined` on the JSON wire: the model
@@ -924,6 +930,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       args: params,
       ...(startedAt === undefined ? {} : { startedAt }),
       ...(existing?.finishedAt === undefined ? {} : { finishedAt: existing.finishedAt }),
+      ...(existing?.delegation === undefined ? {} : { delegation: existing.delegation }),
     };
     if (existing === undefined) {
       turn.statusCards.push(card);
@@ -963,8 +970,15 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   async function stage(turn: Turn, steps: readonly PlanStep[]): Promise<Staged> {
     const proposals: unknown[] = steps.map(() => undefined);
     const refusals: { index: number; tool: string; message: string }[] = [];
+    const writes = steps.some((step) => riskOf(step.tool) !== 'read');
     for (const [index, step] of steps.entries()) {
       checkStop(turn);
+      // A delegation's result comes back to the planner before it plans a write, so the writes wait for it: a reply that mixes the two runs neither.
+      if (step.tool === 'agent.delegate' && writes) {
+        refusals.push({ index, tool: step.tool, message: DELEGATE_ALONE });
+        refusedBeforeCard(turn, step, DELEGATE_ALONE);
+        continue;
+      }
       // An external step the turn has not loaded is refused here, before any draft is made, so nothing runs for it.
       const external = externalRefusal(step.tool);
       if (external !== undefined) {
@@ -1222,6 +1236,94 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return { tool: step.tool, ok: false, body: reason };
   }
 
+  /** Shows a delegated agent's view on its call's card, and reports the card. */
+  const showDelegation = (turn: Turn, id: string, delegation: DelegationView): void => {
+    const index = turn.statusCards.findIndex((card) => card.id === id);
+    const card = turn.statusCards[index];
+    if (card === undefined) return;
+    const next: StatusCard = { ...card, delegation };
+    turn.statusCards[index] = next;
+    emit({ type: 'card', turnId: turn.id, card: next });
+  };
+
+  /**
+   * An `agent.delegate` call (agent-harness §2, "Delegate"): a read the loop answers itself. The call is checked as any step is, its scope is
+   * resolved, and the turn must be able to spare the agent's model calls and keep one for the planner to read the result (refused up front,
+   * before any child call, in `tooCostly`'s words). Then the agent runs, alone, in a context of its own, and what comes back is framed as
+   * data that carries no approval. A write it proposes is only remembered here, so the plan card can say who proposed a step; nothing is
+   * run or added to a plan.
+   */
+  async function runDelegate(turn: Turn, step: PlanStep, id: string): Promise<ToolOutcome> {
+    const checked = harness.previewPlan({ steps: [step] });
+    const refused = checked.ok ? checked.value.steps.find((entry) => entry.status === 'refused')?.error : checked.error;
+    if (refused !== undefined) return err(refused);
+    const params = step.params as unknown as DelegateParams;
+    const spec = SUBAGENT_SPECS[params.agent];
+    const scope: string[] = [];
+    for (const [at, ref] of (params.scope ?? []).entries()) {
+      const node = resolveNode(harness.state, ref, DOCUMENT, 'document', `scope[${at}]`);
+      if (!node.ok) return err(node.error);
+      if (!scope.includes(node.value.id)) scope.push(node.value.id);
+    }
+    // The planner keeps at least one call to read the result with, so a delegate can never starve it.
+    if (callsLeft(turn) < spec.maxModelCalls + 1) {
+      return err(
+        refusal('limit-exceeded', tooCostly(step.tool, spec.maxModelCalls + 1, callsLeft(turn), maxModelCalls), {
+          target: 'agent.delegate',
+          correctiveHint: `the agent needs ${spec.maxModelCalls} calls and you need one more to read its result: delegate a narrower scope, read the documents yourself with doc.read, or tell the writer the turn needs a larger model-call budget`,
+        }),
+      );
+    }
+    turn.delegations += 1;
+    const agentPath = `${turn.id}/${spec.name}#${turn.delegations}`;
+    let view: DelegationView = { agent: spec.name, agentPath, reserved: spec.maxModelCalls, outcome: 'running', trace: [] };
+    cardFor(turn, id, step.tool, step.params, 'running');
+    showDelegation(turn, id, view);
+    const handle: ParentTurnHandle = {
+      turnId: turn.id,
+      agentPath,
+      native: turn.native,
+      reserve: (calls) => {
+        if (callsLeft(turn) < calls + 1) return false;
+        turn.modelCalls += calls;
+        emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
+        return true;
+      },
+      release: (unused) => {
+        if (unused <= 0) return;
+        turn.modelCalls -= unused;
+        emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
+      },
+      model: () => agentCall(turn, agentPath, spec.maxModelCalls),
+      read: (call) => Promise.resolve(harness.call(call, { turnId: turn.id, agentPath, ...signalOf(turn) })),
+      trace: (entry) => {
+        const row: TraceEntry = { ...entry, agentPath };
+        turn.trace.push(row);
+        view = { ...view, trace: [...view.trace, row] };
+        showDelegation(turn, id, view);
+      },
+    };
+    const result = await subagents.run(spec, { agent: spec.name, brief: params.brief, ...(scope.length === 0 ? {} : { scope }) }, handle, turn.signal);
+    turn.dropped.push(...result.dropped);
+    for (const proposed of result.proposedSteps) turn.proposals.push({ agent: spec.name, key: canonicalJson({ tool: proposed.tool, params: proposed.params }) });
+    view = { ...view, outcome: result.status, result: result.summary, proposed: result.proposedSteps.length };
+    showDelegation(turn, id, view);
+    // The writer's Stop ends the turn here, after the agent's unused calls were released and its card shows how far it got.
+    if (turn.signal?.aborted === true) {
+      moveCard(turn, id, 'failed', { error: STOPPED_STEP });
+      throw new TurnStopped();
+    }
+    if (result.status === 'failed') {
+      return err(refusal('internal', `the ${spec.name} agent failed: ${result.summary} Nothing was changed.`, { target: 'agent.delegate', correctiveHint: 'read the documents yourself with doc.read, or tell the writer what failed' }));
+    }
+    const data = framedResult(result);
+    const cap = harness.tools().find((listing) => listing.name === 'agent.delegate')?.response_token_cap ?? 0;
+    if (!fitsCap(data, cap)) {
+      return err(limitExceeded(`the ${spec.name} agent's result is over the ${cap}-token cap, so it was not returned.`, 'delegate a narrower brief or scope, and ask for fewer proposed steps', 'agent.delegate'));
+    }
+    return ok({ data, summary: resultLine(result), affected: [] });
+  }
+
   /**
    * Runs a reply's reads now, and returns their results to the model. A loaded external read runs through the bus
    * (`callExternal`, extensibility §6), and a search that loaded external tools puts their descriptors in front of the
@@ -1236,7 +1338,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       checkStop(turn);
       const id = nextCallPrefix(turn, 'r');
       const proposal = proposals[index];
-      const first = await invokeRead(turn, { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) });
+      const first =
+        step.tool === 'agent.delegate'
+          ? await runDelegate(turn, step, id)
+          : await invokeRead(turn, { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) });
       // A read the stop cut short is not a refusal the model should hear about.
       if (!first.ok && turn.signal?.aborted === true) throw new TurnStopped();
       let callId = id;
@@ -1336,6 +1441,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     };
     const previews = editable.steps.map((step, index) => previewFor(harness.state, step.tool, step.params, editable.proposals[index]));
     const staged = editable.proposals.map((proposal) => stagedOf(proposal));
+    // A step equal to one a delegated agent proposed carries its badge; an edited step is a different step and has none.
+    const proposedBy = editable.steps.map((step) => {
+      const key = canonicalJson({ tool: step.tool, params: step.params });
+      return turn.proposals.find((entry) => entry.key === key)?.agent;
+    });
     const card = planCardOf({
       id: `${turn.id}:card`,
       turnId: turn.id,
@@ -1348,6 +1458,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       previews,
       risks: editable.steps.map((step) => riskOf(step.tool)),
       staged,
+      ...(proposedBy.some((agent) => agent !== undefined) ? { proposedBy } : {}),
       ...(notice === undefined ? {} : { notice }),
     });
     return { card, preflight };
@@ -2378,6 +2489,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       seq: 0,
       native: false,
       wireReplies: [],
+      delegations: 0,
+      proposals: [],
       wireSteps: new Map(),
     };
   }

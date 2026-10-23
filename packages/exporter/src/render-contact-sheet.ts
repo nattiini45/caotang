@@ -43,8 +43,11 @@
  *
  * ## Pictures
  *
- * PNG and JPEG are embedded as they are stored. A picture the engine cannot draw (a WebP file, bytes that are gone, a file that
- * does not parse) gets the card's caption in its box instead, and the log names the picture once.
+ * PNG and JPEG are embedded as they are stored. A WebP is decoded to PNG first, by the input's `transcodePicture` (the app draws it
+ * on a canvas; Node decodes it with `@jsquash/webp`, ./picture-transcoder-node.ts), scaled down to 300 dpi of its card, and
+ * embedded as that PNG; the format is read from the bytes, never the file name. A picture the engine cannot draw (a WebP with no
+ * transcoder, bytes that are gone, a file that does not parse) gets the card's caption in its box instead, and the log names the
+ * picture once.
  */
 
 import {
@@ -75,9 +78,19 @@ import type { FontkitFont } from './cid-embedding.js';
 import { CjkEmbedding, CjkFace } from './cjk-font.js';
 import { DevanagariEmbedding, DevanagariFace } from './devanagari-font.js';
 import { EmojiEmbedding, EmojiFace, type EmojiGlyph } from './emoji-font.js';
+import { isAnimatedWebp } from './image-size.js';
 import { RtlEmbedding, RtlFace, type PlacedGlyph } from './rtl-font.js';
 
 export const PDF_MIME = 'application/pdf';
+
+/** The resolution a picture is kept to on the sheet: its card's box at this many dots per inch. */
+const PICTURE_DPI = 300;
+
+/**
+ * Decodes a picture the PDF cannot embed (a WebP) into PNG bytes, scaled down, never up, to `maxPixels` on its longer side when
+ * one is given. A rejection is a picture that cannot be drawn: the card shows its caption and the log gives the reason.
+ */
+export type PictureTranscoder = (bytes: Uint8Array, format: 'webp', maxPixels?: number) => Promise<Uint8Array>;
 
 export interface ContactSheetPdfInput {
   readonly plan: SheetPlan;
@@ -109,6 +122,8 @@ export interface ContactSheetPdfInput {
   readonly loadHebrewFont?: FontLoader;
   /** Reads Noto Sans Devanagari (`./devanagari-font.ts`). Called at most once, and only when the sheet holds Devanagari. Without it, Devanagari is drawn as `?` and the log says so. */
   readonly loadDevanagariFont?: FontLoader;
+  /** Decodes a WebP picture to PNG (see {@link PictureTranscoder}). Called once per picture, and only for a WebP. Without it, a WebP's cards show the caption and the log says so. */
+  readonly transcodePicture?: PictureTranscoder;
   /** The project's language (a BCP 47 tag): Devanagari is shaped in it, and Marathi and Nepali use other forms of some letters than Hindi does. */
   readonly language?: string;
 }
@@ -544,7 +559,7 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
 
   // Each picture is embedded once, however many cards point at it, and a picture that cannot be drawn is named once.
   const embedded = new Map<string, PdfLib.PDFImage | null>();
-  const pictureOf = async (assetId: string): Promise<PdfLib.PDFImage | null> => {
+  const pictureOf = async (assetId: string, box: { readonly width: number; readonly height: number }): Promise<PdfLib.PDFImage | null> => {
     const known = embedded.get(assetId);
     if (known !== undefined) return known;
     let image: PdfLib.PDFImage | null = null;
@@ -563,7 +578,15 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
       try {
         if (format === 'png') image = await pdf.embedPng(bytes);
         else if (format === 'jpeg') image = await pdf.embedJpg(bytes);
-        else notes.push(`contact sheet: image ${assetId} is not a PNG or JPEG, so its cards show the caption`);
+        else if (format === 'webp') {
+          if (input.transcodePicture === undefined) {
+            notes.push(`contact sheet: image ${assetId} is a WebP file, which the PDF cannot embed, so its cards show the caption`);
+          } else {
+            const maxPixels = Math.ceil((Math.max(box.width, box.height) / 72) * PICTURE_DPI);
+            image = await pdf.embedPng(await input.transcodePicture(bytes, 'webp', maxPixels));
+            if (isAnimatedWebp(bytes)) notes.push(`contact sheet: image ${assetId} is an animated WebP; its first frame is drawn`);
+          }
+        } else notes.push(`contact sheet: image ${assetId} is not a PNG or JPEG, so its cards show the caption`);
       } catch (error) {
         image = null;
         notes.push(
@@ -603,7 +626,7 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
       borderWidth: 0.5,
     });
     const assetId = input.pictures.get(card.shotId);
-    const image = card.hasImage && assetId !== undefined ? await pictureOf(assetId) : null;
+    const image = card.hasImage && assetId !== undefined ? await pictureOf(assetId, box) : null;
     if (image !== null) {
       const fit = containIn(box, image.width, image.height);
       page.drawImage(image, { x: fit.x, y: flip(fit.y + fit.height), width: fit.width, height: fit.height });

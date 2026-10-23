@@ -14,7 +14,9 @@
  *  1. Stage `dist/mcpb/`: `server/caotang-mcp.mjs` (the built bundle), `server/fonts/` (the CJK, emoji, Arabic, Hebrew and Devanagari fonts
  *     both PDFs set text in: `@caotang/font-noto-cjk`, `@caotang/font-noto-emoji`, `@caotang/font-noto-arabic`,
  *     `@caotang/font-noto-hebrew` and `@caotang/font-noto-devanagari`, staged as `NotoSansMonoCJKsc-Regular.woff`,
- *     `NotoEmoji-Regular.woff`, `NotoSansArabic-Regular.ttf`, `NotoSansHebrew-Regular.ttf` and `NotoSansDevanagari-Regular.ttf`, where the Node loaders look first, packages/pdf-fonts/src/node-loader.ts), `manifest.json`,
+ *     `NotoEmoji-Regular.woff`, `NotoSansArabic-Regular.ttf`, `NotoSansHebrew-Regular.ttf` and `NotoSansDevanagari-Regular.ttf`, where the Node loaders look first, packages/pdf-fonts/src/node-loader.ts),
+ *     `server/webp_dec.wasm` (the WebP decoder of `@jsquash/webp`, beside the bundle, where the contact sheet's transcoder looks first,
+ *     packages/exporter/src/picture-transcoder-node.ts), `manifest.json`,
  *     `THIRD-PARTY-NOTICES.md` for this bundle's production dependencies (tools/third-party-notices.mjs), and the repository's
  *     LICENSE.
  *  2. Check the manifest against what the bundle is: the version, the entry point, the settings the arguments read, and the
@@ -40,6 +42,8 @@ export const BUNDLE_NOTICES = 'THIRD-PARTY-NOTICES.md';
 export const BUNDLE_LICENSE = 'LICENSE';
 /** The folder of the PDF fallback fonts, beside the server bundle. */
 export const BUNDLE_FONTS = 'server/fonts';
+/** The folder of the files the server reads beside its bundle: the WebP decoder. */
+export const BUNDLE_SERVER = 'server';
 
 /** The one switch a manifest must carry for writes: the setting it reads, and the variable it sets from it. */
 export const WRITE_SETTING = 'allow_writes';
@@ -105,7 +109,7 @@ export function manifestProblems(manifest, bundle) {
  * Writes the staged bundle folder. The bundle and the notices are copied in; the manifest is checked before it is copied,
  * so a wrong manifest never reaches the staging folder.
  *
- * @param {{ outDir: string; serverBundle: string; manifestPath: string; version: string; notices: string; license: string; fonts?: readonly string[] }} input
+ * @param {{ outDir: string; serverBundle: string; manifestPath: string; version: string; notices: string; license: string; fonts?: readonly string[]; serverFiles?: readonly string[] }} input
  * @returns {{ staging: string; files: string[] }}
  */
 export function stageBundle(input) {
@@ -126,6 +130,12 @@ export function stageBundle(input) {
     const staged = `${BUNDLE_FONTS}/${basename(font)}`;
     mkdirSync(join(staging, BUNDLE_FONTS), { recursive: true });
     copyFileSync(font, join(staging, staged));
+    files.push(staged);
+  }
+  // The files the server reads beside its bundle, each under its own name.
+  for (const file of input.serverFiles ?? []) {
+    const staged = `${BUNDLE_SERVER}/${basename(file)}`;
+    copyFileSync(file, join(staging, staged));
     files.push(staged);
   }
   return { staging, files };
@@ -186,6 +196,7 @@ async function main() {
     version,
     notices,
     license: join(REPO_ROOT, 'LICENSE'),
+    serverFiles: [createRequire(import.meta.url).resolve('@jsquash/webp/codec/dec/webp_dec.wasm')],
     fonts: [
       createRequire(import.meta.url).resolve('@caotang/font-noto-cjk/NotoSansMonoCJKsc-Regular.woff'),
       createRequire(import.meta.url).resolve('@caotang/font-noto-emoji/NotoEmoji-Regular.woff'),

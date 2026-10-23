@@ -2,7 +2,7 @@
  * The user-facing "not in this build" lists name only what is missing. Each list is prose a writer reads, and nothing
  * else checks it, so a feature that ships (visual references, the dialogue table's character limit, the demo's continuity
  * findings in the Findings tab, weekly and monthly goals, spreadsheet export, the engine target and locale in dialogue exports, the Source
- * tab's element menu, the storyboard contact sheet PDF) can stay on the list after it is built. These tests read the three lists and fail when one of them
+ * tab's element menu, the storyboard contact sheet PDF, WebP pictures on it) can stay on the list after it is built. These tests read the three lists and fail when one of them
  * names a built feature as missing.
  */
 import { readFileSync } from 'node:fs';
@@ -24,9 +24,18 @@ function sectionUnder(text: string, heading: string): string {
   return next < 0 ? body : body.slice(0, next);
 }
 
+/** Every section under a heading that appears more than once (the changelog keeps a Known limits section for Unreleased and for each release). */
+function sectionsUnder(text: string, heading: string): string {
+  const parts: string[] = [];
+  for (let at = text.indexOf(heading); at >= 0; at = text.indexOf(heading, at + heading.length)) parts.push(sectionUnder(text.slice(at), heading));
+  expect(parts.length, `the heading "${heading}" is missing`).toBeGreaterThan(0);
+  return parts.join('\n');
+}
+
 /** Built features that no list may name as missing. Each pattern is one feature, in the words the lists used. */
 const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp }[] = [
   { name: 'codex visual references', pattern: /visual references?/i },
+  { name: 'WebP pictures on the contact sheet', pattern: /does not draw WebP|WebP picture as its caption/i },
   { name: 'the dialogue table character limit', pattern: /character limit/i },
   { name: 'the continuity check reporting outside the Findings tab', pattern: /continuity check/i },
   { name: 'weekly and monthly goals', pattern: /weekly|monthly/i },
@@ -98,7 +107,7 @@ describe('the not-in-this-build lists name only what is missing', () => {
 
   it('the changelog’s known limits name no built feature, in any of its bullets', () => {
     // The whole section is read, not only the "Not in this build" bullet: the stale continuity-check claim was a bullet of its own.
-    const limits = sectionUnder(read('CHANGELOG.md'), '### Known limits');
+    const limits = sectionsUnder(read('CHANGELOG.md'), '### Known limits');
     expect(limits.split('\n').some((line) => line.startsWith('- **Not in this build:**')), 'the changelog has a "Not in this build" line').toBe(true);
     for (const feature of BUILT_FEATURES) expect(limits, `names ${feature.name} as missing`).not.toMatch(feature.pattern);
   });

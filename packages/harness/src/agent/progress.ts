@@ -137,6 +137,10 @@ export const TASK_PHRASES: Readonly<Record<ToolName, TaskPhraseFn>> = {
     const name = textOf(params, 'name');
     return name === undefined ? phrase('Read a skill', 'Reading a skill') : phrase(`Read the skill ${quoted(name)}`, `Reading the skill ${quoted(name)}`);
   },
+  'agent.delegate': (params) => {
+    const agent = textOf(params, 'agent');
+    return agent === undefined ? phrase('Hand work to a helper agent', 'Handing work to a helper agent') : phrase(`Hand work to the ${agent} agent`, `Handing work to the ${agent} agent`);
+  },
   'notes.replace': aboutDoc('Rewrite the notes of', 'Rewriting the notes of', 'Rewrite notes', 'Rewriting notes'),
   'synopsis.set': aboutDoc('Set the synopsis of', 'Setting the synopsis of', 'Set a synopsis', 'Setting a synopsis'),
   'vocabulary.upsert': (params) => {

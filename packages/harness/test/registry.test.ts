@@ -26,10 +26,10 @@ describe('the registry joins every tool to its metadata', () => {
   // the dialogue module's two (dialogue-narrative.md §7), which register because the module imports the bus and
   // not the harness. The spec's media-track count is twenty-three (14 + coherence 3 + storyboard 2 + prompt-pack 2 +
   // dialogue 2, agent-harness.md §10). The registry also carries doc.import, codex.import and tool.search, which that
-  // count leaves out, the five allowlisted bus primitives (issue #56) and the skills row (`skill.load`, extensibility §10), so it holds thirty-two.
-  it('lists all thirty-two rows, in the metadata table’s order', () => {
+  // count leaves out, the five allowlisted bus primitives (issue #56), the skills row (`skill.load`, extensibility §10) and the delegation row (`agent.delegate`, agent-harness §2), so it holds thirty-three.
+  it('lists all thirty-three rows, in the metadata table’s order', () => {
     expect(listing.map((item) => item.name)).toEqual([...TOOL_NAMES]);
-    expect(listing).toHaveLength(32);
+    expect(listing).toHaveLength(33);
   });
 
   // Two of the coherence tools are wired to the engine by default (coherence.scan and
@@ -40,10 +40,11 @@ describe('the registry joins every tool to its metadata', () => {
   // default, as coherence.review does: shots.derive needs a proposal the loop stages, and prompt.draft and
   // prompt.variant need a model. dialogue.draft is the same kind (it writes the loop's staged Ink), and dialogue.table
   // is a read that is wired by default.
-  it('makes agent.plan the one name that is not callable, and the model-backed port tools, and `skill.load` (wired only where an app supplies its skills), the ones not wired', () => {
+  it('makes agent.plan the one name that is not callable, and the model-backed port tools, `skill.load` (wired only where an app supplies its skills) and `agent.delegate` (wired by the agent ports), the ones not wired', () => {
     expect(listing.filter((item) => !item.callable).map((item) => item.name)).toEqual(['agent.plan']);
     expect(listing.filter((item) => !item.wired).map((item) => item.name).sort()).toEqual(
       [
+        'agent.delegate',
         'agent.plan',
         'codex.read',
         'continuity.scan',
@@ -93,6 +94,7 @@ describe('the registry joins every tool to its metadata', () => {
       'dialogue.draft',
       'dialogue.table',
       'skill.load',
+      'agent.delegate',
       'notes.replace',
       'synopsis.set',
       'vocabulary.upsert',

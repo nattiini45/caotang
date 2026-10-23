@@ -58,6 +58,7 @@ const TASKS: Readonly<Record<AssemblyTool, AgentTask>> = {
   'synopsis.fill': { tool: 'synopsis.fill', instruction: 'Summarise.', focus: FOCUS_ID },
   meta: { tool: 'meta', instruction: 'Summarise the project.' },
   'dialogue.draft': DIALOGUE,
+  delegate: { tool: 'delegate', instruction: 'Brief: who knows about the wall?', scope: [IDS.ch1, IDS.ch2] },
 };
 
 /** The project each tool is assembled over: the dialogue container for dialogue.draft, the fixture's manuscript for the rest. */
@@ -82,6 +83,14 @@ describe('the layers each tool assembles (§3)', () => {
 
   it('continuity.scan assembles L2 expanded, L4 expanded and the scope tails, without structure or turns', () => {
     expect(included(assemble(TASKS['continuity.scan'], buildApp()))).toEqual(['L0', 'L1', 'L2', 'L4', 'L5', 'L7']);
+  });
+
+  it('delegate assembles a fresh context: the scope tails and the layers around them, and never the recent turns', () => {
+    const assembled = assemble(TASKS.delegate, buildApp());
+    expect(included(assembled)).toEqual(['L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L7']);
+    expect(layer(assembled, 'L6').included).toBe(false);
+    // The fixture's turns are in the app and reach no part of the prompt.
+    expect(assembled.messages.map((message) => message.content).join('\n')).not.toContain('Tighten the opening of chapter 3');
   });
 
   it('synopsis.fill assembles the structure and the full document, without codex, story or turns', () => {

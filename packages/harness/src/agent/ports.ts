@@ -29,6 +29,7 @@ import { failure, refusal } from '../errors.js';
 import { DOCUMENT, descendantsOf, resolveNode } from '../resolve.js';
 import type { CallParams, PortContext, PortToolName, ToolPort, ToolValue } from '../types.js';
 import { batchRefusal } from '../tools/common.js';
+import { delegatePort } from '../tools/delegate.js';
 import { asFindingsProposal, asSceneProposal, asSynopsisProposal, wordsOf } from './drafting.js';
 import { storyboardOf } from './storyboard-model.js';
 
@@ -448,6 +449,8 @@ export function createAgentPorts(): Partial<Record<PortToolName, ToolPort>> {
     'prompt.draft': promptDraftPort,
     'prompt.variant': promptVariantPort,
     'dialogue.draft': dialogueDraftPort,
+    // The loop answers a delegation inside a turn; the port is the refusal a call outside one gets (tools/delegate.ts).
+    'agent.delegate': delegatePort,
   };
 }
 

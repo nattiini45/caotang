@@ -71,6 +71,8 @@ export interface CallExpect {
   readonly outcome: 'ok' | 'refused' | 'not-run';
   /** A subset of the params the call named. Keys not listed are not checked. */
   readonly params?: Readonly<Record<string, unknown>>;
+  /** The delegated agent that made the call (agent-harness §2). `null` is the turn's own call; absent, the path is not checked. */
+  readonly agentPath?: string | null;
 }
 
 /**
@@ -342,6 +344,7 @@ function cardMatches(expected: CardExpect, actual: CardRecord, matcher: Matcher)
 /** A call item matches when its tool and outcome agree, and the params it names are a subset of the call's. */
 function callMatches(expected: CallExpect, actual: TraceEntry): boolean {
   if (expected.tool !== actual.tool || expected.outcome !== actual.outcome) return false;
+  if (expected.agentPath !== undefined && expected.agentPath !== (actual.agentPath ?? null)) return false;
   for (const [key, value] of Object.entries(expected.params ?? {})) {
     if (JSON.stringify(actual.params[key]) !== JSON.stringify(value)) return false;
   }

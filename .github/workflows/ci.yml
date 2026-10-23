@@ -1,7 +1,7 @@
 # The standing gate: lint, typecheck, unit tests, the production build, then the Playwright suite.
 #
 # What runs, and on which Node:
-#   - Two jobs, `verify` and `pdf-validate`, both on Node 24 only. There is deliberately no Node version matrix: Actions minutes are
+#   - Three jobs, `verify`, `office-interop` and `pdf-validate`, all on Node 24 only. There is deliberately no Node version matrix: Actions minutes are
 #     limited, and the engines range (22.12 or later in 22, 24, and 26 or later) is stated in the README, not tested here.
 #   - `pnpm verify` runs lint, typecheck and the vitest suites (packages/ and test/). The desktop's pure model specs live in
 #     e2e/unit as Playwright specs, so they run under `pnpm test:e2e`, not under `pnpm verify`.
@@ -10,6 +10,11 @@
 #     checks its manifest with the pinned MCPB CLI.
 #   - `pnpm test:e2e` runs the dev-server suite, and the production-preview project, which smoke-tests the build from the step
 #     above on its own port (e2e/prod-smoke.spec.ts).
+#   - `office-interop` writes the .xlsx corpus through the exporter (packages/exporter/test/xlsx-write-corpus.test.ts, which writes only
+#     when CAOTANG_XLSX_OUT is set, so `pnpm verify` is unchanged) and checks every file with tools/office-interop/check_xlsx.py: the
+#     package parts, openpyxl, then LibreOffice's CSV and its re-saved XLSX. LibreOffice (apt) and openpyxl (a venv) are installed for
+#     this job alone and never ship; it is a separate job so the main gate does not wait for the install. It is not a check in Excel or
+#     Numbers (docs/testing/office-interop.md).
 #   - `pdf-validate` writes the PDF corpus through the exporter (packages/exporter/test/pdf-write-corpus.test.ts, which writes only when
 #     CAOTANG_PDF_OUT is set, so `pnpm verify` is unchanged) and checks every file with tools/pdf-validate/check.mjs: pdf.js in Node,
 #     then qpdf, Poppler, Ghostscript and MuPDF. Those are installed from apt for this job alone; they never ship, and a tool that is
@@ -80,6 +85,47 @@ jobs:
         with:
           name: playwright-report
           path: playwright-report/
+          retention-days: 7
+
+  office-interop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CAOTANG_XLSX_OUT: ${{ github.workspace }}/test-results/xlsx
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable corepack (pnpm from packageManager)
+        run: corepack enable
+
+      - name: Install LibreOffice and openpyxl (CI only; neither ships)
+        # man-db rebuilds its index after every package by default, which alone can outlast the job; it is not needed here.
+        run: |
+          sudo rm -f /var/lib/man-db/auto-update
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libreoffice-calc
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install openpyxl==3.1.5
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Write the XLSX corpus
+        run: pnpm exec vitest run packages/exporter/test/xlsx-write-corpus.test.ts
+
+      - name: Check the corpus (package parts, openpyxl, LibreOffice CSV and re-saved XLSX)
+        run: '"$RUNNER_TEMP/venv/bin/python" tools/office-interop/check_xlsx.py "$CAOTANG_XLSX_OUT"'
+
+      - name: Upload the corpus and the LibreOffice logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: xlsx-corpus
+          path: ${{ env.CAOTANG_XLSX_OUT }}/
           retention-days: 7
 
   pdf-validate:

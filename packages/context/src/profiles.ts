@@ -73,6 +73,14 @@ const PROFILES: Readonly<Record<AssemblyTool, ToolProfile>> = {
     budgets: { L1: 1_500, L2: 2_500, L4: 6_000, L5: SCOPE_DOCUMENT_LIMIT * 1_000 + SCOPE_OVERHEAD_TOKENS },
     totalBudget: 'sum-of-caps',
   },
+  delegate: {
+    // A delegated agent starts from a fresh context (agent-harness §2, "Delegate"): the project summary, the codex per its
+    // policies, and the structure, story and scope tails of the documents it was given. No L6: nothing of the parent's
+    // conversation reaches it, and the brief is its L7.
+    layers: ['L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L7'],
+    budgets: { L1: 1_500, L2: 1_000, L3: 1_200, L4: 2_000, L5: SCOPE_DOCUMENT_LIMIT * 1_000 + SCOPE_OVERHEAD_TOKENS },
+    totalBudget: 'sum-of-caps',
+  },
   'synopsis.fill': {
     // The full document (cap 25k) and the structure; no codex, no story so far, no turns.
     layers: ['L0', 'L1', 'L3', 'L5', 'L7'],

@@ -48,6 +48,8 @@ export interface ModelCall {
    * carry `toolCalls`.
    */
   readonly tools?: readonly ToolDef[];
+  /** `'none'` keeps `tools` declared and forbids calling them: a request that replays tool calls and results must still declare the tools. Default `'auto'`. */
+  readonly toolChoice?: 'auto' | 'none';
   /** The session's effort level, when it pins one — passed to the request as `thinking`. */
   readonly thinking?: ThinkingLevel;
   readonly onDelta?: (text: string) => void;
@@ -58,6 +60,8 @@ export interface ModelCall {
   readonly onReasoning?: (text: string) => void;
   /** The turn's signal (`TurnOptions.signal`): forwarded to the gateway, and read when the stream ends. */
   readonly signal?: AbortSignal;
+  /** The delegated agent inside the turn that makes the call, stamped on the request for the ledger (provider-gateway §6). */
+  readonly agentPath?: string;
 }
 
 /** The writer stopped the turn while a model call was in flight or about to be made. Whatever the call had streamed is dropped. */
@@ -91,6 +95,19 @@ export interface Completion {
   readonly reasoning?: readonly ReasoningBlock[];
 }
 
+/**
+ * The reply as the conversation keeps it. A native reply's calls and reasoning blocks ride on the
+ * message verbatim — the adapter replays them on the next request, so they are never paraphrased.
+ */
+export function assistantOf(reply: Completion): ChatMessage {
+  return {
+    role: 'assistant',
+    content: reply.text,
+    ...(reply.toolCalls === undefined || reply.toolCalls.length === 0 ? {} : { toolCalls: reply.toolCalls }),
+    ...(reply.reasoning === undefined || reply.reasoning.length === 0 ? {} : { reasoning: reply.reasoning }),
+  };
+}
+
 /** The estimated prompt and completion tokens of one generation, on the budgets' own estimate (context-assembly §3). */
 export interface Spend {
   readonly promptTokens: number;
@@ -109,10 +126,11 @@ export async function complete(call: ModelCall, messages: readonly ChatMessage[]
   const request: ChatRequest = {
     messages: [...messages],
     turnId: call.turnId,
+    ...(call.agentPath === undefined ? {} : { agentPath: call.agentPath }),
     ...(call.profileId === undefined ? {} : { profileId: call.profileId }),
     ...(call.model === undefined ? {} : { model: call.model }),
     ...(responseFormat === undefined ? {} : { responseFormat }),
-    ...(call.tools === undefined || call.tools.length === 0 ? {} : { tools: call.tools, toolChoice: 'auto' as const }),
+    ...(call.tools === undefined || call.tools.length === 0 ? {} : { tools: call.tools, toolChoice: call.toolChoice ?? 'auto' }),
     ...(call.thinking === undefined ? {} : { thinking: call.thinking }),
   };
   const { signal } = call;

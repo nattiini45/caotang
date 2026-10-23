@@ -45,6 +45,7 @@ import {
   sceneDraftParams,
   synopsisFillParams,
 } from './ports.js';
+import { delegateParams } from './delegate.js';
 import { skillLoadParams } from './skills.js';
 import type { CallParams } from '../types.js';
 import type { CommandError } from '@caotang/bus';
@@ -88,6 +89,8 @@ const DEFINITIONS: Readonly<Record<ToolName, Definition>> = {
   'dialogue.table': extensionDefinition(DIALOGUE_TOOL_ENTRIES, 'dialogue.table'),
   // The project's skills (extensibility.md §10).
   'skill.load': { kind: 'port', port: 'skill.load', params: skillLoadParams },
+  // Delegation to a built-in helper agent (agent-harness §2): the loop answers it; the port is the answer outside a turn.
+  'agent.delegate': { kind: 'port', port: 'agent.delegate', params: delegateParams },
   // The allowlisted bus primitives, each built from its command's descriptor (tools/primitive.ts).
   ...Object.fromEntries(PRIMITIVE_TOOL_NAMES.map((name) => [name, primitiveDefinition(name)])) as Record<PrimitiveToolName, Definition>,
 };

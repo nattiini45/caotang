@@ -3,14 +3,14 @@
 `caotang agent` runs one turn of Caotang's agent on a project folder and exits: from a terminal, a Makefile, a cron job or CI. It is [`@caotang/sdk`](../sdk/README.md) with flags. The design is [agent-harness.md](../../docs/architecture/agent-harness.md) §4 and §11, and the flags and exit codes are in the [README](../../README.md#caotang-from-the-command-line).
 
 ```sh
-pnpm --filter @caotang/cli build          # writes dist/caotang.mjs and dist/fonts/
+pnpm --filter @caotang/cli build          # writes dist/caotang.mjs, dist/fonts/ and dist/webp_dec.wasm
 
 node dist/caotang.mjs agent -p "Check the manuscript for continuity problems." --mock --project ~/Writing/my-novel
 node dist/caotang.mjs agent --help
 node dist/caotang.mjs mcp serve --project ~/Writing/my-novel      # the MCP server, as caotang-mcp serve
 ```
 
-`dist/caotang.mjs` is one file: the workspace packages and the MCP SDK are inlined, so it runs with a plain `node`. The PDFs' fallback fonts (CJK, emoji, Arabic, Hebrew, Devanagari) are read from `fonts/` beside it; copy the folder with the file. `caotang-mcp` stays the bin of `@caotang/mcp-server` and of the `.mcpb` bundle.
+`dist/caotang.mjs` is one file: the workspace packages and the MCP SDK are inlined, so it runs with a plain `node`. The PDFs' fallback fonts (CJK, emoji, Arabic, Hebrew, Devanagari) are read from `fonts/` beside it, and so is the WebP decoder, `webp_dec.wasm`, which draws a WebP picture on a contact sheet; copy the folder and that file with the bundle. `caotang-mcp` stays the bin of `@caotang/mcp-server` and of the `.mcpb` bundle.
 
 ## Rules the code keeps
 
