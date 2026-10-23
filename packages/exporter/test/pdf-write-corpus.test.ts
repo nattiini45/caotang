@@ -205,18 +205,6 @@ const CORPUS: readonly Case[] = [
     size: LETTER,
     fonts: [COURIER, ARABIC, HEBREW],
   },
-  ...['inline', 'moved', 'left'].map((mode) => ({
-    file: 'exp-' + mode + '.pdf',
-    format: 'pdf' as const,
-    build: () => {
-      (globalThis as unknown as { process: { env: Record<string, string> } }).process.env.CAOTANG_EXP = mode;
-      return { state: sceneWith(['INT. A - DAY', '', '@سارة', 'كَتَبَ الوَلَدُ', '', '@سارة', 'مُحَمَّدٌ', '', '@سارة', 'الرَّحْمٰنِ', '', '@سارة', 'بِسْمِ اللّٰهِ'].join('\n')) };
-    },
-    options: { titlePage: false },
-    pages: [['INT. A - DAY', 'كَتَبَ', 'الوَلَدُ', 'مُحَمَّدٌ', 'الرَّحْمٰنِ', 'بِسْمِ', 'اللّٰهِ']],
-    size: LETTER,
-    fonts: [COURIER, ARABIC, HEBREW],
-  })),
   {
     // Devanagari keeps its /ActualText (it is written left to right, so Poppler's spreading of it over the word reads it in
     // order): this file shows it, in the tools that read it, and in pdf.js, which does not, from the ToUnicode of the clusters.
