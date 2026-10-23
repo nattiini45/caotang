@@ -198,7 +198,8 @@ export function coherencePorts(clock: () => number, source: CoherenceSource = {}
     // The checks the writer has on (Settings › Coherence), and the checks the model named among them (coherence.md §5.1).
     const runnable = runnableChecks(params['checks'], source.checks?.());
     if (isRefusal(runnable)) return failure(refusal('invalid-params', runnable.message, { target: 'coherence.scan' }));
-    const dialogue = source.dialogue?.(context.state);
+    // The dialogue facts are read from the project as the agent may read it, so a container in a withheld subtree yields none.
+    const dialogue = source.dialogue?.(context.withheld === undefined ? context.state : withheldState(context.state, context.withheld));
     const excluded = excludedBy(context.withheld);
     const scanParams: Readonly<Record<string, unknown>> = runnable.checks === undefined ? params : { ...params, checks: [...runnable.checks] };
     const outcome = scanTool(scanParams, {

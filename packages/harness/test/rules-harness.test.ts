@@ -6,10 +6,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { createMcpClient, createMockWireFactory, qualifiedNameOf, type McpServerConfig, type MockMcpScript, type WireTool } from '@caotang/mcp-client';
-import { createProjectCommandRegistry } from '@caotang/store';
+import { addDocument, createProjectCommandRegistry } from '@caotang/store';
 
-import { TOOL_METADATA, TOOL_NAMES, TOOL_TARGETS, createAgentPorts, type RuleSet, type SourcedRule } from '../src/index.js';
+import { TOOL_METADATA, TOOL_NAMES, TOOL_TARGETS, createAgentPorts, dialogueFactsOf, type RuleSet, type SourcedRule } from '../src/index.js';
 import { CHAPTER_ONE, CHAPTER_TWO, ENTRY, ENTRY_TWO, FRIEND, LANDING, STORM, callId, makeHarness, makeState, refusalOf, registryWithFakeExports, run, snapshotOf, valueOf } from './fixtures.js';
+
+const TAVERN = 'n_TAVERN0001';
 
 const rule = (effect: 'deny' | 'ask', fields: Partial<SourcedRule> = {}): SourcedRule => ({ effect, tool: '*', source: 'project', ...fields });
 
@@ -247,6 +249,23 @@ describe('a read-deny', () => {
     const scanned = (h: typeof open): string => valueOf(run(h, 'coherence.scan', { scope: { mode: 'full' } })).summary;
     expect(scanned(open)).toContain('across 2 document');
     expect(scanned(harness)).toContain('across 0 document');
+  });
+
+  it('keeps a withheld dialogue container out of a full coherence scan: no finding, speaker or knot of it is returned or recorded', () => {
+    const ink = ['-> start', '=== start ===', 'Innkeeper: Ah, a traveller.', '* [Order an ale] -> END', '=== orphan ===', 'Innkeeper: Nobody comes here.', '-> END', ''].join('\n');
+    const scan = (rules: SourcedRule[]) => {
+      const state = makeState();
+      addDocument(state, { id: TAVERN, parentId: CHAPTER_ONE, title: 'Tavern', type: 'dialogue', body: ink, now: new Date('2026-01-01T00:00:00.000Z') });
+      const harness = makeHarness({ rules: () => ({ rules }), ports: createAgentPorts(), coherence: { dialogue: dialogueFactsOf } }, state);
+      const answer = JSON.stringify(valueOf(run(harness, 'coherence.scan', { scope: { mode: 'full' } })));
+      return { answer, recorded: JSON.stringify(state.coherence) };
+    };
+    const open = scan([]);
+    expect(open.answer).toContain(TAVERN);
+    const withheld = scan(hidden());
+    expect(withheld.answer).not.toContain(TAVERN);
+    expect(withheld.recorded).not.toContain(TAVERN);
+    expect(withheld.recorded.toLowerCase()).not.toContain('orphan');
   });
 
   it('leaves a withheld document out of continuity.scan with no scope, by title and by count', () => {
