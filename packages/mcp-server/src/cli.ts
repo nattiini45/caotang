@@ -11,6 +11,7 @@
 
 import { parseArgs } from 'node:util';
 
+import { loadInkCompiler } from '@caotang/harness';
 import { LOCK_FILE, NoProjectError, ProjectLockedError } from '@caotang/sdk/folder';
 
 import { DEFAULT_TOKEN_ENV, resolveToken } from './auth.js';
@@ -218,6 +219,9 @@ export async function runCli(argv: readonly string[], io: RunIo): Promise<number
     io.stdout(USAGE);
     return 0;
   }
+
+  // The dialogue checks compile Ink synchronously, so the compiler loads before the project opens (dialogue ink-loader.ts).
+  await loadInkCompiler();
 
   // The environment switch is the same switch as the flag. An MCPB bundle has no way to pass a flag conditionally, so its
   // manifest sets this variable from the user's "allow writes" setting. Only the exact value "true" turns writes on.

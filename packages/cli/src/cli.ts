@@ -3,7 +3,7 @@
  * command the `.mcpb` bundle runs, stays as it is). The router takes the first words and hands the rest on.
  */
 
-import { runCli as runMcp, type RunIo } from '@caotang/mcp-server';
+import { loadInkCompiler, runCli as runMcp, type RunIo } from '@caotang/mcp-server';
 
 import { ExitCode } from './output.js';
 import { runAgent, type AgentIo } from './run-agent.js';
@@ -24,8 +24,11 @@ export async function main(argv: readonly string[], io: MainIo): Promise<number>
     io.stdout(USAGE);
     return ExitCode.Ok;
   }
-  if (command === 'agent') return runAgent(rest, io);
-  if (command === 'mcp') return runMcp(rest, io);
+  if (command === 'agent' || command === 'mcp') {
+    // The dialogue checks compile Ink synchronously, so the compiler loads before either command opens a project.
+    await loadInkCompiler();
+    return command === 'agent' ? runAgent(rest, io) : runMcp(rest, io);
+  }
   io.stderr(`caotang: unknown command ${JSON.stringify(command)}\n\n${USAGE}`);
   return ExitCode.Usage;
 }

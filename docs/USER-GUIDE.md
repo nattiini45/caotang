@@ -461,6 +461,7 @@ A developer can run the agent against a project folder from a Node script, a com
 - **A scene is missing from the export.** Empty scenes are left out. The status line names how many.
 - **Compile says what stopped it.** A dialogue line with no id, or a selection with no scene, is named in the dialog.
 - **The Ink does not compile.** The dialogue view lists the errors. Fix them in the Ink text.
+- **The dialogue view says it is loading the Ink compiler, or could not load it.** Caotang fetches the compiler the first time a project with dialogue opens. Wait a moment, or choose **Try again**; if it still fails, choose **Reload**. Nothing in the project changed.
 - **A passage is refused for script coverage.** It appears more than once in the text, and the message says how many places. Select more words around the one you mean.
 - **The browser warns that it has not promised to keep your words.** Export a bundle now, and again from time to time.
 - **A card is hidden under the agent panel.** Close the panel to reach it.

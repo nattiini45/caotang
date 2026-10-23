@@ -149,7 +149,7 @@ The Tier-1 registry above stays at 14 rows (`agent.plan` is the fourteenth, the 
 
 ## 11. Headless use
 
-The loop is callback-shaped, `decide(pending)` for every card and `emit(event)` for every event, and nothing in it needs a browser. `@caotang/sdk` (`packages/sdk`) is the supported way to run it in Node: `openProject({ root, provider, approval, write })` resolves to a project whose `run(intent)` is one turn.
+The loop is callback-shaped, `decide(pending)` for every card and `emit(event)` for every event, and nothing in it needs a browser. `@caotang/sdk` (`packages/sdk`) is the supported way to run it in Node: `openProject({ root, provider, approval, write })` resolves to a project whose `run(intent)` is one turn. It loads the Ink compiler before it opens the folder (dialogue-narrative.md §2.2), because the dialogue tools and the branch checks compile synchronously and fail closed without it.
 
 **One factory.** `createProductHarness({ state, ports, … })` in `@caotang/harness` builds the harness every host uses. `ports: 'agent'` wires the agent ports (`createAgentPorts`), the coherence module's dialogue facts and review context, and the `coherence.review` model the host gives; the desktop and the SDK use it. `ports: 'external'` wires only `codex.read` and leaves the coherence defaults alone; the MCP server uses it, because it holds no provider profile or key.
 

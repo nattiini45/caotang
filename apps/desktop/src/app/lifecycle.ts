@@ -87,6 +87,7 @@ import type { McpClient } from '@caotang/mcp-client';
 import { attachCoherence } from './coherence-io.js';
 import { applyEncodingDecisions, encodingResultLines, type EncodingDecision } from './encoding-review.js';
 import { folderArtifactFs, type DirectoryHandleLike } from './fs-access.js';
+import { requestInkCompilerFor } from './ink-compiler.js';
 import {
   copiedFromOf,
   forgetFolder,
@@ -218,6 +219,9 @@ async function sessionFor(
       onClosed: () => lease.release(),
     });
     await attachCoherence(session, store, folder);
+    // The dialogue checks compile Ink synchronously, so a project with a dialogue container opens once the compiler has loaded (ink-compiler.ts).
+    // A failed load does not stop the open: the dialogue views say so and offer Try again.
+    await requestInkCompilerFor(state);
     // Words the last page held when it went away are put back (or offered) before the editor mounts (pending-journal.ts).
     session.setReloadNotice(recoveryNotice(await recoverPending(session)));
     // The undo kept for a document this project no longer has goes (history-store.ts).

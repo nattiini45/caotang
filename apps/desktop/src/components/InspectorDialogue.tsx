@@ -8,9 +8,10 @@ import { useMemo, useState, type ReactNode } from 'react';
 
 import { DIALOGUE_ENGINE_TARGETS, type DialogueMetaPatch } from '@caotang/bus';
 import { readDialogueMeta, validateContainer } from '@caotang/dialogue';
-import { getBody, type TreeNode } from '@caotang/store';
+import { getBody, type CodexEntry, type TreeNode } from '@caotang/store';
 
 import { explain } from './actions.js';
+import { InkGate } from './InkGate.js';
 import type { ProjectSession } from '../app/session.js';
 import { useCodexEntries } from '../media/hooks.js';
 import { useReport, useSession } from './shared.js';
@@ -30,9 +31,7 @@ export function DialogueMetaSection({ session, node }: { session: ProjectSession
   // a rename or an alias, and the findings count would go stale (the same fault the dialogue view had).
   const codex = useCodexEntries(session);
   const characters = codex.filter((entry) => entry.type === 'character');
-  // The check runs the Ink compiler, so it is read again only when the body or the codex changes, not on every render of the Inspector.
   const body = getBody(session.state, node.id);
-  const check = useMemo(() => validateContainer(node.id, body, { entries: codex }), [node.id, body, codex]);
 
   const apply = (patch: DialogueMetaPatch): void => {
     const outcome = session.dispatch('dialogue.setMeta', { nodeId: node.id, patch });
@@ -95,21 +94,33 @@ export function DialogueMetaSection({ session, node }: { session: ProjectSession
         The dialogue table writes it on each line. The Ink story puts it in the file name. Empty uses the project’s language in the table.
       </p>
 
-      <dl className="sp-readout dlg-counts" aria-label="Structure of the container">
-        <div>
-          <dt>Knots</dt>
-          <dd>{check.stats.knots}</dd>
-        </div>
-        <div>
-          <dt>Choices</dt>
-          <dd>{check.stats.choices}</dd>
-        </div>
-        <div>
-          <dt>Findings</dt>
-          <dd>{check.findings.length}</dd>
-        </div>
-      </dl>
+      {/* The counts come from the Ink compiler, which loads on demand: the settings above work without it. */}
+      <InkGate variant="inline">
+        <DialogueCounts id={node.id} body={body} codex={codex} />
+      </InkGate>
     </details>
+  );
+}
+
+/** The structure of the container, read from its Ink with the compiler. */
+function DialogueCounts({ id, body, codex }: { id: string; body: string; codex: readonly CodexEntry[] }): ReactNode {
+  // The check runs the Ink compiler, so it is read again only when the body or the codex changes, not on every render of the Inspector.
+  const check = useMemo(() => validateContainer(id, body, { entries: codex }), [id, body, codex]);
+  return (
+    <dl className="sp-readout dlg-counts" aria-label="Structure of the container">
+      <div>
+        <dt>Knots</dt>
+        <dd>{check.stats.knots}</dd>
+      </div>
+      <div>
+        <dt>Choices</dt>
+        <dd>{check.stats.choices}</dd>
+      </div>
+      <div>
+        <dt>Findings</dt>
+        <dd>{check.findings.length}</dd>
+      </div>
+    </dl>
   );
 }
 

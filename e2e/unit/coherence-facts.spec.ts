@@ -4,6 +4,7 @@ import { addDocument } from '../../packages/store/src/index.js';
 
 import { containersOf, dialogueFactsOf } from '../../apps/desktop/src/app/coherence-facts.js';
 import { project } from './fixtures.js';
+import { loadInkCompiler } from '../../packages/dialogue/src/index.js';
 
 const NOW = new Date('2026-10-08T09:00:00.000Z');
 
@@ -19,6 +20,11 @@ function addContainer(state: ReturnType<typeof project>, id: string, parentId: s
 }
 
 const INK_BODY = '=== court ===\nZed: Hello there.\n';
+
+// The Ink compiler loads on demand, as it does in the app (dialogue ink-loader.ts); these specs read the Ink with it.
+test.beforeAll(async () => {
+  await loadInkCompiler();
+});
 
 test.describe('the dialogue facts a scan reads (dialogue-narrative.md §5, coherence.md §5.1)', () => {
   test('a container under the manuscript is read, and the others are not: research and archived containers stay out', () => {

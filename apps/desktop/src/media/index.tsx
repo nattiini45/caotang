@@ -13,6 +13,7 @@ import type { TreeNode } from '@caotang/store';
 import type { ZoomLevel } from '../app/corkboard-model.js';
 import type { ProjectSession } from '../app/session.js';
 import type { RevealRequest } from '../components/EditorPane.js';
+import { InkGate } from '../components/InkGate.js';
 import { LazyBoundary, lazyView } from '../components/lazy-view.js';
 
 import { commitShotCommand, importShotImage } from './commit.js';
@@ -102,7 +103,12 @@ function viewOf(node: TreeNode, props: MediaViewProps): ReactNode | null {
         />
       );
     case 'dialogue':
-      return <DialogueView key={node.id} session={props.session} node={node} reveal={props.reveal} onRevealHandled={props.onRevealHandled} />;
+      // The view reads the Ink through the compile gate, which needs the compiler loaded (InkGate).
+      return (
+        <InkGate key={node.id}>
+          <DialogueView session={props.session} node={node} reveal={props.reveal} onRevealHandled={props.onRevealHandled} />
+        </InkGate>
+      );
     case null:
       return null;
   }

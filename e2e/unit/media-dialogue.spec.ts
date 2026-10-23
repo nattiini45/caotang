@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { dialogueModelOf } from '../../apps/desktop/src/media/dialogue-model.js';
 import type { CodexEntry } from '../../packages/store/src/index.js';
+import { loadInkCompiler } from '../../packages/dialogue/src/index.js';
 
 const DOC = 'n_DLG0000001';
 
@@ -39,6 +40,11 @@ function character(name: string): CodexEntry {
     sources: [],
   };
 }
+
+// The Ink compiler loads on demand, as it does in the app (dialogue ink-loader.ts); these specs read the Ink with it.
+test.beforeAll(async () => {
+  await loadInkCompiler();
+});
 
 test.describe('the outline and the graph', () => {
   test('the outline lists the top of the body and every knot, with each choice and its target', () => {
