@@ -153,13 +153,13 @@ export class CidEmbedding {
     let pen = x;
     const body: PdfLib.PDFOperator[] = [];
     const finals: PdfLib.PDFOperator[] = [];
-    const EXP = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env?.CAOTANG_EXP ?? 'moved';
     for (const glyph of glyphs) {
-      (glyph.final === true && EXP !== 'inline' ? finals : body).push(setTextMatrix(1, 0, 0, 1, pen + glyph.dx * scale, y + glyph.dy * scale), showText(PDFHexString.of(hex4(this.cidOf(glyph)))));
+      (glyph.final === true ? finals : body).push(setTextMatrix(1, 0, 0, 1, pen + glyph.dx * scale, y + glyph.dy * scale), showText(PDFHexString.of(hex4(this.cidOf(glyph)))));
       pen += glyph.advance * scale;
     }
-    // The marks go inside the text object, as the screenplay writes them, after the word.
-    operators.push(...body, ...(finals.length > 0 ? [beginMarkedContent('Span'), ...finals, endMarkedContent()] : []), endText(), ...(actual === undefined ? [] : [endMarkedContent()]), popGraphicsState());
+    operators.push(...body, endText(), ...(actual === undefined ? [] : [endMarkedContent()]));
+    if (finals.length > 0) operators.push(beginMarkedContent('Span'), beginText(), setFontAndSize(key, size), ...finals, endText(), endMarkedContent());
+    operators.push(popGraphicsState());
     page.pushOperators(...operators);
   }
 
