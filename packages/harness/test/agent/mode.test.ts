@@ -156,6 +156,40 @@ describe('ask is the default, and nothing about it changed', () => {
   });
 });
 
+describe('a switch in the middle of a turn', () => {
+  it('applies from the next card: the card shown again after a retry is approved by the mode the writer switched to', async () => {
+    const intent = 'Draft the opening of The Friend.';
+    let mode: PermissionMode = 'ask';
+    const scripts = [
+      transcript(intent, [steps({ tool: 'scene.draft', params: { doc: 'The Friend', instruction: 'Open.', mode: 'draft' }, expect: 'drafted' })]),
+      prose('Brief: Open.', 'The ferry came in.'),
+    ];
+    // The first card is the writer's: they retry the draft, switching to Accept edits as they do.
+    const state = makeState();
+    const harness = createHarness({ state, ports: createAgentPorts() });
+    const gateway = await mockGateway(scripts);
+    const asked: PendingCard[] = [];
+    const session = createAgentSession({
+      harness,
+      gateway,
+      context: createContextPort({ state }),
+      decide: async (card) => {
+        asked.push(card);
+        mode = 'accept-edits';
+        return { action: 'retry' };
+      },
+      mode: () => mode,
+      sessionId: 'switch',
+    });
+    const report = await session.submit(intent);
+    expect(asked).toHaveLength(1);
+    expect(report.status).toBe('applied');
+    expect(record(report)).toEqual([['auto', ['scene.draft'], 'auto']]);
+    expect(report.mode).toBe('accept-edits');
+    expect(state.documents.get(FRIEND)?.body).toContain('The ferry came in.');
+  });
+});
+
 describe('plan-only', () => {
   const intent = 'Tidy the notes, label The Friend, and draft it.';
   const writes: PlanStep[] = [
