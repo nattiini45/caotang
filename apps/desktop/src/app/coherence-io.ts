@@ -17,11 +17,25 @@
  *   the project is opened again, since a save would replace the stored set with a partial one (coherence.md §3).
  * - A folder copy that cannot be read is left as it is, and the browser's copy is used. Findings are recomputable, so no single
  *   file should block a project.
+ *
+ * The folder's file can also be written by the Caotang MCP server (under `--allow-writes`), so the digest of the folder's file that this
+ * session last read or wrote is held, and the file is written only while the folder still holds it (`saveToFolder`). A file another
+ * program changed is not replaced: the save fails with the file named, and the browser's copy is still saved.
  */
 
-import { loadCoherence, reconcileCoherence, saveCoherence, type CoherenceFile, type LoadResult } from '@caotang/coherence';
+import {
+  COHERENCE_FILE,
+  loadCoherence,
+  reconcileCoherence,
+  saveCoherence,
+  serializeCoherenceFile,
+  type CoherenceFile,
+  type LoadResult,
+} from '@caotang/coherence';
 import {
   MemoryArtifactFs,
+  digestOfBytes,
+  digestOfFile,
   ProjectNotFoundError,
   readCoherenceFiles,
   writeCoherenceFiles,
@@ -32,8 +46,8 @@ import {
 } from '@caotang/store';
 
 import { activeAppDb, type AppDb } from './app-db.js';
-import { folderArtifactFs, type DirectoryHandleLike } from './fs-access.js';
-import type { CoherencePort, ProjectSession } from './session.js';
+import { folderArtifactFs, isSameFolder, type DirectoryHandleLike } from './fs-access.js';
+import { CoherenceFolderError, type CoherencePort, type ProjectSession } from './session.js';
 
 /** The app-database key the findings file used before the store had a home for it. Read once, when the store has no set. */
 export function legacyCoherenceKey(projectId: string): string {
@@ -139,8 +153,11 @@ async function openMirror(
 
 /** A folder's copy of the findings file, read, and ready to be written. */
 interface FolderCopy {
+  readonly root: DirectoryHandleLike;
   readonly fs: ArtifactFs;
   readonly load: LoadResult;
+  /** The digest of the folder's `coherence.json` as this session last read or wrote it, or `undefined` when the folder held none. */
+  digest: string | undefined;
 }
 
 /**
@@ -150,11 +167,33 @@ interface FolderCopy {
 async function readFolderCopy(root: DirectoryHandleLike): Promise<FolderCopy> {
   const fs = folderArtifactFs(root);
   try {
-    return { fs, load: await loadCoherence(fs) };
+    // The digest is taken before the read, so a file written in between is a change at the next save and never taken as already held.
+    // A load that repairs an unreadable file writes it, and the repaired file is what is held then.
+    const seen = await digestOfFile(fs, COHERENCE_FILE);
+    const load = await loadCoherence(fs);
+    return { root, fs, load, digest: load.status === 'recovered' ? await digestOfFile(fs, COHERENCE_FILE) : seen };
   } catch (error) {
     throw new Error(`coherence.json in the project folder could not be read: ${messageOf(error)}. The folder's copy is left as it is.`, {
       cause: error,
     });
+  }
+}
+
+/**
+ * Writes `file` into the folder's copy, while the folder still holds the `coherence.json` the copy read or wrote last. Nothing is
+ * written over a file another program changed. The file is digested again after the write, and a file that is no longer the one written
+ * is reported: the digest held stays the one written, so the next save refuses too.
+ */
+async function saveToFolder(copy: FolderCopy, file: CoherenceFile): Promise<void> {
+  if ((await digestOfFile(copy.fs, COHERENCE_FILE)) !== copy.digest) {
+    throw new CoherenceFolderError(
+      'coherence.json in the project folder was changed by another program since Caotang last read or saved it, so it was not replaced. The findings in this browser are kept; open the folder again from Projects to use the folder’s.',
+    );
+  }
+  await saveCoherence(copy.fs, copy.load, file);
+  copy.digest = await digestOfBytes(new TextEncoder().encode(serializeCoherenceFile(file)));
+  if ((await digestOfFile(copy.fs, COHERENCE_FILE)) !== copy.digest) {
+    throw new CoherenceFolderError('coherence.json in the project folder was changed by another program while Caotang was saving it, so the folder holds that program’s version.');
   }
 }
 
@@ -191,12 +230,20 @@ export async function attachCoherence(session: ProjectSession, store: RuntimeSto
         throw new Error('the findings file could not be read when the project opened, so it is not saved over. Reopen the project to save again.');
       }
       await saveCoherence(mirror.fs, mirrorLoad, file);
-      if (folderTarget !== null) await saveCoherence(folderTarget.fs, folderTarget.load, file);
+      if (folderTarget !== null) await saveToFolder(folderTarget, file);
     },
     attachFolder: async (root: DirectoryHandleLike, file: CoherenceFile): Promise<void> => {
-      // The folder is written only after its own copy has been read, so a copy that cannot be read is never overwritten.
+      // The folder this session already holds a file of is checked against it. Any other folder is written only after its own copy has
+      // been read, so a copy that cannot be read is never overwritten.
+      if (folderTarget !== null && (await isSameFolder(folderTarget.root, root))) return saveToFolder(folderTarget, file);
       const copy = await readFolderCopy(root);
-      await saveCoherence(copy.fs, copy.load, file);
+      try {
+        await saveToFolder(copy, file);
+      } catch (error) {
+        // A file another program replaced as it was written stays attached, holding the digest written, so the next save refuses too.
+        if (error instanceof CoherenceFolderError) folderTarget = copy;
+        throw error;
+      }
       folderTarget = copy;
     },
   };

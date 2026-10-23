@@ -6,7 +6,7 @@ import { commitProject, openRuntimeStore, readCoherenceFiles, type RuntimeStore 
 import { setActiveAppDb, type AppDb } from '../../apps/desktop/src/app/app-db.js';
 import { attachCoherence, legacyCoherenceKey } from '../../apps/desktop/src/app/coherence-io.js';
 import type { DirectoryHandleLike, FileHandleLike } from '../../apps/desktop/src/app/fs-access.js';
-import type { CoherencePort, ProjectSession } from '../../apps/desktop/src/app/session.js';
+import { CoherenceFolderError, type CoherencePort, type ProjectSession } from '../../apps/desktop/src/app/session.js';
 import { IDS, project } from './fixtures.js';
 import { filesIn, memoryFolder, textOf, type Directory } from './memory-folder.js';
 
@@ -162,6 +162,95 @@ test.describe('the findings file beside the project (coherence.md §3)', () => {
 
     await attached.port?.save({ ...emptyCoherenceFile(), sceneMeta: { [IDS.sceneC]: { dayOffset: 4 } } });
     expect(folderFile(folder.tree).sceneMeta[IDS.sceneC]).toEqual({ dayOffset: 4 });
+  });
+
+  test('a findings file the MCP server changed after this session read the folder is not replaced, and the browser keeps the findings', async () => {
+    const folder = memoryFolder();
+    const read: CoherenceFile = { ...emptyCoherenceFile(), sceneMeta: { [IDS.sceneA]: { dayOffset: 3 } } };
+    folder.tree.children.set('coherence.json', { kind: 'file', bytes: new TextEncoder().encode(serializeCoherenceFile(read)) });
+    const store = await storeWithProject();
+    const { session, attached } = fakeSession();
+    await attachCoherence(session, store, folder.handle);
+
+    // The server saves its own findings run into the folder.
+    const fromServer: CoherenceFile = { ...read, sceneMeta: { ...read.sceneMeta, [IDS.sceneB]: { dayOffset: 9 } } };
+    folder.tree.children.set('coherence.json', { kind: 'file', bytes: new TextEncoder().encode(serializeCoherenceFile(fromServer)) });
+
+    const next: CoherenceFile = { ...read, sceneMeta: { [IDS.sceneC]: { dayOffset: 5 } } };
+    await expect(attached.port?.save(next)).rejects.toThrow(CoherenceFolderError);
+    await expect(attached.port?.save(next)).rejects.toThrow('changed by another program');
+    expect(folderFile(folder.tree)).toEqual(JSON.parse(serializeCoherenceFile(fromServer)));
+    // The browser's copy was saved before the folder's was checked.
+    const stored = await readCoherenceFiles(store, PROJECT_ID);
+    expect(JSON.parse(stored['coherence.json'] ?? '{}')).toEqual(JSON.parse(serializeCoherenceFile(next)));
+  });
+
+  test('the app’s own earlier saves are not a change: the file is replaced again, and the previous one rotates to coherence.json.bak.1', async () => {
+    const folder = memoryFolder();
+    const { session, attached } = fakeSession();
+    await attachCoherence(session, await storeWithProject(), folder.handle);
+
+    await attached.port?.save({ ...emptyCoherenceFile(), sceneMeta: { [IDS.sceneB]: { dayOffset: 1 } } });
+    await attached.port?.save({ ...emptyCoherenceFile(), sceneMeta: { [IDS.sceneB]: { dayOffset: 2 } } });
+    expect(folderFile(folder.tree).sceneMeta[IDS.sceneB]).toEqual({ dayOffset: 2 });
+    expect(filesIn(folder.tree).has('coherence.json.bak.1')).toBe(true);
+  });
+
+  test('a findings file the server wrote into a folder that held none is not replaced either', async () => {
+    const folder = memoryFolder();
+    const { session, attached } = fakeSession();
+    await attachCoherence(session, await storeWithProject(), folder.handle);
+    const fromServer: CoherenceFile = { ...emptyCoherenceFile(), sceneMeta: { [IDS.sceneB]: { dayOffset: 9 } } };
+    folder.tree.children.set('coherence.json', { kind: 'file', bytes: new TextEncoder().encode(serializeCoherenceFile(fromServer)) });
+
+    await expect(attached.port?.save({ ...emptyCoherenceFile(), sceneMeta: { [IDS.sceneC]: { dayOffset: 5 } } })).rejects.toThrow(CoherenceFolderError);
+    expect(folderFile(folder.tree).sceneMeta[IDS.sceneB]).toEqual({ dayOffset: 9 });
+  });
+
+  test('saving the project into the folder again checks the findings file against the digest held, not the file as it is now', async () => {
+    const folder = memoryFolder();
+    const { session, attached } = fakeSession();
+    await attachCoherence(session, await storeWithProject(), folder.handle);
+    const standing: CoherenceFile = { ...emptyCoherenceFile(), sceneMeta: { [IDS.sceneA]: { dayOffset: 1 } } };
+    await attached.port?.attachFolder(folder.handle, standing);
+
+    const fromServer: CoherenceFile = { ...standing, sceneMeta: { [IDS.sceneB]: { dayOffset: 9 } } };
+    folder.tree.children.set('coherence.json', { kind: 'file', bytes: new TextEncoder().encode(serializeCoherenceFile(fromServer)) });
+    await expect(attached.port?.attachFolder(folder.handle, standing)).rejects.toThrow(CoherenceFolderError);
+    expect(folderFile(folder.tree).sceneMeta[IDS.sceneB]).toEqual({ dayOffset: 9 });
+  });
+
+  test('a file the server writes while the app saves is reported, and the next save refuses too', async () => {
+    const folder = memoryFolder();
+    const { session, attached } = fakeSession();
+    await attachCoherence(session, await storeWithProject(), folder.handle);
+    // The folder answers a write of coherence.json by taking the server's text over it just after.
+    const fromServer = serializeCoherenceFile({ ...emptyCoherenceFile(), sceneMeta: { [IDS.sceneB]: { dayOffset: 9 } } });
+    const racing: DirectoryHandleLike = {
+      ...folder.handle,
+      async getFileHandle(child, options): Promise<FileHandleLike> {
+        const handle = await folder.handle.getFileHandle(child, options);
+        if (child !== 'coherence.json') return handle;
+        return {
+          ...handle,
+          async createWritable() {
+            const writable = await handle.createWritable();
+            return {
+              ...writable,
+              async close() {
+                await writable.close();
+                folder.tree.children.set('coherence.json', { kind: 'file', bytes: new TextEncoder().encode(fromServer) });
+              },
+            };
+          },
+        };
+      },
+    };
+    const standing: CoherenceFile = { ...emptyCoherenceFile(), sceneMeta: { [IDS.sceneA]: { dayOffset: 1 } } };
+    await expect(attached.port?.attachFolder(racing, standing)).rejects.toThrow('while Caotang was saving');
+    expect(textOf(filesIn(folder.tree).get('coherence.json'))).toBe(fromServer);
+    await expect(attached.port?.save({ ...standing, sceneMeta: { [IDS.sceneC]: { dayOffset: 2 } } })).rejects.toThrow(CoherenceFolderError);
+    expect(textOf(filesIn(folder.tree).get('coherence.json'))).toBe(fromServer);
   });
 
   test('a findings file in the open folder that cannot be read does not stop the project from opening, and is not written over', async () => {
