@@ -16,8 +16,10 @@
  */
 
 import { ok, type CommandError, type Result } from '@caotang/bus';
+import { resolveContainer } from '@caotang/dialogue';
 import type { ProjectState } from '@caotang/store';
 
+import { failure } from './errors.js';
 import { resolveNode, CONTAINER, DOCUMENT, TARGET, type NodeFilter } from './resolve.js';
 import type { CallTargets } from './rules.js';
 import type { ToolName } from './metadata.js';
@@ -51,6 +53,16 @@ function oneDoc(access: 'reads' | 'writes' | 'both', key = 'doc'): TargetsFn {
     if (!node.ok) return node;
     const ids = [node.value.id];
     return ok({ reads: access === 'writes' ? [] : ids, writes: access === 'reads' ? [] : ids });
+  };
+}
+
+/** A dialogue container, resolved the way `dialogue.draft` and `dialogue.table` resolve it (its own kinds, not the document filter). */
+function oneContainer(access: 'reads' | 'both'): TargetsFn {
+  return (params, state) => {
+    const resolved = resolveContainer(state, text(params['doc']));
+    if (!resolved.ok) return failure(resolved.error);
+    const ids = [resolved.node.id];
+    return ok({ reads: ids, writes: access === 'reads' ? [] : ids });
   };
 }
 
@@ -168,8 +180,8 @@ export const TOOL_TARGETS: Readonly<Record<ToolName, ToolTargets>> = {
   'shots.annotate': idList('shots', 'writes'),
   'prompt.draft': idList('shots', 'both'),
   'prompt.variant': (params) => ok({ reads: strings([params['shot']]), writes: [] }),
-  'dialogue.draft': oneDoc('both'),
-  'dialogue.table': oneDoc('reads'),
+  'dialogue.draft': oneContainer('both'),
+  'dialogue.table': oneContainer('reads'),
   'skill.load': 'project',
   'agent.delegate': docList('scope', 'reads'),
   'notes.replace': oneDoc('writes'),

@@ -3,8 +3,9 @@
  * to the read tools, on the real bus and the real project fixture. The agent loop's side (cards, modes) is rules-loop.test.ts.
  */
 
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
+import { loadInkCompiler } from '@caotang/dialogue';
 import { createMcpClient, createMockWireFactory, qualifiedNameOf, type McpServerConfig, type MockMcpScript, type WireTool } from '@caotang/mcp-client';
 import { addDocument, createProjectCommandRegistry } from '@caotang/store';
 
@@ -12,6 +13,9 @@ import { TOOL_METADATA, TOOL_NAMES, TOOL_TARGETS, createAgentPorts, dialogueFact
 import { CHAPTER_ONE, CHAPTER_TWO, ENTRY, ENTRY_TWO, FRIEND, LANDING, STORM, callId, makeHarness, makeState, refusalOf, registryWithFakeExports, run, snapshotOf, valueOf } from './fixtures.js';
 
 const TAVERN = 'n_TAVERN0001';
+
+// A dialogue container is read through the Ink compiler, which loads once.
+beforeAll(loadInkCompiler);
 
 const rule = (effect: 'deny' | 'ask', fields: Partial<SourcedRule> = {}): SourcedRule => ({ effect, tool: '*', source: 'project', ...fields });
 
@@ -197,6 +201,34 @@ describe('a read-deny', () => {
       expect(error.code).toBe('permission-denied');
       expect(error.message).not.toContain('The Landing');
     }
+  });
+
+  it('does not name a withheld document when a title prefix is ambiguous, in a call, in its details or in a plan preflight', () => {
+    const { harness } = harnessWith(hidden());
+    for (const tool of ['doc.read', 'notes.read'] as const) {
+      const error = refusalOf(run(harness, tool, { doc: 'The' }));
+      expect(error.code).toBe('invalid-params');
+      const shown = JSON.stringify(error);
+      expect(shown).toContain('The Friend');
+      for (const word of ['The Landing', 'The Storm', LANDING, STORM]) expect(shown).not.toContain(word);
+    }
+    const preview = harness.previewPlan({ steps: [{ tool: 'doc.read', params: { doc: 'The' }, expect: 'read' }] });
+    if (!preview.ok) throw new Error('plan');
+    const shown = JSON.stringify(preview.value);
+    expect(shown).not.toContain('The Landing');
+    expect(shown).not.toContain(STORM);
+  });
+
+  it('answers a title prefix that matches only withheld documents as a name that matches nothing', () => {
+    const { harness } = harnessWith([rule('deny', { scope: { subtree: 'manuscript' }, access: 'read' })]);
+    const error = refusalOf(run(harness, 'doc.read', { doc: 'The' }));
+    expect(error.code).toBe('not-found');
+    expect(JSON.stringify(error)).not.toContain(STORM);
+  });
+
+  it('still lists every candidate when no rule withholds one', () => {
+    const { harness } = harnessWith([rule('deny', { scope: { subtree: CHAPTER_ONE }, access: 'write' })]);
+    expect(refusalOf(run(harness, 'doc.read', { doc: 'The' })).message).toContain('The Landing');
   });
 
   it('omits the subtree from binder.read_tree and says how many items it left out', () => {
@@ -388,5 +420,36 @@ describe('targets', () => {
     for (const name of TOOL_NAMES) expect(name.toLowerCase()).not.toContain('rule');
     const registry = createProjectCommandRegistry({ clock: { now: () => 0 } });
     for (const name of Object.keys(registry)) expect(name.toLowerCase()).not.toContain('rule');
+  });
+});
+
+describe('the dialogue tools under a scoped rule', () => {
+  const INK = ['-> start', '=== start ===', 'Innkeeper: Ah, a traveller.', '* [Order an ale] -> END', ''].join('\n');
+  const withTavern = (rules: SourcedRule[]) => {
+    const state = makeState();
+    addDocument(state, { id: TAVERN, parentId: CHAPTER_ONE, title: 'Tavern', type: 'dialogue', body: INK, now: new Date('2026-01-01T00:00:00.000Z') });
+    return makeHarness({ rules: () => ({ rules }), ports: createAgentPorts() }, state);
+  };
+
+  const draftOf = (harness: ReturnType<typeof withTavern>) =>
+    harness.call({ name: 'dialogue.draft', callId: callId('dialogue.draft'), params: { doc: 'Tavern', instruction: 'More.' }, proposal: { ink: INK, revision: 1 } }, { turnId: 'turn-draft', permission: { approvedPlan: true } });
+
+  it('resolve a dialogue container as their targets, so a rule on an unrelated folder does not refuse them', () => {
+    const harness = withTavern([rule('deny', { scope: { subtree: CHAPTER_TWO }, access: 'read' })]);
+    expect(run(harness, 'dialogue.table', { doc: 'Tavern' }).ok).toBe(true);
+    const lock = withTavern([rule('deny', { scope: { subtree: CHAPTER_TWO }, access: 'write' })]);
+    const drafted = draftOf(lock);
+    expect(drafted.ok ? '' : refusalOf(drafted).message).not.toContain('could not be worked out');
+  });
+
+  it('are refused for a container inside a locked or withheld subtree', () => {
+    const hiddenTavern = withTavern([rule('deny', { scope: { subtree: CHAPTER_ONE }, access: 'read' })]);
+    const table = refusalOf(run(hiddenTavern, 'dialogue.table', { doc: 'Tavern' }));
+    expect(table.code).toBe('permission-denied');
+    expect(table.message).not.toContain('could not be worked out');
+    const lockedTavern = withTavern([rule('deny', { scope: { subtree: CHAPTER_ONE }, access: 'write' })]);
+    const draft = refusalOf(draftOf(lockedTavern));
+    expect(draft.code).toBe('permission-denied');
+    expect(draft.message).not.toContain('could not be worked out');
   });
 });

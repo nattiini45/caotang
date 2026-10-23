@@ -127,6 +127,7 @@ import {
   type PlanPreflight,
 } from './plan.js';
 import { failure, invalidParams, limitExceeded, notFound, notWired, refusal } from './errors.js';
+import { withoutWithheld } from './resolve.js';
 import { fitsCap } from './tokens.js';
 import { buildEntries } from './tools/table.js';
 import { checkParams } from './validate.js';
@@ -803,15 +804,17 @@ export function createHarness(options: HarnessOptions): Harness {
       if (ports[entry.port] === undefined && asyncPorts[entry.port] === undefined) return failure(notWired(name)) as Result<Prepared, CommandError>;
       return ok({ entry, params: params.value });
     }
+    const withheld = withheldFor(name);
     const prepared = entry.prepare(params.value, {
       state,
       registry,
       clock,
       ...(options.session === undefined ? {} : { session: options.session }),
       writes,
-      withheld: withheldFor(name),
+      withheld,
     });
-    if (!prepared.ok) return failure(prepared.error) as Result<Prepared, CommandError>;
+    // A reference that matches several nodes lists them; the ones a read rule withholds are not named (the plan's preflight comes through here too).
+    if (!prepared.ok) return failure(withoutWithheld(prepared.error, withheld)) as Result<Prepared, CommandError>;
     return ok({ entry, params: params.value, prepared: prepared.value });
   }
 
