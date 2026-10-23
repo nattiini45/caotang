@@ -7,9 +7,12 @@
  * and traditional), Japanese kana and kanji, Korean Hangul, Greek and Cyrillic. The host passes a `FontLoader` for it, and the
  * emitter calls it only when a sheet holds a character Helvetica cannot encode, so a Latin-only export never reads the font.
  *
- * Its text is laid out one code point to a glyph (the build keeps no layout tables), and embedded as the emoji font is
- * (cid-embedding.ts): a CID for each distinct glyph-and-text pair.
+ * Its text is laid out one code point to a glyph, a Han character in the forms of the project's language (`hanLocaleTag`: the
+ * font's `locl` feature, the build keeps no other), and embedded as the emoji font is (cid-embedding.ts): a CID for each
+ * distinct glyph-and-text pair.
  */
+
+import { hanGlyph, hanLocaleTag, type HanLanguageTag } from '@caotang/pdf-fonts';
 
 import type * as PdfLib from 'pdf-lib';
 
@@ -17,7 +20,15 @@ import { CidEmbedding, type CidGlyph, type FontkitFont } from './cid-embedding.j
 
 /** The CJK font, with the lookups the emitter needs. */
 export class CjkFace {
-  constructor(readonly font: FontkitFont) {}
+  private readonly tag: HanLanguageTag | undefined;
+
+  constructor(
+    readonly font: FontkitFont,
+    /** The project's language (a BCP 47 tag): the forms Han characters take. */
+    language?: string,
+  ) {
+    this.tag = hanLocaleTag(language);
+  }
 
   /** Whether the font has a glyph for a code point. */
   covers(code: number): boolean {
@@ -30,7 +41,7 @@ export class CjkFace {
     for (const char of text) {
       const code = char.codePointAt(0) ?? 0;
       if (!this.covers(code)) return null;
-      const glyph = this.font.glyphForCodePoint(code);
+      const glyph = hanGlyph(this.font, char, this.tag);
       glyphs.push({ id: glyph.id, advance: glyph.advanceWidth, text: char });
     }
     return glyphs;

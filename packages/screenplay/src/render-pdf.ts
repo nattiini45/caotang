@@ -40,6 +40,7 @@ import {
   emojiPrint,
   fallbackCovers,
   firstCodePoint,
+  hanLocaleTag,
   hasDevanagari,
   hasRtlScript,
   isBidiControl,
@@ -67,7 +68,8 @@ export type PdfRenderOptions = FountainRenderOptions &
   Pick<PaginateOptions, 'titlePage' | 'sceneNumbers' | 'continued'> & {
     /**
      * The project's language (a BCP 47 tag). In a right-to-left one, a paragraph with no strong character is laid out right to
-     * left. Devanagari is shaped in it: Marathi and Nepali use other forms of some letters than Hindi does.
+     * left. Devanagari is shaped in it: Marathi and Nepali use other forms of some letters than Hindi does. Han characters take
+     * its forms: Japanese, Korean, Traditional Chinese or Hong Kong, and Simplified Chinese for any other.
      */
     readonly language?: string;
   };
@@ -243,12 +245,12 @@ export function drawPdf(layout: PdfLayout, font?: PdfFont, fallback?: PdfCidFont
 /**
  * The CJK fallback subset a layout needs, or undefined when it needs none, or when the host passes no loader for the font.
  * Only a layout with a character WinAnsi cannot encode, and the fallback font can print, loads cjk-font.ts, fontkit and the
- * font file, by a dynamic import.
+ * font file, by a dynamic import. Han characters take the forms of the project's `language` (han-locale.ts in `@caotang/pdf-fonts`).
  */
-export async function loadCjkFallback(layout: PdfLayout, load?: FontLoader): Promise<PdfCidFont | undefined> {
+export async function loadCjkFallback(layout: PdfLayout, load?: FontLoader, language?: string): Promise<PdfCidFont | undefined> {
   if (layout.fallbackCharacters.length === 0 || load === undefined) return undefined;
   const { loadNotoCjk, subsetNotoCjk } = await import('./cjk-font.js');
-  return subsetNotoCjk(await loadNotoCjk(load), layout.fallbackCharacters);
+  return subsetNotoCjk(await loadNotoCjk(load), layout.fallbackCharacters, hanLocaleTag(language));
 }
 
 /**
@@ -353,7 +355,7 @@ export async function preparePdf(blocks: readonly FlatBlock[], opts: PdfRenderOp
   }
   const [font, cjk, emoji, rtl] = await Promise.all([
     loadCourierPrime(),
-    loadCjkFallback(layout, loaders.cjk),
+    loadCjkFallback(layout, loaders.cjk, opts.language),
     loadEmojiFallback(layout, loaders.emoji),
     loadRtlFallback(layout, support),
   ]);

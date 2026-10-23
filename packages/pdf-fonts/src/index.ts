@@ -21,6 +21,7 @@ export {
   HEBREW_FONT_FILE,
   HEBREW_FONT_NAME,
 } from './font-files.js';
+export { hanGlyph, hanLocaleTag, type HanLanguageTag } from './han-locale.js';
 export { encodeSubset, loadFont, loadFontWithBytes, loadFontkit, openFont, padGlyphs, subsetTag, type FontkitSubset } from './fontkit.js';
 export {
   cidFontObjects,

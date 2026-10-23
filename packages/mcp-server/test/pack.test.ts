@@ -240,9 +240,9 @@ describe('staging and packing', () => {
       `@caotang/font-noto-hebrew/${HEBREW_FONT_FILE}`,
       `@caotang/font-noto-devanagari/${DEVANAGARI_FONT_FILE}`,
     ].map((specifier) => statSync(require.resolve(specifier)).size);
-    expect(sizes).toEqual([7219856, 579236, 142140, 16836, 184228]);
+    expect(sizes).toEqual([10692940, 579236, 142140, 16836, 184228]);
     // Against 25,065,212 bytes of four font files before the two PDFs shared one of each.
-    expect(sizes.reduce((sum, size) => sum + size, 0)).toBeLessThan(8_300_000);
+    expect(sizes.reduce((sum, size) => sum + size, 0)).toBeLessThan(11_700_000);
   });
 
   it('stages the fonts where the Node loader looks first, from the server bundle it stages', () => {
