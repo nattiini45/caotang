@@ -38,7 +38,7 @@ export const BUDGET = {
    */
   allow: {
     'fontkit.es': 750_000,
-    index: 1_240_000,
+    index: 1_270_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
   initialGzip: 770_000,

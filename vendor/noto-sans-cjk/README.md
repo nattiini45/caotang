@@ -24,12 +24,16 @@ version). The script checks the source's SHA-256, then:
 
 1. converts the CFF outlines to TrueType outlines (@pdf-lib/fontkit cannot subset a CID-keyed CFF font correctly), each glyph
    padded to 4 bytes;
-2. keeps every character the font maps, and drops the glyphs only OpenType layout reaches, the layout tables, the vertical
-   metrics and the hinting;
+2. keeps every character the font maps, with the regional forms its `locl` feature reaches (the Japanese, Korean, Traditional
+   Chinese and Hong Kong forms of a Han character, and of fullwidth punctuation) and the GSUB lookups behind it, and drops the
+   glyphs only other layout features reach, GPOS and GDEF, the vertical metrics and the hinting;
 3. writes WOFF 1.0, and compares the result with SHA256SUMS.
 
-The built file is 7,219,856 bytes, against 16,393,784 for the upstream OTF. This is a Modified Version under the OFL. The font
-declares no Reserved Font Name, so it keeps its name. Han characters are drawn in their Simplified Chinese forms, because the
-regional forms are reached only through layout features.
+The built file is 10,692,940 bytes, against 16,393,784 for the upstream OTF; the `locl` forms are 3,473,084 of them (the build
+without them was 7,219,856 bytes). This is a Modified Version under the OFL. The font declares no Reserved Font Name, so it
+keeps its name. A Han character is drawn in its Simplified Chinese form, the font's cmap, unless a PDF writer asks for the
+forms of a language: `layout(character, undefined, 'hani', tag)` in fontkit, with the tag `hanLocaleTag` gives for the
+project's language (`packages/pdf-fonts/src/han-locale.ts`: `JAN ` for Japanese, `KOR ` for Korean, `ZHT ` for Traditional
+Chinese, `ZHH ` for Hong Kong).
 
 `packages/pdf-fonts/src/coverage/noto-cjk-coverage.ts` lists the code points the font maps; it is generated from the built file.

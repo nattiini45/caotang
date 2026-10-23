@@ -129,7 +129,7 @@ export interface ContactSheetPdfInput {
   readonly loadDevanagariFont?: FontLoader;
   /** Decodes a WebP picture to PNG (see {@link PictureTranscoder}). Called once per picture, and only for a WebP. Without it, a WebP's cards show the caption and the log says so. */
   readonly transcodePicture?: PictureTranscoder;
-  /** The project's language (a BCP 47 tag): Devanagari is shaped in it, and Marathi and Nepali use other forms of some letters than Hindi does. */
+  /** The project's language (a BCP 47 tag): Devanagari is shaped in it, and Marathi and Nepali use other forms of some letters than Hindi does. Han characters take its forms. */
   readonly language?: string;
 }
 
@@ -230,7 +230,7 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
       return fallback;
     }
     try {
-      fallback = new CjkEmbedding(lib, pdf, new CjkFace((await loadFont(input.loadFallbackFont, 'the fallback font')) as unknown as FontkitFont));
+      fallback = new CjkEmbedding(lib, pdf, new CjkFace((await loadFont(input.loadFallbackFont, 'the fallback font')) as unknown as FontkitFont, input.language));
     } catch (error) {
       fallbackError = `the fallback font could not be read (${error instanceof Error ? error.message : String(error)})`;
     }

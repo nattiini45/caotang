@@ -1,6 +1,6 @@
 /**
  * The screenplay PDF's fallback fonts (screenplay.md §5.3). A script with Chinese text and an emoji prints them in the two
- * Noto files the contact sheet uses too (Arabic, Hebrew and Devanagari print in three more, below): the app fetches one CJK file (7.2 MB, not the 16 MB OTF it was) and one emoji file
+ * Noto files the contact sheet uses too (Arabic, Hebrew and Devanagari print in three more, below): the app fetches one CJK file (10.7 MB, not the 16 MB OTF it was) and one emoji file
  * from its own origin, only for an export that needs them, and the PDF carries the characters as text a reader can copy.
  */
 
@@ -60,6 +60,43 @@ test('a script with Chinese text and an emoji loads the one CJK file and the one
   // 🫩 is Emoji 16.0, in the font from 3.006 on.
   expect(pdf).toContain('<D83EDEE9>');
   expect([...new Set(fonts)].sort()).toEqual(['NotoEmoji-Regular.woff', 'NotoSansMonoCJKsc-Regular.woff']);
+});
+
+/** The font programs the PDF embeds, as the hex the writer stores them in: Courier Prime's first, then the CJK subset. */
+function fontPrograms(pdf: string): string[] {
+  return [...pdf.matchAll(/stream\n([0-9A-F\n]{400,})>/g)].map((match) => (match[1] ?? '').replaceAll('\n', ''));
+}
+
+async function setLanguage(page: Page, project: string, language: string): Promise<void> {
+  await page.getByRole('button', { name: project }).click();
+  const field = page.getByRole('textbox', { name: 'Language' });
+  await field.fill(language);
+  await field.press('Enter');
+  await page.keyboard.press('Escape');
+}
+
+test('a Han character prints in the forms of the project language, and a reader still copies it back as typed', async ({ page }) => {
+  const fonts = watchFonts(page);
+  await createProject(page, PROJECT);
+  await makeScene(page, 'INT. 部屋 - NIGHT\n\n直骨今說次。\n');
+  const simplified = await compilePdf(page);
+  await setLanguage(page, PROJECT, 'ja');
+  const japanese = await compilePdf(page);
+  await setLanguage(page, PROJECT, 'zh-CN');
+  const chinese = await compilePdf(page);
+
+  for (const pdf of [simplified, japanese, chinese]) {
+    expect(pdf).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSansMonoCJKsc-Regular/);
+    // 直 is U+76F4, whatever form it is drawn in.
+    expect(pdf).toContain('<76F4>');
+  }
+  const plain = fontPrograms(simplified).at(-1);
+  expect(fontPrograms(simplified)).toHaveLength(2);
+  // The Japanese forms are other glyphs; zh-CN is the font's own, as a project in English is.
+  expect(fontPrograms(japanese).at(-1)).not.toBe(plain);
+  expect(fontPrograms(chinese).at(-1)).toBe(plain);
+  // One CJK file, whatever the language.
+  expect([...new Set(fonts)]).toEqual(['NotoSansMonoCJKsc-Regular.woff']);
 });
 
 test('a script with a woman walking facing right prints her as one emoji that a reader copies back as typed', async ({ page }) => {

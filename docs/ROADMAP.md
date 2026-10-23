@@ -16,7 +16,7 @@ The first release (0.1.0) is a complete writing studio that runs in the browser:
 - **Skills.** Reusable writing instructions for the agent, kept in the project as standard Agent Skills folders. You read and approve each one before the agent is told about it, and a change asks again. The agent loads one when your request fits. Scripts in a skill are never run. Reading a skill's other files, limiting the agent to a skill's allowed tools and skills shared across projects wait for demand.
 - **Findings.** A quick consistency scan against the codex and your scene declarations, including who learns and who knows each fact you track, and a model review that runs only after you approve its plan.
 - **Export** to Word, EPUB, Markdown and plain text, for the whole manuscript or a part, with saved recipes.
-- **Screen and media.** Screenplay scenes in Fountain (with Final Draft import and export, and a paginated PDF), branching dialogue in Ink, storyboards with shot cards and a PDF contact sheet, and video prompt packs for several video models. The dialogue table and the shot list export as CSV or as a spreadsheet (`.xlsx`). Both PDFs print Arabic, Persian, Urdu and Hebrew (not yet checked by a reader of the language, and without marks or a mirrored page).
+- **Screen and media.** Screenplay scenes in Fountain (with Final Draft import and export, and a paginated PDF), branching dialogue in Ink, storyboards with shot cards and a PDF contact sheet, and video prompt packs for several video models. The dialogue table and the shot list export as CSV or as a spreadsheet (`.xlsx`). Both PDFs print Arabic, Persian, Urdu and Hebrew (not yet checked by a reader of the language, and without marks or a mirrored page), and Han characters in the forms of the project's language (Japanese, Korean, Traditional Chinese, Hong Kong or Simplified Chinese).
 - **Non-UTF-8 files.** A document whose file is not UTF-8 opens into a review: Caotang detects the likely encoding, previews the text, and converts the file only when you choose to, keeping the original bytes as a backup.
 - **Filters and goals.** Saved binder filters, project goals with deadline pacing, weekly and monthly goals that reset on the day you choose, a sprint timer and a writing history.
 - **SDK.** Run the agent from a Node script, a CLI or CI against a project folder, with an approval policy in place of the cards, a diff before anything is saved, and the provider key held in memory ([packages/sdk/README.md](../packages/sdk/README.md)).
@@ -42,7 +42,7 @@ Each of these is its own milestone, designed when its turn comes.
 
 ## Not planned
 
-- Accounts, subscriptions or credit meters in the local version.
+- Accounts, subscriptions or credit meters in the local version. (Run limits the writer sets on their own key are not meters: Caotang counts nothing it charges for.)
 - Telemetry or analytics.
 - Video generation inside Caotang. It writes prompt packs; you generate video in your own tool with your own account.
 

@@ -83,11 +83,20 @@ export interface AgentSettings {
   readonly defaultMode: PermissionMode;
   /** Turns Auto mode off: the panel does not offer it and a stored `auto` reads as Ask. */
   readonly lockAuto: boolean;
-  /** The limits a turn is held to while Accept edits or Auto decides its cards. A limit left out keeps the harness's default. */
+  /** The limits a turn is held to. A limit left out keeps the harness's default, or is not enforced (agent-harness §4, §7.1). */
   readonly budget: AgentBudgetSettings;
 }
 
+/**
+ * The writer's limits on their own key. Model calls, tokens, cost, steps and active time are run limits (agent-harness §7.1): held in
+ * every mode, each model call's worst case reserved before it is sent. Words changed and documents touched are measured after a card
+ * applies and are held only while Accept edits or Auto decides (§4). A tokens, cost or steps limit left empty is not a run limit; Accept
+ * edits and Auto still hold a turn to the harness's default for tokens and steps.
+ */
 export interface AgentBudgetSettings {
+  readonly maxModelCalls?: number;
+  /** Minutes of work per turn, excluding the time a card waits for the writer. Default `DEFAULT_ACTIVE_MS`. */
+  readonly maxActiveMinutes?: number;
   readonly maxTokens?: number;
   readonly maxCostUsd?: number;
   readonly maxWordsChanged?: number;
@@ -99,6 +108,8 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTo
 
 /** The whole numbers a budget field may hold. A field outside them reads as unset. */
 export const AGENT_BUDGET_RANGES = {
+  maxModelCalls: [1, 100],
+  maxActiveMinutes: [1, 1_440],
   maxTokens: [1_000, 10_000_000],
   maxWordsChanged: [1, 1_000_000],
   maxDocuments: [1, 1_000],
@@ -112,7 +123,7 @@ export function normalizeAgent(raw: unknown): AgentSettings {
   const stored = isPermissionMode(source['defaultMode']) ? source['defaultMode'] : DEFAULT_AGENT_SETTINGS.defaultMode;
   const budget = isRecord(source['budget']) ? source['budget'] : {};
   const limits: { -readonly [K in keyof AgentBudgetSettings]: AgentBudgetSettings[K] } = {};
-  for (const key of ['maxTokens', 'maxWordsChanged', 'maxDocuments', 'maxSteps'] as const) {
+  for (const key of ['maxModelCalls', 'maxActiveMinutes', 'maxTokens', 'maxWordsChanged', 'maxDocuments', 'maxSteps'] as const) {
     const [min, max] = AGENT_BUDGET_RANGES[key];
     const value = budget[key];
     if (typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max) limits[key] = value;

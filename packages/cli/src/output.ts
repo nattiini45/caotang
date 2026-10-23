@@ -7,7 +7,7 @@ export const ExitCode = {
   Internal: 1,
   Usage: 2, // bad flags, no project, no key for a provider that needs one
   Locked: 3, // another writer holds the folder (as caotang-mcp)
-  NeedsInput: 4, // a card the policy cancelled, the model-call bound, a provider failure
+  NeedsInput: 4, // a card the policy cancelled, the model-call bound or a run limit, a provider failure
   Conflict: 5, // askBack conflict or anchor_unresolvable, or a folder another program changed
   VerifyFailed: 6, // askBack verify_failed
   Interrupted: 130, // SIGINT
@@ -46,6 +46,7 @@ export function exitCodeOf(report: TurnReport): ExitCode {
   if (report.status === 'replied' || report.status === 'applied') return ExitCode.Ok;
   switch (report.askBack?.code) {
     case 'needs_input':
+    case 'budget_exhausted':
       return ExitCode.NeedsInput;
     case 'conflict':
     case 'anchor_unresolvable':

@@ -1147,6 +1147,20 @@
   padding: 4px 0 8px;
 }
 
+/* The report a Twee import shows before it writes: the dialog is the shared .confirm one, with a list in it. */
+.twee-report ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+.twee-report h3 {
+  margin: 12px 0 0;
+  font-size: 13.5px;
+}
+
 .scene-check {
   display: flex;
   align-items: center;

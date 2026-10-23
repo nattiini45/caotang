@@ -406,4 +406,16 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(decisions).not.toContain('No classifier or auto-approve mode');
     expect(read('docs/architecture/agent-harness.md')).not.toContain('Explicitly **rejected for v0.1**: a classifier/auto-approve mode');
   });
+
+  it('says both PDFs print a Han character in the forms of the project language, from the language tags han-locale.ts maps', () => {
+    const pdfSection = guide.slice(guide.indexOf('### The screenplay PDF'), guide.indexOf('## Writing dialogue'));
+    expect(pdfSection).toContain("A Han character takes the form of the project's language");
+    expect(pdfSection).toContain('Japanese for `ja`, Korean for `ko`, Traditional Chinese for `zh-Hant`, `zh-TW` and `zh-MO`, Hong Kong for `zh-HK`');
+    expect(guide).toContain("A Han character takes the form of the project's language, as it does in the screenplay PDF");
+    expect(guide).not.toContain('Han characters take their Simplified Chinese forms');
+    const tags = read('packages/pdf-fonts/src/han-locale.ts');
+    for (const tag of ["'JAN '", "'KOR '", "'ZHT '", "'ZHH '"]) expect(tags).toContain(tag);
+    expect(read('packages/screenplay/src/render-pdf.ts')).toContain('hanLocaleTag(language)');
+    expect(read('packages/exporter/src/cjk-font.ts')).toContain('hanLocaleTag(language)');
+  });
 });

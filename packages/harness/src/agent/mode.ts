@@ -81,7 +81,8 @@ export const DEFAULT_TURN_BUDGET: TurnBudget = Object.freeze({
   doomLoopRepeats: 3,
 });
 
-export type BudgetDimension = 'model-calls' | 'tokens' | 'cost' | 'words' | 'documents' | 'steps' | 'repeats';
+/** `active-time` and `deadline` are the run limits' own (budget.ts); the others are a turn's budgets. */
+export type BudgetDimension = 'model-calls' | 'tokens' | 'cost' | 'words' | 'documents' | 'steps' | 'repeats' | 'active-time' | 'deadline';
 
 /** What a turn has used so far. `costUsd` is absent while the session has no price to read. */
 export interface BudgetUse {
@@ -153,6 +154,8 @@ const DIMENSION_WORDS: Readonly<Record<BudgetDimension, { readonly name: string;
   documents: { name: 'documents-touched', setting: 'documents touched' },
   steps: { name: 'step', setting: 'steps' },
   repeats: { name: 'repeated-call', setting: 'repeated calls' },
+  'active-time': { name: 'active-time', setting: 'time' },
+  deadline: { name: 'deadline', setting: 'deadline' },
 };
 
 /** The reason an ask-back gives for a hit, and the options it offers. The model-call wording is the one a turn has always used. */

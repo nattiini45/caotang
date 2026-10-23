@@ -163,3 +163,53 @@ export const CUE_NAMES = ['-> s', '=== s ===', 'Zoë: Bonjour.', 'Émile: Salut.
 
 /** A gather line that ends in a colon, outside any conditional block: speech, not a branch opener. */
 export const COLON_GATHER = ['-> s', '=== s ===', '  Hi.', '- Here they are:', '  Nice.', '-> END', ''].join('\n');
+
+/** A SugarCube 2 story: StoryTitle, StoryData (start is not the first passage), Start, three passages, one link with a setter, one script passage. */
+export const TWEE_SUGARCUBE = [
+  ':: StoryTitle',
+  'The Lantern',
+  '',
+  ':: StoryData',
+  '{',
+  '  "ifid": "D674C58C-DEFA-4F70-B7A2-27742230C0FC",',
+  '  "format": "SugarCube",',
+  '  "format-version": "2.36.1",',
+  '  "start": "Gate"',
+  '}',
+  '',
+  ':: Story JavaScript [script]',
+  'setup.lamp = 3;',
+  '',
+  ':: Start {"position":"600,300","size":"100,100"}',
+  'The story opens here. [[Gate]]',
+  '',
+  ':: Gate [outdoor]',
+  'The gate creaks.',
+  '<<set $opened to true>>',
+  '[[Enter the hall->The Hall]]',
+  '[[Walk away|Road][$left to true]]',
+  '',
+  ':: The Hall',
+  'A cold hall.',
+  '',
+  ':: Road',
+  'You walk on. // not a comment * not a choice',
+  '',
+  '',
+].join('\n');
+
+/** The same shape in a format the reader does not know. */
+export const TWEE_HARLOWE = [
+  ':: StoryData',
+  '{"ifid": "D674C58C-DEFA-4F70-B7A2-27742230C0FC", "format": "Harlowe", "format-version": "3.3.8"}',
+  '',
+  ':: Start',
+  '(set: $x to 1)Go to [[the cellar->Cellar]] or [[Attic]].',
+  '',
+  ':: Cellar',
+  'Damp. <<set $y to 2>>',
+  '',
+  ':: Attic',
+  'Dusty.',
+  '',
+].join('\n');

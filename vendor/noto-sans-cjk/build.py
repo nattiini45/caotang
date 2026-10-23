@@ -13,9 +13,10 @@ The steps:
 1. The CFF outlines become TrueType (glyf) outlines, quadratic curves within 1 font unit of the cubic ones. pdf-lib's
    fontkit subsets a TrueType font correctly; it writes a broken subset of a CID-keyed CFF font, which Noto Sans Mono CJK is.
    Each glyph is padded to 4 bytes, because fontkit's subsetter copies glyph data as it finds it.
-2. Every character the font maps is kept. The glyphs no character reaches (the vertical, regional and other alternates
-   that only OpenType layout reaches) are dropped, with the layout tables, the vertical metrics and the hinting. Both PDF writers draw horizontal text with no layout
-   features, so none of them is used.
+2. Every character the font maps is kept, with the regional forms the `locl` feature reaches (the Japanese, Korean,
+   Traditional Chinese and Hong Kong forms of a Han character, and of fullwidth punctuation) and the GSUB lookups behind it.
+   The glyphs only other layout features reach (vertical and other alternates) are dropped, with GPOS and GDEF, the vertical
+   metrics and the hinting. Both PDF writers draw horizontal text, and pick the regional forms by the project's language.
 3. The result is stored as WOFF 1.0 (zlib), which the PDF writers unpack before fontkit reads it.
 """
 
@@ -109,11 +110,11 @@ def main() -> int:
     to_truetype(font)
 
     options = subset.Options()
-    options.layout_features = []
+    options.layout_features = ["locl"]
     options.hinting = False
     options.name_IDs = ["*"]
     options.name_languages = ["*"]
-    options.drop_tables += ["BASE", "vhea", "vmtx", "VORG", "DSIG", "GSUB", "GPOS", "GDEF"]
+    options.drop_tables += ["BASE", "vhea", "vmtx", "VORG", "DSIG", "GPOS", "GDEF"]
     options.flavor = "woff"
     subsetter = subset.Subsetter(options)
     subsetter.populate(unicodes=font.getBestCmap().keys())

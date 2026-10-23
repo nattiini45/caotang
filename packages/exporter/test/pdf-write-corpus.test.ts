@@ -40,6 +40,8 @@ interface Case {
   readonly build: () => { state: ProjectState; assets?: ReadonlyMap<string, AssetRecord>; files?: Record<string, Uint8Array> };
   readonly format: Expected['format'];
   readonly options?: ExportRecipeOptions;
+  /** The project's language, when the case sets one. */
+  readonly language?: string;
   readonly pages: Expected['pages'];
   readonly size: Expected['size'];
   readonly fonts: Expected['fonts'];
@@ -178,6 +180,27 @@ const CORPUS: readonly Case[] = [
     fonts: [COURIER, CJK],
   },
   {
+    // The regional forms of Han characters: a Japanese and a Traditional Chinese project, cut from the font's `locl` glyphs.
+    file: 'screenplay-cjk-ja.pdf',
+    format: 'pdf',
+    build: () => ({ state: sceneWith('INT. TEAHOUSE - DAY\n\nMARA\n直骨今說次。ようこそ') }),
+    options: { titlePage: false },
+    language: 'ja',
+    pages: [['INT. TEAHOUSE - DAY', '直骨今說次。ようこそ']],
+    size: LETTER,
+    fonts: [COURIER, CJK],
+  },
+  {
+    file: 'screenplay-cjk-zh-hant.pdf',
+    format: 'pdf',
+    build: () => ({ state: sceneWith('INT. TEAHOUSE - DAY\n\nMARA\n直骨今說次。草堂') }),
+    options: { titlePage: false },
+    language: 'zh-Hant',
+    pages: [['INT. TEAHOUSE - DAY', '直骨今說次。草堂']],
+    size: LETTER,
+    fonts: [COURIER, CJK],
+  },
+  {
     file: 'screenplay-emoji.pdf',
     format: 'pdf',
     build: () => ({ state: sceneWith('INT. STUDIO - DAY\n\nMARA\nAction 🎬 and family 👨‍👩‍👧, flag 🇯🇵, key 1️⃣, thumb 👍🏽.') }),
@@ -243,6 +266,15 @@ const CORPUS: readonly Case[] = [
     fonts: [HELVETICA, CJK, EMOJI],
   },
   {
+    file: 'sheet-cjk-ko.pdf',
+    format: 'contact-sheet-pdf',
+    build: () => ({ state: sheetWith('World', '直骨今說次。 한국어'), files: {} }),
+    language: 'ko',
+    pages: [['Mara sets the kettle down.', '直骨今說次。', '한국어']],
+    size: A4,
+    fonts: [HELVETICA, CJK],
+  },
+  {
     // Right-to-left words on the contact sheet: the same drawing as the screenplay's, through the exporter's own embedding.
     file: 'sheet-arabic-hebrew.pdf',
     format: 'contact-sheet-pdf',
@@ -281,7 +313,7 @@ describe.skipIf(OUT === '')('the PDF write corpus', () => {
       artifacts: new MemoryArtifactFs(),
       bytes: { writeBytes: async (path, data) => void written.set(path, data), removeBytes: async (path) => void written.delete(path) },
       clock: { now: () => COMPILED_AT },
-      metadata: () => ({ author: 'Ada Lovelace' }),
+      metadata: () => ({ author: 'Ada Lovelace', ...(entry.language === undefined ? {} : { language: entry.language }) }),
       assets: () => assets ?? ASSETS,
       readAsset: async (path) => files?.[path] ?? null,
       loadFallbackFont: loadCjkFontInNode,

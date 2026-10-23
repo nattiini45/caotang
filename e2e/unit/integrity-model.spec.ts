@@ -2,6 +2,8 @@ import { expect, test } from '@playwright/test';
 
 import {
   MANIFEST_FILE,
+  FolderDriftError,
+  MemoryArtifactFs,
   MemoryIndexedDb,
   ProjectRefusedError,
   SESSIONS_FILE,
@@ -12,6 +14,7 @@ import {
   importProjectZip,
   listProjectIds,
   openRuntimeStore,
+  projectFileDigests,
   readProject,
   readProjectState,
   readSessions,
@@ -62,6 +65,7 @@ import {
   noteLeaveSuggestion,
   type OpenOutcome,
 } from '../../apps/desktop/src/app/lifecycle.js';
+import { FOLDER_BACKUP_KEEP, backupStamp, isBackupStamp, pruneFolderBackups, watchSave } from '../../apps/desktop/src/app/folder-guard.js';
 import {
   folderArtifactFs,
   type DirectoryHandleLike,
@@ -1079,8 +1083,9 @@ function documentIdsOf(state: ReturnType<typeof project>): string[] {
 }
 
 /** A session whose project is in an in-memory folder, with the folder's copy as its baseline, as opening the folder leaves it. */
-async function folderSession(): Promise<{ session: ProjectSession; root: DirectoryHandleLike; state: ReturnType<typeof project> }> {
-  const state = project();
+async function folderSession(
+  state: ReturnType<typeof project> = project(),
+): Promise<{ session: ProjectSession; root: DirectoryHandleLike; state: ReturnType<typeof project> }> {
   const root = memoryFolder('Fixture Book');
   await writeProject(folderArtifactFs(root), state);
   // The session is opened from the folder as the lifecycle opens one, so its folder copy holds the digests and titles a folder open takes.
@@ -1126,8 +1131,10 @@ test.describe('saving to a folder: what is written, and what is left alone', () 
     });
     expect(await fs.read(`docs/${IDS.sceneA}.md`)).toBe(otherText);
 
-    // The writer's yes replaces the document, and the folder then holds this tab's text.
-    expect(await saveFolder(session, root, { overwriteConfirmed: true })).toEqual({ kind: 'saved' });
+    // The writer's yes replaces the document, and the folder then holds this tab's text. What it replaced is kept.
+    const saved = await saveFolder(session, root, { overwriteConfirmed: true });
+    expect(saved).toMatchObject({ kind: 'saved' });
+    expect(await fs.read(`${saved.kind === 'saved' ? saved.backup : ''}/docs/${IDS.sceneA}.md`)).toBe(otherText);
     expect(await fs.read(`docs/${IDS.sceneA}.md`)).toContain('Not written');
     await session.close();
   });
@@ -1210,6 +1217,282 @@ test.describe('saving to a folder: what is written, and what is left alone', () 
     const { session, root } = await folderSession();
     session.dispatch('doc.write', { docId: IDS.sceneA, body: 'Saved through a second pick' });
     expect(await saveFolder(session, sameFolderAgain(root))).toEqual({ kind: 'saved' });
+    await session.close();
+  });
+});
+
+/**
+ * A handle to the folder `root` names that calls `change` once the file at `path` has been read `count` times through it: another program
+ * writing between two reads of one file. It is the same folder, so the copy a session holds for `root` counts for it.
+ */
+function changeAfterReads(root: DirectoryHandleLike, path: string, count: number, change: () => void): DirectoryHandleLike {
+  let reads = 0;
+  const wrap = (dir: DirectoryHandleLike, at: string): DirectoryHandleLike => ({
+    ...dir,
+    async getDirectoryHandle(child: string, options?: { create?: boolean }) {
+      return wrap(await dir.getDirectoryHandle(child, options), `${at}${child}/`);
+    },
+    async getFileHandle(child: string, options?: { create?: boolean }) {
+      const handle = await dir.getFileHandle(child, options);
+      if (`${at}${child}` !== path) return handle;
+      return {
+        ...handle,
+        async getFile() {
+          const file = await handle.getFile();
+          reads += 1;
+          if (reads === count) change();
+          return file;
+        },
+      };
+    },
+  });
+  const racing = wrap(root, '');
+  childrenOfHandle.set(racing, childrenOfHandle.get(root) ?? new Map());
+  return racing;
+}
+
+/** A handle to `root` that refuses to make `.caotang-backup`, as a folder the browser will not let a copy into does. */
+function refusingBackups(root: DirectoryHandleLike): DirectoryHandleLike {
+  const wrapped: DirectoryHandleLike = {
+    ...root,
+    async getDirectoryHandle(child: string, options?: { create?: boolean }) {
+      if (child === '.caotang-backup' && options?.create === true) throw new Error('the browser refused the folder');
+      return root.getDirectoryHandle(child, options);
+    },
+  };
+  childrenOfHandle.set(wrapped, childrenOfHandle.get(root) ?? new Map());
+  return wrapped;
+}
+
+/** Puts the MCP server's lock file in an in-memory folder, as a server that has just started does. */
+function putLock(root: DirectoryHandleLike): void {
+  childrenOfHandle.get(root)?.set('.caotang-mcp.lock', { kind: 'file', text: '{}' });
+}
+
+const BACKUP_DIR = '.caotang-backup';
+const STAMPED = /^\.caotang-backup\/\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/;
+const OTHER_A = `---\nid: ${IDS.sceneA}\ntitle: Scene A\n---\n\nWhat the MCP server wrote into Scene A.\n`;
+const OTHER_B = `---\nid: ${IDS.sceneB}\ntitle: Scene B\n---\n\nWhat the MCP server wrote into Scene B.\n`;
+const CODEX_ID = 'c_5H8QK2M9RT';
+
+test.describe('a save the writer confirmed keeps what it replaces in .caotang-backup', () => {
+  test('each changed document and codex file, and a changed document the tab deleted, is copied before it is replaced; unchanged files are not', async () => {
+    const seed = project();
+    seed.manifest.codex = [codexEntry(CODEX_ID, 'Elena Voss')];
+    const { session, root } = await folderSession(seed);
+    const fs = folderArtifactFs(root);
+    const otherCodex = `---\nid: ${CODEX_ID}\nname: Elena Voss\n---\n\nThe server rewrote her.\n`;
+    await fs.writeAtomic(`docs/${IDS.sceneA}.md`, OTHER_A);
+    await fs.writeAtomic(`docs/${IDS.sceneB}.md`, OTHER_B);
+    await fs.writeAtomic(`codex/${CODEX_ID}.md`, otherCodex);
+    session.dispatch('doc.write', { docId: IDS.sceneA, body: 'The tab’s Scene A' });
+    // Scene B is deleted in the tab: the save removes its file, with the server's text in it.
+    session.state.documents.delete(IDS.sceneB);
+    session.state.manifest.tree = session.state.manifest.tree.filter((node) => node.id !== IDS.sceneB);
+
+    const asked = await saveFolder(session, root);
+    expect(asked.kind === 'refused' && asked.reason).toBe('files');
+    expect(await fs.read(`docs/${IDS.sceneA}.md`)).toBe(OTHER_A);
+
+    const outcome = await saveFolder(session, root, { overwriteConfirmed: true });
+    expect(outcome.kind).toBe('saved');
+    const backup = outcome.kind === 'saved' ? outcome.backup : undefined;
+    expect(backup).toMatch(STAMPED);
+    expect(await fs.listFiles(`${backup}/docs`)).toEqual([`${IDS.sceneA}.md`, `${IDS.sceneB}.md`]);
+    expect(await fs.read(`${backup}/docs/${IDS.sceneA}.md`)).toBe(OTHER_A);
+    expect(await fs.read(`${backup}/docs/${IDS.sceneB}.md`)).toBe(OTHER_B);
+    expect(await fs.read(`${backup}/codex/${CODEX_ID}.md`)).toBe(otherCodex);
+    // The folder now holds the tab's text, and Scene B is gone.
+    expect(await fs.read(`docs/${IDS.sceneA}.md`)).toContain('The tab’s Scene A');
+    expect(await fs.exists(`docs/${IDS.sceneB}.md`)).toBe(false);
+    await session.close();
+  });
+
+  test('a save that needs no confirmation keeps nothing, and the outcome names no backup', async () => {
+    const { session, root } = await folderSession();
+    session.dispatch('doc.write', { docId: IDS.sceneA, body: 'Typed in the tab' });
+    expect(await saveFolder(session, root)).toEqual({ kind: 'saved' });
+    expect(await folderArtifactFs(root).exists(BACKUP_DIR)).toBe(false);
+    await session.close();
+  });
+
+  test('a folder this session holds no copy of keeps every file the save replaces', async () => {
+    const state = project();
+    const root = memoryFolder('Fixture Book');
+    const { session } = await sessionOf(state);
+    const fs = folderArtifactFs(root);
+    await fs.writeAtomic(MANIFEST_FILE, '{"formatVersion": 1}');
+    await fs.writeAtomic(`docs/${IDS.sceneA}.md`, OTHER_A);
+    await fs.writeAtomic('docs/n_B2C3D4E5F6.md', '---\nid: n_B2C3D4E5F6\n---\n\nnot in this book\n');
+
+    const outcome = await saveFolder(session, root, { overwriteConfirmed: true });
+    const backup = outcome.kind === 'saved' ? outcome.backup : undefined;
+    expect(backup).toMatch(STAMPED);
+    // The file with an id this book also uses is replaced and kept; the other is not touched, so it is not copied.
+    expect(await fs.listFiles(`${backup}/docs`)).toEqual([`${IDS.sceneA}.md`]);
+    expect(await fs.read(`${backup}/docs/${IDS.sceneA}.md`)).toBe(OTHER_A);
+    await session.close();
+  });
+
+  test('the backup is in no digest and no bundle, and the folder opens without it', async () => {
+    const { session, root } = await folderSession();
+    const fs = folderArtifactFs(root);
+    await fs.writeAtomic(`docs/${IDS.sceneA}.md`, OTHER_A);
+    const outcome = await saveFolder(session, root, { overwriteConfirmed: true });
+    expect(outcome.kind === 'saved' && outcome.backup).toMatch(STAMPED);
+
+    expect([...(await projectFileDigests(fs)).keys()].filter((path) => path.includes(BACKUP_DIR))).toEqual([]);
+    expect((await exportProjectZip(session.state)).entries.filter((path) => path.includes(BACKUP_DIR))).toEqual([]);
+    // The folder still reads as the same book, with no document made of the backup.
+    const onDisk = await readProject(fs);
+    expect(onDisk.state.documents.size).toBe(session.state.documents.size);
+    await session.close();
+  });
+
+  test('a copy that cannot be kept stops the save before the file is replaced', async () => {
+    const { session, root } = await folderSession();
+    const fs = folderArtifactFs(root);
+    await fs.writeAtomic(`docs/${IDS.sceneA}.md`, OTHER_A);
+    session.dispatch('doc.write', { docId: IDS.sceneA, body: 'The tab’s Scene A' });
+
+    await expect(saveFolder(session, refusingBackups(root), { overwriteConfirmed: true })).rejects.toThrow('could not be kept');
+    expect(await fs.read(`docs/${IDS.sceneA}.md`)).toBe(OTHER_A);
+    await session.close();
+  });
+
+  test('only the newest saves’ copies are kept, and the encoding review’s copies beside them stay', async () => {
+    const fs = folderArtifactFs(memoryFolder('Fixture Book'));
+    const stamps = Array.from({ length: FOLDER_BACKUP_KEEP + 3 }, (_, index) => backupStamp(new Date(Date.UTC(2026, 9, 1, 0, 0, index))));
+    for (const stamp of stamps) await fs.writeBytesAtomic(`${BACKUP_DIR}/${stamp}/docs/${IDS.sceneA}.md`, new Uint8Array([1]));
+    await fs.writeBytesAtomic(`${BACKUP_DIR}/docs/${IDS.sceneB}.md`, new Uint8Array([2]));
+
+    await pruneFolderBackups(fs);
+    const kept = (await fs.listDirs(BACKUP_DIR)).filter(isBackupStamp);
+    expect(kept).toEqual(stamps.slice(3));
+    expect(await fs.exists(`${BACKUP_DIR}/${stamps[0]}`)).toBe(false);
+    expect(await fs.exists(`${BACKUP_DIR}/docs/${IDS.sceneB}.md`)).toBe(true);
+  });
+
+  test('a stamp is recognised by its shape alone', () => {
+    expect(isBackupStamp(backupStamp(new Date('2026-10-23T14:05:09.123Z')))).toBe(true);
+    for (const name of ['docs', 'codex', '2026-10-23T14:05:09.123Z', '2026-10-23T14-05-09-123', '2026-10-23T14-05-09-12ZZ']) {
+      expect(isBackupStamp(name)).toBe(false);
+    }
+  });
+});
+
+test.describe('a change made while the save writes is reported, not lost', () => {
+  test('a file that changes between the write’s check and its rename is not replaced, and the refusal says the save stopped part way', async () => {
+    const { session, root } = await folderSession();
+    const fs = folderArtifactFs(root);
+    session.dispatch('doc.write', { docId: IDS.sceneA, body: 'The tab’s Scene A' });
+    // The file's reads in a save: the check of the whole folder, the changed-only test, the write's own check, then the watch's. The server
+    // writes after the third, in the instant between the write's check and the rename.
+    const racing = changeAfterReads(root, `docs/${IDS.sceneA}.md`, 3, () => setFileText(root, `docs/${IDS.sceneA}.md`, OTHER_A));
+
+    expect(await saveFolder(session, racing)).toEqual({
+      kind: 'refused',
+      reason: 'files',
+      files: [{ label: 'the document “Scene A”', change: 'changed' }],
+      partial: true,
+    });
+    expect(await fs.read(`docs/${IDS.sceneA}.md`)).toBe(OTHER_A);
+    await session.close();
+  });
+
+  test('the watch stops a write when the file is no longer the one its digest was taken of, and keeps the bytes of one it replaces', async () => {
+    const memory = new MemoryArtifactFs();
+    const path = `docs/${IDS.sceneA}.md`;
+    const now = new Date('2026-10-23T14:05:09.123Z');
+    const report = { written: [], rotated: [], dropped: [], pruned: [] };
+    memory.putFile(path, 'as the save checked it');
+    const expected = await projectFileDigests(memory);
+    const watch = watchSave(memory, { now, expected, held: new Map(), report });
+
+    memory.putFile(path, 'as the server wrote it');
+    await expect(watch.fs.writeAtomic(path, 'the tab’s text')).rejects.toBeInstanceOf(FolderDriftError);
+    expect(await memory.read(path)).toBe('as the server wrote it');
+    expect(watch.backup()).toBeUndefined();
+
+    // Held digests that name another text: the file is another program's, so what replaces it is kept first.
+    const again = watchSave(memory, { now, expected: await projectFileDigests(memory), held: expected, report });
+    await again.fs.writeAtomic(path, 'the tab’s text');
+    expect(again.backup()).toBe('.caotang-backup/2026-10-23T14-05-09-123Z');
+    expect(await memory.read(`${again.backup()}/${path}`)).toBe('as the server wrote it');
+    expect(await memory.read(path)).toBe('the tab’s text');
+  });
+
+  test('a document the server changes after the save wrote it is named, and the next save asks about it and keeps the server’s text', async () => {
+    const { session, root } = await folderSession();
+    const fs = folderArtifactFs(root);
+    session.dispatch('doc.write', { docId: IDS.sceneA, body: 'Written first' });
+    session.dispatch('doc.write', { docId: IDS.sceneB, body: 'Written second' });
+    // The server replaces Scene A once the save has written Scene B, after Scene A was written.
+    const racing = changeAfterWrite(root, `docs/${IDS.sceneB}.md`, () => setFileText(root, `docs/${IDS.sceneA}.md`, OTHER_A));
+
+    expect(await saveFolder(session, racing)).toEqual({
+      kind: 'refused',
+      reason: 'files',
+      files: [{ label: 'the document “Scene A”', change: 'changed' }],
+      after: true,
+    });
+    expect(await fs.read(`docs/${IDS.sceneA}.md`)).toBe(OTHER_A);
+    // The copy the next save is checked against does not take the server's text as the save's own.
+    expect(await saveFolder(session, root)).toEqual({
+      kind: 'refused',
+      reason: 'files',
+      files: [{ label: 'the document “Scene A”', change: 'changed' }],
+    });
+    const outcome = await saveFolder(session, root, { overwriteConfirmed: true });
+    const backup = outcome.kind === 'saved' ? outcome.backup : undefined;
+    expect(await fs.read(`${backup}/docs/${IDS.sceneA}.md`)).toBe(OTHER_A);
+    await session.close();
+  });
+
+  test('a document the server changes that the save did not write is named too', async () => {
+    const { session, root } = await folderSession();
+    session.dispatch('doc.write', { docId: IDS.sceneA, body: 'Written' });
+    // Once the manifest is written, every document the save was to write has been visited: Scene C is one it never wrote.
+    const racing = changeAfterWrite(root, MANIFEST_FILE, () => setFileText(root, `docs/${IDS.sceneC}.md`, 'The server edited Scene C.'));
+
+    expect(await saveFolder(session, racing)).toEqual({
+      kind: 'refused',
+      reason: 'files',
+      files: [{ label: 'the document “Scene C”', change: 'changed' }],
+      after: true,
+    });
+    await session.close();
+  });
+
+  test('a caotang.json the server replaces as the save writes it is reported, and the next save asks about it', async () => {
+    const { session, root } = await folderSession();
+    session.dispatch('doc.write', { docId: IDS.sceneA, body: 'Written' });
+    const otherText = '{"formatVersion": 1, "changed": "by the server"}';
+    const racing = changeAfterWrite(root, MANIFEST_FILE, () => setFileText(root, MANIFEST_FILE, otherText));
+
+    expect(await saveFolder(session, racing)).toEqual({ kind: 'refused', reason: 'changed', files: [], after: true });
+    expect(await folderArtifactFs(root).read(MANIFEST_FILE)).toBe(otherText);
+    expect(await saveFolder(session, root)).toEqual({ kind: 'refused', reason: 'changed', files: [] });
+    await session.close();
+  });
+
+  test('a lock that appears while the save writes is reported once the save has finished', async () => {
+    const { session, root } = await folderSession();
+    session.dispatch('doc.write', { docId: IDS.sceneA, body: 'Written' });
+    const racing = changeAfterWrite(root, `docs/${IDS.sceneA}.md`, () => putLock(root));
+
+    expect(await saveFolder(session, racing)).toEqual({ kind: 'refused', reason: 'locked', files: [], after: true });
+    expect(await folderArtifactFs(root).read(`docs/${IDS.sceneA}.md`)).toContain('Written');
+    // The lock is there now, so the next save asks about it as it always does.
+    expect(await saveFolder(session, root)).toEqual({ kind: 'refused', reason: 'locked', files: [] });
+    await session.close();
+  });
+
+  test('a lock the writer already said to save over is not a lock that appeared', async () => {
+    const { session, root } = await folderSession();
+    putLock(root);
+    session.dispatch('doc.write', { docId: IDS.sceneA, body: 'Written' });
+    expect(await saveFolder(session, root, { lockConfirmed: true })).toEqual({ kind: 'saved' });
     await session.close();
   });
 });
@@ -1461,7 +1744,7 @@ test.describe('a save into a folder holding a project: another project, the orig
     session.dispatch('doc.write', { docId: IDS.sceneA, body: 'This tab’s version' });
 
     expect(await saveFolder(session, root)).toEqual({ kind: 'refused', reason: 'earlier', files: [] });
-    expect(await saveFolder(session, root, { overwriteConfirmed: true })).toEqual({ kind: 'saved' });
+    expect(await saveFolder(session, root, { overwriteConfirmed: true })).toMatchObject({ kind: 'saved' });
     expect((await readProject(folderArtifactFs(root))).state.documents.get(IDS.sceneA)?.body).toBe('This tab’s version');
     await session.close();
   });
@@ -1829,7 +2112,7 @@ test.describe('a folder whose version differs from this browser\'s asks which to
     expect(await readProject(folderArtifactFs(root)).then((loaded) => loaded.state.documents.get(IDS.sceneA)?.body)).not.toBe('Typed in this browser');
 
     // The writer's "Save over them" writes this browser's version into the folder.
-    expect(await saveFolder(opened.session, root, { overwriteConfirmed: true })).toEqual({ kind: 'saved' });
+    expect(await saveFolder(opened.session, root, { overwriteConfirmed: true })).toMatchObject({ kind: 'saved' });
     const onDisk = await readProject(folderArtifactFs(root));
     expect(onDisk.state.documents.get(IDS.sceneA)?.body).toBe('Typed in this browser');
     expect(onDisk.state.manifest.project.id).toBe(id);

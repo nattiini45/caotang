@@ -27,6 +27,7 @@ import type { AssetRecord } from '@caotang/video-prompt-pack';
 import { emojiStyleOf, graphemesOf, sfntFromWoff, type FontLoader } from '@caotang/pdf-fonts';
 import { loadArabicFontInNode, loadCjkFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
 import { harfbuzzEmoji } from '../../pdf-fonts/test/harfbuzz-reference.js';
+import { HAN_FORMS, HAN_LANGUAGES, HAN_PUNCTUATION } from '../../pdf-fonts/test/fixtures/han-forms.js';
 import { drawnRuns } from './rtl-text.js';
 import { EmojiEmbedding, EmojiFace, type FontkitFont } from '../src/emoji-font.js';
 import {
@@ -61,6 +62,7 @@ function rig(
     loadDevanagariFont?: FontLoader;
     transcodePicture?: PictureTranscoder;
     readAsset?: (path: string) => Promise<Uint8Array | null>;
+    language?: string;
   } = {},
 ): { exporter: ExporterService; reads: string[] } {
   const state = options.state ?? makeMediaProject();
@@ -70,7 +72,7 @@ function rig(
     readState: () => state,
     artifacts: new MemoryArtifactFs(),
     clock: { now: () => COMPILED_AT },
-    metadata: () => ({ author: 'Ada Lovelace' }),
+    metadata: () => ({ author: 'Ada Lovelace', ...(options.language === undefined ? {} : { language: options.language }) }),
     assets: () => options.assets ?? ASSETS,
     readAsset: async (path) => {
       reads.push(path);
@@ -705,6 +707,65 @@ describe('contact-sheet-pdf — text outside Latin script, in the Noto Sans Mono
     const first = await compileSheet(rig({ state, loadFallbackFont: loadCjkFontInNode }).exporter);
     const second = await compileSheet(rig({ state, loadFallbackFont: loadCjkFontInNode }).exporter);
     expect([...first.bytes]).toEqual([...second.bytes]);
+  });
+
+  describe('Han characters in the forms of the project’s language', () => {
+    const HAN = '直骨今說次。';
+
+    /** The glyph each character of HAN is drawn with, in the order the sheet draws them: the subset's glyphs 1 to 6. */
+    async function outlines(language: string | undefined): Promise<string[]> {
+      const { pdf } = await compileSheet(rig({ state: withAction(HAN), loadFallbackFont: loadCjkFontInNode, ...(language === undefined ? {} : { language }) }).exporter);
+      const files = embeddedFontFiles(pdf);
+      expect(files).toHaveLength(1);
+      const subset = fontkit.create(files[0] as Uint8Array) as unknown as { getGlyph(id: number): { path: { toSVG(): string } } };
+      return [...HAN].map((_, index) => subset.getGlyph(index + 1).path.toSVG());
+    }
+
+    let source: Awaited<ReturnType<typeof sourceFont>>;
+    async function sourceFont() {
+      return fontkit.create(await sfntFromWoff(await loadCjkFontInNode())) as unknown as { getGlyph(id: number): { path: { toSVG(): string } } };
+    }
+    const ids = (language: 'sc' | (typeof HAN_LANGUAGES)[number]['language']): number[] => [...HAN].map((ch) => (HAN_FORMS[ch] ?? HAN_PUNCTUATION)[language]);
+
+    it.each(HAN_LANGUAGES.map(({ language }) => language))('draws 直 骨 今 說 次 and 。 in the forms of %s, the glyph ids of the fixtures', async (language) => {
+      source ??= await sourceFont();
+      expect(await outlines(language)).toEqual(ids(language).map((id) => source.getGlyph(id).path.toSVG()));
+    });
+
+    it('draws the forms of one language by every tag of it: ja-JP, zh-TW, zh-MO, zh-Hant-HK', async () => {
+      expect(await outlines('ja-JP')).toEqual(await outlines('ja'));
+      expect(await outlines('zh-TW')).toEqual(await outlines('zh-Hant'));
+      expect(await outlines('zh-MO')).toEqual(await outlines('zh-Hant'));
+      expect(await outlines('zh-Hant-HK')).toEqual(await outlines('zh-HK'));
+    });
+
+    it('draws the font’s own, Simplified Chinese, forms for zh, zh-CN, zh-Hans, zh-SG, another language and none', async () => {
+      source ??= await sourceFont();
+      const expected = ids('sc').map((id) => source.getGlyph(id).path.toSVG());
+      for (const language of [undefined, 'zh', 'zh-CN', 'zh-Hans', 'zh-SG', 'en', 'ar']) expect(await outlines(language), String(language)).toEqual(expected);
+    });
+
+    it('writes the same bytes with no language as with a language that has no regional forms, and others for Japanese', async () => {
+      const bytes = async (language: string | undefined): Promise<Uint8Array> =>
+        (await compileSheet(rig({ state: withAction(HAN), loadFallbackFont: loadCjkFontInNode, ...(language === undefined ? {} : { language }) }).exporter)).bytes;
+      const plain = await bytes(undefined);
+      for (const language of ['zh', 'zh-CN', 'zh-Hans', 'en']) expect([...(await bytes(language))], language).toEqual([...plain]);
+      expect([...(await bytes('ja'))]).not.toEqual([...plain]);
+    });
+
+    it('copies each character back as itself in every language, and the two that share a glyph each as their own', async () => {
+      for (const language of ['ja', 'zh-Hant', 'ko', 'zh-HK', 'zh']) {
+        const { pdf } = await compileSheet(rig({ state: withAction(`${HAN} ‧ ・ ① ➀`), loadFallbackFont: loadCjkFontInNode, language }).exporter);
+        const entries = toUnicodeEntries(pdf);
+        for (const char of [...HAN, '‧', '・', '①', '➀']) expect(entries, `${language} ${char}`).toContain(char);
+      }
+    });
+
+    it('leaves a sheet with no Han character as it was, in a Japanese project', async () => {
+      const bytes = async (language: string | undefined): Promise<Uint8Array> =>
+        (await compileSheet(rig({ state: withAction('Abeßer crosses the café ひらがな 한국어'), loadFallbackFont: loadCjkFontInNode, ...(language === undefined ? {} : { language }) }).exporter)).bytes;
+      expect([...(await bytes('ja'))]).toEqual([...(await bytes(undefined))]);
+    });
   });
 
   it('cuts a CJK line with an ellipsis inside the card, measured in the fallback font', async () => {
