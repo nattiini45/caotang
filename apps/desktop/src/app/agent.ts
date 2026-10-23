@@ -58,9 +58,12 @@ import type { GhostPreview } from '@caotang/editor/tiptap';
 import type { ProfileView } from '@caotang/gateway';
 import {
   createAgentSession,
+  createBudgetMeter,
   createContextPort,
   preloadFor,
+  DEFAULT_ACTIVE_MS,
   PERMISSION_MODES,
+  type BudgetMeter,
   type ContextConfig,
   type AgentEvent,
   type AgentSession,
@@ -70,6 +73,7 @@ import {
   type PermissionMode,
   type PlanCardView,
   type PlanOffer,
+  type RunLimits,
   type TurnOptions,
   type TurnReport,
 } from '@caotang/harness';
@@ -195,6 +199,8 @@ export class AgentController {
   private turnsStarted = 0;
   /** The running turn's own abort controller: its signal rides in the turn's options. */
   private turnAbort: AbortController | null = null;
+  /** The running turn's run limits (agent-harness §7.1): made from Settings when the turn starts, disposed when it settles. */
+  private meter: BudgetMeter | null = null;
   private runningAgent: AgentSession | null = null;
   private runningTurnId: string | null = null;
   private stopping = false;
@@ -332,6 +338,20 @@ export class AgentController {
     return this.turnWith(trimmed, options, (agent, turn) => agent.submit(trimmed, { preload, ...turn }));
   }
 
+  /**
+   * The run limits a turn is held to, from Settings › Agent (agent-harness §7.1): the limits the writer set on tokens, cost and steps,
+   * and the time a turn may work (ten minutes unless the writer chose another). A limit left empty is not a run limit.
+   */
+  private runLimits(): RunLimits {
+    const budget = this.agentSettings().budget;
+    return {
+      ...(budget.maxTokens === undefined ? {} : { maxTokens: budget.maxTokens }),
+      ...(budget.maxCostUsd === undefined ? {} : { maxCostUsd: budget.maxCostUsd }),
+      ...(budget.maxSteps === undefined ? {} : { maxSteps: budget.maxSteps }),
+      maxActiveMs: budget.maxActiveMinutes === undefined ? DEFAULT_ACTIVE_MS : budget.maxActiveMinutes * 60_000,
+    };
+  }
+
   /** The permission mode in force: the writer's pick for this panel, else the setting's default. A locked `auto` reads as Ask. */
   mode(): PermissionMode {
     const settings = this.agentSettings();
@@ -453,11 +473,17 @@ export class AgentController {
           beforeStage: (offer) => this.askOffer(offer),
           mode: () => this.mode(),
           lockAuto: () => this.agentSettings().lockAuto,
-          budget: () => this.agentSettings().budget,
+          budget: () => {
+            // The model-call bound is read at each turn; the time limit is the meter's, not a turn budget.
+            const { maxActiveMinutes: _minutes, ...budget } = this.agentSettings().budget;
+            return budget;
+          },
+          meter: () => this.meter ?? undefined,
           price: () => this.priceForNextTurn ?? undefined,
           beforeAutoApply: (card) => this.beforeAutoApply(card),
         }));
       this.runningAgent = agent;
+      this.meter = createBudgetMeter(this.runLimits());
       report = await start(agent, {
         signal: abort.signal,
         profileId: profile.id,
@@ -473,6 +499,8 @@ export class AgentController {
       this.busy = false;
       this.stopping = false;
       this.turnAbort = null;
+      this.meter?.dispose();
+      this.meter = null;
       this.runningAgent = null;
       this.runningTurnId = null;
       if (this.turnOwner === owner) {

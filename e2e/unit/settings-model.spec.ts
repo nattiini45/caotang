@@ -42,9 +42,9 @@ test.describe('settings (ui-modules §5.1)', () => {
   });
 
   test('the turn limits load clamped to their ranges, a bad one reads as unset, and a patch replaces the record', () => {
-    const budget = { maxTokens: 50_000, maxWordsChanged: 2_000, maxDocuments: 10, maxSteps: 12, maxCostUsd: 0.5 };
+    const budget = { maxModelCalls: 12, maxActiveMinutes: 30, maxTokens: 50_000, maxWordsChanged: 2_000, maxDocuments: 10, maxSteps: 12, maxCostUsd: 0.5 };
     expect(normalizeSettings({ agent: { budget } }).agent.budget).toEqual(budget);
-    expect(normalizeSettings({ agent: { budget: { maxTokens: 5, maxSteps: 1.5, maxDocuments: 'ten', maxCostUsd: -1, maxWordsChanged: 99_999_999 } } }).agent.budget).toEqual({});
+    expect(normalizeSettings({ agent: { budget: { maxTokens: 5, maxSteps: 1.5, maxDocuments: 'ten', maxCostUsd: -1, maxWordsChanged: 99_999_999, maxModelCalls: 0, maxActiveMinutes: 5_000 } } }).agent.budget).toEqual({});
     expect(normalizeSettings({ agent: { budget: 'all' } }).agent.budget).toEqual({});
     expect(applyPatch(normalizeSettings({ agent: { budget } }), { agent: { budget: { maxSteps: 3 } } }).agent.budget).toEqual({ maxSteps: 3 });
   });
