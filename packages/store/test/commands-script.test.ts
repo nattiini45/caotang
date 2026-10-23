@@ -313,6 +313,23 @@ describe('dialogue.importInk', () => {
     expect(snapshotOf(h.state)).toBe(before);
   });
 
+  // The caller mints line ids into the planned bodies before the one dispatch (dialogue-narrative.md A3): the command
+  // stores the bodies it is given, writes no container setting, and one undo takes the ids with the containers.
+  it('stores bodies that already carry minted line ids, leaves autoLineIds unset, and one undo removes both', () => {
+    const tagged = [
+      { title: 'Greeting', body: '=== Greeting ===\nHello. # lineId: l_0123456789\n-> END\n' },
+      { title: 'Farewell', body: '=== Farewell ===\nBye. # lineId: l_ABCDEFGHJK\n-> END\n' },
+    ];
+    const h = harness();
+    const before = snapshotOf(h.state);
+    const outcome = succeed(h, 'dialogue.importInk', { containers: tagged, parentId: CHAPTER });
+    const ids = (outcome.result as { nodeIds: string[] }).nodeIds;
+    expect(ids.map((id) => getBody(h.state, id))).toEqual(tagged.map((c) => c.body));
+    for (const id of ids) expect(nodeById(h.state, id)?.dialogue).toBeUndefined();
+    undoGroup(h, outcome);
+    expect(snapshotOf(h.state)).toBe(before);
+  });
+
   // The chapter rule: containers imported into the manuscript go into one "Imported dialogue" chapter.
   it('puts the containers into an "Imported dialogue" chapter when it imports into the manuscript, and the undo takes the chapter too', () => {
     const h = harness();

@@ -44,7 +44,7 @@ The buttons at the top of the binder:
 - **New folder** adds a chapter to the manuscript.
 - **Import script** reads a Fountain (`.fountain`) or Final Draft (`.fdx`) script. Its sections become folders and its scenes become screenplay scenes, in one undo step.
 - **Import Twee** reads a Twee 3 story (`.twee` or `.tw`) and makes one dialogue container, with a knot for each passage and a choice for each link. A dialog lists what the import will do first, and nothing is written until you choose **Import**. Caotang reads SugarCube 2 stories: their `<<…>>` macros are stripped, and the dialog says how many. A story in another format, or one that names none, imports its passages and text without its links, and the dialog says so. Scripts and style sheets are skipped, and the dialog names them. The file is read in your browser and goes nowhere.
-- **Import Ink** reads an Ink story (`.ink`) and makes one dialogue container for each group of knots that divert to one another. Text above the first knot is not imported. The status line says how many lines it was, so you can copy them by hand.
+- **Import Ink** reads an Ink story (`.ink`) and makes one dialogue container for each group of knots that divert to one another. Text above the first knot is not imported. The status line says how many lines it was, so you can copy them by hand. Tick **Add line ids to the imported containers (one time)** before you choose the file to give every line and choice in the story an id as it comes in; it is unticked by default, so the Ink stays as you wrote it. The ids go in with the containers, so one undo takes both. The box does not turn on **Add line ids on save**. The status line says how many ids were added, names any line that could not take one (with its container and line number), and warns about an id the file already used more than once, which is kept as written.
 
 Keep scenes inside chapters. A drag cannot place a scene directly under the manuscript, and a scene that sits there, such as one put back from a stopped tab, has no chapter heading when you export. Move it into a chapter.
 
@@ -171,7 +171,7 @@ Choose **New dialogue here** from a folder's menu. A dialogue container holds an
 - **Branch graph.** Each knot is a card. Click a card to move the caret to that knot's header in the text.
 - **Outline and findings.** The structure of the story and what the checks found. Both follow the text when you pause, about 800 ms after your last keystroke.
 - Tab after a divert arrow (`->`) completes the knot or stitch name you started.
-- **Add line ids to N lines** asks first, then writes an id into each line that has none. With **Add line ids on save** turned on, Caotang writes the missing ids each time it saves.
+- **Add line ids to N lines** asks first, then writes an id into each line that has none. With **Add line ids on save** turned on, Caotang writes the missing ids each time it saves. For a whole Ink story, **Import Ink** can add them once for every container as it imports (see above).
 - **Container settings**, in the inspector: **Default speaker** (a codex character, who fills the speaker column of the dialogue table), **Engine target**, **Add line ids on save**, and **Locale** (the language the text is written in, such as `en` or `en-GB`).
 - If the Ink does not compile, the view says so and lists the errors. Fix them in the Ink text.
 

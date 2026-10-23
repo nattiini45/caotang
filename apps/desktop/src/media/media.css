@@ -1147,6 +1147,15 @@
   padding: 4px 0 8px;
 }
 
+/* The one-time line-id choice of Import Ink: a native checkbox and its label, on a line of its own when the row is narrow. */
+.script-import-ids {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+
 /* The report a Twee import shows before it writes: the dialog is the shared .confirm one, with a list in it. */
 .twee-report ul {
   margin: 8px 0 0;

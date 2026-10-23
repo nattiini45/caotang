@@ -7,6 +7,7 @@ import {
   addLineIdsLabel,
   addLineIdsSentence,
   confirmLineIdsSentence,
+  importLineIdsSentence,
   linesMissingIds,
   textOnSave,
 } from '../../apps/desktop/src/media/ink-model.js';
@@ -63,6 +64,22 @@ test.describe('the Ink source rules', () => {
     const result = { text: INK, minted: 2, unplaceable: [{ line: 4, text: 'a', reason: 'divert' }] };
     expect(addLineIdsSentence(result)).toBe(
       'Added 2 line ids to the Ink text. 1 line (line 4) could not take one: move the choice or jump so the line has room for its id.',
+    );
+  });
+
+  test('an import that minted says it was once, leaves the save setting alone, and names each stuck line with its container', () => {
+    const base = { containers: [], minted: 4, unplaceable: [], duplicatesInSource: [], kept: [] };
+    expect(importLineIdsSentence(base)).toBe('Added 4 line ids to the imported containers, once. "Add line ids on save" was left as it was.');
+    expect(importLineIdsSentence({ ...base, minted: 0 })).toBe('No line needed an id.');
+    expect(importLineIdsSentence({ ...base, unplaceable: [{ title: 'Gate', line: 3, text: 'Oh yes.' }] })).toBe(
+      'Added 4 line ids to the imported containers, once. "Add line ids on save" was left as it was. 1 line (Gate line 3) could not take one: move the choice or jump so the line has room for its id.',
+    );
+  });
+
+  test('ids the source repeats are reported and kept, and a container left as written is named', () => {
+    const base = { containers: [], minted: 0, unplaceable: [], duplicatesInSource: ['l_A', 'l_B', 'l_C', 'l_D'], kept: ['Gate'] };
+    expect(importLineIdsSentence(base)).toBe(
+      'No line needed an id. "Gate" kept the Ink as written, because the ids would have stopped it compiling. 4 ids (l_A, l_B, l_C and 1 more) already appear more than once in the source and were kept as written: the export refuses duplicates, so change them in the Ink.',
     );
   });
 
