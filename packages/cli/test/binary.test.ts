@@ -21,10 +21,12 @@ const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 const DIST = join(PACKAGE, 'dist');
 
 const FONTS = [
+  'NotoEmoji-Regular-common.woff',
   'NotoEmoji-Regular.woff',
   'NotoSansArabic-Regular.ttf',
   'NotoSansDevanagari-Regular.ttf',
   'NotoSansHebrew-Regular.ttf',
+  'NotoSansMonoCJKsc-Regular-common.woff',
   'NotoSansMonoCJKsc-Regular.woff',
 ];
 

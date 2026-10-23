@@ -1,7 +1,9 @@
 /**
  * The screenplay PDF's fallback fonts (screenplay.md §5.3). A script with Chinese text and an emoji prints them in the two
- * Noto files the contact sheet uses too (Arabic, Hebrew and Devanagari print in three more, below): the app fetches one CJK file (10.7 MB, not the 16 MB OTF it was) and one emoji file
- * from its own origin, only for an export that needs them, and the PDF carries the characters as text a reader can copy.
+ * Noto files the contact sheet uses too (Arabic, Hebrew and Devanagari print in three more, below): the app fetches one CJK file and one emoji file
+ * from its own origin, only for an export that needs them, and the PDF carries the characters as text a reader can copy. Each
+ * font has a common file (2.0 MB of the CJK font's 10.7 MB, 0.3 of the emoji font's 0.6 MB): a script whose characters are all in it
+ * fetches only that, and any other character fetches the full font.
  */
 
 import { readFileSync } from 'node:fs';
@@ -43,7 +45,7 @@ function watchFonts(page: Page): string[] {
   return seen;
 }
 
-test('a script with Chinese text and an emoji loads the one CJK file and the one emoji file, and the PDF embeds both as TrueType', async ({ page }) => {
+test('a script with Chinese text and an emoji loads the common CJK file and the common emoji file, and the PDF embeds both as TrueType', async ({ page }) => {
   const fonts = watchFonts(page);
   await createProject(page, PROJECT);
   await makeScene(page, 'INT. 草堂 - NIGHT\n\nThe lamp turns 👍, tired 🫩.\n');
@@ -59,6 +61,21 @@ test('a script with Chinese text and an emoji loads the one CJK file and the one
   expect(pdf).toContain('<D83DDC4D>');
   // 🫩 is Emoji 16.0, in the font from 3.006 on.
   expect(pdf).toContain('<D83EDEE9>');
+  expect([...new Set(fonts)].sort()).toEqual(['NotoEmoji-Regular-common.woff', 'NotoSansMonoCJKsc-Regular-common.woff']);
+});
+
+test('a script with a rare Han character and a flag loads the full CJK font and the full emoji font, and prints both with no question mark', async ({ page }) => {
+  const fonts = watchFonts(page);
+  await createProject(page, PROJECT);
+  // 龘 (U+9F98) is outside the common CJK file, and a flag outside the common emoji file.
+  await makeScene(page, 'INT. 草堂 - NIGHT\n\nThe lamp turns 龘, flag \u{1F1E9}\u{1F1EA}.\n');
+  const pdf = await compilePdf(page);
+
+  expect(pdf).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSansMonoCJKsc-Regular/);
+  expect(pdf).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoEmoji-Regular/);
+  expect(pdf).toContain('<9F98>');
+  expect(pdf).toContain('<D83CDDE9D83CDDEA>');
+  expect(pdf).not.toMatch(/\(\?+\) Tj/);
   expect([...new Set(fonts)].sort()).toEqual(['NotoEmoji-Regular.woff', 'NotoSansMonoCJKsc-Regular.woff']);
 });
 
@@ -95,11 +112,12 @@ test('a Han character prints in the forms of the project language, and a reader 
   // The Japanese forms are other glyphs; zh-CN is the font's own, as a project in English is.
   expect(fontPrograms(japanese).at(-1)).not.toBe(plain);
   expect(fontPrograms(chinese).at(-1)).toBe(plain);
-  // One CJK file, whatever the language.
-  expect([...new Set(fonts)]).toEqual(['NotoSansMonoCJKsc-Regular.woff']);
+  // One CJK file, whatever the language: the common one, since every character is in it.
+  expect([...new Set(fonts)]).toEqual(['NotoSansMonoCJKsc-Regular-common.woff']);
 });
 
 test('a script with a woman walking facing right prints her as one emoji that a reader copies back as typed', async ({ page }) => {
+  const fonts = watchFonts(page);
   await createProject(page, PROJECT);
   await makeScene(page, 'INT. HALL - DAY\n\nShe walks off \u{1F6B6}‍♀️‍➡️.\n');
   const pdf = await compilePdf(page);
@@ -109,6 +127,8 @@ test('a script with a woman walking facing right prints her as one emoji that a 
   expect(pdf).toContain('<D83DDEB6200D2640FE0F200D27A1FE0F>');
   // Not as the first emoji alone (the walking person), which the sequence printed as before.
   expect(pdf).not.toContain('<D83DDEB6>');
+  // A ZWJ sequence is outside the common emoji file, so the full font is fetched.
+  expect([...new Set(fonts)]).toEqual(['NotoEmoji-Regular.woff']);
 });
 
 test('a Latin-only script loads no font', async ({ page }) => {

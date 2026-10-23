@@ -7,11 +7,16 @@
  * through the host's {@link FontLoader}. Only the glyphs the script uses are written into the PDF: the subset is cut with
  * @pdf-lib/fontkit and written by the writer both PDFs share (`@caotang/pdf-fonts`, cid-font.ts).
  *
+ * The font comes as two files (`@caotang/pdf-fonts/common`): the full font, and a common file cut from it to the characters of
+ * everyday use, a fifth of the size. A script whose characters are all in the common file reads only that; one character
+ * outside it reads the full font, and the PDF holds the same glyphs either way.
+ *
  * This module is reached only by the dynamic import in render-pdf.ts, and only for a script with a character WinAnsi
  * cannot encode. A Latin-only compile loads neither this module, nor fontkit, nor the font file.
  */
 
 import { cutCidSubset, hanGlyph, loadFont, type FontLoader, type HanLanguageTag } from '@caotang/pdf-fonts';
+import { cjkLoaderFor } from '@caotang/pdf-fonts/common';
 import type { Font } from '@pdf-lib/fontkit';
 
 import type { PdfCidFont, PdfCidGlyph } from './pdf.js';
@@ -22,15 +27,16 @@ export const NOTO_CJK_POSTSCRIPT_NAME = 'NotoSansMonoCJKsc-Regular';
 
 const loaded = new WeakMap<FontLoader, Promise<Font>>();
 
-/** The parsed fallback font. Loaded once per loader. */
-export function loadNotoCjk(load: FontLoader): Promise<Font> {
-  let font = loaded.get(load);
+/** The parsed fallback font, from the common file when `characters` are all in it and the full font otherwise. Loaded once per file. */
+export function loadNotoCjk(load: FontLoader, characters: Iterable<string>): Promise<Font> {
+  const file = cjkLoaderFor(load, characters);
+  let font = loaded.get(file);
   if (font === undefined) {
-    font = loadFont(load, 'the CJK fallback font').catch((error: unknown) => {
-      loaded.delete(load);
+    font = loadFont(file, 'the CJK fallback font').catch((error: unknown) => {
+      loaded.delete(file);
       throw error;
     });
-    loaded.set(load, font);
+    loaded.set(file, font);
   }
   return font;
 }

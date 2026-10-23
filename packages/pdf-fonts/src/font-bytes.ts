@@ -7,6 +7,26 @@
 /** Reads the fallback font's bytes: WOFF 1.0 or a bare TrueType/OpenType file. */
 export type FontLoader = () => Promise<Uint8Array>;
 
+/**
+ * A {@link FontLoader} for the full font that also holds the loader of its common file: the same font cut to the characters of
+ * everyday use, a tenth of the size. A document whose characters are all in the common file reads only that ({@link loaderFor}).
+ */
+export type CommonFontLoader = FontLoader & { readonly common: FontLoader };
+
+/** The full font's loader with the loader of its common file attached. */
+export function withCommon(full: FontLoader, common: FontLoader): CommonFontLoader {
+  return Object.assign(() => full(), { common });
+}
+
+/**
+ * The loader to read for a document: the common file's when every character the document sets in the font is in it
+ * (`inCommon`) and the loader has one, otherwise the loader itself, the full font. The two files draw a character alike, so the
+ * PDF does not depend on which was read.
+ */
+export function loaderFor(load: FontLoader, inCommon: boolean): FontLoader {
+  return inCommon ? (load as Partial<CommonFontLoader>).common ?? load : load;
+}
+
 const WOFF_SIGNATURE = 0x774f4646; // 'wOFF'
 const WOFF_HEADER = 44;
 const WOFF_ENTRY = 20;
