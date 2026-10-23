@@ -123,6 +123,11 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 - **Owns:** `packages/timeline` (layout, calendar lens, medium adapters), the proposed-changes tray (view state). Scene timing stays in `coherence.json` `sceneMeta`. Specified, not built.
 - **Spec:** [architecture/timeline.md](architecture/timeline.md); the coherence-model change is [architecture/coherence.md](architecture/coherence.md) §5.2.2.
 
+### 2.20 `i18n` 🧭
+- **Responsibility:** one interface language, kept apart from the project (content) language: compiled message catalogs with a per-message English fallback, locale-aware formatting and sorting, a mirrored right-to-left interface, the agent writing to the writer in the interface language, translatable finding and notice text, and export boilerplate in the project language.
+- **Owns:** `packages/i18n` (locale resolution, `Intl` formatters, collation, bidi isolation, the `MessageRef` type), the desktop catalogs under `apps/desktop/src/i18n/`, the interface-language app setting. Specified, not built.
+- **Spec:** [architecture/i18n.md](architecture/i18n.md).
+
 ## 3. Data model (sketch)
 
 ```
@@ -145,6 +150,7 @@ TextAnchor     { from, to, exact, prefix, suffix, capturedRevision }            
 AssetRecord    { id, file, mime, sha256, bytes, width?, height?, caption?, alt?, decorative?, tags?, source?, transcription? }  // pictures.md §2.1 (planned)
 AssetLink      { id, assetId, target: project|node|paragraph, role: reference|card|source, order, note?, when? }        // pictures.md §2.1 (planned)
 TimelineOp     { op: meta|move|shift|picture-when, …, expect }                                                         // timeline.md §4.3 (planned)
+MessageRef     { id, values?, message }                                                                          // i18n.md §3.2 (planned)
 Command        { id, name, params, issuedBy: user|agent, turnId?, callId?, createdAt }  // command-bus.md §2
 ActivityEntry  { at, command, issuedBy, turnId?, callId?, undoGroupId?, source?: native|mcp, affected[], tokensSpent?, summary, defect? } // command-bus.md §8
 AskBack        { code, reason, candidates?, revisionDrift?, options[] }           // agent-harness.md §2
