@@ -404,7 +404,10 @@ function readPassage(text: string, sugarcube: boolean, counts: Counts, warnings:
  * Ink.
  * ------------------------------------------------------------------ */
 
-/** Backslash-escapes what Ink would read as syntax in a line of prose, or in a choice label when `label` is set. */
+/**
+ * Backslash-escapes what Ink would read as syntax in a line of prose, or in a choice label when `label` is set. Ink strips comments
+ * before it reads escapes, so `//` and `/*` are broken with an empty expression, `/{""}/`, which prints as `//`.
+ */
 function escapeInk(text: string, label: boolean): string {
   let out = '';
   for (let i = 0; i < text.length; i++) {
@@ -412,8 +415,9 @@ function escapeInk(text: string, label: boolean): string {
     const next = text[i + 1] ?? '';
     const syntax =
       ch === '\\' || ch === '{' || ch === '}' || ch === '|' || ch === '#' || (label && (ch === '[' || ch === ']')) ||
-      (ch === '-' && next === '>') || (ch === '<' && (next === '-' || next === '>')) || (ch === '/' && (next === '/' || next === '*'));
-    out += syntax ? `\\${ch}` : ch;
+      (ch === '-' && next === '>') || (ch === '<' && (next === '-' || next === '>'));
+    if (ch === '/' && (next === '/' || next === '*')) out += '/{""}';
+    else out += syntax ? `\\${ch}` : ch;
   }
   if (!label && (/^[*+\-=~>]/.test(out) || LINE_KEYWORDS.some((keyword) => out.startsWith(keyword)))) out = `\\${out}`;
   return out;

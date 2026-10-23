@@ -1,3 +1,4 @@
+import { Story } from 'inkjs';
 import { describe, expect, it } from 'vitest';
 
 import { TWEE_HARLOWE, TWEE_SUGARCUBE } from './fixtures.js';
@@ -62,7 +63,7 @@ describe('a SugarCube 2 story', () => {
 
   it('keeps prose that Ink would read as syntax, escaped, and parses as the same four knots', () => {
     const road = (plan.container?.body ?? '').split('=== Road ===')[1] ?? '';
-    expect(road).toContain('You walk on. \\// not a comment * not a choice');
+    expect(road).toContain('You walk on. /{""}/ not a comment * not a choice');
     const knots = parseInk(plan.container?.body ?? '').graph.nodes.filter((node) => node.kind === 'knot');
     expect(knots.map((node) => node.id)).toEqual(['Start', 'Gate', 'The_Hall', 'Road']);
   });
@@ -244,6 +245,21 @@ describe('knot names and links that need care', () => {
     expectCompiles(body);
     const printed = printedOnAnyPath(body);
     for (const line of ['Choose A | B', '|!Name|!Age|']) expect(printed.has(line), line).toBe(true);
+  });
+
+  it('keeps a URL, `//` and `/*` in prose and in a choice label, and every passage after them', () => {
+    const body = bodyOf(
+      sugarcube(':: A', 'go to http://x.com now', 'a//b c', 'path /*.js is here', '[[see http://y.org/*|B]]', '', ':: B', 'after the comment opener', '[[back->A]]'),
+    );
+    expectCompiles(body);
+    const plan = planTweeImport(sugarcube(':: A', 'path /*.js is here', '', ':: Next', 'x'));
+    expect(plan.container?.knots).toEqual(['A', 'Next']);
+    expect(compileInk(plan.container?.body ?? '').json).toContain('Next');
+    const printed = printedOnAnyPath(body);
+    for (const line of ['go to http://x.com now', 'a//b c', 'path /*.js is here', 'after the comment opener']) expect(printed.has(line), line).toBe(true);
+    const story = new Story(compileInk(body).json ?? '');
+    while (story.canContinue) story.Continue();
+    expect(story.currentChoices.map((choice) => choice.text)).toEqual(['see http://y.org/*']);
   });
 
   it('survives hostile input', () => {
