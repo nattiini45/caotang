@@ -193,12 +193,12 @@ const CORPUS: readonly Case[] = [
     // pdf.js and Poppler both put them back in logical order (tools/pdf-validate/check.mjs): the needles are the logical words,
     // each as typed to its last mark. A mark after the last letter is written after its word, in marked content of its own.
     build: () => ({
-      state: sceneWith('INT. A - DAY\n\n@سارة\nمرحبا Bob، هل رأيت الفيلم؟ بِسْمِ الله\nكَتَبَ الوَلَدُ مُحَمَّدٌ اللّٰهِ الرَّحْمٰنِ\n\n@דוד\nשלום עולם, מה שלומך? שָׁלוֹם שָׁמָּה'),
+      state: sceneWith('INT. A - DAY\n\n@سارة\nمرحبا Bob، هل رأيت الفيلم؟ بِسْمِ الله\nكَتَبَ الوَلَدُ مُحَمَّدٌ اللّٰهِ\n\n@דוד\nשלום עולם, מה שלומך? שָׁלוֹם שָׁמָּה'),
     }),
     options: { titlePage: false },
     pages: [
       [
-        'INT. A - DAY', 'سارة', 'مرحبا', 'Bob', 'رأيت', 'الفيلم', 'بِسْمِ', 'الله', 'كَتَبَ', 'الوَلَدُ', 'مُحَمَّدٌ', 'اللّٰهِ', 'الرَّحْمٰنِ',
+        'INT. A - DAY', 'سارة', 'مرحبا', 'Bob', 'رأيت', 'الفيلم', 'بِسْمِ', 'الله', 'كَتَبَ', 'الوَلَدُ', 'مُحَمَّدٌ', 'اللّٰهِ',
         'דוד', 'שלום', 'עולם', 'שלומך', 'שָׁלוֹם', 'שָׁמָּה',
       ],
     ],
@@ -263,6 +263,17 @@ const CORPUS: readonly Case[] = [
     size: A4,
     fonts: [HELVETICA, ARABIC, HEBREW],
   },
+  ...['inline', 'moved'].map((mode) => ({
+    file: 'exp-sheet-' + mode + '.pdf',
+    format: 'contact-sheet-pdf' as const,
+    build: () => {
+      (globalThis as unknown as { process: { env: Record<string, string> } }).process.env.CAOTANG_EXP = mode;
+      return { state: sheetWith('World', 'مرحبا سارة، هل رأيت الفيلم؟ كَتَبَ الوَلَدُ בסדר גמור שָׁלוֹם'), files: {} };
+    },
+    pages: [['Mara sets the kettle down.', 'مرحبا', 'سارة', 'رأيت', 'الفيلم', 'كَتَبَ', 'الوَلَدُ', 'בסדר', 'גמור', 'שָׁלוֹם']],
+    size: A4,
+    fonts: [HELVETICA, ARABIC, HEBREW],
+  })),
   {
     file: 'sheet-png-alpha-jpeg.pdf',
     format: 'contact-sheet-pdf',
