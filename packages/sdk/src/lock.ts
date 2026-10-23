@@ -22,9 +22,13 @@
  *
  * Windows refuses an exclusive create at a name another writer is deleting with `EPERM` until
  * the delete finishes, which is contention and not a folder this process may not write. The
- * name is tried again a bounded number of times; a refusal that outlasts those tries is the
- * folder's own, and it is thrown as it is: a folder that cannot be written is never reported as
- * one another writer holds.
+ * name is tried again up to six times, waiting 25 ms times the try, which spends at most 375 ms.
+ * A refusal that outlasts those tries cannot be told apart from a genuine denial, so it is
+ * treated as the folder's own and thrown as it is: the cost of that rule is a delete-pending
+ * window longer than the bound reported as a folder that cannot be written, never a folder that
+ * cannot be written reported as one another writer holds. Only `EPERM` is retried, because that
+ * is the code the measured race produced; `EACCES` and `EBUSY` were not measured for that window,
+ * so they are not read as contention and are thrown at once.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -50,7 +54,9 @@ const MARKER_FRESH_MS = 5_000;
  * of exclusive creates and removals, the name was already gone for 105 of 144 refusals — so the
  * create is tried again, as the folder port retries the sharing errors of a file another program
  * holds. Every measured refusal resolved within two retries; the wait grows with the try, as
- * those do, and a refusal that survives the last try is the folder's own and is rethrown.
+ * those do. Six tries at 25 ms times the try spend at most 375 ms, and a refusal that survives
+ * the last one is treated as the folder's own and rethrown, because it cannot be told apart from
+ * a genuine denial.
  */
 const EXCLUSIVE_CREATE_ATTEMPTS = 6;
 const EXCLUSIVE_CREATE_RETRY_MS = 25;
