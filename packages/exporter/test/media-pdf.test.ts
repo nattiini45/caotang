@@ -260,6 +260,33 @@ describe('pdf — Arabic and Hebrew', () => {
   });
 });
 
+describe('pdf — Han characters in the forms of the project’s language', () => {
+  const body = 'INT. 部屋 - DAY\n\n直骨今說次。';
+  const withBody = (text: string): ProjectState => {
+    const state = makeMediaProject();
+    const kitchen = state.documents.get(MEDIA_IDS.kitchen);
+    if (kitchen === undefined) throw new Error('the fixture has no body for the kitchen scene');
+    state.documents.set(MEDIA_IDS.kitchen, { ...kitchen, body: text });
+    return state;
+  };
+  const compile = async (language: string | undefined): Promise<string> => {
+    const { blob } = await rig({ state: withBody(body), ...(language === undefined ? {} : { language }) }).exporter.compile({ includeRootIds: ['manuscript'] }, 'pdf');
+    return ascii(new Uint8Array(await blob.arrayBuffer()));
+  };
+
+  it('passes the project language to the layout: Japanese and Traditional Chinese are other files than Simplified Chinese', async () => {
+    const plain = await compile(undefined);
+    expect(await compile('ja')).not.toBe(plain);
+    expect(await compile('zh-TW')).not.toBe(plain);
+    expect(await compile('ja')).not.toBe(await compile('zh-TW'));
+  });
+
+  it('writes the Simplified Chinese file for no language, zh, zh-CN, or a language with no regional forms', async () => {
+    const plain = await compile(undefined);
+    for (const language of ['zh', 'zh-CN', 'zh-Hans', 'en']) expect(await compile(language), language).toBe(plain);
+  });
+});
+
 describe('pdf — through the bus', () => {
   it('writes the PDF to exports/ through the byte store, logs it, and the undo removes it', async () => {
     const r = rig();

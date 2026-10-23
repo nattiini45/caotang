@@ -11,7 +11,7 @@
  * cannot encode. A Latin-only compile loads neither this module, nor fontkit, nor the font file.
  */
 
-import { cutCidSubset, loadFont, type FontLoader } from '@caotang/pdf-fonts';
+import { cutCidSubset, hanGlyph, loadFont, type FontLoader, type HanLanguageTag } from '@caotang/pdf-fonts';
 import type { Font } from '@pdf-lib/fontkit';
 
 import type { PdfCidFont, PdfCidGlyph } from './pdf.js';
@@ -39,13 +39,14 @@ export function loadNotoCjk(load: FontLoader): Promise<Font> {
  * The fallback subset for a set of characters: the glyphs of the ones the font maps, in code point order, as a TrueType
  * font program. A character the font does not map is left out; the writer prints it as "?". Each character has its own
  * CID, so two characters the font draws with one glyph (‧ U+2027 and ・ U+30FB, ① U+2460 and ➀ U+2780) copy back as
- * themselves, each with its own width.
+ * themselves, each with its own width. A Han character is cut in the forms of the project's language (`hanLocaleTag`); with
+ * no tag it is the font's own glyph, the Simplified Chinese form.
  */
-export async function subsetNotoCjk(font: Font, characters: Iterable<string>): Promise<PdfCidFont> {
+export async function subsetNotoCjk(font: Font, characters: Iterable<string>, tag?: HanLanguageTag): Promise<PdfCidFont> {
   const codeOf = (ch: string): number => ch.codePointAt(0) ?? 0;
   const chars = [...new Set(characters)].filter((ch) => font.hasGlyphForCodePoint(codeOf(ch))).sort((a, b) => codeOf(a) - codeOf(b));
   // The stated advance is the character's cell on the grid, 600 a column, whatever the glyph's own advance.
-  const units = chars.map((ch) => ({ glyphId: font.glyphForCodePoint(codeOf(ch)).id, width: charColumns(ch) * 600, text: ch }));
+  const units = chars.map((ch) => ({ glyphId: hanGlyph(font, ch, tag).id, width: charColumns(ch) * 600, text: ch }));
   const subset = await cutCidSubset(font, units, NOTO_CJK_POSTSCRIPT_NAME);
   const glyphs = new Map<string, PdfCidGlyph>();
   units.forEach((unit, index) => glyphs.set(unit.text, { cid: index + 1, width: unit.width }));

@@ -24,6 +24,7 @@ import {
   LAYOUT,
 } from '../src/index.js';
 import { SCRIPT_ONE_ACT, SCRIPT_WITH_TITLE_PAGE, text } from './fixtures/corpus.js';
+import { HAN_FORMS, HAN_LANGUAGES, HAN_PUNCTUATION } from '../../pdf-fonts/test/fixtures/han-forms.js';
 import { LOADERS, sourceCjk } from './fixtures/fonts.js';
 
 const fontkit = ((fontkitModule as unknown as { default?: typeof fontkitModule }).default ?? fontkitModule) as typeof fontkitModule;
@@ -342,5 +343,86 @@ describe('a Latin-only script', () => {
     expect(source).not.toMatch(/^import .*cjk-font/m);
     const index = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
     expect(index).not.toContain('cjk-font');
+  });
+});
+
+describe('Han characters in the forms of the project’s language', () => {
+  const HAN = '直骨今說次';
+  const SCRIPT = text('INT. 部屋 - DAY', '', `${HAN}。`);
+
+  /** The subset the PDF would embed, for a project in `language`. */
+  async function subsetFor(language: string | undefined) {
+    const layout = layoutPdf(blocksOf(SCRIPT), { title: 'T', ...(language === undefined ? {} : { language }) });
+    const subset = await loadCjkFallback(layout, LOADERS.cjk, language);
+    if (subset === undefined) throw new Error('no subset');
+    return subset;
+  }
+
+  /** The outline the subset draws a character with, read back through fontkit. */
+  async function drawnAs(language: string | undefined, ch: string): Promise<string> {
+    const subset = await subsetFor(language);
+    const entry = subset.entries[(subset.glyphs.get(ch)?.cid ?? 0) - 1];
+    return fontkit.create(subset.program as Buffer).getGlyph(entry?.gid ?? 0).path.toSVG();
+  }
+
+  /** The outline of a glyph of the whole font. */
+  const outlineOf = async (id: number): Promise<string> => (await sourceCjk()).getGlyph(id).path.toSVG();
+
+  it.each(HAN_LANGUAGES.map(({ language }) => language))('draws 直 骨 今 說 次 in the forms of %s, the glyph ids of the fixtures', async (language) => {
+    for (const ch of HAN) expect(await drawnAs(language, ch), ch).toBe(await outlineOf(HAN_FORMS[ch]?.[language] ?? 0));
+  });
+
+  it.each([undefined, '', 'zh', 'zh-CN', 'zh-Hans', 'zh-SG', 'en', 'not a tag'])('draws them in the font’s own forms, Simplified Chinese, for %j', async (language) => {
+    for (const ch of HAN) expect(await drawnAs(language, ch), ch).toBe(await outlineOf(HAN_FORMS[ch]?.sc ?? 0));
+  });
+
+  it('draws the forms of one language by every tag of it: ja-JP, zh-TW, zh-MO, zh-Hant-HK', async () => {
+    for (const [tag, same] of [['ja-JP', 'ja'], ['zh-TW', 'zh-Hant'], ['zh-MO', 'zh-Hant'], ['zh-Hant-HK', 'zh-HK']] as const) {
+      expect((await subsetFor(tag)).program, tag).toEqual((await subsetFor(same)).program);
+    }
+  });
+
+  it('draws 。 centred in Traditional Chinese and at the bottom left in Japanese', async () => {
+    expect(await drawnAs('zh-TW', '。')).toBe(await outlineOf(HAN_PUNCTUATION['zh-Hant']));
+    expect(await drawnAs('ja', '。')).toBe(await outlineOf(HAN_PUNCTUATION.ja));
+    expect(await drawnAs('zh-TW', '。')).not.toBe(await drawnAs('ja', '。'));
+  });
+
+  it('keeps each character’s CID, width and text, whatever form it is drawn in', async () => {
+    const plain = await subsetFor(undefined);
+    for (const language of ['ja', 'zh-Hant', 'ko', 'zh-HK']) {
+      const regional = await subsetFor(language);
+      expect([...regional.glyphs], language).toEqual([...plain.glyphs]);
+      expect(regional.entries.map((entry) => [entry.width, entry.text]), language).toEqual(plain.entries.map((entry) => [entry.width, entry.text]));
+    }
+  });
+
+  it('copies each character out of the PDF as itself, in every language', async () => {
+    for (const language of ['ja', 'zh-Hant', 'ko', 'zh-HK', 'zh']) {
+      const blob = await createPdfRenderer(LOADERS).emit(blocksOf(SCRIPT), { title: 'T', language });
+      const lines = extract(decode(new Uint8Array(await blob.arrayBuffer())));
+      expect(lines, language).toContain(`${HAN}。`);
+    }
+  });
+
+  it('writes the Simplified Chinese file whether the project has no language, zh, zh-CN or a language with no regional forms', async () => {
+    const bytes = async (language: string | undefined): Promise<string> => {
+      const blob = await createPdfRenderer(LOADERS).emit(blocksOf(SCRIPT), { title: 'T', ...(language === undefined ? {} : { language }) });
+      return decode(new Uint8Array(await blob.arrayBuffer()));
+    };
+    const plain = await bytes(undefined);
+    for (const language of ['zh', 'zh-CN', 'zh-Hans', 'en']) expect(await bytes(language), language).toBe(plain);
+    expect(await bytes('ja')).not.toBe(plain);
+  });
+
+  it('prints kana, Hangul and the punctuation ja and ko share with Simplified Chinese as it did, in a Japanese or Korean project', async () => {
+    const kana = text('INT. ROOM - DAY', '', 'ひらがなとカタカナ、한국어。');
+    const bytes = async (language: string | undefined): Promise<string> => {
+      const blob = await createPdfRenderer(LOADERS).emit(blocksOf(kana), { title: 'T', ...(language === undefined ? {} : { language }) });
+      return decode(new Uint8Array(await blob.arrayBuffer()));
+    };
+    // 、 and 。 have forms of their own in zh-Hant and zh-HK only; in ja and ko they are the font's own.
+    expect(await bytes('ja')).toBe(await bytes(undefined));
+    expect(await bytes('ko')).toBe(await bytes(undefined));
   });
 });
