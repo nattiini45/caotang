@@ -24,6 +24,10 @@
  * folder** (a copy taken from another folder is no baseline for it), and every document and codex file this session held: a file another program changed, removed or added is
  * refused, named by its title, and written only when the writer says to replace it. The digests of those files are taken when the folder is opened and after each save (folder-digests.ts).
  * It never removes a document file the session did not delete (integrity-model.ts, write.ts `pruneDocumentIds`), and it never writes a project id the folder does not already hold.
+ * What a confirmed save replaces is kept first: each document or codex file whose bytes the session did not last write is copied to `.caotang-backup/<time>/<path>` before it is replaced or removed,
+ * and a save that cannot keep a copy stops before that file (folder-guard.ts). The browser has no compare-and-swap, so a change made between a file's last check and its rename cannot be
+ * prevented, only narrowed and reported: the digest is read once more as the copy is made, and after the write the folder's files, `caotang.json` and the lock are read again. A file another program changed
+ * meanwhile, or a lock that appeared, is named in a refusal marked `after`, and the copy the next save is checked against does not take it as the save's own.
  * A folder whose project this browser already keeps opens as that project when the stored copy is the same book (the same manifest, document text and codex entries), and the folder is then saved back to. A folder whose project another tab holds is refused, as the projects list refuses it. A folder whose project this browser keeps in a different version is not copied without a word: the writer is asked whether to use the folder's version, keep this browser's version and save it to the folder, or open the folder as a second copy with its own id, which cannot be saved into the folder (`answerFolderDiffers`). A project remembers the folder it was saved to or opened from as its own (folder-memory.ts), so the projects list can reopen it.
  * A session that a stale write has stopped saves nothing to a folder either.
  */
@@ -86,7 +90,8 @@ import type { McpClient } from '@caotang/mcp-client';
 
 import { attachCoherence } from './coherence-io.js';
 import { applyEncodingDecisions, encodingResultLines, type EncodingDecision } from './encoding-review.js';
-import { folderArtifactFs, type DirectoryHandleLike } from './fs-access.js';
+import { changedDuringSave, pruneFolderBackups, watchSave } from './folder-guard.js';
+import { folderArtifactFs, isSameFolder, type DirectoryHandleLike } from './fs-access.js';
 import { requestInkCompilerFor } from './ink-compiler.js';
 import {
   copiedFromOf,
@@ -1464,14 +1469,24 @@ export function folderChanges(drift: FolderDrift, state: ProjectState, heldTitle
  * The result of a save to a folder: written, or refused for one reason the writer must answer first. `files` names the documents and codex
  * entries another program changed, removed or added, in words (`folderChanges`), so the question can say which ones it is about. `partial`
  * is set when the change was found during the write rather than before it: the files before the changed one, and the pictures, were written.
+ * `after` is set when it was found only once the write had finished.
  */
 export type FolderSaveOutcome =
-  | { readonly kind: 'saved' }
+  | {
+      readonly kind: 'saved';
+      /** The folder in the project folder that holds the files this save replaced, when it replaced any another program had written (folder-guard.ts). */
+      readonly backup?: string;
+    }
   | {
       readonly kind: 'refused';
       readonly reason: Exclude<FolderSaveVerdict, 'write'>;
       readonly files: readonly FolderFileChange[];
       readonly partial?: true;
+      /**
+       * Set when the save was written in full and the change was found after it: another program changed these files, or put its lock in the
+       * folder, while the save wrote. The folder holds that program's version, and the next save asks about it.
+       */
+      readonly after?: true;
       /** Set on a changed refusal when the folder's `caotang.json` is gone, rather than changed: there is no newer copy to open. */
       readonly removed?: true;
     };
@@ -1515,10 +1530,11 @@ export async function saveFolder(
   // What the folder holds now, digested before anything is compared or written, so the check and the write see the same files.
   const before = await projectFileDigests(fs);
   const files = held === null ? [] : folderChanges(driftOf(held.digests, before), session.state, held.titles);
+  const lockedBefore = await fs.exists(MCP_LOCK_FILE);
   const verdict = folderSaveVerdict({
     onDisk,
     baseline: held?.manifestText ?? null,
-    locked: await fs.exists(MCP_LOCK_FILE),
+    locked: lockedBefore,
     lockConfirmed: answers.lockConfirmed === true,
     overwriteConfirmed: answers.overwriteConfirmed === true,
     filesChanged: files.length > 0,
@@ -1533,12 +1549,16 @@ export async function saveFolder(
   // holding a different file under one of those names is refused here, before anything is written (project-assets.ts).
   await session.assets.copyTo(root);
   const report = emptyReport();
+  const now = new Date();
+  // A file the write replaces or removes that this session did not last write is copied to .caotang-backup first, and checked once more
+  // as it is copied (folder-guard.ts).
+  const watch = watchSave(fs, { now, expected: before, held: held === null ? null : held.digests, report });
   const toWrite = copyState(session.state);
   // As with documents, only the copy's own folder can hold skill files this session removed. Any other folder keeps every file it has.
   if (held === null) toWrite.removedSkillFiles.clear();
   try {
-    await writeProject(fs, toWrite, {
-      now: new Date(),
+    await writeProject(watch.fs, toWrite, {
+      now,
       // Only the copy's own folder can hold documents this session deleted. Any other folder keeps every file it has.
       pruneDocumentIds: held === null ? [] : deletedSince(held, session.state),
       // Each file is checked against the digest the folder held just before this save, as it is written or removed.
@@ -1555,15 +1575,28 @@ export async function saveFolder(
   }
   // The skill files the folder no longer holds are no longer owed a removal.
   if (held !== null) for (const path of [...session.state.removedSkillFiles]) if (!toWrite.removedSkillFiles.has(path)) session.state.removedSkillFiles.delete(path);
-  // What is on disk now is what the next save is checked against, so it is read back rather than assumed. The digests are the ones the folder
-  // held before this save, with the files this save wrote digested again (digestsAfterWrite).
-  holdFolderCopy(session, root, (await readManifestText(fs)) ?? '', await digestsAfterWrite(fs, before, report));
+  // What is on disk now is what the next save is checked against, so it is read back rather than assumed, with one exception: a file another
+  // program changed while the save wrote (the folder's files are digested again and compared with what the save left, folder-guard.ts) is
+  // not taken as this save's own, so the next save asks about it. The same goes for caotang.json.
+  const settled = await changedDuringSave(fs, before, watch);
+  const written = watch.manifestText();
+  const manifestNow = (await readManifestText(fs)) ?? '';
+  const manifestMoved = written !== undefined && manifestNow !== written;
+  holdFolderCopy(session, root, manifestMoved ? written : manifestNow, settled.digests);
   // The findings file goes beside the project, and stays in step with it from now on (coherence.md §3).
   await session.attachCoherenceFolder(root);
   // The project remembers the folder it was saved to, so the projects list can reopen it with one click (folder-memory.ts).
   await rememberFolder(session.projectId, root);
   await rememberHeldCopy(session);
-  return { kind: 'saved' };
+  const backup = watch.backup();
+  if (backup !== undefined) await pruneFolderBackups(fs);
+  // The lock is read again: a server that took the folder while the save wrote may have read half of it.
+  const lockAppeared = !lockedBefore && (await fs.exists(MCP_LOCK_FILE));
+  const changes = (): FolderFileChange[] => folderChanges(settled.drift, session.state, session.folderBaseline()?.titles ?? new Map());
+  if (manifestMoved) return { kind: 'refused', reason: 'changed', files: changes(), after: true };
+  if (hasDrift(settled.drift)) return { kind: 'refused', reason: 'files', files: changes(), after: true };
+  if (lockAppeared) return { kind: 'refused', reason: 'locked', files: [], after: true };
+  return backup === undefined ? { kind: 'saved' } : { kind: 'saved', backup };
 }
 
 /**
@@ -1584,16 +1617,6 @@ async function writeFolderLog(session: ProjectSession, fs: ArtifactFs): Promise<
     }
     throw error;
   }
-}
-
-/**
- * Whether two handles name the same folder. The browser answers with `isSameEntry`, which a second handle to the same folder passes.
- * A handle that cannot answer is taken as another folder, so the copy held for the first is no baseline for it.
- */
-async function isSameFolder(a: DirectoryHandleLike, b: DirectoryHandleLike): Promise<boolean> {
-  if (a === b) return true;
-  const { isSameEntry } = a as DirectoryHandleLike & { isSameEntry?: (other: DirectoryHandleLike) => Promise<boolean> };
-  return isSameEntry === undefined ? false : isSameEntry.call(a, b);
 }
 
 /** The part of the settings a demo run reads, and records its sample in. The app's settings store has this shape. */

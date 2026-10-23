@@ -248,6 +248,27 @@ async function folderDocuments(page: Page, folder: string): Promise<string> {
   }, folder);
 }
 
+/** The text of every file under the folder's `.caotang-backup`, joined, at any depth: what the saves kept of the folder's own version. */
+async function backupText(page: Page, folder: string): Promise<string> {
+  return page.evaluate(async (dir: string) => {
+    type FileHandle = { kind: 'file'; getFile(): Promise<{ text(): Promise<string> }> };
+    type Dir = { kind: 'directory'; getDirectoryHandle(child: string): Promise<Dir>; entries(): AsyncIterable<[string, FileHandle | Dir]> };
+    const walk = async (directory: Dir): Promise<string[]> => {
+      const texts: string[] = [];
+      for await (const [, handle] of directory.entries()) {
+        texts.push(...(handle.kind === 'file' ? [await (await handle.getFile()).text()] : await walk(handle)));
+      }
+      return texts;
+    };
+    try {
+      const root = (await (await navigator.storage.getDirectory()).getDirectoryHandle(dir)) as unknown as Dir;
+      return (await walk(await root.getDirectoryHandle('.caotang-backup'))).join('\n');
+    } catch {
+      return '';
+    }
+  }, folder);
+}
+
 /** The labels of a dialog's buttons, in the order the dialog shows them. */
 async function buttonLabels(dialog: ReturnType<Page['getByRole']>): Promise<string[]> {
   return (await dialog.getByRole('button').allTextContents()).map((label) => label.trim());
@@ -267,7 +288,7 @@ test('documents another program changed are asked about with Save as a new folde
   await expect(question).toBeVisible();
   await expect(question.getByRole('listitem')).toContainText(['The Landing']);
   await expect(question).toContainText(
-    'Saving writes this tab’s version over them. The folder’s version isn’t kept, so if you need anything from it, open the folder in another program and copy it first.',
+    'Saving writes this tab’s version over them. The folder’s version is kept first, in .caotang-backup in the folder, so if you need anything from it, copy it from there.',
   );
   expect(await buttonLabels(question)).toEqual(['Save as a new folder…', 'Save over them', 'Cancel']);
 
@@ -296,6 +317,66 @@ test('documents another program changed are asked about with Save as a new folde
   await expect.poll(() => folderDocuments(page, 'new-empty-folder')).toContain('Words saved again.');
 });
 
+test('“Save over them” keeps the folder’s version in .caotang-backup, and the status line says where', async ({ page }) => {
+  await switchableFolderPicker(page, 'kept-docs-folder');
+  await page.goto('/');
+  await projectWithWords(page, 'Kept Docs', 'Words from this tab.');
+  await saveToFolder(page);
+  // A save that asks nothing keeps nothing.
+  expect(await backupText(page, 'kept-docs-folder')).toBe('');
+
+  await editFolderDocument(page, 'kept-docs-folder', 'Words from this tab.', 'Words from another program.');
+  await page.getByRole('textbox', { name: 'Document text' }).fill('Words from this tab, edited.');
+  await waitForSaved(page);
+  await page.getByRole('button', { name: 'Save to folder' }).click();
+  const question = page.getByRole('dialog').filter({ hasText: 'Some documents in this folder changed since Caotang last saved them' });
+  await question.getByRole('button', { name: 'Save over them' }).click();
+  const saved = page.getByRole('status').filter({ hasText: 'Saved the project to the folder “kept-docs-folder”' });
+  await expect(saved).toContainText(/What it replaced is kept in \.caotang-backup\/\d{4}-\d{2}-\d{2}T[\d-]+Z\./);
+  await expect.poll(() => folderDocuments(page, 'kept-docs-folder')).toContain('Words from this tab, edited.');
+  expect(await backupText(page, 'kept-docs-folder')).toContain('Words from another program.');
+});
+
+test('a document another program changes while the save writes is named after the save, in words that say the save was written', async ({ page }) => {
+  await switchableFolderPicker(page, 'raced-docs-folder');
+  await page.goto('/');
+  await projectWithWords(page, 'Raced Docs', 'Words from this tab.');
+  await saveToFolder(page);
+  await page.getByRole('textbox', { name: 'Document text' }).fill('Words from this tab, edited.');
+  await waitForSaved(page);
+
+  // The other program writes the scene as the save writes caotang.json, which is after the scene was written: the folder ends up holding its version.
+  await page.evaluate(async (dir: string) => {
+    type Writable = { close(): Promise<void> };
+    type FileHandle = { name: string; getFile(): Promise<{ text(): Promise<string> }>; createWritable(): Promise<Writable & { write(data: string): Promise<void> }> };
+    type Dir = { getDirectoryHandle(child: string): Promise<Dir>; entries(): AsyncIterable<[string, FileHandle & { kind: string }]> };
+    const proto = (globalThis as unknown as { FileSystemFileHandle: { prototype: FileHandle } }).FileSystemFileHandle.prototype;
+    const create = proto.createWritable;
+    proto.createWritable = async function (this: FileHandle) {
+      const writable = await create.call(this);
+      if (this.name !== 'caotang.json') return writable;
+      const close = writable.close.bind(writable);
+      writable.close = async () => {
+        await close();
+        const docs = await ((await (await navigator.storage.getDirectory()).getDirectoryHandle(dir)) as unknown as Dir).getDirectoryHandle('docs');
+        for await (const [, entry] of docs.entries()) {
+          if (entry.kind !== 'file') continue;
+          const text = await (await entry.getFile()).text();
+          const out = await create.call(entry);
+          await out.write(text.replace('Words from this tab, edited.', 'Words from another program.'));
+          await out.close();
+        }
+      };
+      return writable;
+    };
+  }, 'raced-docs-folder');
+  await page.getByRole('button', { name: 'Save to folder' }).click();
+  const question = page.getByRole('dialog').filter({ hasText: 'Some documents in this folder changed since Caotang last saved them' });
+  await expect(question).toContainText('Another program changed these files in the folder while Caotang was saving. The save was written, and the folder now holds that program’s version of them:');
+  await expect(question.getByRole('listitem')).toContainText(['The Landing']);
+  expect(await folderDocuments(page, 'raced-docs-folder')).toContain('Words from another program.');
+});
+
 test('a folder holding another project asks with the owner’s words and three choices, and “Save over it” writes this one there', async ({ page }) => {
   await switchableFolderPicker(page, 'shared-folder');
   await page.goto('/');
@@ -307,7 +388,7 @@ test('a folder holding another project asks with the owner’s words and three c
   const question = page.getByRole('dialog').filter({ hasText: 'This folder already holds another project' });
   await expect(question).toBeVisible();
   await expect(question).toContainText(
-    'Saving here replaces that project’s caotang.json and any of its documents that share an id with this one. Caotang keeps a backup of the caotang.json only, not of the documents.',
+    'Saving here replaces that project’s caotang.json and any of its documents that share an id with this one. Caotang keeps a backup of that caotang.json, and copies each document it replaces to .caotang-backup in the folder.',
   );
   expect(await buttonLabels(question)).toEqual(['Save as a new folder…', 'Save over it', 'Cancel']);
   expect(await readFolderFile(page, 'shared-folder', 'caotang.json')).toContain('First Book');
@@ -355,7 +436,7 @@ test('this project’s earlier save in a folder Caotang has no record of asks in
   await expect(question).toBeVisible();
   await expect(question).not.toContainText('another project');
   await expect(question).toContainText(
-    'Caotang has no record of what this folder held when this project was last saved there, so it can’t tell which documents changed since. Saving writes this tab’s version over the folder’s documents. The folder’s version isn’t kept, apart from a backup of its caotang.json, so if you need anything from it, open the folder in another program and copy it first.',
+    'Caotang has no record of what this folder held when this project was last saved there, so it can’t tell which documents changed since. Saving writes this tab’s version over the folder’s documents. The folder’s version of each one it replaces is kept in .caotang-backup in the folder, and an older caotang.json is kept as a backup of its own, so if you need anything from it, copy it from there.',
   );
   expect(await buttonLabels(question)).toEqual(['Save as a new folder…', 'Save over it', 'Cancel']);
   await question.getByRole('button', { name: 'Save over it' }).click();
