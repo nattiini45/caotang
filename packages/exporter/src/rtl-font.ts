@@ -10,12 +10,16 @@
  * HarfBuzz backend would replace), as the text without its marks: fontkit cannot be shown to place Arabic tashkeel or Hebrew
  * points as HarfBuzz does, so they are left out of what is drawn (test/fixtures/shaping in `@caotang/pdf-fonts`) and the log
  * counts them. The run is drawn glyph by glyph at the positions the shaper gave, not with pdf-lib's `drawText`, which writes
- * only advances and so drops the offsets of a joined or marked word (cid-embedding.ts `drawPlaced`), inside marked content that
- * carries the run's logical text as `/ActualText`.
+ * only advances and so drops the offsets of a joined or marked word (cid-embedding.ts `drawPlaced`). The glyphs are in visual order
+ * with the letter each draws in ToUnicode and no `/ActualText`, and a mark that is left out of the drawing is a glyph of its own that
+ * draws nothing and carries the mark (`shapeKeepingMarks`, the shape the sheet is handed), so a reader puts the word back in logical order by its own rules.
+ * A mark after the last letter is drawn first, so `drawPlaced` writes it after the word in marked content of its own (pdf.js appends a
+ * mark to the open text item).
+ * Poppler spreads an `/ActualText` over the word's box and then reverses a right-to-left word, so it would return it backwards.
  */
 
 import type * as PdfLib from 'pdf-lib';
-import { withoutMarks, type RtlScript } from '@caotang/pdf-fonts';
+import type { RtlScript } from '@caotang/pdf-fonts';
 import type { Shape } from '@caotang/pdf-fonts/shaper';
 import type { Font } from '@pdf-lib/fontkit';
 
@@ -40,18 +44,19 @@ export class RtlFace {
   constructor(
     readonly script: RtlScript,
     readonly font: FontkitFont,
+    /** The engine, one that keeps the text of marks (shaper.ts `shapeKeepingMarks`): a text with marks goes in as it is typed. */
     private readonly shape: Shape,
   ) {}
 
   /**
-   * A run shaped without its marks, or `null` when the engine cannot shape it (the run is then drawn as "?"). `direction` is the
+   * A run shaped without its marks (they come back as glyphs that draw nothing), or `null` when the engine cannot shape it (the run is then drawn as "?"). `direction` is the
    * run's own: `rtl` for a word at an odd bidi level.
    */
   shapeRun(text: string, direction: 'ltr' | 'rtl'): ShapedWord | null {
     const key = `${direction}${text}`;
     const known = this.cache.get(key);
     if (known !== undefined) return known;
-    const run = this.shape(withoutMarks(text), this.font as unknown as Font, direction, this.script);
+    const run = this.shape(text, this.font as unknown as Font, direction, this.script);
     const word = run.failed !== undefined || run.glyphs.length === 0 ? null : { glyphs: run.glyphs, advance: run.advance };
     this.cache.set(key, word);
     return word;
@@ -70,6 +75,6 @@ export class RtlEmbedding extends CidEmbedding {
       resource: face.script === 'arabic' ? 'NotoArabic' : 'NotoHebrew',
       tag: face.script === 'arabic' ? 'CAOTAR' : 'CAOTHE',
       postscriptName: face.font.postscriptName ?? (face.script === 'arabic' ? 'NotoSansArabic-Regular' : 'NotoSansHebrew-Regular'),
-    });
+    }, true);
   }
 }

@@ -10,6 +10,10 @@
  * marks different in about half the samples (one throws). The caller therefore shapes a text without its marks
  * (rtl-script.ts `withoutMarks`).
  *
+ * fontkit 1.1.1 does not say which characters a glyph stands for, so the text of each glyph, which a reader copies, is matched
+ * here ({@link clusterTexts}) and not read from the engine; the glyphs of marks and joiners that are not drawn are added by
+ * {@link withMarkGlyphs}.
+ *
  * A failure inside the engine is not a failed export: {@link fontkitShape} reports it as a result with no glyphs and the error
  * in `failed`, and the caller prints the run as "?" and logs it.
  *
@@ -18,7 +22,7 @@
 
 import type { Font, GlyphRun } from '@pdf-lib/fontkit';
 
-import type { RtlScript } from './rtl-script.js';
+import { isRtlMark, withoutMarks, type RtlScript } from './rtl-script.js';
 
 /** One glyph of a shaped run. Advance and offsets are in font units. */
 export interface ShapedGlyph {
@@ -28,8 +32,19 @@ export interface ShapedGlyph {
   /** The glyph's offset from the pen, right and up. */
   readonly dx: number;
   readonly dy: number;
-  /** The text the glyph stands for: the code points it came from, for the ToUnicode map. */
+  /**
+   * The text the glyph stands for, for the ToUnicode map: the character of the cluster it draws, or '' for a glyph that draws part
+   * of another's (the positioned dot of an Arabic letter, a zero-width joiner's blank). See {@link clusterTexts}. Its CID is one that pdf.js
+   * skips (`CidNumbering`, cid-font.ts).
+   */
   readonly text: string;
+  /**
+   * Set on the glyph of a mark or joiner that follows the last letter of a right-to-left run, which is drawn at its left end,
+   * before every letter ({@link withMarkGlyphs}). A writer puts such a glyph after the letters in the content stream, in marked
+   * content of its own, because pdf.js appends a mark to the text item that is open and so would read it into the word drawn
+   * before this one, or into an item of its own that comes before its word.
+   */
+  readonly final?: true;
 }
 
 /** A shaped run: its glyphs from left to right as drawn, whatever the direction of the text. */
@@ -58,6 +73,36 @@ const SCRIPT_TAGS: Readonly<Record<RtlScript, { readonly script: string; readonl
  */
 export type Shape = (text: string, font: Font, direction: 'ltr' | 'rtl', script: RtlScript) => ShapedRun;
 
+/** A zero-width joiner or non-joiner: it joins or separates letters and draws nothing, and the text keeps it. */
+const isJoiner = (ch: string): boolean => ch === '\u200c' || ch === '\u200d';
+
+/** The characters of a text that have a glyph of their own: all but the marks of the scripts and the joiners. */
+const lettersOf = (text: string): string[] => [...text].filter((ch) => !isRtlMark(ch) && !isJoiner(ch));
+
+/**
+ * The text of each glyph of a shaped run, from the glyph advances (left to right as drawn) and the text that was shaped.
+ *
+ * fontkit 1.1.1 does not say which characters a glyph stands for: a glyph's `codePoints` come from its shared, cached object,
+ * so they are those of the first text the font ever shaped with that glyph (a medial beh that was first a noon is reported as a
+ * noon), and the pieces a letter is split into (Noto Sans Arabic draws a dotted letter as a skeleton and a positioned dot) have
+ * none. So the characters are matched to the glyphs by the one fact the shaping does keep: a letter has one glyph that advances,
+ * and the glyphs that draw part of it or nothing (dots, a joiner's blank) have no advance. The letters, in the order of the
+ * text, are the texts of the advancing glyphs in the order of the text (the drawn order reversed for a right-to-left run); the
+ * other glyphs have none. A run in which the counts differ (a ligature of the font) is one cluster: the first advancing glyph
+ * has the whole text, and the others none, which copies right and never splits a ligature. Marks and joiners are not letters:
+ * {@link withMarkGlyphs} puts their text back.
+ */
+export function clusterTexts(advances: readonly number[], text: string, direction: 'ltr' | 'rtl'): string[] {
+  const texts = advances.map(() => '');
+  const letters = lettersOf(text);
+  const order = advances.map((_, index) => index);
+  if (direction === 'rtl') order.reverse();
+  const advancing = order.filter((index) => advances[index] !== 0);
+  if (advancing.length === letters.length) advancing.forEach((glyph, at) => void (texts[glyph] = letters[at] ?? ''));
+  else if (letters.length > 0) texts[advancing[0] ?? order[0] ?? 0] = letters.join('');
+  return texts;
+}
+
 export const fontkitShape: Shape = (text, font, direction, script) => {
   const tags = SCRIPT_TAGS[script];
   try {
@@ -69,11 +114,76 @@ export const fontkitShape: Shape = (text, font, direction, script) => {
         advance: position?.xAdvance ?? glyph.advanceWidth,
         dx: position?.xOffset ?? 0,
         dy: position?.yOffset ?? 0,
-        text: String.fromCodePoint(...glyph.codePoints),
+        text: '',
       };
     });
-    return { glyphs, advance: glyphs.reduce((sum, glyph) => sum + glyph.advance, 0) };
+    const texts = clusterTexts(glyphs.map((glyph) => glyph.advance), text, direction);
+    const texted = glyphs.map((glyph, index): ShapedGlyph => ({ ...glyph, text: texts[index] ?? '' }));
+    return { glyphs: texted, advance: texted.reduce((sum, glyph) => sum + glyph.advance, 0) };
   } catch (error) {
     return { glyphs: [], advance: 0, failed: error instanceof Error ? error.message : String(error) };
   }
 };
+
+/**
+ * The glyphs of a run shaped without its marks, with the text of the marks and joiners of `source` put back for a reader: each
+ * is a glyph of its own that draws nothing (`blank`, a glyph with no outline, advancing 0) and whose ToUnicode text is that
+ * character, set where it belongs among the glyphs: after the glyph of the letter before it in the text's logical order, which for
+ * a right-to-left run is on its left in the drawn order. One at the start follows nothing and comes first in the logical order.
+ * The run is drawn without the marks ({@link withoutMarks}), but what a reader copies keeps them and the joiners, as it did when
+ * marked content carried the text; and because each glyph's text is one character, a reader that reverses a right-to-left word
+ * character by character puts a mark back after its letter.
+ *
+ * The texts of the glyphs in logical order (the drawn order reversed for a right-to-left run) are the letters of `source`
+ * ({@link clusterTexts}); if they are not, the glyphs come back as they were.
+ *
+ * In a right-to-left run the marks that follow the last letter come out at the left end of the drawn glyphs, before the first
+ * glyph that advances. Those are flagged `final`: a writer cannot leave them first in the content stream (see
+ * {@link ShapedGlyph.final}).
+ */
+export function withMarkGlyphs(glyphs: readonly ShapedGlyph[], source: string, direction: 'ltr' | 'rtl', blank: number): readonly ShapedGlyph[] {
+  const hidden = [...source].filter((ch) => isRtlMark(ch) || isJoiner(ch));
+  if (hidden.length === 0) return glyphs;
+  const logical = direction === 'rtl' ? [...glyphs].reverse() : [...glyphs];
+  if (logical.map((glyph) => glyph.text).join('') !== lettersOf(source).join('')) return glyphs;
+  // The logical glyph that owns each letter of the source.
+  const owner: number[] = [];
+  logical.forEach((glyph, index) => {
+    for (let i = 0; i < [...glyph.text].length; i += 1) owner.push(index);
+  });
+  const hiddenGlyph = (ch: string): ShapedGlyph => ({ id: blank, advance: 0, dx: 0, dy: 0, text: ch });
+  const lead: ShapedGlyph[] = [];
+  const after = logical.map((): ShapedGlyph[] => []);
+  let seen = 0;
+  for (const ch of source) {
+    if (!isRtlMark(ch) && !isJoiner(ch)) seen += 1;
+    else if (seen === 0) lead.push(hiddenGlyph(ch));
+    else after[owner[seen - 1] ?? 0]?.push(hiddenGlyph(ch));
+  }
+  const inLogicalOrder = [...lead, ...logical.flatMap((glyph, index) => [glyph, ...(after[index] ?? [])])];
+  if (direction !== 'rtl') return inLogicalOrder;
+  const drawn = inLogicalOrder.reverse();
+  // Everything that advances nothing at the left end of the run belongs to its last letter; the hidden glyphs among it are final.
+  const added = new Set<ShapedGlyph>([...lead, ...after.flat()]);
+  let end = 0;
+  while (end < drawn.length && drawn[end]?.advance === 0) end += 1;
+  return drawn.map((glyph, index) => (index < end && added.has(glyph) ? { ...glyph, final: true as const } : glyph));
+}
+
+/**
+ * An engine that takes a text with its marks. The marks are left out of what the engine shapes (it cannot be shown to place them
+ * as HarfBuzz does, and fontkit 1.1.1 throws on some) and come back as glyphs that draw nothing and carry their text
+ * ({@link withMarkGlyphs}); the advance is the bare text's. A host that cannot import this module before it is needed (the
+ * contact sheet's emitter loads the shaper on demand) gets the marks' text through the one function it is handed.
+ */
+export function shapeKeepingMarks(shape: Shape): Shape {
+  return (text, font, direction, script) => {
+    const run = shape(withoutMarks(text), font, direction, script);
+    return run.failed === undefined && run.glyphs.length > 0 ? { ...run, glyphs: withMarkGlyphs(run.glyphs, text, direction, blankGlyphOf(font)) } : run;
+  };
+}
+
+/** The id of the glyph a font draws for a space: empty, so the glyph of a mark can borrow it ({@link withMarkGlyphs}). */
+export function blankGlyphOf(font: Font): number {
+  return font.glyphForCodePoint(0x20).id;
+}

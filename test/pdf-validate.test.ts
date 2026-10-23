@@ -15,6 +15,7 @@ import {
   mutoolComplaints,
   parsePdffonts,
   unsubset,
+  withoutNoText,
   type ExpectedFile,
 } from '../tools/pdf-validate/check.mjs';
 
@@ -105,6 +106,24 @@ describe('fonts', () => {
       { name: 'CourierPrime', embedded: true, toUnicode: false },
       { name: 'NotoSansMonoCJKsc-Regular', embedded: true, toUnicode: true },
     ]);
+  });
+});
+
+describe('withoutNoText', () => {
+  it('drops the zero-width space the writers map a glyph with no text to, and nothing else', () => {
+    expect(withoutNoText('الف​يلم​')).toBe('الفيلم');
+    expect(withoutNoText('Hello ​World')).toBe('Hello World');
+  });
+
+  it('keeps every other character, so a word with a control character, a space or a stray letter in it still fails the gate', () => {
+    for (const junk of ['\u0013', '\u0011', ' ', 'A', '7', '‌', '‍', ' ', '﻿']) {
+      expect(withoutNoText(`الف${junk}يلم`), JSON.stringify(junk)).toBe(`الف${junk}يلم`);
+    }
+  });
+
+  it('leaves reversed text reversed, so the gate still fails it: the letters stay in the order the reader gave them', () => {
+    expect(withoutNoText('ةراس')).toBe('ةراس');
+    expect(withoutNoText('םולש')).not.toContain('שלום');
   });
 });
 

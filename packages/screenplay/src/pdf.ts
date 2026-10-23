@@ -29,9 +29,13 @@
  * Noto Sans Hebrew, written like the others. A line that holds either script, or belongs to a right-to-left paragraph, is not
  * placed by its text but by a plan the caller made for it (`PdfRtlFonts.lines`): the line's runs in the order the algorithm
  * of UAX #9 puts them, each at its column. A word of one of the scripts is a shaped run, set glyph by glyph at the positions the
- * shaper gave, because a text operator would drop the marks' offsets; the glyphs are wrapped in marked content with
- * `/ActualText` holding the run's logical text, so a reader copies and searches what the writer typed. The runs are written in
- * logical order, each at an absolute position. A line without a plan is written as it always was.
+ * shaper gave, because a text operator would drop the marks' offsets. The glyphs are written left to right in their visual order,
+ * with no marked content: each has the letter it draws in its ToUnicode entry (a mark or a joiner that is not drawn is a glyph
+ * of its own that draws nothing), and a reader puts the word back in logical order by the bidirectional rules, as it does for the
+ * right-to-left text of any producer. `/ActualText` would be reversed again by Poppler, which spreads it over the word from left
+ * to right. The one marked content they have is plain `/Span BMC … EMC` (no text) around the marks after a word's last letter: they
+ * are drawn first, at the word's left end, but pdf.js appends a mark to the text item that is open, so they are written after the
+ * word, and the marked content ends the item the word is in, which leaves the word whole and its marks in an item that follows it. The runs are written in logical order, each at an absolute position. A line without a plan is written as it always was.
  *
  * Devanagari prints in a fourth such font (rtl-font.ts cuts it): a subset of Noto Sans Devanagari, written like the others. A line
  * that holds it is planned the same way (`PdfRtlFonts.lines`): each Devanagari word is a shaped run, set glyph by glyph, because
@@ -116,6 +120,11 @@ export interface PdfShapedGlyph {
   readonly cid: number;
   readonly x: number;
   readonly y: number;
+  /**
+   * A mark or joiner after the last letter of a right-to-left word: drawn at the word's left end, so first among its glyphs, and
+   * written after the others in marked content of its own (see the header).
+   */
+  readonly final?: true;
 }
 
 /** A word of Arabic, Hebrew or Devanagari, set in the font of its script glyph by glyph (see the header). */
@@ -126,7 +135,7 @@ export interface PdfShapedRun {
   readonly column: number;
   /** The glyphs left to right as drawn, each at its own position, the order the shaper gives them. */
   readonly glyphs: readonly PdfShapedGlyph[];
-  /** The run's text in logical order: its `/ActualText`. */
+  /** The run's text in logical order: its `/ActualText` for Devanagari; Arabic and Hebrew carry none (see the header). */
   readonly source: string;
   /** The run's place among the line's runs in logical order. */
   readonly order: number;
@@ -237,6 +246,8 @@ function contentStream(lines: readonly PdfText[], fallback?: PdfCidFont, emoji?:
 const SHAPED_FONT = { arabic: 'F4', hebrew: 'F5', devanagari: 'F6' } as const;
 
 /** The marked content that gives a reader the text a stretch of the page stands for (PDF 32000-1 §14.9.4). */
+/** Marked content with no properties: it ends a text item in pdf.js and carries no text. */
+const PLAIN_SPAN = '/Span BMC';
 const actualText = (text: string): string => `/Span << /ActualText <FEFF${utf16Hex(text)}> >> BDC`;
 
 /**
@@ -255,12 +266,26 @@ function writePlan(
   for (const item of [...plan].sort((a, b) => a.order - b.order)) {
     const x = line.x + item.column * LAYOUT.charWidth;
     if (item.kind === 'shaped') {
-      parts.push(actualText(item.source));
+      // Only Devanagari carries its typed text as marked content. Arabic and Hebrew glyphs are drawn in visual order with the text
+      // of each in ToUnicode, so a reader puts the words back in logical order by the bidirectional algorithm, as it does for any
+      // right-to-left text (see the header).
+      const marked = item.font === 'devanagari';
+      if (marked) parts.push(actualText(item.source));
       setFont(SHAPED_FONT[item.font]);
-      for (const glyph of item.glyphs) {
+      const show = (glyph: PdfShapedGlyph): void => {
         parts.push(`1 0 0 1 ${num(x + glyph.x)} ${num(LAYOUT.pageHeight - line.y + glyph.y)} Tm`, `${cidString([glyph])} Tj`);
+      };
+      item.glyphs.filter((glyph) => glyph.final !== true).forEach(show);
+      if (marked) parts.push('EMC');
+      // The marks after a right-to-left word's last letter are drawn first, at its left end, but pdf.js appends a mark to the text
+      // item that is open, which is the word before. They are written after their word, each run in an item of its own that
+      // marked content ends, so a reader finds the word's item and then its marks, in logical order.
+      const finals = item.glyphs.filter((glyph) => glyph.final === true);
+      if (finals.length > 0) {
+        parts.push(PLAIN_SPAN);
+        finals.forEach(show);
+        parts.push('EMC');
       }
-      parts.push('EMC');
       continue;
     }
     const copied = item.text !== item.source;

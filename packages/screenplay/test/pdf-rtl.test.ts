@@ -4,7 +4,7 @@
  * that are left out, the plan of a mixed line, the text a reader extracts, and the Latin-only file that stays as it was.
  */
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -30,6 +30,7 @@ import {
 import { loadRtlSupport } from '../src/rtl-font.js';
 import { rtlLineKey } from '../src/pdf.js';
 import { text } from './fixtures/corpus.js';
+import { copiedRtl, drawnTexts, entryOf } from './fixtures/copied-text.js';
 import { LOADERS } from './fixtures/fonts.js';
 
 function blocksOf(source: string): FlatBlock[] {
@@ -53,6 +54,22 @@ async function pdfOf(source: string, opts: { title?: string; language?: string }
 function actualTexts(pdf: string): string[] {
   return [...pdf.matchAll(/\/Span << \/ActualText <FEFF([0-9A-F]*)> >> BDC/g)].map((match) =>
     String.fromCharCode(...(match[1]?.match(/.{4}/g) ?? []).map((hex) => parseInt(hex, 16))),
+  );
+}
+
+/**
+ * The words of a script written right to left as a reader copies them, in the order of the text: the shaped Arabic and Hebrew
+ * runs of every planned line, each as the texts of its glyphs put back in logical order (copied-text.ts). The file carries no
+ * `/ActualText` for them, so this is what its ToUnicode maps give.
+ */
+async function copiedWords(source: string, language?: string): Promise<string[]> {
+  const support = await loadRtlSupport(['arabic', 'hebrew'], LOADERS, undefined, language === undefined ? {} : { language });
+  const layout = layoutPdf(blocksOf(source), { title: 'T', ...(language === undefined ? {} : { language }) }, support.measure);
+  const fonts = await loadRtlFallback(layout, support);
+  return [...(fonts?.lines.values() ?? [])].flatMap((items) =>
+    [...items]
+      .sort((a, b) => a.order - b.order)
+      .flatMap((item) => (item.kind === 'shaped' && item.font !== 'devanagari' ? [copiedRtl(item, fonts?.[item.font])] : [])),
   );
 }
 
@@ -214,9 +231,11 @@ describe('the marks that are left out', () => {
       expect.stringMatching(/^pdf: 3 Hebrew points and cantillation marks are left out of the print/),
       expect.stringMatching(/^pdf: 6 Arabic marks \(harakat, shadda and the like\) are left out of the print/),
     ]);
-    const pdf = await pdfOf(source);
-    expect(actualTexts(pdf)).toContain('بِسْمِ');
-    expect(actualTexts(pdf)).toContain('שָׁלוֹם');
+    // The marks are not drawn but they are copied: each is the text of a glyph of its own that draws nothing, after the letter it follows.
+    const copied = await copiedWords(source);
+    expect(copied).toContain('بِسْمِ');
+    expect(copied).toContain('שָׁלוֹם');
+    expect(copied.join('')).toContain('اللّٰهِ');
   });
 
   it('say nothing when a text has none, and are drawn nowhere: a word with marks is the glyphs of the word without them', async () => {
@@ -225,12 +244,18 @@ describe('the marks that are left out', () => {
     const plan = async (word: string) => {
       const layout = layoutPdf(blocksOf(text('@سارة', word)), { title: 'T' }, support.measure);
       const fonts = await loadRtlFallback(layout, support);
-      return fonts?.lines.get(rtlLineKey(word, true));
+      return { items: fonts?.lines.get(rtlLineKey(word, true)), fonts };
     };
-    const marked = await plan('بِسْمِ');
-    const bare = await plan('بسم');
-    const glyphs = (items: Awaited<ReturnType<typeof plan>>) => items?.flatMap((item) => (item.kind === 'shaped' ? item.glyphs.map((glyph) => glyph.x) : []));
-    expect(glyphs(marked)).toEqual(glyphs(bare));
+    const { items: marked, fonts } = await plan('بِسْمِ');
+    const { items: bare } = await plan('بسم');
+    const isMark = (cid: number): boolean => /^\p{Mn}$/u.test((fonts?.arabic === undefined ? undefined : entryOf(fonts.arabic, cid))?.text ?? '');
+    // A mark is a glyph of its own with the mark's text and no outline: set those aside and the drawn glyphs are the bare word's.
+    const drawn = (items: typeof marked, withMarks: boolean) =>
+      items?.flatMap((item) => (item.kind === 'shaped' ? item.glyphs.filter((glyph) => withMarks || !isMark(glyph.cid)).map((glyph) => glyph.x) : []));
+    expect(drawn(marked, false)).toEqual(drawn(bare, true));
+    // And there are as many of them as the word has marks (kasra, sukun, kasra), each of zero width.
+    expect((drawn(marked, true)?.length ?? 0) - (drawn(marked, false)?.length ?? 0)).toBe(3);
+    expect((fonts?.arabic?.entries ?? []).filter((entry) => /^\p{Mn}$/u.test(entry.text)).every((entry) => entry.width === 0)).toBe(true);
     expect(marked?.[0]).toMatchObject({ kind: 'shaped', source: 'بِسْمِ' });
   });
 
@@ -298,14 +323,56 @@ describe('the plan of a line', () => {
 });
 
 describe('the file', () => {
-  it('holds each word as marked content with its logical text, in the order the text is written', async () => {
-    const pdf = await pdfOf(ARABIC, { language: 'ar' });
-    const copied = actualTexts(pdf);
+  it('holds each word as glyphs in visual order with their text in ToUnicode, in the order the text is written, and no /ActualText', async () => {
+    const copied = await copiedWords(ARABIC, 'ar');
     for (const word of ['السلام', 'عليكم', 'أصدقائي', 'سارة', 'بهدوء', 'مرحبا', 'مرة']) expect(copied, word).toContain(word);
     // A line's runs follow its logical order: the first word of the sentence comes before the second.
     expect(copied.indexOf('السلام')).toBeLessThan(copied.indexOf('عليكم'));
+    const pdf = await pdfOf(ARABIC, { language: 'ar' });
+    // Marked content with the word's text would make a reader that spreads it across the word's box (Poppler) put it back
+    // reversed: neither script writes any, and the glyphs are drawn one by one.
+    expect(actualTexts(pdf).filter((text) => /[\u0590-\u06ff]/.test(text))).toEqual([]);
     // The Latin word between the Arabic ones is written as ordinary text.
     expect(pdf).toContain('(Bob) Tj');
+  });
+
+  it('draws the glyphs of a word left to right, so a reader that reverses a right-to-left word character by character gets the typed text back', async () => {
+    const support = await loadRtlSupport(['arabic', 'hebrew'], LOADERS);
+    const layout = layoutPdf(blocksOf(text('@سارة', 'سارة', '', '@דוד', 'שלום')), { title: 'T' }, support.measure);
+    const fonts = await loadRtlFallback(layout, support);
+    const word = fonts?.lines.get(rtlLineKey('سارة', true))?.[0];
+    const hebrew = fonts?.lines.get(rtlLineKey('שלום', true))?.[0];
+    // سارة typed sin, alef, ra, teh marbuta: drawn from the left, teh marbuta first (its dot is a glyph with no text of its own).
+    expect(drawnTexts(word, fonts?.arabic).filter((text) => text !== '').join('')).toBe('ةراس');
+    expect(drawnTexts(hebrew, fonts?.hebrew).join('')).toBe('םולש');
+  });
+
+  it('writes the marks after the last letter of a word after the word, in marked content of their own, because pdf.js reads a mark into the open text item', async () => {
+    const support = await loadRtlSupport(['arabic', 'hebrew'], LOADERS);
+    const source = text('@سارة', 'كَتَبَ الوَلَدُ', 'بِسْمِ שָׁמָּה');
+    const layout = layoutPdf(blocksOf(source), { title: 'T' }, support.measure);
+    const fonts = await loadRtlFallback(layout, support);
+    const items = [...(fonts?.lines.get(rtlLineKey('كَتَبَ الوَلَدُ بِسْمِ שָׁמָּה', true)) ?? [])].filter((item) => item.kind === 'shaped').sort((a, b) => a.order - b.order);
+    expect(items).toHaveLength(4);
+    const finals = items.map((item) => (item.kind === 'shaped' ? item.glyphs.filter((glyph) => glyph.final === true) : []));
+    // The three Arabic words end in a mark, which is drawn first, at the word's left end, and is the only glyph flagged; the Hebrew word does not.
+    expect(finals.map((glyphs) => glyphs.length)).toEqual([1, 1, 1, 0]);
+    for (const item of items.slice(0, 3)) {
+      // Only glyphs with no text of their own (the dots of a letter) can come before it.
+      const at = item.kind === 'shaped' ? item.glyphs.findIndex((glyph) => glyph.final === true) : -1;
+      expect(at).toBeGreaterThanOrEqual(0);
+      expect(drawnTexts(item, fonts?.arabic).slice(0, at).filter((text) => text !== '')).toEqual([]);
+    }
+    // A reader that reverses the word character by character still gets the typed text.
+    expect(items.slice(0, 3).map((item) => copiedRtl(item, fonts?.arabic))).toEqual(['كَتَبَ', 'الوَلَدُ', 'بِسْمِ']);
+    expect(copiedRtl(items[3], fonts?.hebrew)).toBe('שָׁמָּה');
+    // The file: the glyphs of the word, then its final mark between /Span BMC and EMC, and no other marked content for them.
+    const pdf = await pdfOf(source);
+    expect(pdf.match(/\/Span BMC\n1 0 0 1 \S+ \S+ Tm\n<[0-9A-F]{4}> Tj\nEMC/g)).toHaveLength(3);
+    expect(pdf.match(/\/Span BMC/g)).toHaveLength(3);
+    expect(actualTexts(pdf).filter((text) => /[֐-ۿ]/.test(text))).toEqual([]);
+    // A word with no mark at its end, and one whose marks are inside it or at its start, draw no such sequence.
+    expect(await pdfOf(text('@سارة', 'سارة بِسْم שָׁלוֹם'))).not.toContain('/Span BMC');
   });
 
   it('has an Arabic font object only when the text holds Arabic, and a Hebrew one only when it holds Hebrew', async () => {
@@ -321,8 +388,9 @@ describe('the file', () => {
     ]);
     expect(arabic).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSansArabic-Regular/);
     expect(hebrew).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSansHebrew-Regular/);
-    // Subsets of TrueType fonts, not the whole file: the file is far smaller than Noto Sans Arabic's 142 KB.
-    expect(arabic.length).toBeLessThan(150_000);
+    // Subsets of TrueType fonts, not the whole file: the file is far smaller than Noto Sans Arabic's 142 KB written in hexadecimal
+    // (284 KB). The CID-to-glyph map of a font whose dots take the CIDs of skipped codes (cid-font.ts) is a few KB longer than a dense one.
+    expect(arabic.length).toBeLessThan(170_000);
   });
 
   it('is byte for byte the same for a Latin-only script whether or not the Arabic and Hebrew fonts and a right-to-left language are given', async () => {
@@ -358,14 +426,19 @@ describe('the file', () => {
     const layout = layoutPdf(blocksOf(source), { title: 'T' });
     expect(layout.notes).toEqual([]);
     const pdf = await pdfOf(source);
-    expect(actualTexts(pdf)).toEqual(expect.arrayContaining(['سلام', 'دنیا', 'می‌خواهم', 'چطوری', '٣', '٢', '١', 'ٹھیک', 'ڈاکٹر']));
+    expect(await copiedWords(source)).toEqual(expect.arrayContaining(['سلام', 'دنیا', 'چطوری', '٣', '٢', '١', 'ٹھیک', 'ڈاکٹر']));
     expect(pdf).toContain('/F3 ');
     expect(pdf).not.toContain('(?) Tj');
   });
 });
 
-/** pdftotext, where it is installed: the run is skipped otherwise. */
+/**
+ * Poppler's pdftotext, where it is installed: the run is skipped otherwise, and for Xpdf's tool of the same name (Git for Windows
+ * ships it), which lays glyphs out with spaces of its own and is not the reader this test is about.
+ */
 function pdftotext(bytes: Uint8Array): string | null {
+  const banner = spawnSync('pdftotext', ['-v'], { encoding: 'utf8', timeout: 20_000 });
+  if (banner.error !== undefined || !/poppler/i.test(`${banner.stdout}${banner.stderr}`)) return null;
   const dir = mkdtempSync(join(tmpdir(), 'caotang-rtl-'));
   try {
     const file = join(dir, 'file.pdf');
@@ -384,8 +457,9 @@ describe('the text a reader extracts', () => {
     const blob = await createPdfRenderer(LOADERS).emit(blocksOf(source), { title: 'T' });
     const out = pdftotext(new Uint8Array(await blob.arrayBuffer()));
     if (out === null) return;
-    // pdftotext lays right-to-left runs out with embedding controls around them; the words are what matters.
-    const bare = out.replace(/[‪-‮⁦-⁩]/g, '');
+    // pdftotext lays right-to-left runs out with embedding controls around them, and may pass on the zero-width space that stands for
+    // a glyph with no text; the words are what matters.
+    const bare = out.replace(/\u200B/g, '').replace(/[‪-‮⁦-⁩]/g, '');
     for (const word of ['السلام', 'عليكم', 'أصدقائي', 'مرحبا', 'سارة', 'שלום', 'עולם', 'שלומך', 'בסדר', 'תודה', 'Everything']) expect(bare, word).toContain(word);
   });
 });

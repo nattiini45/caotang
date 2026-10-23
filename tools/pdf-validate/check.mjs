@@ -44,10 +44,22 @@ export function squash(text) {
   return text.replace(/\s/g, '');
 }
 
-/** The strings of `needles` that `haystack` does not contain, whitespace aside. */
+/** The strings of `needles` that `haystack` does not contain, whitespace and the writers' no-text stand-in aside. */
 function missingText(haystack, needles) {
-  const flat = squash(haystack);
+  const flat = squash(withoutNoText(haystack));
   return needles.filter((needle) => !flat.includes(squash(needle)));
+}
+
+/**
+ * A reader's text without U+200B ZERO WIDTH SPACE, and nothing else. It is what the writers' ToUnicode maps hold for a glyph
+ * with no text of its own where the CID cannot be one pdf.js skips (the later glyphs of a Devanagari cluster, or the 39th glyph
+ * of an Arabic font with none; `NO_TEXT` and `CidNumbering` in packages/pdf-fonts/src/cid-font.ts): a glyph the map does not
+ * name is not a glyph with no text, because pdf.js reads the glyph's character code as its text. The stand-in is no letter of
+ * the page, so an engine may or may not pass it on. Every other character a reader gives back stays where it is, a control character, a space or a stray letter inside a word
+ * included, and the letters stay in the order the reader gave them, so a word with junk in it or a reversed word still fails.
+ */
+export function withoutNoText(text) {
+  return text.replaceAll('​', '');
 }
 
 /** A font's name without the six capitals and `+` a subset carries. */
@@ -288,8 +300,7 @@ function externalCheck(tool, file, expected, tmp, log) {
       const pages = result.stdout.split('\f');
       const problems = [];
       expected.pages.forEach((needles, i) => {
-        const wanted = [...needles, ...(expected.actualText?.[i] ?? [])];
-        for (const missing of missingText(pages[i] ?? '', wanted)) problems.push(`page ${i + 1}: pdftotext does not give back "${missing}"`);
+        for (const missing of missingText(pages[i] ?? '', needles)) problems.push(`page ${i + 1}: pdftotext does not give back "${missing}"`);
       });
       if (pages.filter((page) => page.trim() !== '').length !== expected.pages.length) problems.push('pdftotext found a different number of pages');
       return problems;

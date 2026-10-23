@@ -27,6 +27,7 @@ import type { AssetRecord } from '@caotang/video-prompt-pack';
 import { emojiStyleOf, graphemesOf, sfntFromWoff, type FontLoader } from '@caotang/pdf-fonts';
 import { loadArabicFontInNode, loadCjkFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
 import { harfbuzzEmoji } from '../../pdf-fonts/test/harfbuzz-reference.js';
+import { drawnRuns } from './rtl-text.js';
 import { EmojiEmbedding, EmojiFace, type FontkitFont } from '../src/emoji-font.js';
 import {
   CONTACT_SHEET_HEADER,
@@ -644,18 +645,17 @@ describe('contact-sheet-pdf — Arabic and Hebrew, in Noto Sans Arabic and Noto 
   const HEBREW = 'שלום עולם, מה שלומך היום?';
   const bothLoaders = { loadArabicFont: loadArabicFontInNode, loadHebrewFont: loadHebrewFontInNode };
 
-  /** The `/ActualText` strings of the page, in the order they are drawn. */
+  /**
+   * The words of the page in Arabic and Hebrew fonts as a reader copies them, in the order they are drawn. The page carries no
+   * `/ActualText` for them: each is a run of glyphs in visual order, each with its text in ToUnicode (rtl-text.ts).
+   */
   function actualTexts(pdf: PDFDocument): string[] {
-    return [...pageContent(pdf, 0).matchAll(/\/ActualText <FEFF([0-9A-F]*)>/g)].map((match) =>
-      String.fromCharCode(...(match[1]?.match(/.{4}/g) ?? []).map((hex) => parseInt(hex, 16))),
-    );
+    return drawnRuns(pdf).map((run) => run.word);
   }
 
-  /** The x of the first glyph the `/ActualText` span of a word draws: where the run starts on the page. */
+  /** The x of the first glyph a word draws: where the run starts on the page. */
   function startOf(pdf: PDFDocument, word: string): number {
-    const hex = [...word].map((char) => (char.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, '0')).join('');
-    const span = new RegExp(`/ActualText <FEFF${hex}>\\s*>>\\s*BDC[\\s\\S]*?1 0 0 1 (\\S+) \\S+ Tm`).exec(pageContent(pdf, 0));
-    return Number(span?.[1] ?? Number.NaN);
+    return drawnRuns(pdf).find((run) => run.word === word)?.x ?? Number.NaN;
   }
 
   /** The names of the fonts the file embeds as Type 0 fonts, without their subset tags. */
@@ -667,10 +667,12 @@ describe('contact-sheet-pdf — Arabic and Hebrew, in Noto Sans Arabic and Noto 
     return names.sort();
   }
 
-  it('sets Arabic and Hebrew in their fonts, shaped, with the words as marked content and no "?"', async () => {
+  it('sets Arabic and Hebrew in their fonts, shaped, with the words as glyphs in visual order with their text in ToUnicode, no marked content and no "?"', async () => {
     const { pdf, result } = await compileSheet(rig({ state: withAction(`${ARABIC} ${HEBREW}`), ...bothLoaders }).exporter);
     const copied = actualTexts(pdf);
     for (const word of ['مرحبا', 'بالعالم', 'الفيلم', 'שלום', 'עולם', 'שלומך']) expect(copied, word).toContain(word);
+    // Marked content with a word's text would be put back reversed by a reader that spreads it over the word's box (Poppler).
+    expect(pageContent(pdf, 0)).not.toContain('/ActualText');
     expect(embeddedNames(pdf)).toEqual(['NotoSansArabic-Regular', 'NotoSansHebrew-Regular']);
     expect(result.log.notes).toContain('contact sheet: Arabic, Persian and Urdu text is set in Noto Sans Arabic, embedded with only the glyphs it uses');
     expect(result.log.notes).toContain('contact sheet: Hebrew text is set in Noto Sans Hebrew, embedded with only the glyphs it uses');
@@ -722,6 +724,16 @@ describe('contact-sheet-pdf — Arabic and Hebrew, in Noto Sans Arabic and Noto 
       expect.stringMatching(/^contact sheet: 3 Hebrew points and cantillation marks are left out/),
       expect.stringMatching(/^contact sheet: 3 Arabic marks \(harakat, shadda and the like\) are left out/),
     ]);
+  });
+
+  it('writes the mark after the last letter of a word after the word, in marked content of its own, because pdf.js reads a mark into the open text item', async () => {
+    const { pdf } = await compileSheet(rig({ state: withAction('بِسْمِ שָׁלוֹם بِسْم'), ...bothLoaders }).exporter);
+    const content = pageContent(pdf, 0);
+    // One word ends in a mark: its glyphs come first in its text object, then the mark inside /Span BMC … EMC.
+    expect(content.match(/\/Span BMC/g)).toHaveLength(1);
+    expect(content).toMatch(/Tj\s+\/Span BMC\s+1 0 0 1 \S+ \S+ Tm\s+<[0-9A-F]{4}> Tj\s+EMC\s+ET\s+Q/);
+    // A reader still puts the word together as typed.
+    expect(actualTexts(pdf)).toEqual(expect.arrayContaining(['بِسْمِ', 'שָׁלוֹם', 'بِسْم']));
   });
 
   it('leaves out a mark that a dropped bidi control character left next to a character of the other fonts, and counts it', async () => {
