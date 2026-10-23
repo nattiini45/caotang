@@ -272,10 +272,16 @@ function writePlan(
       const marked = item.font === 'devanagari';
       if (marked) parts.push(actualText(item.source));
       setFont(SHAPED_FONT[item.font]);
-      const show = (glyph: PdfShapedGlyph): void => {
-        parts.push(`1 0 0 1 ${num(x + glyph.x)} ${num(LAYOUT.pageHeight - line.y + glyph.y)} Tm`, `${cidString([glyph])} Tj`);
+      const EXP = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env?.CAOTANG_EXP ?? 'moved';
+      const show = (glyph: PdfShapedGlyph, dx = 0): void => {
+        parts.push(`1 0 0 1 ${num(x + glyph.x + dx)} ${num(LAYOUT.pageHeight - line.y + glyph.y)} Tm`, `${cidString([glyph])} Tj`);
       };
-      item.glyphs.filter((glyph) => glyph.final !== true).forEach(show);
+      if (EXP === 'inline') {
+        item.glyphs.forEach((glyph) => show(glyph));
+        if (marked) parts.push('EMC');
+        continue;
+      }
+      item.glyphs.filter((glyph) => glyph.final !== true).forEach((glyph) => show(glyph));
       if (marked) parts.push('EMC');
       // The marks after a right-to-left word's last letter are drawn first, at its left end, but pdf.js appends a mark to the text
       // item that is open, which is the word before. They are written after their word, each run in an item of its own that
@@ -283,7 +289,7 @@ function writePlan(
       const finals = item.glyphs.filter((glyph) => glyph.final === true);
       if (finals.length > 0) {
         parts.push(PLAIN_SPAN);
-        finals.forEach(show);
+        finals.forEach((glyph) => show(glyph, EXP === 'left' ? -0.5 : 0));
         parts.push('EMC');
       }
       continue;
