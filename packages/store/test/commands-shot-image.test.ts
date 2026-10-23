@@ -345,6 +345,29 @@ describe('shot.importImages: several pictures, each on its shot, in one undo gro
     expect(b.undo.groups()).toHaveLength(0);
   });
 
+  it('puts back the shots it had set when a later shot stops being a shot while the files are written', async () => {
+    const b = bus();
+    let writes = 0;
+    const moving: ProjectAssetPort = {
+      staging: b.staging,
+      writeBytes: async (path, bytes) => {
+        writes += 1;
+        b.written.set(path, bytes.slice());
+        const later = nodeById(b.state, SHOT_WITH_FIELDS);
+        if (writes === 2 && later !== undefined) later.type = 'document';
+      },
+    };
+    const registry = createProjectCommandRegistry({ clock, assets: moving, shots: shotPort });
+    const stamp = nodeById(b.state, SHOT)?.updatedAt;
+    const items = [SHOT, SHOT_WITH_FIELDS].map((nodeId) => ({ nodeId, stagingId: b.staging.stage(PNG) }));
+    const refused = await executeAsync(command('shot.importImages', { items }), b.bus, registry);
+
+    expect(refused.ok).toBe(false);
+    expect(nodeById(b.state, SHOT)?.shot).toBeUndefined();
+    expect(nodeById(b.state, SHOT)?.updatedAt).toBe(stamp);
+    expect(b.undo.groups()).toHaveLength(0);
+  });
+
   it('does not overwrite a shot changed after the batch: the undo refuses, names it, and keeps the entry', async () => {
     const b = bus();
     okValue(await importImages(b, [{ nodeId: SHOT, bytes: PNG }]));

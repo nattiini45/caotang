@@ -194,21 +194,26 @@ function shotImportImagesApply(clock: ApplyClock, assets: ProjectAssetPort, shot
     // Everything after the last await is synchronous. The shots are read again, because the project may have moved while the files were written.
     const changed: BatchedShot[] = [];
     const affected: { nodeId: string; title: string }[] = [];
-    for (const { nodeId, assetId } of written) {
-      const node = shotToImportOnto(state, nodeId);
-      const before: unknown = node.shot ?? null;
-      const after: Record<string, unknown> = { ...((before ?? {}) as Record<string, unknown>), image: assetId };
-      const stampBefore = node.updatedAt;
-      const applied = shots.apply(state, 'shot.setMeta', { nodeId, stored: after, expect: before }, new Date(clock.now()));
-      if (!applied.ok) {
-        restoreShots(changed);
-        throw new ApplyRefusal({
-          ...applied.error,
-          message: `${applied.error.message} No shot was given a picture; ${plural(written.length, 'file was', 'files were')} written to the project's images, and no shot names ${written.length === 1 ? 'it' : 'them'}.`,
-        });
+    try {
+      for (const { nodeId, assetId } of written) {
+        const node = shotToImportOnto(state, nodeId);
+        const before: unknown = node.shot ?? null;
+        const after: Record<string, unknown> = { ...((before ?? {}) as Record<string, unknown>), image: assetId };
+        const stampBefore = node.updatedAt;
+        const applied = shots.apply(state, 'shot.setMeta', { nodeId, stored: after, expect: before }, new Date(clock.now()));
+        if (!applied.ok) {
+          throw new ApplyRefusal({
+            ...applied.error,
+            message: `${applied.error.message} No shot was given a picture; ${plural(written.length, 'file was', 'files were')} written to the project's images, and no shot names ${written.length === 1 ? 'it' : 'them'}.`,
+          });
+        }
+        changed.push({ node, before, after, stampBefore });
+        affected.push(...applied.value.affected);
       }
-      changed.push({ node, before, after, stampBefore });
-      affected.push(...applied.value.affected);
+    } catch (failure) {
+      // Whatever refused, a write or a shot that is no longer there, the shots already set are put back: all or none.
+      restoreShots(changed);
+      throw failure;
     }
 
     // One undo entry for the batch. A shot changed since is not overwritten: the undo throws, and the bus keeps the entry.
