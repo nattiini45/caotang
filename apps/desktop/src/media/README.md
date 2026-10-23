@@ -29,10 +29,13 @@ binder makes their nodes (`media/create-menu.ts`, through `binder.create`).
   the Ink on save. The engine target picks the dialogue table's file: a `yarn-csv` container writes a Yarn Spinner strings
   file, and any other container writes the dialogue table. The locale fills each row's locale (the project's language when
   the container has none), and a container's own locale names its Ink story file (*Dialogue table and container settings*).
-- **Import a script or an Ink story.** The binder's *Import script* reads a `.fountain` or `.fdx` file: its sections become
+- **Import a script, an Ink story or a Twee story.** The binder's *Import script* reads a `.fountain` or `.fdx` file: its sections become
   folders, and its scenes become screenplay documents, in one undo step (`screenplay.import`). *Import Ink* reads a `.ink`
   file, and makes one branching container for each knot cluster, in one undo step (`dialogue.importInk`). Text above the
-  first knot is not imported, and the status line says how many lines it was.
+  first knot is not imported, and the status line says how many lines it was. *Import Twee* (`.twee`, `.tw`) plans one container
+  with `planTweeImport` and shows its report in `TweeImportDialog` before it writes: passages, choices, stripped macros,
+  skipped special passages, the story format and the warnings. *Import* then runs `dialogue.importInk` once (one undo step), and
+  *Cancel* writes nothing. `e2e/import-twee.spec.ts` covers it.
 - **Read a finding's quote.** A quote on a finding opens its passage in place. A screenplay scene switches to its Source tab
   and selects the passage; a dialogue container selects it in its Ink text. The prose editor does the same for prose.
 - **Work a storyboard.** Each card shows its picture (or its alt text), its shot number and one spec row, and the header gives

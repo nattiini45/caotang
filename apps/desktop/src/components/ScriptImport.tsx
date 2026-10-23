@@ -1,17 +1,19 @@
 /**
- * The import actions for a whole script and a whole Ink story (screenplay.md §2.2, dialogue-narrative.md §4). The file is read
- * in the browser and handed to the bus: `screenplay.import` takes a Fountain or FDX file, and `dialogue.importInk` takes the
- * containers an Ink plan makes. Each import is one undo group, and what it could not bring in is read back on the status line.
+ * The import actions for a whole script, a whole Ink story and a Twee story (screenplay.md §2.2, dialogue-narrative.md §4). The file
+ * is read in the browser and handed to the bus: `screenplay.import` takes a Fountain or FDX file, and `dialogue.importInk` takes the
+ * containers an Ink or Twee plan makes. Each import is one undo group, and what it could not bring in is read back on the status
+ * line. A Twee story strips logic, so its report is shown first, and nothing is written until the writer confirms it.
  */
 
-import { useRef, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 
-import { planInkImport } from '@caotang/dialogue';
+import { planInkImport, planTweeImport, type TweeImportPlan } from '@caotang/dialogue';
 
 import { explain } from './actions.js';
 import { requestInkCompiler } from '../app/ink-compiler.js';
 import type { ProjectSession } from '../app/session.js';
 import { useReport, useSession } from './shared.js';
+import { TweeImportDialog } from './TweeImportDialog.js';
 
 /** What `screenplay.import` hands back (screenplay.md §2.2): the counts it made, and the notices it raised. */
 interface ScriptImportResult {
@@ -25,6 +27,8 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
   const report = useReport();
   const scriptFile = useRef<HTMLInputElement>(null);
   const inkFile = useRef<HTMLInputElement>(null);
+  const tweeFile = useRef<HTMLInputElement>(null);
+  const [pendingTwee, setPendingTwee] = useState<{ readonly fileName: string; readonly plan: TweeImportPlan } | null>(null);
 
   const importScript = async (file: File): Promise<void> => {
     const format = /\.fdx$/i.test(file.name) ? 'fdx' : 'fountain';
@@ -65,13 +69,42 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
     report({ text: [made, ...plan.notes, ...left].join(' '), tone: 'info' });
   };
 
+  const planTwee = async (file: File): Promise<void> => {
+    const plan = planTweeImport(await file.text());
+    if (plan.container === null) {
+      report({ text: `${file.name} has no passage to import. A Twee story makes one knot for each passage.`, tone: 'error' });
+      return;
+    }
+    setPendingTwee({ fileName: file.name, plan });
+  };
+
+  const importTwee = async (): Promise<void> => {
+    if (pendingTwee === null) return;
+    const { fileName, plan } = pendingTwee;
+    setPendingTwee(null);
+    const container = plan.container;
+    if (container === null) return;
+    await requestInkCompiler();
+    const outcome = session.dispatch('dialogue.importInk', { containers: [{ title: container.title, body: container.body }] });
+    if (!outcome.ok) {
+      report({ text: explain(outcome.error), tone: 'error' });
+      return;
+    }
+    const { report: made } = plan;
+    const text = `Imported ${fileName} as one dialogue container: ${countOf(made.passages, 'knot')}, ${countOf(made.choices, 'choice')}, ${made.strippedMacros} logic ${made.strippedMacros === 1 ? 'block' : 'blocks'} stripped.`;
+    report({ text, tone: 'info' });
+  };
+
   return (
-    <div className="script-import" role="group" aria-label="Import a script or an Ink story">
+    <div className="script-import" role="group" aria-label="Import a script, an Ink story or a Twee story">
       <button type="button" className="button is-quiet" onClick={() => scriptFile.current?.click()}>
         Import script
       </button>
       <button type="button" className="button is-quiet" onClick={() => inkFile.current?.click()}>
         Import Ink
+      </button>
+      <button type="button" className="button is-quiet" onClick={() => tweeFile.current?.click()}>
+        Import Twee
       </button>
       <input
         ref={scriptFile}
@@ -96,6 +129,24 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
           event.currentTarget.value = '';
           if (file !== undefined) void importInk(file);
         }}
+      />
+      <input
+        ref={tweeFile}
+        type="file"
+        hidden
+        accept=".twee,.tw"
+        aria-label="Twee file"
+        onChange={(event) => {
+          const file = event.currentTarget.files?.[0];
+          event.currentTarget.value = '';
+          if (file !== undefined) void planTwee(file);
+        }}
+      />
+      <TweeImportDialog
+        fileName={pendingTwee?.fileName ?? null}
+        plan={pendingTwee?.plan ?? null}
+        onImport={() => void importTwee()}
+        onCancel={() => setPendingTwee(null)}
       />
     </div>
   );
