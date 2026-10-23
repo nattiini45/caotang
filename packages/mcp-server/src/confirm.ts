@@ -38,6 +38,8 @@ import type { CallToolResult } from '@modelcontextprotocol/server';
 import { createRequestStateCodec, type RequestStateCodec } from '@modelcontextprotocol/server';
 import { countBody, type ProjectState } from '@caotang/store';
 
+import { createTtlMap } from './ttl-map.js';
+
 /** The key the confirmation is requested under, and read back from `inputResponses`. */
 export const CONFIRM_KEY = 'confirm';
 
@@ -233,19 +235,10 @@ export interface ConfirmLedger {
 }
 
 export function createConfirmLedger(): ConfirmLedger {
-  const entries = new Map<string, { readonly answer: Promise<CallToolResult>; readonly expiresAt: number }>();
-  const sweep = (now: number): void => {
-    for (const [nonce, entry] of entries) if (entry.expiresAt <= now) entries.delete(nonce);
-  };
+  const answers = createTtlMap<Promise<CallToolResult>>();
   return {
-    recall(nonce, now) {
-      sweep(now);
-      return entries.get(nonce)?.answer;
-    },
-    remember(nonce, answer, expiresAt, now) {
-      sweep(now);
-      entries.set(nonce, { answer, expiresAt });
-    },
+    recall: (nonce, now) => answers.get(nonce, now),
+    remember: (nonce, answer, expiresAt, now) => answers.set(nonce, answer, expiresAt, now),
   };
 }
 

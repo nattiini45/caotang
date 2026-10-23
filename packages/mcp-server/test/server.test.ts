@@ -14,7 +14,7 @@ import { NodeArtifactFs, manifestOnDisk } from '@caotang/sdk/folder';
 import { ArtifactNotFoundError, parseDocumentFile } from '@caotang/store';
 
 import { webpFixture } from '../../exporter/test/webp-fixtures.js';
-import { createRoundCodec, createToolRuntime, LEGACY_ROUND_TIMEOUT_MS, ROUND_TTL_SECONDS, LegacySessions, startHttpServer, type RunningHttpServer } from '../src/index.js';
+import { createRoundCodec, createToolRuntime, LEGACY_ROUND_TIMEOUT_MS, MAX_IDEMPOTENCY_KEY_LENGTH, REPLAY_TTL_MS, ROUND_TTL_SECONDS, LegacySessions, startHttpServer, type RunningHttpServer } from '../src/index.js';
 import { openProject, ProjectContentError, type ProjectSession } from '../src/index.js';
 import {
   acceptConfirm,
@@ -1481,5 +1481,146 @@ describe('the session folder', () => {
     } finally {
       removeDir(root);
     }
+  });
+});
+
+describe('a retried write request, asked to write once', () => {
+  const KEY = 'app.caotang/idempotencyKey';
+  const LINE = 'The tide table was wrong.';
+  const append = (client: Client, text: string, meta?: Record<string, unknown>) =>
+    client.callTool({ name: 'notes.append', arguments: { doc: LANDING, text }, ...(meta === undefined ? {} : { _meta: meta }) });
+  const notesOf = (fixture: Fixture): string =>
+    fixture.session.state.manifest.tree.find((node) => node.id === LANDING)?.notes ?? '';
+  const timesIn = (text: string, part: string): number => text.split(part).length - 1;
+
+  async function withFixture(label: string, body: (fixture: Fixture, client: Client) => Promise<void>): Promise<void> {
+    const fixture = await startFixture({ label, allowWrites: true, seed: true });
+    const client = await connectClient(fixture.url, fixture.token, acceptConfirm);
+    try {
+      await body(fixture, client);
+    } finally {
+      await client.close();
+      await fixture.close();
+    }
+  }
+
+  it('writes once, and answers the repeat with the first answer', async () => {
+    await withFixture('retry-once', async (fixture, client) => {
+      const first = await append(client, LINE, { [KEY]: 'req-1' });
+      const again = await append(client, LINE, { [KEY]: 'req-1' });
+      expect(first.isError).not.toBe(true);
+      expect(again).toEqual(first);
+      expect(timesIn(notesOf(fixture), LINE)).toBe(1);
+    });
+  });
+
+  it('refuses the same key with other arguments, or another tool, naming both calls, and writes nothing', async () => {
+    await withFixture('retry-mismatch', async (fixture, client) => {
+      await append(client, LINE, { [KEY]: 'req-2' });
+      const before = notesOf(fixture);
+      const other = await append(client, 'A different line.', { [KEY]: 'req-2' });
+      expect(other.isError).toBe(true);
+      expect(JSON.stringify(other.content)).toContain('notes.append');
+      expect(JSON.stringify(other.content)).toContain('with other arguments');
+      const elsewhere = await client.callTool({ name: 'synopsis.set', arguments: { doc: LANDING, synopsis: 'Late.' }, _meta: { [KEY]: 'req-2' } });
+      expect(elsewhere.isError).toBe(true);
+      expect(JSON.stringify(elsewhere.content)).toContain('synopsis.set');
+      expect(JSON.stringify(elsewhere.content)).toContain('notes.append');
+      expect(notesOf(fixture)).toBe(before);
+      expect(fixture.session.state.manifest.tree.find((node) => node.id === LANDING)?.synopsis).not.toBe('Late.');
+    });
+  });
+
+  it('is opt-in: requests without a key are two calls, and two keys are two calls', async () => {
+    await withFixture('retry-optin', async (fixture, client) => {
+      const first = await append(client, LINE);
+      const second = await append(client, LINE);
+      expect(first.isError).not.toBe(true);
+      expect(second.isError).not.toBe(true);
+      expect(timesIn(notesOf(fixture), LINE)).toBe(2);
+      await append(client, LINE, { [KEY]: 'a' });
+      await append(client, LINE, { [KEY]: 'b' });
+      expect(timesIn(notesOf(fixture), LINE)).toBe(4);
+    });
+  });
+
+  it('gives a retry that arrives while the first write is still being saved the first answer, with one write', async () => {
+    await withFixture('retry-inflight', async (fixture, client) => {
+      const original = fixture.session.callDirect.bind(fixture.session);
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => (release = resolve));
+      let started: () => void = () => undefined;
+      const begun = new Promise<void>((resolve) => (started = resolve));
+      const calls = vi.spyOn(fixture.session, 'callDirect').mockImplementation(async (...args) => {
+        started();
+        await held;
+        return original(...args);
+      });
+      const first = append(client, LINE, { [KEY]: 'req-3' });
+      await begun;
+      const retry = append(client, LINE, { [KEY]: 'req-3' });
+      // Give the retry time to reach the server and find the first call's answer.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      release();
+      const [one, two] = await Promise.all([first, retry]);
+      expect(two).toEqual(one);
+      expect(calls).toHaveBeenCalledTimes(1);
+      expect(timesIn(notesOf(fixture), LINE)).toBe(1);
+    });
+  });
+
+  it('forgets an answer after the retry window: the same key is a new call again', async () => {
+    await withFixture('retry-expiry', async (fixture, client) => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      try {
+        await append(client, LINE, { [KEY]: 'req-4' });
+        vi.setSystemTime(Date.now() + REPLAY_TTL_MS - 1_000);
+        await append(client, LINE, { [KEY]: 'req-4' });
+        expect(timesIn(notesOf(fixture), LINE)).toBe(1);
+        vi.setSystemTime(Date.now() + 2_000);
+        await append(client, LINE, { [KEY]: 'req-4' });
+        expect(timesIn(notesOf(fixture), LINE)).toBe(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  it('reads only its own key name: a reserved io.modelcontextprotocol/* name or an unrelated foreign key is not a key', async () => {
+    await withFixture('retry-meta', async (fixture, client) => {
+      await append(client, LINE, { 'io.modelcontextprotocol/idempotencyKey': 'x' });
+      await append(client, LINE, { 'io.modelcontextprotocol/idempotencyKey': 'x' });
+      expect(timesIn(notesOf(fixture), LINE)).toBe(2);
+      await append(client, LINE, { 'com.example/trace': 'same' });
+      await append(client, LINE, { 'com.example/trace': 'same' });
+      expect(timesIn(notesOf(fixture), LINE)).toBe(4);
+      // An unusable key is a call without one, not a refusal.
+      for (const bad of ['', '   ', 'k'.repeat(MAX_IDEMPOTENCY_KEY_LENGTH + 1)]) {
+        const result = await append(client, LINE, { [KEY]: bad });
+        expect(result.isError).not.toBe(true);
+      }
+      expect(timesIn(notesOf(fixture), LINE)).toBe(7);
+    });
+  });
+
+  it('does not cache a refusal, since it wrote nothing: the same key can be sent again once the call is valid', async () => {
+    await withFixture('retry-refused', async (fixture, client) => {
+      const missing = { doc: 'n_NOSUCHDOC1', text: LINE };
+      const refused = await client.callTool({ name: 'notes.append', arguments: missing, _meta: { [KEY]: 'req-5' } });
+      expect(refused.isError).toBe(true);
+      const retried = await client.callTool({ name: 'notes.append', arguments: missing, _meta: { [KEY]: 'req-5' } });
+      expect(retried.isError).toBe(true);
+      expect(JSON.stringify(retried.content)).not.toContain('idempotency key');
+      const fixed = await append(client, LINE, { [KEY]: 'req-5' });
+      expect(fixed.isError).not.toBe(true);
+      expect(timesIn(notesOf(fixture), LINE)).toBe(1);
+    });
+  });
+
+  it('writes nothing of the cache to the folder', async () => {
+    await withFixture('retry-folder', async (fixture, client) => {
+      await append(client, LINE, { [KEY]: 'req-6' });
+      expect(JSON.stringify(folderBytes(fixture.root))).not.toContain('req-6');
+    });
   });
 });

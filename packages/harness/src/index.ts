@@ -251,6 +251,7 @@ export { checkParams, checkValue } from './validate.js';
 export {
   annotationsFor,
   describeForExposure,
+  IDEMPOTENCY_KEY_META,
   mcpExposure,
   type ExposureInput,
   type ExposureRisk,
