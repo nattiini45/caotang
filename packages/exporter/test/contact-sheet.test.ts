@@ -24,7 +24,7 @@ import {
 import { createProjectCommandRegistry, MemoryArtifactFs, type ProjectState } from '@caotang/store';
 import { addShotNode, planContactSheet } from '@caotang/storyboard';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
-import { emojiStyleOf, graphemesOf, sfntFromWoff, type FontLoader } from '@caotang/pdf-fonts';
+import { emojiStyleOf, graphemesOf, sfntFromWoff, withCommon, type CommonFontLoader, type FontLoader } from '@caotang/pdf-fonts';
 import { loadArabicFontInNode, loadCjkFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
 import { harfbuzzEmoji } from '../../pdf-fonts/test/harfbuzz-reference.js';
 import { HAN_FORMS, HAN_LANGUAGES, HAN_PUNCTUATION } from '../../pdf-fonts/test/fixtures/han-forms.js';
@@ -42,6 +42,7 @@ import {
   type PictureTranscoder,
 } from '../src/index.js';
 import { transcodePictureInNode } from '../src/picture-transcoder-node.js';
+import { fallbackNeeds } from '../src/render-contact-sheet.js';
 import { PNG_1X1 } from './epub-fixtures.js';
 import { webpFixture, type WebpFixture } from './webp-fixtures.js';
 import { COMPILED_AT } from './fixture.js';
@@ -1309,6 +1310,152 @@ describe('the emoji font file covers Unicode Emoji 17.0', () => {
       expect(entries.has(emoji), name).toBe(true);
     }
   }, 120_000);
+});
+
+/** A loader for the full font with its common file, counting what is read from each. */
+function twoFileLoader(of: CommonFontLoader): { load: CommonFontLoader; reads: string[] } {
+  const reads: string[] = [];
+  const load = withCommon(
+    async () => {
+      reads.push('full');
+      return of();
+    },
+    async () => {
+      reads.push('common');
+      return of.common();
+    },
+  );
+  return { load, reads };
+}
+
+/** A font program without the `head` table's checkSumAdjustment, which fontkit copies from the file it cut the subset from. */
+function withoutChecksum(program: Uint8Array): Uint8Array {
+  const view = new DataView(program.buffer, program.byteOffset, program.byteLength);
+  const copy = program.slice();
+  for (let i = 0; i < view.getUint16(4); i += 1) {
+    const entry = 12 + i * 16;
+    if (String.fromCharCode(...program.subarray(entry, entry + 4)) === 'head') copy.fill(0, view.getUint32(entry + 8) + 8, view.getUint32(entry + 8) + 12);
+  }
+  return copy;
+}
+
+describe('contact-sheet-pdf — the common CJK and emoji files (pdf-fonts common.ts)', () => {
+  const FULL_ONLY_CJK: FontLoader = async () => loadCjkFontInNode();
+  const FULL_ONLY_EMOJI: FontLoader = async () => loadEmojiFontInNode();
+  // Every character is in the common CJK file; 龘 (U+9F98) is a rare Han character that only the full font has.
+  const COMMON_TEXT = '草堂的早晨，ひらがな 한국어 αβ';
+  const RARE_TEXT = `${COMMON_TEXT} 龘`;
+
+  it('reads only the common CJK file for a sheet whose characters are all in it, and only the full font for one with a rare character', async () => {
+    const common = twoFileLoader(loadCjkFontInNode);
+    await compileSheet(rig({ state: withAction(COMMON_TEXT), files: {}, loadFallbackFont: common.load }).exporter);
+    expect(common.reads).toEqual(['common']);
+
+    const rare = twoFileLoader(loadCjkFontInNode);
+    const { pdf, result } = await compileSheet(rig({ state: withAction(RARE_TEXT), files: {}, loadFallbackFont: rare.load }).exporter);
+    expect(rare.reads).toEqual(['full']);
+    // The rare character prints, with no "?" and no note about the files.
+    expect(toUnicodeText(pdf)).toContain('龘');
+    expect(result.log.notes.some((note) => note.includes('"?"') || note.includes('common'))).toBe(false);
+  });
+
+  it.each([
+    ['a sheet of common characters', COMMON_TEXT],
+    ['a sheet with a rare character', RARE_TEXT],
+  ])('puts the same text, the same page and the same glyphs in the PDF from either CJK file: %s', async (_name, action) => {
+    const state = withAction(action);
+    const fromCommon = await compileSheet(rig({ state, files: {}, loadFallbackFont: loadCjkFontInNode }).exporter);
+    const fromFull = await compileSheet(rig({ state, files: {}, loadFallbackFont: FULL_ONLY_CJK }).exporter);
+    expect(toUnicodeText(fromCommon.pdf)).toBe(toUnicodeText(fromFull.pdf));
+    expect(pageContent(fromCommon.pdf, 0)).toBe(pageContent(fromFull.pdf, 0));
+    expect(fromCommon.result.log.notes).toEqual(fromFull.result.log.notes);
+    const [a, b] = [embeddedFontFiles(fromCommon.pdf), embeddedFontFiles(fromFull.pdf)];
+    expect(a).toHaveLength(1);
+    expect(Buffer.from(withoutChecksum(a[0] as Uint8Array)).equals(Buffer.from(withoutChecksum(b[0] as Uint8Array)))).toBe(true);
+  });
+
+  it.each(['ja', 'ko', 'zh-TW', 'zh-HK'])('draws the forms of the project language %s from the common CJK file as the full font does', async (language) => {
+    const state = withAction('直骨今說次');
+    const common = twoFileLoader(loadCjkFontInNode);
+    const fromCommon = await compileSheet(rig({ state, files: {}, language, loadFallbackFont: common.load }).exporter);
+    const fromFull = await compileSheet(rig({ state, files: {}, language, loadFallbackFont: FULL_ONLY_CJK }).exporter);
+    expect(common.reads).toEqual(['common']);
+    expect(pageContent(fromCommon.pdf, 0)).toBe(pageContent(fromFull.pdf, 0));
+    const [a, b] = [embeddedFontFiles(fromCommon.pdf), embeddedFontFiles(fromFull.pdf)];
+    expect(Buffer.from(withoutChecksum(a[0] as Uint8Array)).equals(Buffer.from(withoutChecksum(b[0] as Uint8Array)))).toBe(true);
+  });
+
+  it('reads only the common emoji file for a sheet whose emoji are all in it, and the full font for a ZWJ sequence, a flag or a skin tone', async () => {
+    const common = twoFileLoader(loadEmojiFontInNode);
+    await compileSheet(rig({ state: withAction('Dogs 🐶 and a heart ❤️, 1️⃣, 😀.'), files: {}, loadEmojiFont: common.load }).exporter);
+    expect(common.reads).toEqual(['common']);
+
+    for (const emoji of ['👨‍👩‍👧', '🇩🇪', '👍🏽', '🚗']) {
+      const loader = twoFileLoader(loadEmojiFontInNode);
+      const { pdf, result } = await compileSheet(rig({ state: withAction(`Dogs 🐶 and ${emoji}.`), files: {}, loadEmojiFont: loader.load }).exporter);
+      expect(loader.reads, emoji).toEqual(['full']);
+      expect(toUnicodeText(pdf), emoji).toContain(emoji);
+      expect(result.log.notes.some((note) => note.includes('"?"') || note.includes('common')), emoji).toBe(false);
+    }
+  });
+
+  it.each([
+    ['a sheet of common emoji', 'Dogs 🐶 and a heart ❤️, 1️⃣, 😀.'],
+    ['a sheet with a ZWJ sequence', 'Dogs 🐶 and 👨‍👩‍👧.'],
+  ])('puts the same text, page and glyphs in the PDF from either emoji file: %s', async (_name, action) => {
+    const state = withAction(action);
+    const fromCommon = await compileSheet(rig({ state, files: {}, loadEmojiFont: loadEmojiFontInNode }).exporter);
+    const fromFull = await compileSheet(rig({ state, files: {}, loadEmojiFont: FULL_ONLY_EMOJI }).exporter);
+    expect(toUnicodeText(fromCommon.pdf)).toBe(toUnicodeText(fromFull.pdf));
+    expect(pageContent(fromCommon.pdf, 0)).toBe(pageContent(fromFull.pdf, 0));
+    const [a, b] = [embeddedFontFiles(fromCommon.pdf), embeddedFontFiles(fromFull.pdf)];
+    expect(a).toHaveLength(1);
+    expect(Buffer.from(withoutChecksum(a[0] as Uint8Array)).equals(Buffer.from(withoutChecksum(b[0] as Uint8Array)))).toBe(true);
+  });
+
+  it('reads the common CJK file and the common emoji file in one sheet, each for its own text', async () => {
+    const cjk = twoFileLoader(loadCjkFontInNode);
+    const emoji = twoFileLoader(loadEmojiFontInNode);
+    await compileSheet(rig({ state: withAction('草堂 🐶'), files: {}, loadFallbackFont: cjk.load, loadEmojiFont: emoji.load }).exporter);
+    expect([cjk.reads, emoji.reads]).toEqual([['common'], ['common']]);
+  });
+
+  it('reads the full CJK font, not the common one, for a rare character in a text the emoji font alone would have printed', async () => {
+    const cjk = twoFileLoader(loadCjkFontInNode);
+    await compileSheet(rig({ state: withAction('草堂 龘 🐶'), files: {}, loadFallbackFont: cjk.load, loadEmojiFont: loadEmojiFontInNode }).exporter);
+    expect(cjk.reads).toEqual(['full']);
+  });
+});
+
+describe('fallbackNeeds — what a sheet sets in the CJK font and in the emoji font', () => {
+  const BUILT_IN = new Set([...'ABCabc 123.,'].map((char) => char.codePointAt(0) ?? 0));
+  const needs = (...texts: string[]) => {
+    const { cjk, emoji } = fallbackNeeds(texts, BUILT_IN);
+    return { cjk: [...cjk], emoji: [...emoji] };
+  };
+
+  it('is empty for Latin text', () => {
+    expect(needs('abc 123.', '')).toEqual({ cjk: [], emoji: [] });
+  });
+
+  it('takes the characters of CJK text, each once', () => {
+    expect(needs('草堂 ab 草', 'かな')).toEqual({ cjk: ['草', '堂', 'か', 'な'], emoji: [] });
+  });
+
+  it('takes an emoji in emoji presentation whole, and leaves Arabic, Hebrew and Devanagari to their own fonts', () => {
+    expect(needs('a 👨‍👩‍👧 b ❤️', 'مرحبا שלום नमस्ते')).toEqual({ cjk: [], emoji: ['👨‍👩‍👧', '❤️'] });
+  });
+
+  it('takes a text pictograph for the emoji font only when the CJK font lacks it', () => {
+    // ♥ U+2665 is in the CJK font; 🕷 U+1F577 (spider, text default) is not.
+    const result = needs('♥', '🕷');
+    expect(result.cjk).toEqual(['♥', '🕷']);
+    expect(result.emoji).toEqual(['🕷']);
+  });
+
+  it('ignores control characters and the variation selector of text presentation', () => {
+    expect(needs('a\tb‪', 'a︎')).toEqual({ cjk: [], emoji: [] });
+  });
 });
 
 describe('the emitter draws the plan it is given', () => {

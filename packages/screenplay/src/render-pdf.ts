@@ -250,7 +250,7 @@ export function drawPdf(layout: PdfLayout, font?: PdfFont, fallback?: PdfCidFont
 export async function loadCjkFallback(layout: PdfLayout, load?: FontLoader, language?: string): Promise<PdfCidFont | undefined> {
   if (layout.fallbackCharacters.length === 0 || load === undefined) return undefined;
   const { loadNotoCjk, subsetNotoCjk } = await import('./cjk-font.js');
-  return subsetNotoCjk(await loadNotoCjk(load), layout.fallbackCharacters, hanLocaleTag(language));
+  return subsetNotoCjk(await loadNotoCjk(load, layout.fallbackCharacters), layout.fallbackCharacters, hanLocaleTag(language));
 }
 
 /**
@@ -260,7 +260,7 @@ export async function loadCjkFallback(layout: PdfLayout, load?: FontLoader, lang
 export async function loadEmojiFallback(layout: PdfLayout, load?: FontLoader): Promise<PdfEmojiFont | undefined> {
   if (layout.emojiCharacters.length === 0 || load === undefined) return undefined;
   const { loadNotoEmoji, subsetNotoEmoji } = await import('./emoji-font.js');
-  return subsetNotoEmoji(await loadNotoEmoji(load), layout.emojiCharacters);
+  return subsetNotoEmoji(await loadNotoEmoji(load, layout.emojiCharacters), layout.emojiCharacters);
 }
 
 /**

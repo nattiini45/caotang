@@ -49,6 +49,7 @@ export {
   ensureLineIds,
   layoutGraph,
   missingLineIds,
+  mintImportIds,
   nodeAtOffset,
   readDialogueMeta,
   unreachableNodes,
@@ -59,6 +60,7 @@ export {
   type DialogueGraph,
   type GraphLayout,
   type GraphNode,
+  type ImportIdResult,
   type MintOptions,
   type UnplaceableLine,
 } from '@caotang/dialogue';

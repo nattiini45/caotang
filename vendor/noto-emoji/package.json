@@ -3,17 +3,21 @@
   "version": "3.6.0",
   "license": "OFL-1.1",
   "private": true,
-  "description": "Noto Emoji 3.006 (monochrome) Regular as a static TrueType WOFF: the fallback font the PDF exporter embeds, subset, for emoji",
+  "description": "Noto Emoji 3.006 (monochrome) Regular as a static TrueType WOFF: the fallback font the PDF exporter embeds, subset, for emoji, and the smaller common file of it",
   "repository": "https://github.com/google/fonts/tree/main/ofl/notoemoji",
   "exports": {
     "./NotoEmoji-Regular.woff": "./NotoEmoji-Regular.woff",
+    "./NotoEmoji-Regular-common.woff": "./NotoEmoji-Regular-common.woff",
     "./package.json": "./package.json"
   },
   "files": [
     "NotoEmoji-Regular.woff",
+    "NotoEmoji-Regular-common.woff",
     "LICENSE",
     "README.md",
     "SHA256SUMS",
-    "build.py"
+    "build.py",
+    "charset.py",
+    "common-emoji.txt"
   ]
 }

@@ -108,7 +108,7 @@ export {
 
 export { INK_JSON_FORMAT, INK_JSON_MIME, exportInkJson, type InkJsonArtifact, type InkJsonRefusal } from './export-ink.js';
 
-export { planInkImport, type ImportedContainer, type InkImportPlan } from './import-ink.js';
+export { mintImportIds, planInkImport, type ImportedContainer, type ImportIdOptions, type ImportIdResult, type InkImportPlan } from './import-ink.js';
 
 export { describeTweeReport, planTweeImport, type TweeImportPlan, type TweeImportReport } from './import-twee.js';
 

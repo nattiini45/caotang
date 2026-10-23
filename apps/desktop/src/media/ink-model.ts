@@ -10,7 +10,7 @@
 
 import { AUTOSAVE_DEBOUNCE_MS } from '@caotang/store';
 
-import { ensureLineIds, missingLineIds, type MintOptions, type UnplaceableLine } from './engines.js';
+import { ensureLineIds, missingLineIds, type ImportIdResult, type MintOptions, type UnplaceableLine } from './engines.js';
 
 /**
  * How long the writer must stop typing before the findings are read again. It is the autosave's own window (editor-engine
@@ -51,12 +51,41 @@ export function addLineIds(text: string, options: MintOptions = {}): InkMintResu
   return { text: result.body, minted: result.minted.length, unplaceable: result.unplaceable };
 }
 
+const ROOM_FOR_ID = 'move the choice or jump so the line has room for its id.';
+const IDS_SHOWN = 3;
+
 /** The sentence the writer reads after the action. It says what was written, and which lines still need the writer. */
 export function addLineIdsSentence(result: InkMintResult): string {
   const written = result.minted === 0 ? 'No line needed an id.' : `Added ${countWord(result.minted, 'line id')} to the Ink text.`;
   if (result.unplaceable.length === 0) return written;
   const lines = result.unplaceable.map((line) => `line ${line.line}`).join(', ');
-  return `${written} ${countWord(result.unplaceable.length, 'line')} (${lines}) could not take one: move the choice or jump so the line has room for its id.`;
+  return `${written} ${countWord(result.unplaceable.length, 'line')} (${lines}) could not take one: ${ROOM_FOR_ID}`;
+}
+
+/**
+ * The sentence the writer reads after an import that minted ids (§4). It says the mint was once, that the container's
+ * "Add line ids on save" setting was not touched, which lines could not take an id and in which container, and which ids
+ * the source already used twice (kept, never renamed).
+ */
+export function importLineIdsSentence(result: ImportIdResult): string {
+  const parts = [
+    result.minted === 0
+      ? 'No line needed an id.'
+      : `Added ${countWord(result.minted, 'line id')} to the imported containers, once. "Add line ids on save" was left as it was.`,
+  ];
+  if (result.unplaceable.length > 0) {
+    const where = result.unplaceable.map((line) => `${line.title} line ${line.line}`).join(', ');
+    parts.push(`${countWord(result.unplaceable.length, 'line')} (${where}) could not take one: ${ROOM_FOR_ID}`);
+  }
+  if (result.kept.length > 0) {
+    parts.push(`${result.kept.map((title) => `"${title}"`).join(', ')} kept the Ink as written, because the ids would have stopped it compiling.`);
+  }
+  if (result.duplicatesInSource.length > 0) {
+    const shown = result.duplicatesInSource.slice(0, IDS_SHOWN).join(', ');
+    const more = result.duplicatesInSource.length > IDS_SHOWN ? ` and ${result.duplicatesInSource.length - IDS_SHOWN} more` : '';
+    parts.push(`${countWord(result.duplicatesInSource.length, 'id')} (${shown}${more}) already appear more than once in the source and were kept as written: the export refuses duplicates, so change them in the Ink.`);
+  }
+  return parts.join(' ');
 }
 
 /**
