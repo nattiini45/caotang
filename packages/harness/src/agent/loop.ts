@@ -1481,7 +1481,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const scopeRefs = Array.isArray(step.params['scope']) ? (step.params['scope'] as readonly string[]) : undefined;
     const scope: TreeNode[] = [];
     if (scopeRefs === undefined) {
-      scope.push(...descendantsOf(state, 'manuscript').filter(DOCUMENT));
+      const hidden = harness.withheld('continuity.scan');
+      scope.push(...descendantsOf(state, 'manuscript').filter((node) => DOCUMENT(node) && !hidden.has(node.id)));
     } else {
       for (const [index, ref] of scopeRefs.entries()) {
         const node = resolveNode(state, ref, DOCUMENT, 'document', `scope[${index}]`);

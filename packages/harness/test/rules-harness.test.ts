@@ -9,7 +9,7 @@ import { createMcpClient, createMockWireFactory, qualifiedNameOf, type McpServer
 import { createProjectCommandRegistry } from '@caotang/store';
 
 import { TOOL_METADATA, TOOL_NAMES, TOOL_TARGETS, createAgentPorts, type RuleSet, type SourcedRule } from '../src/index.js';
-import { CHAPTER_ONE, CHAPTER_TWO, ENTRY, ENTRY_TWO, FRIEND, LANDING, STORM, makeHarness, makeState, refusalOf, registryWithFakeExports, run, snapshotOf, valueOf } from './fixtures.js';
+import { CHAPTER_ONE, CHAPTER_TWO, ENTRY, ENTRY_TWO, FRIEND, LANDING, STORM, callId, makeHarness, makeState, refusalOf, registryWithFakeExports, run, snapshotOf, valueOf } from './fixtures.js';
 
 const rule = (effect: 'deny' | 'ask', fields: Partial<SourcedRule> = {}): SourcedRule => ({ effect, tool: '*', source: 'project', ...fields });
 
@@ -247,6 +247,19 @@ describe('a read-deny', () => {
     const scanned = (h: typeof open): string => valueOf(run(h, 'coherence.scan', { scope: { mode: 'full' } })).summary;
     expect(scanned(open)).toContain('across 2 document');
     expect(scanned(harness)).toContain('across 0 document');
+  });
+
+  it('leaves a withheld document out of continuity.scan with no scope, by title and by count', () => {
+    const scan = (rules: SourcedRule[], params: Record<string, unknown> = {}) =>
+      harnessWith(rules).harness.call(
+        { name: 'continuity.scan', callId: callId('continuity.scan'), params, proposal: { findings: [] } },
+        { turnId: 'turn-continuity' },
+      );
+    expect(valueOf(scan([])).data['scope']).toEqual(['The Landing', 'The Storm', 'The Friend']);
+    const hiddenScope = valueOf(scan(hidden()));
+    expect(hiddenScope.data['scope']).toEqual(['The Friend']);
+    expect(JSON.stringify(hiddenScope)).not.toContain('The Landing');
+    expect(refusalOf(scan(hidden(), { scope: ['The Landing'] })).code).toBe('permission-denied');
   });
 
   it('applies only to the tools its pattern names', () => {

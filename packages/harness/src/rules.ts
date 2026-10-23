@@ -126,18 +126,25 @@ function titlePaths(tree: readonly TreeNode[]): ReadonlyMap<string, readonly str
   return paths;
 }
 
-function segmentsMatch(pattern: readonly string[], path: readonly string[], p = 0, s = 0): boolean {
-  while (p < pattern.length) {
-    const part = pattern[p] as string;
-    if (part === '**') {
-      for (let skip = s; skip <= path.length; skip += 1) if (segmentsMatch(pattern, path, p + 1, skip)) return true;
-      return false;
+/** Path segments against a pattern whose `**` spans any run of segments. Memoized per (pattern, path) position, so it is O(pattern x path). */
+function segmentsMatch(pattern: readonly string[], path: readonly string[]): boolean {
+  const parts = pattern.filter((part, index) => part !== '**' || pattern[index - 1] !== '**');
+  const seen = new Map<number, boolean>();
+  const at = (p: number, s: number): boolean => {
+    if (p === parts.length) return s === path.length;
+    const key = p * (path.length + 1) + s;
+    const known = seen.get(key);
+    if (known !== undefined) return known;
+    let hit = false;
+    if (parts[p] === '**') {
+      for (let skip = s; skip <= path.length && !hit; skip += 1) hit = at(p + 1, skip);
+    } else {
+      hit = s < path.length && globMatches(parts[p] as string, path[s] as string) && at(p + 1, s + 1);
     }
-    if (s >= path.length || !globMatches(part, path[s] as string)) return false;
-    p += 1;
-    s += 1;
-  }
-  return s === path.length;
+    seen.set(key, hit);
+    return hit;
+  };
+  return at(0, 0);
 }
 
 /**

@@ -147,6 +147,14 @@ describe('scopes', () => {
     expect(ids('Manuscript/Nothing')).toEqual([]);
   });
 
+  it('answers a path with many ** segments in the time of a scan, and still matches through them', () => {
+    const tree = state.manifest.tree;
+    const started = Date.now();
+    expect(scopeNodes({ path: `${'**/'.repeat(60)}zzz` }, tree)).toBeUndefined();
+    expect([...(scopeNodes({ path: `${'**/'.repeat(60)}The Friend` }, tree) ?? [])]).toEqual([FRIEND]);
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
   it('stops matching when a folder is renamed, and says so in the warnings', () => {
     const renamed = makeState();
     const folder = renamed.manifest.tree.find((node) => node.id === CHAPTER_ONE);

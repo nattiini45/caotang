@@ -323,7 +323,9 @@ export const continuityScanPort: ToolPort = (params, context) => {
   const failures: { target: string; error: CommandError }[] = [];
   const scope: { id: string; title: string }[] = [];
   if (refs === undefined) {
-    for (const node of descendantsOf(state, 'manuscript').filter(DOCUMENT)) scope.push({ id: node.id, title: node.title });
+    // An omitted scope is the manuscript less what a read rule keeps from the agent: a hidden title never reaches the result.
+    const hidden = context.withheld ?? new Set<string>();
+    for (const node of descendantsOf(state, 'manuscript').filter(DOCUMENT)) if (!hidden.has(node.id)) scope.push({ id: node.id, title: node.title });
   } else {
     for (const [index, ref] of refs.entries()) {
       const node = resolveNode(state, ref, DOCUMENT, 'document', `scope[${index}]`);
