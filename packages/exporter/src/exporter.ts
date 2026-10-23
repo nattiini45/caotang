@@ -369,6 +369,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
       // The contact sheet reads its pictures' bytes when its file renders, from the same store the cover is read from.
       readAsset,
       ...(request.options.pageSize === undefined ? {} : { pageSize: request.options.pageSize }),
+      ...(request.options.paperFrames === undefined ? {} : { paperFrames: request.options.paperFrames }),
       ...(options.loadFallbackFont === undefined ? {} : { loadFallbackFont: options.loadFallbackFont }),
       ...(options.loadEmojiFont === undefined ? {} : { loadEmojiFont: options.loadEmojiFont }),
       ...(options.loadArabicFont === undefined ? {} : { loadArabicFont: options.loadArabicFont }),

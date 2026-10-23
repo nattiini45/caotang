@@ -77,6 +77,7 @@ export type {
   McpReadResourceParams,
   ShotCreateCommandParams,
   ShotImportImageParams,
+  ShotImportImagesParams,
   ShotSetMetaCommandParams,
   StoryboardCreateCommandParams,
 } from './command.js';

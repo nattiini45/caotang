@@ -388,6 +388,7 @@ function recipeOptions(o: NonNullable<ExportRecipe['options']>): string {
   if (o.pageSize === 'A4' || o.pageSize === 'Letter') {
     pairs.push(['pageSize', str(o.pageSize, 'recipe.options.pageSize')]);
   }
+  if (typeof o.paperFrames === 'boolean') pairs.push(['paperFrames', String(o.paperFrames)]);
   return pairs.length === 0 ? '{}' : oneLine(pairs);
 }
 

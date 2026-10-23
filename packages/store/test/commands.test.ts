@@ -1607,7 +1607,8 @@ describe('the bus/store split these applies depend on', () => {
     // `skill.import` registers only with the host's staging, so with nothing injected: 42 + 4 = 46 names, 34 + 3 = 37 implemented.
     // The knowledge facts add three names with applies of the store's own: 46 + 3 = 49 names, 37 + 3 = 40 implemented.
     // `mcp.readResource` (the writer's read of a resource) is descriptor-only until its injected half is supplied, like `mcp.invoke`: 50 names, 40 implemented.
-    expect(Object.keys(registry)).toHaveLength(50);
+    // `shot.importImages` (the batch of `shot.importImage`) is descriptor-only for the same reason as `shot.importImage`: 51 names, 40 implemented.
+    expect(Object.keys(registry)).toHaveLength(51);
     expect(implemented).toHaveLength(40);
   });
 });

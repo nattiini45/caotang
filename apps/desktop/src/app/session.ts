@@ -754,6 +754,26 @@ export class ProjectSession {
   }
 
   /**
+   * Imports several pictures, each as its own shot's image (`shot.importImages`, storyboard.md §6): the bytes are staged, one command
+   * names them and the shots, and the files and every shot's `image` are one undo group. A refusal is kept for the status line, and
+   * writes no file.
+   */
+  async importShotImages(items: readonly { readonly nodeId: string; readonly bytes: Uint8Array }[]): Promise<Result<ExecutionOutcome, CommandError>> {
+    const command: Command<CommandParams['shot.importImages']> = {
+      id: newId('cmd'),
+      name: 'shot.importImages',
+      params: { items: items.map(({ nodeId, bytes }) => ({ nodeId, stagingId: this.assetStaging.stage(bytes) })) },
+      issuedBy: 'user',
+      createdAt: Date.now(),
+    };
+    const result = await executeAsync(command, this.bus, this.registry);
+    if (!result.ok) this.rejections.push({ command: command.name, issuedBy: command.issuedBy, code: result.error.code });
+    await this.refreshAssetRecords();
+    this.afterCommand();
+    return result;
+  }
+
+  /**
    * Lists the project's stored images again, for the exporter. The exporter reads them synchronously, so this runs at each point the
    * images can have changed (the open, the import of a cover or a shot's picture, the attach of a folder, an export asked for), and a
    * compile reads what it last listed. A listing that fails is held as its error: the compile that needs the images is then refused

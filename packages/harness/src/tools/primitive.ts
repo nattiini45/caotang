@@ -49,6 +49,7 @@ export const NEVER_EXPOSED = [
   'view.setCorkboardScope',
   'project.importAsset',
   'shot.importImage',
+  'shot.importImages',
   'mcp.invoke',
   // A resource is read when the writer picks it, so no tool stands for the read (extensibility §4 rule 8).
   'mcp.readResource',

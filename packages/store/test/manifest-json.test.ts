@@ -190,6 +190,22 @@ describe('manifest serializer', () => {
     expect(r.warnings.map((w) => w.path)).toContain('recipes[0].options');
   });
 
+  it('keeps the contact sheet’s paper frames switch, a boolean, through a save and a load, and drops any other value with a warning', () => {
+    for (const good of [true, false]) {
+      const m = rich();
+      m.recipes = [{ name: 'paper', includeRootIds: ['manuscript'], format: 'contact-sheet-pdf', options: { pageSize: 'A4', paperFrames: good } }];
+      const reloaded = JSON.parse(serializeManifest(m)) as Manifest;
+      expect(reloaded.recipes?.[0]?.options).toEqual({ pageSize: 'A4', paperFrames: good });
+      const r = validateManifest(reloaded, { docFiles: [] });
+      expect(r.warnings.map((w) => w.path), String(good)).not.toContain('recipes[0].options');
+      expect((r.manifest as Manifest).recipes?.[0]?.options).toEqual({ pageSize: 'A4', paperFrames: good });
+    }
+    const m = rich();
+    m.recipes = [{ name: 'paper', includeRootIds: ['manuscript'], format: 'contact-sheet-pdf', options: { paperFrames: 'yes' as unknown as boolean } }];
+    expect((JSON.parse(serializeManifest(m)) as Manifest).recipes?.[0]?.options).toEqual({});
+    expect(validateManifest(m, { docFiles: [] }).warnings.map((w) => w.path)).toContain('recipes[0].options');
+  });
+
   // screenplay.md §5.3: the screenplay PDF's options round-trip, and a placement the bus would refuse is dropped on load.
   it('keeps the screenplay PDF’s scene numbers and continuation switch through a write and a load', () => {
     const m = rich();

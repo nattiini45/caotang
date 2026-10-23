@@ -27,6 +27,86 @@ export function firstPicture<F extends { readonly type: string; readonly name: s
 }
 
 /**
+ * The shot number a photograph's file name starts with (storyboard.md §6, the paper-photo round trip): the run of digits at the start of
+ * the name, read before the extension, so `007.jpg`, `7.jpg`, `007-ferry.jpg` and `7 (1).jpeg` name shot 7. The digits must end at the end
+ * of the name or at a character that is not a letter or a number, so `7a.jpg` names no shot, and a camera's `IMG_0007.jpg` names none
+ * either, because a camera counts its own pictures. `undefined` when the name starts with no digit.
+ */
+export function shotNumberOfFileName(name: string): number | undefined {
+  const dot = name.lastIndexOf('.');
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  let end = 0;
+  while (end < stem.length && stem.charCodeAt(end) >= 48 && stem.charCodeAt(end) <= 57) end += 1;
+  if (end === 0) return undefined;
+  const next = stem.codePointAt(end);
+  if (next !== undefined && /^[\p{L}\p{N}]$/u.test(String.fromCodePoint(next))) return undefined;
+  return Number(stem.slice(0, end));
+}
+
+/** A shot of the board a drop lands on: its id, the number its card shows (storyboard.md §2.2) and its title. */
+export interface BoardShot {
+  readonly id: string;
+  readonly number: number;
+  readonly title: string;
+}
+
+/** What one dropped file comes to: a picture for a shot, or a file left out with the reason, in words for the writer. */
+export type DropVerdict =
+  | { readonly kind: 'import'; readonly file: number; readonly name: string; readonly shot: BoardShot }
+  | { readonly kind: 'left-out'; readonly file: number; readonly name: string; readonly reason: string; readonly beyond?: number };
+
+/**
+ * Matches the files of a drop on the board to the board's shots by name. A file is left out when it is not a PNG, JPEG or WebP picture,
+ * when its name starts with no shot number (or with 0), when its number is past the board's last shot, or when another file of the same
+ * drop names the same shot: neither of two files is imported then, since the app cannot know which one the writer meant.
+ */
+export function planPictureDrop(files: readonly { readonly name: string; readonly type: string }[], shots: readonly BoardShot[]): readonly DropVerdict[] {
+  const byNumber = new Map(shots.map((shot) => [shot.number, shot]));
+  const claims = new Map<number, number>();
+  for (const file of files) {
+    const number = isPictureFile(file) ? shotNumberOfFileName(file.name) : undefined;
+    if (number !== undefined && byNumber.has(number)) claims.set(number, (claims.get(number) ?? 0) + 1);
+  }
+  return files.map((file, index): DropVerdict => {
+    const out = (reason: string, beyond?: number): DropVerdict => ({ kind: 'left-out', file: index, name: file.name, reason, ...(beyond === undefined ? {} : { beyond }) });
+    if (!isPictureFile(file)) return out('it is not a PNG, JPEG or WebP picture');
+    const number = shotNumberOfFileName(file.name);
+    if (number === undefined || number < 1) return out('its name does not start with a shot number (name a photograph like 007.jpg)');
+    const shot = byNumber.get(number);
+    if (shot === undefined) return out(`the board has ${shots.length === 1 ? '1 shot' : `${shots.length} shots`} and none is numbered ${number}`, number);
+    if ((claims.get(number) ?? 0) > 1) return out(`another file in this drop is also named for shot ${number}, so neither was imported`);
+    return { kind: 'import', file: index, name: file.name, shot };
+  });
+}
+
+/** How a drop's batch came out: the command's answer, for the notice. */
+export type DropCommit = { readonly ok: true } | { readonly ok: false; readonly message: string };
+
+/** The notice after a drop on the board: one sentence, then a line for every file that says where it went or why it did not. */
+export function dropReportOf(
+  verdicts: readonly DropVerdict[],
+  shotCount: number,
+  commit: DropCommit,
+): { readonly summary: string; readonly lines: readonly string[] } {
+  const imports = verdicts.filter((verdict) => verdict.kind === 'import');
+  const left = verdicts.length - imports.length;
+  const lines = verdicts.map((verdict) => {
+    if (verdict.kind === 'left-out') return `${verdict.name}: not imported, ${verdict.reason}`;
+    const where = `shot ${verdict.shot.number}, ${verdict.shot.title}`;
+    return commit.ok ? `${verdict.name}: ${where}` : `${verdict.name}: not imported (it was for ${where})`;
+  });
+  const beyond = verdicts.some((verdict) => verdict.kind === 'left-out' && verdict.beyond !== undefined);
+  const hint = beyond
+    ? ` The board has ${shotCount === 1 ? '1 shot' : `${shotCount} shots`}; a sheet printed from a longer board does not match it, so check that this is the board the sheet was printed from.`
+    : '';
+  if (!commit.ok) return { summary: `Nothing was imported: ${commit.message}${hint}`, lines };
+  if (imports.length === 0) return { summary: `Nothing was imported.${hint}`, lines };
+  const put = imports.length === 1 ? 'Put 1 picture on its shot' : `Put ${imports.length} pictures on their shots`;
+  const rest = left === 0 ? '.' : `; ${left === 1 ? '1 file was' : `${left} files were`} not imported.`;
+  return { summary: `${put}${rest}${hint} One Undo takes ${imports.length === 1 ? 'it' : 'them all'} back.`, lines };
+}
+
+/**
  * Where the project's list of pictures stands: still loading, listed, or failed to list. A picture is only known to be missing once
  * the list has come back without it, so the note below waits for `listed`.
  */

@@ -124,6 +124,7 @@ export function buildRegistry(): CommandRegistry {
     'project.deleteGoal': { descriptor: furnitureDescriptors.projectDeleteGoal },
     // Storyboard: the shot's image import. Descriptor only; its apply is the store's (`commands-shot-image.ts`).
     'shot.importImage': { descriptor: shotImageDescriptors.shotImportImage },
+    'shot.importImages': { descriptor: shotImageDescriptors.shotImportImages },
     // The two imports and the container settings (screenplay.md §2.2, dialogue-narrative.md §2.1, §4). The applies
     // are the store's (`commands-script.ts`), injected through `createProjectCommandRegistry`, so these are descriptor-only here.
     'screenplay.import': { descriptor: scriptDescriptors.screenplayImport },
