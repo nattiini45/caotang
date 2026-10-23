@@ -8,13 +8,13 @@
  *  - line ids, minted by Caotang and kept in the Ink text (`line-ids.ts`), the dialogue table and
  *    its RFC 4180 CSV (`table.ts`), speaker resolution against the codex (`speakers.ts`);
  *  - the `ink-json` export (`export-ink.ts`), the whole-story `.ink` import plan (`import-ink.ts`),
- *    the draft placement and gate (`draft.ts`), and the graph view's pure layout (`layout.ts`);
+ *    the Twee 3 import plan and its report (`import-twee.ts`), the draft placement and gate (`draft.ts`), and the graph view's pure layout (`layout.ts`);
  *  - the two agent tools in the harness registry's entry shape, with model-facing handlers (`tools.ts`).
  *
  * What is not: the UI (the graph view, the inspector, the table dialog), the store's dialogue node
  * types and the bus commands that write a container's body, the exporter's recipe enum and renderer
  * wiring, the harness registration of these tools and the model call that drafts the Ink (the agent
- * loop stages it), the Twee importer (v0.3 candidate), the XLSX writer (the exporter's, shared with the shot list),
+ * loop stages it), the XLSX writer (the exporter's, shared with the shot list),
  * and the play mode over inkjs's runtime (v0.3 candidate).
  */
 
@@ -109,6 +109,8 @@ export {
 export { INK_JSON_FORMAT, INK_JSON_MIME, exportInkJson, type InkJsonArtifact, type InkJsonRefusal } from './export-ink.js';
 
 export { planInkImport, type ImportedContainer, type InkImportPlan } from './import-ink.js';
+
+export { describeTweeReport, planTweeImport, type TweeImportPlan, type TweeImportReport } from './import-twee.js';
 
 export { checkDraft, planDraft, type DraftCheck, type DraftMode, type DraftPlan, type PlanResult } from './draft.js';
 
