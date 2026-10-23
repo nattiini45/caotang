@@ -57,6 +57,16 @@ const AUTO_SENTENCE = 'Applies automatically within an approved turn.';
 const EXTERNAL_WRITE_SENTENCE =
   'An external caller has no approved turn: the write runs only where the user has turned on external writes for this project.';
 
+/**
+ * The `_meta` key an external caller sends to make a retried write-auto call write once. A `_meta` key name is a reverse-DNS prefix, a
+ * slash and a name, and this one is outside the reserved `io.modelcontextprotocol/*` space. It rides the request, not the tool's schema,
+ * so the frozen v0.1 tool surface is unchanged, and the annotation stays `idempotentHint: false`: the tool is idempotent when the
+ * caller sends a key, and an annotation describes the tool, not the call.
+ */
+export const IDEMPOTENCY_KEY_META = 'app.caotang/idempotencyKey';
+
+const IDEMPOTENCY_SENTENCE = `To make a retry write once, send ${IDEMPOTENCY_KEY_META} in the request's _meta: a repeat with the same key and arguments gets the first answer, and the same key with other arguments is refused.`;
+
 /** §7's annotation column for a risk class, or `undefined` for a class that is not exposed. */
 export function annotationsFor(risk: ExposureRisk, name: string): McpAnnotations | undefined {
   switch (risk) {
@@ -91,7 +101,7 @@ export function describeForExposure(input: ExposureInput): string {
   if (body !== '') parts.push(body);
   if (input.risk === 'write-auto') {
     if (!body.includes(AUTO_SENTENCE)) parts.push(AUTO_SENTENCE);
-    parts.push(EXTERNAL_WRITE_SENTENCE);
+    parts.push(EXTERNAL_WRITE_SENTENCE, IDEMPOTENCY_SENTENCE);
   }
   parts.push(`Returns at most ${input.response_token_cap} tokens.`);
   if (input.undoable) parts.push("Undo via Caotang's turn checkpoints.");

@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { TOOL_METADATA, annotationsFor, mcpExposure, type ExposureInput } from '../src/index.js';
+import { IDEMPOTENCY_KEY_META, TOOL_METADATA, annotationsFor, mcpExposure, type ExposureInput } from '../src/index.js';
 
 describe('the §7 table, row by row', () => {
   it('maps read to readOnlyHint true and destructiveHint false, with no idempotency claim', () => {
@@ -114,6 +114,24 @@ describe('every tool, through the mapping', () => {
       expect(exposure.description, meta.name).toContain(
         'An external caller has no approved turn: the write runs only where the user has turned on external writes for this project.',
       );
+    }
+  });
+
+  it('names the idempotency key on every write-auto description, and keeps the annotation honest: only meta.set is idempotent by design', () => {
+    expect(IDEMPOTENCY_KEY_META).toBe('app.caotang/idempotencyKey');
+    for (const meta of TOOL_METADATA.filter((entry) => entry.risk === 'write-auto')) {
+      const exposure = mcpExposure(meta);
+      if (!exposure.exposed) throw new Error(`${meta.name} should be exposed`);
+      expect(exposure.description, meta.name).toContain(IDEMPOTENCY_KEY_META);
+      expect(exposure.annotations.idempotentHint, meta.name).toBe(meta.name === 'meta.set');
+    }
+    const notesAppend = mcpExposure(TOOL_METADATA.find((meta) => meta.name === 'notes.append')!);
+    if (!notesAppend.exposed) throw new Error('notes.append should be exposed');
+    expect(notesAppend.annotations).toEqual({ readOnlyHint: false, destructiveHint: false, idempotentHint: false });
+    // A read and a confirmed write are not told of the key: a read has nothing to repeat, and a confirmation carries its own pair.
+    for (const meta of TOOL_METADATA.filter((entry) => entry.risk === 'read' || entry.risk === 'write-confirm')) {
+      const exposure = mcpExposure(meta);
+      if (exposure.exposed) expect(exposure.description, meta.name).not.toContain(IDEMPOTENCY_KEY_META);
     }
   });
 
