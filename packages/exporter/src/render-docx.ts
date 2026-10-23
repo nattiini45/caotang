@@ -12,7 +12,8 @@
  *   (exporter.md §2, Per-scene styling);
  * - a page break before each chapter (`pageBreakBefore` on the Heading 1);
  * - a TOC **field** anchored on Heading 1, with `updateFields` in the settings so
- *   Word offers to refresh it on open;
+ *   Word offers to refresh it on open. The setting is written only when the field is: a file with no fields must not make
+ *   Word ask about fields at all;
  * - `cachedEntries` built from the binder's chapter list, and the section headings at level 2, so the contents are
  *   visible in every viewer before anything is updated (the §2 TOC recipe) and agree with the field's `1-2` range.
  *
@@ -23,6 +24,12 @@
  * semantics, so Word can no longer regenerate it. The default — a dirty field with
  * cached content — is what `docx` writes when `beginDirty` is not given, and this
  * file leaves it that way on purpose.
+ *
+ * ## Why the cached entries are not links
+ *
+ * `docx` 9.9.0 gives a cached entry a hyperlink only when the entry has an `href`, and ours have none, so they are plain
+ * runs: no links and no dangling `_Toc` anchors. `hyperlink: true` only adds `\h` to the instruction, which makes the entries
+ * Word regenerates clickable. No `_Toc` bookmarks are written, by decision (docs/decisions.md).
  *
  * ## Why the page numbers are absent
  *
@@ -75,8 +82,8 @@ export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
     children.push(centred(docx, input.date));
   }
 
-  const headings = chapterHeadings(input);
-  if (input.toc && headings.length > 0) {
+  const hasContents = input.toc && chapterHeadings(input).length > 0;
+  if (hasContents) {
     children.push(
       new docx.Paragraph({
         pageBreakBefore: true,
@@ -130,8 +137,8 @@ export async function renderDocx(input: RenderInput): Promise<Uint8Array> {
     creator: stripXmlIllegal(input.author === '' ? 'Caotang' : input.author),
     title: stripXmlIllegal(input.title),
     // §2: Word offers to update the TOC field once, on open, and then the cached
-    // entries are replaced by the real ones.
-    features: { updateFields: true },
+    // entries are replaced by the real ones. Without a field there is nothing to update, so no setting and no prompt.
+    features: hasContents ? { updateFields: true } : undefined,
     styles: styleDefinitions(docx),
     sections: [{ properties: {}, children }],
   });
