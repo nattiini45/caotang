@@ -26,6 +26,10 @@ function styleOf(cell: NonNullable<ExpectedCell>, header: boolean): number {
   return cell.wrap === true ? 3 : 0;
 }
 
+/** XML text as the writer escapes it (render-xlsx.ts escapeXmlText). */
+const xmlText = (text: string): string =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
 describe.skipIf(OUT === '')('the XLSX write corpus', () => {
   it.each(XLSX_CORPUS.map((entry) => [entry.expected.file, entry] as const))('writes %s through the exporter', async (_name, entry) => {
     const bytes = await entry.build();
@@ -36,7 +40,7 @@ describe.skipIf(OUT === '')('the XLSX write corpus', () => {
 
     // The description is checked against the file: the checker must not be handed a cell the writer did not write.
     expect(strFromU8(parts['xl/workbook.xml'] ?? new Uint8Array())).toContain(`<sheet name="${expected.sheet}" `);
-    expect(strFromU8(parts['docProps/core.xml'] ?? new Uint8Array())).toContain(`<dc:title>${expected.title.replace('&', '&amp;')}</dc:title>`);
+    expect(strFromU8(parts['docProps/core.xml'] ?? new Uint8Array())).toContain(`<dc:title>${xmlText(expected.title)}</dc:title>`);
     const read = (ref: string) => cells.get(ref);
     expected.columns.forEach((label, c) => {
       expect(read(`${columnName(c)}1`)).toEqual({ kind: 'string', style: 1, value: label });

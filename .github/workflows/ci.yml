@@ -89,7 +89,7 @@ jobs:
 
   office-interop:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       CAOTANG_XLSX_OUT: ${{ github.workspace }}/test-results/xlsx
     steps:
@@ -103,9 +103,11 @@ jobs:
         run: corepack enable
 
       - name: Install LibreOffice and openpyxl (CI only; neither ships)
+        # man-db rebuilds its index after every package by default, which alone can outlast the job; it is not needed here.
         run: |
+          sudo rm -f /var/lib/man-db/auto-update
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libreoffice-calc
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libreoffice-calc
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install openpyxl==3.1.5
 
