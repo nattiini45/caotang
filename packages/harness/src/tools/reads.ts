@@ -21,6 +21,8 @@ import { bodyOf, wordsOfDocument } from './common.js';
 /** Characters a read's JSON wrapper takes beyond its rows, reserved from the cap. */
 const WRAPPER_RESERVE_CHARS = 400;
 
+const NO_NODES: ReadonlySet<string> = new Set();
+
 function readOnly(value: ToolValue): PreparedCall {
   return { commands: [], finish: () => ok(value) };
 }
@@ -45,17 +47,25 @@ function emptyNoteFor(writes: boolean): string {
     : 'The project has no documents yet. Chapters are made in Caotang, because this server is read-only.';
 }
 
+/** The text a read adds when a read-deny left nodes out of its answer: how many, and that a rule did it. */
+function withheldNote(count: number): string {
+  return `${count} ${count === 1 ? 'item is' : 'items are'} withheld from the agent by a rule and left out of this answer.`;
+}
+
 export function prepareProjectOverview(_params: CallParams, context: PrepareContext): Result<PreparedCall, CommandError> {
   const { state } = context;
-  const documents = state.manifest.tree.filter(DOCUMENT);
+  const hidden = context.withheld ?? NO_NODES;
+  const withheld = state.manifest.tree.filter((node) => hidden.has(node.id)).length;
+  const documents = state.manifest.tree.filter((node) => DOCUMENT(node) && !hidden.has(node.id));
   const totalWords = documents.reduce((sum, node) => sum + wordsOfDocument(state, node.id), 0);
   const empty = documents.length === 0;
 
   // Level one is every part of the binder; level two is what each part holds. A
   // long binder shows fewer level-two rows, and says so, rather than overrunning
   // the cap: the rest is one binder.read_tree call away.
-  const parts = childrenOf(state, 'root');
-  const childrenOfId = (id: string) => childrenOf(state, id);
+  const visible = (nodes: TreeNode[]): TreeNode[] => nodes.filter((node) => !hidden.has(node.id));
+  const parts = visible(childrenOf(state, 'root'));
+  const childrenOfId = (id: string) => visible(childrenOf(state, id));
   const tree = (limit: number) =>
     parts.map((level1) => {
       const kids = childrenOfId(level1.id);
@@ -76,7 +86,7 @@ export function prepareProjectOverview(_params: CallParams, context: PrepareCont
 
   const session = context.session?.();
   // A goal has no name of its own (goals-progress §2.2): the name a reader sees is its target's title, which keeps this key.
-  const goals = (state.manifest.goals ?? []).map((goal) => ({
+  const goals = (state.manifest.goals ?? []).filter((goal) => !hidden.has(goal.nodeId)).map((goal) => ({
     id: goal.id,
     name: state.manifest.tree.find((node) => node.id === goal.nodeId)?.title ?? goal.nodeId,
     target: goal.target,
@@ -94,6 +104,7 @@ export function prepareProjectOverview(_params: CallParams, context: PrepareCont
     savedFilters: state.manifest.filters?.length ?? 0,
     filters: (state.manifest.filters ?? []).map((filter) => ({ id: filter.id, name: filter.name })),
     goals,
+    ...(withheld === 0 ? {} : { withheld }),
   });
 
   const widest = Math.max(0, ...parts.map((part) => childrenOfId(part.id).length));
@@ -103,6 +114,7 @@ export function prepareProjectOverview(_params: CallParams, context: PrepareCont
   const trimmed = limit < widest;
 
   const notes = [
+    ...(withheld === 0 ? [] : [withheldNote(withheld)]),
     ...(empty ? [emptyNoteFor(context.writes !== false)] : []),
     ...(trimmed
       ? [`The tree shows ${limit} of its widest part's children. Use binder.read_tree on a part to see the rest.`]
@@ -155,10 +167,10 @@ interface TreeRow {
   readonly words?: number;
 }
 
-function wordsUnder(state: ProjectState, node: TreeNode): number {
+function wordsUnder(state: ProjectState, node: TreeNode, hidden: ReadonlySet<string>): number {
   if (node.type === 'document') return wordsOfDocument(state, node.id);
   return descendantsOf(state, node.id)
-    .filter((child) => child.type === 'document')
+    .filter((child) => child.type === 'document' && !hidden.has(child.id))
     .reduce((sum, child) => sum + wordsOfDocument(state, child.id), 0);
 }
 
@@ -172,6 +184,8 @@ export function prepareReadTree(params: CallParams, context: PrepareContext): Re
   const depth = typeof params['depth'] === 'number' ? params['depth'] : 2;
   const include = typeof params['include'] === 'string' ? params['include'] : 'counts';
 
+  const hidden = context.withheld ?? NO_NODES;
+  let withheld = 0;
   const rows: TreeRow[] = [];
   const visit = (node: TreeNode, level: number): void => {
     rows.push({
@@ -184,9 +198,13 @@ export function prepareReadTree(params: CallParams, context: PrepareContext): Re
       status: node.status,
       label: node.label,
       ...(include === 'synopsis' ? { synopsis: node.synopsis } : {}),
-      ...(include === 'counts' ? { words: wordsUnder(state, node) } : {}),
+      ...(include === 'counts' ? { words: wordsUnder(state, node, hidden) } : {}),
     });
-    if (level < depth) for (const child of childrenOf(state, node.id)) visit(child, level + 1);
+    if (level >= depth) return;
+    for (const child of childrenOf(state, node.id)) {
+      if (hidden.has(child.id)) withheld += 1 + descendantsOf(state, child.id).length;
+      else visit(child, level + 1);
+    }
   };
   visit(start.value, 0);
 
@@ -209,6 +227,7 @@ export function prepareReadTree(params: CallParams, context: PrepareContext): Re
     nodes: shown,
     total: rows.length,
     truncated,
+    ...(withheld === 0 ? {} : { withheld }),
     ...(truncated
       ? {
           note: `Truncated at about ${readTreeCap()} tokens: showed ${shown.length} of ${rows.length} nodes. Narrow root to a chapter's id, or lower depth.`,
@@ -220,6 +239,7 @@ export function prepareReadTree(params: CallParams, context: PrepareContext): Re
       data,
       summary: `${shown.length} of ${rows.length} nodes under "${start.value.title}"`,
       affected: [],
+      ...(withheld === 0 ? {} : { notes: [withheldNote(withheld)] }),
     }),
   );
 }

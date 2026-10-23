@@ -71,6 +71,11 @@ export interface ContextPortOptions {
    * function is read at each call, as the state is, so the limits follow the active model as it changes.
    */
   readonly config?: ContextConfig | (() => ContextConfig);
+  /**
+   * The binder nodes a read-deny keeps out of a call's prompt, by the tool the call is for (agent-harness §4, "Rules"). Read at each
+   * call. Absent, nothing is withheld.
+   */
+  readonly withheld?: (tool: string) => ReadonlySet<string>;
 }
 
 /**
@@ -113,8 +118,10 @@ export function createContextPort(options: ContextPortOptions): ContextPort {
   const configOf: () => ContextConfig = typeof given === 'function' ? given : () => given ?? {};
   return {
     assemble(request: ContextRequest): AssembledCall {
+      const withheld = options.withheld?.(request.task.tool);
       const app: AppSnapshot = {
         state: request.state ?? stateOf(),
+        ...(withheld === undefined || withheld.size === 0 ? {} : { withheld }),
         ...(request.turns === undefined ? {} : { turns: request.turns }),
         ...(request.activity === undefined ? {} : { activity: request.activity }),
       };

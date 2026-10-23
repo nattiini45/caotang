@@ -26,7 +26,7 @@ import {
   type CoherenceRun,
   type LlmCategory,
 } from '../model.js';
-import { entriesOf, resolveScope, snapshotManuscript, type ScannedScene, type ScopeSpec } from '../scope.js';
+import { entriesOf, resolveScope, snapshotManuscript, type ScannedScene, type ScopeSpec, type SnapshotOptions } from '../scope.js';
 import { recurredAfterFixedNote, upsertFindings } from '../upsert.js';
 
 import { assembleFindings } from './assemble.js';
@@ -73,6 +73,8 @@ export interface ReviewRequest {
   readonly scope: ScopeSpec;
   readonly categories?: readonly LlmCategory[];
   readonly maxFindings?: number;
+  /** Documents a read rule keeps from the agent (agent-harness §4): replaces the archived-only exclusion, as `SnapshotOptions.isExcluded`. */
+  readonly isExcluded?: SnapshotOptions['isExcluded'];
 }
 
 export interface PlannedDocument {
@@ -207,7 +209,10 @@ export function planReview(state: ProjectState, file: CoherenceFile, request: Re
   const categories = validateCategories(request.categories);
   const maxFindings = validateMaxFindings(request.maxFindings);
   const includeDocIds = request.scope.mode === 'doc' ? new Set(request.scope.docIds) : undefined;
-  const snapshot = snapshotManuscript(state, file, includeDocIds === undefined ? {} : { includeDocIds });
+  const snapshot = snapshotManuscript(state, file, {
+    ...(includeDocIds === undefined ? {} : { includeDocIds }),
+    ...(request.isExcluded === undefined ? {} : { isExcluded: request.isExcluded }),
+  });
   const scenes = resolveScope(snapshot, file, request.scope);
 
   const documents: PlannedDocument[] = [];
@@ -262,6 +267,8 @@ export interface ReviewRunOptions {
    * Absent, the run is written into the file the review was given.
    */
   readonly currentFile?: () => CoherenceFile;
+  /** As `ReviewRequest.isExcluded`: a document that became withheld since the plan was made is not read. */
+  readonly isExcluded?: SnapshotOptions['isExcluded'];
 }
 
 export interface ReviewRunResult {
@@ -285,7 +292,10 @@ export async function runReview(state: ProjectState, file: CoherenceFile, plan: 
   const model = options.model;
   if (model === undefined) throw new NoProviderError();
 
-  const snapshot = snapshotManuscript(state, file, { includeDocIds: new Set(plan.scopeDocIds) });
+  const snapshot = snapshotManuscript(state, file, {
+    includeDocIds: new Set(plan.scopeDocIds),
+    ...(options.isExcluded === undefined ? {} : { isExcluded: options.isExcluded }),
+  });
   const byId = new Map(snapshot.scanned.map((scene) => [scene.docId, scene] as const));
   const scenes: ScannedScene[] = [];
   const notes: string[] = [];

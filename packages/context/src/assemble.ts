@@ -28,6 +28,7 @@ import { getBody, type CodexEntry, type ProjectState, type TreeNode } from '@cao
 
 import { charsAt, cheapestKept, cutOne, fitBlock, fitReserved, protectedCount, renderBlock, tokensAt, type Block } from './block.js';
 import { describeDrop, dropLine, dropRecord } from './drops.js';
+import { withhold } from './withheld.js';
 import { ContextError } from './errors.js';
 import { codexBlock, detectCodex } from './layers/codex.js';
 import { beatStoryBlock, speakerHitsOf } from './layers/dialogue.js';
@@ -148,7 +149,8 @@ function keptReports(block: Block): LayerItemReport[] {
   return out;
 }
 
-export function assemble(task: AgentTask, app: AppSnapshot, config: ContextConfig = {}): AssembledPrompt {
+export function assemble(given: AgentTask, snapshot: AppSnapshot, config: ContextConfig = {}): AssembledPrompt {
+  const { task, app, drops: withheldDrops } = withhold(given, snapshot);
   const tree = indexTree(app.state.manifest.tree);
   const entries = app.state.manifest.codex ?? [];
   const profile = profileFor(task.tool);
@@ -164,6 +166,11 @@ export function assemble(task: AgentTask, app: AppSnapshot, config: ContextConfi
   const active = new Set<LayerId>(profile.layers);
   const notes = perLayer<string[]>(() => []);
   const drops = perLayer<DropRecord[]>(() => []);
+  // Every layer works on the view without the withheld nodes; the project layer lists them, since every profile has it.
+  if (withheldDrops.length > 0) {
+    drops.L1.push(...withheldDrops);
+    notes.L1.push(`${withheldDrops.length} ${withheldDrops.length === 1 ? 'item is' : 'items are'} withheld by a read rule and not in this prompt.`);
+  }
   const effective: Partial<Record<LayerId, number>> = {};
 
   // L0 and L7 are fixed text: never truncated, and outside every budget (§2).

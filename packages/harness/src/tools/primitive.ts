@@ -21,7 +21,7 @@ import {
 } from '@caotang/bus';
 
 import { failure } from '../errors.js';
-import type { ToolMetadata } from '../metadata.js';
+import type { ToolRow } from '../metadata.js';
 import type { ObjectSpec } from '../schema.js';
 import type { CallParams, PrepareContext, PrepareFn } from '../types.js';
 import { checkCommand } from './common.js';
@@ -91,7 +91,7 @@ export interface PrimitiveToolSpec<C extends ExposablePrimitive> {
 
 export interface PrimitiveTool {
   readonly command: CommandName;
-  readonly meta: ToolMetadata;
+  readonly meta: ToolRow;
   readonly params: ObjectSpec;
   readonly prepare: PrepareFn;
 }
@@ -113,7 +113,7 @@ export function primitiveTool<C extends ExposablePrimitive>(spec: PrimitiveToolS
     throw new Error(`"${spec.command}" is never exposed as a tool`);
   }
 
-  const meta: ToolMetadata = {
+  const meta: ToolRow = {
     name: spec.tool,
     risk,
     undoable: descriptor.undo !== 'none',

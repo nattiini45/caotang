@@ -47,6 +47,19 @@ export {
   type CodexCoercion,
   type CodexOrigin,
 } from './codex-fields.js';
+export {
+  RULES_MAX,
+  RULE_ACCESSES,
+  RULE_EFFECTS,
+  parseRules,
+  sameRule,
+  type ParseRulesOptions,
+  type ParsedRules,
+  type PermissionRule,
+  type RuleAccess,
+  type RuleEffect,
+  type RuleScope,
+} from './agent-rules.js';
 export { createEmptyManifest, isFixedRoot, nextSiblingOrder } from './create.js';
 
 export {

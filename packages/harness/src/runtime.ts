@@ -96,6 +96,19 @@ import { skillCatalog as skillCatalogOf, type SkillCatalog, type SkillState } fr
 import { shotCommandPort } from '@caotang/storyboard';
 
 import { createCallCache } from './cache.js';
+import {
+  NO_RULES,
+  NO_VERDICT,
+  askRefusal,
+  evaluateRules,
+  ruleRefusal,
+  withheldNodes,
+  type CallTargets,
+  type RuleSet,
+  type RuleVerdict,
+  type RulesProvider,
+  type SourcedRule,
+} from './rules.js';
 import { portPreflights } from './agent/ports.js';
 import { TOOL_METADATA, capOf, type ToolMetadata, type ToolName, type ToolRisk } from './metadata.js';
 import { coherenceAsyncPorts, coherencePorts, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
@@ -183,6 +196,20 @@ export interface HarnessOptions {
    * server, `skill.load` is refused as not wired and no skill is mentioned.
    */
   readonly skills?: SkillsOption;
+  /**
+   * The agent rules (agent-harness §4), read at each call so a change applies to the next one. A deny refuses a call, an ask needs the
+   * writer's confirmation, and a read-deny withholds its scope from prompts and read tools. Absent, there are no rules. A provider that
+   * throws is read as rules that could not be read, and every call that changes the project is refused.
+   */
+  readonly rules?: RulesProvider;
+}
+
+/** What the rules say about one step, before it is drafted or carded. */
+export interface RuleCheck {
+  /** The refusal when a deny rule covers the step. */
+  readonly denied?: CommandError;
+  /** The ask rule that forces the writer's confirmation of the step. */
+  readonly ask?: SourcedRule;
 }
 
 /** A metadata row, plus what the caller needs to decide whether to call the tool. */
@@ -267,6 +294,13 @@ export interface Harness {
    * (agent-harness §3). A row that is not deferred is already declared, and a name that is not a row is ignored.
    */
   preload(turnId: string, names: readonly string[]): void;
+  /**
+   * The rules' answer for a step with these params. A step that does not prepare is not judged here, since its own refusal comes first.
+   * `external` names a loaded external tool, whose nodes are unknown: `writes` is whether its effective risk is a write.
+   */
+  ruleCheck(tool: string, params: unknown, external?: { readonly writes: boolean }): RuleCheck;
+  /** The binder nodes a read-deny keeps from what `tool` reads: prompts, read tools and scans leave them out. */
+  withheld(tool: string): ReadonlySet<string>;
 }
 
 /**
@@ -385,6 +419,9 @@ function asyncOnly(name: string): CommandError {
     correctiveHint: 'include it as a step of a plan, and wait for the writer to approve the plan card',
   });
 }
+
+const NO_WITHHELD: ReadonlySet<string> = new Set();
+const NO_TARGETS: CallTargets = Object.freeze({ reads: [], writes: [] });
 
 function replayMismatch(call: ToolCall, turn: TurnContext): CommandError {
   return refusal(
@@ -639,6 +676,50 @@ export function createHarness(options: HarnessOptions): Harness {
   };
   const notify = options.notify ?? (() => {});
   const externalWrites = options.externalWrites === true;
+
+  // The agent rules (agent-harness §4), read at each call. A provider that throws is rules that could not be read.
+  const currentRules = (): RuleSet => {
+    if (options.rules === undefined) return NO_RULES;
+    try {
+      return options.rules();
+    } catch {
+      return { rules: [], unreadable: true };
+    }
+  };
+  const withheldFor = (tool: string): ReadonlySet<string> => {
+    const set = currentRules();
+    return set.rules.length === 0 ? NO_WITHHELD : withheldNodes(set, state, tool);
+  };
+  /** The nodes a call names, or undefined when they cannot be worked out (and a scoped rule then fails closed). */
+  const targetsOf = (meta: ToolMetadata, params: CallParams): CallTargets | undefined => {
+    if (meta.targets === 'project') return NO_TARGETS;
+    const targets = meta.targets(params, state);
+    return targets.ok ? targets.value : undefined;
+  };
+  /** The verdict of the rules for a native tool call, and the call's targets (which name the operation of a compound call). */
+  const verdictFor = (meta: ToolMetadata, params: CallParams): { readonly verdict: RuleVerdict; readonly targets?: CallTargets } => {
+    const set = currentRules();
+    if (set.rules.length === 0 && set.unreadable !== true) return { verdict: NO_VERDICT };
+    const targets = targetsOf(meta, params);
+    const verdict = evaluateRules(set, { tool: meta.name, external: false, writes: meta.risk !== 'read' && meta.risk !== 'meta' }, targets, state);
+    return { verdict, ...(targets === undefined ? {} : { targets }) };
+  };
+  /**
+   * The refusal the rules give a native call, or undefined. A deny always refuses. An ask refuses a call that carries no confirmation:
+   * the writer's one-step card or an approved plan is what answers it, and an external caller holds neither.
+   */
+  const ruleRefusalFor = (meta: ToolMetadata, params: CallParams, turn?: TurnContext): CommandError | undefined => {
+    const { verdict, targets } = verdictFor(meta, params);
+    if (verdict.effect === 'deny') {
+      const index = targets?.opOf?.[verdict.target];
+      return ruleRefusal(verdict, meta.name, state, index);
+    }
+    if (verdict.effect === 'ask' && turn !== undefined) {
+      const given = grantedBy(turn);
+      if (given?.confirmed !== true && given?.approvedPlan !== true) return askRefusal(verdict, meta.name);
+    }
+    return undefined;
+  };
   const view: ViewState = createViewState();
   const log = createActivityLog();
   const idempotency = createIdempotencyCache();
@@ -728,6 +809,7 @@ export function createHarness(options: HarnessOptions): Harness {
       clock,
       ...(options.session === undefined ? {} : { session: options.session }),
       writes,
+      withheld: withheldFor(name),
     });
     if (!prepared.ok) return failure(prepared.error) as Result<Prepared, CommandError>;
     return ok({ entry, params: params.value, prepared: prepared.value });
@@ -813,6 +895,7 @@ export function createHarness(options: HarnessOptions): Harness {
       // The writer's approvals reach the port the way they reach the gate: none for an external caller.
       ...(permission === undefined ? {} : { permission }),
       ...(turn.signal === undefined ? {} : { signal: turn.signal }),
+      withheld: withheldFor(call.name),
       // A change to held state outside the bus counts as an effect, so the answer is cached by callId and a
       // replay is not run again (command-bus §6). The port says so; the runtime cannot see the change.
       recordEffect: () => {
@@ -870,6 +953,8 @@ export function createHarness(options: HarnessOptions): Harness {
     // An external caller may write only where the project has opened external writes, and its tools are described to it so (extensibility §9).
     const prep = prepareCall(call.name, call.params, turn.source === 'mcp' ? externalWrites : true);
     if (!prep.ok) return { outcome: failure(prep.error) as ToolOutcome, applied: false };
+    const ruled = ruleRefusalFor(prep.value.entry.meta, prep.value.params, turn);
+    if (ruled !== undefined) return { outcome: failure(ruled) as ToolOutcome, applied: false };
     const grant = toolGrant(prep.value.entry.meta, turn, externalWrites);
     if (!grant.ok) return { outcome: failure(grant.error) as ToolOutcome, applied: false };
 
@@ -971,6 +1056,12 @@ export function createHarness(options: HarnessOptions): Harness {
     check: (tool, params, proposal) => {
       const prep = prepareCall(tool, params);
       if (!prep.ok) return failure(prep.error) as Result<{ readonly preview?: unknown }, CommandError>;
+      // A deny shows on the plan card as a refused step, before anything is drafted or approved. An ask is the card itself.
+      const ruled = verdictFor(prep.value.entry.meta, prep.value.params);
+      if (ruled.verdict.effect === 'deny') {
+        const index = ruled.targets?.opOf?.[ruled.verdict.target];
+        return failure(ruleRefusal(ruled.verdict, tool, state, index)) as Result<{ readonly preview?: unknown }, CommandError>;
+      }
       const held = portStateRefusal(prep.value, proposal);
       if (held !== undefined) return failure(held) as Result<{ readonly preview?: unknown }, CommandError>;
       return ok(prep.value.prepared === undefined ? {} : { preview: prep.value.prepared.preview });
@@ -1102,6 +1193,14 @@ export function createHarness(options: HarnessOptions): Harness {
       ) as ToolOutcome;
     }
 
+    // A deny covers an external tool by its qualified name. Its nodes are unknown, so a scoped deny fails closed. An ask is a no-op:
+    // an external call is confirmed per call whatever the rules say (extensibility §4 rule 2).
+    const rules = currentRules();
+    if (rules.rules.length > 0 || rules.unreadable === true) {
+      const verdict = evaluateRules(rules, { tool: call.name, external: true, writes: tool.effectiveRisk !== 'read-auto' }, undefined, state);
+      if (verdict.effect === 'deny') return failure(ruleRefusal(verdict, call.name, state)) as ToolOutcome;
+    }
+
     // The definition the turn saw: the hash the search showed when it loaded the tool. The bus compares it with the
     // server's hash now, and a mismatch is refused, so a tool the server changed (even if re-approved) is not called
     // under a description this turn never read (extensibility §4 rule 3, §6 expectedPins).
@@ -1166,6 +1265,8 @@ export function createHarness(options: HarnessOptions): Harness {
     if (prep.value.entry.kind !== 'port') {
       return failure(invalidParams(`"${call.name}" is not an async tool, so it is called with call, not callAsync`, 'call it through call()', 'name')) as ToolOutcome;
     }
+    const ruled = ruleRefusalFor(prep.value.entry.meta, prep.value.params, turn);
+    if (ruled !== undefined) return failure(ruled) as ToolOutcome;
     const grant = toolGrant(prep.value.entry.meta, turn, externalWrites);
     if (!grant.ok) return failure(grant.error) as ToolOutcome;
     const port = asyncPorts[prep.value.entry.port];
@@ -1205,7 +1306,7 @@ export function createHarness(options: HarnessOptions): Harness {
     endTurn: clearTurn,
     callExternal,
     callAsync,
-    reviewPlan: (params) => stageReviewPlan(params, state, clock, options.coherence ?? {}),
+    reviewPlan: (params) => stageReviewPlan(params, state, clock, options.coherence ?? {}, withheldFor('coherence.review')),
     loadedAddendum: () => loadedAddendum(loaded.names()),
     skillCatalog: () => {
       const catalog = skillSource === undefined ? undefined : skillCatalogOf(skillStates());
@@ -1222,5 +1323,19 @@ export function createHarness(options: HarnessOptions): Harness {
       loaded.load(names.filter((name) => deferred.has(name)).map((name) => ({ source: 'native', name })));
     },
     loadedExternalTools: () => index().tools.filter((tool) => loaded.isLoaded(tool.qualifiedName)),
+    withheld: withheldFor,
+    ruleCheck: (tool, params, loadedExternal) => {
+      const set = currentRules();
+      if (set.rules.length === 0 && set.unreadable !== true) return {};
+      if (loadedExternal !== undefined) {
+        const verdict = evaluateRules(set, { tool, external: true, writes: loadedExternal.writes }, undefined, state);
+        return verdict.effect === 'deny' ? { denied: ruleRefusal(verdict, tool, state) } : {};
+      }
+      const prep = prepareCall(tool, params);
+      if (!prep.ok) return {};
+      const { verdict, targets } = verdictFor(prep.value.entry.meta, prep.value.params);
+      if (verdict.effect === 'deny') return { denied: ruleRefusal(verdict, tool, state, targets?.opOf?.[verdict.target]) };
+      return verdict.effect === 'ask' ? { ask: verdict.rule } : {};
+    },
   };
 }

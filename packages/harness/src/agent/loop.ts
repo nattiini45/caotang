@@ -69,7 +69,7 @@ import { stagePromptDraftTool, stagePromptVariantTool } from '@caotang/video-pro
 import { limitExceeded, refusal } from '../errors.js';
 import { askBackFor, parsePlan, type AskBack, type AskBackCode, type Plan, type PlanPreflight, type PlanStep } from '../plan.js';
 import { DOCUMENT, descendantsOf, resolveNode } from '../resolve.js';
-import type { Harness, ToolListing } from '../runtime.js';
+import type { Harness, RuleCheck, ToolListing } from '../runtime.js';
 import type { ToolName } from '../metadata.js';
 import type { CallParams, ToolCall, ToolOutcome } from '../types.js';
 import { canonicalJson, isRecord } from '../util.js';
@@ -780,6 +780,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     createContextPort({
       state: () => harness.state,
       config: () => ({ model: gateway.modelLimits(latestPins.profileId, latestPins.model, latestPins.thinking) }),
+      withheld: (tool) => harness.withheld(tool),
     });
   const emit = (event: AgentEvent): void => options.emit?.(event);
   const now = options.clock ?? Date.now;
@@ -962,6 +963,15 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (tool.startsWith('mcp__')) return `"${tool}" is not an external tool loaded this turn. Nothing was run. Call tool.search first, then call the tool by the qualified name it returns.`;
     return undefined;
   };
+
+  /** What the writer's agent rules say about a step (agent-harness §4, "Rules"): a refusal, or a rule that asks for the writer's card. */
+  const ruleOf = (step: PlanStep): RuleCheck => {
+    const external = loadedExternal(step.tool);
+    return harness.ruleCheck(step.tool, step.params, external === undefined ? undefined : { writes: external.effectiveRisk !== 'read-auto' });
+  };
+
+  /** A rule makes this step the writer's call: it is never approved by a mode, and a single write-auto step shows a card. */
+  const asksWriter = (step: PlanStep): boolean => ruleOf(step).ask !== undefined;
 
   /** The writes a turn has applied so far, in order, as the report names them. Reads are not writes. */
   const writesOf = (turn: Turn): string[] =>
@@ -1273,6 +1283,16 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (external !== undefined) {
         refusals.push({ index, tool: step.tool, message: external });
         refusedBeforeCard(turn, step, external);
+        continue;
+      }
+      // A step a deny rule covers is refused here too, before any draft is made, so no model call is spent on it. The harness refuses it
+      // again when it runs: this is the card the writer sees, and that is the backstop.
+      const denied = ruleOf(step).denied;
+      if (denied !== undefined) {
+        const message = refusalSentence(denied.message, denied.correctiveHint);
+        refusals.push({ index, tool: step.tool, message });
+        refusedBeforeCard(turn, step, message);
+        turn.trace.push({ tool: step.tool, callId: `${turn.id}:rule${index}`, outcome: 'refused', code: denied.code, params: step.params });
         continue;
       }
       if (!MODEL_BACKED.has(step.tool)) continue;
@@ -1627,15 +1647,18 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       checkStop(turn);
       const id = nextCallPrefix(turn, 'r');
       const proposal = proposals[index];
-      const first =
-        step.tool === 'agent.delegate'
+      // A read a rule asks about goes to the writer's card first, as a scan over the document guard does.
+      const asked = asksWriter(step);
+      const first: ToolOutcome = asked
+        ? err(refusal('permission-denied', `a rule asks for the writer’s confirmation of ${step.tool}`, { target: step.tool }))
+        : step.tool === 'agent.delegate'
           ? await runDelegate(turn, step, id)
           : await invokeRead(turn, { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) });
       // A read the stop cut short is not a refusal the model should hear about.
       if (!first.ok && turn.signal?.aborted === true) throw new TurnStopped();
       let callId = id;
       let outcome: ToolOutcome = first;
-      if (!first.ok && needsWriterApproval(first.error)) {
+      if (!first.ok && (asked || needsWriterApproval(first.error))) {
         // The refusal came before the scan ran, so nothing has run. The writer decides on a card of its own.
         callId = `${id}.confirm`;
         const decided = await decideCard(turn, 'confirm', callId, { editable: oneStep(step, index, proposal), from: 0, revision: 0, humanOnly: true });
@@ -1858,9 +1881,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const policy = policyOf(turn);
       const remaining = editable.steps.filter((_, index) => index >= start.from && !ranAt(editable, index));
       const writes = remaining.filter((step) => riskOf(step.tool) !== 'read');
+      // A rule that asks makes the card the writer's in every mode.
       const auto =
         start.humanOnly !== true &&
         shown.card.approvable &&
+        !remaining.some(asksWriter) &&
         policy.approves({ tools: writes.map((step) => step.tool), external: remaining.some((step) => loadedExternal(step.tool) !== undefined) });
       if (auto) holdToBudget(turn, editable, writes);
       // Each step that has not run is pending from the moment its card is shown (agent-harness §8).
@@ -2320,9 +2345,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    */
   async function runWrites(turn: Turn, plan: Plan, staged: Staged): Promise<Settled | 'continue'> {
     const single = plan.steps.length === 1 ? (plan.steps[0] as PlanStep) : undefined;
-    const kind: 'plan' | 'confirm' = single !== undefined && riskOf(single.tool) === 'write-confirm' ? 'confirm' : 'plan';
+    // A rule that asks gives a single write-auto call the one-step card a write-confirm call has (agent-harness §4, "Rules").
+    const asked = single !== undefined && asksWriter(single);
+    const kind: 'plan' | 'confirm' = single !== undefined && (riskOf(single.tool) === 'write-confirm' || asked) ? 'confirm' : 'plan';
     // A single write-auto call runs at once: a reversible op skips the plan (agent-harness §2).
-    const auto = single !== undefined && riskOf(single.tool) !== 'write-confirm' && staged.stale?.some(Boolean) !== true;
+    const auto = single !== undefined && !asked && riskOf(single.tool) !== 'write-confirm' && staged.stale?.some(Boolean) !== true;
     if (plan.steps.some((step) => step.params['selection'] !== undefined)) await preloadAnchorLibraries();
 
     let editable: EditableSteps = {
