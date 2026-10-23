@@ -157,9 +157,8 @@ export class CidEmbedding {
       (glyph.final === true ? finals : body).push(setTextMatrix(1, 0, 0, 1, pen + glyph.dx * scale, y + glyph.dy * scale), showText(PDFHexString.of(hex4(this.cidOf(glyph)))));
       pen += glyph.advance * scale;
     }
-    operators.push(...body, endText(), ...(actual === undefined ? [] : [endMarkedContent()]));
-    if (finals.length > 0) operators.push(beginMarkedContent('Span'), beginText(), setFontAndSize(key, size), ...finals, endText(), endMarkedContent());
-    operators.push(popGraphicsState());
+    // The marks go inside the text object, after the word, as the screenplay PDF writes them.
+    operators.push(...body, ...(finals.length > 0 ? [beginMarkedContent('Span'), ...finals, endMarkedContent()] : []), endText(), ...(actual === undefined ? [] : [endMarkedContent()]), popGraphicsState());
     page.pushOperators(...operators);
   }
 
