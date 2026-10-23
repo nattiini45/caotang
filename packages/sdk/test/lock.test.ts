@@ -201,18 +201,24 @@ describe('a name Windows refuses while another writer is deleting it', () => {
   });
 
   /**
-   * The lock's exclusive create, refused on every attempt with `code`. `attempts` reads the
-   * number of tries, so a test can pin the bound or its absence.
+   * An exclusive create of `target`, refused with `code` once and then handed to the real
+   * filesystem, or on every attempt. Only a `wx` create is intercepted, so the fake models the
+   * exclusive create and not every open of that path. `attempts` reads the number of tries, so a
+   * test can pin the bound or its absence.
    */
-  function createRefusedWith(code: string): { readonly open: typeof realFs.open; readonly attempts: () => number } {
-    const lock = join(root, LOCK_FILE);
+  function createRefused(
+    target: string,
+    code: string,
+    mode: 'once' | 'always',
+  ): { readonly open: typeof realFs.open; readonly attempts: () => number } {
     let attempts = 0;
     return {
       attempts: () => attempts,
-      open: (async (target: string, flags: string) => {
-        if (String(target) !== lock) return realFs.open(target, flags as never);
+      open: (async (path: string, flags: string) => {
+        if (String(path) !== target || flags !== 'wx') return realFs.open(path, flags as never);
         attempts += 1;
-        throw Object.assign(new Error(`${code}: refused, open '${lock}'`), { code });
+        if (mode === 'once' && attempts > 1) return realFs.open(path, flags as never);
+        throw Object.assign(new Error(`${code}: refused, open '${target}'`), { code });
       }) as unknown as typeof realFs.open,
     };
   }
@@ -229,33 +235,21 @@ describe('a name Windows refuses while another writer is deleting it', () => {
     // A stale lock, and the marker of a takeover of it that died and left the marker behind.
     writeFileSync(lock, JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() }));
     writeFileSync(marker, JSON.stringify({ pid, token: 'marker', startedAt: new Date().toISOString() }));
-    let attempts = 0;
+    // The marker is being removed at that moment: the first create is refused, and the name is
+    // still there when the writer looks again.
+    const refusal = createRefused(marker, 'EPERM', 'once');
     try {
-      await withFs(
-        {
-          open: (async (target: string, flags: string) => {
-            if (String(target) !== marker || flags !== 'wx') return realFs.open(target, flags as never);
-            attempts += 1;
-            // The marker is being removed at that moment: the first create is refused, and the
-            // name is still there when the writer looks again.
-            if (attempts === 1) {
-              throw Object.assign(new Error(`EPERM: operation not permitted, open '${marker}'`), { code: 'EPERM' });
-            }
-            return realFs.open(target, flags as never);
-          }) as unknown as typeof realFs.open,
-        },
-        async (lockModule) => {
-          const error = await lockModule.acquireProjectLock(root).then(
-            () => undefined,
-            (caught: unknown) => caught,
-          );
-          expect(error).toBeInstanceOf(lockModule.ProjectLockedError);
-          expect((error as ProjectLockedError).refusal.takeoverMarker).toBe(marker);
-          expect((error as ProjectLockedError).message).toContain(marker);
-        },
-      );
+      await withFs({ open: refusal.open }, async (lockModule) => {
+        const error = await lockModule.acquireProjectLock(root).then(
+          () => undefined,
+          (caught: unknown) => caught,
+        );
+        expect(error).toBeInstanceOf(lockModule.ProjectLockedError);
+        expect((error as ProjectLockedError).refusal.takeoverMarker).toBe(marker);
+        expect((error as ProjectLockedError).message).toContain(marker);
+      });
       // The create was tried once more: the first refusal was the delete in progress, not the folder.
-      expect(attempts).toBe(2);
+      expect(refusal.attempts()).toBe(2);
       // Neither file was the loser's to remove.
       expect(existsSync(lock)).toBe(true);
       expect(existsSync(marker)).toBe(true);
@@ -266,29 +260,17 @@ describe('a name Windows refuses while another writer is deleting it', () => {
 
   it('takes the lock when its own name is refused for a moment while it is being removed', async () => {
     const lock = join(root, LOCK_FILE);
-    let attempts = 0;
+    // The lock of a writer that has only the release left to do: its name is refused for a
+    // moment, and the next attempt creates this writer's lock.
+    const refusal = createRefused(lock, 'EPERM', 'once');
     try {
-      await withFs(
-        {
-          open: (async (target: string, flags: string) => {
-            if (String(target) !== lock || flags !== 'wx') return realFs.open(target, flags as never);
-            attempts += 1;
-            // The lock of a writer that has only the release left to do: its name is refused
-            // for a moment, and the next attempt creates this writer's lock.
-            if (attempts === 1) {
-              throw Object.assign(new Error(`EPERM: operation not permitted, open '${lock}'`), { code: 'EPERM' });
-            }
-            return realFs.open(target, flags as never);
-          }) as unknown as typeof realFs.open,
-        },
-        async (lockModule) => {
-          const held = await lockModule.acquireProjectLock(root);
-          const holder = JSON.parse(readFileSync(lock, 'utf8')) as { pid: number };
-          expect(holder.pid).toBe(process.pid);
-          await held.release();
-        },
-      );
-      expect(attempts).toBe(2);
+      await withFs({ open: refusal.open }, async (lockModule) => {
+        const held = await lockModule.acquireProjectLock(root);
+        const holder = JSON.parse(readFileSync(lock, 'utf8')) as { pid: number };
+        expect(holder.pid).toBe(process.pid);
+        await held.release();
+      });
+      expect(refusal.attempts()).toBe(2);
       expect(existsSync(lock)).toBe(false);
     } finally {
       clearLock(root);
@@ -296,7 +278,8 @@ describe('a name Windows refuses while another writer is deleting it', () => {
   });
 
   it("reports a refusal that outlasts the tries as the folder's, rather than as lock contention", async () => {
-    const refusal = createRefusedWith('EPERM');
+    const lock = join(root, LOCK_FILE);
+    const refusal = createRefused(lock, 'EPERM', 'always');
     await withFs({ open: refusal.open }, async (lockModule) => {
       const error = await lockModule.acquireProjectLock(root).then(
         () => undefined,
@@ -314,8 +297,9 @@ describe('a name Windows refuses while another writer is deleting it', () => {
   it('does not retry a refusal that is not Windows deleting the name', async () => {
     // Only `EPERM` is retried: an error the operating system reports as another code is not
     // assumed to mean a delete, and is thrown at once.
+    const lock = join(root, LOCK_FILE);
     for (const code of ['EACCES', 'EBUSY', 'ENOSPC']) {
-      const refusal = createRefusedWith(code);
+      const refusal = createRefused(lock, code, 'always');
       await withFs({ open: refusal.open }, async (lockModule) => {
         const error = await lockModule.acquireProjectLock(root).then(
           () => undefined,
