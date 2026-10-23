@@ -11,12 +11,14 @@ import {
   reduceTaskList,
   type AgentEvent,
   type AskBack,
+  type BudgetSpend,
   type PreviewLayer,
   type Finding,
   type NameOf,
   type PermissionMode,
   type PlanCardView,
   type PlanStepView,
+  type RunLimits,
   type SteeringNote,
   type StatusCard,
   type TaskList,
@@ -88,6 +90,8 @@ export interface TurnView {
   readonly tasks: TaskList;
   /** The notes the writer sent that the model has read, in order (agent-harness §2, "Stop and steer"). */
   readonly steering: readonly SteeringNote[];
+  /** The run's spend and its limits after the last model call, for the live spend line (agent-harness §7.1). `null` before the first call. */
+  readonly run: { readonly spend: BudgetSpend; readonly limits: RunLimits } | null;
 }
 
 /** A turn that has been submitted and has not yet reported its id. */
@@ -118,6 +122,7 @@ export function newTurnView(
     context: null,
     tasks: emptyTaskList(turnId),
     steering: [],
+    run: null,
   };
 }
 
@@ -144,6 +149,8 @@ function reduceView(turn: TurnView, event: AgentEvent): TurnView {
       return { ...turn, context: { layers: event.layers, dropped: event.dropped } };
     case 'steer':
       return { ...turn, steering: [...turn.steering, event.note] };
+    case 'budget':
+      return { ...turn, run: { spend: event.spend, limits: event.limits } };
     case 'card': {
       const index = turn.cards.findIndex((card) => card.id === event.card.id);
       const cards = index === -1 ? [...turn.cards, event.card] : turn.cards.map((card, at) => (at === index ? event.card : card));
@@ -221,6 +228,30 @@ export const CHECKPOINT_LABEL_TEXT = CHECKPOINT_LABEL;
 /** The options an ask-back offers, as the words the card shows. An empty list is shown as the reason alone. */
 export function askBackOptions(askBack: AskBack): readonly string[] {
   return askBack.options.filter((option) => option.trim() !== '');
+}
+
+/** Active time as m:ss, the way the spend line and the limit read. */
+export function formatClock(milliseconds: number): string {
+  const seconds = Math.floor(Math.max(0, milliseconds) / 1000);
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+/**
+ * The live spend line (agent-harness §7.1): what the run has used of each limit the writer set, and the time worked. A figure with no
+ * limit is shown on its own. `undefined` before the first model call, and for a turn that reported no spend.
+ */
+export function spendLine(run: TurnView['run']): string | undefined {
+  if (run === null) return undefined;
+  const { spend, limits } = run;
+  const of = (used: string, limit: string | undefined): string => (limit === undefined ? used : `${used} of ${limit}`);
+  const tokens = spend.promptTokens + spend.completionTokens;
+  const parts = [`${of(tokens.toLocaleString('en-US'), limits.maxTokens?.toLocaleString('en-US'))} tokens`];
+  if (spend.costUsd !== undefined || limits.maxCostUsd !== undefined) {
+    parts.push(of(`$${(spend.costUsd ?? 0).toFixed(4)}`, limits.maxCostUsd === undefined ? undefined : `$${limits.maxCostUsd.toFixed(4)}`));
+  }
+  if (limits.maxSteps !== undefined) parts.push(`${spend.steps} of ${limits.maxSteps} steps`);
+  parts.push(`${of(formatClock(spend.activeMs), limits.maxActiveMs === undefined ? undefined : formatClock(limits.maxActiveMs))} worked`);
+  return parts.join(' · ');
 }
 
 /** A card's one-line name: the tool, and the step it is in a plan. */

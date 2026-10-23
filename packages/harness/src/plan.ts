@@ -93,7 +93,8 @@ export interface StepResult {
   readonly value: ToolValue;
 }
 
-export type AskBackCode = 'verify_failed' | 'anchor_unresolvable' | 'needs_input' | 'conflict';
+/** `budget_exhausted`: the run reached a limit the writer set (agent-harness §7.1). */
+export type AskBackCode = 'verify_failed' | 'anchor_unresolvable' | 'needs_input' | 'conflict' | 'budget_exhausted';
 
 /** agent-harness §2's envelope, shared by a failed check and an unresolvable anchor. */
 export interface AskBack {
@@ -311,6 +312,8 @@ function optionsFor(code: AskBackCode): readonly string[] {
         're-read the project with binder.read_tree or project.overview',
         'drop this step and approve the rest of the plan',
       ];
+    case 'budget_exhausted':
+      return ['raise the limit in Settings › Agent, then send the request again', 'stop here and keep what was applied'];
   }
 }
 

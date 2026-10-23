@@ -42,7 +42,7 @@ Each of these is its own milestone, designed when its turn comes.
 
 ## Not planned
 
-- Accounts, subscriptions or credit meters in the local version.
+- Accounts, subscriptions or credit meters in the local version. (Run limits the writer sets on their own key are not meters: Caotang counts nothing it charges for.)
 - Telemetry or analytics.
 - Video generation inside Caotang. It writes prompt packs; you generate video in your own tool with your own account.
 

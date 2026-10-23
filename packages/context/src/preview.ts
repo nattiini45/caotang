@@ -6,7 +6,8 @@
  * `toChatMessages` of the same object the call sends, and its token counts are the
  * assembly's. The spec calls this "zero drift between preview and execution".
  *
- * The cost figure is display-only (provider-gateway §6, D4). No quota follows from it.
+ * The cost figure is an estimate for the writer to read (provider-gateway §6, D4). Caotang sets no quota from it; a limit the writer
+ * sets is the harness's to enforce, from the same prices (agent-harness §7.1).
  */
 
 import { PREVIEW_CHARS, DEFAULT_MAX_OUTPUT_TOKENS } from './profiles.js';

@@ -20,7 +20,7 @@ interface ProviderProfile {
   defaultModel: string;
   temperature?: number;       // default 0.7
   maxOutputTokens?: number;   // default 4096; harness may override per call
-  pricePer1k?: { prompt: number; completion: number };  // optional, USD; display-only
+  pricePer1k?: { prompt: number; completion: number };  // optional, USD; shown as an estimate, and read by a cost limit (agent-harness §7.1)
   isActive: boolean;          // exactly one profile active at a time
 }
 ```
@@ -126,7 +126,7 @@ interface ProviderAdapter {
 ## 6. Token accounting
 
 - `Usage` from each response chunk is accumulated **per agent turn and per calendar day**, stored locally: `usageLedger: {date, profileId, model, role, promptTokens, completionTokens, requests}`.
-- `role` is the task role (`chat` | `drafting` | `background`) the request ran under, so cost is visible per role. Activity log shows per-turn totals (harness) and settings shows per-day totals (gateway ledger). This is local-only accounting; no quota enforcement beyond display (D4 below).
+- `role` is the task role (`chat` | `drafting` | `background`) the request ran under, so cost is visible per role. Activity log shows per-turn totals (harness) and settings shows per-day totals (gateway ledger). This is local-only accounting; Caotang sets no quota of its own, and the run limits a writer sets are enforced by the harness, not the gateway (D4 below, agent-harness §7.1).
 - **Delegated agents** (agent-harness §2, "Delegate") are attributed beneath the turn. A `ChatRequest` and a `UsageAttribution` carry an optional `agentPath` (`<turn>/reader#1`), and the ledger's turn rows are keyed by it as well as by profile, model and role, so a turn's tokens can be split by the agent that made the request. A request carries the **parent turn's** `turnId`, so `turnTotals(turnId)` still sums the whole turn, children included. The day rows do not carry it. `agentPath` is display and ledger only; no gateway behaviour reads it, and it adds no network destination: an agent's requests go through the same profile, key and egress pin as the turn's own.
 - **Background tasks** (agent-harness §2) stage under the `background` role, on the profile, model and thinking the role resolves to, with the task's id as the session name, so the ledger's rows for a task carry `role: background` and a turn id that names it, and the task's row in the panel shows their totals. Priority between the foreground and the background is cooperative: the task's runner makes one call at a time and waits before each while a foreground turn is busy. A call already in flight is not preempted, so it still counts against a rate-limited key. A gateway limiter that ranks foreground requests ahead of background ones is not built.
 
@@ -167,4 +167,4 @@ A local model server (`cors: 'local'`) is not swept: whether the browser may cal
 | D1 | Three adapters — Chat Completions, Responses, Messages — behind `ProviderAdapter` | Built; presets pick a route per provider, per model where a provider splits them. |
 | D2 | `response_format` via capability rows on presets, probe-gated on generic | Rows answer for shipped presets; the generic profile keeps the save-time probe. |
 | D3 | Keys: IndexedDB + AES-GCM non-extractable key | Built; the threat model is stated in §7. |
-| D4 | Usage display-only, no quota enforcement | Display only: Caotang is free and BYOK, so there is no quota logic. `pricePer1k` per profile powers pre-approval cost estimates (context-assembly §5). |
+| D4 | No quota of Caotang's own; writer-set run limits are enforced by the harness | Caotang is free and BYOK, so it has no quota logic. A cap the writer sets on their own key (calls, tokens, cost, steps, time) is not a quota: the harness reserves each call's worst case before it sends it (agent-harness §7.1), from this gateway's `modelLimits` and the request's prompt estimate, and the ledger stays what it was, a record. `pricePer1k` per profile powers pre-approval cost estimates (context-assembly §5) and the cost limit. |

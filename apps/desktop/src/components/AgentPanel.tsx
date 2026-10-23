@@ -25,7 +25,7 @@ import {
 import type { ProjectState } from '@caotang/store';
 
 import { DEMO_CHOICES } from '../app/demo.js';
-import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, MODE_HINTS, phaseLabel, type DelegationCardView, type TurnView } from '../app/agent-model.js';
+import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, MODE_HINTS, phaseLabel, spendLine, type DelegationCardView, type TurnView } from '../app/agent-model.js';
 import { formatUsd, turnCostOf } from '../app/plan-preview.js';
 import { resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
@@ -151,6 +151,7 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
   const provider = snapshot.providerName;
   const running = snapshot.turns[snapshot.turns.length - 1];
   const stepLine = running === undefined || isSettled(running) ? null : headerLineOf(running.tasks);
+  const spend = running === undefined || isSettled(running) ? undefined : spendLine(running.run);
   return (
     <section className={`agent${open ? ' is-open' : ''}`} aria-label="Agent" data-testid="agent-panel" onKeyDown={onPanelKey}>
       <header className="agent-head">
@@ -179,6 +180,12 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
             {stepLine ?? (snapshot.pending !== null ? 'Waiting for you' : 'Working…')}
           </span>
         ) : null}
+        {/* What the run has used of the limits the writer set: tokens, cost, steps and time worked, after each model call. */}
+        {spend === undefined || (!snapshot.busy && snapshot.pending === null) ? null : (
+          <span className="agent-spend" data-testid="agent-spend">
+            {spend}
+          </span>
+        )}
         {snapshot.stoppable ? (
           <button
             type="button"
@@ -552,6 +559,7 @@ const ASKBACK_TITLES: Readonly<Record<AskBack['code'], string>> = {
   conflict: 'The text changed under this draft',
   verify_failed: 'The change did not check out',
   anchor_unresolvable: 'The selected text could not be found',
+  budget_exhausted: 'The run reached a limit',
 };
 
 /** The ask-back envelope (agent-harness §2): why the turn stopped and the next actions it offers, as a card. */

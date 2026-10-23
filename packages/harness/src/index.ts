@@ -88,6 +88,20 @@ export {
   type SessionBudget,
   type TurnBudget,
 } from './agent/mode.js';
+// Run limits (agent-harness §7.1): the meter that reserves each model call's worst case, and the time limits that abort a turn.
+export {
+  DEFAULT_ACTIVE_MS,
+  anySignal,
+  createBudgetMeter,
+  runLimitWords,
+  stepLimitWords,
+  type BudgetMeter,
+  type BudgetMeterOptions,
+  type BudgetSpend,
+  type BudgetStop,
+  type Reservation,
+  type RunLimits,
+} from './agent/budget.js';
 // Background runs (agent-harness §2): the offer's threshold, what a plan costs in model calls, and which staged steps have gone stale.
 export {
   BACKGROUND_OFFER_MIN_CALLS,

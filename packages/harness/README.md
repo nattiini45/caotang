@@ -125,6 +125,7 @@ The two system prefixes (`PLANNER_SYSTEM_PREFIX`, `DRAFT_SYSTEM_PREFIX`) are dup
   retried or cancelled (step 8 above).
 - `verify_failed`: a postcondition failed, or an internal defect. Reported, and not retried.
 - `anchor_unresolvable`: a selection the ladder could not place, with up to three candidates and the drift.
+- `budget_exhausted`: the run reached a limit the writer set (a run limit, agent-harness §7.1), or the call that would pass one was not sent.
 
 ### Model-call stops, and the draft a provider cut
 

@@ -12,6 +12,7 @@ import type { LayerReport } from '@caotang/context';
 
 import type { AskBack, PlanStep } from '../plan.js';
 import type { PlanCardView, PlanEdit, StatusCard } from './cards.js';
+import type { BudgetSpend, BudgetStop, RunLimits } from './budget.js';
 import type { Finding } from './drafting.js';
 import type { BudgetUse, PermissionMode } from './mode.js';
 
@@ -89,6 +90,10 @@ export interface TurnReport {
   readonly modelCalls: number;
   /** Present when the writer stopped the turn. `status` is then `cancelled`, and whatever was applied before the stop stays in the undo group. */
   readonly stop?: TurnStop;
+  /** Present when the turn ended on a run limit (agent-harness §7.1): the limit, and for a refused call what it would have needed. `status` is `failed`, never `cancelled`. */
+  readonly budgetStop?: BudgetStop;
+  /** The run's spend after this turn, when the session has a meter. */
+  readonly spend?: BudgetSpend;
   /** The notes the writer sent during the turn, in order. A note without `deliveredAtCall` was not delivered: the turn ended first. */
   readonly steering?: readonly SteeringNote[];
   /** The permission mode the turn ended in (agent-harness §4). A switch in the middle of a turn applies from the next card. */
@@ -147,6 +152,8 @@ export type AgentEvent =
   | { readonly type: 'ladder'; readonly turnId: string; readonly callId: string; readonly attempt: number; readonly askBack: AskBack }
   /** The checkpoint row (command-bus §5): the turn's undo group, and the label that says what one click does. */
   | { readonly type: 'checkpoint'; readonly turnId: string; readonly undoGroupId: string; readonly label: string; readonly note?: string; readonly mode: PermissionMode }
+  /** The run's spend, after a model call was allowed and after it settled (agent-harness §7.1). Only a session with a meter emits it. */
+  | { readonly type: 'budget'; readonly turnId: string; readonly spend: BudgetSpend; readonly limits: RunLimits }
   /** A steering note reached the model: delivered with the request named in `note.deliveredAtCall`. */
   | { readonly type: 'steer'; readonly turnId: string; readonly note: SteeringNote }
   | { readonly type: 'report'; readonly turnId: string; readonly report: TurnReport };

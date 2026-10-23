@@ -2365,6 +2365,14 @@ dialog.confirm::backdrop {
   white-space: nowrap;
 }
 
+/* The run's spend under the step line while a turn works: tokens, cost and time worked against the limits the writer set. */
+.agent-spend {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .agent-body {
   overflow-y: auto;
   padding: 4px 16px 16px;

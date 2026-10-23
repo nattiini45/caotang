@@ -1,25 +1,35 @@
 /**
- * The permission-mode part of Settings › Agent (agent-harness §4): the mode a panel starts in, the switch that turns Auto off, and
- * the limits a turn is held to while Accept edits or Auto decides its cards. App settings only; no project file carries any of it.
- * An empty limit keeps the harness's default. A typed one is checked on save against the range it loads in.
+ * The permission-mode part of Settings › Agent (agent-harness §4): the mode a panel starts in, the switch that turns Auto off, the
+ * run limits a turn is held to in every mode (§7.1) and the limits it is also held to while Accept edits or Auto decides its cards.
+ * App settings only; no project file carries any of it. An empty limit keeps the harness's default, or is not a limit. A typed one is
+ * checked on save against the range it loads in.
  */
 
 import { useState, type FormEvent, type ReactNode } from 'react';
 
-import { DEFAULT_TURN_BUDGET, MODE_LABELS, PERMISSION_MODES, type PermissionMode } from '@caotang/harness';
+import { DEFAULT_ACTIVE_MS, DEFAULT_TURN_BUDGET, MODE_LABELS, PERMISSION_MODES, type PermissionMode } from '@caotang/harness';
 
 import { MODE_HINTS } from '../app/agent-model.js';
 import type { AppServices } from '../app/services.js';
 import { AGENT_BUDGET_RANGES, type AgentBudgetSettings } from '../app/settings.js';
 
-const FIELDS = [
-  { key: 'maxTokens', label: 'Tokens per turn', fallback: DEFAULT_TURN_BUDGET.maxTokens },
-  { key: 'maxWordsChanged', label: 'Words changed per turn', fallback: DEFAULT_TURN_BUDGET.maxWordsChanged },
-  { key: 'maxDocuments', label: 'Documents touched per turn', fallback: DEFAULT_TURN_BUDGET.maxDocuments },
-  { key: 'maxSteps', label: 'Steps per turn', fallback: DEFAULT_TURN_BUDGET.maxSteps },
+/** The run limits: held in every mode, each model call's worst case reserved before it is sent (agent-harness §7.1). */
+const RUN_FIELDS = [
+  { key: 'maxModelCalls', label: 'Model calls per turn', placeholder: String(DEFAULT_TURN_BUDGET.maxModelCalls) },
+  { key: 'maxActiveMinutes', label: 'Minutes of work per turn', placeholder: String(DEFAULT_ACTIVE_MS / 60_000) },
+  { key: 'maxTokens', label: 'Tokens per turn', placeholder: 'no limit' },
+  { key: 'maxSteps', label: 'Steps per turn', placeholder: 'no limit' },
 ] as const;
 
-type BudgetField = (typeof FIELDS)[number]['key'];
+/** The limits Accept edits and Auto also hold a turn to, measured after a card applies. */
+const FIELDS = [
+  { key: 'maxWordsChanged', label: 'Words changed per turn', placeholder: String(DEFAULT_TURN_BUDGET.maxWordsChanged) },
+  { key: 'maxDocuments', label: 'Documents touched per turn', placeholder: String(DEFAULT_TURN_BUDGET.maxDocuments) },
+] as const;
+
+const ALL_FIELDS = [...RUN_FIELDS, ...FIELDS];
+
+type BudgetField = (typeof ALL_FIELDS)[number]['key'];
 
 /** A typed limit: `null` for an empty field (the default applies), `undefined` for a value outside its range. */
 function readLimit(text: string, key: BudgetField): number | null | undefined {
@@ -35,6 +45,8 @@ export function AgentModeSettings({ services }: { services: AppServices }): Reac
   const [mode, setMode] = useState<PermissionMode>(current.defaultMode);
   const [locked, setLocked] = useState(current.lockAuto);
   const [limits, setLimits] = useState<Record<BudgetField | 'maxCostUsd', string>>({
+    maxModelCalls: String(current.budget.maxModelCalls ?? ''),
+    maxActiveMinutes: String(current.budget.maxActiveMinutes ?? ''),
     maxTokens: String(current.budget.maxTokens ?? ''),
     maxWordsChanged: String(current.budget.maxWordsChanged ?? ''),
     maxDocuments: String(current.budget.maxDocuments ?? ''),
@@ -60,7 +72,7 @@ export function AgentModeSettings({ services }: { services: AppServices }): Reac
   const saveLimits = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
     const budget: { -readonly [K in keyof AgentBudgetSettings]: AgentBudgetSettings[K] } = {};
-    for (const field of FIELDS) {
+    for (const field of ALL_FIELDS) {
       const value = readLimit(limits[field.key], field.key);
       if (value === undefined) {
         const [min, max] = AGENT_BUDGET_RANGES[field.key];
@@ -103,13 +115,15 @@ export function AgentModeSettings({ services }: { services: AppServices }): Reac
         <input type="checkbox" checked={locked} data-testid="agent-lock-auto" onChange={(event) => lock(event.target.checked)} />
         <span>Turn Auto mode off</span>
       </label>
-      <h4>Limits while Accept edits or Auto decides</h4>
+      <h4>Run limits</h4>
       <p className="settings-note">
-        A turn stops on a question when the next step would pass a limit. Leave a field empty for its default. Model calls per turn are
-        {` ${DEFAULT_TURN_BUDGET.maxModelCalls}`} in every mode. The cost limit needs a price on the active profile.
+        Limits you set on your own key. A turn is held to them in every mode: it stops on a question before a model call that could pass
+        one, and a turn that works for its minutes is ended mid-call. Leave a field empty for its default, or for no limit. The cost
+        limit needs prices on the active profile (Settings › Providers). In Accept edits and Auto, a turn is also held to {(DEFAULT_TURN_BUDGET.maxTokens ?? 0).toLocaleString('en-US')} tokens
+        and {DEFAULT_TURN_BUDGET.maxSteps ?? 0} steps when those are empty.
       </p>
       <form className="settings-form" noValidate onSubmit={saveLimits}>
-        {FIELDS.map((field) => (
+        {RUN_FIELDS.map((field) => (
           <label key={field.key}>
             <span>{field.label}</span>
             <input
@@ -117,7 +131,7 @@ export function AgentModeSettings({ services }: { services: AppServices }): Reac
               min={AGENT_BUDGET_RANGES[field.key][0]}
               max={AGENT_BUDGET_RANGES[field.key][1]}
               step={1}
-              placeholder={String(field.fallback)}
+              placeholder={field.placeholder}
               value={limits[field.key]}
               onChange={(event) => setLimits({ ...limits, [field.key]: event.target.value })}
             />
@@ -127,6 +141,21 @@ export function AgentModeSettings({ services }: { services: AppServices }): Reac
           <span>Cost per turn, in dollars</span>
           <input type="number" min={0} step="any" placeholder="no limit" value={limits.maxCostUsd} onChange={(event) => setLimits({ ...limits, maxCostUsd: event.target.value })} />
         </label>
+        <h4>Also while Accept edits or Auto decides</h4>
+        {FIELDS.map((field) => (
+          <label key={field.key}>
+            <span>{field.label}</span>
+            <input
+              type="number"
+              min={AGENT_BUDGET_RANGES[field.key][0]}
+              max={AGENT_BUDGET_RANGES[field.key][1]}
+              step={1}
+              placeholder={field.placeholder}
+              value={limits[field.key]}
+              onChange={(event) => setLimits({ ...limits, [field.key]: event.target.value })}
+            />
+          </label>
+        ))}
         <button type="submit" className="button is-primary">
           Save limits
         </button>
