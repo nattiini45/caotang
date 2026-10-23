@@ -59,7 +59,7 @@
 import { preloadAnchorLibraries } from '@caotang/editor';
 import { err, ok, type CommandError, type Result, type UndoOutcome } from '@caotang/bus';
 import { ContextError, type AgentTask, type PromptPreview, type RecentTurn, type SelectionSpan } from '@caotang/context';
-import type { ChatMessage, Gateway, TaskRole, ThinkingLevel, ToolCall as WireToolCall, ToolDef } from '@caotang/gateway';
+import { estimateTokens, usageFor, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
 import { newId } from '@caotang/ids';
 import { SKILL_CATALOG_TOKENS } from '@caotang/skills';
 import { getBody, getRevision, type ProjectState, type TreeNode } from '@caotang/store';
@@ -67,7 +67,7 @@ import { dialogueDraftTool, resolveContainer } from '@caotang/dialogue';
 import { stagePromptDraftTool, stagePromptVariantTool } from '@caotang/video-prompt-pack';
 
 import { limitExceeded, refusal } from '../errors.js';
-import { askBackFor, parsePlan, type AskBack, type Plan, type PlanPreflight, type PlanStep } from '../plan.js';
+import { askBackFor, parsePlan, type AskBack, type AskBackCode, type Plan, type PlanPreflight, type PlanStep } from '../plan.js';
 import { DOCUMENT, descendantsOf, resolveNode } from '../resolve.js';
 import type { Harness, ToolListing } from '../runtime.js';
 import type { ToolName } from '../metadata.js';
@@ -111,6 +111,7 @@ import {
   type StatusCard,
   type StatusState,
 } from './cards.js';
+import { anySignal, runLimitWords, stepLimitWords, type BudgetMeter, type BudgetStop, type Reservation } from './budget.js';
 import {
   CHECKPOINT_LABEL,
   DEFAULT_MAX_MODEL_CALLS,
@@ -207,7 +208,7 @@ export interface AgentSessionOptions {
    * the provider's own default applies.
    */
   readonly thinking?: ThinkingLevel;
-  /** The most model calls one turn may make, retries and drafts included. Default 8. Read when the session is made. */
+  /** The most model calls one turn may make, retries and drafts included. Default 8. Read at the start of each turn. */
   readonly maxModelCalls?: number;
   /**
    * The permission mode (agent-harness §4), read at each card, so a switch applies from the next card. Absent, `ask`: every card is
@@ -231,6 +232,12 @@ export interface AgentSessionOptions {
   readonly price?: () => { readonly prompt: number; readonly completion: number } | undefined;
   /** Awaited before a card the mode approves is applied, so the app can save the writer's typing as an approval does. */
   readonly beforeAutoApply?: (card: PlanCardView) => Promise<void>;
+  /**
+   * The run limits (agent-harness §7.1), or a function that reads the meter of the turn about to start. Every model call reserves its
+   * worst case from the meter before it is sent, a time limit aborts the turn's signal, and a step limit refuses a plan before it is drafted.
+   * Absent, nothing beyond the model-call bound is enforced. A meter shared by several turns is the caller's to dispose.
+   */
+  readonly meter?: BudgetMeter | (() => BudgetMeter | undefined);
   /** How many times the verify ladder may adjust and re-show a refused step (agent-harness §7). Default 2. */
   readonly maxRetries?: number;
   /**
@@ -384,7 +391,11 @@ function checkStop(turn: Turn): void {
  * budget a mode that decides cards reached. It ends the turn on an ask-back that carries `stop`'s words.
  */
 class BudgetExceeded extends Error {
-  constructor(readonly stop: { readonly reason: string; readonly options: readonly string[] }) {
+  constructor(
+    readonly stop: { readonly reason: string; readonly options: readonly string[]; readonly code?: AskBackCode },
+    /** Set when a run limit refused the call (agent-harness §7.1). */
+    readonly budgetStop?: BudgetStop,
+  ) {
     super(stop.reason);
     this.name = 'BudgetExceeded';
   }
@@ -432,8 +443,12 @@ interface Turn {
   /** The turns this one follows, oldest first: L6's source (context-assembly §2). Taken when the turn starts. */
   readonly priorTurns: readonly RecentTurn[];
   modelCalls: number;
-  /** The writer's stop (`TurnOptions.signal`). */
+  /** The writer's stop (`TurnOptions.signal`) and the meter's time limits, as one signal. */
   readonly signal: AbortSignal | undefined;
+  /** The run limits this turn is held to (agent-harness §7.1). */
+  readonly meter: BudgetMeter | undefined;
+  /** Write steps already counted into the meter. */
+  metered: number;
   /** The profile, model and thinking level this turn's calls run on: its own pins over the session's. */
   readonly pins: Pins;
   /** The phase the turn last reported: what a stop says it happened during. */
@@ -485,6 +500,8 @@ interface Settled {
   readonly text?: string;
   readonly askBack?: AskBack;
   readonly summary?: string;
+  /** The run limit the turn ended on. */
+  readonly budgetStop?: BudgetStop;
 }
 
 /** What drafting produced for a call's model-backed steps. A refusal is returned to the model, not thrown. */
@@ -675,8 +692,8 @@ function budgetAskBack(limit: number): AskBack {
   return askBackOf(modelCallBound(limit).stop);
 }
 
-function askBackOf(stop: { readonly reason: string; readonly options: readonly string[] }): AskBack {
-  return { code: 'needs_input', reason: stop.reason, options: stop.options };
+function askBackOf(stop: { readonly reason: string; readonly options: readonly string[]; readonly code?: AskBackCode }): AskBack {
+  return { code: stop.code ?? 'needs_input', reason: stop.reason, options: stop.options };
 }
 
 /**
@@ -725,7 +742,7 @@ function stripCut(proposals: readonly unknown[]): readonly unknown[] {
 function stoppedBy(error: unknown): Settled {
   // The writer's Stop is a stop, not a provider failure (agent-harness §2): no ask-back, and the report says who stopped it.
   if (error instanceof TurnStopped) return { status: 'cancelled' };
-  if (error instanceof BudgetExceeded) return { status: 'failed', askBack: askBackOf(error.stop) };
+  if (error instanceof BudgetExceeded) return { status: 'failed', askBack: askBackOf(error.stop), ...(error.budgetStop === undefined ? {} : { budgetStop: error.budgetStop }) };
   if (error instanceof GenerationStopped) {
     return {
       status: 'failed',
@@ -766,8 +783,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     });
   const emit = (event: AgentEvent): void => options.emit?.(event);
   const now = options.clock ?? Date.now;
-  const configured = typeof options.budget === 'function' ? options.budget() : options.budget;
-  const maxModelCalls = options.maxModelCalls ?? configured?.maxModelCalls ?? DEFAULT_MAX_MODEL_CALLS;
+  const configured = (): Partial<TurnBudget> | undefined => (typeof options.budget === 'function' ? options.budget() : options.budget);
+  const boundNow = (): number => options.maxModelCalls ?? configured()?.maxModelCalls ?? DEFAULT_MAX_MODEL_CALLS;
+  /** The model-call bound of the turn that started last, as `latestPins` is: read at each turn, so a change in Settings applies to the next one. */
+  let maxModelCalls = boundNow();
   const maxRetries = options.maxRetries ?? 2;
   const sessionName = options.sessionId ?? newId('cmd').slice('cmd_'.length);
   const finished: TurnReport[] = [];
@@ -948,6 +967,63 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const writesOf = (turn: Turn): string[] =>
     turn.steps.filter((step) => step.status === 'done' && riskOf(step.tool) !== 'read').map((step) => step.summary ?? step.tool);
 
+  /** Counts the write steps the turn has applied since the last count into the run's meter, and answers how many the run may still apply. */
+  const syncSteps = (turn: Turn): number => {
+    const { meter } = turn;
+    if (meter === undefined) return Infinity;
+    const done = writesOf(turn).length;
+    if (done > turn.metered) {
+      meter.countStep(done - turn.metered);
+      turn.metered = done;
+    }
+    return meter.stepsLeft();
+  };
+
+  /**
+   * Reserves a request's worst case from the turn's meter before it is sent (agent-harness §7.1): the prompt's estimate plus the output
+   * cap the request goes with, thinking included. A refusal ends the turn on a question, and the request is never sent. A time limit
+   * that has passed is the turn's stop, ended the way the signal ends it. No meter, no reservation.
+   */
+  const reserveCall = (turn: Turn, request: ChatRequest): Reservation | undefined => {
+    const { meter } = turn;
+    if (meter === undefined) return undefined;
+    const limits = gateway.modelLimits(request.profileId ?? turn.pins.profileId, request.model ?? turn.pins.model, request.thinking);
+    const price = options.price?.() ?? limits.pricePer1k;
+    const reserved = meter.reserve({
+      promptTokens: usageFor(request.messages, '').promptTokens,
+      maxOutputTokens: (request.maxOutputTokens ?? limits.maxOutputTokens) + (limits.thinkingTokens ?? 0),
+      ...(price === undefined ? {} : { price }),
+    });
+    if (reserved.ok) {
+      emit({ type: 'budget', turnId: turn.id, spend: meter.spend(), limits: meter.limits });
+      return reserved.value;
+    }
+    const stop = reserved.error;
+    if (stop.dimension === 'active-time' || stop.dimension === 'deadline') throw new TurnStopped();
+    const profile = gateway.profiles.get(request.profileId ?? turn.pins.profileId ?? '') ?? gateway.profiles.active();
+    throw new BudgetExceeded({ ...runLimitWords(stop, profile?.name), code: 'budget_exhausted' }, stop);
+  };
+
+  /** A stream whose reservation is settled with the usage it ended with, or the estimate when the provider reported none, however it ends. */
+  async function* settling(turn: Turn, reservation: Reservation | undefined, stream: AsyncIterable<ChatChunk>): AsyncGenerator<ChatChunk, void, undefined> {
+    if (reservation === undefined || turn.meter === undefined) {
+      yield* stream;
+      return;
+    }
+    let usage: Usage | undefined;
+    let delivered = '';
+    try {
+      for await (const chunk of stream) {
+        if (chunk.usage !== undefined) usage = chunk.usage;
+        delivered += `${chunk.delta ?? ''}${chunk.reasoningDelta ?? ''}`;
+        yield chunk;
+      }
+    } finally {
+      turn.meter.settle(reservation, usage, { promptTokens: reservation.promptTokens, completionTokens: estimateTokens(delivered) });
+      emit({ type: 'budget', turnId: turn.id, spend: turn.meter.spend(), limits: turn.meter.limits });
+    }
+  }
+
   /**
    * The one budgeted call site. Every model request a turn makes passes through here, drafts and retries
    * included, and is counted against the turn's bound before it is sent. The session's role is stamped on the
@@ -962,9 +1038,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           const hit = hitOf(turn, usageOf(turn), true);
           if (hit !== undefined) throw new BudgetExceeded(budgetStop(hit));
         }
+        const sent = role === undefined ? request : { ...request, role };
+        const reservation = reserveCall(turn, sent);
         turn.modelCalls += 1;
         emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
-        return gateway.complete(role === undefined ? request : { ...request, role }, signal);
+        return settling(turn, reservation, gateway.complete(sent, signal));
       },
     },
     turnId: turn.id,
@@ -992,8 +1070,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       gateway: {
         complete: (request, signal) => {
           if (used >= limit) throw modelCallBound(limit);
+          const sent = options.role === undefined ? request : { ...request, role: options.role };
+          const reservation = reserveCall(turn, sent);
           used += 1;
-          return gateway.complete(options.role === undefined ? request : { ...request, role: options.role }, signal);
+          return settling(turn, reservation, gateway.complete(sent, signal));
         },
       },
       turnId: turn.id,
@@ -1161,6 +1241,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const refusals: { index: number; tool: string; message: string }[] = [];
     const writes = steps.some((step) => riskOf(step.tool) !== 'read');
     const readOnly = policyOf(turn).readOnly;
+    const stepsAllowed = syncSteps(turn);
+    let stepsLeft = stepsAllowed;
     for (const [index, step] of steps.entries()) {
       checkStop(turn);
       // Plan-only runs reads and refuses every write before it is drafted, so no model call is spent on it (agent-harness §4).
@@ -1169,6 +1251,16 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         refusals.push({ index, tool: step.tool, message: PLAN_ONLY });
         refusedBeforeCard(turn, step, PLAN_ONLY);
         continue;
+      }
+      // A write past the run's step limit is refused before it is drafted, so no model call is spent on it (agent-harness §7.1).
+      if (turn.meter !== undefined && riskOf(step.tool) !== 'read') {
+        if (stepsLeft < 1) {
+          const message = stepLimitWords(turn.meter.limits.maxSteps ?? 0, turn.meter.spend().steps, stepsAllowed);
+          refusals.push({ index, tool: step.tool, message });
+          refusedBeforeCard(turn, step, message);
+          continue;
+        }
+        stepsLeft -= 1;
       }
       // A delegation's result comes back to the planner before it plans a write, so the writes wait for it: a reply that mixes the two runs neither.
       if (step.tool === 'agent.delegate' && writes) {
@@ -1708,6 +1800,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   async function decideOrStop(turn: Turn, pending: PendingCard): Promise<Decision> {
     const { signal } = turn;
     turn.deciding = true;
+    // The time a card waits for the writer is not work (agent-harness §7.1).
+    turn.meter?.pauseClock();
     try {
       if (signal === undefined) return await options.decide(pending);
       let release = (): void => {};
@@ -1724,6 +1818,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         release();
       }
     } finally {
+      turn.meter?.resumeClock();
       turn.deciding = false;
     }
   }
@@ -2394,6 +2489,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     phase(turn, 'awaiting-approval');
     const { signal } = turn;
     turn.deciding = true;
+    turn.meter?.pauseClock();
     let release = (): void => {};
     try {
       const asked = ask({ turnId: turn.id, steps: plan.steps, estimatedCalls: calls, turnCap: maxModelCalls });
@@ -2410,6 +2506,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       return { status: 'replied', text: `Queued in the background: ${calls} model ${calls === 1 ? 'call' : 'calls'}. Results appear in Tasks when ready.` };
     } finally {
       release();
+      turn.meter?.resumeClock();
       turn.deciding = false;
     }
   }
@@ -2540,6 +2637,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       dropped: turn.dropped,
       modelCalls: turn.modelCalls,
       ...(settled.stop === undefined ? {} : { stop: settled.stop }),
+      ...(settled.budgetStop === undefined ? {} : { budgetStop: settled.budgetStop }),
+      ...(turn.meter === undefined ? {} : { spend: turn.meter.spend() }),
       ...(turn.notes.length === 0 ? {} : { steering: turn.notes.map((note): SteeringNote => ({ ...note })) }),
       mode: turn.mode,
       budgetUse: usageOf(turn),
@@ -2696,6 +2795,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       thinking: turnOptions.thinking ?? options.thinking,
     };
     latestPins = pins;
+    maxModelCalls = boundNow();
+    const meter = typeof options.meter === 'function' ? options.meter() : options.meter;
+    const signals = [turnOptions.signal, meter?.signal].filter((signal): signal is AbortSignal => signal !== undefined);
     return {
       id: `${sessionName}.turn-${turnCounter}`,
       messages: [],
@@ -2706,7 +2808,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       dropped: [],
       priorTurns,
       modelCalls: 0,
-      signal: turnOptions.signal,
+      signal: signals.length > 1 ? anySignal(signals) : signals[0],
+      meter,
+      metered: 0,
       pins,
       phase: 'started',
       notes: [],
@@ -2714,7 +2818,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       converses: false,
       seq: 0,
       mode: modeNow(),
-      budget: { ...DEFAULT_TURN_BUDGET, ...(typeof options.budget === 'function' ? options.budget() : options.budget), maxModelCalls },
+      budget: { ...DEFAULT_TURN_BUDGET, ...configured(), maxModelCalls },
       held: [],
       proposed: new Map(),
       native: false,
@@ -2741,10 +2845,19 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     }
     running.delete(turn.id);
     // A turn the writer stopped says so, and in the phase the stop took effect in. A card still waiting is cancelled with it.
+    // A turn the meter's time limit aborted is not the writer's stop: it failed on a limit, and says which (agent-harness §7.1).
+    const limitStop = turn.meter?.stopped();
     if (settled.status === 'cancelled' && turn.signal?.aborted === true) {
-      settled = { ...settled, stop: { by: 'user', during: turn.phase } };
+      if (turnOptions.signal?.aborted !== true && limitStop !== undefined) {
+        settled = { status: 'failed', askBack: askBackOf({ ...runLimitWords(limitStop), code: 'budget_exhausted' }), budgetStop: limitStop };
+      } else {
+        settled = { ...settled, stop: { by: 'user', during: turn.phase } };
+      }
       for (const card of [...turn.statusCards]) moveCard(turn, card.id, 'cancelled');
     }
+    // A call a limit cut short that its tool absorbs (a review reports what it had, with a note) leaves the turn's status as the tool reported it.
+    if (limitStop !== undefined && settled.budgetStop === undefined && turnOptions.signal?.aborted !== true) settled = { ...settled, budgetStop: limitStop };
+    syncSteps(turn);
 
     harness.endTurn(turn.id);
     const totals = gateway.ledger.turnTotals(turn.id);

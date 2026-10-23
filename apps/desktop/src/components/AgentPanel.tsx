@@ -559,6 +559,7 @@ export function AskBackCard({ askBack }: { askBack: AskBack }): ReactNode {
   const options = askBackOptions(askBack);
   return (
     <aside className={`askback is-${askBack.code}`} aria-label={ASKBACK_TITLES[askBack.code]}>
+  budget_exhausted: 'The run reached a limit',
       <h4>{ASKBACK_TITLES[askBack.code]}</h4>
       <p>{askBack.reason}</p>
       {askBack.candidates !== undefined && askBack.candidates.length > 0 ? (
