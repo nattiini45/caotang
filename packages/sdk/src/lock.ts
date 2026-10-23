@@ -22,7 +22,8 @@
  *
  * Windows refuses an exclusive create at a name another writer is deleting with `EPERM` until
  * the delete finishes, which is contention and not a folder this process may not write. The
- * name is tried again up to six times, waiting 25 ms times the try, which spends at most 375 ms.
+ * name is tried six times in all — the first try and five retries — waiting 25 ms times the try,
+ * which spends at most 375 ms.
  * A refusal that outlasts those tries cannot be told apart from a genuine denial, so it is
  * treated as the folder's own and thrown as it is: the cost of that rule is a delete-pending
  * window longer than the bound reported as a folder that cannot be written, never a folder that
@@ -53,10 +54,12 @@ const MARKER_FRESH_MS = 5_000;
  * the delete; it says nothing about which writer is in the way — in a measured eight-writer race
  * of exclusive creates and removals, the name was already gone for 105 of 144 refusals — so the
  * create is tried again, as the folder port retries the sharing errors of a file another program
- * holds. Every measured refusal resolved within two retries; the wait grows with the try, as
- * those do. Six tries at 25 ms times the try spend at most 375 ms, and a refusal that survives
- * the last one is treated as the folder's own and rethrown, because it cannot be told apart from
- * a genuine denial.
+ * holds. In that probe an immediate second create cleared 143 of the 144 refusals (138 found the
+ * name taken, 5 created it, one other outcome), and a separate probe of 56 refusals cleared all
+ * of them within two retries (55 on the first retry, one on the second); the wait grows with the
+ * try, as those do. Six tries in all — the first try and five retries — at 25 ms times the try
+ * spend at most 375 ms, and a refusal that survives the last one is treated as the folder's own
+ * and rethrown, because it cannot be told apart from a genuine denial.
  */
 const EXCLUSIVE_CREATE_ATTEMPTS = 6;
 const EXCLUSIVE_CREATE_RETRY_MS = 25;
