@@ -60,9 +60,9 @@ export const METADATA_PATCH_KEYS = ['author', 'language', 'isbn', 'coverAssetId'
 /**
  * The keys a recipe's options carry (exporter.md §2; `charLimit` is dialogue-narrative.md §4's column, made a recipe option;
  * `sceneNumbers` and `continued` are the screenplay PDF's options, screenplay.md §5.3; `pageSize` is the contact sheet's
- * paper, storyboard.md §6).
+ * paper and `paperFrames` its blank frames, storyboard.md §6).
  */
-const RECIPE_OPTION_KEYS = ['titlePage', 'toc', 'author', 'charLimit', 'sceneNumbers', 'continued', 'pageSize'] as const;
+const RECIPE_OPTION_KEYS = ['titlePage', 'toc', 'author', 'charLimit', 'sceneNumbers', 'continued', 'pageSize', 'paperFrames'] as const;
 
 /** Where the screenplay PDF may print scene numbers (screenplay.md §5.3). */
 export const SCENE_NUMBER_OPTIONS = ['off', 'left', 'right', 'both'] as const;
@@ -141,7 +141,7 @@ function recipeOptionsOf(value: unknown): Result<RecipeOptionsParams | undefined
     }
   }
   const typed: RecipeOptionsParams = {};
-  for (const flag of ['titlePage', 'toc', 'continued'] as const) {
+  for (const flag of ['titlePage', 'toc', 'continued', 'paperFrames'] as const) {
     const v = value[flag];
     if (v === undefined) continue;
     if (typeof v !== 'boolean') return invalid(`params.options.${flag} must be true or false, got ${showValue(v)}`, undefined, `options.${flag}`);

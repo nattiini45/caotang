@@ -36,7 +36,7 @@ Each of these is its own milestone, designed when its turn comes.
 - **Desktop app (Tauri).** For writers who would rather not run Caotang in a browser tab. Native folder storage, the operating system's keychain for keys, stdio MCP servers, and the providers a browser cannot reach.
 - **Hosted instance** at `caotang.pawcommit.com`. Sign up with email, Google or GitHub; projects stored end-to-end encrypted so the operator cannot read them; a relay for providers browsers cannot reach. The local-only version at `caotang.app` stays as it is. Specified, not built: see [hosted.md](architecture/hosted.md).
 - **More background work.** A coherence review the writer queues, a gateway limiter that serves the agent before a background task, and a Web Worker for the heavy checks if they are measured to slow typing.
-- **More helper agents.** Several helpers reading at once, one per chapter; helpers with a role of their own, such as a drafter, a critic and a continuity checker; and permission modes you pick between turns. Each builds on the helpers that exist now.
+- **More helper agents.** Several helpers reading at once, one per chapter; and helpers with a role of their own, such as a drafter, a critic and a continuity checker. Each builds on the helpers that exist now.
 - **Mobile app**, reaching your projects on the hosted instance.
 - **Signed MCP bundle.** The `.mcpb` bundle ships unsigned today. It will be signed once the bundling tool produces signed bundles that hosts accept.
 

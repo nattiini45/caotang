@@ -61,6 +61,7 @@ export const COMMAND_TITLES: Readonly<Record<CommandName, string>> = {
   'project.saveGoal': 'Goal changed',
   'project.deleteGoal': 'Goal deleted',
   'shot.importImage': 'Image added to shot',
+  'shot.importImages': 'Images added to shots',
   'screenplay.import': 'Script imported',
   'dialogue.importInk': 'Ink story imported',
   'dialogue.setMeta': 'Dialogue settings changed',

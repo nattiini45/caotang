@@ -29,6 +29,19 @@ export async function importShotImage(session: ProjectSession, shotId: string, b
   return { ok: true };
 }
 
+/**
+ * Imports several pictures, each as its own shot's image, as one command and so one undo step (`shot.importImages`, storyboard.md §6).
+ * The command is all or nothing on what it can check first, so a refusal means no shot was given a picture.
+ */
+export async function importShotImages(
+  session: ProjectSession,
+  items: readonly { readonly shotId: string; readonly bytes: Uint8Array }[],
+): Promise<ShotCommitResult> {
+  const result = await session.importShotImages(items.map(({ shotId, bytes }) => ({ nodeId: shotId, bytes })));
+  if (!result.ok) return { ok: false, message: explain(result.error) };
+  return { ok: true };
+}
+
 /** One dispatch per name, so each call's params are checked against that name's own type. */
 function dispatchShot(session: ProjectSession, command: MediaCommand) {
   switch (command.name) {

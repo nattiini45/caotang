@@ -40,4 +40,9 @@ export interface MediaPorts {
    * read only.
    */
   readonly importImage?: (shotId: string, bytes: Uint8Array) => Promise<ShotCommitResult>;
+  /**
+   * Imports several pictures, each as its own shot's image, as one undo step (`shot.importImages`, storyboard.md §6): a drop of
+   * photographs on the board. Absent: the board takes no batch.
+   */
+  readonly importImages?: (items: readonly { readonly shotId: string; readonly bytes: Uint8Array }[]) => Promise<ShotCommitResult>;
 }

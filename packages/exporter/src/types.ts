@@ -120,6 +120,11 @@ export interface ExportRecipeOptions {
   readonly continued?: boolean;
   /** The contact sheet's paper (storyboard.md §6): `A4` or `Letter`. Absent is A4. Only `contact-sheet-pdf` reads it. */
   readonly pageSize?: 'A4' | 'Letter';
+  /**
+   * The contact sheet prints blank numbered frames to draw on instead of the shots' pictures (storyboard.md §6, the paper-photo round
+   * trip). Absent is off. Only `contact-sheet-pdf` reads it.
+   */
+  readonly paperFrames?: boolean;
 }
 
 /**

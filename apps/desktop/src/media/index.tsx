@@ -16,7 +16,7 @@ import type { RevealRequest } from '../components/EditorPane.js';
 import { InkGate } from '../components/InkGate.js';
 import { LazyBoundary, lazyView } from '../components/lazy-view.js';
 
-import { commitShotCommand, importShotImage } from './commit.js';
+import { commitShotCommand, importShotImage, importShotImages } from './commit.js';
 import { MediaBoundary } from './MediaBoundary.js';
 import { ScreenplayView } from './ScreenplayView.js';
 import type { MediaPorts } from './ports.js';
@@ -50,13 +50,14 @@ export interface MediaViewProps {
  * The ports the centre pane gives every media view. The storyboard's commits go through the bus (commit.ts), so a shot
  * edit, a new shot and a reorder are the bus's own dispatches, with their undo and their row. The project's images are read
  * through the session's asset store, which keeps them in the browser and in the project folder when one is open, so a
- * card shows its picture after a reload. The image import is the bus's `shot.importImage`.
+ * card shows its picture after a reload. The image import is the bus's `shot.importImage`, and a drop of several photographs on the board is its `shot.importImages`.
  */
 export function mediaPortsFor(session: ProjectSession): MediaPorts {
   return {
     assets: session.assets.artifactFs(),
     commitShot: (command) => commitShotCommand(session, command, undefined),
     importImage: (shotId, bytes) => importShotImage(session, shotId, bytes),
+    importImages: (items) => importShotImages(session, items),
   };
 }
 

@@ -204,3 +204,110 @@ test('an image whose file is no longer in the project is dropped when the projec
   await binderTitle(page, 'Storyboard').click();
   await expect(page.getByText('An image was dropped when the project opened')).toHaveCount(0);
 });
+
+/** A storyboard of three shots, all titled New shot, numbered 1 to 3 by their order. */
+async function storyboardWithThreeShots(page: Page): Promise<{ cards: Locator; board: Locator }> {
+  await createProject(page, PROJECT);
+  await makeUnder(page, 'Manuscript', 'New storyboard here');
+  for (let shot = 0; shot < 3; shot += 1) await makeUnder(page, 'Storyboard', 'New shot here');
+  const cards = page.locator('article.sb-card');
+  await expect(cards).toHaveCount(3);
+  return { cards, board: page.getByRole('list', { name: /^Shots in/ }) };
+}
+
+/** How many times a command ran, by its activity rows. */
+async function ran(page: Page, command: string): Promise<number> {
+  return (await trace(page)).filter((row) => row.command === command).length;
+}
+
+test('several pictures dropped on the board go on the shots their names number, the notice names each file, and one Undo takes them all back', async ({ page }) => {
+  const { cards, board } = await storyboardWithThreeShots(page);
+  const NINE: Sent = { name: '9.png', type: 'image/png', bytes: PNG };
+  const NO_NUMBER: Sent = { name: 'ferry.png', type: 'image/png', bytes: PNG };
+  const { cancelled } = await send(board, 'drop', [
+    { name: '003.png', type: 'image/png', bytes: PNG },
+    { name: '1-wide.jpg', type: 'image/jpeg', bytes: JPEG },
+    NOTES_TXT,
+    NINE,
+    NO_NUMBER,
+  ]);
+  // The tab must not open a file dropped on the board.
+  expect(cancelled).toBe(true);
+
+  await expect(cards.nth(0).locator('img')).toBeVisible();
+  await expect(cards.nth(2).locator('img')).toBeVisible();
+  await expect(cards.nth(1).locator('img')).toHaveCount(0);
+  // One command put both pictures on, not one command each.
+  expect(await ran(page, 'shot.importImages')).toBe(1);
+  expect(await ran(page, 'shot.importImage')).toBe(0);
+
+  const notice = page.getByRole('status').filter({ hasText: 'Put 2 pictures on their shots; 3 files were not imported.' });
+  await expect(notice).toBeVisible();
+  const lines = notice.getByRole('list', { name: 'Pictures dropped on the board' }).getByRole('listitem');
+  await expect(lines).toHaveText([
+    '003.png: shot 3, New shot',
+    '1-wide.jpg: shot 1, New shot',
+    'notes.txt: not imported, it is not a PNG, JPEG or WebP picture',
+    '9.png: not imported, the board has 3 shots and none is numbered 9',
+    'ferry.png: not imported, its name does not start with a shot number (name a photograph like 007.jpg)',
+  ]);
+  await expect(notice).toContainText('a sheet printed from a longer board does not match it');
+
+  // One Undo, from the activity row of the batch, takes back both pictures.
+  await page.getByRole('tab', { name: 'Activity' }).click();
+  const row = page.getByRole('list', { name: 'Activity' }).getByRole('listitem').first();
+  await expect(row.locator('.activity-title')).toHaveText('Images added to shots');
+  await row.getByRole('button', { name: 'Undo' }).click();
+  await expect(cards.locator('img')).toHaveCount(0);
+});
+
+test('a drop on the board that matches no shot imports nothing, names every file, and still does not open the file', async ({ page }) => {
+  const { cards, board } = await storyboardWithThreeShots(page);
+  const { cancelled } = await send(board, 'drop', [
+    { name: 'sketch.png', type: 'image/png', bytes: PNG },
+    { name: '12.png', type: 'image/png', bytes: PNG },
+  ]);
+  expect(cancelled).toBe(true);
+
+  const notice = page.getByRole('status').filter({ hasText: 'Nothing was imported.' });
+  await expect(notice).toBeVisible();
+  await expect(notice.getByRole('listitem')).toHaveCount(2);
+  await expect(notice).toContainText('sketch.png: not imported');
+  await expect(notice).toContainText('12.png: not imported, the board has 3 shots and none is numbered 12');
+  await expect(cards.locator('img')).toHaveCount(0);
+  expect(await ran(page, 'shot.importImages')).toBe(0);
+
+  // The notice goes when the writer dismisses it.
+  await notice.getByRole('button', { name: 'Dismiss' }).click();
+  await expect(notice).toHaveCount(0);
+});
+
+test('a card dragged on the board still reorders, and a file dropped on a card still goes on that card whatever its name', async ({ page }) => {
+  const { cards } = await storyboardWithThreeShots(page);
+  const ids = await cards.evaluateAll((items) => items.map((item) => item.getAttribute('data-shot-id')));
+
+  await cards.nth(1).dragTo(cards.nth(0));
+  await expect.poll(() => cards.nth(0).getAttribute('data-shot-id')).toBe(ids[1]);
+  expect(await ran(page, 'binder.move')).toBeGreaterThan(0);
+  expect(await ran(page, 'shot.importImages')).toBe(0);
+
+  // A file dropped on the second card is that card's picture, though its name numbers shot 3, and the board does not take it again.
+  const { cancelled } = await send(cards.nth(1), 'drop', [{ name: '3.png', type: 'image/png', bytes: PNG }]);
+  expect(cancelled).toBe(true);
+  await expect(cards.nth(1).locator('img')).toBeVisible();
+  await expect(cards.locator('img')).toHaveCount(1);
+  expect(await ran(page, 'shot.importImage')).toBe(1);
+  expect(await ran(page, 'shot.importImages')).toBe(0);
+  await expect(page.getByRole('list', { name: 'Pictures dropped on the board' })).toHaveCount(0);
+});
+
+test('a file dropped on a board with no shots is not opened by the tab, and the board says there is nothing to put it on', async ({ page }) => {
+  await createProject(page, PROJECT);
+  await makeUnder(page, 'Manuscript', 'New storyboard here');
+  const empty = page.locator('section.sb-view section.empty-state');
+  await expect(empty).toBeVisible();
+  const { cancelled } = await send(empty, 'drop', [FRAME_PNG]);
+  expect(cancelled).toBe(true);
+  await expect(page.getByText('This board has no shots yet, so there is nothing to put the pictures on.')).toBeVisible();
+  expect(await ran(page, 'shot.importImages')).toBe(0);
+});

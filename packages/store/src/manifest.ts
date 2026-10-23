@@ -55,6 +55,8 @@ export interface ExportRecipeOptions {
   continued?: boolean;
   /** The contact sheet's paper (storyboard.md §6). Absent = A4. */
   pageSize?: 'A4' | 'Letter';
+  /** The contact sheet prints blank numbered frames to draw on (storyboard.md §6). Absent = off. */
+  paperFrames?: boolean;
 }
 
 /**

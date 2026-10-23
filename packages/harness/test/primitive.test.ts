@@ -125,6 +125,8 @@ describe('never-exposed commands', () => {
       () => primitiveTool(specFor('project.importAsset')),
       // @ts-expect-error a staging command takes a file the writer chose
       () => primitiveTool(specFor('shot.importImage')),
+      // @ts-expect-error a staging command takes files the writer chose
+      () => primitiveTool(specFor('shot.importImages')),
       // @ts-expect-error an external call rides its own gateway
       () => primitiveTool(specFor('mcp.invoke')),
       // @ts-expect-error a resource is read when the writer picks it, never on a tool's behalf

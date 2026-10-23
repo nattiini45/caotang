@@ -18,6 +18,7 @@ import {
   importImage,
   isWide,
   measureText,
+  paperCaptionOf,
   shotsInBinderOrder,
   paginate,
   wrapText,
@@ -573,6 +574,108 @@ describe('planContactSheet: the plan with no reads', () => {
     const planned = planContactSheet(projectWithPictures().state, ['board1'], () => ({ drawn: true }), { pageSize: 'Letter' });
     expect(planned.plan.pageSize).toBe('Letter');
     expect(planned.plan.geometry.height).toBe(792);
+  });
+
+  describe('a paper sheet (paperFrames): blank numbered frames to draw in, storyboard.md §6', () => {
+    function paperPlan(overrides: Partial<Parameters<typeof planContactSheet>[3]> = {}) {
+      const asked: string[] = [];
+      const planned = planContactSheet(
+        projectWithPictures().state,
+        ['board1'],
+        (assetId) => {
+          asked.push(assetId);
+          return { drawn: true };
+        },
+        { paperFrames: true, ...overrides },
+      );
+      return { planned, asked };
+    }
+
+    it('plans one empty frame box per shot, with no picture drawn and none read, whatever the shot holds', () => {
+      const { planned, asked } = paperPlan();
+      const placed = allCards(planned.plan);
+      expect(placed).toHaveLength(3);
+      for (const one of placed) {
+        expect(one.paper).toBe(true);
+        expect(one.hasImage).toBe(false);
+        expect(one.image.width).toBeCloseTo(planned.plan.cardWidth, 6);
+        expect(one.image.height).toBeCloseTo(planned.plan.cardWidth * (9 / 16), 6);
+      }
+      expect(planned.pictures.size).toBe(0);
+      expect(asked).toEqual([]);
+      expect(planned.notes).toEqual([]);
+    });
+
+    it('does not place the placeholder text in the frame: a box to draw in must not say there is no picture', () => {
+      const { planned } = paperPlan();
+      for (const one of allCards(planned.plan)) {
+        expect(one.placeholder).toBeUndefined();
+        expect(one.fallback.text).toBe('');
+      }
+      // The picture sheet of the same shots still has it.
+      const picture = planContactSheet(projectWithPictures().state, ['board1'], () => ({ drawn: false, note: 'n' }));
+      expect(allCards(picture.plan)[2]?.placeholder?.text).toBe('No image');
+    });
+
+    it('keeps the number chip and prints a caption with the zero-padded number and the title, on the chip’s line', () => {
+      const { planned } = paperPlan();
+      const [one, two, three] = allCards(planned.plan);
+      expect(one?.chipText.text).toBe('1');
+      expect(one?.caption?.text).toBe('001 — one');
+      expect(two?.caption?.text).toBe('002 — two');
+      expect(three?.caption?.text).toBe('003 — three');
+      for (const placed of [one, two, three]) {
+        expect(placed?.caption?.y).toBe(placed?.chipText.y);
+        expect(placed?.caption?.x).toBeGreaterThanOrEqual((placed?.chip.x ?? 0) + (placed?.chip.width ?? 0));
+      }
+    });
+
+    it('keeps the spec row and the action lines, and the geometry of the picture sheet', () => {
+      const fixture = buildFixture();
+      addShotNode(fixture.state, {
+        parentId: 'board1',
+        title: 'The Ferry',
+        stored: { shotSize: 'MCU', durationSec: 4, action: 'The lamp goes out.', image: 'a_7K2QX9M4A1' },
+        id: 'n_PAPFER0001',
+        now: NOW,
+      });
+      const paper = planContactSheet(fixture.state, ['board1'], () => ({ drawn: true }), { paperFrames: true });
+      const picture = planContactSheet(fixture.state, ['board1'], () => ({ drawn: true }));
+      const [onPaper] = allCards(paper.plan);
+      const [onPicture] = allCards(picture.plan);
+      expect(onPaper?.spec.map((line) => line.text).join(' ')).toContain('4 s');
+      expect(onPaper?.action.map((line) => line.text)).toEqual(['The lamp goes out.']);
+      expect(onPaper?.spec).toEqual(onPicture?.spec);
+      expect(onPaper?.action).toEqual(onPicture?.action);
+      expect(onPaper?.frame).toEqual(onPicture?.frame);
+      expect(onPaper?.chip).toEqual(onPicture?.chip);
+      expect(paper.plan.cardsPerPage).toBe(picture.plan.cardsPerPage);
+      expect(paper.plan.pages).toHaveLength(picture.plan.pages.length);
+      expect(paper.plan.pages[0]?.summary).toEqual(picture.plan.pages[0]?.summary);
+    });
+
+    it('pads the number to three digits, keeps four when there are that many, and cuts a long title to the room the chip leaves', () => {
+      expect(paperCaptionOf(7, 'The Ferry')).toBe('007 — The Ferry');
+      expect(paperCaptionOf(1234, 'x')).toBe('1234 — x');
+      expect(paperCaptionOf(5, '')).toBe('005');
+      expect(paperCaptionOf(5, '  two\nlines \t here ')).toBe('005 — two lines here');
+      const long = paginate([card(0, { caption: paperCaptionOf(1, 'A very long title that cannot possibly fit on the line beside the number chip of one card') })]);
+      const placed = allCards(long)[0];
+      expect(placed?.caption?.text.endsWith('…')).toBe(true);
+      expect(measureText(placed?.caption?.text ?? '', SHEET_LAYOUT.chipFontSize) + (placed?.caption?.x ?? 0)).toBeLessThanOrEqual(
+        (placed?.frame.x ?? 0) + (placed?.frame.width ?? 0),
+      );
+    });
+
+    it('is off by default and when false: a picture sheet has no caption and is not paper', () => {
+      for (const options of [{}, { paperFrames: false }]) {
+        const planned = planContactSheet(projectWithPictures().state, ['board1'], () => ({ drawn: true }), options);
+        for (const one of allCards(planned.plan)) {
+          expect(one.paper).toBe(false);
+          expect(one.caption).toBeUndefined();
+        }
+      }
+    });
   });
 });
 

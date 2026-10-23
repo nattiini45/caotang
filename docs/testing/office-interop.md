@@ -59,3 +59,47 @@ For each of `dialogue.xlsx`, `shot-list.xlsx` and `sheet-name.xlsx`:
 | Excel for the web | | | not recorded | |
 | Numbers (current macOS) | | | not recorded | |
 | Google Sheets | | | not recorded | |
+
+## Word contents field (#26)
+
+`.docx` files hold a contents field (`TOC \h \o "1-2"`) with cached entries, written by `packages/exporter/src/render-docx.ts`.
+`updateFields` is set in the settings only when that field is. Unit tests read the XML back (`packages/exporter/test/docx.test.ts`,
+`docx-write-corpus.test.ts`). No application has opened the files yet; nothing below is ticked until a person has done it.
+
+The cached entries carry titles and no page numbers, and they are not links. Word fills in page numbers when the field is updated,
+and its regenerated entries are clickable (`\h`). A viewer that never updates fields shows the titles only.
+
+Write the files:
+
+```sh
+CAOTANG_DOCX_OUT=/tmp/docx pnpm exec vitest run packages/exporter/test/docx-write-corpus.test.ts
+```
+
+`expected.json` lists, per file, whether it holds a contents field and its entry titles in order. The files: `toc-3-chapters.docx`,
+`toc-unicode.docx` (accents, CJK, emoji, `&`, `<`, quotes), `toc-one-chapter.docx`, `toc-off.docx` (no contents field) and
+`toc-long.docx` (40 chapters).
+
+For each of `toc-3-chapters.docx`, `toc-unicode.docx`, `toc-one-chapter.docx` and `toc-long.docx`, in each application below:
+
+- [ ] On open, the prompt is recorded word for word (Word: "This document contains fields that may refer to other files. Do you want to update the fields in this document?"), with its buttons.
+- [ ] **Yes:** the contents list shows every chapter title in order, with page numbers, in the TOC 1 style; nothing is duplicated.
+- [ ] **No:** the cached titles show, in order, without page numbers.
+- [ ] After **Yes**, saving and reopening does not ask a second time.
+- [ ] The titles in `toc-unicode.docx` read as in `expected.json`.
+- [ ] `toc-one-chapter.docx` shows one entry and no stray empty line above or below it.
+- [ ] After updating: Right-click › Update Field (or F9) works, and Ctrl-click on an entry opens its chapter.
+
+For `toc-off.docx`:
+
+- [ ] Opens with **no** prompt about fields, and has no contents list.
+
+| Application | Version | Date | Result | Notes |
+| --- | --- | --- | --- | --- |
+| Word 365 for Windows | | | not recorded | |
+| Word 365 for Mac | | | not recorded | |
+| Word for the web | | | not recorded | |
+| Pages (current macOS) | | | not recorded | |
+| Google Docs | | | not recorded | |
+
+Owner-pending. Until a row is filled in, the docs say the field has not been tested in Word or LibreOffice. LibreOffice never
+updates fields on open; a scripted check of the structure is a later step and is not part of this checklist.

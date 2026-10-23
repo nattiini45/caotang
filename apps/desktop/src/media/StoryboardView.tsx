@@ -2,7 +2,8 @@
  * The storyboard view — storyboard.md §3. A folder marked `kind: 'storyboard'` renders as a board of shot cards in shot mode: the
  * image, the derived number, and one spec row. Every change goes through `commitShotCommand` (commit.ts): a new card is a
  * `binder.create`, a reorder a `binder.move` (by the Earlier and Later buttons, or by dragging a card), and the fields a
- * `shot.setMeta`. A picture is added by `shot.importImage` (`importImage` on the ports). The fields are edited only when the App
+ * `shot.setMeta`. A picture is added by `shot.importImage` (`importImage` on the ports), and the files of a drop on the board, not on a
+ * card, by one `shot.importImages` (`importImages`), each on the shot its file name numbers (storyboard.md §6). The fields are edited only when the App
  * supplies a `commitShot` port, because a field editor that could not save would be a lie. The Prompt pack tab is the video
  * prompt pack panel over the same shots.
  */
@@ -22,7 +23,17 @@ import { ShotCoverage } from './ShotCoverage.js';
 import { ShotLightbox } from './ShotLightbox.js';
 import { ShotPromptEditor } from './ShotPromptEditor.js';
 import { ENUM_OPTIONS, EDITABLE_FIELDS, derivableSceneOf, deriveIntentOf, draftAfterStoredChange, emptyBoardCopyOf, draftOf, moveShotCommand, newShotParams, shotCardsOf, shotEditCommand, type EditableField, type ShotCard, type ShotDraft } from './storyboard-model.js';
-import { IMAGE_ACCEPT, assignImageCommand, clearImageCommand, firstPicture, missingPictureLabelOf, type PictureListing } from './shot-image-model.js';
+import {
+  IMAGE_ACCEPT,
+  assignImageCommand,
+  clearImageCommand,
+  dropReportOf,
+  firstPicture,
+  missingPictureLabelOf,
+  planPictureDrop,
+  type DropCommit,
+  type PictureListing,
+} from './shot-image-model.js';
 import { useAssetListing, useImageUrl } from './hooks.js';
 import { LazyBoundary, lazyView } from '../components/lazy-view.js';
 import type { PromptFieldKey } from './prompt-edit-model.js';
@@ -157,6 +168,8 @@ export function ShotBoard({ session, folder, ports, focus = null, zoom: zoomProp
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropId, setDropId] = useState<string | null>(null);
   const [noticesShown, setNoticesShown] = useState(true);
+  // What the last drop of files on the board did with each of them (storyboard.md §6).
+  const [dropReport, setDropReport] = useState<{ readonly summary: string; readonly lines: readonly string[] } | null>(null);
   // The card size is the one the corkboard shares, when the centre passes it; a board shown without it keeps its own.
   const [ownZoom, setOwnZoom] = useState<ZoomLevel>('M');
   const zoom = zoomProp ?? ownZoom;
@@ -235,6 +248,30 @@ export function ShotBoard({ session, folder, ports, focus = null, zoom: zoomProp
     setMessage(null);
   };
 
+  /**
+   * The files dropped on the board, not on a card: each is matched to a shot by the number its name starts with, and the matched pictures
+   * are imported as one command, so one Undo takes them all back (storyboard.md §6). The notice says what became of every file.
+   */
+  const dropPictures = async (files: readonly File[]): Promise<void> => {
+    if (ports?.importImages === undefined || !editable) {
+      setMessage('Pictures cannot be added to a shot in this build.');
+      return;
+    }
+    const verdicts = planPictureDrop(
+      files,
+      cards.map((card) => ({ id: card.id, number: card.number, title: card.title })),
+    );
+    const items: { shotId: string; bytes: Uint8Array }[] = [];
+    for (const verdict of verdicts) {
+      const file = files[verdict.file];
+      if (verdict.kind === 'import' && file !== undefined) items.push({ shotId: verdict.shot.id, bytes: new Uint8Array(await file.arrayBuffer()) });
+    }
+    const commit: DropCommit = items.length === 0 ? { ok: true } : await ports.importImages(items);
+    setMessage(null);
+    setDropReport(dropReportOf(verdicts, cards.length, commit));
+    if (!commit.ok) report({ text: commit.message, tone: 'error' });
+  };
+
   const newShotButton = editable ? (
     <button type="button" className="button is-primary" onClick={newShot}>
       New shot
@@ -252,17 +289,34 @@ export function ShotBoard({ session, folder, ports, focus = null, zoom: zoomProp
       );
     const copy = emptyBoardCopyOf({ editable, canDerive: onAgentIntent !== undefined, scene: sceneToDerive });
     return (
-      <EmptyState
-        title={copy.title}
-        actions={
-          <>
-            {newShotButton}
-            {derive}
-          </>
-        }
+      // A file dropped here is cancelled, so the tab does not open it; there is no shot for it to go on.
+      <div
+        onDragOver={(event) => {
+          if (isFileDrag(event)) event.preventDefault();
+        }}
+        onDrop={(event) => {
+          if (!isFileDrag(event)) return;
+          event.preventDefault();
+          setMessage('This board has no shots yet, so there is nothing to put the pictures on.');
+        }}
       >
-        {copy.body}
-      </EmptyState>
+        <EmptyState
+          title={copy.title}
+          actions={
+            <>
+              {newShotButton}
+              {derive}
+            </>
+          }
+        >
+          {copy.body}
+        </EmptyState>
+        {message === null ? null : (
+          <p className="drop-note" role="status" aria-live="polite">
+            {message}
+          </p>
+        )}
+      </div>
     );
   }
 
@@ -270,7 +324,19 @@ export function ShotBoard({ session, folder, ports, focus = null, zoom: zoomProp
   const dragging = dragId !== null;
 
   return (
-    <div className="sb-board">
+    // A drop of files on the board, outside any card, is the batch import. A card takes the files dropped on it itself, and a card
+    // drag is not a file drag, so neither is taken here. Whatever the files are, the tab must not open them.
+    <div
+      className="sb-board"
+      onDragOver={(event) => {
+        if (isFileDrag(event)) event.preventDefault();
+      }}
+      onDrop={(event) => {
+        if (!isFileDrag(event)) return;
+        event.preventDefault();
+        void dropPictures(Array.from(event.dataTransfer.files));
+      }}
+    >
       <div className="sb-bar">
         <p className="muted">
           {cards.length === 1 ? '1 shot' : `${cards.length} shots`}, {animatic.text}. The numbers follow the order of the cards, so a move renumbers them.
@@ -292,6 +358,19 @@ export function ShotBoard({ session, folder, ports, focus = null, zoom: zoomProp
             ))}
           </ul>
           <button type="button" className="button is-quiet" onClick={() => setNoticesShown(false)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+      {dropReport === null ? null : (
+        <div className="sb-notices" role="status">
+          <p className="field-note">{dropReport.summary}</p>
+          <ul className="findings" aria-label="Pictures dropped on the board">
+            {dropReport.lines.map((line, index) => (
+              <li key={`${index}:${line}`}>{line}</li>
+            ))}
+          </ul>
+          <button type="button" className="button is-quiet" onClick={() => setDropReport(null)}>
             Dismiss
           </button>
         </div>
@@ -436,7 +515,9 @@ function ShotCardView({
       onDragOver={(event) => {
         if (isFileDrag(event)) {
           if (!editable) return;
+          // The card takes the files dropped on it; the board's batch import is for a drop outside every card.
           event.preventDefault();
+          event.stopPropagation();
           return;
         }
         if (editable) onShotDragOver(event);
@@ -446,6 +527,7 @@ function ShotCardView({
           // A file dropped anywhere on the card is the card's picture, when it is one. Whatever it is, the browser must not open it
           // in this tab, so the drop is cancelled here, not only on the picture slot.
           event.preventDefault();
+          event.stopPropagation();
           const file = editable ? firstPicture(Array.from(event.dataTransfer.files)) : undefined;
           if (file !== undefined) onPicture(file);
           return;

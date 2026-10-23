@@ -204,3 +204,185 @@ describe('shot.importImage: registration', () => {
     expect(bus().registry['shot.importImage'].apply).toBeDefined();
   });
 });
+
+/** Stages each picture and runs `shot.importImages` over the named shots. */
+async function importImages(b: Bus, pictures: readonly { readonly nodeId: string; readonly bytes: Uint8Array }[]) {
+  const items = pictures.map(({ nodeId, bytes }) => ({ nodeId, stagingId: b.staging.stage(bytes) }));
+  return executeAsync(command('shot.importImages', { items }), b.bus, b.registry);
+}
+
+describe('shot.importImages: several pictures, each on its shot, in one undo group (storyboard.md §6)', () => {
+  it('writes each picture under its own id and sets each shot’s image, keeping the fields beside it', async () => {
+    const b = bus();
+    const outcome = okValue(
+      await importImages(b, [
+        { nodeId: SHOT, bytes: PNG },
+        { nodeId: SHOT_WITH_FIELDS, bytes: JPEG },
+      ]),
+    );
+    const { items } = outcome.result as { items: { nodeId: string; assetId: string; path: string }[] };
+    expect(items.map((item) => item.nodeId)).toEqual([SHOT, SHOT_WITH_FIELDS]);
+    expect(items[0]?.path).toBe(`assets/${items[0]?.assetId}.png`);
+    expect(items[1]?.path).toBe(`assets/${items[1]?.assetId}.jpg`);
+    expect(b.written.get(items[0]?.path ?? '')).toEqual(PNG);
+    expect(b.written.get(items[1]?.path ?? '')).toEqual(JPEG);
+    expect(nodeById(b.state, SHOT)?.shot).toEqual({ image: items[0]?.assetId });
+    expect(nodeById(b.state, SHOT_WITH_FIELDS)?.shot).toEqual({ shotSize: 'CU', action: 'She looks up.', image: items[1]?.assetId });
+  });
+
+  it('is one undo group, and one undo takes back every picture the batch set, restoring the stored values and stamps exactly', async () => {
+    const b = bus();
+    const before = JSON.stringify(b.state.manifest.tree);
+    okValue(
+      await importImages(b, [
+        { nodeId: SHOT, bytes: PNG },
+        { nodeId: SHOT_WITH_FIELDS, bytes: JPEG },
+      ]),
+    );
+    expect(b.undo.groups()).toHaveLength(1);
+    expect(b.undo.groups()[0]?.entries).toHaveLength(1);
+    expect(JSON.stringify(b.state.manifest.tree)).not.toBe(before);
+
+    undoLast(b);
+    expect(JSON.stringify(b.state.manifest.tree)).toBe(before);
+    expect(b.undo.groups()).toHaveLength(0);
+  });
+
+  it('leaves the files in place on undo, as the single import does', async () => {
+    const b = bus();
+    okValue(await importImages(b, [{ nodeId: SHOT, bytes: PNG }]));
+    undoLast(b);
+    expect(b.written.size).toBe(1);
+  });
+
+  it('writes nothing, sets nothing and takes back nothing when any shot is not a shot, or does not exist', async () => {
+    for (const bad of ['n_LANDING001', 'n_NOSUCH0001']) {
+      const b = bus();
+      const refused = await importImages(b, [
+        { nodeId: SHOT, bytes: PNG },
+        { nodeId: bad, bytes: PNG },
+      ]);
+      expect(refused.ok, bad).toBe(false);
+      expect(b.written.size, bad).toBe(0);
+      expect(nodeById(b.state, SHOT)?.shot).toBeUndefined();
+      expect(b.undo.groups()).toHaveLength(0);
+    }
+  });
+
+  it('writes nothing when any file is not a picture, naming the shot it was for', async () => {
+    const b = bus();
+    const refused = await importImages(b, [
+      { nodeId: SHOT, bytes: PNG },
+      { nodeId: SHOT_WITH_FIELDS, bytes: Uint8Array.from([0x25, 0x50, 0x44, 0x46, 0x2d]) },
+    ]);
+    expect(!refused.ok && refused.error.message).toContain('the image for "Shot 2" is not a PNG, JPEG or WebP image');
+    expect(b.written.size).toBe(0);
+    expect(nodeById(b.state, SHOT)?.shot).toBeUndefined();
+  });
+
+  it('writes nothing when a staging id is not held', async () => {
+    const b = bus();
+    const held = b.staging.stage(PNG);
+    const refused = await executeAsync(
+      command('shot.importImages', {
+        items: [
+          { nodeId: SHOT, stagingId: held },
+          { nodeId: SHOT_WITH_FIELDS, stagingId: 'stg_NOTHELD01' },
+        ],
+      }),
+      b.bus,
+      b.registry,
+    );
+    expect(refused.ok).toBe(false);
+    expect(b.written.size).toBe(0);
+  });
+
+  it('refuses a write that fails after earlier files were written: no shot is changed, and the message says how many files were left', async () => {
+    const b = bus();
+    let writes = 0;
+    const failing: ProjectAssetPort = {
+      staging: b.staging,
+      writeBytes: async (path, bytes) => {
+        writes += 1;
+        if (writes === 2) throw new Error('disk full');
+        b.written.set(path, bytes.slice());
+      },
+    };
+    const registry = createProjectCommandRegistry({ clock, assets: failing, shots: shotPort });
+    const items = [SHOT, SHOT_WITH_FIELDS].map((nodeId) => ({ nodeId, stagingId: b.staging.stage(PNG) }));
+    const refused = await executeAsync(command('shot.importImages', { items }), b.bus, registry);
+
+    expect(refused.ok).toBe(false);
+    expect(!refused.ok && refused.error.message).toContain('the image for "Shot 2" could not be saved (disk full), so no shot was given a picture.');
+    expect(!refused.ok && refused.error.message).toContain('1 file was already written to the project');
+    expect(b.written.size).toBe(1);
+    expect(nodeById(b.state, SHOT)?.shot).toBeUndefined();
+    expect(nodeById(b.state, SHOT_WITH_FIELDS)?.shot).toEqual({ shotSize: 'CU', action: 'She looks up.' });
+    expect(b.undo.groups()).toHaveLength(0);
+  });
+
+  it('puts back the shots it had set when a later shot refuses, and says no shot was given a picture', async () => {
+    const b = bus();
+    let calls = 0;
+    const flaky: ShotCommandPort = {
+      apply(state, name, params, now) {
+        calls += 1;
+        if (calls === 2) return err({ code: 'conflict', message: 'the shot changed since it was read' }) as ShotResult;
+        return shotPort.apply(state, name, params, now);
+      },
+    };
+    const registry = createProjectCommandRegistry({
+      clock,
+      assets: { staging: b.staging, writeBytes: async (path, bytes) => void b.written.set(path, bytes.slice()) },
+      shots: flaky,
+    });
+    const before = JSON.stringify(b.state.manifest.tree);
+    const items = [SHOT, SHOT_WITH_FIELDS].map((nodeId) => ({ nodeId, stagingId: b.staging.stage(PNG) }));
+    const refused = await executeAsync(command('shot.importImages', { items }), b.bus, registry);
+
+    expect(!refused.ok && refused.error.message).toContain('No shot was given a picture; 2 files were written');
+    expect(JSON.stringify(b.state.manifest.tree)).toBe(before);
+    expect(b.undo.groups()).toHaveLength(0);
+  });
+
+  it('puts back the shots it had set when a later shot stops being a shot while the files are written', async () => {
+    const b = bus();
+    let writes = 0;
+    const moving: ProjectAssetPort = {
+      staging: b.staging,
+      writeBytes: async (path, bytes) => {
+        writes += 1;
+        b.written.set(path, bytes.slice());
+        const later = nodeById(b.state, SHOT_WITH_FIELDS);
+        if (writes === 2 && later !== undefined) later.type = 'document';
+      },
+    };
+    const registry = createProjectCommandRegistry({ clock, assets: moving, shots: shotPort });
+    const stamp = nodeById(b.state, SHOT)?.updatedAt;
+    const items = [SHOT, SHOT_WITH_FIELDS].map((nodeId) => ({ nodeId, stagingId: b.staging.stage(PNG) }));
+    const refused = await executeAsync(command('shot.importImages', { items }), b.bus, registry);
+
+    expect(refused.ok).toBe(false);
+    expect(nodeById(b.state, SHOT)?.shot).toBeUndefined();
+    expect(nodeById(b.state, SHOT)?.updatedAt).toBe(stamp);
+    expect(b.undo.groups()).toHaveLength(0);
+  });
+
+  it('does not overwrite a shot changed after the batch: the undo refuses, names it, and keeps the entry', async () => {
+    const b = bus();
+    okValue(await importImages(b, [{ nodeId: SHOT, bytes: PNG }]));
+    const shot = nodeById(b.state, SHOT);
+    if (shot !== undefined) shot.shot = { ...(shot.shot as Record<string, unknown>), action: 'Edited later.' };
+    const group = b.undo.groups()[0];
+    const result = b.undo.undo(group?.id ?? '');
+    expect(result.ok && result.value.failures).toHaveLength(1);
+    expect(result.ok && result.value.failures[0]?.message).toContain('"Shot 1" changed after the pictures were added');
+    expect(nodeById(b.state, SHOT)?.shot).toMatchObject({ action: 'Edited later.' });
+    expect(b.undo.groups()).toHaveLength(1);
+  });
+
+  it('is registered only when both ports are injected', () => {
+    expect(bus(project(), false).registry['shot.importImages'].apply).toBeUndefined();
+    expect(bus().registry['shot.importImages'].apply).toBeDefined();
+  });
+});

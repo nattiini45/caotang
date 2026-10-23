@@ -587,6 +587,15 @@ describe('the v0.1 scenario suite (agent-harness §9)', () => {
     });
   }
 
+  it('reads the same with ask named as with no mode: the same cards, trace and steps on every scenario (agent-harness §4)', async () => {
+    for (const scenario of scenarios) {
+      const plain = (await evaluate(scenario)).run.report;
+      const asking = (await evaluate({ ...scenario, modeOptions: { mode: 'ask' } })).run.report;
+      const shape = (report: typeof plain): string => JSON.stringify({ status: report.status, summary: report.summary, cards: report.cards, trace: report.trace, steps: report.steps });
+      expect(shape(asking), scenario.name).toBe(shape(plain));
+    }
+  });
+
   it('covers every §9 category it names, with at least ten scenarios across them', () => {
     const categories = new Set(scenarios.map((scenario) => scenario.category));
     expect(scenarios.length).toBeGreaterThanOrEqual(10);

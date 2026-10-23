@@ -102,6 +102,38 @@ describe('the DOCX contents field — the TOC recipe', () => {
     expect(settings).toContain('<w:updateFields/>');
   });
 
+  it('leaves updateFields out when there is no contents field, so Word has nothing to ask about', async () => {
+    const off = await parts(await renderDocx(input(undefined, false)));
+    expect(off['word/settings.xml'] ?? '').not.toContain('updateFields');
+    // Contents on but no chapter: no field is written either (render-docx.ts), so no prompt.
+    const scene: FlatBlock[] = [{ kind: 'scene', docId: IDS.landing, title: 'The Landing', body: 'The ferry came.', number: 1 }];
+    const empty = await parts(await renderDocx(input(scene, true)));
+    expect(empty['word/document.xml']).not.toContain('<w:sdt>');
+    expect(empty['word/settings.xml'] ?? '').not.toContain('updateFields');
+  });
+
+  it('writes the cached entries as plain runs: no hyperlink and no _Toc bookmark, while \\h stays on the field', async () => {
+    const body = (await parts(await renderDocx(input())))['word/document.xml'] ?? '';
+    const field = body.slice(body.indexOf('<w:sdt>'), body.indexOf('</w:sdt>'));
+    expect(field).toContain('1. Chapter One');
+    expect(field).not.toContain('<w:hyperlink');
+    expect(body).not.toContain('_Toc');
+    expect(body).toContain('TOC \\h \\o');
+  });
+
+  it('writes the whole field for a single chapter: begin, separate, end and the cached title', async () => {
+    const blocks: FlatBlock[] = [
+      { kind: 'chapter', title: 'Only Chapter', level: 1, number: 1 },
+      { kind: 'scene', docId: IDS.landing, title: 'The Landing', body: 'The ferry came.', number: 1 },
+    ];
+    const xml = await parts(await renderDocx(input(blocks, true)));
+    const body = xml['word/document.xml'] ?? '';
+    const field = body.slice(body.indexOf('<w:sdt>'), body.indexOf('</w:sdt>'));
+    for (const type of ['begin', 'separate', 'end']) expect(field).toContain(`<w:fldChar w:fldCharType="${type}"`);
+    expect(field).toContain('1. Only Chapter');
+    expect(xml['word/settings.xml']).toContain('<w:updateFields/>');
+  });
+
   it('shows the cached entries inside the field, before the first chapter — visible in any viewer', async () => {
     const body = (await parts(await renderDocx(input())))['word/document.xml'] ?? '';
     const sdtStart = body.indexOf('<w:sdt>');

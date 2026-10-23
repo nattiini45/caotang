@@ -37,6 +37,7 @@ import {
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import { DEMO_PROFILE_NAME, priceClearedBy, priceFromInputs } from '../app/providers.js';
 import { CoherenceSection } from './CoherenceSettings.js';
+import { AgentModeSettings } from './AgentModeSettings.js';
 import { ContextSection } from './ContextSection.js';
 import { McpSection } from './McpSection.js';
 
@@ -1024,6 +1025,7 @@ function AgentSection({ services }: { services: AppServices }): ReactNode {
         <span>Load every tool on every request</span>
       </label>
       <FormMessage message={message === null ? null : { text: message, tone: 'info' }} />
+      <AgentModeSettings services={services} />
     </section>
   );
 }

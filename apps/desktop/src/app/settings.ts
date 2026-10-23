@@ -14,7 +14,7 @@
 
 import { DETERMINISTIC_CHECK_IDS, MAX_FINDINGS_CAP, MAX_FINDINGS_DEFAULT, type DeterministicCheckId } from '@caotang/coherence';
 import type { ThinkingLevel } from '@caotang/gateway';
-import type { ContextConfig } from '@caotang/harness';
+import { isPermissionMode, type ContextConfig, type PermissionMode } from '@caotang/harness';
 import { DEFAULT_RETENTION, resolveRetentionConfig, type RetentionConfig } from '@caotang/store';
 import { EMPTY_MCP_SETTINGS, loadMcpSettings, type McpSettings } from '@caotang/mcp-client';
 
@@ -79,9 +79,53 @@ export interface ContextSettings {
  */
 export interface AgentSettings {
   readonly loadEveryTool: boolean;
+  /** The permission mode a session starts in (agent-harness §4). `auto` reads as `ask` while `lockAuto` is on. */
+  readonly defaultMode: PermissionMode;
+  /** Turns Auto mode off: the panel does not offer it and a stored `auto` reads as Ask. */
+  readonly lockAuto: boolean;
+  /** The limits a turn is held to while Accept edits or Auto decides its cards. A limit left out keeps the harness's default. */
+  readonly budget: AgentBudgetSettings;
 }
 
-export const DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false });
+export interface AgentBudgetSettings {
+  readonly maxTokens?: number;
+  readonly maxCostUsd?: number;
+  readonly maxWordsChanged?: number;
+  readonly maxDocuments?: number;
+  readonly maxSteps?: number;
+}
+
+export const DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false, defaultMode: 'ask', lockAuto: false, budget: Object.freeze({}) });
+
+/** The whole numbers a budget field may hold. A field outside them reads as unset. */
+export const AGENT_BUDGET_RANGES = {
+  maxTokens: [1_000, 10_000_000],
+  maxWordsChanged: [1, 1_000_000],
+  maxDocuments: [1, 1_000],
+  maxSteps: [1, 500],
+} as const;
+
+/** The agent slice as it loads, field by field: a wrong type or an out-of-range limit takes its default, and `auto` is never the mode of a locked slice. */
+export function normalizeAgent(raw: unknown): AgentSettings {
+  const source = isRecord(raw) ? raw : {};
+  const lockAuto = source['lockAuto'] === true;
+  const stored = isPermissionMode(source['defaultMode']) ? source['defaultMode'] : DEFAULT_AGENT_SETTINGS.defaultMode;
+  const budget = isRecord(source['budget']) ? source['budget'] : {};
+  const limits: { -readonly [K in keyof AgentBudgetSettings]: AgentBudgetSettings[K] } = {};
+  for (const key of ['maxTokens', 'maxWordsChanged', 'maxDocuments', 'maxSteps'] as const) {
+    const [min, max] = AGENT_BUDGET_RANGES[key];
+    const value = budget[key];
+    if (typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max) limits[key] = value;
+  }
+  const cost = budget['maxCostUsd'];
+  if (typeof cost === 'number' && Number.isFinite(cost) && cost > 0 && cost <= 1_000_000) limits.maxCostUsd = cost;
+  return {
+    loadEveryTool: source['loadEveryTool'] === true,
+    defaultMode: stored === 'auto' && lockAuto ? 'ask' : stored,
+    lockAuto,
+    budget: limits,
+  };
+}
 
 /** The thinking levels a role may pin, as the gateway's normalised set (provider-gateway §3). */
 const THINKING_LEVELS: readonly ThinkingLevel[] = ['off', 'low', 'medium', 'high', 'xhigh', 'max'];
@@ -179,6 +223,7 @@ export interface SettingsPatch {
   readonly coherence?: Partial<CoherenceSettings>;
   /** The whole context record: the Context section saves both budgets together, so a patch replaces them. */
   readonly context?: ContextSettings;
+  /** `budget` replaces the whole record, as the Agent section saves its limits together. */
   readonly agent?: Partial<AgentSettings>;
 }
 
@@ -302,7 +347,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
       maxFindings: clampInteger(coherence['maxFindings'], 1, MAX_FINDINGS_CAP, MAX_FINDINGS_DEFAULT),
     },
     context: normalizeContext(source['context']),
-    agent: { loadEveryTool: isRecord(source['agent']) && source['agent']['loadEveryTool'] === true },
+    agent: normalizeAgent(source['agent']),
   };
 }
 

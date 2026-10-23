@@ -378,10 +378,32 @@ describe('the user guide’s reviewed claims match the code', () => {
     const section = read('apps/desktop/src/components/Settings.tsx');
     expect(section).toContain("{ id: 'agent', label: 'Agent' }");
     expect(section).toContain('<span>Load every tool on every request</span>');
-    expect(read('apps/desktop/src/app/settings.ts')).toContain('DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false })');
+    expect(read('apps/desktop/src/app/settings.ts')).toContain("DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false, defaultMode: 'ask'");
     expect(guide).toContain('**Settings › Agent** has **Load every tool on every request** for a model that searches poorly. It is off by default, and it makes every request longer.');
     expect(guide).toContain('- **Agent.** **Load every tool on every request**, off by default.');
     expect(guide).toContain('It has eight sections: Providers, Context, Agent, Writing, Coherence, MCP & tools, Appearance and Data.');
     expect(changelog).toContain('**Settings › Agent** has **Load every tool on every request**, off by default');
+  });
+
+  it('names the permission modes and their controls in the words the panel and Settings show', () => {
+    const panel = read('apps/desktop/src/components/AgentPanel.tsx');
+    const settings = read('apps/desktop/src/components/AgentModeSettings.tsx');
+    const modes = read('packages/harness/src/agent/mode.ts');
+    expect(panel).toContain('<legend>Mode</legend>');
+    expect(panel).toContain('Switch to Ask and run this plan');
+    expect(panel).toContain('Plan, not run');
+    expect(read('apps/desktop/src/components/AgentPanel.tsx')).toContain('Auto-approved');
+    expect(settings).toContain('<span>Turn Auto mode off</span>');
+    for (const label of ["'plan-only': 'Plan only'", "ask: 'Ask'", "'accept-edits': 'Accept edits'", "auto: 'Auto'"]) expect(modes).toContain(label);
+    for (const text of ['**Mode**', '**Plan only**', '**Ask**', '**Accept edits**', '**Auto**', '**Switch to Ask and run this plan**', '**Auto-approved**', '**Turn Auto mode off**', '**Permission mode**']) {
+      expect(guide).toContain(text);
+    }
+    expect(guide).toContain('it is never saved in a project');
+    expect(changelog).toContain('**Permission modes.** The agent panel has a **Mode** control');
+    // The decision that superseded "no auto-approve mode" is recorded, and the sentence it replaced is gone.
+    const decisions = read('docs/decisions.md');
+    expect(decisions).toContain('The agent has four permission modes: Plan only, Ask (the default), Accept edits and Auto');
+    expect(decisions).not.toContain('No classifier or auto-approve mode');
+    expect(read('docs/architecture/agent-harness.md')).not.toContain('Explicitly **rejected for v0.1**: a classifier/auto-approve mode');
   });
 });

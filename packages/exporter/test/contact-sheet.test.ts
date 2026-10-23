@@ -463,6 +463,149 @@ describe('the page size: A4 or Letter (storyboard.md §6)', () => {
   });
 });
 
+describe('the paper sheet: blank numbered frames to draw in (storyboard.md §6, the paper-photo round trip)', () => {
+  /** The sheet as `renderMedia` writes it, with or without the paper option, read back. */
+  async function sheet(state: ProjectState, extra: { paperFrames?: boolean; pageSize?: 'A4' | 'Letter' } = {}) {
+    const output = renderMedia({
+      state,
+      format: 'contact-sheet-pdf',
+      includeRootIds: ['manuscript'],
+      title: PROJECT_NAME,
+      author: '',
+      date: '2026-10-17',
+      titlePage: false,
+      base: PROJECT_NAME,
+      assets: ASSETS,
+      readAsset: async () => PNG_1X1,
+      at: COMPILED_AT,
+      ...extra,
+    });
+    const render = output.files[0]?.bytes;
+    if (render === undefined) throw new Error('the contact sheet has no render');
+    const rendered = await render();
+    const bytes = (typeof rendered === 'object' && !(rendered instanceof Uint8Array) ? rendered.contents : rendered) as Uint8Array;
+    return { output, bytes, pdf: await PDFDocument.load(bytes) };
+  }
+
+  /** The ruled frame boxes a page draws: a path stroked and not filled (`S`, not `B`) at the paper sheet's 0.75 pt line. */
+  function ruledFrames(pdf: PDFDocument, index: number): number {
+    return pageContent(pdf, index)
+      .split('\nQ')
+      .filter((block) => block.includes('\n0.75 w\n') && block.trimEnd().endsWith('\nh\nS')).length;
+  }
+
+  it('has the same page count, page size and card layout as the picture sheet, and embeds no picture where the picture sheet embeds one', async () => {
+    const state = manyShots(16); // 18 shots: two A4 pages
+    const picture = await sheet(state);
+    const paper = await sheet(state, { paperFrames: true });
+    expect(paper.pdf.getPageCount()).toBe(2);
+    expect(paper.pdf.getPageCount()).toBe(picture.pdf.getPageCount());
+    expect(paper.pdf.getPage(0).getSize()).toEqual(A4);
+    expect(imageCount(picture.pdf)).toBe(1);
+    expect(imageCount(paper.pdf)).toBe(0);
+    expect(pageContent(paper.pdf, 0)).not.toContain(' Do');
+    // The same cards in the same places: each card's frame box sits where the picture sheet's picture box sits.
+    const plan = (paperFrames: boolean) =>
+      planContactSheet(state, ['manuscript'], () => ({ drawn: true }), paperFrames ? { paperFrames } : {}).plan.pages.map((page) => page.cards.map((card) => card.image));
+    expect(plan(true)).toEqual(plan(false));
+  });
+
+  it('draws one ruled frame box per card, and none on a picture sheet', async () => {
+    const state = manyShots(16);
+    const paper = await sheet(state, { paperFrames: true });
+    expect(ruledFrames(paper.pdf, 0)).toBe(15);
+    expect(ruledFrames(paper.pdf, 1)).toBe(3);
+    const picture = await sheet(state);
+    expect(ruledFrames(picture.pdf, 0)).toBe(0);
+  });
+
+  it('prints each card’s caption, number chip, spec row and action, and not the placeholder text', async () => {
+    const state = makeMediaProject();
+    const { pdf, output } = await sheet(state, { paperFrames: true });
+    const content = pageContent(pdf, 0);
+    // WinAnsi spells the em dash 0x97.
+    const winAnsi = (text: string): string => [...text].map((char) => (char === '—' ? '97' : hexOf(char))).join('');
+    expect(content).toContain(`<${winAnsi('001 — Shot one')}> Tj`);
+    expect(content).toContain(`<${winAnsi('002 — Shot two')}> Tj`);
+    // The camera notes stay: shot one is a medium shot of 4 seconds.
+    expect(content).toContain(`<${hexOf('Medium shot (MS)')}`);
+    expect(content).not.toContain(`<${hexOf('No image')}> Tj`);
+    expect(output.notes).toContain('contact sheet: paper frames, so each card is an empty frame to draw in and no picture is drawn');
+    expect(output.files[0]?.name).toBe(`${PROJECT_NAME} (paper frames).pdf`);
+  });
+
+  it('reads no picture and lists no missing one, whatever the shots hold', async () => {
+    const reads: string[] = [];
+    const output = renderMedia({
+      state: makeMediaProject(),
+      format: 'contact-sheet-pdf',
+      includeRootIds: ['manuscript'],
+      title: PROJECT_NAME,
+      author: '',
+      date: '2026-10-17',
+      titlePage: false,
+      base: PROJECT_NAME,
+      assets: new Map(),
+      readAsset: async (path) => {
+        reads.push(path);
+        return PNG_1X1;
+      },
+      paperFrames: true,
+      at: COMPILED_AT,
+    });
+    await output.files[0]?.bytes?.();
+    expect(reads).toEqual([]);
+    expect(output.notes.some((note) => note.includes('is not in assets/'))).toBe(false);
+  });
+
+  it('takes the option from a saved recipe through the bus, and the written PDF holds frames and no picture', async () => {
+    const state = makeMediaProject();
+    const written = new Map<string, Uint8Array>();
+    const clock = { now: () => COMPILED_AT };
+    const exporter = createExporter({
+      readState: () => state,
+      artifacts: new MemoryArtifactFs(),
+      bytes: { writeBytes: async (path, data) => void written.set(path, data), removeBytes: async (path) => void written.delete(path) },
+      clock,
+      assets: () => ASSETS,
+      readAsset: async () => PNG_1X1,
+    });
+    await exporter.ready();
+    const registry = createProjectCommandRegistry({ clock, exporter: exporter.commandPort() });
+    const bus: BusContext<ProjectState> = {
+      state,
+      view: createViewState(),
+      read: () => state,
+      undo: createUndoStore({ dispatch: (command) => execute(command, bus, registry) }),
+      log: createActivityLog(),
+      idempotency: createIdempotencyCache(),
+      notify: () => {},
+    };
+    const run = (name: Command['name'], params: Record<string, unknown>, id: string) =>
+      execute({ id, name, params, issuedBy: 'user', createdAt: COMPILED_AT } as Command, bus, registry);
+
+    expect(
+      run('recipe.save', { name: 'Draw here', includeRootIds: [MEDIA_IDS.shots], format: 'contact-sheet-pdf', options: { paperFrames: true } }, 'cmd_PAPER0000001').ok,
+    ).toBe(true);
+    expect(state.manifest.recipes?.find((recipe) => recipe.name === 'Draw here')?.options).toEqual({ paperFrames: true });
+    expect(run('export.compile', { format: 'contact-sheet-pdf', recipeName: 'Draw here' }, 'cmd_PAPER0000002').ok).toBe(true);
+    await exporter.idle();
+    expect(exporter.failures()).toEqual([]);
+    const file = written.get('exports/Draw here (paper frames).pdf');
+    if (file === undefined) throw new Error(`nothing written: ${[...written.keys()].join(', ')}`);
+    const pdf = await PDFDocument.load(file);
+    expect(imageCount(pdf)).toBe(0);
+    expect(ruledFrames(pdf, 0)).toBe(2);
+  });
+
+  it('is on a Letter page when asked, twelve frames to a page', async () => {
+    const { pdf } = await sheet(manyShots(11), { paperFrames: true, pageSize: 'Letter' });
+    expect(pdf.getPageCount()).toBe(2);
+    expect(pdf.getPage(1).getSize()).toEqual(LETTER);
+    expect(ruledFrames(pdf, 0)).toBe(12);
+  });
+});
+
 describe('contact-sheet-pdf — text outside Latin script, in the Noto Sans Mono CJK fallback font', () => {
   const CHINESE = '草堂的早晨，繁體字也行';
   const JAPANESE = 'ひらがなとカタカナ';

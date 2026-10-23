@@ -111,6 +111,7 @@ export const DECLARED_PARAMS: Readonly<Record<CommandName, readonly string[]>> =
   'project.saveGoal': ['goal'],
   'project.deleteGoal': ['goalId'],
   'shot.importImage': ['nodeId', 'stagingId'],
+  'shot.importImages': ['items'],
   'screenplay.import': ['format', 'text', 'parentId'],
   'dialogue.importInk': ['containers', 'parentId'],
   'dialogue.setMeta': ['nodeId', 'patch'],

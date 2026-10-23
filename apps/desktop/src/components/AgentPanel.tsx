@@ -11,18 +11,21 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import {
   CHECKPOINT_LABEL,
+  MODE_LABELS,
   groupCards,
   headerLineOf,
+  phraseFor,
   type AskBack,
   type Decision,
   type Finding,
+  type PermissionMode,
   type StatusCard,
   type TurnReport,
 } from '@caotang/harness';
 import type { ProjectState } from '@caotang/store';
 
 import { DEMO_CHOICES } from '../app/demo.js';
-import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, phaseLabel, type DelegationCardView, type TurnView } from '../app/agent-model.js';
+import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, MODE_HINTS, phaseLabel, type DelegationCardView, type TurnView } from '../app/agent-model.js';
 import { formatUsd, turnCostOf } from '../app/plan-preview.js';
 import { resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
@@ -33,7 +36,7 @@ import { useAssetRecords } from '../media/hooks.js';
 import { ConfirmDialog, EmptyState, useReport, useSession } from './shared.js';
 import { AgentQueue, type HeldNote } from './AgentQueue.js';
 import { openDialog } from './dialog-requests.js';
-import { PlanCard } from './PlanCard.js';
+import { PlanCard, planHeading } from './PlanCard.js';
 import { PlanOfferCard } from './PlanOfferCard.js';
 import { BackgroundTasks } from './BackgroundTasks.js';
 import { TaskChecklist } from './TaskChecklist.js';
@@ -158,6 +161,16 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
         <span className="agent-provider" data-testid="agent-provider">
           {provider === null ? 'No provider' : `Provider: ${providerLabel(provider, snapshot.providerIsDemo)}`}
         </span>
+        {/* The permission mode (agent-harness §4): a radio group named by its visible label, in the header so it shows with the drawer closed too. */}
+        <fieldset className="agent-mode" data-testid="agent-mode">
+          <legend>Mode</legend>
+          {snapshot.modes.map((mode) => (
+            <label key={mode} className={`agent-mode-option${snapshot.mode === mode ? ' is-on' : ''}`} title={MODE_HINTS[mode]}>
+              <input type="radio" name="agent-mode" value={mode} checked={snapshot.mode === mode} onChange={() => agent.setMode(mode)} />
+              <span>{MODE_LABELS[mode]}</span>
+            </label>
+          ))}
+        </fieldset>
         {/* A card that waits for the writer is the turn's state, not work: the turn is still open, so Send stays off, but the header says so. */}
         {/* The step line names where the turn is, with the drawer open or closed. It is a live region that polite-announces a change
             of step, not each streamed word: the line is derived from the task list and only moves when the step does. */}
@@ -256,6 +269,7 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
                   stands={turn.checkpoint !== null && session.undo.group(turn.checkpoint.undoGroupId) !== undefined}
                   onDecide={(decision) => agent.answer(decision)}
                   onRestore={(turnId, summary) => setRestoring({ turnId, summary, later: agent.laterChanges(turnId) })}
+                  onRunHeld={(turnId) => void agent.runHeldPlan(turnId)}
                 />
               ))}
             </ol>
@@ -303,6 +317,7 @@ function TurnBlock({
   stands,
   onDecide,
   onRestore,
+  onRunHeld,
 }: {
   turn: TurnView;
   snapshot: AgentSnapshot;
@@ -314,6 +329,8 @@ function TurnBlock({
   stands: boolean;
   onDecide: (decision: Decision) => void;
   onRestore: (turnId: string, summary: string) => void;
+  /** Switches to Ask and runs the writes Plan only refused in the turn. */
+  onRunHeld: (turnId: string) => void;
 }): ReactNode {
   const live = snapshot.pending !== null && snapshot.pending.turnId === turn.turnId;
   const settled = isSettled(turn);
@@ -321,6 +338,11 @@ function TurnBlock({
     <li className={`agent-turn is-${turn.phase}`} data-turn={turn.turnId}>
       <header className="agent-turn-head">
         <q className="agent-intent-text">{turn.intent}</q>
+        {turn.mode === null ? null : (
+          <span className="agent-turn-mode muted" data-testid="turn-mode">
+            {MODE_LABELS[turn.mode]}
+          </span>
+        )}
         <span className="agent-phase" aria-live="polite">
           {settled
             ? turn.report?.stop !== undefined
@@ -370,9 +392,21 @@ function TurnBlock({
         </ul>
       ) : null}
 
-      {turn.plan !== null ? (
+      {turn.plan !== null && turn.planAuto ? (
+        // A card the mode approved is collapsed, with its badge: the writer was not asked, and can open it to read what ran.
+        <details className="plan-auto" data-testid="plan-auto">
+          <summary>
+            {planHeading(turn.plan)} <span className="badge is-auto">Auto-approved</span>
+          </summary>
+          <PlanCard key={turn.planSeq} card={turn.plan} live={false} drafts={null} project={project} pictureNames={pictureNames} onDecide={onDecide} auto />
+        </details>
+      ) : turn.plan !== null ? (
         // Keyed on the showing, so every field of the card is read again from the card the loop holds (agent-harness §2).
         <PlanCard key={turn.planSeq} card={turn.plan} live={live} drafts={live ? snapshot.drafts : null} project={project} pictureNames={pictureNames} onDecide={onDecide} />
+      ) : null}
+
+      {turn.report?.heldSteps !== undefined && !snapshot.heldRun.includes(turn.turnId) ? (
+        <HeldPlan report={turn.report} disabled={snapshot.busy} onRun={() => onRunHeld(turn.turnId)} />
       ) : null}
 
       {turn.ladder.map((entry) => (
@@ -386,6 +420,7 @@ function TurnBlock({
       {turn.checkpoint !== null ? (
         <CheckpointRow
           undoGroupId={turn.checkpoint.undoGroupId}
+          mode={turn.checkpoint.mode}
           note={turn.checkpoint.note}
           taken={!stands}
           onRestore={() => onRestore(turn.turnId, turn.report?.summary ?? '')}
@@ -567,12 +602,15 @@ function FindingsList({ findings }: { findings: readonly Finding[] }): ReactNode
 /** The checkpoint row (agent-harness §5): one click puts the project back to before this turn, unless it has been taken back already. */
 export function CheckpointRow({
   undoGroupId,
+  mode,
   note,
   taken,
   onRestore,
   disabled,
 }: {
   undoGroupId: string;
+  /** The permission mode the turn ended in. */
+  mode: PermissionMode;
   /** The scope note of a turn that called an external tool, which restoring cannot reverse (extensibility §6). */
   note?: string;
   taken: boolean;
@@ -581,7 +619,9 @@ export function CheckpointRow({
 }): ReactNode {
   return (
     <div className="checkpoint-row" data-testid="checkpoint" data-undo-group={undoGroupId}>
-      <span className="checkpoint-label">Checkpoint · {CHECKPOINT_LABEL}</span>
+      <span className="checkpoint-label">
+        Checkpoint · {CHECKPOINT_LABEL} · {MODE_LABELS[mode]}
+      </span>
       {taken ? (
         <span className="muted">Taken back</span>
       ) : (
@@ -591,6 +631,27 @@ export function CheckpointRow({
       )}
       {note === undefined ? null : <span className="muted checkpoint-note">{note}</span>}
     </div>
+  );
+}
+
+/**
+ * What Plan only kept (agent-harness §4): the writes the turn wanted to make, none of them run, with the way to run them. The steps are
+ * listed in the words the task list uses; there is no Approve here, because nothing in this card can run until the writer is in Ask.
+ */
+function HeldPlan({ report, disabled, onRun }: { report: TurnReport; disabled: boolean; onRun: () => void }): ReactNode {
+  const held = report.heldSteps ?? [];
+  return (
+    <section className="held-plan" aria-label="Plan, not run" data-testid="held-plan">
+      <h3>Plan only: {held.length === 1 ? '1 step' : `${held.length} steps`} not run</h3>
+      <ol>
+        {held.map((step, index) => (
+          <li key={`${index}:${step.tool}`}>{phraseFor(step.tool, step.params).content}</li>
+        ))}
+      </ol>
+      <button type="button" className="button" disabled={disabled} onClick={onRun}>
+        Switch to Ask and run this plan
+      </button>
+    </section>
   );
 }
 

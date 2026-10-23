@@ -140,9 +140,13 @@ function findingsCountIn(req: ChatRequest): number {
 const DRAFT_NOT_MADE =
   'No draft was made, so nothing changed. The demo drafts into a scene called The Friend, and it could not write there. Check that a scene with that name is in the binder, then ask again.';
 
+/** The loop refused the demo's write because the writer is in Plan only (agent-harness §4): the demo says what it would have done instead. */
+const heldByPlanOnly = (req: ChatRequest): boolean => lastMessageOf(req).includes('Plan-only mode is on');
+
 /** Intent 1 — draft a scene: one write-confirm call, so one confirm card, then an applied draft. */
 const draftSceneReply = (req: ChatRequest): string | undefined => {
   if (!userTextOf(req).includes(`Request: ${DEMO_INTENTS.draftScene}`)) return undefined;
+  if (repliesSoFar(req) > 0 && heldByPlanOnly(req)) return JSON.stringify({ reply: 'Plan: draft the opening scene in The Friend, from the brief about the friend arriving by boat. Nothing was written.' });
   if (repliesSoFar(req) > 0) return JSON.stringify({ reply: DRAFT_NOT_MADE });
   return oneStep('scene.draft', { doc: 'The Friend', instruction: 'The friend arrives by boat, soaked, with news of Elena.', mode: 'draft' }, 'The Friend holds a drafted opening scene');
 };
@@ -158,6 +162,7 @@ const SYNOPSES_NOT_FILLED =
 /** Intent 2 — fill synopses: one batched write-confirm call, previewed as a card of rows. */
 const fillSynopsesReply = (req: ChatRequest): string | undefined => {
   if (!userTextOf(req).includes(`Request: ${DEMO_INTENTS.fillSynopses}`)) return undefined;
+  if (repliesSoFar(req) > 0 && heldByPlanOnly(req)) return JSON.stringify({ reply: 'Plan: fill in the synopses of The Landing and The Storm. Nothing was written.' });
   if (repliesSoFar(req) > 0) return JSON.stringify({ reply: SYNOPSES_NOT_FILLED });
   return oneStep('synopsis.fill', { docs: ['The Landing', 'The Storm'], source: 'text', max_words: 30 }, 'Both chapters have a synopsis');
 };

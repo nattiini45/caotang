@@ -99,6 +99,8 @@ interface ShownOptions {
   readonly continued: boolean;
   /** The contact sheet's paper; `undefined` is A4 (storyboard.md §6). */
   readonly pageSize: PageSize | undefined;
+  /** The contact sheet prints blank frames to draw on, not the pictures; off unless the recipe sets it (storyboard.md §6). */
+  readonly paperFrames: boolean;
 }
 
 /** The scene-number choices, in the words the dialog shows. */
@@ -136,6 +138,7 @@ function shownOptionsOf(recipe: ExportRecipe | undefined): ShownOptions {
     author: recipe?.options?.author ?? '',
     charLimit: recipe?.options?.charLimit,
     pageSize: recipe?.options?.pageSize,
+    paperFrames: recipe?.options?.paperFrames ?? false,
     sceneNumbers: recipe?.options?.sceneNumbers ?? 'off',
     continued: recipe?.options?.continued ?? true,
   };
@@ -195,6 +198,7 @@ export function ExportDialog({
         ...(next.charLimit === undefined ? {} : { charLimit: next.charLimit }),
         ...pdfOptionsOf(next),
         ...(next.pageSize === undefined ? {} : { pageSize: next.pageSize }),
+        ...(next.paperFrames ? { paperFrames: true } : {}),
       },
     });
     if (outcome.ok) setNotice(null);
@@ -225,6 +229,7 @@ export function ExportDialog({
         ...(shown.charLimit === undefined ? {} : { charLimit: shown.charLimit }),
         ...pdfOptionsOf(shown),
         ...(shown.pageSize === undefined ? {} : { pageSize: shown.pageSize }),
+        ...(shown.paperFrames ? { paperFrames: true } : {}),
       },
     });
     if (outcome.ok) {
@@ -463,16 +468,26 @@ export function ExportDialog({
             </>
           ) : null}
           {format === 'contact-sheet-pdf' ? (
-            <label className="export-field">
-              <span className="export-option-label">Paper size</span>
-              <select
-                value={shown.pageSize ?? 'A4'}
-                onChange={(event) => saveOptions({ ...shown, pageSize: event.target.value === 'Letter' ? 'Letter' : 'A4' })}
-              >
-                <option value="A4">A4</option>
-                <option value="Letter">US Letter</option>
-              </select>
-            </label>
+            <>
+              <label className="export-field">
+                <span className="export-option-label">Paper size</span>
+                <select
+                  value={shown.pageSize ?? 'A4'}
+                  onChange={(event) => saveOptions({ ...shown, pageSize: event.target.value === 'Letter' ? 'Letter' : 'A4' })}
+                >
+                  <option value="A4">A4</option>
+                  <option value="Letter">US Letter</option>
+                </select>
+              </label>
+              <label className="export-option">
+                <input
+                  type="checkbox"
+                  checked={shown.paperFrames}
+                  onChange={(event) => saveOptions({ ...shown, paperFrames: event.target.checked })}
+                />
+                <span className="export-option-label">Paper frames: blank numbered frames to draw in, without the pictures</span>
+              </label>
+            </>
           ) : null}
         </fieldset>
 

@@ -168,6 +168,8 @@ export function Workspace({
         services.providers,
         () => contextConfigOf(services.settings.current().context),
         () => services.settings.current().agent.loadEveryTool,
+        {},
+        () => services.settings.current().agent,
       ),
     [session, services.providers, services.settings],
   );

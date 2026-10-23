@@ -518,6 +518,7 @@ describe('§8 — the activity row for every shipped store apply', () => {
       'project.importAsset',
       'shot.create',
       'shot.importImage',
+      'shot.importImages',
       'shot.setMeta',
       'skill.import',
       'storyboard.create',

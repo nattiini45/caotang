@@ -278,6 +278,11 @@ export interface SheetCard {
   /** Whether the image loaded. When false the card draws a placeholder with {@link placeholder}. */
   readonly image: boolean;
   readonly placeholder: string;
+  /**
+   * The line a paper-sheet card prints beside its number chip (`007 — The Ferry`, {@link paperCaptionOf}). Present marks the card as a
+   * blank frame to draw on (storyboard.md §6): no picture, no placeholder, an empty ruled box.
+   */
+  readonly caption?: string;
 }
 
 export interface PlacedRect {
@@ -309,6 +314,10 @@ export interface PlacedCard {
   readonly spec: readonly PlacedText[];
   readonly action: readonly PlacedText[];
   readonly placeholder?: PlacedText;
+  /** Whether this card is a blank frame to draw on (storyboard.md §6, the paper sheet): the emitter draws an empty ruled box and no text in it. */
+  readonly paper: boolean;
+  /** A paper card's caption, on the chip's line to its right. */
+  readonly caption?: PlacedText;
   /**
    * The placeholder's text and place, present on every card. An emitter that cannot draw a planned picture (its
    * bytes are gone, or the PDF engine cannot read them) draws this instead, so the card is never left blank.
@@ -447,13 +456,24 @@ function placeCard(
   const actionY = y + imageHeight + textGap + specLines * specLineHeight + actionFontSize;
   const specText = wrapText(card.specRow, cardWidth, specFontSize, specLines);
   const actionText = wrapText(card.action, cardWidth, actionFontSize, actionLines);
+  const paper = card.caption !== undefined;
+  const captionX = x + gap + chipWidth + 4;
+  const caption: PlacedText | undefined =
+    card.caption === undefined
+      ? undefined
+      : {
+          text: wrapText(card.caption, x + cardWidth - gap - captionX, chipFontSize, 1)[0] ?? '',
+          x: captionX,
+          y: y + gap + chipFontSize + 1,
+          fontSize: chipFontSize,
+        };
   const fallback: PlacedText = {
-    text: wrapText(card.placeholder, cardWidth - 2 * gap, actionFontSize, 1)[0] ?? '',
+    text: paper ? '' : (wrapText(card.placeholder, cardWidth - 2 * gap, actionFontSize, 1)[0] ?? ''),
     x: x + gap,
     y: y + imageHeight / 2 + actionFontSize / 2,
     fontSize: actionFontSize,
   };
-  const placeholder = card.image ? undefined : fallback;
+  const placeholder = card.image || paper ? undefined : fallback;
 
   return {
     shotId: card.shotId,
@@ -461,6 +481,7 @@ function placeCard(
     frame: { x, y, width: cardWidth, height: cardHeight },
     image: { x, y, width: cardWidth, height: imageHeight },
     hasImage: card.image,
+    paper,
     chip: { x: x + gap, y: y + gap, width: chipWidth, height: chipHeight },
     chipText: { text: chipText, x: x + gap + 3, y: y + gap + chipFontSize + 1, fontSize: chipFontSize },
     spec: specText.map((text, index) => ({ text, x, y: specY + index * specLineHeight, fontSize: specFontSize })),
@@ -471,6 +492,7 @@ function placeCard(
       fontSize: actionFontSize,
     })),
     ...(placeholder !== undefined ? { placeholder } : {}),
+    ...(caption !== undefined ? { caption } : {}),
     fallback,
   };
 }
@@ -493,6 +515,11 @@ export interface ContactSheetOptions {
   readonly date?: string;
   /** The moment `{date}` is taken from when no {@link date} is given (its UTC day). Defaults to now. Pass it in tests. */
   readonly now?: Date;
+  /**
+   * Plan a sheet of blank frames to draw on (storyboard.md §6, the paper-photo round trip): no card draws a picture or the placeholder,
+   * and each carries a caption of its zero-padded number and title. The geometry is the picture sheet's. Absent is off.
+   */
+  readonly paperFrames?: boolean;
 }
 
 /** Whether a planned picture can be drawn, and, when it cannot, the note that says why. */
@@ -506,6 +533,16 @@ export interface ContactSheetPlan {
   readonly pictures: ReadonlyMap<string, string>;
   /** How many shots the sheet holds. */
   readonly shotCount: number;
+}
+
+/**
+ * A paper card's caption: the shot number zero-padded to three digits, the form a photograph's file name carries (`007.jpg`), and the
+ * title after a dash. The shot's title may hold line breaks, which a caption does not.
+ */
+export function paperCaptionOf(shotNumber: number, title: string): string {
+  const number = String(shotNumber).padStart(3, '0');
+  const words = title.split(/\s+/).filter((part) => part !== '').join(' ');
+  return words === '' ? number : `${number} — ${words}`;
 }
 
 /**
@@ -556,7 +593,7 @@ export function planContactSheet(
 
   for (const node of shots) {
     const read = readShotMeta(shotFieldOf(node));
-    const assetId = read.meta.image;
+    const assetId = options.paperFrames === true ? undefined : read.meta.image;
     let hasImage = false;
     if (assetId !== undefined) {
       let status = statuses.get(assetId);
@@ -577,6 +614,7 @@ export function planContactSheet(
       action: read.meta.action ?? '',
       image: hasImage,
       placeholder: read.meta.imageAlt ?? 'No image',
+      ...(options.paperFrames === true ? { caption: paperCaptionOf(numbers.get(node.id) ?? 0, node.title) } : {}),
     });
   }
 
