@@ -8,6 +8,8 @@
 
 import type { SceneNumbersOption } from '@caotang/bus';
 
+import type { PermissionRule } from './agent-rules.js';
+
 export const APP_ID = 'caotang';
 export const FORMAT_VERSION = 1;
 
@@ -238,4 +240,9 @@ export interface Manifest {
    * that is on is still not offered to the agent until the writer has reviewed it, and the review is not kept here.
    */
   disabledSkills?: string[];
+  /**
+   * additive in v1 (agent-harness.md §4, Rules): the writer's rules for the agent that travel with the folder. Only `deny` and `ask` rules are
+   * read, so a project file can restrict the agent and never grant it power. Absent = no rules.
+   */
+  agent?: { rules?: PermissionRule[] };
 }

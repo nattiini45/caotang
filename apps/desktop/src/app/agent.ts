@@ -464,7 +464,7 @@ export class AgentController {
         (this.session_ = createAgentSession({
           harness: this.session.harness,
           gateway: this.providers.gateway,
-          context: createContextPort({ state: this.session.state, config: this.contextConfig }),
+          context: createContextPort({ state: this.session.state, config: this.contextConfig, withheld: (tool) => this.session.harness.withheld(tool) }),
           decide: (pending) => this.decide(pending),
           emit: (event) => this.onEvent(event),
           role: 'chat',
@@ -993,7 +993,7 @@ export class AgentController {
     return createAgentSession({
       harness: this.session.harness,
       gateway: this.providers.gateway,
-      context: createContextPort({ state: this.session.state, config: this.contextConfig }),
+      context: createContextPort({ state: this.session.state, config: this.contextConfig, withheld: (tool) => this.session.harness.withheld(tool) }),
       // Staging shows no card. A card that did arrive would be cancelled, so nothing here waits on a writer who is not looking.
       decide: async () => ({ action: 'cancel' }),
       role: 'background',

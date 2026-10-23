@@ -676,5 +676,8 @@ function leftOut(context: ContextPreview): string[] {
   return [
     ...context.codex.dropped.map((entry) => `${entry.name}: ${entry.reason}`),
     ...context.layers.flatMap((layer) => layer.notes.map((note) => `${layer.name}: ${note}`)),
+    // A read rule keeps these from the agent (agent-harness §4): each is named here, to the writer only, so a draft that is thinner than
+    // expected can be traced to the rule.
+    ...context.layers.flatMap((layer) => layer.drops.filter((drop) => drop.reason.kind === 'withheld').map((drop) => `${drop.label}: ${drop.text}`)),
   ];
 }
