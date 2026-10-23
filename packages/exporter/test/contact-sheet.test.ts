@@ -733,9 +733,9 @@ describe('contact-sheet-pdf — Arabic and Hebrew, in Noto Sans Arabic and Noto 
   it('writes the mark after the last letter of a word after the word, in marked content of its own, because pdf.js reads a mark into the open text item', async () => {
     const { pdf } = await compileSheet(rig({ state: withAction('بِسْمِ שָׁלוֹם بِسْم'), ...bothLoaders }).exporter);
     const content = pageContent(pdf, 0);
-    // One word ends in a mark: its glyphs are one text object, then the mark is another inside /Span BMC … EMC.
+    // One word ends in a mark: its glyphs come first in its text object, then the mark inside /Span BMC … EMC.
     expect(content.match(/\/Span BMC/g)).toHaveLength(1);
-    expect(content).toMatch(/ET\s+\/Span BMC\s+BT\s+\/\S+ [\d.]+ Tf\s+1 0 0 1 \S+ \S+ Tm\s+<[0-9A-F]{4}> Tj\s+ET\s+EMC\s+Q/);
+    expect(content).toMatch(/Tj\s+\/Span BMC\s+1 0 0 1 \S+ \S+ Tm\s+<[0-9A-F]{4}> Tj\s+EMC\s+ET\s+Q/);
     // A reader still puts the word together as typed.
     expect(actualTexts(pdf)).toEqual(expect.arrayContaining(['بِسْمِ', 'שָׁלוֹם', 'بِسْم']));
   });

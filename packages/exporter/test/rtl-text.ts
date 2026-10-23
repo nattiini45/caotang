@@ -62,20 +62,16 @@ export function drawnRuns(pdf: PDFDocument, fonts: readonly string[] = ['NotoSan
     }
   }
   const runs: DrawnRun[] = [];
-  const content = contentOf(pdf, index);
-  for (const block of content.matchAll(/BT\s+\/(\S+) [\d.]+ Tf([\s\S]*?)ET/g)) {
+  for (const block of contentOf(pdf, index).matchAll(/BT\s+\/(\S+) [\d.]+ Tf([\s\S]*?)ET/g)) {
     const map = texts.get(block[1] ?? '');
     if (map === undefined) continue;
-    const glyphs = [...(block[2] ?? '').matchAll(/1 0 0 1 (\S+) \S+ Tm\s+<([0-9A-F]{4})> Tj/g)];
-    const drawn = glyphs.map((glyph) => map.get(parseInt(glyph[2] ?? '', 16)) ?? '');
-    const previous = runs[runs.length - 1];
-    if (previous !== undefined && /\/Span BMC\s*$/.test(content.slice(0, block.index))) {
-      // The marks after a word's last letter, which the writer puts after the word in marked content of their own: drawn first, at its left end.
-      const all = [...drawn, ...previous.drawn];
-      runs[runs.length - 1] = { x: previous.x, drawn: all, word: [...all].reverse().join('') };
-      continue;
-    }
-    runs.push({ x: Number(glyphs[0]?.[1] ?? Number.NaN), drawn, word: [...drawn].reverse().join('') });
+    // The marks after a word's last letter are written after the word, between /Span BMC and EMC: they are drawn first, at its left end.
+    const [body = '', tail = ''] = (block[2] ?? '').split('/Span BMC');
+    const textsOf = (part: string): { x: number; text: string }[] =>
+      [...part.matchAll(/1 0 0 1 (\S+) \S+ Tm\s+<([0-9A-F]{4})> Tj/g)].map((glyph) => ({ x: Number(glyph[1]), text: map.get(parseInt(glyph[2] ?? '', 16)) ?? '' }));
+    const glyphs = [...textsOf(tail), ...textsOf(body)];
+    const drawn = glyphs.map((glyph) => glyph.text);
+    runs.push({ x: glyphs[0]?.x ?? Number.NaN, drawn, word: [...drawn].reverse().join('') });
   }
   return runs;
 }
