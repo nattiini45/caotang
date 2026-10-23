@@ -1504,6 +1504,11 @@ describe('a retried write request, asked to write once', () => {
     }
   }
 
+  // Every test in this block starts a server fixture and connects a client over the wire, which
+  // is the cost the rest of this file already declares 30_000 ms for; this block was the one
+  // place without it. One fixture here took 3 999 ms alone and exceeded 5 000 ms under the full
+  // suite's worker pool, so the default was not a budget for its claim. 30 000 ms matches the
+  // convention above and still fails a hang.
   it('writes once, and answers the repeat with the first answer', async () => {
     await withFixture('retry-once', async (fixture, client) => {
       const first = await append(client, LINE, { [KEY]: 'req-1' });
@@ -1512,7 +1517,7 @@ describe('a retried write request, asked to write once', () => {
       expect(again).toEqual(first);
       expect(timesIn(notesOf(fixture), LINE)).toBe(1);
     });
-  });
+  }, 30_000);
 
   it('refuses the same key with other arguments, or another tool, naming both calls, and writes nothing', async () => {
     await withFixture('retry-mismatch', async (fixture, client) => {
@@ -1529,7 +1534,7 @@ describe('a retried write request, asked to write once', () => {
       expect(notesOf(fixture)).toBe(before);
       expect(fixture.session.state.manifest.tree.find((node) => node.id === LANDING)?.synopsis).not.toBe('Late.');
     });
-  });
+  }, 30_000);
 
   it('is opt-in: requests without a key are two calls, and two keys are two calls', async () => {
     await withFixture('retry-optin', async (fixture, client) => {
@@ -1542,7 +1547,7 @@ describe('a retried write request, asked to write once', () => {
       await append(client, LINE, { [KEY]: 'b' });
       expect(timesIn(notesOf(fixture), LINE)).toBe(4);
     });
-  });
+  }, 30_000);
 
   it('gives a retry that arrives while the first write is still being saved the first answer, with one write', async () => {
     await withFixture('retry-inflight', async (fixture, client) => {
@@ -1567,7 +1572,7 @@ describe('a retried write request, asked to write once', () => {
       expect(calls).toHaveBeenCalledTimes(1);
       expect(timesIn(notesOf(fixture), LINE)).toBe(1);
     });
-  });
+  }, 30_000);
 
   it('forgets an answer after the retry window: the same key is a new call again', async () => {
     await withFixture('retry-expiry', async (fixture, client) => {
@@ -1584,7 +1589,7 @@ describe('a retried write request, asked to write once', () => {
         vi.useRealTimers();
       }
     });
-  });
+  }, 30_000);
 
   it('reads only its own key name: a reserved io.modelcontextprotocol/* name or an unrelated foreign key is not a key', async () => {
     await withFixture('retry-meta', async (fixture, client) => {
@@ -1601,7 +1606,7 @@ describe('a retried write request, asked to write once', () => {
       }
       expect(timesIn(notesOf(fixture), LINE)).toBe(7);
     });
-  });
+  }, 30_000);
 
   it('does not cache a refusal, since it wrote nothing: the same key can be sent again once the call is valid', async () => {
     await withFixture('retry-refused', async (fixture, client) => {
@@ -1615,12 +1620,12 @@ describe('a retried write request, asked to write once', () => {
       expect(fixed.isError).not.toBe(true);
       expect(timesIn(notesOf(fixture), LINE)).toBe(1);
     });
-  });
+  }, 30_000);
 
   it('writes nothing of the cache to the folder', async () => {
     await withFixture('retry-folder', async (fixture, client) => {
       await append(client, LINE, { [KEY]: 'req-6' });
       expect(JSON.stringify(folderBytes(fixture.root))).not.toContain('req-6');
     });
-  });
+  }, 30_000);
 });

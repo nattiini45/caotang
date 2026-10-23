@@ -16,6 +16,17 @@ import type * as lockModule from '../src/lock.js';
 import { removeDir, tempDir } from './support.js';
 
 /**
+ * The budget for the race below — explicit and per-test, never `vitest.config.ts`'s default.
+ * The fixture is 40 rounds of eight writers taking one stale lock over, so it is 40 × 8 exclusive
+ * creates, reads, markers and removals: the contention is the subject matter, not an accident.
+ * Measured on one development machine: **315 ms** alone and **4 514 ms** under the full suite's
+ * worker pool — within 500 ms of the default, so the default was never a budget for its claim.
+ * 30 000 ms clears the recorded figures with headroom and still fails a hang. The sibling takeover
+ * race in `packages/mcp-server/test/binary.test.ts` declares 180 000 ms for the same shape.
+ */
+const RACE_TIMEOUT = 30_000;
+
+/**
  * The lock module with a scripted `node:fs/promises` in it. The two reads of the lock in one
  * takeover are the width of one write apart, and a write that fails is a fault of the disk, so
  * neither can be reached from outside the module: the test has to speak for the filesystem.
@@ -175,7 +186,7 @@ describe('the project lock', () => {
       expect(refused.every((error) => error instanceof ProjectLockedError)).toBe(true);
       await held[0]?.release();
     }
-  });
+  }, RACE_TIMEOUT);
 });
 
 describe('a takeover marker left behind by a writer that died', () => {
