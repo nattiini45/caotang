@@ -54,6 +54,15 @@ export {
   type ConfirmLedger,
   type RoundState,
 } from './confirm.js';
+export {
+  MAX_IDEMPOTENCY_KEY_LENGTH,
+  REPLAY_TTL_MS,
+  createReplayCache,
+  idempotencyKeyOf,
+  type ReplayAnswer,
+  type ReplayCache,
+  type ReplayEntry,
+} from './replay.js';
 export { guardBatch, guardMessage, hardDeniedError, refusalResponse, type GuardPolicy, type RefusalResponse } from './guard.js';
 export { advertisedSchema, registerCaotangTools, toCallResult, type ToolRuntime } from './tools.js';
 export {

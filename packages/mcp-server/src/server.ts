@@ -36,6 +36,7 @@ import { serveStdio, StdioServerTransport, type StdioServerHandle } from '@model
 
 import { bearerAccepted } from './auth.js';
 import { createConfirmLedger, createRoundCodec } from './confirm.js';
+import { createReplayCache } from './replay.js';
 import { guardBatch, guardMessage, type GuardPolicy, type RefusalResponse } from './guard.js';
 import { LegacySessions, type LegacySessionOptions } from './legacy-sessions.js';
 import { degradedInstructions, guardDegraded, registerRecoveryTools, type DegradedSession, type RecoveryRuntime } from './recovery.js';
@@ -89,7 +90,7 @@ export function createToolRuntime(session: DegradedSession): RecoveryRuntime;
 export function createToolRuntime(session: ProjectSession | DegradedSession): ServerRuntime;
 export function createToolRuntime(session: ProjectSession | DegradedSession): ServerRuntime {
   const machinery = { codec: createRoundCodec(), ledger: createConfirmLedger() };
-  return 'degraded' in session ? { recovery: session, ...machinery } : { session, changes: session.changes, ...machinery };
+  return 'degraded' in session ? { recovery: session, ...machinery } : { session, changes: session.changes, replay: createReplayCache(), ...machinery };
 }
 
 /** The guard's policy for a runtime: whether writes are exposed, and on a degraded server which names reach a handler. */

@@ -18,7 +18,7 @@ interface Command {
   params: object;             // flat, enum-constrained, schema-validated
   issuedBy: 'user' | 'agent';
   turnId?: string;            // agent turn this command belongs to (agent-issued only)
-  callId?: string;            // tool-call id; idempotency key within the turn (§6)
+  callId?: string;            // tool-call id; idempotency key within the turn (§6); the MCP server mints a fresh pair per request, and answers a retry from its own cache keyed by the caller's `_meta` key (extensibility §9)
   createdAt: number;          // epoch ms; log/display only — never affects behavior
 }
 

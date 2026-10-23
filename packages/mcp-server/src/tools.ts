@@ -47,6 +47,7 @@ import {
 import { FolderChangedError } from '@caotang/sdk/folder';
 
 import type { ChangeFeed } from './changes.js';
+import { idempotencyKeyOf, type ReplayAnswer, type ReplayCache } from './replay.js';
 import { notMadeError, type ProjectSession } from './session.js';
 import { projectFileLabel, projectFileTitles } from '@caotang/store';
 
@@ -55,6 +56,8 @@ export interface ToolRuntime {
   readonly session: ProjectSession;
   readonly codec: RequestStateCodec<RoundState>;
   readonly ledger: ConfirmLedger;
+  /** The answers to keyed write-auto calls, so a retried request writes once (replay.ts). */
+  readonly replay: ReplayCache;
   /** One per process, the session's own, shared by every per-request `McpServer` (changes.ts). */
   readonly changes: ChangeFeed;
 }
@@ -207,22 +210,50 @@ function canAnswerForm(capabilities: ClientCapabilities | undefined): boolean {
 /**
  * The turn and call an external request is held under. A new pair per request: the
  * server keeps no session, so a request is its own turn, and a confirmation carries
- * its pair through the round trip in the sealed state.
+ * its pair through the round trip in the sealed state. A retry is told apart from a
+ * second call only by the key the caller sends, which `runKeyed` answers from the
+ * replay cache; the pair stays fresh, because the bus's cache ends with the request.
  */
 function newTurnId(): string {
   return newId('cmd');
 }
 
-async function runDirect(runtime: ToolRuntime, name: string, params: Structured): Promise<CallToolResult> {
+async function runDirect(runtime: ToolRuntime, name: string, params: Structured): Promise<ReplayAnswer> {
   const turnId = newTurnId();
   const callId = newId('cmd');
   try {
     // The empty-project note is the harness's own, chosen for the caller's write mode (harness tools/reads.ts), so it is not rewritten here.
     const outcome = await runtime.session.callDirect(name, callId, params, turnId);
-    return toCallResult(outcome);
+    // A refusal wrote nothing, so a repeat of the call may run again. Any other settle is kept: the change was made.
+    return { result: toCallResult(outcome), retryable: !outcome.ok };
   } catch (error) {
-    return failed(name, error, runtime.session);
+    // A throw after the change was made in memory (a save that failed) is kept too, since running it again would write twice.
+    return { result: failed(name, error, runtime.session), retryable: false };
   }
+}
+
+/**
+ * A write-auto call that carries an idempotency key. The first call under a key runs, and its answer's promise is stored before the
+ * save is awaited, so a retry that arrives while the write is still being saved gets the same answer and writes nothing. The same
+ * key with another tool or other arguments is refused, naming both calls, and writes nothing: the second write is never silently swallowed.
+ */
+async function runKeyed(runtime: ToolRuntime, key: string, name: string, params: Structured): Promise<CallToolResult> {
+  const now = Date.now();
+  const digest = argsDigest(name, params);
+  const earlier = runtime.replay.recall(key, now);
+  if (earlier !== undefined) {
+    if (earlier.tool === name && earlier.digest === digest) return (await earlier.answer).result;
+    const how = earlier.tool === name ? 'with other arguments' : 'for another tool';
+    return refusal({
+      code: 'invalid-params',
+      message: `The idempotency key ${JSON.stringify(key)} already identifies a call to "${earlier.tool}", and this is a call to "${name}" ${how}. Nothing was written.`,
+      correctiveHint: 'send a new key for a new call, and the same key only to repeat the same call',
+      target: name,
+    });
+  }
+  const answer = runDirect(runtime, name, params);
+  runtime.replay.remember(key, { tool: name, digest, answer }, now);
+  return (await answer).result;
 }
 
 /**
@@ -424,7 +455,9 @@ export function registerCaotangTools(server: McpServer, runtime: ToolRuntime, ro
       async (args: Structured, ctx: ServerContext): Promise<CallToolResult | InputRequiredResult> => {
         const params: Structured = args ?? {};
         if (listing.risk === 'write-confirm') return runConfirmed(server, listing, params, ctx, runtime, waitSeconds);
-        return runDirect(runtime, listing.name, params);
+        const key = listing.risk === 'write-auto' ? idempotencyKeyOf(ctx.mcpReq._meta) : undefined;
+        if (key !== undefined) return runKeyed(runtime, key, listing.name, params);
+        return (await runDirect(runtime, listing.name, params)).result;
       },
     );
     registered.push(listing.name);

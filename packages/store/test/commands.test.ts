@@ -1611,3 +1611,36 @@ describe('the bus/store split these applies depend on', () => {
     expect(implemented).toHaveLength(40);
   });
 });
+
+/**
+ * A retried `notes.append` under one key. The MCP server derives nothing from the key for the bus (its cache ends with the
+ * request), so what this pins is the bus half of the promise: a repeat of one `(turnId, callId)` is answered from the cache and
+ * writes nothing, and the one write that did land is undone by one restore of the notes it found.
+ */
+describe('notes.append — one call repeated under one key', () => {
+  it('holds the text once, and one undo restores the notes from before the first append', () => {
+    const h = harness();
+    const before = node(h.state, LANDING).notes;
+    const retried = { issuedBy: 'agent', turnId: 'turn-retry', callId: 'call-retry' } as const;
+    const params = { nodeId: LANDING, text: 'The tide table was wrong.' };
+
+    const first = h.run(cmd({ name: 'notes.append', params, ...retried }));
+    const again = h.run(cmd({ name: 'notes.append', params, ...retried }));
+
+    expect(again).toEqual(first);
+    const notes = node(h.state, LANDING).notes;
+    expect(notes.split('The tide table was wrong.')).toHaveLength(2);
+    expect(notes.split('— agent,')).toHaveLength(2);
+
+    h.undoGroup(first.undoGroupId!);
+    expect(node(h.state, LANDING).notes).toBe(before);
+  });
+
+  it('is two appends when the key differs: the repeat is only recognised by the caller’s key', () => {
+    const h = harness();
+    const params = { nodeId: LANDING, text: 'The tide table was wrong.' };
+    h.run(cmd({ name: 'notes.append', params, issuedBy: 'agent', turnId: 'turn-a', callId: 'call-a' }));
+    h.run(cmd({ name: 'notes.append', params, issuedBy: 'agent', turnId: 'turn-b', callId: 'call-b' }));
+    expect(node(h.state, LANDING).notes.split('The tide table was wrong.')).toHaveLength(3);
+  });
+});
