@@ -167,6 +167,13 @@ describe('a story in a format the reader does not know', () => {
     expect(plan.report.warnings.join('\n')).toContain('This story uses Harlowe 3.3.8.');
   });
 
+  it('keeps the text of a link that stands alone on its line', () => {
+    const plan = planTweeImport(':: StoryData\n{"format":"Harlowe"}\n\n:: A\nYou stand at a fork.\n[[Go north->B]]\n[[Go south->B]]\n\n:: B\nx\n');
+    expect(plan.container?.body).toContain('You stand at a fork.\nGo north\nGo south\n-> END');
+    expect(plan.report.strippedLinks).toBe(2);
+    expectCompiles(plan.container?.body ?? '');
+  });
+
   it('treats a story that names no format, or SugarCube 1, the same way', () => {
     expect(planTweeImport(':: A\n[[B]]\n\n:: B\nx\n').report.reading).toBe('structure-only');
     expect(planTweeImport(':: A\nx\n').report.warnings.join('\n')).toContain('names no story format');
@@ -176,10 +183,10 @@ describe('a story in a format the reader does not know', () => {
 
 describe('knot names and links that need care', () => {
   it('mints a valid unique knot name from any passage name', () => {
-    const names = ['END', '7th Gate', 'Hall of Mirrors!', 'hall of mirrors?', '???', 'Café', '広間', 'function'];
+    const names = ['END', '7th Gate', 'Hall of Mirrors!', 'hall of mirrors?', '???', 'Café', '広間', 'function', 'RANDOM', 'TURNS'];
     const plan = planTweeImport(sugarcube(...names.flatMap((name) => [`:: ${name}`, 'x', ''])));
     const knots = plan.container?.knots ?? [];
-    expect(knots).toEqual(['p_END', 'p_7th_Gate', 'Hall_of_Mirrors', 'hall_of_mirrors', 'passage', 'Cafe', '広間', 'p_function']);
+    expect(knots).toEqual(['p_END', 'p_7th_Gate', 'Hall_of_Mirrors', 'hall_of_mirrors', 'passage', 'Cafe', '広間', 'p_function', 'p_RANDOM', 'p_TURNS']);
     expect(new Set(knots).size).toBe(names.length);
     expectCompiles(plan.container?.body ?? '');
   });
@@ -230,6 +237,13 @@ describe('knot names and links that need care', () => {
     for (const line of ['* a bullet', '- a dash', '=== not a knot ===', '~ not logic', 'VAR x = 1', 'TODO: later', '{braces} and #tags and -> arrows <- and <> glue']) {
       expect(printed.has(line), line).toBe(true);
     }
+  });
+
+  it('escapes the pipe in prose and in a choice label', () => {
+    const body = bodyOf(sugarcube(':: A', 'Choose A | B', '|!Name|!Age|', '[[Go|B]] || other', '[[x | y->B]]', '', ':: B', 'x'));
+    expectCompiles(body);
+    const printed = printedOnAnyPath(body);
+    for (const line of ['Choose A | B', '|!Name|!Age|']) expect(printed.has(line), line).toBe(true);
   });
 
   it('survives hostile input', () => {

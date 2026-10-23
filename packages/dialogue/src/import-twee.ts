@@ -55,10 +55,12 @@ const CODE_BODY = new Set(['script', 'widget']);
 const SILENT_BODY = new Set(['silently']);
 const CONDITIONAL = new Set(['if', 'elseif', 'else']);
 
-/** Words Ink reads as syntax, so a knot cannot carry them as its name. */
+/** Words Ink reads as syntax, or as one of its built-in functions, so a knot cannot carry them as its name. */
 const RESERVED = new Set([
   'END', 'DONE', 'function', 'VAR', 'CONST', 'LIST', 'EXTERNAL', 'INCLUDE', 'TODO', 'true', 'false', 'not', 'and', 'or', 'mod',
   'else', 'return', 'temp', 'ref', 'knot',
+  'RANDOM', 'SEED_RANDOM', 'TURNS', 'TURNS_SINCE', 'CHOICE_COUNT', 'READ_COUNT', 'INT', 'FLOOR', 'FLOAT', 'POW', 'MIN', 'MAX',
+  'LIST_VALUE', 'LIST_RANDOM', 'LIST_ALL', 'LIST_COUNT', 'LIST_MIN', 'LIST_MAX', 'LIST_INVERT',
 ]);
 const LINE_KEYWORDS = ['TODO', 'VAR ', 'CONST ', 'LIST ', 'INCLUDE ', 'EXTERNAL '];
 
@@ -352,8 +354,9 @@ function splitLink(inner: string): PassageLink {
 }
 
 /**
- * One passage's prose lines (already Ink-safe) and its links in order. A line that held only links and
- * macros is dropped; a link inside a sentence leaves its text in the sentence, and the choice follows.
+ * One passage's prose lines (already Ink-safe) and its links in order. When links are read, a line that held
+ * only links and macros is dropped, and a link inside a sentence leaves its text in the sentence while the
+ * choice follows. When they are not read, every link's text stays in the prose.
  */
 function readPassage(text: string, sugarcube: boolean, counts: Counts, warnings: string[], name: string): { prose: string[]; links: PassageLink[] } {
   const pieces = scanPassage(text, counts, sugarcube);
@@ -384,8 +387,9 @@ function readPassage(text: string, sugarcube: boolean, counts: Counts, warnings:
   const prose: string[] = [];
   for (const line of lines) {
     const plain = line.plain.trim();
-    if (plain === '' && line.marked) continue;
     const full = line.full.trim();
+    // A link read as a choice is not prose, so its line is dropped. When links are only reduced to text, that text is the prose.
+    if (plain === '' && line.marked && (sugarcube || full === '')) continue;
     if (full === '') {
       if (prose.length > 0 && prose[prose.length - 1] !== '') prose.push('');
       continue;
@@ -407,7 +411,7 @@ function escapeInk(text: string, label: boolean): string {
     const ch = text[i] ?? '';
     const next = text[i + 1] ?? '';
     const syntax =
-      ch === '\\' || ch === '{' || ch === '}' || ch === '#' || (label && (ch === '[' || ch === ']')) ||
+      ch === '\\' || ch === '{' || ch === '}' || ch === '|' || ch === '#' || (label && (ch === '[' || ch === ']')) ||
       (ch === '-' && next === '>') || (ch === '<' && (next === '-' || next === '>')) || (ch === '/' && (next === '/' || next === '*'));
     out += syntax ? `\\${ch}` : ch;
   }
