@@ -1,6 +1,6 @@
 # Timeline — an interactive story timeline with approved edits
 
-> Status: **specified, not built.** There is no timeline view, no `timeline.apply` command, no timeline tool and no timeline export in the current build; scene timing is edited only as number fields in the Inspector (coherence.md §8). The coherence-model change this spec needs (negative day offsets and declared prologue and epilogue scenes, §2) is specified here and in [coherence.md](coherence.md) §5.2.2, and is not built either. The decisions in §12 bind the work when it is cut.
+> Status: **specified, not built.** There is no timeline view, no `timeline.apply` command, no timeline tool and no timeline export in the current build; scene timing is edited only as number fields in the Inspector (coherence.md §8). The coherence-model change this spec needs (negative day offsets and declared prologue and epilogue scenes, §2) is specified here and in [coherence.md](coherence.md) §5.2.2, and is not built either (#175). The decisions in §12 bind the work when it is cut.
 > Scope: a view of the story on three axes (story time, reading order, both braided); edits made on it only ever become **proposals** the writer approves, applied as one undoable command; prologues before day 0 and epilogues after long time jumps as first-class parts of the story; the agent, export and MCP surfaces; pictures, screenplay, storyboard, dialogue and comics on the same view.
 > Cross-refs: `SceneMeta`, the timeline checks and the exemption table = [coherence.md](coherence.md) §5.1–§5.2.2 · bus, undo and the registry = [command-bus.md](command-bus.md) §5/§9 · plan cards, primitives and modes = [agent-harness.md](agent-harness.md) §2–§4/§10 · corkboard and centre views = [ui-modules.md](ui-modules.md) §3 · media formats = [exporter.md](exporter.md) · MCP server = [extensibility.md](extensibility.md) · pictures = [pictures.md](pictures.md) §9 · comics = [comics.md](comics.md) §6.
 
@@ -364,7 +364,7 @@ The comics unit is decided ([comics.md](comics.md) §6, D8): the **comic-script 
 
 ## 11. Phased plan
 
-Milestone **Timeline**, delivered in waves (a `wave/N` branch each, as the repo does). Titles follow Conventional Commits; commit subjects inside PRs keep the repo's plain-sentence style. Every feature PR updates its spec section, `docs/decisions.md`, `docs/USER-GUIDE.md` and `CHANGELOG.md` together, plus `docs/ROADMAP.md` when the milestone starts or ends, and passes `pnpm verify`, `pnpm build` and `pnpm test:e2e`. Critical path: T1 → T1b → T2 → T3 → T4 → T6, with T5 in parallel after T1b.
+Milestone **Timeline**, epic #150. Issues: T1 #174, T1b #175, T2 #176, T3 #177, T4 #178, T5 #179, T6 #180, T7 #181, T8 #182, T9 #183, T10 #184, T11 #185, T12 #186, T13 #187. Delivered in waves (a `wave/N` branch each, as the repo does). Titles follow Conventional Commits; commit subjects inside PRs keep the repo's plain-sentence style. Every feature PR updates its spec section, `docs/decisions.md`, `docs/USER-GUIDE.md` and `CHANGELOG.md` together, plus `docs/ROADMAP.md` when the milestone starts or ends, and passes `pnpm verify`, `pnpm build` and `pnpm test:e2e`. Critical path: T1 → T1b → T2 → T3 → T4 → T6, with T5 in parallel after T1b.
 
 | # | Title | Scope | Done when | Depends |
 |---|---|---|---|---|

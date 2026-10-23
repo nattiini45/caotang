@@ -258,7 +258,7 @@ On-device OCR (Tesseract/ONNX) stays out: it needs `wasm-unsafe-eval` and is wea
 
 ## 11. Phased plan
 
-Milestone **Pictures**. Every feature issue updates USER-GUIDE, CHANGELOG (including "Known limits") and ROADMAP in the same pull request, because `test/not-in-this-build.test.ts` and `test/user-guide-claims.test.ts` pin them, and flips this spec's status line for what it builds. The minimal shippable slice is **A0, A1, A2, A4, B1, B2**: pictures everywhere, inline in prose, correct EPUB and DOCX. A3 (paragraph anchors) follows once that slice is in writers' hands (D1).
+Milestone **Pictures**, epic #148. Issues: A0 #151, A1 #152, A2 #153, A4 #154, A5 #155, A6 #156, B1 #157, B2 #158, B3 #159, A3 #160, C1 #161, C2 #162, C4 #163, C5 #164, C3 #146. Every feature issue updates USER-GUIDE, CHANGELOG (including "Known limits") and ROADMAP in the same pull request, because `test/not-in-this-build.test.ts` and `test/user-guide-claims.test.ts` pin them, and flips this spec's status line for what it builds. The minimal shippable slice is **A0, A1, A2, A4, B1, B2**: pictures everywhere, inline in prose, correct EPUB and DOCX. A3 (paragraph anchors) follows once that slice is in writers' hands (D1).
 
 | # | Title | Scope | Done when | Needs |
 |---|---|---|---|---|

@@ -95,7 +95,7 @@ The comic-script document is the timeline's scene-level unit: it carries `SceneM
 
 ## 8. Phased plan
 
-Milestone **Comics**, after Pictures A1 and A4 ([pictures.md](pictures.md) §11). Every feature issue updates USER-GUIDE, CHANGELOG and ROADMAP in the same pull request and flips this spec's status line for what it builds.
+Milestone **Comics**, epic #149. Issues: D1 #165, D2 #166, D3 #167, D4 #168, D5 #169, D6 #170, D7 #171, D8 #172, D9 #173. It comes after Pictures A1 and A4 ([pictures.md](pictures.md) §11). Every feature issue updates USER-GUIDE, CHANGELOG and ROADMAP in the same pull request and flips this spec's status line for what it builds.
 
 | # | Title | Scope | Done when | Needs |
 |---|---|---|---|---|
