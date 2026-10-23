@@ -216,7 +216,7 @@ describe('the checkpoint row and its restore (command-bus §5, agent-harness §5
     const report = await session.submit('Label The Friend and give The Storm a synopsis.');
     expect(report.status).toBe('applied');
     const row = events.find((event) => event.type === 'checkpoint');
-    expect(row).toEqual({ type: 'checkpoint', turnId: report.turnId, undoGroupId: report.undoGroupId, label: CHECKPOINT_LABEL });
+    expect(row).toEqual({ type: 'checkpoint', turnId: report.turnId, undoGroupId: report.undoGroupId, label: CHECKPOINT_LABEL, mode: 'ask' });
     expect(JSON.stringify(harness.state.manifest.tree)).not.toBe(before);
 
     const restored = session.restore(report.turnId);

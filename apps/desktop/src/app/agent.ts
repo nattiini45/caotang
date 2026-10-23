@@ -41,6 +41,13 @@
  * intent at once. The queue only stages. A ready task is reviewed from the Tasks list as a turn of its own (`reviewTask`): the
  * card, the ghost previews and the apply are the ordinary path, and no model call is made for a draft already held.
  *
+ * ## Permission modes
+ *
+ * The mode (agent-harness §4) is the app's `agent.defaultMode` setting until the writer picks another for this panel; that pick is
+ * the session override, held here and never saved. The loop reads it at each card, so a switch in the middle of a turn applies from
+ * the next card. A card the mode approves never reaches `decide`: the loop applies it, and `beforeAutoApply` saves the writer's typing
+ * first, as an approval here does. Plan-only keeps the writes it refused, and "Switch to Ask and run this plan" sends them as a plan.
+ *
  * ## Restore
  *
  * "Restore to before this turn" is the session's `restoreBefore`. It takes back every change made after the turn as well, so
@@ -53,12 +60,15 @@ import {
   createAgentSession,
   createContextPort,
   preloadFor,
+  PERMISSION_MODES,
   type ContextConfig,
   type AgentEvent,
   type AgentSession,
   type Decision,
   type OfferAnswer,
   type PendingCard,
+  type PermissionMode,
+  type PlanCardView,
   type PlanOffer,
   type TurnOptions,
   type TurnReport,
@@ -68,6 +78,7 @@ import { nodeById } from '@caotang/store';
 
 import { documentIdFor, draftCheckOf, newTurnView, reduceTurn, type DraftCheck, type GhostView, type TurnView } from './agent-model.js';
 import { fixPlanFor } from './findings-model.js';
+import { DEFAULT_AGENT_SETTINGS, type AgentSettings } from './settings.js';
 import { requestInkCompilerFor } from './ink-compiler.js';
 import type { ProviderService } from './providers.js';
 import type { ProjectSession, RestoreResult } from './session.js';
@@ -135,6 +146,12 @@ export interface AgentSnapshot {
   readonly notes: readonly PendingNote[];
   /** A line for a screen reader's status region: what Stop, a note or the queue just did. Empty when there is nothing to say. */
   readonly announcement: string;
+  /** The turns whose held plan has been sent, so it is offered once. */
+  readonly heldRun: readonly string[];
+  /** The permission mode in force (agent-harness §4). */
+  readonly mode: PermissionMode;
+  /** The modes the panel offers: `auto` is left out while Settings › Agent has it off. */
+  readonly modes: readonly PermissionMode[];
   /** The name of the active provider, or `null` when none is active. */
   readonly providerName: string | null;
   /** Whether the active provider is the demo one, which answers only the demo intents. */
@@ -203,6 +220,9 @@ export class AgentController {
   private session_: AgentSession | null = null;
   /** Names the session's turns `<id>.turn-<n>`; fixed for the controller's life, and unique among the controllers of one harness. */
   private readonly sessionId = newId('cmd').slice('cmd_'.length);
+  /** The mode the writer picked for this panel over the setting's default. Not saved: a reload starts from the setting again. */
+  private modeOverride: PermissionMode | null = null;
+  private readonly heldRun = new Set<string>();
   /** The drafts of the card the loop is showing. Each is a value of its own, so a draft shown for an earlier card is never this one. */
   private ghosts: GhostView[] = [];
   /** The drafts that have been on screen in their scene while their card is shown. */
@@ -233,6 +253,8 @@ export class AgentController {
     /** Whether every tool is declared on every request, read at each request so Settings › Agent applies to the next one (agent-harness §3). */
     private readonly loadEveryTool: () => boolean = () => false,
     background: BackgroundOptions = {},
+    /** The Agent settings, read at each card and turn so a change in Settings applies to the next one (agent-harness §4). */
+    private readonly agentSettings: () => AgentSettings = () => DEFAULT_AGENT_SETTINGS,
   ) {
     this.tasks = new TaskQueue({
       projectId: session.projectId,
@@ -279,6 +301,9 @@ export class AgentController {
       queuePaused: this.queuePaused,
       notes: this.pendingNotes,
       announcement: this.announcement,
+      heldRun: [...this.heldRun],
+      mode: this.mode(),
+      modes: PERMISSION_MODES.filter((mode) => mode !== 'auto' || !this.agentSettings().lockAuto),
       providerName: active?.name ?? null,
       providerIsDemo: active?.kind === 'mock',
       ghosts: this.ghosts,
@@ -305,6 +330,45 @@ export class AgentController {
     // costs no search. The node is the one the writer has selected, which is the document the centre pane shows.
     const preload = preloadFor(this.activeNode());
     return this.turnWith(trimmed, options, (agent, turn) => agent.submit(trimmed, { preload, ...turn }));
+  }
+
+  /** The permission mode in force: the writer's pick for this panel, else the setting's default. A locked `auto` reads as Ask. */
+  mode(): PermissionMode {
+    const settings = this.agentSettings();
+    const mode = this.modeOverride ?? settings.defaultMode;
+    return mode === 'auto' && settings.lockAuto ? 'ask' : mode;
+  }
+
+  /** Picks the mode for this panel. It applies from the next card, also in a turn that is running. Auto is refused while Settings has it off. */
+  setMode(mode: PermissionMode): void {
+    if (mode === 'auto' && this.agentSettings().lockAuto) {
+      this.message = 'Auto is turned off in Settings › Agent.';
+      this.bump();
+      return;
+    }
+    this.modeOverride = mode;
+    this.announcement = `Mode: ${mode}. It applies from the next card.`;
+    this.bump();
+  }
+
+  /**
+   * "Switch to Ask and run this plan": the writes Plan only refused in a turn, sent as the plan of a turn of their own, in Ask. The plan is
+   * checked and drafted as a planner's is, and its card is the writer's.
+   */
+  async runHeldPlan(turnId: string): Promise<TurnReport | null> {
+    const turn = this.turns.find((entry) => entry.turnId === turnId);
+    const held = turn?.report?.heldSteps;
+    if (turn === undefined || held === undefined || held.length === 0 || this.busy || this.heldRun.has(turnId)) return null;
+    this.heldRun.add(turnId);
+    this.modeOverride = 'ask';
+    this.bump();
+    return this.turnWith(turn.intent, {}, (agent, options) => agent.submitPlan(turn.intent, { steps: held }, options));
+  }
+
+  /** Saves the writer's typing before a card the mode approved applies, and lists the images again before a compile, as an approval does. */
+  private async beforeAutoApply(card: PlanCardView): Promise<void> {
+    await this.session.autosave.flush().catch(() => undefined);
+    if (card.steps.some((step) => step.tool.startsWith('export.compile'))) await this.session.exportsReady().catch(() => undefined);
   }
 
   /** How many turns this controller has started. A queued message counts once it starts, never while it waits. */
@@ -387,6 +451,11 @@ export class AgentController {
           sessionId: this.sessionId,
           loadEveryTool: this.loadEveryTool,
           beforeStage: (offer) => this.askOffer(offer),
+          mode: () => this.mode(),
+          lockAuto: () => this.agentSettings().lockAuto,
+          budget: () => this.agentSettings().budget,
+          price: () => this.priceForNextTurn ?? undefined,
+          beforeAutoApply: (card) => this.beforeAutoApply(card),
         }));
       this.runningAgent = agent;
       report = await start(agent, {

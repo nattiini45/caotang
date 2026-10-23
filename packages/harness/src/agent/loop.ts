@@ -77,6 +77,24 @@ import { CONTINUITY_MAX_DOCS, SYNOPSIS_MAX_DOCS } from '../tools/ports.js';
 import type { DelegateParams } from '../tools/delegate.js';
 import { fitsCap } from '../tokens.js';
 import { LARGE_SCOPE_APPROVAL, LARGE_SCOPE_APPROVAL_KEY } from '../tools/coherence.js';
+import {
+  addUse,
+  budgetHit,
+  budgetStop,
+  callDigest,
+  DEFAULT_PERMISSION_MODE,
+  DEFAULT_TURN_BUDGET,
+  EMPTY_BUDGET_USE,
+  isPermissionMode,
+  modePolicy,
+  repeatStop,
+  type BudgetHit,
+  type BudgetUse,
+  type ModePolicy,
+  type PermissionMode,
+  type SessionBudget,
+  type TurnBudget,
+} from './mode.js';
 import { skillBlock } from '../tools/skills.js';
 import {
   advance,
@@ -116,12 +134,15 @@ import {
   draftDialogue,
   draftScene,
   fillSynopses,
+  asSceneProposal,
+  asSynopsisProposal,
   assistantOf,
   GenerationStopped,
   TurnStopped,
   sceneRole,
   scanContinuity,
   synopsisRole,
+  wordsOf,
   type FindingsProposal,
   type ModelCall,
   type SceneProposal,
@@ -186,8 +207,30 @@ export interface AgentSessionOptions {
    * the provider's own default applies.
    */
   readonly thinking?: ThinkingLevel;
-  /** The most model calls one turn may make, retries and drafts included. Default 8. */
+  /** The most model calls one turn may make, retries and drafts included. Default 8. Read when the session is made. */
   readonly maxModelCalls?: number;
+  /**
+   * The permission mode (agent-harness §4), read at each card, so a switch applies from the next card. Absent, `ask`: every card is
+   * the writer's. The mode is the app's setting and a session override, never a project file.
+   */
+  readonly mode?: PermissionMode | (() => PermissionMode);
+  /** `auto` is turned off: a mode that reads as `auto` is `ask`. Read at each card. */
+  readonly lockAuto?: boolean | (() => boolean);
+  /** The project holds text from outside the writer; while true, accept-edits and auto behave as ask (#54). Default false. */
+  readonly taint?: () => boolean;
+  /** Nobody is there to ask: a card the mode does not approve is cancelled, not forwarded to `decide`. */
+  readonly noHuman?: boolean;
+  /**
+   * The limits a turn is held to while a mode decides its cards, over `DEFAULT_TURN_BUDGET`, read at the start of each turn. In `ask`
+   * and `plan-only` the writer decides each card, and only the model-call bound applies.
+   */
+  readonly budget?: Partial<TurnBudget> | (() => Partial<TurnBudget>);
+  /** The same limits across every turn of the session, read at each check. */
+  readonly sessionBudget?: SessionBudget | (() => SessionBudget);
+  /** The price per 1,000 tokens the cost limit reads (provider-gateway §2). Absent, a turn has no cost to hold to a limit. */
+  readonly price?: () => { readonly prompt: number; readonly completion: number } | undefined;
+  /** Awaited before a card the mode approves is applied, so the app can save the writer's typing as an approval does. */
+  readonly beforeAutoApply?: (card: PlanCardView) => Promise<void>;
   /** How many times the verify ladder may adjust and re-show a refused step (agent-harness §7). Default 2. */
   readonly maxRetries?: number;
   /**
@@ -336,13 +379,18 @@ function checkStop(turn: Turn): void {
   if (turn.signal?.aborted === true) throw new TurnStopped();
 }
 
-/** A model call the turn's bound refused. The staging and card paths check the bound first, so this is a backstop. */
+/**
+ * A bound the turn ran into: a model call refused at the bound (the staging and card paths check it first, so this is a backstop), or a
+ * budget a mode that decides cards reached. It ends the turn on an ask-back that carries `stop`'s words.
+ */
 class BudgetExceeded extends Error {
-  constructor(limit: number) {
-    super(`the turn made ${limit} model calls without finishing, so it stopped`);
+  constructor(readonly stop: { readonly reason: string; readonly options: readonly string[] }) {
+    super(stop.reason);
     this.name = 'BudgetExceeded';
   }
 }
+
+const modelCallBound = (limit: number): BudgetExceeded => new BudgetExceeded(budgetStop({ dimension: 'model-calls', used: limit, limit, scope: 'turn' }));
 
 /**
  * A native-mode reply the model made, and the outcomes its calls got as they ran. It is held until the
@@ -400,6 +448,16 @@ interface Turn {
   seq: number;
   /** The turn's undo group, recorded the moment a run applies anything, so no path loses it. */
   undoGroupId?: string;
+  /** The mode the last card (or the start) read: what the turn's report and checkpoint print. */
+  mode: PermissionMode;
+  /** The limits this turn is held to while a mode decides its cards. */
+  readonly budget: TurnBudget;
+  /** The write steps plan-only refused, deduplicated by call digest. */
+  readonly held: PlanStep[];
+  /** How often each call was proposed this turn, by call digest (the repeat guard). */
+  readonly proposed: Map<string, number>;
+  /** Words per document when the turn first had a mode decide its cards, and where the activity log stood: the words and documents a turn changed are read against these. */
+  base?: { readonly words: ReadonlyMap<string, number>; readonly entries: number };
   /** The loaded-tools addendum the model was last told, so a request after a new load is told again (context-assembly §2). */
   addendumSent?: string;
   /**
@@ -463,6 +521,8 @@ interface Decided {
   readonly editable: EditableSteps;
   readonly edits: number;
   readonly retries: number;
+  /** The mode's policy approved the card as shown, and the writer was not asked. */
+  readonly auto?: boolean;
   /**
    * The writer approved a cut card with `acceptTruncated` (agent-harness §8): the apply strips
    * `cut: true` from the proposals so the ports see a complete proposal. Without it, a cut
@@ -600,17 +660,23 @@ function tooCostly(tool: string, needed: number, left: number, limit: number): s
   return `${tool} needs ${needed} model ${needed === 1 ? 'call' : 'calls'}, and this turn has ${left} left of ${limit}. Ask for a smaller change.`;
 }
 
+/** What plan-only tells the model about a write it refused. The writer sees it on the step's failed status card. */
+const PLAN_ONLY =
+  'Plan-only mode is on, so this write was not run and nothing was changed. Reads still run. Describe the change as a plan in your reply: the writer can switch to Ask to run it.';
+
+const isWrite = (risk: string): boolean => risk === 'write-auto' || risk === 'write-confirm';
+
 /** The refusal for a delegation sent in the same reply as a write. */
 const DELEGATE_ALONE =
   'agent.delegate runs before anything is written, and its result comes back to you first. Nothing was run. Call it in a reply without write steps (reads may go with it), then plan the writes, including any step the agent proposed.';
 
 /** The ask-back for a turn that used its model-call bound. The user decides what to do with the rest. */
 function budgetAskBack(limit: number): AskBack {
-  return {
-    code: 'needs_input',
-    reason: `the turn made ${limit} model calls without finishing, so it stopped`,
-    options: ['ask for a smaller change, and send it again', 'split the work across two turns'],
-  };
+  return askBackOf(modelCallBound(limit).stop);
+}
+
+function askBackOf(stop: { readonly reason: string; readonly options: readonly string[] }): AskBack {
+  return { code: 'needs_input', reason: stop.reason, options: stop.options };
 }
 
 /**
@@ -656,10 +722,10 @@ function stripCut(proposals: readonly unknown[]): readonly unknown[] {
 }
 
 /** The settled outcome for a turn that stopped on a failure outside its steps: a model call, a stream, or the bound. */
-function stoppedBy(error: unknown, limit: number): Settled {
+function stoppedBy(error: unknown): Settled {
   // The writer's Stop is a stop, not a provider failure (agent-harness §2): no ask-back, and the report says who stopped it.
   if (error instanceof TurnStopped) return { status: 'cancelled' };
-  if (error instanceof BudgetExceeded) return { status: 'failed', askBack: budgetAskBack(limit) };
+  if (error instanceof BudgetExceeded) return { status: 'failed', askBack: askBackOf(error.stop) };
   if (error instanceof GenerationStopped) {
     return {
       status: 'failed',
@@ -700,7 +766,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     });
   const emit = (event: AgentEvent): void => options.emit?.(event);
   const now = options.clock ?? Date.now;
-  const maxModelCalls = options.maxModelCalls ?? DEFAULT_MAX_MODEL_CALLS;
+  const configured = typeof options.budget === 'function' ? options.budget() : options.budget;
+  const maxModelCalls = options.maxModelCalls ?? configured?.maxModelCalls ?? DEFAULT_MAX_MODEL_CALLS;
   const maxRetries = options.maxRetries ?? 2;
   const sessionName = options.sessionId ?? newId('cmd').slice('cmd_'.length);
   const finished: TurnReport[] = [];
@@ -712,6 +779,123 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
   const loadEvery = (): boolean => options.loadEveryTool?.() === true;
   const subagents = createSubagentRunner({ tools: () => harness.tools(), previewPlan: (plan) => harness.previewPlan(plan), context });
+
+  const autoLocked = (): boolean => (typeof options.lockAuto === 'function' ? options.lockAuto() : options.lockAuto === true);
+
+  /** The mode in force now. A mode that reads as `auto` while `auto` is locked is `ask`, so a stored value cannot reach it. */
+  const modeNow = (): PermissionMode => {
+    const raw = typeof options.mode === 'function' ? options.mode() : options.mode;
+    const mode = isPermissionMode(raw) ? raw : DEFAULT_PERMISSION_MODE;
+    return mode === 'auto' && autoLocked() ? DEFAULT_PERMISSION_MODE : mode;
+  };
+
+  /** The policy of the mode in force, read at each card. The turn keeps the mode it last read for its report. */
+  const policyOf = (turn: Turn): ModePolicy => {
+    const policy = modePolicy(modeNow(), {
+      ...(autoLocked() ? { lockAuto: true } : {}),
+      ...(options.taint === undefined ? {} : { taint: options.taint }),
+      ...(options.noHuman === true ? { noHuman: true } : {}),
+    });
+    turn.mode = policy.mode;
+    return policy;
+  };
+
+  /** What the finished turns of this session used, for the session's limits. */
+  let sessionUse: BudgetUse = EMPTY_BUDGET_USE;
+  const sessionLimits = (): SessionBudget => (typeof options.sessionBudget === 'function' ? options.sessionBudget() : options.sessionBudget) ?? {};
+
+  /** The first limit a use has reached (`reached`) or passed, the turn's before the session's. */
+  const hitOf = (turn: Turn, use: BudgetUse, reached: boolean): BudgetHit | undefined =>
+    budgetHit(use, turn.budget, reached) ?? budgetHit(addUse(sessionUse, use), sessionLimits(), reached, 'session');
+
+  /** Notes the words in every document and where the activity log stands, so what the turn changes from here is measured. */
+  const takeBase = (turn: Turn): void => {
+    turn.base ??= {
+      words: new Map([...harness.state.documents].map(([id, record]) => [id, wordsOf(record.body)] as const)),
+      entries: harness.log.entries().length,
+    };
+  };
+
+  /** The nodes the turn's commands changed since its base, and the words they now differ by from the base. */
+  const touchedOf = (turn: Turn): { readonly ids: Set<string>; readonly words: number } => {
+    const ids = new Set<string>();
+    const base = turn.base;
+    if (base === undefined) return { ids, words: 0 };
+    for (const entry of harness.log.entries().slice(base.entries)) {
+      if (entry.turnId === turn.id) for (const affected of entry.affected) ids.add(affected.nodeId);
+    }
+    let words = 0;
+    for (const id of ids) {
+      const record = harness.state.documents.get(id);
+      if (record !== undefined) words += Math.abs(wordsOf(record.body) - (base.words.get(id) ?? 0));
+    }
+    return { ids, words };
+  };
+
+  /** What the turn has used of each budget dimension. The cost is absent while the session has no price to read. */
+  const usageOf = (turn: Turn): BudgetUse => {
+    const totals = gateway.ledger.turnTotals(turn.id);
+    const price = options.price?.();
+    const touched = touchedOf(turn);
+    return {
+      modelCalls: turn.modelCalls,
+      tokens: totals.promptTokens + totals.completionTokens,
+      ...(price === undefined ? {} : { costUsd: (totals.promptTokens * price.prompt + totals.completionTokens * price.completion) / 1000 }),
+      wordsChanged: touched.words,
+      documents: touched.ids.size,
+      steps: writesOf(turn).length,
+    };
+  };
+
+  /**
+   * The documents and words a draft step will change, read from its draft before it applies. Only the two tools that draft text for
+   * named documents say so up front; any other step is counted after it has run, from the activity log (`touchedOf`).
+   */
+  const reachOf = (step: PlanStep, proposal: unknown): { readonly docs: readonly string[]; readonly words: number } => {
+    if (step.tool === 'scene.draft') {
+      const node = resolveNode(harness.state, String(step.params['doc']), DOCUMENT, 'document', 'params.doc');
+      return { docs: node.ok ? [node.value.id] : [], words: asSceneProposal(proposal)?.words ?? 0 };
+    }
+    if (step.tool === 'synopsis.fill') {
+      const items = asSynopsisProposal(proposal)?.items ?? [];
+      return { docs: items.map((item) => item.docId), words: items.reduce((sum, item) => sum + wordsOf(item.synopsis), 0) };
+    }
+    return { docs: [], words: 0 };
+  };
+
+  /**
+   * Holds a card the mode is about to approve to the turn's and the session's budgets: what it would add to what the turn has used
+   * must not pass a limit, so a turn may end exactly on one. A card that would pass one is not applied, and the turn stops on a question.
+   */
+  const holdToBudget = (turn: Turn, editable: EditableSteps, writes: readonly PlanStep[]): void => {
+    takeBase(turn);
+    const use = usageOf(turn);
+    const ids = touchedOf(turn).ids;
+    let words = use.wordsChanged;
+    for (const step of writes) {
+      const reach = reachOf(step, editable.proposals[editable.steps.indexOf(step)]);
+      for (const id of reach.docs) ids.add(id);
+      words += reach.words;
+    }
+    const hit = hitOf(turn, { ...use, steps: use.steps + writes.length, documents: ids.size, wordsChanged: words }, false);
+    if (hit !== undefined) throw new BudgetExceeded(budgetStop(hit));
+  };
+
+  /** A write step plan-only refused. The same call proposed again is held once. */
+  const hold = (turn: Turn, step: PlanStep): void => {
+    if (!turn.held.some((held) => callDigest(held.tool, held.params) === callDigest(step.tool, step.params))) turn.held.push(step);
+  };
+
+  /** Counts a reply's calls against the repeat guard: the same tool with the same parameters, proposed too often in one turn, stops the turn. */
+  const guardRepeats = (turn: Turn, steps: readonly PlanStep[]): void => {
+    if (!policyOf(turn).decides) return;
+    for (const step of steps) {
+      const key = callDigest(step.tool, step.params);
+      const count = (turn.proposed.get(key) ?? 0) + 1;
+      turn.proposed.set(key, count);
+      if (count >= turn.budget.doomLoopRepeats) throw new BudgetExceeded(repeatStop(step.tool, count));
+    }
+  };
 
   /**
    * A refusal's hint for a deferred native row the turn has not loaded: its params failed against a schema the model has not
@@ -772,7 +956,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const modelCall = (turn: Turn, onDelta?: (delta: string) => void, role: TaskRole | undefined = options.role): ModelCall => ({
     gateway: {
       complete: (request, signal) => {
-        if (turn.modelCalls >= maxModelCalls) throw new BudgetExceeded(maxModelCalls);
+        if (turn.modelCalls >= maxModelCalls) throw modelCallBound(maxModelCalls);
+        // While a mode decides the cards, the other budgets hold a turn to what it was allowed to spend without asking.
+        if (policyOf(turn).decides) {
+          const hit = hitOf(turn, usageOf(turn), true);
+          if (hit !== undefined) throw new BudgetExceeded(budgetStop(hit));
+        }
         turn.modelCalls += 1;
         emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
         return gateway.complete(role === undefined ? request : { ...request, role }, signal);
@@ -802,7 +991,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return {
       gateway: {
         complete: (request, signal) => {
-          if (used >= limit) throw new BudgetExceeded(limit);
+          if (used >= limit) throw modelCallBound(limit);
           used += 1;
           return gateway.complete(options.role === undefined ? request : { ...request, role: options.role }, signal);
         },
@@ -971,8 +1160,16 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const proposals: unknown[] = steps.map(() => undefined);
     const refusals: { index: number; tool: string; message: string }[] = [];
     const writes = steps.some((step) => riskOf(step.tool) !== 'read');
+    const readOnly = policyOf(turn).readOnly;
     for (const [index, step] of steps.entries()) {
       checkStop(turn);
+      // Plan-only runs reads and refuses every write before it is drafted, so no model call is spent on it (agent-harness §4).
+      if (readOnly && isWrite(riskOf(step.tool))) {
+        hold(turn, step);
+        refusals.push({ index, tool: step.tool, message: PLAN_ONLY });
+        refusedBeforeCard(turn, step, PLAN_ONLY);
+        continue;
+      }
       // A delegation's result comes back to the planner before it plans a write, so the writes wait for it: a reply that mixes the two runs neither.
       if (step.tool === 'agent.delegate' && writes) {
         refusals.push({ index, tool: step.tool, message: DELEGATE_ALONE });
@@ -1349,7 +1546,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (!first.ok && needsWriterApproval(first.error)) {
         // The refusal came before the scan ran, so nothing has run. The writer decides on a card of its own.
         callId = `${id}.confirm`;
-        const decided = await decideCard(turn, 'confirm', callId, { editable: oneStep(step, index, proposal), from: 0, revision: 0 });
+        const decided = await decideCard(turn, 'confirm', callId, { editable: oneStep(step, index, proposal), from: 0, revision: 0, humanOnly: true });
         if (decided.settled === 'cancelled') {
           turn.cards.push({ kind: 'confirm', tools: [step.tool], decision: 'cancelled', edits: decided.edits, retries: decided.retries });
           moveCard(turn, callId, 'cancelled');
@@ -1540,7 +1737,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     turn: Turn,
     kind: 'plan' | 'confirm',
     prefix: string,
-    start: { readonly editable: EditableSteps; readonly from: number; readonly revision: number; readonly notice?: string },
+    start: {
+      readonly editable: EditableSteps;
+      readonly from: number;
+      readonly revision: number;
+      readonly notice?: string;
+      /** The card is the writer's in every mode: a scan over the document guard asks for the writer's own leave. */
+      readonly humanOnly?: boolean;
+    },
   ): Promise<Decided> {
     let editable = start.editable;
     let revision = start.revision;
@@ -1554,15 +1758,31 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const shown = cardOf(turn, editable, start.from, revision, kind, notice);
       notice = undefined;
       if ('refused' in shown) return { settled: 'refused', editable, edits, retries, error: shown.refused };
+      // The mode answers a card it approves, as shown, without asking. Everything else is the writer's: an external write, a card
+      // with a refused, stale or cut step, a card that needs the writer's leave. A budget the card would pass stops the turn first.
+      const policy = policyOf(turn);
+      const remaining = editable.steps.filter((_, index) => index >= start.from && !ranAt(editable, index));
+      const writes = remaining.filter((step) => riskOf(step.tool) !== 'read');
+      const auto =
+        start.humanOnly !== true &&
+        shown.card.approvable &&
+        policy.approves({ tools: writes.map((step) => step.tool), external: remaining.some((step) => loadedExternal(step.tool) !== undefined) });
+      if (auto) holdToBudget(turn, editable, writes);
       // Each step that has not run is pending from the moment its card is shown (agent-harness §8).
       for (const [index, step] of editable.steps.entries()) {
         if (ranAt(editable, index)) continue;
         cardFor(turn, callIdFor(kind, prefix, index), step.tool, step.params, 'pending-approval');
       }
-      emit({ type: 'plan', turnId: turn.id, card: shown.card });
+      emit({ type: 'plan', turnId: turn.id, card: shown.card, ...(auto ? { auto: true as const } : {}) });
       showGhosts(turn, editable, kind, prefix);
+      if (auto) {
+        await options.beforeAutoApply?.(shown.card);
+        checkStop(turn);
+        return { settled: 'approved', editable, edits, retries, auto: true };
+      }
       phase(turn, 'awaiting-approval');
-      const decision = await decideOrStop(turn, { kind, turnId: turn.id, card: shown.card } satisfies PendingCard);
+      // With nobody to ask, a card the mode did not approve is cancelled.
+      const decision: Decision = policy.noHuman ? { action: 'cancel' } : await decideOrStop(turn, { kind, turnId: turn.id, card: shown.card } satisfies PendingCard);
 
       if (decision.action === 'cancel') return { settled: 'cancelled', editable, edits, retries };
       if (decision.action === 'approve') {
@@ -2032,6 +2252,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         turn.messages.push({ role: 'user', content: refusedStepsMessage(checked.preflight) });
         return 'continue';
       }
+      // A mode that decides cards holds this write to the budgets as it holds a card (agent-harness §4).
+      if (policyOf(turn).decides) holdToBudget(turn, editable, plan.steps);
       const executed = await execute(turn, editable, 0, 'confirm', prefix, 'auto');
       turn.cards.push({ kind: 'auto', tools: [single.tool], decision: 'auto', edits: 0, retries: 0 });
       return settle(turn, executed);
@@ -2073,7 +2295,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         }
         return { status: 'cancelled' };
       }
-      turn.cards.push({ kind, tools, decision: 'approved', edits, retries });
+      turn.cards.push(decided.auto === true ? { kind: 'auto', tools, decision: 'auto', edits, retries } : { kind, tools, decision: 'approved', edits, retries });
       phase(turn, 'running');
       const acceptedCut = decided.acceptedCut === true;
       const executed = await execute(turn, editable, from, kind, attemptPrefix, 'confirmed', acceptedCut);
@@ -2141,7 +2363,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
   function phase(turn: Turn, to: TurnPhase): void {
     turn.phase = to;
-    emit({ type: 'turn', turnId: turn.id, phase: to });
+    emit({ type: 'turn', turnId: turn.id, phase: to, ...(to === 'started' ? { mode: turn.mode } : {}) });
   }
 
   /**
@@ -2261,7 +2483,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         plan = parsed.value.plan;
       }
 
-      const offered = await offerBackground(turn, plan);
+      guardRepeats(turn, plan.steps);
+      const offered = policyOf(turn).readOnly ? undefined : await offerBackground(turn, plan);
       if (offered !== undefined) return offered;
       const staged = await stage(turn, plan.steps);
       if (staged.refusals.length > 0) {
@@ -2318,6 +2541,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       modelCalls: turn.modelCalls,
       ...(settled.stop === undefined ? {} : { stop: settled.stop }),
       ...(turn.notes.length === 0 ? {} : { steering: turn.notes.map((note): SteeringNote => ({ ...note })) }),
+      mode: turn.mode,
+      budgetUse: usageOf(turn),
+      ...(turn.held.length === 0 ? {} : { heldSteps: turn.held }),
     };
   }
 
@@ -2437,7 +2663,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           for (const refused of one.refusals) refusals.push({ index, tool: refused.tool, message: refused.message });
         } catch (error) {
           if (error instanceof TurnStopped || turn.signal?.aborted === true) throw new TurnStopped();
-          const settled = stoppedBy(error, maxModelCalls);
+          const settled = stoppedBy(error);
           refusals.push({ index, tool: step.tool, message: settled.askBack?.reason ?? messageOf(error) });
         }
       }
@@ -2487,6 +2713,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       deciding: false,
       converses: false,
       seq: 0,
+      mode: modeNow(),
+      budget: { ...DEFAULT_TURN_BUDGET, ...(typeof options.budget === 'function' ? options.budget() : options.budget), maxModelCalls },
+      held: [],
+      proposed: new Map(),
       native: false,
       wireReplies: [],
       delegations: 0,
@@ -2500,13 +2730,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const turn = newTurn(turnOptions, [...started]);
     const slot = started.push({ turnId: turn.id, intent }) - 1;
     running.set(turn.id, turn);
+    if (policyOf(turn).decides) takeBase(turn);
     phase(turn, 'started');
 
     let settled: Settled;
     try {
       settled = await first(turn);
     } catch (error) {
-      settled = stoppedBy(error, maxModelCalls);
+      settled = stoppedBy(error);
     }
     running.delete(turn.id);
     // A turn the writer stopped says so, and in the phase the stop took effect in. A card still waiting is cancelled with it.
@@ -2519,6 +2750,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const totals = gateway.ledger.turnTotals(turn.id);
     const report = reportOf(turn, settled, { promptTokens: totals.promptTokens, completionTokens: totals.completionTokens, requests: totals.requests });
     finished.push(report);
+    sessionUse = addUse(sessionUse, report.budgetUse);
     // What L6 reads for this turn once its activity rows are gone, or when it wrote none: a reply's own answer is its outcome.
     started[slot] = {
       turnId: turn.id,
@@ -2535,6 +2767,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         undoGroupId: report.undoGroupId,
         label: CHECKPOINT_LABEL,
         ...(mixed ? { note: EXTERNAL_CHECKPOINT_NOTE } : {}),
+        mode: report.mode,
       });
     }
     phase(turn, settled.status === 'replied' || settled.status === 'applied' ? 'done' : settled.status === 'cancelled' ? 'cancelled' : 'failed');

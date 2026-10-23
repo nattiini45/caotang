@@ -31,7 +31,7 @@ import { createHarness } from '../runtime.js';
 import type { SkillsOption } from '../tools/skills.js';
 import type { AskBackCode } from '../plan.js';
 import { canonicalJson } from '../util.js';
-import { createAgentSession, type AgentSession } from './loop.js';
+import { createAgentSession, type AgentSession, type AgentSessionOptions } from './loop.js';
 import { createAgentPorts } from './ports.js';
 import { createContextPort, type ContextPortOptions } from './context.js';
 import { emptyTaskList, reduceTaskList, type TaskState } from './progress.js';
@@ -164,6 +164,8 @@ export interface Scenario {
   readonly maxRetries?: number;
   /** The session's model-call bound (agent-harness §2). Absent, the session's default applies. */
   readonly modelCallBound?: number;
+  /** The permission mode, its budgets and the other options that belong to it (agent-harness §4). Absent, `ask`. */
+  readonly modeOptions?: Pick<AgentSessionOptions, 'mode' | 'lockAuto' | 'taint' | 'noHuman' | 'budget' | 'sessionBudget' | 'price' | 'beforeAutoApply'>;
   /**
    * Wires the coherence review through the scenario's gateway, as the app wires it, so a scenario that asks for a review runs one.
    * Off by default: a wired review adds its schema to every planner call, which other scenarios' token ceilings do not count.
@@ -318,6 +320,7 @@ export async function runScenario(scenario: Scenario): Promise<ScenarioRun> {
     sessionId: 'eval',
     ...(scenario.maxRetries === undefined ? {} : { maxRetries: scenario.maxRetries }),
     ...(scenario.modelCallBound === undefined ? {} : { maxModelCalls: scenario.modelCallBound }),
+    ...(scenario.modeOptions ?? {}),
   });
   held.session = session;
   const report = await session.submit(scenario.intent, {

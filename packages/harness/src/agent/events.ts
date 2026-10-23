@@ -10,9 +10,10 @@ import type { CommandError } from '@caotang/bus';
 
 import type { LayerReport } from '@caotang/context';
 
-import type { AskBack } from '../plan.js';
+import type { AskBack, PlanStep } from '../plan.js';
 import type { PlanCardView, PlanEdit, StatusCard } from './cards.js';
 import type { Finding } from './drafting.js';
+import type { BudgetUse, PermissionMode } from './mode.js';
 
 /** One tool call as it ran, in order. An eval's trace matcher reads these (agent-harness §9). */
 export interface TraceEntry {
@@ -90,6 +91,12 @@ export interface TurnReport {
   readonly stop?: TurnStop;
   /** The notes the writer sent during the turn, in order. A note without `deliveredAtCall` was not delivered: the turn ended first. */
   readonly steering?: readonly SteeringNote[];
+  /** The permission mode the turn ended in (agent-harness §4). A switch in the middle of a turn applies from the next card. */
+  readonly mode: PermissionMode;
+  /** What the turn used of each budget dimension (agent-harness §4). */
+  readonly budgetUse: BudgetUse;
+  /** The write steps plan-only refused, in order, for the writer to run later: `submitPlan` takes them as they are. Absent when none was refused. */
+  readonly heldSteps?: readonly PlanStep[];
 }
 
 /**
@@ -114,7 +121,8 @@ export interface PendingCard {
 export const DEFAULT_MAX_MODEL_CALLS = 8;
 
 export type AgentEvent =
-  | { readonly type: 'turn'; readonly turnId: string; readonly phase: TurnPhase }
+  /** A phase change. `started` carries the mode the turn begins in. */
+  | { readonly type: 'turn'; readonly turnId: string; readonly phase: TurnPhase; readonly mode?: PermissionMode }
   | { readonly type: 'model.delta'; readonly turnId: string; readonly delta: string }
   /** A model request is about to be sent: how many the turn has made, this one included, and its bound. The task list's footer reads it (§8). */
   | { readonly type: 'model.call'; readonly turnId: string; readonly used: number; readonly limit: number }
@@ -131,13 +139,14 @@ export type AgentEvent =
   | { readonly type: 'draft.delta'; readonly turnId: string; readonly docTitle: string; readonly delta: string; readonly start?: boolean }
   | { readonly type: 'context'; readonly turnId: string; readonly layers: readonly Pick<LayerReport, 'id' | 'tokens'>[]; readonly dropped: readonly string[] }
   | { readonly type: 'card'; readonly turnId: string; readonly card: StatusCard }
-  | { readonly type: 'plan'; readonly turnId: string; readonly card: PlanCardView }
+  /** `auto` marks a card the mode's policy approved instead of the writer (agent-harness §4): it is shown collapsed, with an auto-approved badge. */
+  | { readonly type: 'plan'; readonly turnId: string; readonly card: PlanCardView; readonly auto?: true }
   /** The ghost-preview handoff (agent-harness §8): a generated draft, waiting for apply, retry or discard. */
   | { readonly type: 'ghost'; readonly turnId: string; readonly callId: string; readonly docTitle: string; readonly text: string; readonly words: number; readonly cut?: boolean }
   | { readonly type: 'findings'; readonly turnId: string; readonly callId: string; readonly findings: readonly Finding[] }
   | { readonly type: 'ladder'; readonly turnId: string; readonly callId: string; readonly attempt: number; readonly askBack: AskBack }
   /** The checkpoint row (command-bus §5): the turn's undo group, and the label that says what one click does. */
-  | { readonly type: 'checkpoint'; readonly turnId: string; readonly undoGroupId: string; readonly label: string; readonly note?: string }
+  | { readonly type: 'checkpoint'; readonly turnId: string; readonly undoGroupId: string; readonly label: string; readonly note?: string; readonly mode: PermissionMode }
   /** A steering note reached the model: delivered with the request named in `note.deliveredAtCall`. */
   | { readonly type: 'steer'; readonly turnId: string; readonly note: SteeringNote }
   | { readonly type: 'report'; readonly turnId: string; readonly report: TurnReport };

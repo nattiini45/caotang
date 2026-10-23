@@ -63,6 +63,31 @@ export {
   type SubmitOptions,
   type TurnOptions,
 } from './agent/loop.js';
+// Permission modes (agent-harness §4): the four modes, the policy a mode is, and the budgets a turn is held to while a mode decides its cards.
+export {
+  ACCEPT_EDITS_TOOLS,
+  DEFAULT_PERMISSION_MODE,
+  DEFAULT_TURN_BUDGET,
+  EMPTY_BUDGET_USE,
+  MODE_LABELS,
+  ModeError,
+  PERMISSION_MODES,
+  addUse,
+  budgetHit,
+  budgetStop,
+  callDigest,
+  isPermissionMode,
+  modePolicy,
+  type BudgetDimension,
+  type BudgetHit,
+  type BudgetUse,
+  type CardFacts,
+  type ModePolicy,
+  type ModePolicyOptions,
+  type PermissionMode,
+  type SessionBudget,
+  type TurnBudget,
+} from './agent/mode.js';
 // Background runs (agent-harness §2): the offer's threshold, what a plan costs in model calls, and which staged steps have gone stale.
 export {
   BACKGROUND_OFFER_MIN_CALLS,
