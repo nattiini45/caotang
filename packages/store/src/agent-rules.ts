@@ -37,6 +37,11 @@ export interface ParsedRules {
   readonly rules: readonly PermissionRule[];
   /** One sentence per rule or field that was dropped, naming where, for the load notice and the Settings list. */
   readonly warnings: readonly string[];
+  /**
+   * How many rules were dropped that would have restricted the agent: everything dropped except an `allow` (which has no effect by
+   * design). A host that cannot show the writer a warning treats a list with any lost rule as unreadable and fails closed.
+   */
+  readonly lost: number;
 }
 
 export interface ParseRulesOptions {
@@ -65,17 +70,20 @@ function scopeOf(raw: unknown): RuleScope | undefined {
 export function parseRules(raw: unknown, options: ParseRulesOptions = {}): ParsedRules {
   const at = options.at ?? 'rules';
   const warnings: string[] = [];
-  if (raw === undefined) return { rules: [], warnings };
-  if (!Array.isArray(raw)) return { rules: [], warnings: [`${at}: expected a list of rules; dropped`] };
+  if (raw === undefined) return { rules: [], warnings, lost: 0 };
+  if (!Array.isArray(raw)) return { rules: [], warnings: [`${at}: expected a list of rules; dropped`], lost: 1 };
   const rules: PermissionRule[] = [];
+  let lost = 0;
   for (const [index, item] of raw.entries()) {
     const where = `${at}[${index}]`;
     if (rules.length >= RULES_MAX) {
       warnings.push(`${where}: more than ${RULES_MAX} rules; the rest are dropped`);
+      lost += raw.length - index;
       break;
     }
     if (!isRecord(item)) {
       warnings.push(`${where}: not a rule; dropped`);
+      lost += 1;
       continue;
     }
     const effect = item['effect'];
@@ -85,16 +93,19 @@ export function parseRules(raw: unknown, options: ParseRulesOptions = {}): Parse
     }
     if (typeof effect !== 'string' || !(RULE_EFFECTS as readonly string[]).includes(effect)) {
       warnings.push(`${where}: expected an effect of deny or ask; dropped`);
+      lost += 1;
       continue;
     }
     const tool = item['tool'];
     if (typeof tool !== 'string' || tool.trim() === '' || tool.length > RULE_TOOL_MAX) {
       warnings.push(`${where}: expected a tool name or pattern; dropped`);
+      lost += 1;
       continue;
     }
     const access = item['access'];
     if (access !== undefined && !(typeof access === 'string' && (RULE_ACCESSES as readonly string[]).includes(access))) {
       warnings.push(`${where}: expected an access of read, write or any; dropped`);
+      lost += 1;
       continue;
     }
     let scope: RuleScope | undefined;
@@ -102,10 +113,12 @@ export function parseRules(raw: unknown, options: ParseRulesOptions = {}): Parse
       scope = scopeOf(item['scope']);
       if (scope === undefined) {
         warnings.push(`${where}: expected a scope of one subtree id or one title path; dropped`);
+        lost += 1;
         continue;
       }
       if (options.toolOnly === true) {
         warnings.push(`${where}: rules in the app's settings apply to tools only, since a binder id belongs to one project; dropped. Use the binder menu to restrict a folder`);
+        lost += 1;
         continue;
       }
     }
@@ -120,7 +133,7 @@ export function parseRules(raw: unknown, options: ParseRulesOptions = {}): Parse
       ...(kept === undefined ? {} : { note: kept }),
     });
   }
-  return { rules, warnings };
+  return { rules, warnings, lost };
 }
 
 /** Whether two rules say the same thing, so a UI does not write a rule twice. */

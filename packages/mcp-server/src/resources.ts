@@ -159,7 +159,8 @@ async function runRead(runtime: ToolRuntime, uri: string, name: string, params: 
  */
 export function registerCaotangResources(server: McpServer, runtime: ToolRuntime): readonly string[] {
   const { session } = runtime;
-  const stateNow = (): ProjectState => session.state;
+  // What a read rule withholds from the agent is not listed or served here either (agent-harness §4, Rules).
+  const stateNow = (): ProjectState => session.readable('resource');
 
   server.registerResource(
     'project',

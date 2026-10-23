@@ -227,6 +227,8 @@ describe('parseRules', () => {
       ['ask', 'meta.set'],
     ]);
     expect(parsed.warnings).toHaveLength(7);
+    // Every dropped rule but the allow is a restriction lost.
+    expect(parsed.lost).toBe(6);
     expect(parsed.warnings[0]).toContain('agent.rules[2]');
     expect(parsed.warnings[0]).toContain('allow');
   });
@@ -234,7 +236,8 @@ describe('parseRules', () => {
   it('tolerates a value that is not a list, and an app list that carries a scope', () => {
     expect(parseRules('x').rules).toEqual([]);
     expect(parseRules('x').warnings).toHaveLength(1);
-    expect(parseRules(undefined)).toEqual({ rules: [], warnings: [] });
+    expect(parseRules(undefined)).toEqual({ rules: [], warnings: [], lost: 0 });
+    expect(parseRules('x').lost).toBe(1);
     const app = parseRules([{ effect: 'deny', tool: 'x', scope: { subtree: 'n_A' } }, { effect: 'ask', tool: 'y' }], { toolOnly: true });
     expect(app.rules.map((rule) => rule.tool)).toEqual(['y']);
     expect(app.warnings[0]).toContain('binder menu');

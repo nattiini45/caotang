@@ -263,7 +263,7 @@ function argsSchemaOf(def: CaotangPromptDef, runtime: ToolRuntime): ArgsSchema {
     def.arguments.map((arg) => {
       const kind = arg.complete;
       const field = stringField();
-      return [arg.name, kind === undefined ? field : completable(field, (typed: unknown) => completionsFor(kind, runtime.session.state, String(typed)))];
+      return [arg.name, kind === undefined ? field : completable(field, (typed: unknown) => completionsFor(kind, runtime.session.readable('prompt'), String(typed)))];
     }),
   );
   return {
@@ -289,7 +289,8 @@ export function registerCaotangPrompts(server: McpServer, runtime: ToolRuntime):
       def.name,
       { title: def.title, description: def.description, argsSchema: argsSchemaOf(def, runtime) },
       (args: Record<string, string>): GetPromptResult => {
-        const { state } = runtime.session;
+        // A prompt assembles only what a read rule leaves to the agent (agent-harness §4, Rules).
+        const state = runtime.session.readable('prompt');
         for (const arg of def.arguments) {
           if (arg.required && (args[arg.name] ?? '').trim() === '') {
             throw refusalError({
