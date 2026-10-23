@@ -378,7 +378,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     const section = read('apps/desktop/src/components/Settings.tsx');
     expect(section).toContain("{ id: 'agent', label: 'Agent' }");
     expect(section).toContain('<span>Load every tool on every request</span>');
-    expect(read('apps/desktop/src/app/settings.ts')).toContain('DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false })');
+    expect(read('apps/desktop/src/app/settings.ts')).toContain("DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false, defaultMode: 'ask'");
     expect(guide).toContain('**Settings › Agent** has **Load every tool on every request** for a model that searches poorly. It is off by default, and it makes every request longer.');
     expect(guide).toContain('- **Agent.** **Load every tool on every request**, off by default.');
     expect(guide).toContain('It has eight sections: Providers, Context, Agent, Writing, Coherence, MCP & tools, Appearance and Data.');

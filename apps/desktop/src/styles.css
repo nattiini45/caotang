@@ -3178,3 +3178,71 @@ dialog.confirm::backdrop {
 .history-bar.is-met {
   background: var(--success, #3fa66a);
 }
+
+/* The permission mode control in the agent header, and what a mode leaves on a turn (agent-harness §4). */
+.agent-mode {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.agent-mode legend {
+  float: left;
+  margin-right: 8px;
+  padding: 0;
+  color: var(--muted);
+}
+
+.agent-mode-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.agent-mode-option.is-on {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.agent-turn-mode {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.plan-auto {
+  margin: 10px 0;
+  font-size: 12.5px;
+}
+
+.plan-auto > summary {
+  cursor: pointer;
+  color: var(--ink-soft);
+}
+
+.badge.is-auto {
+  margin-left: 6px;
+}
+
+.held-plan {
+  margin: 10px 0;
+  padding: 8px 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+}
+
+.held-plan h3 {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.held-plan ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+  font-size: 12.5px;
+}

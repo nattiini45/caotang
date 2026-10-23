@@ -16,15 +16,37 @@ import {
 
 test.describe('settings (ui-modules §5.1)', () => {
   test('the Agent slice loads off, reads only a true as on, and a patch changes it alone', () => {
-    expect(DEFAULT_SETTINGS.agent).toEqual({ loadEveryTool: false });
+    const off = { loadEveryTool: false, defaultMode: 'ask', lockAuto: false, budget: {} };
+    expect(DEFAULT_SETTINGS.agent).toEqual(off);
     // A record written before the slice existed has none, which reads as off.
-    expect(normalizeSettings({ editor: {} }).agent).toEqual({ loadEveryTool: false });
-    expect(normalizeSettings({ agent: { loadEveryTool: 'yes' } }).agent).toEqual({ loadEveryTool: false });
-    expect(normalizeSettings({ agent: { loadEveryTool: true } }).agent).toEqual({ loadEveryTool: true });
+    expect(normalizeSettings({ editor: {} }).agent).toEqual(off);
+    expect(normalizeSettings({ agent: { loadEveryTool: 'yes' } }).agent).toEqual(off);
+    expect(normalizeSettings({ agent: { loadEveryTool: true } }).agent).toEqual({ ...off, loadEveryTool: true });
     const on = applyPatch(DEFAULT_SETTINGS, { agent: { loadEveryTool: true } });
     expect(on.agent.loadEveryTool).toBe(true);
     expect(on.editor).toEqual(DEFAULT_SETTINGS.editor);
     expect(applyPatch(on, { editor: { autosaveDebounceMs: 1200 } }).agent.loadEveryTool).toBe(true);
+  });
+
+  test('the permission mode loads field by field: Ask unless the record names a mode, and never Auto while Auto is off (agent-harness §4)', () => {
+    expect(normalizeSettings({ agent: { defaultMode: 'accept-edits' } }).agent.defaultMode).toBe('accept-edits');
+    expect(normalizeSettings({ agent: { defaultMode: 'auto' } }).agent.defaultMode).toBe('auto');
+    expect(normalizeSettings({ agent: { defaultMode: 'yolo' } }).agent.defaultMode).toBe('ask');
+    expect(normalizeSettings({ agent: { defaultMode: 4 } }).agent.defaultMode).toBe('ask');
+    expect(normalizeSettings({ agent: { defaultMode: 'auto', lockAuto: true } }).agent).toMatchObject({ defaultMode: 'ask', lockAuto: true });
+    expect(normalizeSettings({ agent: { lockAuto: 'yes' } }).agent.lockAuto).toBe(false);
+    // Locking Auto in a patch moves a stored Auto back to Ask, and the other fields stay.
+    const auto = applyPatch(DEFAULT_SETTINGS, { agent: { defaultMode: 'auto', loadEveryTool: true } });
+    expect(auto.agent).toMatchObject({ defaultMode: 'auto', loadEveryTool: true });
+    expect(applyPatch(auto, { agent: { lockAuto: true } }).agent).toMatchObject({ defaultMode: 'ask', lockAuto: true, loadEveryTool: true });
+  });
+
+  test('the turn limits load clamped to their ranges, a bad one reads as unset, and a patch replaces the record', () => {
+    const budget = { maxTokens: 50_000, maxWordsChanged: 2_000, maxDocuments: 10, maxSteps: 12, maxCostUsd: 0.5 };
+    expect(normalizeSettings({ agent: { budget } }).agent.budget).toEqual(budget);
+    expect(normalizeSettings({ agent: { budget: { maxTokens: 5, maxSteps: 1.5, maxDocuments: 'ten', maxCostUsd: -1, maxWordsChanged: 99_999_999 } } }).agent.budget).toEqual({});
+    expect(normalizeSettings({ agent: { budget: 'all' } }).agent.budget).toEqual({});
+    expect(applyPatch(normalizeSettings({ agent: { budget } }), { agent: { budget: { maxSteps: 3 } } }).agent.budget).toEqual({ maxSteps: 3 });
   });
 
   test('a missing or non-object record loads to the defaults, field by field', () => {

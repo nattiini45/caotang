@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import type { AgentEvent, TurnReport } from '../../packages/harness/src/index.js';
+import { EMPTY_BUDGET_USE, type AgentEvent, type TurnReport } from '../../packages/harness/src/index.js';
 import { newTurnView, reduceTurn } from '../../apps/desktop/src/app/agent-model.js';
 
 /**
@@ -40,6 +40,8 @@ test('the thinking survives the report: it is the turn’s record, shown collaps
     tokens: { promptTokens: 4, completionTokens: 2, requests: 1 },
     dropped: [],
     modelCalls: 1,
+    mode: 'ask',
+    budgetUse: EMPTY_BUDGET_USE,
   };
   const turn = fold([
     { type: 'model.reasoning', turnId: TURN, delta: 'what the model thought' },

@@ -214,8 +214,8 @@ export interface AgentSessionOptions {
    * the writer's. The mode is the app's setting and a session override, never a project file.
    */
   readonly mode?: PermissionMode | (() => PermissionMode);
-  /** `auto` is turned off: a mode that reads as `auto` is `ask`. */
-  readonly lockAuto?: boolean;
+  /** `auto` is turned off: a mode that reads as `auto` is `ask`. Read at each card. */
+  readonly lockAuto?: boolean | (() => boolean);
   /** The project holds text from outside the writer; while true, accept-edits and auto behave as ask (#54). Default false. */
   readonly taint?: () => boolean;
   /** Nobody is there to ask: a card the mode does not approve is cancelled, not forwarded to `decide`. */
@@ -230,7 +230,7 @@ export interface AgentSessionOptions {
   /** The price per 1,000 tokens the cost limit reads (provider-gateway §2). Absent, a turn has no cost to hold to a limit. */
   readonly price?: () => { readonly prompt: number; readonly completion: number } | undefined;
   /** Awaited before a card the mode approves is applied, so the app can save the writer's typing as an approval does. */
-  readonly beforeAutoApply?: () => Promise<void>;
+  readonly beforeAutoApply?: (card: PlanCardView) => Promise<void>;
   /** How many times the verify ladder may adjust and re-show a refused step (agent-harness §7). Default 2. */
   readonly maxRetries?: number;
   /**
@@ -780,17 +780,19 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const loadEvery = (): boolean => options.loadEveryTool?.() === true;
   const subagents = createSubagentRunner({ tools: () => harness.tools(), previewPlan: (plan) => harness.previewPlan(plan), context });
 
+  const autoLocked = (): boolean => (typeof options.lockAuto === 'function' ? options.lockAuto() : options.lockAuto === true);
+
   /** The mode in force now. A mode that reads as `auto` while `auto` is locked is `ask`, so a stored value cannot reach it. */
   const modeNow = (): PermissionMode => {
     const raw = typeof options.mode === 'function' ? options.mode() : options.mode;
     const mode = isPermissionMode(raw) ? raw : DEFAULT_PERMISSION_MODE;
-    return mode === 'auto' && options.lockAuto === true ? DEFAULT_PERMISSION_MODE : mode;
+    return mode === 'auto' && autoLocked() ? DEFAULT_PERMISSION_MODE : mode;
   };
 
   /** The policy of the mode in force, read at each card. The turn keeps the mode it last read for its report. */
   const policyOf = (turn: Turn): ModePolicy => {
     const policy = modePolicy(modeNow(), {
-      ...(options.lockAuto === true ? { lockAuto: true } : {}),
+      ...(autoLocked() ? { lockAuto: true } : {}),
       ...(options.taint === undefined ? {} : { taint: options.taint }),
       ...(options.noHuman === true ? { noHuman: true } : {}),
     });
@@ -1774,7 +1776,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       emit({ type: 'plan', turnId: turn.id, card: shown.card, ...(auto ? { auto: true as const } : {}) });
       showGhosts(turn, editable, kind, prefix);
       if (auto) {
-        await options.beforeAutoApply?.();
+        await options.beforeAutoApply?.(shown.card);
         checkStop(turn);
         return { settled: 'approved', editable, edits, retries, auto: true };
       }

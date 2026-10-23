@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { headerLineOf, type AgentEvent, type PlanCardView, type PlanStepView, type StatusCard, type TurnReport } from '../../packages/harness/src/index.js';
+import { EMPTY_BUDGET_USE, headerLineOf, type AgentEvent, type PlanCardView, type PlanStepView, type StatusCard, type TurnReport } from '../../packages/harness/src/index.js';
 import { DOCUMENT, resolveNode } from '../../packages/harness/src/resolve.js';
 import { addDocument } from '../../packages/store/src/index.js';
 
@@ -76,19 +76,48 @@ test('a plan card is replaced by the next one, and a draft is shown as the ghost
     tokens: { promptTokens: 10, completionTokens: 5, requests: 2 },
     dropped: [],
     modelCalls: 2,
+    mode: 'ask',
+    budgetUse: EMPTY_BUDGET_USE,
   };
   const turn = fold([
     { type: 'plan', turnId: TURN, card: plan(0) },
     { type: 'plan', turnId: TURN, card: plan(1) },
     { type: 'ghost', turnId: TURN, callId: 'c1', docTitle: 'The Friend', text: 'The ferry came in.', words: 4 },
-    { type: 'checkpoint', turnId: TURN, undoGroupId: 'grp_9', label: 'restore to before this turn' },
+    { type: 'checkpoint', turnId: TURN, undoGroupId: 'grp_9', label: 'restore to before this turn', mode: 'ask' },
     { type: 'report', turnId: TURN, report },
   ]);
 
   expect(turn.plan?.revision).toBe(1);
   expect(turn.ghost).toBeNull();
-  expect(turn.checkpoint).toEqual({ undoGroupId: 'grp_9', label: 'restore to before this turn' });
+  expect(turn.checkpoint).toEqual({ undoGroupId: 'grp_9', label: 'restore to before this turn', mode: 'ask' });
   expect(turn.report?.status).toBe('applied');
+});
+
+test('a turn carries the mode it started in, whether its plan card was approved by the mode, and the mode it ended in (agent-harness §4)', () => {
+  const card: PlanCardView = { id: 'p', turnId: TURN, kind: 'plan', revision: 0, previewRevision: 0, from: 0, steps: [], approvable: true, canAcceptCut: false, cut: false };
+  const started = fold([{ type: 'turn', turnId: TURN, phase: 'started', mode: 'accept-edits' }]);
+  expect(started.mode).toBe('accept-edits');
+  expect(started.planAuto).toBe(false);
+  // A phase change that names no mode keeps the one the turn has.
+  expect(reduceTurn(started, { type: 'turn', turnId: TURN, phase: 'planning' }).mode).toBe('accept-edits');
+  const shown = reduceTurn(started, { type: 'plan', turnId: TURN, card, auto: true });
+  expect(shown.planAuto).toBe(true);
+  // The next card is the writer's again unless it says otherwise.
+  expect(reduceTurn(shown, { type: 'plan', turnId: TURN, card }).planAuto).toBe(false);
+  const report: TurnReport = {
+    turnId: TURN,
+    status: 'applied',
+    summary: 'Applied.',
+    steps: [],
+    cards: [],
+    trace: [],
+    tokens: { promptTokens: 0, completionTokens: 0, requests: 0 },
+    dropped: [],
+    modelCalls: 1,
+    mode: 'ask',
+    budgetUse: EMPTY_BUDGET_USE,
+  };
+  expect(reduceTurn(shown, { type: 'report', turnId: TURN, report }).mode).toBe('ask');
 });
 
 test('the streamed text keeps only its tail, and clears when a card or the report arrives', () => {

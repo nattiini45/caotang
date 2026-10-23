@@ -14,6 +14,7 @@ import {
   type PreviewLayer,
   type Finding,
   type NameOf,
+  type PermissionMode,
   type PlanCardView,
   type PlanStepView,
   type SteeringNote,
@@ -68,11 +69,15 @@ export interface TurnView {
   readonly plan: PlanCardView | null;
   /** Counts the plan cards the loop has shown in this turn. A card is re-read from the start each time it is shown. */
   readonly planSeq: number;
+  /** The card above was approved by the mode's policy, not the writer (agent-harness §4): it is shown collapsed with an auto-approved badge. */
+  readonly planAuto: boolean;
+  /** The permission mode the turn is in: the mode it started in, and the one it ended in once it has reported. `null` before it has started. */
+  readonly mode: PermissionMode | null;
   readonly ghost: DraftEvent | null;
   readonly ladder: readonly LadderView[];
   readonly findings: readonly Finding[];
   /** The checkpoint row, with its scope note when the turn called an external tool (extensibility §6). */
-  readonly checkpoint: { readonly undoGroupId: string; readonly label: string; readonly note?: string } | null;
+  readonly checkpoint: { readonly undoGroupId: string; readonly label: string; readonly mode: PermissionMode; readonly note?: string } | null;
   readonly report: TurnReport | null;
   /** The tail of the text the model is writing right now. */
   readonly streamed: string;
@@ -101,6 +106,8 @@ export function newTurnView(
     cards: [],
     plan: null,
     planSeq: 0,
+    planAuto: false,
+    mode: null,
     ghost: null,
     ladder: [],
     findings: [],
@@ -128,7 +135,7 @@ export function reduceTurn(turn: TurnView, event: AgentEvent, nameOf?: NameOf): 
 function reduceView(turn: TurnView, event: AgentEvent): TurnView {
   switch (event.type) {
     case 'turn':
-      return { ...turn, phase: event.phase };
+      return { ...turn, phase: event.phase, mode: event.mode ?? turn.mode };
     case 'model.delta':
       return { ...turn, streamed: `${turn.streamed}${event.delta}`.slice(-STREAM_TAIL_CHARS) };
     case 'model.reasoning':
@@ -143,7 +150,7 @@ function reduceView(turn: TurnView, event: AgentEvent): TurnView {
       return { ...turn, cards };
     }
     case 'plan':
-      return { ...turn, plan: event.card, planSeq: turn.planSeq + 1, streamed: '' };
+      return { ...turn, plan: event.card, planSeq: turn.planSeq + 1, planAuto: event.auto === true, streamed: '' };
     case 'ghost':
       return {
         ...turn,
@@ -162,10 +169,10 @@ function reduceView(turn: TurnView, event: AgentEvent): TurnView {
     case 'checkpoint':
       return {
         ...turn,
-        checkpoint: { undoGroupId: event.undoGroupId, label: event.label, ...(event.note === undefined ? {} : { note: event.note }) },
+        checkpoint: { undoGroupId: event.undoGroupId, label: event.label, mode: event.mode, ...(event.note === undefined ? {} : { note: event.note }) },
       };
     case 'report':
-      return { ...turn, report: event.report, ghost: null, plan: turn.plan, streamed: '' };
+      return { ...turn, report: event.report, mode: event.report.mode, ghost: null, plan: turn.plan, streamed: '' };
     default:
       return turn;
   }
@@ -199,6 +206,14 @@ export function phaseLabel(phase: TurnPhase | 'idle'): string {
 export function isSettled(turn: TurnView): boolean {
   return turn.report !== null;
 }
+
+/** What each permission mode does, in the words the mode control carries as its hint (agent-harness §4). */
+export const MODE_HINTS: Readonly<Record<PermissionMode, string>> = Object.freeze({
+  'plan-only': 'Reads run. Every write is refused and kept as a plan you can run later.',
+  ask: 'Every plan and confirm card waits for your decision.',
+  'accept-edits': 'Cards that edit text and fields are approved as shown. Everything else asks.',
+  auto: 'Every card of the agent’s own tools is approved as shown, inside the turn’s budgets.',
+});
 
 /** The checkpoint row's label, which says what one click does (agent-harness §5). */
 export const CHECKPOINT_LABEL_TEXT = CHECKPOINT_LABEL;

@@ -51,13 +51,21 @@ export interface PlanCardProps {
   /** The project's pictures by asset id, as their file names: a codex step's visual references are named by these (video-prompt-pack §3). */
   readonly pictureNames: ReadonlyMap<string, string>;
   readonly onDecide: (decision: Decision) => void;
+  /** The mode's policy approved this card, so the writer was not asked (agent-harness §4). */
+  readonly auto?: boolean;
 }
 
-export function PlanCard({ card, live, drafts, project, pictureNames, onDecide }: PlanCardProps): ReactNode {
+/** A card's heading: the one-step card, or the plan with the steps still to run. */
+export function planHeading(card: PlanCardView): string {
+  const pending = card.steps.filter((step) => step.status !== 'done');
+  return card.kind === 'confirm' ? 'One step to confirm' : `Plan, ${pending.length} ${pending.length === 1 ? 'step' : 'steps'}`;
+}
+
+export function PlanCard({ card, live, drafts, project, pictureNames, onDecide, auto = false }: PlanCardProps): ReactNode {
   const pending = card.steps.filter((step) => step.status !== 'done');
   // A retry drafts again the steps the loop drafts (agent-harness §8); a step with no draft is not one of them.
   const retryable = pending.some((step) => MODEL_BACKED_TOOLS.has(step.tool));
-  const heading = card.kind === 'confirm' ? 'One step to confirm' : `Plan, ${pending.length} ${pending.length === 1 ? 'step' : 'steps'}`;
+  const heading = planHeading(card);
   const edit = (edits: PlanEdit[]): void => onDecide({ action: 'edit', edits });
   const held = live ? (drafts?.blocked ?? null) : null;
   const approvable = live && card.approvable && held === null;
@@ -75,7 +83,7 @@ export function PlanCard({ card, live, drafts, project, pictureNames, onDecide }
     <section className={`plan-card is-${card.kind}${live ? ' is-live' : ''}`} aria-label={heading} data-testid="plan-card">
       <header className="plan-head">
         <h3>{heading}</h3>
-        {live ? <span className="plan-state">Waiting for you</span> : <span className="plan-state">{card.approvable ? 'Ready' : 'Not ready'}</span>}
+        {live ? <span className="plan-state">Waiting for you</span> : <span className="plan-state">{auto ? 'Approved as shown' : card.approvable ? 'Ready' : 'Not ready'}</span>}
       </header>
 
       <ol className="plan-steps" aria-label="Steps">
@@ -110,7 +118,8 @@ export function PlanCard({ card, live, drafts, project, pictureNames, onDecide }
       ))}
       {planCost !== undefined ? <p className="plan-cost">About {formatUsd(planCost)} for the whole plan, at this profile’s prices.</p> : null}
 
-      <div className="plan-actions">
+      {/* A card the mode approved has nothing left to decide. */}
+      <div className="plan-actions" hidden={auto}>
         <button type="button" className="button is-primary" disabled={!approvable} onClick={() => onDecide({ action: 'approve' })}>
           {card.kind === 'confirm' ? 'Approve' : 'Approve plan'}
         </button>
