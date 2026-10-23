@@ -37,6 +37,9 @@ Each of these is its own milestone, designed when its turn comes.
 - **Hosted instance** at `caotang.pawcommit.com`. Sign up with email, Google or GitHub; projects stored end-to-end encrypted so the operator cannot read them; a relay for providers browsers cannot reach. The local-only version at `caotang.app` stays as it is. Specified, not built: see [hosted.md](architecture/hosted.md).
 - **More background work.** A coherence review the writer queues, a gateway limiter that serves the agent before a background task, and a Web Worker for the heavy checks if they are measured to slow typing.
 - **More helper agents.** Several helpers reading at once, one per chapter; and helpers with a role of their own, such as a drafter, a critic and a continuity checker. Each builds on the helpers that exist now.
+- **Pictures.** Sketches, photos and inspiration attached to the project, a chapter, a scene or a paragraph; pictures placed in prose and carried into EPUB, Word and Markdown; handwritten pages turned into text you review. Specified, not built: see [pictures.md](architecture/pictures.md).
+- **Comics.** Comic books with pages, panels and balloons, written from a comic script or page first, exported as a comic PDF or a CBZ. Specified, not built: see [comics.md](architecture/comics.md).
+- **Timeline.** The story on a timeline of story days, reading order, or both, including prologues before day 0 and epilogues years later; every change you make on it is a proposal you review and apply as one undo step. Specified, not built: see [timeline.md](architecture/timeline.md).
 - **Mobile app**, reaching your projects on the hosted instance.
 - **Signed MCP bundle.** The `.mcpb` bundle ships unsigned today. It will be signed once the bundling tool produces signed bundles that hosts accept.
 
