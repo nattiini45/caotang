@@ -13,14 +13,18 @@
  * algorithm of UAX #9 (`@caotang/pdf-fonts/bidi`) into runs in the order they are drawn, and planned: a shaped run is a word with each
  * glyph at the position the shaper gave, and the other runs are the line's other text. The plan is what pdf.ts writes. Marks
  * (harakat, Hebrew points) are left out of the shaped word, which fontkit 1.1.1 cannot be shown to place as HarfBuzz does
- * (`@caotang/pdf-fonts` test/fixtures/shaping), and the text a reader copies keeps them.
+ * (`@caotang/pdf-fonts` test/fixtures/shaping), and the text a reader copies keeps them: each mark, and each zero-width joiner, is a
+ * glyph of its own that draws nothing and carries the character as its text (`withMarkGlyphs`; the ones after a word's last letter are
+ * flagged `final`, which pdf.ts writes after the word). The words have no `/ActualText`:
+ * the glyphs are drawn in visual order with the letter each draws in ToUnicode, and a reader puts the word in logical order.
  *
  * Devanagari is left to right and needs no bidirectional algorithm. A line that holds it is planned too: each Devanagari word is
  * shaped by upstream fontkit 2.0.4 (`@caotang/pdf-fonts/indic-shaper`, in the project's language, which selects the Marathi and
  * Nepali forms), marks and all, and the rest of the line is plain. The word is wrapped in `/ActualText` with its typed text, and
  * each cluster's text is the ToUnicode text of the first glyph drawn of it (the clusters the shaper gave).
  *
- * Every distinct (glyph, text) pair has a CID of its own, so a ligature copies back as the letters it stands for.
+ * Every distinct (glyph, text) pair has a CID of its own, so a glyph that is drawn for two different letters copies back as the
+ * letter it was drawn for.
  *
  * This module is reached only by the dynamic import in render-pdf.ts, and only for a layout with Arabic, Hebrew or Devanagari
  * text. A document without any loads neither this module, nor a shaper, nor a font file; fontkit 2.0.4 is loaded for Devanagari
@@ -28,6 +32,7 @@
  */
 
 import {
+  CidNumbering,
   cutCidSubset,
   devanagariFontPrints,
   devanagariRuns,
@@ -43,7 +48,7 @@ import {
 } from '@caotang/pdf-fonts';
 import { visualRuns } from '@caotang/pdf-fonts/bidi';
 import { createFontkitShaper, shapeWord, type BrahmicShaper, type ShapedWord } from '@caotang/pdf-fonts/indic-shaper';
-import { fontkitShape, type ShapedGlyph, type Shape } from '@caotang/pdf-fonts/shaper';
+import { blankGlyphOf, fontkitShape, withMarkGlyphs, type ShapedGlyph, type Shape } from '@caotang/pdf-fonts/shaper';
 import type { Font } from '@pdf-lib/fontkit';
 
 import { LAYOUT, type LayoutPage } from './paginate.js';
@@ -163,23 +168,24 @@ export async function loadRtlSupport(
 interface Collected {
   readonly units: CidUnit[];
   readonly cids: Map<string, number>;
+  readonly numbering: CidNumbering;
 }
 
 const round = (value: number): number => Math.round(value * 100) / 100;
 
 /** The glyphs of a shaped run placed from `start` (points from the run's left edge), each with the CID of its (glyph, text) pair. */
-function placeGlyphs(glyphs: readonly ShapedGlyph[], font: Font, start: number, target: Collected): { cid: number; x: number; y: number }[] {
+function placeGlyphs(glyphs: readonly ShapedGlyph[], font: Font, start: number, target: Collected): { cid: number; x: number; y: number; final?: true }[] {
   const scale = SIZE / font.unitsPerEm;
   let x = start;
   return glyphs.map((glyph) => {
     const key = `${glyph.id}:${glyph.text}`;
     let cid = target.cids.get(key);
     if (cid === undefined) {
-      target.units.push({ glyphId: glyph.id, width: Math.round(glyph.advance * (1000 / font.unitsPerEm)), text: glyph.text });
-      cid = target.units.length;
+      cid = target.numbering.next(glyph.text);
+      target.units.push({ glyphId: glyph.id, width: Math.round(glyph.advance * (1000 / font.unitsPerEm)), text: glyph.text, cid });
       target.cids.set(key, cid);
     }
-    const placed = { cid, x: round(x + glyph.dx * scale), y: round(glyph.dy * scale) };
+    const placed = { cid, x: round(x + glyph.dx * scale), y: round(glyph.dy * scale), ...(glyph.final === true ? { final: true as const } : {}) };
     x += glyph.advance * scale;
     return placed;
   });
@@ -252,7 +258,7 @@ function planLine(text: string, rtl: boolean, support: RtlSupport, collected: Re
     }
     // The room left in the cell goes to the side the run ends: the left of a right-to-left word.
     const start = direction === 'rtl' ? Math.max(0, columns * LAYOUT.charWidth - shaped.advance * (SIZE / font.unitsPerEm)) : 0;
-    const glyphs = placeGlyphs(shaped.glyphs, font, start, collected[run.script]);
+    const glyphs = placeGlyphs(withMarkGlyphs(shaped.glyphs, run.source, direction, blankGlyphOf(font)), font, start, collected[run.script]);
     items.push({ kind: 'shaped', font: run.script, column: at.column, glyphs, source: run.source, order: run.order });
     at.column += columns;
   }
@@ -271,9 +277,10 @@ function planDevanagariLine(text: string, support: RtlSupport, collected: Record
  */
 export async function subsetRtl(pages: readonly LayoutPage[], support: RtlSupport): Promise<PdfRtlFonts> {
   const collected: Record<ShapedScript, Collected> = {
-    arabic: { units: [], cids: new Map() },
-    hebrew: { units: [], cids: new Map() },
-    devanagari: { units: [], cids: new Map() },
+    // A glyph with no text takes a CID pdf.js skips in the two scripts that carry no /ActualText (cid-font.ts CidNumbering).
+    arabic: { units: [], cids: new Map(), numbering: new CidNumbering(true) },
+    hebrew: { units: [], cids: new Map(), numbering: new CidNumbering(true) },
+    devanagari: { units: [], cids: new Map(), numbering: new CidNumbering(false) },
   };
   const lines = new Map<string, readonly PdfRtlItem[]>();
   for (const page of pages) {

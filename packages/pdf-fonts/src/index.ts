@@ -25,7 +25,10 @@ export { encodeSubset, loadFont, loadFontWithBytes, loadFontkit, openFont, padGl
 export {
   cidFontObjects,
   cutCidSubset,
+  CidNumbering,
   describeSubset,
+  isTextlessCid,
+  NO_TEXT,
   toUnicodeCMap,
   type CidEntry,
   type CidSubset,

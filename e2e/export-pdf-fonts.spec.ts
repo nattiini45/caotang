@@ -95,8 +95,10 @@ test('a script with Arabic and Hebrew loads the one Arabic file and the one Hebr
   expect(pdf).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSansArabic-Regular/);
   expect(pdf).toMatch(/\/BaseFont \/[A-Z]{6}\+NotoSansHebrew-Regular/);
   expect(pdf).not.toContain('(?????) Tj');
-  // Each word is marked content that carries its logical text: "שלום" is U+05E9 U+05DC U+05D5 U+05DD, as UTF-16 hex.
-  expect(pdf).toContain('/ActualText <FEFF05E905DC05D505DD>');
+  // The words carry no marked content: Poppler would spread it over the word and reverse it. Each glyph has the letter it draws in
+  // the font's ToUnicode map instead, and a reader puts the word back in order. "שלום" is U+05E9 U+05DC U+05D5 U+05DD.
+  expect(pdf).not.toContain('/ActualText <FEFF05E905DC05D505DD>');
+  for (const letter of ['05E9', '05DC', '05D5', '05DD']) expect(pdf).toMatch(new RegExp(`<[0-9A-F]{4}> <${letter}>`));
   expect([...new Set(fonts)].sort()).toEqual(['NotoSansArabic-Regular.ttf', 'NotoSansHebrew-Regular.ttf']);
 });
 

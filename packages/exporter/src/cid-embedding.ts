@@ -13,7 +13,7 @@
  * objects are written by {@link CidEmbedding.finish}, once every page is drawn; until then the pages point at `ref`.
  */
 
-import { cidFontObjects, describeSubset, encodeSubset, padGlyphs, type PdfObject, type PdfValue } from '@caotang/pdf-fonts';
+import { CidNumbering, cidFontObjects, describeSubset, encodeSubset, padGlyphs, type PdfObject, type PdfValue } from '@caotang/pdf-fonts';
 import type * as PdfLib from 'pdf-lib';
 
 /** One glyph a text draws: its id in the font, its advance in font units, and the text it stands for when copied. */
@@ -65,7 +65,8 @@ export class CidEmbedding {
   readonly ref: PdfLib.PDFRef;
   private readonly subset: FontkitSubset;
   private readonly cids = new Map<string, number>();
-  private readonly entries: { readonly gid: number; readonly advance: number; readonly text: string }[] = [];
+  private readonly entries: { readonly gid: number; readonly advance: number; readonly text: string; readonly cid: number }[] = [];
+  private readonly numbering: CidNumbering;
   private readonly keys = new Map<PdfLib.PDFPage, PdfLib.PDFName>();
 
   constructor(
@@ -73,7 +74,10 @@ export class CidEmbedding {
     private readonly doc: PdfLib.PDFDocument,
     readonly font: FontkitFont,
     private readonly names: CidFontNames,
+    /** True for a font whose glyphs with no text take a CID pdf.js skips (cid-font.ts CidNumbering): the right-to-left fonts. */
+    textlessCids = false,
   ) {
+    this.numbering = new CidNumbering(textlessCids);
     this.ref = doc.context.nextRef();
     this.subset = font.createSubset();
     padGlyphs(this.subset);
@@ -107,19 +111,23 @@ export class CidEmbedding {
 
   /**
    * Draws a shaped run glyph by glyph, each at its own position (a pen that moves by the advances, and the glyph's offset from
-   * it), inside marked content that gives a reader `actual`, the run's logical text (`/ActualText`). pdf-lib's own text
-   * operators write advances only, so the offsets that place a joined or marked word are drawn here.
+   * it). pdf-lib's own text operators write advances only, so the offsets that place a joined or marked word are drawn here.
+   * With `actual`, the run's logical text, the glyphs are inside marked content that gives it to a reader (`/ActualText`); that
+   * is for a left-to-right script. A right-to-left run passes none: its glyphs are in visual order, each with its text in
+   * ToUnicode, and a reader puts the words in logical order itself. The `final` glyphs, the marks after the last letter of such
+   * a run, which are drawn first at its left end, are written after the others in marked content of their own: pdf.js appends a
+   * mark to the text item that is open, so first in the stream it would be read into the word drawn before this one.
    */
   drawPlaced(
     page: PdfLib.PDFPage,
-    glyphs: readonly { readonly id: number; readonly advance: number; readonly text: string; readonly dx: number; readonly dy: number }[],
+    glyphs: readonly { readonly id: number; readonly advance: number; readonly text: string; readonly dx: number; readonly dy: number; readonly final?: true }[],
     x: number,
     y: number,
     size: number,
     ink: { r: number; g: number; b: number },
-    actual: string,
+    actual?: string,
   ): void {
-    const { pushGraphicsState, popGraphicsState, beginText, endText, setFontAndSize, setFillingRgbColor, setTextMatrix, showText, PDFHexString, PDFName, PDFOperator, PDFOperatorNames, endMarkedContent } = this.lib;
+    const { pushGraphicsState, popGraphicsState, beginText, endText, setFontAndSize, setFillingRgbColor, setTextMatrix, showText, PDFHexString, PDFName, PDFOperator, PDFOperatorNames, beginMarkedContent, endMarkedContent } = this.lib;
     let key = this.keys.get(page);
     if (key === undefined) {
       key = page.node.newFontDictionary(this.names.resource, this.ref);
@@ -128,22 +136,29 @@ export class CidEmbedding {
     const scale = size / this.font.unitsPerEm;
     const operators = [
       pushGraphicsState(),
-      // pdf-lib has the operator for marked content without properties only (BMC); this is BDC, with the /ActualText dictionary
-      // inline. Its operand types leave out a dictionary, which the operator writes as it writes any object.
-      PDFOperator.of(PDFOperatorNames.BeginMarkedContentSequence, [
-        PDFName.of('Span'),
-        this.doc.context.obj({ ActualText: PDFHexString.fromText(actual) }) as unknown as PdfLib.PDFName,
-      ]),
+      ...(actual === undefined
+        ? []
+        : [
+            // pdf-lib has the operator for marked content without properties only (BMC); this is BDC, with the /ActualText
+            // dictionary inline. Its operand types leave out a dictionary, which the operator writes as it writes any object.
+            PDFOperator.of(PDFOperatorNames.BeginMarkedContentSequence, [
+              PDFName.of('Span'),
+              this.doc.context.obj({ ActualText: PDFHexString.fromText(actual) }) as unknown as PdfLib.PDFName,
+            ]),
+          ]),
       setFillingRgbColor(ink.r, ink.g, ink.b),
       beginText(),
       setFontAndSize(key, size),
     ];
     let pen = x;
+    const body: PdfLib.PDFOperator[] = [];
+    const finals: PdfLib.PDFOperator[] = [];
     for (const glyph of glyphs) {
-      operators.push(setTextMatrix(1, 0, 0, 1, pen + glyph.dx * scale, y + glyph.dy * scale), showText(PDFHexString.of(hex4(this.cidOf(glyph)))));
+      (glyph.final === true ? finals : body).push(setTextMatrix(1, 0, 0, 1, pen + glyph.dx * scale, y + glyph.dy * scale), showText(PDFHexString.of(hex4(this.cidOf(glyph)))));
       pen += glyph.advance * scale;
     }
-    operators.push(endText(), endMarkedContent(), popGraphicsState());
+    // The marks go inside the text object, after the word, as the screenplay PDF writes them.
+    operators.push(...body, ...(finals.length > 0 ? [beginMarkedContent('Span'), ...finals, endMarkedContent()] : []), endText(), ...(actual === undefined ? [] : [endMarkedContent()]), popGraphicsState());
     page.pushOperators(...operators);
   }
 
@@ -152,8 +167,8 @@ export class CidEmbedding {
     const known = this.cids.get(key);
     if (known !== undefined) return known;
     const gid = this.subset.includeGlyph(glyph.id);
-    this.entries.push({ gid, advance: glyph.advance, text: glyph.text });
-    const cid = this.entries.length;
+    const cid = this.numbering.next(glyph.text);
+    this.entries.push({ gid, advance: glyph.advance, text: glyph.text, cid });
     this.cids.set(key, cid);
     return cid;
   }
@@ -165,7 +180,7 @@ export class CidEmbedding {
   async finish(): Promise<void> {
     if (!this.used) return;
     const scale = 1000 / this.font.unitsPerEm;
-    const entries = this.entries.map((entry) => ({ gid: entry.gid, width: Math.round(entry.advance * scale * 1000) / 1000, text: entry.text }));
+    const entries = this.entries.map((entry) => ({ gid: entry.gid, width: Math.round(entry.advance * scale * 1000) / 1000, text: entry.text, cid: entry.cid }));
     const program = await encodeSubset(this.subset);
     const subset = describeSubset(this.font, program, entries, this.names.postscriptName, this.names.tag);
     this.register(cidFontObjects(subset));

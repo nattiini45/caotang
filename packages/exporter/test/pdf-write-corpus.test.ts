@@ -15,7 +15,7 @@ import { resolve } from 'node:path';
 import { crc32, deflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
-import { loadArabicFontInNode, loadCjkFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
+import { loadArabicFontInNode, loadCjkFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
 import { MemoryArtifactFs, type ExportRecipeOptions, type ProjectState } from '@caotang/store';
 import { addShotNode } from '@caotang/storyboard';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
@@ -30,11 +30,6 @@ interface Expected {
   readonly file: string;
   readonly format: 'pdf' | 'contact-sheet-pdf';
   readonly pages: readonly (readonly string[])[];
-  /**
-   * Text a reader gets only from the /ActualText of the marked content, which Poppler and Acrobat read and pdf.js does not: the
-   * Arabic words, whose joined forms have no single character to map back to. Checked by the tools that read it.
-   */
-  readonly actualText?: readonly (readonly string[])[];
   readonly size: readonly [number, number];
   /** Every font the file names: a substring of its BaseFont, whether its program is embedded, and whether it carries a ToUnicode map. */
   readonly fonts: readonly { readonly name: string; readonly embedded: boolean; readonly toUnicode: boolean }[];
@@ -46,7 +41,6 @@ interface Case {
   readonly format: Expected['format'];
   readonly options?: ExportRecipeOptions;
   readonly pages: Expected['pages'];
-  readonly actualText?: Expected['actualText'];
   readonly size: Expected['size'];
   readonly fonts: Expected['fonts'];
 }
@@ -59,6 +53,7 @@ const CJK = { name: 'NotoSansMonoCJKsc-Regular', embedded: true, toUnicode: true
 const EMOJI = { name: 'NotoEmoji-Regular', embedded: true, toUnicode: true } as const;
 const ARABIC = { name: 'NotoSansArabic-Regular', embedded: true, toUnicode: true } as const;
 const HEBREW = { name: 'NotoSansHebrew-Regular', embedded: true, toUnicode: true } as const;
+const DEVANAGARI = { name: 'NotoSansDevanagari-Regular', embedded: true, toUnicode: true } as const;
 /** The contact sheet's built-in font: base-14, so it is not embedded. */
 const HELVETICA = { name: 'Helvetica', embedded: false, toUnicode: false } as const;
 
@@ -194,12 +189,32 @@ const CORPUS: readonly Case[] = [
   {
     file: 'screenplay-arabic-hebrew.pdf',
     format: 'pdf',
-    build: () => ({ state: sceneWith('INT. A - DAY\n\n@سارة\nمرحبا Bob، هل رأيت الفيلم؟\n\n@דוד\nשלום עולם, מה שלומך?') }),
+    // Right-to-left words are drawn glyph by glyph in visual order, each glyph with its text in ToUnicode and no /ActualText, so
+    // pdf.js and Poppler both put them back in logical order (tools/pdf-validate/check.mjs): the needles are the logical words,
+    // each as typed to its last mark. A mark after the last letter is written after its word, in marked content of its own.
+    build: () => ({
+      state: sceneWith('INT. A - DAY\n\n@سارة\nمرحبا Bob، هل رأيت الفيلم؟ بِسْمِ الله\n\n@سارة\nكَتَبَ الوَلَدُ\n\n@سارة\nمُحَمَّدٌ اللّٰهِ\n\n@דוד\nשלום עולם, מה שלומך? שָׁלוֹם שָׁמָּה'),
+    }),
     options: { titlePage: false },
-    pages: [['INT. A - DAY', 'דוד', 'שלום', 'עולם']],
-    actualText: [['سارة', 'مرحبا', 'رأيت', 'الفيلم']],
+    pages: [
+      [
+        'INT. A - DAY', 'سارة', 'مرحبا', 'Bob', 'رأيت', 'الفيلم', 'بِسْمِ', 'الله', 'كَتَبَ', 'الوَلَدُ', 'مُحَمَّدٌ', 'اللّٰهِ',
+        'דוד', 'שלום', 'עולם', 'שלומך', 'שָׁלוֹם', 'שָׁמָּה',
+      ],
+    ],
     size: LETTER,
     fonts: [COURIER, ARABIC, HEBREW],
+  },
+  {
+    // Devanagari keeps its /ActualText (it is written left to right, so Poppler's spreading of it over the word reads it in
+    // order): this file shows it, in the tools that read it, and in pdf.js, which does not, from the ToUnicode of the clusters.
+    file: 'screenplay-devanagari.pdf',
+    format: 'pdf',
+    build: () => ({ state: sceneWith('INT. A - DAY\n\n@राधा\nनमस्ते दुनिया, क्षमा करें।') }),
+    options: { titlePage: false },
+    pages: [['INT. A - DAY', 'राधा', 'नमस्ते', 'दुनिया', 'क्षमा', 'करें']],
+    size: LETTER,
+    fonts: [COURIER, DEVANAGARI],
   },
   {
     // A private-use character no font holds: the writer prints "?" and says so in the log.
@@ -226,6 +241,15 @@ const CORPUS: readonly Case[] = [
     pages: [['Mara sets the kettle down.', '草堂 at dawn', 'ようこそ', '🎬', '👨‍👩‍👧']],
     size: A4,
     fonts: [HELVETICA, CJK, EMOJI],
+  },
+  {
+    // Right-to-left words on the contact sheet: the same drawing as the screenplay's, through the exporter's own embedding.
+    file: 'sheet-arabic-hebrew.pdf',
+    format: 'contact-sheet-pdf',
+    build: () => ({ state: sheetWith('World', 'مرحبا كَتَبَ الوَلَدُ سارة، هل رأيت الفيلم؟ בסדר גמור שָׁלוֹם'), files: {} }),
+    pages: [['Mara sets the kettle down.', 'مرحبا', 'سارة', 'رأيت', 'الفيلم', 'كَتَبَ', 'الوَلَدُ', 'בסדר', 'גמור', 'שָׁלוֹם']],
+    size: A4,
+    fonts: [HELVETICA, ARABIC, HEBREW],
   },
   {
     file: 'sheet-png-alpha-jpeg.pdf',
@@ -264,6 +288,7 @@ describe.skipIf(OUT === '')('the PDF write corpus', () => {
       loadEmojiFont: loadEmojiFontInNode,
       loadArabicFont: loadArabicFontInNode,
       loadHebrewFont: loadHebrewFontInNode,
+      loadDevanagariFont: loadDevanagariFontInNode,
     });
     await exporter.ready();
     state.manifest.recipes = [{ name: 'Corpus', includeRootIds: ['manuscript'], format: entry.format, options: entry.options ?? {} }];
@@ -286,7 +311,6 @@ describe.skipIf(OUT === '')('the PDF write corpus', () => {
       file: entry.file,
       format: entry.format,
       pages: entry.pages,
-      ...(entry.actualText === undefined ? {} : { actualText: entry.actualText }),
       size: entry.size,
       fonts: entry.fonts,
     });
