@@ -289,6 +289,7 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - The Fountain round trip is byte-identical for canonical input; other input is canonicalised. Why: a stable, testable form. [delegated]
 - Branching dialogue is authored in Ink (`inkjs` for validation); engines consume compiled JSON; Caotang never builds a scripting language or a play mode in the first landing. Why: Ink already is the scripting layer. [delegated]
 - Line ids are the early contract for dialogue. Why: localisation and voice work depend on them. [delegated]
+- Import Ink offers an unchecked "Add line ids" box that mints ids once into the imported containers (one undo step); import never sets `autoLineIds`, and the box defaults off. Why: line ids are the early dialogue contract and a whole story is the moment to add them, but A3 holds that always-on minting would churn files writers hand-edit. [delegated 2026-10-22]
 - Text above an Ink file's first knot is reported, not imported. Why: no silent loss. [delegated]
 - A storyboard is a corkboard variant over an additive `shot` node kind; a shot sits only in a storyboard folder, and a storyboard folder holds only shots. Why: one data model, no new view commands. [delegated]
 - Shot boards use the corkboard's S, M and L sizes. Why: one card vocabulary. [delegated]
