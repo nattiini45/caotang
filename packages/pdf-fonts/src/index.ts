@@ -8,14 +8,16 @@
  * `@caotang/pdf-fonts/indic-shaper`.
  */
 
-export { MAX_SFNT_BYTES, checkFontBytes, looksLikeFont, sfntFromWoff, type FontLoader } from './font-bytes.js';
+export { MAX_SFNT_BYTES, checkFontBytes, loaderFor, looksLikeFont, sfntFromWoff, withCommon, type CommonFontLoader, type FontLoader } from './font-bytes.js';
 export {
   ARABIC_FONT_FILE,
   ARABIC_FONT_NAME,
+  CJK_COMMON_FONT_FILE,
   CJK_FONT_FILE,
   CJK_FONT_NAME,
   DEVANAGARI_FONT_FILE,
   DEVANAGARI_FONT_NAME,
+  EMOJI_COMMON_FONT_FILE,
   EMOJI_FONT_FILE,
   EMOJI_FONT_NAME,
   HEBREW_FONT_FILE,

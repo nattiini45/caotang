@@ -6,6 +6,8 @@
  * Five fonts, each a {@link FontLoader}: Noto Sans Mono CJK SC (`@caotang/font-noto-cjk`), Noto Emoji
  * (`@caotang/font-noto-emoji`), Noto Sans Arabic (`@caotang/font-noto-arabic`), Noto Sans Hebrew (`@caotang/font-noto-hebrew`) and
  * Noto Sans Devanagari (`@caotang/font-noto-devanagari`).
+ * The CJK and emoji loaders are for the full font and carry the loader of the font's common file as `common` ({@link withCommon});
+ * the PDF writers read that one when a document's characters are all in it (common.ts).
  * Where each loader looks, in order:
  *
  * 1. `fonts/<file>` beside the running module. The MCPB bundle stages the files there, beside `caotang-mcp.mjs`, so the
@@ -18,8 +20,16 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { FontLoader } from './font-bytes.js';
-import { ARABIC_FONT_FILE, CJK_FONT_FILE, DEVANAGARI_FONT_FILE, EMOJI_FONT_FILE, HEBREW_FONT_FILE } from './font-files.js';
+import { withCommon, type CommonFontLoader, type FontLoader } from './font-bytes.js';
+import {
+  ARABIC_FONT_FILE,
+  CJK_COMMON_FONT_FILE,
+  CJK_FONT_FILE,
+  DEVANAGARI_FONT_FILE,
+  EMOJI_COMMON_FONT_FILE,
+  EMOJI_FONT_FILE,
+  HEBREW_FONT_FILE,
+} from './font-files.js';
 
 const CJK_PACKAGE = '@caotang/font-noto-cjk';
 const EMOJI_PACKAGE = '@caotang/font-noto-emoji';
@@ -55,16 +65,32 @@ export function cjkFontCandidates(moduleUrl: string = import.meta.url): string[]
   return fontCandidates(CJK_FONT_FILE, CJK_PACKAGE, moduleUrl);
 }
 
+/** The places the common CJK file is read from, in the order they are tried. */
+export function cjkCommonFontCandidates(moduleUrl: string = import.meta.url): string[] {
+  return fontCandidates(CJK_COMMON_FONT_FILE, CJK_PACKAGE, moduleUrl);
+}
+
 /** The places {@link loadEmojiFontInNode} reads, in the order it tries them. */
 export function emojiFontCandidates(moduleUrl: string = import.meta.url): string[] {
   return fontCandidates(EMOJI_FONT_FILE, EMOJI_PACKAGE, moduleUrl);
 }
 
-/** Reads Noto Sans Mono CJK SC, the fallback for text outside Latin script. */
-export const loadCjkFontInNode: FontLoader = async () => readFirst(CJK_FONT_FILE, cjkFontCandidates());
+/** The places the common emoji file is read from, in the order they are tried. */
+export function emojiCommonFontCandidates(moduleUrl: string = import.meta.url): string[] {
+  return fontCandidates(EMOJI_COMMON_FONT_FILE, EMOJI_PACKAGE, moduleUrl);
+}
 
-/** Reads Noto Emoji, the fallback for emoji. */
-export const loadEmojiFontInNode: FontLoader = async () => readFirst(EMOJI_FONT_FILE, emojiFontCandidates());
+/** Reads Noto Sans Mono CJK SC, the fallback for text outside Latin script; its `common` reads the common file. */
+export const loadCjkFontInNode: CommonFontLoader = withCommon(
+  async () => readFirst(CJK_FONT_FILE, cjkFontCandidates()),
+  async () => readFirst(CJK_COMMON_FONT_FILE, cjkCommonFontCandidates()),
+);
+
+/** Reads Noto Emoji, the fallback for emoji; its `common` reads the common file. */
+export const loadEmojiFontInNode: CommonFontLoader = withCommon(
+  async () => readFirst(EMOJI_FONT_FILE, emojiFontCandidates()),
+  async () => readFirst(EMOJI_COMMON_FONT_FILE, emojiCommonFontCandidates()),
+);
 
 /** The places {@link loadArabicFontInNode} reads, in the order it tries them. */
 export function arabicFontCandidates(moduleUrl: string = import.meta.url): string[] {
