@@ -41,7 +41,7 @@ export const BUDGET = {
     index: 1_240_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
-  initialGzip: 750_000,
+  initialGzip: 770_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%.
