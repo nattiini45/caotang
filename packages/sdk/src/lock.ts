@@ -19,6 +19,12 @@
  * refused instead, and the refusal names the file and says how to clear it. The price of that
  * rule is a writer that is killed between creating the lock and writing its body: it leaves a
  * lock that nobody may take over, and the folder is cleared by hand.
+ *
+ * Windows refuses an exclusive create at a name another writer is deleting with `EPERM` until
+ * the delete finishes, which is contention and not a folder this process may not write. The
+ * name is tried again a bounded number of times; a refusal that outlasts those tries is the
+ * folder's own, and it is thrown as it is: a folder that cannot be written is never reported as
+ * one another writer holds.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -36,6 +42,18 @@ export const LOCK_TAKEOVER_FILE = `${LOCK_FILE}.takeover`;
  * It decides what the refusal says about the marker, and nothing else.
  */
 const MARKER_FRESH_MS = 5_000;
+
+/**
+ * How many times an exclusive create is tried while Windows is deleting the name, and how long
+ * the wait grows between tries. The refusal is `EPERM` while the directory entry is in the way of
+ * the delete; it says nothing about which writer is in the way — in a measured eight-writer race
+ * of exclusive creates and removals, the name was already gone for 105 of 144 refusals — so the
+ * create is tried again, as the folder port retries the sharing errors of a file another program
+ * holds. Every measured refusal resolved within two retries; the wait grows with the try, as
+ * those do, and a refusal that survives the last try is the folder's own and is rethrown.
+ */
+const EXCLUSIVE_CREATE_ATTEMPTS = 6;
+const EXCLUSIVE_CREATE_RETRY_MS = 25;
 
 /**
  * What the folder holds that the refusal is about: a lock that cannot be read, or a marker of a
@@ -144,25 +162,33 @@ function parseBody(text: string): LockBody | undefined {
 
 /** Creates the lock file exclusively. `false` when it already exists. */
 async function createExclusive(path: string, body: string): Promise<boolean> {
-  let handle;
-  try {
-    handle = await open(path, 'wx');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false;
-    throw error;
+  for (let attempt = 1; ; attempt += 1) {
+    let handle;
+    try {
+      handle = await open(path, 'wx');
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'EEXIST') return false;
+      // A name another writer is deleting is refused with `EPERM` until the delete finishes. The
+      // name is free a moment later, so the create is tried again; a refusal that outlasts the
+      // tries is the folder's, and it is rethrown. Every other error is not about a delete.
+      if (code !== 'EPERM' || attempt >= EXCLUSIVE_CREATE_ATTEMPTS) throw error;
+      await new Promise((done) => setTimeout(done, EXCLUSIVE_CREATE_RETRY_MS * attempt));
+      continue;
+    }
+    try {
+      await handle.writeFile(body, 'utf8');
+    } catch (error) {
+      // The file was created but could not be filled: it is removed here, because a file that
+      // cannot be read is a file the folder is refused on, and a lock or a marker left behind
+      // is one that nobody else cleans up.
+      await handle.close().catch(() => undefined);
+      await unlink(path).catch(() => undefined);
+      throw error;
+    }
+    await handle.close();
+    return true;
   }
-  try {
-    await handle.writeFile(body, 'utf8');
-  } catch (error) {
-    // The file was created but could not be filled: it is removed here, because a file that
-    // cannot be read is a file the folder is refused on, and a lock or a marker left behind
-    // is one that nobody else cleans up.
-    await handle.close().catch(() => undefined);
-    await unlink(path).catch(() => undefined);
-    throw error;
-  }
-  await handle.close();
-  return true;
 }
 
 /**

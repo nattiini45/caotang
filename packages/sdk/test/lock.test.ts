@@ -189,6 +189,146 @@ describe('the project lock', () => {
   }, RACE_TIMEOUT);
 });
 
+describe('a name Windows refuses while another writer is deleting it', () => {
+  let root: string;
+
+  beforeAll(() => {
+    root = tempDir('lock-deleting');
+  });
+
+  afterAll(() => {
+    removeDir(root);
+  });
+
+  /**
+   * An exclusive create at a name another writer is deleting: Windows keeps the directory entry
+   * until the delete completes and refuses the create with `EPERM`. Whoever loses the takeover
+   * has to be refused for the lock, not fail with the operating system's words.
+   */
+  it('refuses the folder for the marked takeover, and does not fail with the refusal of the name', async () => {
+    const pid = await deadPid();
+    const lock = join(root, LOCK_FILE);
+    const marker = join(root, LOCK_TAKEOVER_FILE);
+    // A stale lock, and the marker of a takeover of it that died and left the marker behind.
+    writeFileSync(lock, JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() }));
+    writeFileSync(marker, JSON.stringify({ pid, token: 'marker', startedAt: new Date().toISOString() }));
+    let refusals = 0;
+    try {
+      await withFs(
+        {
+          open: (async (target: string, flags: string) => {
+            if (String(target) !== marker || flags !== 'wx') return realFs.open(target, flags as never);
+            refusals += 1;
+            // The marker is being removed at that moment: the first create is refused, and the
+            // name is still there when the writer looks again.
+            if (refusals === 1) {
+              throw Object.assign(new Error(`EPERM: operation not permitted, open '${marker}'`), { code: 'EPERM' });
+            }
+            return realFs.open(target, flags as never);
+          }) as unknown as typeof realFs.open,
+        },
+        async (lockModule) => {
+          const error = await lockModule.acquireProjectLock(root).then(
+            () => undefined,
+            (caught: unknown) => caught,
+          );
+          expect(error).toBeInstanceOf(lockModule.ProjectLockedError);
+          expect((error as ProjectLockedError).refusal.takeoverMarker).toBe(marker);
+          expect((error as ProjectLockedError).message).toContain(marker);
+        },
+      );
+      // The refusal was tried once more: the first answer was the delete in progress, not the folder.
+      expect(refusals).toBe(2);
+      // Neither file was the loser's to remove.
+      expect(existsSync(lock)).toBe(true);
+      expect(existsSync(marker)).toBe(true);
+    } finally {
+      clearLock(root);
+    }
+  });
+
+  it('takes the lock when its own name is refused for a moment while it is being removed', async () => {
+    const lock = join(root, LOCK_FILE);
+    let refusals = 0;
+    try {
+      await withFs(
+        {
+          open: (async (target: string, flags: string) => {
+            if (String(target) !== lock || flags !== 'wx') return realFs.open(target, flags as never);
+            refusals += 1;
+            // The lock of a writer that has only the release left to do: its name is refused
+            // for a moment, and the next attempt creates this writer's lock.
+            if (refusals === 1) {
+              throw Object.assign(new Error(`EPERM: operation not permitted, open '${lock}'`), { code: 'EPERM' });
+            }
+            return realFs.open(target, flags as never);
+          }) as unknown as typeof realFs.open,
+        },
+        async (lockModule) => {
+          const held = await lockModule.acquireProjectLock(root);
+          const holder = JSON.parse(readFileSync(lock, 'utf8')) as { pid: number };
+          expect(holder.pid).toBe(process.pid);
+          await held.release();
+        },
+      );
+      expect(refusals).toBe(2);
+      expect(existsSync(lock)).toBe(false);
+    } finally {
+      clearLock(root);
+    }
+  });
+
+  it('reports a folder that refuses the lock as that, rather than as one another writer holds', async () => {
+    const lock = join(root, LOCK_FILE);
+    let attempts = 0;
+    await withFs(
+      {
+        open: (async (target: string, flags: string) => {
+          if (String(target) !== lock) return realFs.open(target, flags as never);
+          attempts += 1;
+          // A folder this writer may not create files in: every attempt is refused, so the
+          // refusal is the folder's own and is not another writer's lock.
+          throw Object.assign(new Error(`EPERM: operation not permitted, open '${lock}'`), { code: 'EPERM' });
+        }) as unknown as typeof realFs.open,
+      },
+      async (lockModule) => {
+        const error = await lockModule.acquireProjectLock(root).then(
+          () => undefined,
+          (caught: unknown) => caught,
+        );
+        expect(error).not.toBeInstanceOf(lockModule.ProjectLockedError);
+        expect((error as NodeJS.ErrnoException).code).toBe('EPERM');
+      },
+    );
+    // The refusal was tried again, and a bound stops it: an exclusive create is never retried for ever.
+    expect(attempts).toBeGreaterThan(1);
+    expect(attempts).toBeLessThanOrEqual(6);
+  });
+
+  it('does not retry a refusal that is not Windows deleting the name', async () => {
+    const lock = join(root, LOCK_FILE);
+    let attempts = 0;
+    await withFs(
+      {
+        open: (async (target: string, flags: string) => {
+          if (String(target) !== lock) return realFs.open(target, flags as never);
+          attempts += 1;
+          throw Object.assign(new Error('ENOSPC: no space left on device, open'), { code: 'ENOSPC' });
+        }) as unknown as typeof realFs.open,
+      },
+      async (lockModule) => {
+        const error = await lockModule.acquireProjectLock(root).then(
+          () => undefined,
+          (caught: unknown) => caught,
+        );
+        expect((error as NodeJS.ErrnoException).code).toBe('ENOSPC');
+      },
+    );
+    // A failure the operating system reports as something else is not a delete in progress.
+    expect(attempts).toBe(1);
+  });
+});
+
 describe('a takeover marker left behind by a writer that died', () => {
   let root: string;
 
