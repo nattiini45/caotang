@@ -215,6 +215,8 @@ test.describe('the element menu lists the elements and marks the line’s own', 
     expect(key({ key: 'у', code: 'KeyE', ctrlKey: true })).toBe(true);
     // A key typed with AltGraph is a character, a key held down is one press, and a composing key belongs to the input method.
     expect(key({ ctrlKey: true, altKey: true, getModifierState: (name) => name === 'AltGraph' })).toBe(false);
+    // The AltGraph fact alone refuses it: no Alt flag is present, so only the guard can be what says no.
+    expect(key({ ctrlKey: true, getModifierState: (name) => name === 'AltGraph' })).toBe(false);
     expect(key({ ctrlKey: true, repeat: true })).toBe(false);
     expect(key({ ctrlKey: true, isComposing: true })).toBe(false);
   });

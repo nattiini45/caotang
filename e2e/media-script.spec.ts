@@ -158,6 +158,27 @@ test('the element menu closes on Escape and leaves the line as it was', async ({
   await expect(source(page)).toHaveValue('INT. HOUSE - DAY');
 });
 
+test('the element menu reads its digit through the layout, so an Arabic-Indic ٣ chooses the third element', async ({ page }) => {
+  await createProject(page, PROJECT);
+  await makeScene(page);
+  await page.getByRole('radio', { name: 'Source', exact: true }).click();
+  await source(page).fill('Anna waits.');
+  await page.getByRole('button', { name: 'Element', exact: true }).click();
+  const menu = page.getByRole('menu', { name: 'Element of this line' });
+  await expect(menu).toBeVisible();
+  // An Arabic layout prints ٣ on the physical Digit3. The menu's mnemonic follows the physical key, as the element chord
+  // does, so the third entry (Character) is chosen, exactly as the digit 3 chooses it on a Latin layout.
+  const prevented = await menu.evaluate((element) => {
+    const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: '٣', code: 'Digit3' });
+    element.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(prevented).toBe(true);
+  await expect(menu).toBeHidden();
+  await expect(source(page)).toHaveValue('@Anna waits.');
+  await expect(source(page)).toBeFocused();
+});
+
 test('the Pages tab shows the scene as it prints and writes nothing', async ({ page }) => {
   await createProject(page, PROJECT);
   await makeScene(page);

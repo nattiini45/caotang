@@ -17,7 +17,7 @@ import {
   type ReactNode,
 } from 'react';
 
-import { isImeEnter } from '../app/keymap.js';
+import { isImeEnter, layoutLetter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
 
 /** Re-renders the caller whenever the session commits, saves or undoes anything. */
@@ -185,11 +185,18 @@ export function Menu({
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
-    // An item's own key chooses it, as a click does. A key with a modifier is not one.
-    const keyed =
-      event.ctrlKey || event.metaKey || event.altKey
+    // An item's own key chooses it, as a click does, read through the app's one layout rule so a layout that prints
+    // another script's letter or digit still reaches the item's (ui-modules §2.5): Arabic-Indic ٣ is the physical
+    // Digit3, and chooses the third entry as `3` does. A key with a modifier, and a key an input method is composing,
+    // is not a mnemonic.
+    const mnemonic =
+      event.ctrlKey || event.metaKey || event.altKey || isImeEnter(event.nativeEvent)
         ? undefined
-        : enabled.find((item) => item.shortcut !== undefined && item.shortcut.toLowerCase() === event.key.toLowerCase());
+        : layoutLetter(event.key, event.code);
+    const keyed =
+      mnemonic === undefined
+        ? undefined
+        : enabled.find((item) => item.shortcut !== undefined && item.shortcut.toLowerCase() === mnemonic);
     if (keyed !== undefined) {
       event.preventDefault();
       onClose();
