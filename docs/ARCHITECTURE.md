@@ -150,7 +150,8 @@ TextAnchor     { from, to, exact, prefix, suffix, capturedRevision }            
 AssetRecord    { id, file, mime, sha256, bytes, width?, height?, caption?, alt?, decorative?, tags?, source?, transcription? }  // pictures.md §2.1 (planned)
 AssetLink      { id, assetId, target: project|node|paragraph, role: reference|card|source, order, note?, when? }        // pictures.md §2.1 (planned)
 ComicBook      { readingDirection, letteringFace, capsTransform, esszett, pageSize, scriptDocId? }                       // comics.md §2 (planned)
-ComicPage      { size, layout?, panels[], balloons[] }                                                                 // comics.md §2 (planned)
+ComicPage      { size, layout?, panels: Panel[] }                                                                       // comics.md §2 (planned)
+Panel          { id, rect, assetId?, crop?, border?, balloons: Balloon[] }                                              // comics.md §2 (planned)
 TimelineOp     { op: meta|move|shift|picture-when, …, expect }                                                         // timeline.md §4.3 (planned)
 MessageRef     { id, values?, message }                                                                          // i18n.md §3.2 (planned)
 Command        { id, name, params, issuedBy: user|agent, turnId?, callId?, createdAt }  // command-bus.md §2
