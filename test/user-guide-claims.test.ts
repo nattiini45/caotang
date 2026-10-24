@@ -326,7 +326,12 @@ describe('the user guide’s reviewed claims match the code', () => {
     const menu = read('apps/desktop/src/media/element-menu.ts');
     // The button's visible word, and the chord the view opens the menu on.
     expect(view).toMatch(/>\s*Element\s*<\/button>/);
-    expect(menu).toMatch(/event\.key\.toLowerCase\(\) === 'e'/);
+    // The letter is read through the keymap's one layout rule, so a Russian layout's Ctrl+У opens the menu too.
+    expect(menu).toContain("import { layoutLetter } from '../app/keymap.js';");
+    expect(menu).toMatch(/layoutLetter\(event\.key, event\.code\) === 'e'/);
+    const keymap = read('apps/desktop/src/app/keymap.ts');
+    expect(keymap).toContain('export function layoutLetter(key: string, code: string): string {');
+    expect(keymap).toContain('return layoutLetter(facts.key, facts.code);');
     // The chord the menu accepts: Ctrl+E, or Cmd+E on a Mac — both modifiers are read from the event.
     expect(menu).toMatch(/event\.ctrlKey\s*\|\|\s*event\.metaKey/);
     const screenplay = guide.slice(guide.indexOf('## Writing a screenplay'), guide.indexOf('## Writing dialogue'));

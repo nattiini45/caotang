@@ -7,6 +7,7 @@
  * way typing does, through the autosave. Nothing here touches the store, the session or the DOM.
  */
 
+import { layoutLetter } from '../app/keymap.js';
 import { LINE_ELEMENT_TYPES, convertLine, lineElementAt, type LineConversion, type LineElementType } from './engines.js';
 
 /** The menu's name, which its tests find it by. */
@@ -95,6 +96,7 @@ export function chordAria(type: LineElementType, platform: ChordPlatform): strin
 
 /** The parts of a key event the chord reads. A DOM `KeyboardEvent` has all of them. */
 export interface ChordEvent {
+  readonly key: string;
   readonly code: string;
   readonly ctrlKey: boolean;
   readonly metaKey: boolean;
@@ -119,13 +121,15 @@ export function elementChord(event: ChordEvent, platform: ChordPlatform): LineEl
   return LINE_ELEMENT_TYPES[event.code.charCodeAt(5) - 49] ?? null;
 }
 
-/** Whether a key opens the menu: Ctrl+E, or Cmd+E on macOS, with no other modifier. */
-export function opensElementMenu(event: {
-  readonly key: string;
-  readonly ctrlKey: boolean;
-  readonly metaKey: boolean;
-  readonly altKey: boolean;
-  readonly shiftKey: boolean;
-}): boolean {
-  return (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'e';
+/**
+ * Whether a key opens the menu: Ctrl+E, or Cmd+E on macOS, with no other modifier. The letter is read through the app's
+ * one layout rule (`layoutLetter`), so the printed ASCII letter wins and a layout that prints another script is read
+ * through the physical `KeyE` — Ctrl+У on a Russian keyboard opens it. A key held down, a key pressed while an input
+ * method composes, and AltGraph (which a layout types characters with) are never the menu chord.
+ */
+export function opensElementMenu(event: ChordEvent): boolean {
+  if (event.repeat || event.isComposing === true) return false;
+  if (event.getModifierState?.('AltGraph') === true) return false;
+  if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return false;
+  return layoutLetter(event.key, event.code) === 'e';
 }

@@ -133,12 +133,13 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
   };
 
   /**
-   * The Source tab's keys (screenplay.md §3): Ctrl+E (Cmd+E) opens the element menu, the element chords (Ctrl+Shift+1..9, or
-   * Cmd+Alt+1..9 on a Mac) rewrite the caret's line, Enter works after a cue and on empty dialogue, and Tab on a half-typed cue.
+   * The Source tab's keys (screenplay.md §3): Ctrl+E (Cmd+E, read through the app's layout rule, so a Russian layout's
+   * Ctrl+У opens it) opens the element menu, the element chords (Ctrl+Shift+1..9, or Cmd+Alt+1..9 on a Mac) rewrite the
+   * caret's line, Enter works after a cue and on empty dialogue, and Tab on a half-typed cue.
    * Any other key with a modifier, or one that is not one of these, keeps its meaning, and so does Enter or Tab with a selection.
    */
   const onSourceKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
-    if (opensElementMenu(event)) {
+    if (opensElementMenu(event.nativeEvent)) {
       event.preventDefault();
       openElementMenu();
       return;

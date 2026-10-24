@@ -432,6 +432,32 @@ test('AltGraph with a digit, Ctrl+Alt and a held chord change nothing', async ({
   await expect(source(page)).toHaveValue('@Anna waits.');
 });
 
+test('the element-menu chord reads the printed letter through the layout, and a composing Ctrl+E opens nothing', async ({ page }) => {
+  await createProject(page, PROJECT);
+  await makeScene(page);
+  await page.getByRole('radio', { name: 'Source', exact: true }).click();
+  await source(page).fill('Anna waits.');
+  const menu = page.getByRole('menu', { name: 'Element of this line' });
+  // The handler passes the native event, so `key` and the physical `code` both reach the menu chord.
+  const fire = (init: { key: string; code: string; ctrlKey?: boolean; metaKey?: boolean; isComposing?: boolean }) =>
+    source(page).evaluate((field, eventInit) => {
+      const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...eventInit });
+      field.dispatchEvent(event);
+      return event.defaultPrevented;
+    }, init);
+
+  // A Russian layout types `у` on the physical KeyE; the menu chord follows the physical key, as the keymap does.
+  expect(await fire({ key: 'у', code: 'KeyE', ctrlKey: true })).toBe(true);
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+
+  // A Ctrl+E that belongs to an input method's composition is the candidate window's, not the menu's.
+  expect(await fire({ key: 'e', code: 'KeyE', ctrlKey: true, isComposing: true })).toBe(false);
+  await expect(menu).toBeHidden();
+  await expect(source(page)).toHaveValue('Anna waits.');
+});
+
 test('Ctrl+Z after a chord leaves the text a menu choice leaves', async ({ page }) => {
   // Each route runs on a scene of its own, so the browser's undo history of one does not reach the other.
   const afterUndo: Record<'menu' | 'chord', string> = { menu: '', chord: '' };

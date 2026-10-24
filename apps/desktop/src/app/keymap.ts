@@ -101,24 +101,29 @@ function command(facts: KeyFacts): boolean {
 const ASCII_CODE = /^(?:Key([A-Z])|Digit([0-9]))$/;
 
 /**
- * The key the shortcut table reads, in the writer's terms (ui-modules §2.5).
+ * The letter or digit a shortcut should read from a key event, in the writer's terms (ui-modules §2.5).
  *
  * The printed character wins while it is an ASCII letter or digit: AZERTY prints `z` on the physical `KeyW`, and the
  * shortcut belongs to the `z` the writer sees. A layout that prints another script (Cyrillic, Hebrew, Arabic, Greek) is
  * read through the physical `code` instead, so `Ctrl+Я` on a Russian keyboard is still undo. A named key (`Enter`,
  * `Escape`, `F2`, `F10`, `Delete`, the arrows, Space, Tab) keeps its name: the code fallback applies only to a single
- * printed character.
+ * printed character. Shared with every chord outside the map (the screenplay's element menu), so there is one rule.
  */
-function layoutKey(facts: KeyFacts): string {
+export function layoutLetter(key: string, code: string): string {
   // Named keys (`Enter`, `F2`, `F10`, `ArrowUp`, …) keep their name; they have no printed letter to follow.
-  if (facts.key.length !== 1) return facts.key;
+  if (key.length !== 1) return key;
   // The printed character wins while it is an ASCII letter or digit (AZERTY's `z` is the physical `KeyW`).
-  if (/^[A-Za-z0-9]$/.test(facts.key)) return facts.key.toLowerCase();
+  if (/^[A-Za-z0-9]$/.test(key)) return key.toLowerCase();
   // Another script (`я`, `ש`, `ب`, `ν`) or a symbol: the physical key names the Latin letter or digit the map knows.
-  const physical = ASCII_CODE.exec(facts.code);
+  const physical = ASCII_CODE.exec(code);
   if (physical !== null) return (physical[1] ?? physical[2] ?? '').toLowerCase();
   // Space and other single-character keys with no letter/digit code keep their own value.
-  return facts.key;
+  return key;
+}
+
+/** The key the shortcut table reads: `layoutLetter` over the facts the caller supplies. */
+function layoutKey(facts: KeyFacts): string {
+  return layoutLetter(facts.key, facts.code);
 }
 
 /**
