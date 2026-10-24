@@ -388,7 +388,16 @@ export function Workspace({
       target instanceof HTMLInputElement ||
       (target instanceof HTMLElement && target.isContentEditable);
     const action = resolveKey(
-      { key: event.key, ctrl: event.ctrlKey, meta: event.metaKey, shift: event.shiftKey, alt: event.altKey, composing: isImeEnter(event) },
+      {
+        key: event.key,
+        code: event.code,
+        ctrl: event.ctrlKey,
+        meta: event.metaKey,
+        shift: event.shiftKey,
+        alt: event.altKey,
+        altGraph: event.getModifierState('AltGraph'),
+        composing: isImeEnter(event),
+      },
       { inTextField, inBinder: false },
     );
     if (action === null) return;

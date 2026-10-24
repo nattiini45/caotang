@@ -229,10 +229,12 @@ export function Binder(props: BinderProps): ReactNode {
     const action = resolveKey(
       {
         key: event.key,
+        code: event.nativeEvent.code,
         ctrl: false,
         meta: false,
         shift: event.shiftKey,
         alt: event.altKey,
+        altGraph: event.nativeEvent.getModifierState('AltGraph'),
         composing: isImeEnter(event.nativeEvent),
       },
       { inTextField: false, inBinder: true },

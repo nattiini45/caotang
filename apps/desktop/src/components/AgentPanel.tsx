@@ -128,10 +128,13 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
     const action = resolveKey(
       {
         key: event.key,
+        code: event.nativeEvent.code,
         ctrl: event.ctrlKey,
         meta: event.metaKey,
         shift: event.shiftKey,
         alt: event.altKey,
+        // Windows reports AltGraph as Ctrl+Alt; the modifier state is the fact that tells the two apart.
+        altGraph: event.nativeEvent.getModifierState('AltGraph'),
         // A React event's own isComposing is not the DOM's: the composition fact is read from the native event.
         composing: isImeEnter(event.nativeEvent),
       },

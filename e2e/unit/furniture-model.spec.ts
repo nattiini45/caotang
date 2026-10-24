@@ -13,11 +13,13 @@ const SHELL = { inTextField: false, inBinder: false };
 function key(name: string, modifiers: { ctrl?: boolean; alt?: boolean; shift?: boolean } = {}) {
   return {
     key: name,
+    code: '',
     ctrl: modifiers.ctrl === true,
     meta: false,
     shift: modifiers.shift === true,
     alt: modifiers.alt === true,
     composing: false,
+    altGraph: false,
   };
 }
 

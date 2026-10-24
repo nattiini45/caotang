@@ -153,10 +153,12 @@ export function Corkboard(props: CorkboardProps): ReactNode {
     const action = resolveKey(
       {
         key: event.key,
+        code: event.nativeEvent.code,
         ctrl: event.ctrlKey,
         meta: event.metaKey,
         shift: event.shiftKey,
         alt: event.altKey,
+        altGraph: event.nativeEvent.getModifierState('AltGraph'),
         composing: isImeEnter(event.nativeEvent),
       },
       { inTextField: false, inBinder: false, inCorkboard: true },

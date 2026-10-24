@@ -12,7 +12,7 @@ import {
 import { IDS, project } from './fixtures.js';
 
 function keys(key: string, mods: Partial<Omit<KeyFacts, 'key'>> = {}): KeyFacts {
-  return { key, ctrl: false, meta: false, shift: false, alt: false, composing: false, ...mods };
+  return { key, code: '', ctrl: false, meta: false, shift: false, alt: false, composing: false, altGraph: false, ...mods };
 }
 
 const BINDER = { inTextField: false, inBinder: true };
@@ -125,6 +125,36 @@ test.describe('the keyboard map', () => {
     expect(resolveKey(keys('ArrowDown', { composing: true }), BINDER)).toBe('move-down');
     expect(resolveKey(keys('Escape', { composing: true }), ELSEWHERE)).toBe('escape');
     expect(resolveKey(keys(' ', { composing: true }), CARD)).toBe('select-card');
+  });
+
+  test('a shortcut on a layout that prints another script resolves through the physical key', () => {
+    // ui-modules §2.5 (#189): the printed character is not the Latin letter the chord names, so `code` names it.
+    expect(resolveKey(keys('т', { code: 'KeyN', ctrl: true }), ELSEWHERE)).toBe('new-document');
+    expect(resolveKey(keys('я', { code: 'KeyZ', ctrl: true }), TYPING)).toBeNull();
+    expect(resolveKey(keys('ש', { code: 'KeyF', ctrl: true, shift: true }), ELSEWHERE)).toBe('focus-mode');
+    expect(resolveKey(keys('ب', { code: 'KeyF', ctrl: true, alt: true }), ELSEWHERE)).toBe('focus-filter');
+    expect(resolveKey(keys('ν', { code: 'KeyN', ctrl: true }), ELSEWHERE)).toBe('new-document');
+  });
+
+  test('a shortcut follows the printed ASCII character, not the physical key: AZERTY Z is undo, QWERTZ Z is undo', () => {
+    // AZERTY prints `z` on the physical `KeyW`; the shortcut stays with the character the writer sees.
+    expect(resolveKey(keys('z', { code: 'KeyW', ctrl: true }), ELSEWHERE)).toBe('undo');
+    // QWERTZ swaps Y and Z; `z` is still undo.
+    expect(resolveKey(keys('z', { code: 'KeyY', ctrl: true }), ELSEWHERE)).toBe('undo');
+    // A named key is never remapped through its code, even were a code to look like a letter.
+    expect(resolveKey(keys('Enter', { code: 'NumpadEnter', ctrl: true }), ELSEWHERE)).toBe('open-in-editor');
+    expect(resolveKey(keys('F10', { code: 'KeyF', shift: true }), CARD)).toBe('open-menu');
+  });
+
+  test('a key typed with AltGraph is a character, never a chord, even though Windows reports Ctrl+Alt', () => {
+    // German AltGr+Q is `@`; Hungarian AltGr+F is `[`. Both arrive as Ctrl+Alt and must do nothing.
+    expect(resolveKey(keys('@', { code: 'KeyQ', ctrl: true, alt: true, altGraph: true }), TYPING)).toBeNull();
+    expect(resolveKey(keys('[', { code: 'KeyF', ctrl: true, alt: true, altGraph: true }), TYPING)).toBeNull();
+    // The AltGraph fact wins before the chord, even when the printed key is the chord's own letter.
+    expect(resolveKey(keys('f', { code: 'KeyF', ctrl: true, alt: true, altGraph: true }), ELSEWHERE)).toBeNull();
+    expect(resolveKey(keys('n', { code: 'KeyN', ctrl: true, altGraph: true }), ELSEWHERE)).toBeNull();
+    // Ctrl+Alt without AltGraph keeps the documented filter chord.
+    expect(resolveKey(keys('f', { code: 'KeyF', ctrl: true, alt: true }), ELSEWHERE)).toBe('focus-filter');
   });
 
   test('each action has the label a control shows for it', () => {

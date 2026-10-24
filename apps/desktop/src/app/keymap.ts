@@ -39,10 +39,20 @@ export type KeyAction =
 export interface KeyFacts {
   /** `KeyboardEvent.key`, e.g. `'n'`, `'Enter'`, `'F2'`, `'ArrowUp'`. */
   readonly key: string;
+  /**
+   * `KeyboardEvent.code`, the physical key (`'KeyN'`, `'Digit1'`). It is read only when `key` does not name an ASCII
+   * letter or digit, so a layout that prints another script still reaches the shortcut the writer pressed.
+   */
+  readonly code: string;
   readonly ctrl: boolean;
   readonly meta: boolean;
   readonly shift: boolean;
   readonly alt: boolean;
+  /**
+   * True when `KeyboardEvent.getModifierState('AltGraph')` is true. Windows reports AltGraph as Ctrl+Alt, so this fact —
+   * never the Ctrl and Alt flags alone — tells a typed character from a chord.
+   */
+  readonly altGraph: boolean;
   /**
    * True when the key event belongs to an IME composition (`KeyboardEvent.isComposing`, or the older Windows
    * `keyCode === 229`): its Enter commits a candidate, so it is never an app action.
@@ -87,6 +97,30 @@ function command(facts: KeyFacts): boolean {
   return facts.ctrl || facts.meta;
 }
 
+/** A physical key that names an ASCII letter or digit; the only `code` values the layout fallback may map. */
+const ASCII_CODE = /^(?:Key([A-Z])|Digit([0-9]))$/;
+
+/**
+ * The key the shortcut table reads, in the writer's terms (ui-modules §2.5).
+ *
+ * The printed character wins while it is an ASCII letter or digit: AZERTY prints `z` on the physical `KeyW`, and the
+ * shortcut belongs to the `z` the writer sees. A layout that prints another script (Cyrillic, Hebrew, Arabic, Greek) is
+ * read through the physical `code` instead, so `Ctrl+Я` on a Russian keyboard is still undo. A named key (`Enter`,
+ * `Escape`, `F2`, `F10`, `Delete`, the arrows, Space, Tab) keeps its name: the code fallback applies only to a single
+ * printed character.
+ */
+function layoutKey(facts: KeyFacts): string {
+  // Named keys (`Enter`, `F2`, `F10`, `ArrowUp`, …) keep their name; they have no printed letter to follow.
+  if (facts.key.length !== 1) return facts.key;
+  // The printed character wins while it is an ASCII letter or digit (AZERTY's `z` is the physical `KeyW`).
+  if (/^[A-Za-z0-9]$/.test(facts.key)) return facts.key.toLowerCase();
+  // Another script (`я`, `ש`, `ب`, `ν`) or a symbol: the physical key names the Latin letter or digit the map knows.
+  const physical = ASCII_CODE.exec(facts.code);
+  if (physical !== null) return (physical[1] ?? physical[2] ?? '').toLowerCase();
+  // Space and other single-character keys with no letter/digit code keep their own value.
+  return facts.key;
+}
+
 /**
  * The action a keystroke asks for, or `null` when it means nothing to the app.
  *
@@ -95,12 +129,17 @@ function command(facts: KeyFacts): boolean {
  */
 export function resolveKey(facts: KeyFacts, context: KeyContext): KeyAction | null {
   const cmd = command(facts);
-  const key = facts.key.length === 1 ? facts.key.toLowerCase() : facts.key;
+  const key = layoutKey(facts);
 
   // ui-modules §2.5: the Enter that commits an IME candidate is the input method's, never the app's. It is refused here,
   // before any Enter chord is looked at, so agent-send, agent-steer and open-in-editor all yield — and so does any Enter
   // action added later. Other keys keep their meaning: a composition is not a reason to silence the whole keyboard.
   if (facts.composing && key === 'Enter') return null;
+
+  // ui-modules §2.5: AltGraph types a character (German AltGr+Q is "@", Hungarian AltGr+F is "["), and Windows reports
+  // AltGr as Ctrl+Alt. Such a key is never a shortcut and the app must not cancel it, so it is refused before any chord.
+  // Ctrl+Alt without the AltGraph fact keeps its documented meaning (`Ctrl+Alt+F` focuses the filter, below).
+  if (facts.altGraph) return null;
 
   if (cmd && !facts.alt && key === 'n' && !facts.shift) return 'new-document';
   if (cmd && !facts.alt && key === 'z' && !facts.shift) return context.inTextField ? null : 'undo';
