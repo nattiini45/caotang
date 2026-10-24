@@ -187,3 +187,25 @@ test('the data section says where the projects are kept, and that the browser ap
   await expect(settings.getByTestId('storage-location')).toContainText('Storage location: this browser');
   await expect(settings.getByTestId('storage-location')).toContainText('read-only in the browser app');
 });
+
+test.describe('the request log clock follows the formatter locale', () => {
+  // An English browser set to Britain: the formatter locale is en-GB, whose clock is 24-hour with no AM or PM. The
+  // activity log's clock (activity-model.spec.ts) is tested the same way; this is the panel that reads it.
+  test.use({ locale: 'en-GB' });
+
+  test('shows a 24-hour time rather than the English default’s AM or PM', async ({ page }) => {
+    await fakeEndpoint(page, planThenAnswer({ reply: 'unused' }));
+    await page.goto('/');
+    const settings = await openSettings(page);
+    await settings.getByRole('button', { name: 'Add a provider' }).click();
+    const form = settings.getByRole('form', { name: 'New provider' });
+    await form.getByRole('combobox', { name: 'Provider' }).selectOption('generic');
+    await form.getByLabel('Name').fill('Clock test');
+    await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill(FAKE_ENDPOINT);
+    await form.getByLabel('Model', { exact: true }).fill('test-model');
+    await form.getByRole('button', { name: 'Save profile' }).click();
+
+    const log = settings.getByTestId('request-log');
+    await expect(log.locator('tbody tr').first().locator('td').first()).toHaveText(/^\d{2}:\d{2}:\d{2}$/);
+  });
+});

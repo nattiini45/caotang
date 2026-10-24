@@ -7,7 +7,7 @@ import { SHIPPED_UI_LOCALES, formatterLocale, uiLocale } from '../../apps/deskto
 import { projectCollator } from '../../apps/desktop/src/i18n/project-collator.js';
 
 /**
- * The app's formatter-locale accessor (i18n.md §4.1, D3). These are the values L4 will make live; the
+ * The app's formatter-locale accessor (i18n.md §4.1, D3). These are the values I4 will make live; the
  * tests inject the system languages so their expectations do not depend on the machine running them.
  */
 test.describe('the app’s formatter locale (i18n.md §4.1, D3)', () => {

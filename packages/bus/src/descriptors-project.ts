@@ -264,14 +264,15 @@ export const projectSetMetadata: CommandDescriptor<ProjectSetMetadataParams> = {
 
     if (patch['language'] !== undefined) {
       const language = patch['language'];
-      if (typeof language !== 'string' || readableLanguage(language.trim()) === undefined) {
+      const canonical = typeof language === 'string' ? readableLanguage(language.trim()) : undefined;
+      if (canonical === undefined) {
         return invalid(
           `${showValue(language)} is not a language tag`,
-          'use a BCP-47 tag such as en, de or en-GB',
+          'use a language tag such as en, de or en-GB',
           'patch.language',
         );
       }
-      typed.language = language.trim();
+      typed.language = canonical;
     }
 
     if (patch['isbn'] !== undefined) {
