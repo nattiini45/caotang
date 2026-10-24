@@ -125,7 +125,9 @@ describe('project.setMetadata', () => {
 
   it('refuses a tag Intl cannot read, so an unreadable tag is never written and never reaches a collator', () => {
     // The old pattern (2–3 letters, then 1–8 alphanumerics) accepted `en-a`, `en-1` and `en-GB-oed`; Intl rejects all three.
-    for (const language of ['en-a', 'en-1', 'en-abc', 'en-GB-oed']) {
+    // An irregular grandfathered tag and a private-use-only tag are the other two shapes the docs name; a private-use subtag
+    // (`en-x-foo`) is readable and is accepted above.
+    for (const language of ['en-a', 'en-1', 'en-abc', 'en-GB-oed', 'i-klingon', 'x-private']) {
       const out = check(projectCommands.projectSetMetadata.validate, { patch: { language } });
       expect(out, language).toMatchObject({ ok: false, code: 'invalid-params', target: 'patch.language' });
     }

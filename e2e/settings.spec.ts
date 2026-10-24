@@ -14,6 +14,19 @@ async function openSettings(page: Page): Promise<ReturnType<Page['getByTestId']>
   return page.getByTestId('settings');
 }
 
+/** Adds the fake endpoint as a generic profile; the save itself sends the models-list probe the log records. */
+async function addGenericProfile(settings: ReturnType<Page['getByTestId']>, name: string): Promise<void> {
+  await settings.getByRole('button', { name: 'Add a provider' }).click();
+  // The fake endpoint speaks the OpenAI-Chat dialect, so its profile is a generic one. Labels are scoped to the
+  // provider form: the role picker's fields below it carry names too.
+  const form = settings.getByRole('form', { name: 'New provider' });
+  await form.getByRole('combobox', { name: 'Provider' }).selectOption('generic');
+  await form.getByLabel('Name').fill(name);
+  await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill(FAKE_ENDPOINT);
+  await form.getByLabel('Model', { exact: true }).fill('test-model');
+  await form.getByRole('button', { name: 'Save profile' }).click();
+}
+
 test('the demo profile can be renamed and saved, with no key', async ({ page }) => {
   await page.goto('/');
   const settings = await openSettings(page);
@@ -38,16 +51,7 @@ test('saving an endpoint lists its models and probes its response format at save
   await page.goto('/');
   const settings = await openSettings(page);
 
-  await settings.getByRole('button', { name: 'Add a provider' }).click();
-  // The fake endpoint speaks the OpenAI-Chat dialect, so its profile is a generic one. Labels are scoped to the
-  // provider form: the role picker's fields below it carry names too.
-  const form = settings.getByRole('form', { name: 'New provider' });
-  await form.getByRole('combobox', { name: 'Provider' }).selectOption('generic');
-  await form.getByLabel('Name').fill('Local test');
-  await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill(FAKE_ENDPOINT);
-  await form.getByLabel('Model', { exact: true }).fill('test-model');
-  await form.getByRole('button', { name: 'Save profile' }).click();
-
+  await addGenericProfile(settings, 'Local test');
   // The save-time probe: the models the endpoint lists are shown beside the profile.
   await expect(settings.getByText('Saved “Local test”.')).toBeVisible();
   await expect(settings.getByRole('region', { name: 'Models listed by Local test' })).toContainText('test-model');
@@ -189,21 +193,16 @@ test('the data section says where the projects are kept, and that the browser ap
 });
 
 test.describe('the request log clock follows the formatter locale', () => {
-  // An English browser set to Britain: the formatter locale is en-GB, whose clock is 24-hour with no AM or PM. The
-  // activity log's clock (activity-model.spec.ts) is tested the same way; this is the panel that reads it.
+  // An English browser set to Britain: the formatter locale is en-GB, whose clock is 24-hour with no AM or PM. This proves the
+  // panel renders through the clock helper rather than the browser's own default; the helper's own tests, including the padded
+  // two-digit hour on an American system, are in e2e/unit/activity-model.spec.ts.
   test.use({ locale: 'en-GB' });
 
   test('shows a 24-hour time rather than the English default’s AM or PM', async ({ page }) => {
     await fakeEndpoint(page, planThenAnswer({ reply: 'unused' }));
     await page.goto('/');
     const settings = await openSettings(page);
-    await settings.getByRole('button', { name: 'Add a provider' }).click();
-    const form = settings.getByRole('form', { name: 'New provider' });
-    await form.getByRole('combobox', { name: 'Provider' }).selectOption('generic');
-    await form.getByLabel('Name').fill('Clock test');
-    await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill(FAKE_ENDPOINT);
-    await form.getByLabel('Model', { exact: true }).fill('test-model');
-    await form.getByRole('button', { name: 'Save profile' }).click();
+    await addGenericProfile(settings, 'Clock test');
 
     const log = settings.getByTestId('request-log');
     await expect(log.locator('tbody tr').first().locator('td').first()).toHaveText(/^\d{2}:\d{2}:\d{2}$/);

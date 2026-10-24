@@ -290,7 +290,7 @@ Rows in `packages/harness/src/metadata.ts`; agent-harness §10 and media-track �
 | Tool | Risk | What |
 |---|---|---|
 | `pictures.list` | read | Records, links and uses, filtered by target or tag; text only. |
-| `pictures.view {assetIds ≤ 4, maxPx?}` | read | Image parts **only if** the active model has `vision`, otherwise caption and transcription with a note. In the app, downscaled to ≤ 1568 px on the long side through the resize-on-decode path; a host that cannot decode follows §6.4.1's view rule (within-limit bytes, or a refusal naming the size). |
+| `pictures.view {assetIds ≤ 4, maxPx?}` | read | Image parts **only if** the active model has `vision`, otherwise caption and transcription with a note. In the app, downscaled to ≤ 1568 px on the long side through the resize-on-decode path; a host that cannot resize follows §6.4.1's view rule (within-limit bytes, or a refusal naming the size). |
 | `pictures.import {stagingId, links?, caption?, alt?, source?}` | write-auto | The staging-consumer tool of §2.4, mapped onto `asset.import`: it saves bytes the host staged — an MCP tool's image content block (§8.3), a drop or paste the app staged — and returns the record id. It cannot stage bytes itself and refuses an unknown or consumed id. |
 | `pictures.annotate` | write-auto | caption, alt, tags, note; a batch of ≤ 50; inverse undo. |
 | `pictures.attach` | write-auto | `asset.link` / `unlink`; a paragraph target takes a quote, resolved to an anchor at plan time. |
@@ -301,7 +301,7 @@ Every row's risk and undo are its command's (§2.4), except `pictures.place`, wh
 
 ### 8.2 MCP server
 
-Resource templates `caotang://asset/{id}` (a `blob` resource with its mimeType) and `caotang://assets` (the registry as JSON) in `resources.ts` / `uris.ts`. `pictures.list` and `pictures.view` (image content blocks) are listed in every mode; `pictures.annotate` and `pictures.attach` with `--allow-writes`. The server is a Node host and does not decode or resize: `pictures.view` sends a picture only when its stored bytes are already within the host's limits and refuses a larger one with its size and the import-a-smaller-copy remedy (§6.4.1). `pictures.transcribe` and `pictures.place` are not listed (model-backed or ghost-preview rows), and `pictures.import` is not listed either: its staging id names a host's staging area, and the MCP server has none. An import over MCP needs a size cap below the MCP message limits and the `.caotang-mcp.lock` folder rule.
+Resource templates `caotang://asset/{id}` (a `blob` resource with its mimeType) and `caotang://assets` (the registry as JSON) in `resources.ts` / `uris.ts`. `pictures.list` and `pictures.view` (image content blocks) are listed in every mode; `pictures.annotate` and `pictures.attach` with `--allow-writes`. The server is a Node host whose only decoder is the contact-sheet WebP path above, so it does not resize: `pictures.view` sends a picture only when its stored bytes are already within the host's limits and refuses a larger one with its size and the import-a-smaller-copy remedy (§6.4.1). `pictures.transcribe` and `pictures.place` are not listed (model-backed or ghost-preview rows), and `pictures.import` is not listed either: its staging id names a host's staging area, and the MCP server has none. An import over MCP needs a size cap below the MCP message limits and the `.caotang-mcp.lock` folder rule.
 
 ### 8.3 MCP client: image content blocks (#145)
 
