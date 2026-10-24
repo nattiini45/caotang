@@ -115,11 +115,11 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 
 ### 2.18 `pictures` 🧭
 - **Responsibility:** one picture registry with hashes and dedup, links from the project, a folder, a document or a paragraph, inline pictures in prose carried into EPUB, Word and Markdown, the import pipeline (HEIC, pixel budget, GPS strip), vision input for the agent, MCP pictures in both directions, and handwriting transcription.
-- **Owns:** `assets[]` and `assetLinks[]` in the manifest, the pure `packages/pictures` selectors, the thumbnail store. Specified, not built.
+- **Owns:** `assets[]` and `assetLinks[]` in the manifest, the pure `packages/pictures` selectors, the thumbnail store, the retention inventory a sweep must read. A host capability gate (browser canvas; Node's WebP→PNG path only) refuses a picture operation a host cannot run. Specified, not built.
 - **Spec:** [architecture/pictures.md](architecture/pictures.md).
 
 ### 2.19 `timeline` 🧭
-- **Responsibility:** an interactive view of the story on story time, reading order or both, where every edit gesture is a proposal the writer approves and applies as one undoable `timeline.apply`; prologues before day 0 and epilogues after long time jumps as declared parts; timeline exports, agent tools and an MCP resource from one pure layout package.
+- **Responsibility:** an interactive view of the story on story time, reading order or both, where every edit gesture is a proposal the writer approves and applies as one undoable `timeline.apply`; prologues, the main story and epilogues as declared parts (§5.2.2); both axes in the project language's direction while the data stays in logical order; timeline exports, agent tools and an MCP resource from one pure layout package, with confirmed MCP writes reporting typed persisted, conflict or partial outcomes.
 - **Owns:** `packages/timeline` (layout, calendar lens, medium adapters), the proposed-changes tray (view state). Scene timing stays in `coherence.json` `sceneMeta`. Specified, not built.
 - **Spec:** [architecture/timeline.md](architecture/timeline.md); the coherence-model change is [architecture/coherence.md](architecture/coherence.md) §5.2.2.
 
@@ -143,12 +143,14 @@ CodexEntry     { id, name, aliases[], type, description (md), includePolicy: alw
                  sources?: EntrySource[], createdAt, updatedAt }   // codex.md §2
 CoherenceFinding{ id, runId, class: deterministic|llm, checkId, type, severity, status: open|dismissed|fixed,
                  factGroup, evidence: Evidence[1-2], reasoning?, modelMeta?, dismissedReason?, supersededBy? }  // coherence.md §3
-SceneMeta       { pov?, dayOffset?, durationDays?, after?, expectedPresent? }   // coherence.md §5.2 (writer-declared)
+SceneMeta       { pov?, dayOffset?, durationDays?, after?, expectedPresent?, storyPart?: main|prologue|epilogue }   // coherence.md §5.2, §5.2.2 (writer-declared; absence inherits)
 ExportRecipe   { include[], template, format }
 AssembledPrompt{ messages[], layers[{id, included, tokens, dropped[]}], estimate }  // context-assembly.md §4
 TextAnchor     { from, to, exact, prefix, suffix, capturedRevision }              // edit-anchors.md §2
 AssetRecord    { id, file, mime, sha256, bytes, width?, height?, caption?, alt?, decorative?, tags?, source?, transcription? }  // pictures.md §2.1 (planned)
 AssetLink      { id, assetId, target: project|node|paragraph, role: reference|card|source, order, note?, when? }        // pictures.md §2.1 (planned)
+ComicBook      { readingDirection, letteringFace, capsTransform, esszett, pageSize, scriptDocId? }                       // comics.md §2 (planned)
+ComicPage      { size, layout?, panels[], balloons[] }                                                                 // comics.md §2 (planned)
 TimelineOp     { op: meta|move|shift|picture-when, …, expect }                                                         // timeline.md §4.3 (planned)
 MessageRef     { id, values?, message }                                                                          // i18n.md §3.2 (planned)
 Command        { id, name, params, issuedBy: user|agent, turnId?, callId?, createdAt }  // command-bus.md §2
@@ -187,5 +189,5 @@ Caotang covers games, video and film as well as prose. The full inventory lives 
 | **Storyboarding & shot planning** | scene → shot breakdown: frame, camera, action, dialogue covered, duration; shot list exports | `shot` node kind, corkboard variant with image fields, `inspector` | [storyboard.md](architecture/storyboard.md) |
 | **AI video prompt packs** | per-shot prompt packs for several video models. **Caotang writes prompts; it does not render video** — generation stays in the writer's own tool with their own account | `context-assembly`, `codex`, `exporter` (vendor templates), harness tools | [video-prompt-pack.md](architecture/video-prompt-pack.md) |
 | **Plot coherence & continuity** | deterministic checks (structure + codex, no model call) and model-judged findings (evidence-cited reports, never silent edits) | `coherence` module over `codex` + `context-assembly` | [coherence.md](architecture/coherence.md) |
-| **Comics** 🧭 | comic books, pages, panels and balloons; comic scripts (full script or Marvel method); lettering rules; comic PDF, CBZ and fixed-layout EPUB. Specified, not built | `comic` node kind, `comic-page` nodes, picture registry, `exporter` | [comics.md](architecture/comics.md) |
+| **Comics** 🧭 | comic books, pages, panels and balloons; comic scripts (full script or Marvel method) linked explicitly by `scriptDocId`; lettering rules; comic PDF, CBZ and fixed-layout EPUB. The CBZ and the comic EPUB are made in the browser only; the PDF is written by both hosts. Specified, not built | `comic` node kind, `comic-page` nodes, picture registry, `exporter` | [comics.md](architecture/comics.md) |
 | **One story, many outputs** | a single narrative source compiled to prose, screenplay, game dialogue, storyboard, prompt pack and report targets — media targets are **export recipes**, not separate apps | the `exporter` contract and per-kind renderers | [media-track.md](architecture/media-track.md) §1 |

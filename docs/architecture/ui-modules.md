@@ -36,6 +36,7 @@
 - The **agent panel** is a bottom drawer in the editor pane (harness §8): plan cards, checkpoint rows, ghost controls live there; it never overlaps the editor's ghost region.
 - The agent panel's header carries the **Mode** control (agent-harness §4): a radio group named by its visible label, **Mode**, with **Plan only**, **Ask**, **Accept edits** and **Auto** (Auto is absent while Settings › Agent has it off). Every turn row and checkpoint row prints its mode. A card the mode approved is collapsed behind an **Auto-approved** badge, and a Plan only turn that refused writes ends with a **Plan, not run** section and **Switch to Ask and run this plan**; neither has an Approve control.
 - The agent panel also carries a **Background tasks** section and, while a big plan waits for its answer, a plan offer card with **Run now**, **Run in background** and **Cancel** (harness §8). The tasks are view state read from the app database, never project state.
+- **Reserved centre views.** `CENTER_VIEWS` currently holds `editor` and `corkboard`; the story **timeline** joins them as a lazy view when T3 lands (timeline.md §3.1, §7), with the same fixed pane layout. The timeline's own axes follow the project language while its controls follow the interface (timeline.md §3.2).
 
 ## 2. Binder (module 2.2)
 
@@ -74,7 +75,7 @@
 ## 3. Corkboard (module 2.4)
 
 **Responsibility:** index-card grid for a container's children; drag-reorder; zoom. Owns view state only. **No commands of its own** — every gesture maps onto binder commands (verified against command-bus §9; the storyboard later extends cards with shot fields, still no new commands).
-> **Media-track variants (same doctrine, zero new commands):** folders with `kind: 'storyboard'` render the corkboard in **shot mode** (card = image thumbnail + derived shot-number chip + spec row; gestures unchanged, metadata edits live in the board's Fields panel — [storyboard.md](storyboard.md) §3.1); dialogue containers with `kind: 'branching'` add a **graph-view variant** over the parse-derived projection (view-only, auto-layout, click-through to text — [dialogue-narrative.md](dialogue-narrative.md) §3). Both variants introduce view state only (`view.setGraphFocus`, image lightbox); the command surface stays the binder set.
+> **Media-track variants (same doctrine, zero new commands):** folders with `kind: 'storyboard'` render the corkboard in **shot mode** (card = image thumbnail + derived shot-number chip + spec row; gestures unchanged, metadata edits live in the board's Fields panel — [storyboard.md](storyboard.md) §3.1); dialogue containers with `kind: 'branching'` add a **graph-view variant** over the parse-derived projection (view-only, auto-layout, click-through to text — [dialogue-narrative.md](dialogue-narrative.md) §3); comic books with `kind: 'comic'` show page thumbnails ([comics.md](comics.md) §3.3); and a card whose node has a `role: 'card'` picture draws it at M and L, its text at S ([pictures.md](pictures.md) §5). All of these introduce view state only (`view.setGraphFocus`, image lightbox); the command surface stays the binder set.
 
 ### 3.1 Data binding
 - Scope: the active container (folder selected in binder → corkboard shows its children). `view.setCorkboardScope` (view command).
@@ -105,7 +106,8 @@
 | Status / Label | node.status/label | pickers → `binder.setMeta` | Vocabulary-validated at the command; picker shows "unknown status" chip when the loaded value is outside the vocabulary (project-format §2 tolerant rule). |
 | Export style | node.style (documents only) | select (Normal, Section) → `binder.setMeta {style}` | exporter.md §2, Per-scene styling. Normal clears the field; an unknown stored value shows as itself, disabled, and exports as Normal. The agent's `meta.set` does not carry it. |
 | Codex section | codex.md §8 | attach picker → `codex.write {attachTo}` / chips show mention counts | Mention chips refresh on doc-write cache invalidation; click → codex panel. |
-| SceneMeta editor | coherence.md §8.3 | POV picker (codex characters), dayOffset/duration number fields, `after`/`expectedPresent` chip pickers, a **Dialogue container** select (the live dialogue containers; coherence.md §5.6) | **Lands with the coherence module** (post-v0.1); the Inspector layout reserves the collapsible section from day one. |
+| Pictures | `assets[]` / `assetLinks[]` (pictures.md §2.1) | *Choose files…*, drop, paste → `pictures.import` / `asset.link`; caption, alt, tags, *Make card picture* → `asset.setMeta` | **Lands with P1–P3** (pictures.md §5); the section is collapsible and reserved from day one, a broken file shows its chip, and the *Lost their paragraph* list follows pictures §2.3. |
+| SceneMeta editor | coherence.md §8.3 | POV picker (codex characters), dayOffset/duration number fields, a **Story part** select (*Inherit this folder's part*, *Main story*, *Prologue*, *Epilogue*; coherence §5.2.2), `after`/`expectedPresent` chip pickers, a **Dialogue container** select (the live dialogue containers; coherence.md §5.6) | **Lands with the coherence module** (post-v0.1); the day field accepts a minus sign. The Inspector layout reserves the collapsible section from day one. |
 
 ### 4.2 Folder nodes
 Same panel minus notes (folders carry synopsis + keywords + status/label only — matches manifest fields; a folder is the act/part card).
@@ -127,6 +129,7 @@ interface AppSettings {
     activeProfileId: string | null;     // null = mock provider active (first-run default, context-assembly §6)
   };
   editor: { autosaveDebounceMs: number; /* default 800 */ focusModeHideRails: boolean; };
+  ui: { language: 'system' | string };   // 'system' or a shipped tag; app-level only, never in a project (i18n §3.1)
   session: { dailyTargetWords?: number };
   context: { totalBudgetTokens: number; /* default 12k */ layerBudgets: Record<'L2'|'L4'|'L5', number>; };  // context-assembly §3 config exposure
   agent: { loadEveryTool: boolean; defaultMode: 'plan-only' | 'ask' | 'accept-edits' | 'auto'; /* default 'ask' */ lockAuto: boolean; budget: { maxTokens?: number; maxCostUsd?: number; maxWordsChanged?: number; maxDocuments?: number; maxSteps?: number; }; };  // agent-harness §3 and §4; loaded field by field; a stored 'auto' under lockAuto reads 'ask'; the mode is never a project-file key
@@ -149,7 +152,7 @@ interface AppSettings {
 | Agent | **Load every tool on every request** (off by default); the mode a panel starts in (radio group, Ask unless chosen); **Turn Auto mode off**; the limits a turn is held to while Accept edits or Auto decides its cards (tokens, words changed, documents touched, steps, cost; empty keeps the default) | a limit is a whole number in its range (cost: dollars above 0), checked on save and clamped the same way on load; turning Auto off moves a stored Auto to Ask. The agent panel's own mode pick is a session override that is never saved. |
 | Coherence | the quick checks the Findings tab's scan runs (one checkbox per deterministic check, coherence.md §5.4), the scope the Findings tab starts with, and the most findings one model review may add (the field's range is 1 to the cap) | the check list and the scope are the app's own choices, saved with the settings; the model review's plan (its calls, token estimates and first prompt) is shown in the Findings tab before the writer presses (coherence.md §7). |
 | MCP & tools | master switch, server cards (health dot, per-tool toggles, trust flag, remove) — **built with the v0.2 MCP client** (extensibility.md §8 and §3.5 for the model-facing names) | URL validation at save; per-entry-tolerant import; health states surfaced per card |
-| Appearance | theme | — |
+| Appearance | theme; the interface language picker (i18n §3.1, I4) | — |
 | Data | storage location (read-only in browser), export/import entry points | — |
 
 *(§5.3: the Data section additionally carries the browser-storage persistence row + eviction-risk banner per the posture below.)*

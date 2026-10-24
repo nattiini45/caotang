@@ -24,6 +24,14 @@ A comic is a new *document kind + node kind + exporters + tools*, exactly like t
 
 ```ts
 tree[].kind: 'comic'                 // folder = issue/book (the three-tier invariant holds: pages are its children)
+tree[].comic: {                      // the book's settings, additive and unknown-tolerant
+  readingDirection: 'ltr' | 'rtl';   // the book's own direction; never the interface's
+  letteringFace: string;             // 'comic-neue' first (D11)
+  capsTransform: boolean;
+  esszett: boolean;                  // German ß → SS unless the book opts into ẞ
+  pageSize: 'us-comic' | 'manga-b5' | 'a4' | 'letter';
+  scriptDocId?: string;              // optional link to a kind: 'comic-script' document (§3.1)
+}
 tree[].type: 'comic-page'            // node; ordered, so the page number is derived (the shotNumber precedent)
 tree[].comicPage: {
   size: 'us-comic' | 'manga-b5' | 'a4' | 'letter';    // trim; bleed 3 mm / 0.125 in per preset
@@ -36,7 +44,9 @@ Balloon { id; kind: 'speech' | 'thought' | 'caption' | 'sfx' | 'whisper' | 'shou
           rect; tail?: [x, y]; offPanel?: true; fontSize?; style?: 'lettering' | 'sfx' }
 ```
 
-Book settings on the `comic` folder: reading direction (LTR or RTL), lettering face, caps transform on or off, ẞ for German, default page size. Unknown keys load tolerantly (project-format §6). A panel's `assetId` is a picture-registry record ([pictures.md](pictures.md) §2.1), so a panel picture is a typed use, counted by `usesOf`.
+Book settings live on the `comic` folder as above; unknown keys load tolerantly (project-format §6). A panel's `assetId` is a picture-registry record ([pictures.md](pictures.md) §2.1), so a panel picture is a typed use, counted by `usesOf`.
+
+**The script link (`scriptDocId`) is optional and explicit.** A comic book may have no script — the Marvel method starts from pages — and then `scriptDocId` is absent, not empty and not guessed. When it is present: it names a `kind: 'comic-script'` document; **at most one script per book**, and a script belongs to **at most one book**; it is set or cleared only by `comic.setScript {nodeId, scriptDocId: string | null, expect}` (write-auto, inverse undo, the link only), which refuses a document that is not a comic script, one already linked to another book, and a stale `expect` (the value the plan read, `null` when absent). **Deleting the script document clears the link** through `project.deleteNode`'s cascade, and one undo restores both the document and the link. A link whose document is gone at load is **kept and shown as broken** — "The script for this book is no longer in the project. Choose a script, or work from the pages." — with a *Choose a script…* action; it is **never** re-matched by title, by file name or by content. `comic.derive` refuses until the link is cleared or re-pointed. The timeline's comics unit (§6) follows the same link.
 
 ## 3. Script and method
 
@@ -50,13 +60,26 @@ A comic script is `docs/<id>.md` with `kind: 'comic-script'`, the industry plain
 
 ### 3.2 Both methods (D10)
 
-- **Full script:** `comic.derive {doc}` (write-confirm, model-backed, mirrors `shots.derive`) turns a script into pages, panels and balloon text, with anchors captured fresh; it generates no images. `comic.letter` (write-auto) fills balloon text from script lines.
-- **Marvel method:** a comic book can start with no script. Panels and balloons are authored on the page, and `comic.scriptFromPages` (write-confirm) writes or updates a comic-script document from the pages, capturing anchors fresh.
+- **Full script:** `comic.derive {doc}` (write-confirm, model-backed, mirrors `shots.derive`) turns a script into pages, panels and balloon text, with anchors captured fresh; it generates no images. `doc` must be the book's linked script (§2); when the book has no link, the command links that document as part of the same undo group if no other book holds it; when a different script is linked, it refuses and names it. `comic.letter` (write-auto) fills balloon text from script lines.
+- **Marvel method:** a comic book can start with no script. Panels and balloons are authored on the page, and `comic.scriptFromPages` (write-confirm) writes or updates a comic-script document from the pages, capturing anchors fresh; a book with no link gets one from that command in the same undo group, and a book that already has a script updates it rather than making a second.
 - `comic.balloon-coverage` (deterministic, joins the closed registry with fixtures, coherence §5.4) works in both directions: every script line lettered, every balloon's script anchor still resolving.
+
+**The comic commands and their classes** (each starts in command-bus §9 with its row; until then this table is the owning contract):
+
+| Command | agentRisk · undo | Notes |
+|---|---|---|
+| `comic.createBook {parentId, title, settings?}` | write-auto · inverse | A `comic` folder and its book settings; a page-less book is valid. |
+| `comic.setPage {nodeId, stored, expect}` | write-auto · inverse | The whole page value over the one it replaces, the `shot.setMeta` pattern; refuses a node that is not a comic page and a stale `expect`. |
+| `comic.setScript {nodeId, scriptDocId, expect}` | write-auto · inverse | §2: the link only; validates the script kind, uniqueness in both directions, and the stale link. |
+| `comic.derive {doc}` | write-confirm · compensable | Model-backed; one undo group covers the link it establishes and the pages it writes. |
+| `comic.letter` | write-auto · inverse | Balloon text from script lines. |
+| `comic.scriptFromPages {nodeId}` | write-confirm · compensable | Creates or updates the script document and its link as one undo group. |
+
+None of these is in `ACCEPT_EDITS_TOOLS`: *Accept edits* asks for `comic.derive` and `comic.scriptFromPages`, *Auto* approves them as native cards, and a delegated agent may stage them but never apply them. `comic.balloon-coverage` and `comic.balloon-density` are deterministic checks, not commands and not tools.
 
 ### 3.3 Page editor
 
-`apps/desktop/src/media/ComicPageView.tsx`: an SVG page with panel rectangles (drag and resize, snap to gutters), a picture per panel (drop or paste → `asset.import` + `comic.setPage`) and balloons (text, tail drag). Commands: `comic.createBook`, `comic.setPage {nodeId, stored, expect}` (the whole-value-with-`expect` pattern of `shot.setMeta`); page create and reorder use the existing `binder.*` commands. The corkboard variant for a `kind: 'comic'` folder shows page thumbnails. Every command starts in command-bus §9.
+`apps/desktop/src/media/ComicPageView.tsx`: an SVG page with panel rectangles (drag and resize, snap to gutters), a picture per panel (drop or paste → `asset.import` + `comic.setPage`) and balloons (text, tail drag). Commands: `comic.createBook`, `comic.setPage {nodeId, stored, expect}` (the whole-value-with-`expect` pattern of `shot.setMeta`), `comic.setScript` (§2), and the script commands of §3.2; page create and reorder use the existing `binder.*` commands. The corkboard variant for a `kind: 'comic'` folder shows page thumbnails. Every command starts in command-bus §9 and its risk class and undo are §3.2's table.
 
 ### 3.4 Paper round trip
 
@@ -76,14 +99,16 @@ The storyboard's `paperFrames` idea carries over: print blank panel layouts, dra
 | Format | Behaviour |
 |---|---|
 | `comic-pdf` | pdf-lib (pinned 1.17.1, lazy), one PDF page per comic page at trim plus bleed. Reuses `cid-embedding.ts`, `fitPieces`, bidi and the WebP `PictureTranscoder` from `render-contact-sheet.ts`. Balloons are vector paths with the text set in the lettering face. Options: `bleed`, `cropMarks`, `readingDirection`. |
-| `cbz` | A zip (fflate) of one raster per page (`0001.jpg` …) plus `ComicInfo.xml` **v2.0**: Title, Series, Number, Writer, Penciller, Letterer, PageCount, LanguageISO (BCP 47), Manga (`YesAndRightToLeft` when the book reads RTL), Pages with Type, DoublePage, ImageWidth, ImageHeight. Rasterised at 1988 px page height by default, under the iOS < 18 canvas cap. **App-only** (D12): `OffscreenCanvas` and `FontFace` with the vendored fonts, no WASM, CSP unchanged; Node refuses with a reason (the animated-WebP precedent). |
-| `comic-epub` (later phase) | Fixed-layout (pre-paginated) EPUB: one page image per spine item, the balloon text also present as hidden HTML for accessibility, panel rectangles exported as region navigation. The format KDP and Apple expect for comics. |
+| `cbz` | A zip (fflate) of one raster per page (`0001.jpg` …) plus `ComicInfo.xml` **v2.0**: Title, Series, Number, Writer, Penciller, Letterer, PageCount, LanguageISO (BCP 47), Manga (`YesAndRightToLeft` when the book reads RTL), Pages with Type, DoublePage, ImageWidth, ImageHeight. Rasterised at 1988 px page height by default, under the iOS < 18 canvas cap. **App-only** (D12): `OffscreenCanvas` and `FontFace` with the vendored fonts, no WASM, CSP unchanged; Node refuses with a reason. |
+| `comic-epub` (later phase) | Fixed-layout (pre-paginated) EPUB: one page image per spine item, the balloon text also present as hidden HTML for accessibility, panel rectangles exported as region navigation. The format KDP and Apple expect for comics. **Generated in the browser only, through the same rasterizer as the CBZ** (D12): the file is portable and readable anywhere, but the CLI, the SDK and the MCP server refuse to make one. |
 
-All join `EXPORT_FORMATS`, `MEDIA_FORMATS` and `BINARY_FORMATS` (`types.ts`); **`cbz` joins both `isBinaryPath` regexes** (`pdf` and `epub` are already there).
+**The host gate.** `comic-pdf` is written by both hosts. `cbz` and `comic-epub` rasterise pages on a canvas with the vendored `FontFace`s, so they are **browser-only**: the command line, the SDK and the MCP server refuse them **before writing anything**, with "Comic EPUB and CBZ are made in the app. Open the project in Caotang and export there." The EPUB's portability is a property of the file, not evidence of a headless generator; **no Node comic rasterizer is added**, and the refusal is a refusal, never a silently empty or cover-only file.
+
+The formats join `EXPORT_FORMATS`, `MEDIA_FORMATS` and `BINARY_FORMATS` (`types.ts`) when their renderers land; **`cbz` joins both `isBinaryPath` regexes** (`pdf` and `epub` are already there). The exporter's current format list is read from `EXPORT_FORMATS`; this spec adds three names to it, never a restated count.
 
 ## 6. Timeline
 
-The comic-script document is the timeline's scene-level unit: it carries `SceneMeta` like any document, and the `comic` folder can carry a folder span. Pages appear as strips under their script document with `measure` = pages ([timeline.md](timeline.md) §9.4).
+The comic-script document is the timeline's scene-level unit: it carries `SceneMeta` like any document, and the `comic` folder can carry a folder span. The unit is the book's **linked** script (§2), never a document matched by title; a pages-first book with no script has no scene-level unit and only the folder span, and nothing is inferred. Pages appear as strips under their linked script, or under the book when it has none, with `measure` = pages ([timeline.md](timeline.md) §9.4).
 
 ## 7. Risks
 
@@ -91,7 +116,7 @@ The comic-script document is the timeline's scene-level unit: it carries `SceneM
 |---|---|---|
 | Lettering looks amateur in Comic Neue | Medium | Caps and crossbar-I rules; the face is a book setting, so D11 can swap it without a model change. |
 | ComicInfo v2.1 changes | Low | Write v2.0 only; readers ignore unknown fields. |
-| CBZ needs a canvas, so headless hosts cannot write it | Certain | Node refuses with a reason; the fixed-layout EPUB is the later portable path. |
+| CBZ and comic EPUB need a canvas, so headless hosts cannot write them | Certain | Node and the MCP server refuse with the export-from-the-app remedy **before writing**; the comic PDF is the headless path, and the fixed-layout EPUB is a reading format made in the app, not a headless generator. |
 
 ## 8. Phased plan
 
@@ -100,13 +125,13 @@ Milestone **Comics**, epic #149. Issues: D1 #165, D2 #166, D3 #167, D4 #168, D5 
 | # | Title | Scope | Done when | Needs |
 |---|---|---|---|---|
 | D1 | `docs(architecture): specify the comic track` | This spec; ARCHITECTURE §6 row | Spec merged | — |
-| D2 | `feat(comic): comic books, pages, panels and balloons` | `packages/comic`, the node kind, `comic.createBook`, `comic.setPage`, the comic-script kind and parser (all spellings, modifiers, page-count check), Marvel method and `comic.scriptFromPages` | Pages persist with panels and balloons; unknown-tolerant load; parser fixtures for each spelling; a script written from pages round-trips | D1, Pictures A1 |
+| D2 | `feat(comic): comic books, pages, panels and balloons` | `packages/comic`, the node kind, `comic.createBook`, `comic.setPage`, `comic.setScript` with the optional one-script link, its uniqueness in both directions, deletion cleanup and the broken-link notice, the comic-script kind and parser (all spellings, modifiers, page-count check), Marvel method and `comic.scriptFromPages` | Pages persist with panels and balloons; unknown-tolerant load; parser fixtures for each spelling; a script written from pages round-trips; a deleted script clears its link and one undo restores both; a missing script shows the broken link and is never inferred by title; a pages-first book loads and exports with no script | D1, Pictures A1 |
 | D3 | `feat(comic): a page editor for panels and balloons` | `ComicPageView.tsx`, the corkboard variant | Lay out a six-panel page with art and balloons, each step undoable | D2, Pictures A4 |
 | D4 | `build(fonts): vendor an OFL lettering font and an SFX face` | `vendor/comic-lettering` (Comic Neue, Bangers), pinned build script, licences in THIRD-PARTY-NOTICES; caps, crossbar-I and emphasis rules | Checksums pinned; app and Node loaders; a caps-transform fixture per locale rule | D1 |
 | D5 | `feat(export): comic PDF with trim, bleed and lettering` | `render-comic-pdf.ts`, format registration | pdf-lib read-back tests (pages, sizes, images, ToUnicode) | D2, D4 |
 | D6 | `feat(export): CBZ with ComicInfo.xml` | Canvas rasterizer (app), ComicInfo v2.0 fields, `cbz` in **both** `isBinaryPath`, Node refusal | A CBZ opens in a reader with RTL set when the book is RTL; Node refuses with a reason | D5 |
 | D7 | `feat(comic): derive pages and panels from a comic script, and a balloon coverage check` | `comic.derive`, `comic.letter`, `comic.balloon-coverage` | Mock-provider evals; coherence fixtures in both directions | D2, Pictures C2 |
-| D8 | `feat(export): fixed-layout EPUB for comic books` | `comic-epub`: pre-paginated, hidden balloon text, region navigation | epubcheck-clean fixed-layout book; each page one spine item | D5 |
+| D8 | `feat(export): fixed-layout EPUB for comic books` | `comic-epub`: pre-paginated, hidden balloon text, region navigation, made in the browser through the CBZ rasterizer; CLI, SDK and MCP refuse before writing | epubcheck-clean fixed-layout book; each page one spine item; the Node refusal names the export-from-the-app remedy and writes no file | D5 |
 | D9 | `feat(coherence): balloon density and lettering lint` | `comic.balloon-density`, em-dash and caps lint | Warning fixtures over and under the thresholds | D2 |
 
 ## 9. Decisions
@@ -118,7 +143,7 @@ Recorded on 2026-10-23: the owner approved the recommended option of each decisi
 | D9 | **Comic panels are a separate `comic` kind**, not storyboard shots. | Shots with a page layout on top: film time and page space are different models. |
 | D10 | **Both full script and Marvel method** (pages first plus `comic.scriptFromPages`) from D2. | Full script only: both methods dominate the industry. |
 | D11 | **Comic Neue plus Bangers** (OFL verified), with caps and crossbar-I rules; the face is a book setting. | Searching for a dedicated OFL all-caps lettering face before D4 ships: delays the track for a swappable setting. |
-| D12 | **CBZ is app-only**; the fixed-layout EPUB (D8) is the later portable format. | A Node rasterizer: a native or WASM dependency for one format. |
+| D12 | **CBZ and the fixed-layout comic EPUB (D8) are made in the app only**, through the same canvas rasterizer; both files are portable once written, and the CLI, SDK and MCP server refuse them with the export-from-the-app remedy. | A Node rasterizer: a native or WASM dependency for two formats, and "the EPUB is portable" is not a reason to add one. |
 
 ## 10. Sources
 

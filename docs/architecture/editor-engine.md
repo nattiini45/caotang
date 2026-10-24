@@ -52,7 +52,7 @@ The schema is exactly "what can be expressed in CommonMark + GFM-strike + images
 | `horizontal_rule` | block | — | — | `***` thematic break — **the scene separator** |
 | `code_block` | block | text* | `language?: string` | fenced/indented code |
 | `hard_break` | inline | — | — | two-space or `\` line break |
-| `image` | inline | — | `src: string` (required), `alt?: string`, `title?: string` | image (parse+serialize only — **no insert UI in v0.1**; round-trips hand-written images losslessly) |
+| `image` | inline | — | `src: string` (required), `alt?: string`, `title?: string` | image (parse+serialize only in v0.1 — **no insert UI yet**; round-trips hand-written images losslessly). The title holds the caption and, when present, the versioned placement suffix of [pictures.md](pictures.md) §2.2.1; the editor treats the title as one opaque string and preserves it byte for byte, including a suffix version it does not decode. |
 | `text` | inline | — | — | text |
 
 **The Content column is a ProseMirror content expression, measured against the built schema.** `code_block: text` would not describe a schema that can be built at all (the constructor throws *"Only non-generatable nodes (text) in a required position"*), and `paragraph`/`heading: inline+` would round-trip `>`, `-` and `1.` as `> \`, `- \` and `1. \` because the required slot is filled with an empty text node. `packages/editor/test/spec-parity.test.ts` re-derives the rows from this table, so a future edit has to argue with the measurement rather than with the code.
@@ -75,7 +75,7 @@ remark-prosemirror maps mdast ↔ PM via per-type handlers against **our** schem
 |---|---|---|---|
 | `paragraph`, `text`, `blockquote` | same-name node | **exact** | lossless |
 | `heading` (depth 1–6) | `heading` | **exact** | depth kept |
-| `list`, `listItem`, `emphasis`, `strong`, `inlineCode`, `link`, `image`, `break`, `thematicBreak`, `code` | §3.1/§3.2 nodes/marks | **exact content** | content lossless; **syntax normalization** per §5 (list marker → `-`, fence → ` ``` `, thematicBreak → `***`) |
+| `list`, `listItem`, `emphasis`, `strong`, `inlineCode`, `link`, `image`, `break`, `thematicBreak`, `code` | §3.1/§3.2 nodes/marks | **exact content** | content lossless; **syntax normalization** per §5 (list marker → `-`, fence → ` ``` `, thematicBreak → `***`). An image's `title` is exact content: a caption, a backslash or a placement suffix — including a version this build does not decode — is preserved byte for byte (pictures.md §2.2.1). |
 | `delete` (GFM) | `strike` | **exact** | `~~x~~` |
 | `break` | `hard_break` | exact content | line-break style normalized (two-space) |
 | `html` (raw HTML block/inline) | — | **degrade** | rendered as literal text paragraph; warning `unsupported-node` |
@@ -240,7 +240,7 @@ Rules (all fixture-tested, §11):
 
 **In v0.1:** autosave, word/char counts, session-target progress display, focus mode (panels hide, editor keeps state), paste as plain text + basic inline marks, `***` separator preserved, undo two-lane model, selection⇄anchor bridge, ghost region.
 
-**Not in v0.1:** tables/task lists/footnotes (degrade per §3.3), image insert UI, inline comment/mention syntax (plain text, see §13 D2), editor mention underlining (v0.2, [codex.md](codex.md) §4), apply-then-review suggestion marks (v0.2 — library: suggest-changes 0.1.8, §2; integration contract = §15; review *display* rendering = §14 Path B; the all-accepted projection is Caotang-computed before serialization, §15), find/replace (Tiptap shipped a search-and-replace extension Aug 2026 — cheap v0.2 add, not v0.1 scope), collaborative anything.
+**Not in v0.1:** tables/task lists/footnotes (degrade per §3.3), image insert UI (planned with B1, pictures.md §5; the schema and the title codec above are ready for it), inline comment/mention syntax (plain text, see §13 D2), editor mention underlining (v0.2, [codex.md](codex.md) §4), apply-then-review suggestion marks (v0.2 — library: suggest-changes 0.1.8, §2; integration contract = §15; review *display* rendering = §14 Path B; the all-accepted projection is Caotang-computed before serialization, §15), find/replace (Tiptap shipped a search-and-replace extension Aug 2026 — cheap v0.2 add, not v0.1 scope), collaborative anything.
 
 ## 11. Runner-up & switch trigger (Lexical)
 
