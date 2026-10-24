@@ -1,6 +1,6 @@
 # Caotang — Architecture
 
-> Status marks: 📐 **spec** (implementable as written, and the code follows it) · 📝 **draft** (shape known, details open).
+> Status marks: 📐 **spec** (implementable as written, and the code follows it) · 📝 **draft** (shape known, details open) · 🧭 **planned** (specified and decided, not built: the code does not do it yet).
 > Each module has its own spec in [architecture/](architecture/). The standing decisions behind them are in [decisions.md](decisions.md).
 
 ## 0. Product thesis
@@ -113,6 +113,21 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 - **Responsibility:** run the agent against a project folder from a script, a CLI or CI (`@caotang/sdk`): `openProject`, an approval policy in place of the cards, a diff before anything is saved, the provider key held in memory. It owns the Node folder session (the single-writer lock, the folder-drift checks, the write queue) that the MCP server shares, and builds its harness with the same `createProductHarness` the desktop does.
 - **Spec:** [architecture/agent-harness.md](architecture/agent-harness.md) §11. Its README: [../packages/sdk/README.md](../packages/sdk/README.md).
 
+### 2.18 `pictures` 🧭
+- **Responsibility:** one picture registry with hashes and dedup, links from the project, a folder, a document or a paragraph, inline pictures in prose carried into EPUB, Word and Markdown, the import pipeline (HEIC, pixel budget, GPS strip), vision input for the agent, MCP pictures in both directions, and handwriting transcription.
+- **Owns:** `assets[]` and `assetLinks[]` in the manifest, the pure `packages/pictures` selectors, the thumbnail store. Specified, not built.
+- **Spec:** [architecture/pictures.md](architecture/pictures.md).
+
+### 2.19 `timeline` 🧭
+- **Responsibility:** an interactive view of the story on story time, reading order or both, where every edit gesture is a proposal the writer approves and applies as one undoable `timeline.apply`; prologues before day 0 and epilogues after long time jumps as declared parts; timeline exports, agent tools and an MCP resource from one pure layout package.
+- **Owns:** `packages/timeline` (layout, calendar lens, medium adapters), the proposed-changes tray (view state). Scene timing stays in `coherence.json` `sceneMeta`. Specified, not built.
+- **Spec:** [architecture/timeline.md](architecture/timeline.md); the coherence-model change is [architecture/coherence.md](architecture/coherence.md) §5.2.2.
+
+### 2.20 `i18n` 🧭
+- **Responsibility:** one interface language, kept apart from the project (content) language: compiled message catalogs with a per-message English fallback, locale-aware formatting and sorting, a mirrored right-to-left interface, the agent writing to the writer in the interface language, translatable finding and notice text, and export boilerplate in the project language.
+- **Owns:** `packages/i18n` (locale resolution, `Intl` formatters, collation, bidi isolation, the `MessageRef` type), the desktop catalogs under `apps/desktop/src/i18n/`, the interface-language app setting. Specified, not built.
+- **Spec:** [architecture/i18n.md](architecture/i18n.md).
+
 ## 3. Data model (sketch)
 
 ```
@@ -132,6 +147,10 @@ SceneMeta       { pov?, dayOffset?, durationDays?, after?, expectedPresent? }   
 ExportRecipe   { include[], template, format }
 AssembledPrompt{ messages[], layers[{id, included, tokens, dropped[]}], estimate }  // context-assembly.md §4
 TextAnchor     { from, to, exact, prefix, suffix, capturedRevision }              // edit-anchors.md §2
+AssetRecord    { id, file, mime, sha256, bytes, width?, height?, caption?, alt?, decorative?, tags?, source?, transcription? }  // pictures.md §2.1 (planned)
+AssetLink      { id, assetId, target: project|node|paragraph, role: reference|card|source, order, note?, when? }        // pictures.md §2.1 (planned)
+TimelineOp     { op: meta|move|shift|picture-when, …, expect }                                                         // timeline.md §4.3 (planned)
+MessageRef     { id, values?, message }                                                                          // i18n.md §3.2 (planned)
 Command        { id, name, params, issuedBy: user|agent, turnId?, callId?, createdAt }  // command-bus.md §2
 ActivityEntry  { at, command, issuedBy, turnId?, callId?, undoGroupId?, source?: native|mcp, affected[], tokensSpent?, summary, defect? } // command-bus.md §8
 AskBack        { code, reason, candidates?, revisionDrift?, options[] }           // agent-harness.md §2
@@ -168,4 +187,5 @@ Caotang covers games, video and film as well as prose. The full inventory lives 
 | **Storyboarding & shot planning** | scene → shot breakdown: frame, camera, action, dialogue covered, duration; shot list exports | `shot` node kind, corkboard variant with image fields, `inspector` | [storyboard.md](architecture/storyboard.md) |
 | **AI video prompt packs** | per-shot prompt packs for several video models. **Caotang writes prompts; it does not render video** — generation stays in the writer's own tool with their own account | `context-assembly`, `codex`, `exporter` (vendor templates), harness tools | [video-prompt-pack.md](architecture/video-prompt-pack.md) |
 | **Plot coherence & continuity** | deterministic checks (structure + codex, no model call) and model-judged findings (evidence-cited reports, never silent edits) | `coherence` module over `codex` + `context-assembly` | [coherence.md](architecture/coherence.md) |
+| **Comics** 🧭 | comic books, pages, panels and balloons; comic scripts (full script or Marvel method); lettering rules; comic PDF, CBZ and fixed-layout EPUB. Specified, not built | `comic` node kind, `comic-page` nodes, picture registry, `exporter` | [comics.md](architecture/comics.md) |
 | **One story, many outputs** | a single narrative source compiled to prose, screenplay, game dialogue, storyboard, prompt pack and report targets — media targets are **export recipes**, not separate apps | the `exporter` contract and per-kind renderers | [media-track.md](architecture/media-track.md) §1 |
