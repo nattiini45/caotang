@@ -12,6 +12,7 @@ import { DEFAULT_ACTIVE_MS, DEFAULT_TURN_BUDGET, MODE_LABELS, PERMISSION_MODES, 
 import { MODE_HINTS } from '../app/agent-model.js';
 import type { AppServices } from '../app/services.js';
 import { AGENT_BUDGET_RANGES, type AgentBudgetSettings } from '../app/settings.js';
+import { useComposingEnter } from './shared.js';
 
 /** The run limits: held in every mode, each model call's worst case reserved before it is sent (agent-harness §7.1). */
 const RUN_FIELDS = [
@@ -54,6 +55,8 @@ export function AgentModeSettings({ services }: { services: AppServices }): Reac
     maxCostUsd: String(current.budget.maxCostUsd ?? ''),
   });
   const [message, setMessage] = useState<{ readonly text: string; readonly tone: 'info' | 'error' } | null>(null);
+  // The run limits save on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from saving them.
+  const ime = useComposingEnter();
 
   const saved = (error: string | null): void =>
     setMessage(error === null ? { text: 'Saved. It applies from the next card.', tone: 'info' } : { text: error, tone: 'error' });
@@ -71,6 +74,7 @@ export function AgentModeSettings({ services }: { services: AppServices }): Reac
 
   const saveLimits = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    if (ime.takesSubmit()) return;
     const budget: { -readonly [K in keyof AgentBudgetSettings]: AgentBudgetSettings[K] } = {};
     for (const field of ALL_FIELDS) {
       const value = readLimit(limits[field.key], field.key);
@@ -122,7 +126,7 @@ export function AgentModeSettings({ services }: { services: AppServices }): Reac
         limit needs prices on the active profile (Settings › Providers). In Accept edits and Auto, a turn is also held to {(DEFAULT_TURN_BUDGET.maxTokens ?? 0).toLocaleString('en-US')} tokens
         and {DEFAULT_TURN_BUDGET.maxSteps ?? 0} steps when those are empty.
       </p>
-      <form className="settings-form" noValidate onSubmit={saveLimits}>
+      <form className="settings-form" noValidate onKeyDown={ime.noteKey} onSubmit={saveLimits}>
         {RUN_FIELDS.map((field) => (
           <label key={field.key}>
             <span>{field.label}</span>

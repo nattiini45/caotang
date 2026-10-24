@@ -190,6 +190,57 @@ test('an Inspector keyword saves on the ordinary Enter and never on the composin
   await expect(inspector.getByRole('listitem').filter({ hasText: 'ime-keyword' })).toHaveCount(1);
 });
 
+test('a settings form saves on the ordinary Enter and never on the composing one', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByTestId('settings');
+  // The demo profile's form is saved in the browser alone: renaming it needs no endpoint and no key.
+  await settings.locator('[data-profile="Demo (no key)"]').getByRole('button', { name: 'Edit' }).click();
+  const form = settings.getByRole('form', { name: 'Edit provider' });
+  const name = form.getByLabel('Name');
+  await name.fill('Demo, candidate');
+
+  await compositionStart(name);
+  for (const kind of BOTH) await composingEnterWithSubmit(name, kind);
+  // Nothing saved: the form is still open, the field keeps the committed text and the focus, and no save is reported.
+  await expect(form).toBeVisible();
+  await expect(name).toHaveValue('Demo, candidate');
+  await expect(name).toBeFocused();
+  await expect(settings.getByText('Saved “Demo, candidate”.')).toHaveCount(0);
+
+  await compositionEnd(name);
+  await name.press('Enter');
+  // The ordinary Enter saves the profile once: one message, one renamed card, and the form closes.
+  await expect(settings.getByText('Saved “Demo, candidate”.')).toHaveCount(1);
+  await expect(settings.locator('[data-profile="Demo, candidate"]')).toHaveCount(1);
+  await expect(form).toHaveCount(0);
+});
+
+test('the binder’s saved-filter name saves on the ordinary Enter and never on the composing one', async ({ page }) => {
+  await createProject(page, 'IME Filter');
+  await page.getByRole('searchbox', { name: 'Filter the binder by text' }).fill('scene');
+  const saveCurrent = page.getByRole('button', { name: 'Save current…' });
+  await expect(saveCurrent).toBeEnabled();
+  await saveCurrent.click();
+  const form = page.getByRole('form', { name: 'Name this filter' });
+  const name = form.getByRole('textbox', { name: 'Filter name' });
+  await name.fill('IME filter');
+
+  await compositionStart(name);
+  for (const kind of BOTH) await composingEnterWithSubmit(name, kind);
+  // Nothing saved: the form is still open with its text and focus, and no filter carries the name.
+  await expect(form).toBeVisible();
+  await expect(name).toHaveValue('IME filter');
+  await expect(name).toBeFocused();
+  await expect(page.getByRole('option', { name: 'IME filter', exact: true })).toHaveCount(0);
+
+  await compositionEnd(name);
+  await name.press('Enter');
+  // The ordinary Enter saves the filter once, and the saved list offers it.
+  await expect(form).toHaveCount(0);
+  await expect(page.getByRole('option', { name: 'IME filter', exact: true })).toHaveCount(1);
+});
+
 test('the screenplay Source acts on the ordinary Enter and never on the composing one', async ({ page }) => {
   await createProject(page, 'IME Screenplay');
   await binderTitle(page, await firstChapter(page)).click({ button: 'right' });

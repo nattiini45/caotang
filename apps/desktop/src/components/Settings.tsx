@@ -40,6 +40,7 @@ import { CoherenceSection } from './CoherenceSettings.js';
 import { AgentModeSettings } from './AgentModeSettings.js';
 import { ContextSection } from './ContextSection.js';
 import { McpSection } from './McpSection.js';
+import { useComposingEnter } from './shared.js';
 
 /** The origin of an address, or the text itself when it does not parse (a form being typed). */
 function originOf(address: string): string {
@@ -340,6 +341,8 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
   const original = form === null || form.id === null ? undefined : providers.get(form.id);
   const keyNeeded =
     (isGeneric === true || isLocal) && original !== undefined && form !== null && originOf(form.baseUrl) !== originOf(original.baseUrl);
+  // The profile form saves on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from saving it.
+  const ime = useComposingEnter();
 
   const run = async (work: () => Promise<void>): Promise<void> => {
     setBusy(true);
@@ -385,6 +388,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
 
   const save = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    if (ime.takesSubmit()) return;
     if (form === null) return;
     // A price that does not read is named before anything is saved, so the form keeps what the writer typed.
     const price = priceFromInputs(form.promptPrice, form.completionPrice);
@@ -519,7 +523,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
           Add a provider
         </button>
       ) : (
-        <form className="profile-form" onSubmit={save} aria-label={form.id === null ? 'New provider' : 'Edit provider'}>
+        <form className="profile-form" onKeyDown={ime.noteKey} onSubmit={save} aria-label={form.id === null ? 'New provider' : 'Edit provider'}>
           <label>
             <span>Provider</span>
             {/* The first control is the preset: it fixes the route, the fields and the model catalogue (provider-gateway §2).
@@ -779,9 +783,12 @@ function RolesPanel({ services, models, onSaved }: { services: AppServices; mode
   const profiles = providers.list();
   const [drafts, setDrafts] = useState<Record<TaskRole, RoleDraft>>(() => roleDraftsFor(providers.roleSettings));
   const [message, setMessage] = useState<string | null>(null);
+  // The role rows save on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from saving them.
+  const ime = useComposingEnter();
 
   const save = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    if (ime.takesSubmit()) return;
     const ref = (draft: RoleDraft): RoleRef | undefined => {
       const profile = profiles.find((entry) => entry.id === draft.profileId);
       if (profile === undefined) return undefined;
@@ -814,7 +821,7 @@ function RolesPanel({ services, models, onSaved }: { services: AppServices; mode
         Each kind of call can run on its own profile, model and thinking level. Drafting and background follow the chat choice
         unless they are pinned; chat with no pin is the active profile.
       </p>
-      <form className="role-rows" onSubmit={save}>
+      <form className="role-rows" onKeyDown={ime.noteKey} onSubmit={save}>
         {ROLE_NAMES.map(({ id, label, hint }) => {
           const draft = drafts[id];
           const pinned = profiles.find((entry) => entry.id === draft.profileId);
@@ -1040,9 +1047,12 @@ function WritingSection({ services }: { services: AppServices }): ReactNode {
   const [debounce, setDebounce] = useState(String(current.editor.autosaveDebounceMs));
   const [hideRails, setHideRails] = useState(current.editor.focusModeHideRails);
   const [message, setMessage] = useState<string | null>(null);
+  // The writing settings save on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from saving them.
+  const ime = useComposingEnter();
 
   const save = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    if (ime.takesSubmit()) return;
     const words = Number(target);
     const ms = Number(debounce);
     if (!Number.isFinite(words) || words < 0 || words > TARGET_MAX_WORDS || !Number.isInteger(words)) {
@@ -1061,7 +1071,7 @@ function WritingSection({ services }: { services: AppServices }): ReactNode {
   return (
     <section className="settings-section" aria-labelledby="settings-writing">
       <h3 id="settings-writing">Writing</h3>
-      <form className="settings-form" noValidate onSubmit={save}>
+      <form className="settings-form" noValidate onKeyDown={ime.noteKey} onSubmit={save}>
         <label>
           <span>Daily target, in words (0 for none)</span>
           <input type="number" min={0} max={TARGET_MAX_WORDS} step={1} value={target} onChange={(event) => setTarget(event.target.value)} />
@@ -1142,6 +1152,8 @@ function DataSection({
   const current = services.settings.current();
   const [cap, setCap] = useState(String(current.retention.checkpointCap));
   const [days, setDays] = useState(String(current.retention.checkpointDays));
+  // The limits save on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from saving them.
+  const ime = useComposingEnter();
 
   // With a project open, its session holds the browser's answer. From the projects screen the browser is asked again.
   useEffect(() => {
@@ -1191,6 +1203,7 @@ function DataSection({
 
   const saveLimits = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    if (ime.takesSubmit()) return;
     const nextCap = Number(cap);
     const nextDays = Number(days);
     if (!Number.isInteger(nextCap) || nextCap < 1 || nextCap > CHECKPOINT_CAP_MAX) {
@@ -1259,7 +1272,7 @@ function DataSection({
             Trim to the limits now
           </button>
         ) : null}
-        <form className="settings-form" onSubmit={saveLimits}>
+        <form className="settings-form" onKeyDown={ime.noteKey} onSubmit={saveLimits}>
           <label>
             <span>Checkpoints kept per project</span>
             <input type="number" min={1} max={CHECKPOINT_CAP_MAX} value={cap} onChange={(event) => setCap(event.target.value)} />

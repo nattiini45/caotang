@@ -9,7 +9,7 @@ import type { SavedFilter } from '@caotang/furniture';
 
 import { filterResultFor, furnitureFor, isEmptyDraft, tagsOf } from '../app/furniture-store.js';
 import type { ProjectSession } from '../app/session.js';
-import { useSession } from './shared.js';
+import { useComposingEnter, useSession } from './shared.js';
 
 /** binder-filters §5: the text field is debounced, so a filter follows the writer's typing without a re-render per key. */
 export const FILTER_TEXT_DEBOUNCE_MS = 150;
@@ -37,6 +37,8 @@ export function BinderFilterBar({ session }: { session: ProjectSession }): React
   const [known, setKnown] = useState(draft.text);
   const [naming, setNaming] = useState<{ readonly id: string | null; readonly name: string } | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
+  // The filter-naming form saves on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from saving.
+  const ime = useComposingEnter();
 
   // The text the writer typed reaches the draft after the debounce. A change from outside the field (a saved filter applied,
   // the bar cleared) brings the field along with it, so the field never shows text the binder is not filtering by. The
@@ -65,6 +67,7 @@ export function BinderFilterBar({ session }: { session: ProjectSession }): React
 
   const submitName = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    if (ime.takesSubmit()) return;
     if (naming === null) return;
     const outcome = store.saveFilter(naming.name.trim(), naming.id ?? undefined);
     if (!outcome.ok) {
@@ -240,7 +243,7 @@ export function BinderFilterBar({ session }: { session: ProjectSession }): React
       ) : null}
 
       {naming !== null ? (
-        <form className="filter-naming" aria-label="Name this filter" onSubmit={submitName}>
+        <form className="filter-naming" aria-label="Name this filter" onKeyDown={ime.noteKey} onSubmit={submitName}>
           <label>
             <span>Filter name</span>
             <input

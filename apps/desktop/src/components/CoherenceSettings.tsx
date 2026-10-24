@@ -10,6 +10,7 @@ import { DETERMINISTIC_CHECK_IDS, MAX_FINDINGS_CAP, type DeterministicCheckId } 
 import { SCOPE_CHOICES, checkLabelOf } from '../app/findings-model.js';
 import { REVIEW_SCOPES, type ReviewScope } from '../app/settings.js';
 import type { AppServices } from '../app/services.js';
+import { useComposingEnter } from './shared.js';
 
 /** A message beside the form, inline and next to what it is about (the same rule the other sections follow). */
 function Message({ message }: { readonly message: { readonly text: string; readonly tone: 'info' | 'error' } | null }): ReactNode {
@@ -28,6 +29,8 @@ export function CoherenceSection({ services }: { services: AppServices }): React
   const [scope, setScope] = useState<ReviewScope>(current.defaultReviewScope);
   const [cap, setCap] = useState(String(current.maxFindings));
   const [message, setMessage] = useState<{ readonly text: string; readonly tone: 'info' | 'error' } | null>(null);
+  // The settings save on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from saving them.
+  const ime = useComposingEnter();
 
   const toggle = (id: DeterministicCheckId, on: boolean): void => {
     setEnabled((previous) => (on ? DETERMINISTIC_CHECK_IDS.filter((known) => known === id || previous.includes(known)) : previous.filter((known) => known !== id)));
@@ -35,6 +38,7 @@ export function CoherenceSection({ services }: { services: AppServices }): React
 
   const save = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    if (ime.takesSubmit()) return;
     const maxFindings = Number(cap);
     if (!Number.isInteger(maxFindings) || maxFindings < 1 || maxFindings > MAX_FINDINGS_CAP) {
       setMessage({ text: `The most findings one review may add is a whole number from 1 to ${MAX_FINDINGS_CAP}.`, tone: 'error' });
@@ -54,7 +58,7 @@ export function CoherenceSection({ services }: { services: AppServices }): React
   return (
     <section className="settings-section" aria-labelledby="settings-coherence">
       <h3 id="settings-coherence">Coherence</h3>
-      <form className="settings-form" onSubmit={save}>
+      <form className="settings-form" onKeyDown={ime.noteKey} onSubmit={save}>
         <fieldset className="settings-checks">
           <legend>Quick checks the Findings tab’s scan runs</legend>
           {DETERMINISTIC_CHECK_IDS.map((id) => (

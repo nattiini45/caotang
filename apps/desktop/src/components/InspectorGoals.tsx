@@ -21,7 +21,7 @@ import {
 } from '../app/footer-model.js';
 import { furnitureFor, goalProbeOf } from '../app/furniture-store.js';
 import type { ProjectSession } from '../app/session.js';
-import { formatCount, useReport, useSession } from './shared.js';
+import { formatCount, useComposingEnter, useReport, useSession } from './shared.js';
 
 type Comparator = 'at-least' | 'at-most' | 'about';
 type Measure = 'words' | 'chars';
@@ -45,6 +45,8 @@ export function InspectorGoals({ session, node }: { session: ProjectSession; nod
   /** The Edit button that opened the form: Cancel hands the focus back to it, since the Cancel button leaves the page with the form. */
   const opener = useRef<HTMLButtonElement | null>(null);
   const list = useRef<HTMLUListElement>(null);
+  // The goal form saves on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from saving a goal.
+  const ime = useComposingEnter();
 
   const goals = furniture.goals.filter((goal) => goal.nodeId === node.id);
   const probe = goalProbeOf(session, furniture.sessions);
@@ -113,6 +115,7 @@ export function InspectorGoals({ session, node }: { session: ProjectSession; nod
 
   const submit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    if (ime.takesSubmit()) return;
     const amount = Number(target);
     if (!Number.isInteger(amount) || amount <= 0) {
       report({ text: `A goal needs a whole number of ${measured} above zero.`, tone: 'error' });
@@ -182,7 +185,7 @@ export function InspectorGoals({ session, node }: { session: ProjectSession; nod
           );
         })}
       </ul>
-      <form className="goal-add" aria-label={`${editing === null ? 'Add a goal on' : 'Change a goal on'} ${title}`} onSubmit={submit}>
+      <form className="goal-add" aria-label={`${editing === null ? 'Add a goal on' : 'Change a goal on'} ${title}`} onKeyDown={ime.noteKey} onSubmit={submit}>
         <label>
           <span>Comparison</span>
           <select

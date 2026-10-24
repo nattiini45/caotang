@@ -14,6 +14,7 @@ import { riskBadge, type ExternalToolDescriptor, type McpServerConfig, type McpS
 import type { McpApp } from '../app/mcp.js';
 import { mcpServerView, reviewHeading, reviewSummary, STATE_LABEL, toolStatusLabel } from '../app/mcp-model.js';
 import { CatalogReview, CatalogRows } from './McpCatalog.js';
+import { useComposingEnter } from './shared.js';
 
 export function McpSection({ mcp }: { mcp: McpApp }): ReactNode {
   const [, refresh] = useReducer((count: number) => count + 1, 0);
@@ -289,6 +290,8 @@ function AuthLine({ mcp, server }: { mcp: McpApp; server: McpServerConfig }): Re
   const [token, setToken] = useState('');
   const [message, setMessage] = useState<{ text: string; tone: 'info' | 'error' } | null>(null);
   const [, refresh] = useReducer((count: number) => count + 1, 0);
+  // The token form saves on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from saving it.
+  const ime = useComposingEnter();
   useEffect(() => {
     let alive = true;
     void mcp.tokenPresent(server.key).then((value) => {
@@ -309,8 +312,10 @@ function AuthLine({ mcp, server }: { mcp: McpApp; server: McpServerConfig }): Re
       </p>
       <form
         className="mcp-token"
+        onKeyDown={ime.noteKey}
         onSubmit={(event: FormEvent<HTMLFormElement>) => {
           event.preventDefault();
+          if (ime.takesSubmit()) return;
           void mcp.setToken(server.key, token).then((outcome) => {
             if (outcome.ok) {
               setToken('');
@@ -342,9 +347,12 @@ function AddServerForm({ mcp, onAdded }: { mcp: McpApp; onAdded: () => void }): 
   const [sign, setSign] = useState<'none' | 'bearer'>('none');
   const [token, setToken] = useState('');
   const [message, setMessage] = useState<{ text: string; tone: 'info' | 'error' } | null>(null);
+  // The add form saves on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from adding a server.
+  const ime = useComposingEnter();
 
   const submit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    if (ime.takesSubmit()) return;
     void mcp
       .addServer({ name, url, ...(sign === 'bearer' ? { token } : {}) })
       .then((outcome) => {
@@ -361,7 +369,7 @@ function AddServerForm({ mcp, onAdded }: { mcp: McpApp; onAdded: () => void }): 
   };
 
   return (
-    <form className="settings-form mcp-add" aria-label="Add a server" onSubmit={submit} data-testid="mcp-add">
+    <form className="settings-form mcp-add" aria-label="Add a server" onKeyDown={ime.noteKey} onSubmit={submit} data-testid="mcp-add">
       <h4>Add a server</h4>
       <label>
         <span>Name</span>

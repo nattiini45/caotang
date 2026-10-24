@@ -20,6 +20,7 @@ import {
   type ContextSettings,
 } from '../app/settings.js';
 import { PromptPreview } from './PlanCard.js';
+import { useComposingEnter } from './shared.js';
 
 /** Each layer's label and the default the spec gives it for a scene draft (context-assembly §2). */
 const LAYERS: readonly { readonly id: ContextLayerId; readonly label: string; readonly fallback: number }[] = [
@@ -95,9 +96,12 @@ export function ContextSection({ services, session = null }: { services: AppServ
   const [message, setMessage] = useState<string | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const warning = contextWarningOf(draftOf(total, layers));
+  // The budgets save on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from saving them.
+  const ime = useComposingEnter();
 
   const save = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    if (ime.takesSubmit()) return;
     const totalValue = readBudget(total, CONTEXT_TOTAL_MIN, CONTEXT_TOTAL_MAX);
     if (totalValue === undefined) {
       setMessage(`The whole prompt is a whole number of tokens from ${WORDS_OF(CONTEXT_TOTAL_MIN)} to ${WORDS_OF(CONTEXT_TOTAL_MAX)}, or empty for the profile's default.`);
@@ -127,7 +131,7 @@ export function ContextSection({ services, session = null }: { services: AppServ
         What the agent may send the model in one request, in tokens. An empty field keeps the default of the profile and the spec. A
         change applies from the agent’s next request.
       </p>
-      <form className="profile-form" onSubmit={save} aria-label="Context budgets">
+      <form className="profile-form" onKeyDown={ime.noteKey} onSubmit={save} aria-label="Context budgets">
         <label>
           <span>Whole prompt</span>
           <input
