@@ -216,6 +216,34 @@ test('a settings form saves on the ordinary Enter and never on the composing one
   await expect(form).toHaveCount(0);
 });
 
+test('a composing Enter that caused no submit leaves no mark behind to swallow a later Save click', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = page.getByTestId('settings');
+  await settings.locator('[data-profile="Demo (no key)"]').getByRole('button', { name: 'Edit' }).click();
+  const form = settings.getByRole('form', { name: 'Edit provider' });
+  const name = form.getByLabel('Name');
+  await name.fill('Demo, clicked');
+
+  // A composing Enter whose keydown causes no submit at all: a synthetic keydown has no default action, so nothing consumes
+  // the mark the keydown sets. The mark clears at the end of the keydown's own task (useComposingEnter).
+  await compositionStart(name);
+  for (const kind of BOTH) await composingKeyDown(name, kind);
+  await page.waitForTimeout(50);
+  // The keydown saved nothing: the form still holds the typed name.
+  await expect(form).toBeVisible();
+  await expect(settings.getByText('Saved “Demo, clicked”.')).toHaveCount(0);
+
+  // An ordinary click on Save, not an Enter. The dropped mark must not swallow it: one save, one renamed card, form closed.
+  await form.getByRole('button', { name: 'Save profile' }).click();
+  await expect(settings.getByText('Saved “Demo, clicked”.')).toHaveCount(1);
+  await expect(settings.locator('[data-profile="Demo, clicked"]')).toHaveCount(1);
+  await expect(form).toHaveCount(0);
+
+  // The form and its field went with the save, so the composition ends on the Settings panel, which stays.
+  await compositionEnd(settings);
+});
+
 test('the binder’s saved-filter name saves on the ordinary Enter and never on the composing one', async ({ page }) => {
   await createProject(page, 'IME Filter');
   await page.getByRole('searchbox', { name: 'Filter the binder by text' }).fill('scene');
