@@ -13,6 +13,9 @@
  * 4. **Pseudo is a dev/test catalogue.** It is padded, bracketed and accented, the RTL one reads right
  *    to left, and the production branch refuses pseudo tags before any import. The no-pseudo-chunk claim
  *    about `dist/` is checked by `e2e/prod-smoke.spec.ts`, which runs after a build.
+ * 5. **English is the per-message fallback.** An id the active catalogue does not translate renders its
+ *    compiled English message; a translated id still wins; activating English again replaces the
+ *    previously active catalogue.
  */
 import { i18n } from '@lingui/core';
 import { readFileSync } from 'node:fs';
@@ -23,6 +26,7 @@ import { directionOf, formatLocale } from '../packages/i18n/src/index.js';
 import linguiConfig from '../lingui.config.js';
 import {
   activateCatalogue,
+  activateEnglish,
   activeTag,
   catalogueForTag,
   catalogueIdForTag,
@@ -31,6 +35,7 @@ import {
   PseudoCatalogueUnavailableError,
   tagForCatalogueId,
   UnknownCatalogueError,
+  withEnglishFallback,
 } from '../apps/desktop/src/i18n/runtime.js';
 import { fixtureMessage, witnessMessage } from './fixtures/i18n-macro.js';
 
@@ -71,6 +76,32 @@ describe('the English catalogue is the compiled source catalogue', () => {
     expect(activate, 'main.tsx calls activateEnglish()').toBeGreaterThanOrEqual(0);
     expect(render, 'main.tsx mounts the app').toBeGreaterThanOrEqual(0);
     expect(activate, 'activation happens before the first render').toBeLessThan(render);
+  });
+});
+
+describe('a locale falls back to English per message', () => {
+  it('renders the compiled English message for an id the active catalogue does not translate', () => {
+    // A synthetic catalogue stands in for a partly translated locale. The compiled pseudo catalogues
+    // cover every id, so this direction cannot be shown with them; the merge is the same one
+    // `loadMessages`/`activateCatalogue` apply.
+    i18n.load('fallback-test', withEnglishFallback({}));
+    i18n.activate('fallback-test');
+    expect(i18n._(WITNESS_ID)).toBe('Settings');
+  });
+
+  it('lets a translated id win over the English fallback', () => {
+    i18n.load('fallback-test', withEnglishFallback({ [WITNESS_ID]: ['Traduction'] }));
+    i18n.activate('fallback-test');
+    expect(i18n._(WITNESS_ID)).toBe('Traduction');
+  });
+
+  it('activateEnglish() replaces whichever catalogue was active and restores the English text', async () => {
+    await activateCatalogue('en-XA');
+    expect(i18n._(WITNESS_ID)).not.toBe('Settings');
+
+    activateEnglish();
+    expect(activeTag()).toBe('en');
+    expect(i18n._(WITNESS_ID)).toBe('Settings');
   });
 });
 

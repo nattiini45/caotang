@@ -31,8 +31,9 @@ export default defineConfig({
   // Line numbers move on every edit and are not evidence a translation is stale; the origin (file) stays.
   format: formatter({ lineNumbers: false }),
   pseudoLocale: [
-    // Accented and padded by 40%, bracketed so a truncated label shows its cut. The padding character is
-    // a letter, so a padded label is one unbroken run rather than a gap the layout can wrap (P10).
+    // Accented and padded by 40% in total (half on each side), bracketed so a truncated label shows its
+    // cut. The padding character is a letter, so a padded label is one unbroken run rather than a gap
+    // the layout can wrap (P10).
     { locale: 'pseudo-LOCALE', prepend: '⟦', append: '⟧', extend: 0.4, extendCharacter: 'ẍ' },
     { locale: 'pseudo-RTL', prepend: '⟦', append: '⟧', extend: 0.4, extendCharacter: 'ẍ', rightToLeft: true },
   ],

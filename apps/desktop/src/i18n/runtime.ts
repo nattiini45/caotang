@@ -1,9 +1,11 @@
 /**
  * The interface's catalogue runtime ([i18n.md §3.2–§3.3, §8.1](docs/architecture/i18n.md)).
  *
- * **English is compiled into the entry.** The `en` catalogue is a static import, and
- * {@link activateEnglish} loads and activates it before `main.tsx` renders anything, so there is no
- * flash of an id and a missing message falls back to the compiled English one.
+ * **English is compiled into the entry and is the per-message fallback.** The `en` catalogue is a
+ * static import, and {@link activateEnglish} loads and activates it before `main.tsx` renders
+ * anything. Every other catalogue is laid over it by {@link withEnglishFallback} before activation, so
+ * an id with no translation renders its English sentence; Lingui's `_` reads only the active locale,
+ * so the merge is what makes that true.
  *
  * **Other catalogues are loaded, then activated.** {@link activateCatalogue} rejects for a tag it has
  * no catalogue for and, for a catalogue it can load, activates only after the import has resolved. L4
@@ -108,13 +110,26 @@ async function importPseudo(id: string): Promise<Messages> {
 }
 
 /**
- * The compiled messages for a tag. An unknown tag rejects; so does a pseudo tag in production. The
- * English catalogue is the synchronous one already in the entry.
+ * A locale's compiled catalogue laid over the compiled English source.
+ *
+ * Lingui 6.10.1's `i18n._` reads only the active locale: `activate(locale, locales)` does not make it
+ * fall back, and an id absent from the active catalogue renders the raw id (which is a generated hash,
+ * not a sentence). Spreading English first makes every untranslated id render its English message,
+ * while a translation still wins because it is spread last.
+ */
+export function withEnglishFallback(messages: Messages): Messages {
+  return { ...enMessages, ...messages };
+}
+
+/**
+ * The messages a tag renders with. An unknown tag rejects; so does a pseudo tag in production. Every
+ * catalogue is merged over the compiled English one, so a missing message is an English sentence rather
+ * than a raw id. The English catalogue itself is the synchronous one already in the entry.
  */
 export async function loadMessages(tag: string, dev: boolean = import.meta.env.DEV): Promise<Messages> {
   const catalogue = catalogueForTag(tag, dev);
-  if (catalogue.id === ENGLISH.id) return enMessages;
-  return importPseudo(catalogue.id);
+  if (catalogue.id === ENGLISH.id) return withEnglishFallback(enMessages);
+  return withEnglishFallback(await importPseudo(catalogue.id));
 }
 
 /**
