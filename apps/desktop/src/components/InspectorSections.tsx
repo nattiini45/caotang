@@ -7,7 +7,6 @@
 
 import { useState, type ReactNode } from 'react';
 import { SCENE_STYLES, THREAD_ID_LIMIT, THREAD_NOTE_LIMIT, TIMELINE_MODES, type KnowledgeLinkRecord, type ScenePatch, type SceneThread } from '@caotang/bus';
-import { collatorFor } from '@caotang/i18n';
 import type { CodexEntry, TreeNode } from '@caotang/store';
 
 import { attachEntry, explain, setSceneStyle } from './actions.js';
@@ -15,7 +14,7 @@ import { afterCandidates, dialogueContainerChoices, modeLabel, povCandidates, sc
 import { characterCandidates, pairWords } from '../app/knowledge-model.js';
 import { isImeEnter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
-import { formatterLocale } from '../i18n/format-locale.js';
+import { projectCollator } from '../i18n/project-collator.js';
 import { useStoreDraft } from './store-draft.js';
 import { useReport, useSession } from './shared.js';
 
@@ -161,7 +160,7 @@ export function CodexSection({
 }
 
 function byNameOf(projectLanguage: string | undefined): (a: CodexEntry, b: CodexEntry) => number {
-  const collator = collatorFor(projectLanguage ?? formatterLocale());
+  const collator = projectCollator(projectLanguage);
   return (a, b) => collator.compare(a.name, b.name);
 }
 

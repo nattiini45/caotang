@@ -14,7 +14,6 @@
  */
 
 import { CODEX_TYPE_ORDER, createMentionIndex, type MentionIndex } from '@caotang/codex';
-import { collatorFor } from '@caotang/i18n';
 import {
   getBody,
   getRevision,
@@ -24,7 +23,7 @@ import {
   type TreeNode,
 } from '@caotang/store';
 
-import { formatterLocale } from '../i18n/format-locale.js';
+import { projectCollator } from '../i18n/project-collator.js';
 import { childrenOf } from './binder-model.js';
 
 /** codex.md §2's type names, for a person. The enum itself is the store's. */
@@ -93,7 +92,7 @@ export function groupByType(entries: readonly CodexEntry[], projectLanguage?: st
     const at = CODEX_TYPE_ORDER.indexOf(type);
     return at === -1 ? CODEX_TYPE_ORDER.length : at;
   };
-  const byName = collatorFor(projectLanguage ?? formatterLocale());
+  const byName = projectCollator(projectLanguage);
   const ordered = [...entries].sort(
     (a, b) =>
       rank(a.type) - rank(b.type) ||

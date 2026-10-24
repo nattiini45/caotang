@@ -75,7 +75,7 @@ A comic script is `docs/<id>.md` with `kind: 'comic-script'`, the industry plain
 | `comic.letter` | write-auto · inverse | Balloon text from script lines. |
 | `comic.scriptFromPages {nodeId}` | write-confirm · compensable | Creates or updates the script document and its link as one undo group. |
 
-None of these is in `ACCEPT_EDITS_TOOLS`: *Accept edits* asks for `comic.derive` and `comic.scriptFromPages`, *Auto* approves them as native cards, and a delegated agent may stage them but never apply them. `comic.balloon-coverage` and `comic.balloon-density` are deterministic checks, not commands and not tools.
+**The four write-auto commands join `ACCEPT_EDITS_TOOLS` when they land** (`comic.createBook`, `comic.setPage`, `comic.setScript`, `comic.letter`), so *Accept edits* approves them as shown; `comic.derive` and `comic.scriptFromPages` are `write-confirm` and not in the list, so *Accept edits* asks for them, *Auto* approves them as native cards, and a delegated agent may stage them but never apply them. `comic.balloon-coverage` and `comic.balloon-density` are deterministic checks, not commands and not tools.
 
 ### 3.3 Page editor
 

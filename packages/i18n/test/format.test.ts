@@ -131,4 +131,17 @@ describe('sorting (§4.3)', () => {
     expect([...names].sort((a, b) => collatorFor('sv').compare(a, b))).toEqual(['zebra', 'åland', 'äpple', 'öre']);
     expect([...names].sort((a, b) => collatorFor('en').compare(a, b))).toEqual(['åland', 'äpple', 'öre', 'zebra']);
   });
+
+  it('never throws on a tag Intl cannot read: an unreadable project language sorts like English', () => {
+    // §3.2: only valid tags reach Intl. A loaded project can carry one that is not (`en_US`, `en-a`), and a list must still render.
+    for (const tag of ['', '   ', 'not a tag', 'en_US', 'en-a', 'en-1']) {
+      expect(() => collatorFor(tag), JSON.stringify(tag)).not.toThrow();
+      expect(collatorFor(tag).compare('a', 'A'), JSON.stringify(tag)).toBe(0);
+    }
+    expect(collatorFor('not a tag')).toBe(collatorFor('en'));
+  });
+
+  it('caches a readable tag by its canonical form, so case does not build a second collator', () => {
+    expect(collatorFor('EN-gb')).toBe(collatorFor('en-GB'));
+  });
 });

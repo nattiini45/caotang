@@ -12,8 +12,10 @@
  * keeps no storage, a full quota or a value this build did not write.
  */
 
+import { dateFormat } from '@caotang/i18n';
 import type { ProjectState } from '@caotang/store';
 
+import { formatterLocale } from '../i18n/format-locale.js';
 import type { Shadow } from './persistence-plan.js';
 
 /** The storage key prefix. The key is the prefix and the project id, so two projects never share a copy. */
@@ -330,6 +332,15 @@ function isUnsentEntry(value: unknown): value is UnsentEntry {
   if (typeof entry.stopId !== 'string' || typeof entry.savedAt !== 'string' || !Array.isArray(entry.documents)) return false;
   if (entry.origin !== undefined && entry.origin !== 'reload') return false;
   return entry.documents.every(isUnsentDocument);
+}
+
+/**
+ * The time a kept-words entry shows, in the formatter locale (i18n.md §4.1, D3), and `''` when the stored stamp does not parse.
+ * The decision lives here so a model test can pin what a British, American or German interface reads.
+ */
+export function unsentStamp(savedAt: string, locale: string = formatterLocale()): string {
+  if (Number.isNaN(Date.parse(savedAt))) return '';
+  return dateFormat(locale, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(savedAt));
 }
 
 function isUnsentDocument(value: unknown): value is UnsentDocument {

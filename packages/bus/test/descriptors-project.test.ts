@@ -112,6 +112,21 @@ describe('project.setMetadata', () => {
     expect(check(projectCommands.projectSetMetadata.validate, { patch: { language: null } })).toMatchObject({ ok: false });
   });
 
+  it('accepts the BCP-47 tags a writer uses, including a script and a region', () => {
+    for (const language of ['en', 'de', 'en-GB', 'zh-Hant-TW', 'pt-BR']) {
+      const out = check(projectCommands.projectSetMetadata.validate, { patch: { language } });
+      expect(out, language).toEqual({ ok: true, value: { patch: { language } } });
+    }
+  });
+
+  it('refuses a subtag shape Intl cannot read, so an unreadable tag is never written and never reaches a collator', () => {
+    // The old pattern (2–3 letters, then 1–8 alphanumerics) accepted `en-a`, `en-1` and `en-GB-oed`; Intl rejects all three.
+    for (const language of ['en-a', 'en-1', 'en-abc', 'en-GB-oed']) {
+      const out = check(projectCommands.projectSetMetadata.validate, { patch: { language } });
+      expect(out, language).toMatchObject({ ok: false, code: 'invalid-params', target: 'patch.language' });
+    }
+  });
+
   it('refuses an ISBN with a bad check digit, naming the field', () => {
     const out = check(projectCommands.projectSetMetadata.validate, { patch: { isbn: '978-0-306-40615-8' } });
     expect(out).toMatchObject({ ok: false, target: 'patch.isbn' });

@@ -39,7 +39,7 @@ describe('resolveUiLocale: a shipped catalogue, or the system when it is shipped
 
   it('resolves a stored tag that is no longer shipped through the system rather than returning it', () => {
     // A stored `fr` that is now below the release gate resolves like `system`; the picker's own
-    // thresholds are L4/L11's concern, and this function is handed the already-shipped list (§3.2).
+    // thresholds are I4/I13’s concern, and this function is handed the already-shipped list (§3.2).
     expect(resolveUiLocale('fr', ['de-CH'], ['en', 'de'])).toBe('de');
     expect(resolveUiLocale('fr', ['en-GB'], ['en', 'de'])).toBe('en');
   });

@@ -108,14 +108,28 @@ export function displayNames(locale: string, type: Intl.DisplayNamesType = 'lang
 }
 
 /**
+ * The tag a sort can use: canonical, or English when Intl cannot read the input. A project's language is
+ * loaded from its file, and a hand-edited or foreign folder can carry `en_US` or `en-a`; a list must still
+ * render, so an unreadable tag sorts like English rather than throwing during a render (§3.2, §4.3).
+ */
+function readableTag(tag: string): string {
+  try {
+    return Intl.getCanonicalLocales(tag)[0] ?? 'en';
+  } catch {
+    return 'en';
+  }
+}
+
+/**
  * The collator for a tag (§4.3, D9): base sensitivity (case and accents do not decide) and numeric
  * ordering ("Chapter 10" after "Chapter 9"). Writer content passes the **project language**; UI terms
- * pass the formatter locale.
+ * pass the formatter locale. A readable tag is cached in its canonical form.
  */
 export function collatorFor(tag: string): Intl.Collator {
-  const cached = COLLATORS.get(tag);
+  const locale = readableTag(tag);
+  const cached = COLLATORS.get(locale);
   if (cached !== undefined) return cached;
-  const made = new Intl.Collator(tag, { sensitivity: 'base', numeric: true });
-  COLLATORS.set(tag, made);
+  const made = new Intl.Collator(locale, { sensitivity: 'base', numeric: true });
+  COLLATORS.set(locale, made);
   return made;
 }

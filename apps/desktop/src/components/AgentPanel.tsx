@@ -27,7 +27,7 @@ import type { ProjectState } from '@caotang/store';
 import { DEMO_CHOICES } from '../app/demo.js';
 import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, MODE_HINTS, phaseLabel, spendLine, type DelegationCardView, type TurnView } from '../app/agent-model.js';
 import { formatUsd, turnCostOf } from '../app/plan-preview.js';
-import { isImeEnter, resolveKey, shortcutLabel, type CompositionFacts } from '../app/keymap.js';
+import { isImeEnter, resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
 import type { AgentController, AgentSnapshot } from '../app/agent.js';
 import type { StartIntent } from '../App.js';
@@ -96,9 +96,8 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
   const submit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
     // A form's Enter submission does not reach resolveKey, so it is guarded again here. A SubmitEvent carries no composition
-    // fact of its own, so the mark from the form's keydown says when this submit *is* the candidate-commit Enter; the
-    // nativeEvent check stays as the direct reading the brief asks for.
-    if (intentIme.takesSubmit() || isImeEnter(event.nativeEvent as CompositionFacts)) return;
+    // fact of its own, so the mark the form's keydown left is the only fact this guard can read.
+    if (intentIme.takesSubmit()) return;
     const text = intent.trim();
     if (text === '') return;
     setIntent('');

@@ -91,7 +91,7 @@ The panel on the right shows the selected item:
 - **Synopsis**: a short summary, up to 2,000 characters. It saves when you pause typing.
 - **Notes**: free-form notes on a scene, kept out of the manuscript. Folders have no notes.
 - **Keywords**: type one and press Enter.
-- **Goals**: for a folder, or for the manuscript. Choose the **Comparison** (**At least**, **At most** or **About**) and the **Measure** (**Words** or **Characters**), type the target, and choose an optional **By** date for a project goal. On the manuscript, **Kind** also offers **Weekly** and **Monthly**. A weekly or monthly goal counts the words of the sessions that ended in the current week or month, across all your projects in this browser. Choose when it starts with **Week starts on** (the first day of the week where you live, unless you pick another day) or **Month starts on** (the 1st, unless you pick a day up to the 28th or the last day of the month). Choose **Add goal**, then **Edit** or **Remove** beside a goal to change or delete it.
+- **Goals**: for a folder, or for the manuscript. Choose the **Comparison** (**At least**, **At most** or **About**) and the **Measure** (**Words** or **Characters**), type the target, and choose an optional **By** date for a project goal. On the manuscript, **Kind** also offers **Weekly** and **Monthly**. A weekly or monthly goal counts the words of the sessions that ended in the current week or month, across all your projects in this browser. Choose when it starts with **Week starts on** (the first day of the week for your interface language and region, unless you pick another day) or **Month starts on** (the 1st, unless you pick a day up to the 28th or the last day of the month). Choose **Add goal**, then **Edit** or **Remove** beside a goal to change or delete it.
 - **Status and label**: the menus described above.
 - **Export style**: for a scene, **Normal** or **Section**. A scene marked **Section** prints its title as a heading above it when you export (see [Export](#export)). **Normal** clears it. Undo puts the last choice back.
 - **Codex**: the codex entries attached to the item, with **Attach a codex entry**. The **Mentioned in this document** list shows the codex names the text contains.
@@ -373,6 +373,8 @@ Choose **Settings** on the projects screen or in the toolbar. It has eight secti
 ## Keyboard
 
 On a Mac, Cmd takes the place of Ctrl. The element chords are the one exception: they use Cmd+Alt, because Cmd+Shift+3 and Cmd+Shift+4 take screenshots.
+
+A shortcut follows the letter your keyboard layout prints, and falls back to the key's position when the layout prints no Latin letter, so Ctrl+N is the same keystroke on a Russian, Greek, Hebrew or Arabic keyboard. A character your layout types with AltGr, such as `@` on a German keyboard, is never taken as a shortcut. While you are composing with an input method, the Enter that commits a candidate does not send, save or open anything; the next Enter does.
 
 | Key | What it does |
 |---|---|

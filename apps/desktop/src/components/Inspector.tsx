@@ -9,7 +9,6 @@
  */
 
 import { useState, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
-import { collatorFor } from '@caotang/i18n';
 import type { ProjectState, TreeNode } from '@caotang/store';
 
 import { isContainer, nodeById, wordCountOf } from '../app/binder-model.js';
@@ -17,7 +16,7 @@ import { isImeEnter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
 import { DEMO_CHOICES } from '../app/demo.js';
 import { hasDivider, splitNotes } from '../app/notes-model.js';
-import { formatterLocale } from '../i18n/format-locale.js';
+import { projectCollator } from '../i18n/project-collator.js';
 import { InspectorGoals } from './InspectorGoals.js';
 import { SynopsisField } from './SynopsisField.js';
 import { openDialog } from './dialog-requests.js';
@@ -293,7 +292,7 @@ function allKeywords(state: ProjectState): string[] {
       if (!seen.has(key)) seen.set(key, keyword);
     }
   }
-  return [...seen.values()].sort(collatorFor(state.manifest.project.language ?? formatterLocale()).compare);
+  return [...seen.values()].sort(projectCollator(state.manifest.project.language).compare);
 }
 
 /**

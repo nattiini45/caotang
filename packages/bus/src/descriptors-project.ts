@@ -48,8 +48,18 @@ export const AUTHOR_MAX = 200;
  */
 export const CHAR_LIMIT_MAX = 10_000;
 
-/** BCP-47 as far as a writer needs it: a primary subtag and any number of subtags after it (`en`, `en-GB`, `zh-Hant-TW`). */
-const LANGUAGE_PATTERN = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8})*$/;
+/**
+ * The canonical form of a BCP-47 language tag, or undefined when the engine cannot read it. A pattern
+ * alone accepted `en-a`, `en-1` and `en-GB-oed`, which Intl rejects; the tag is used by collators, EPUB
+ * `dc:language` and the PDF shapers, so the write boundary asks Intl rather than approximating it.
+ */
+function readableLanguage(tag: string): string | undefined {
+  try {
+    return Intl.getCanonicalLocales(tag)[0];
+  } catch {
+    return undefined;
+  }
+}
 const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 /** The shape of an asset id (storyboard.md §2.2: `a_` and ten Crockford base32 characters). */
 export const ASSET_ID_PATTERN = /^a_[0-9A-HJKMNP-TV-Z]{10}$/;
@@ -254,7 +264,7 @@ export const projectSetMetadata: CommandDescriptor<ProjectSetMetadataParams> = {
 
     if (patch['language'] !== undefined) {
       const language = patch['language'];
-      if (typeof language !== 'string' || !LANGUAGE_PATTERN.test(language.trim())) {
+      if (typeof language !== 'string' || readableLanguage(language.trim()) === undefined) {
         return invalid(
           `${showValue(language)} is not a language tag`,
           'use a BCP-47 tag such as en, de or en-GB',

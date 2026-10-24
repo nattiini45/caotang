@@ -21,11 +21,12 @@ import {
   type SceneMeta,
   type ScopeSpec,
 } from '@caotang/coherence';
-import { collatorFor, dateFormat, numberFormat } from '@caotang/i18n';
+import { dateFormat, numberFormat } from '@caotang/i18n';
 import { captureTextAnchor } from '@caotang/storyboard';
 import { getBody, getRevision, type CodexEntry, type ProjectState } from '@caotang/store';
 
 import { formatterLocale } from '../i18n/format-locale.js';
+import { projectCollator } from '../i18n/project-collator.js';
 import { childrenOf } from './binder-model.js';
 import { containersOf } from './coherence-facts.js';
 
@@ -403,7 +404,7 @@ export function afterCandidates(state: ProjectState, docId: string): { id: strin
  * interface. A project that names no language yet falls back to the formatter locale.
  */
 export function povCandidates(entries: readonly CodexEntry[], projectLanguage?: string): CodexEntry[] {
-  const byName = collatorFor(projectLanguage ?? formatterLocale());
+  const byName = projectCollator(projectLanguage);
   return [...entries].sort((a, b) => {
     const rank = (entry: CodexEntry): number => (entry.type === 'character' ? 0 : 1);
     return rank(a) - rank(b) || byName.compare(a.name, b.name);

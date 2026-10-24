@@ -18,6 +18,7 @@ import {
   subscribeStop,
   unsentDocuments,
   unsentKey,
+  unsentStamp,
   writeUnsentEntry,
   type UnsentDocument,
   type UnsentStorage,
@@ -384,4 +385,11 @@ test.describe('putting the kept words back (putBackDocuments, restoreStep, unsen
     expect(failure).toBeNull();
     expect(made).toEqual([]);
   });
+});
+
+test('the kept-words stamp is written in the formatter locale, and an unreadable one is left blank', () => {
+  // A local stamp, so the reading does not depend on the machine's timezone.
+  expect(unsentStamp('2026-10-08T09:00:00', 'en-US')).toBe('Oct 8, 2026, 9:00:00 AM');
+  expect(unsentStamp('2026-10-08T09:00:00', 'de-DE')).toBe('08.10.2026, 09:00:00');
+  expect(unsentStamp('not a stamp', 'en-US')).toBe('');
 });

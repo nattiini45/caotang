@@ -20,7 +20,6 @@ import {
   type TaskRole,
   type ThinkingLevel,
 } from '@caotang/gateway';
-import { timeFormat } from '@caotang/i18n';
 import { snapshotBudget, type RuntimeStore, type SnapshotBudget } from '@caotang/store';
 
 import type { AppServices } from '../app/services.js';
@@ -36,9 +35,9 @@ import {
   type RoleSettings,
 } from '../app/settings.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
+import { timeLabel } from '../app/activity-model.js';
 import { DEMO_PROFILE_NAME, priceClearedBy, priceFromInputs } from '../app/providers.js';
 import { capsLine, modelDetails } from '../app/provider-details.js';
-import { formatterLocale } from '../i18n/format-locale.js';
 import { CoherenceSection } from './CoherenceSettings.js';
 import { AgentModeSettings } from './AgentModeSettings.js';
 import { ContextSection } from './ContextSection.js';
@@ -952,7 +951,7 @@ function RequestLogPanel({ services }: { services: AppServices }): ReactNode {
           <tbody>
             {entries.map((entry, index) => (
               <tr key={`${entry.at}:${index}`} data-outcome={entry.outcome}>
-                <td>{timeFormat(formatterLocale()).format(new Date(entry.at))}</td>
+                <td>{timeLabel(entry.at)}</td>
                 <td>{names.get(entry.profileId) ?? entry.profileId}</td>
                 <td>{entry.attempt}</td>
                 <td>{entry.outcome}</td>

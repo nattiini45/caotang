@@ -3,7 +3,7 @@
  *
  * They live in the app's model layer rather than inside `components/shared.tsx` so a model test can pin their output
  * without a React render; `shared.tsx` re-exports them, which is where the panels import them from. The number is
- * grouped by the formatter locale (the app's accessor, `i18n/format-locale.ts`), and the noun stays English until L6
+ * grouped by the formatter locale (the app's accessor, `i18n/format-locale.ts`), and the noun stays English until I5/I6
  * converts the strings to ICU.
  */
 

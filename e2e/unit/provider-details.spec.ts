@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-import { modelDetails } from '../../apps/desktop/src/app/provider-details.js';
+import { PRESETS } from '../../packages/gateway/src/index.js';
+import { capsLine, modelDetails } from '../../apps/desktop/src/app/provider-details.js';
 
 /**
  * The provider picker's model line (provider-gateway §2) formats in the formatter locale (i18n.md §4.1, §4.2). The capability
@@ -25,4 +26,11 @@ test('a German system groups with dots and writes the amount before the currency
 
 test('a model with no window and no price has no line at all', () => {
   expect(modelDetails({ id: 'bare' }, 'de-DE')).toBe('');
+});
+
+test('a capability line groups its window by the formatter locale, in the sentence around it', () => {
+  const anthropic = PRESETS.find((preset) => preset.id === 'anthropic');
+  if (anthropic === undefined) throw new Error('the Anthropic preset is missing');
+  expect(capsLine(anthropic, 'claude-sonnet-5-5', 'en-US')).toContain('1,000,000-token window');
+  expect(capsLine(anthropic, 'claude-sonnet-5-5', 'de-DE')).toContain('1.000.000-token window');
 });

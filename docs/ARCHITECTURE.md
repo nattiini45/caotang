@@ -125,7 +125,7 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 
 ### 2.20 `i18n` 🧭
 - **Responsibility:** one interface language, kept apart from the project (content) language: compiled message catalogs with a per-message English fallback, locale-aware formatting and sorting, a mirrored right-to-left interface, the agent writing to the writer in the interface language, translatable finding and notice text, and export boilerplate in the project language.
-- **Owns:** `packages/i18n` (locale resolution, `Intl` formatters, collation, bidi isolation, the `MessageRef` type), the desktop catalogs under `apps/desktop/src/i18n/`, the interface-language app setting. Specified, not built.
+- **Owns:** `packages/i18n` (locale resolution, `Intl` formatters, collation, bidi isolation, the `MessageRef` type), the desktop catalogs under `apps/desktop/src/i18n/`, the interface-language app setting. The pure contracts and the app's formatter accessor are built (I2); the catalogs, the language setting and RTL are specified, not built.
 - **Spec:** [architecture/i18n.md](architecture/i18n.md).
 
 ## 3. Data model (sketch)
