@@ -35,10 +35,13 @@
     "@caotang/storyboard": "workspace:*",
     "@caotang/store": "workspace:*",
     "@caotang/video-prompt-pack": "workspace:*",
+    "@lingui/core": "6.10.1",
+    "@lingui/react": "6.10.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
   "devDependencies": {
+    "@lingui/vite-plugin": "6.10.1",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0"
   }

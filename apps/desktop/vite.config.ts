@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import { lingui } from '@lingui/vite-plugin';
 import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
 
@@ -88,7 +89,10 @@ function vendorChunkOf(id: string): string | null {
 
 export default defineConfig(({ command }) => ({
   base: BASE,
-  plugins: [react(), thirdPartyNotices(), devCsp()],
+  // `macroTransform` is Lingui's native transform (no Babel/SWC plugin): it compiles `msg`/`<Trans>` in the
+  // app's `.tsx` and turns import of a `.po` file into that locale's compiled message catalogue. The same
+  // option is set in vitest.config.ts, so the macro contract is one transform in both pipelines.
+  plugins: [lingui({ macroTransform: true, failOnCompileError: true }), react(), thirdPartyNotices(), devCsp()],
   ...(command === 'serve' ? { html: { cspNonce: DEV_NONCE } } : {}),
   server: {
     // Bind the IPv4 loopback explicitly. Vite otherwise binds ::1 (IPv6) only on

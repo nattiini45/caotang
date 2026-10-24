@@ -4,6 +4,7 @@
  * this browser. Nothing here is a project edit: each action is a lifecycle operation.
  */
 
+import { Trans } from '@lingui/react/macro';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
 import type { RuntimeStore } from '@caotang/store';
 
@@ -347,7 +348,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
         <div className="home-title">
           <h1>Caotang</h1>
           <button type="button" className="button" onClick={() => setSettings('providers')}>
-            Settings
+            <Trans>Settings</Trans>
           </button>
         </div>
         <p className="lede">A writing studio that keeps your work on this device.</p>

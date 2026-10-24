@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
 
@@ -92,6 +93,41 @@ test('the built app opens on the projects screen with no console errors and no f
   await expect(page.getByRole('heading', { name: 'No projects here yet' })).toBeVisible();
   expect(problems).toEqual([]);
   expect(await violations(page)).toEqual([]);
+});
+
+/**
+ * The transform witness in the production build, and the pseudo catalogues' absence from it.
+ *
+ * `Settings` is the one string L2 converts with a Lingui macro (`components/Home.tsx`). It is rendered
+ * from the compiled `en` catalogue that the entry imports, so seeing the English text proves the Vite
+ * transform ran and the catalogue is present. `?pseudo=1` is the dev/test flag: a production build must
+ * refuse it (the loader's production branch does), request no pseudo chunk and carry no pseudo text.
+ * The asset scan is the output half of that contract; the unit tests prove the loader's half.
+ */
+test('the built app renders the transform witness in English, and a pseudo request stays English with no pseudo catalogue in the build', async ({ page }) => {
+  const problems = await watchForProblems(page);
+  const chunks = watchChunks(page);
+  await page.goto('/?pseudo=1');
+  await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'No projects here yet' })).toBeVisible();
+  expect(chunks().filter((name) => name.toLowerCase().includes('pseudo'))).toEqual([]);
+  expect(problems).toEqual([]);
+  expect(await violations(page)).toEqual([]);
+
+  // The build's output, not just its behaviour: no pseudo catalogue file, and neither pseudo rendering
+  // of the witness (the accented padded one, with the RTL override marks) is in any shipped script.
+  const assets = resolve(process.cwd(), 'apps/desktop/dist/assets');
+  const files = readdirSync(assets);
+  expect(files.filter((file) => file.toLowerCase().includes('pseudo'))).toEqual([]);
+  const pseudoLtr = '⟦ẍŚēţţĩńĝśẍ⟧';
+  const pseudoRtl = '⟦ẍẍ\u202ESǝʇʇıuƃs\u202Cẍẍ⟧';
+  const offenders = files
+    .filter((file) => file.endsWith('.js'))
+    .filter((file) => {
+      const text = readFileSync(join(assets, file), 'utf8');
+      return text.includes(pseudoLtr) || text.includes(pseudoRtl);
+    });
+  expect(offenders, 'no shipped script carries a pseudo catalogue entry').toEqual([]);
 });
 
 test('the built app carries its Content-Security-Policy, unchanged', async ({ page }) => {
