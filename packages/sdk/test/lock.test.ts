@@ -62,6 +62,34 @@ function clearLock(root: string): void {
   }
 }
 
+/** The body of a lock or a takeover marker, as a writer this test speaks for leaves it. */
+function lockBody(pid: number, token: string): string {
+  return JSON.stringify({ pid, token, startedAt: new Date().toISOString() });
+}
+
+/**
+ * An exclusive create of `name`, refused with `code` once and then handed to the real
+ * filesystem, or on every attempt. Only a `wx` create is intercepted, so the fake models the
+ * exclusive create and not every open of that path. `attempts` reads the number of tries, so a
+ * test can pin the bound or its absence.
+ */
+function refusedExclusiveCreate(
+  name: string,
+  code: string,
+  mode: 'once' | 'always',
+): { readonly open: typeof realFs.open; readonly attempts: () => number } {
+  let attempts = 0;
+  return {
+    attempts: () => attempts,
+    open: (async (target: string, flags: string) => {
+      if (String(target) !== name || flags !== 'wx') return realFs.open(target, flags as never);
+      attempts += 1;
+      if (mode === 'once' && attempts > 1) return realFs.open(target, flags as never);
+      throw Object.assign(new Error(`${code}: refused, open '${target}'`), { code });
+    }) as unknown as typeof realFs.open,
+  };
+}
+
 describe('the project lock', () => {
   let root: string;
 
@@ -98,7 +126,7 @@ describe('the project lock', () => {
 
   it('takes over a lock whose holder has exited', async () => {
     const pid = await deadPid();
-    writeFileSync(join(root, LOCK_FILE), JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() }));
+    writeFileSync(join(root, LOCK_FILE), lockBody(pid, 'gone'));
     const lock = await acquireProjectLock(root);
     const holder = JSON.parse(readFileSync(join(root, LOCK_FILE), 'utf8')) as { pid: number };
     expect(holder.pid).toBe(process.pid);
@@ -107,7 +135,7 @@ describe('the project lock', () => {
 
   it('does not remove a lock it no longer holds', async () => {
     const lock = await acquireProjectLock(root);
-    writeFileSync(join(root, LOCK_FILE), JSON.stringify({ pid: process.pid, token: 'someone-else', startedAt: 'x' }));
+    writeFileSync(join(root, LOCK_FILE), lockBody(process.pid, 'someone-else'));
     await lock.release();
     expect(existsSync(join(root, LOCK_FILE))).toBe(true);
     lock.releaseSync();
@@ -169,7 +197,7 @@ describe('the project lock', () => {
     // takeover at the same moment, which is the window the takeover has to close.
     for (let round = 0; round < 40; round += 1) {
       const racing = join(root, LOCK_FILE);
-      writeFileSync(racing, JSON.stringify({ pid, token: `gone-${round}`, startedAt: new Date().toISOString() }));
+      writeFileSync(racing, lockBody(pid, `gone-${round}`));
       const outcomes = await Promise.all(
         Array.from({ length: 8 }, () =>
           acquireProjectLock(root).then(
@@ -189,39 +217,16 @@ describe('the project lock', () => {
   }, RACE_TIMEOUT);
 });
 
-describe('a name Windows refuses while another writer is deleting it', () => {
+describe('a lock name that is taken', () => {
   let root: string;
 
   beforeAll(() => {
-    root = tempDir('lock-deleting');
+    root = tempDir('lock-name-taken');
   });
 
   afterAll(() => {
     removeDir(root);
   });
-
-  /**
-   * An exclusive create of `name`, refused with `code` once and then handed to the real
-   * filesystem, or on every attempt. Only a `wx` create is intercepted, so the fake models the
-   * exclusive create and not every open of that path. `attempts` reads the number of tries, so a
-   * test can pin the bound or its absence.
-   */
-  function refusedExclusiveCreate(
-    name: string,
-    code: string,
-    mode: 'once' | 'always',
-  ): { readonly open: typeof realFs.open; readonly attempts: () => number } {
-    let attempts = 0;
-    return {
-      attempts: () => attempts,
-      open: (async (target: string, flags: string) => {
-        if (String(target) !== name || flags !== 'wx') return realFs.open(target, flags as never);
-        attempts += 1;
-        if (mode === 'once' && attempts > 1) return realFs.open(target, flags as never);
-        throw Object.assign(new Error(`${code}: refused, open '${target}'`), { code });
-      }) as unknown as typeof realFs.open,
-    };
-  }
 
   /**
    * The ordinary name-taken answer, without Windows deleting anything: the create finds a readable
@@ -230,7 +235,7 @@ describe('a name Windows refuses while another writer is deleting it', () => {
    */
   it('refuses the folder for the live holder when the exclusive create finds the name taken', async () => {
     const lock = join(root, LOCK_FILE);
-    writeFileSync(lock, JSON.stringify({ pid: process.pid, token: 'held', startedAt: new Date().toISOString() }));
+    writeFileSync(lock, lockBody(process.pid, 'held'));
     const refusal = refusedExclusiveCreate(lock, 'EEXIST', 'always');
     try {
       await withFs({ open: refusal.open }, async (lockModule) => {
@@ -253,6 +258,42 @@ describe('a name Windows refuses while another writer is deleting it', () => {
   });
 
   /**
+   * The name was taken when the create looked, and gone when the caller re-read the lock: the
+   * holder released in between. There is nothing to refuse or take over, so the caller tries the
+   * lock again and takes it.
+   */
+  it('tries the lock again when the name has vanished by the time the lock is re-read', async () => {
+    const lock = join(root, LOCK_FILE);
+    const refusal = refusedExclusiveCreate(lock, 'EEXIST', 'once');
+    try {
+      await withFs({ open: refusal.open }, async (lockModule) => {
+        const held = await lockModule.acquireProjectLock(root);
+        const holder = JSON.parse(readFileSync(lock, 'utf8')) as { pid: number };
+        expect(holder.pid).toBe(process.pid);
+        await held.release();
+      });
+      // The create was refused once; the re-read found no lock, so the caller tried again and the
+      // second create took the lock.
+      expect(refusal.attempts()).toBe(2);
+      expect(existsSync(lock)).toBe(false);
+    } finally {
+      clearLock(root);
+    }
+  });
+});
+
+describe('a name Windows refuses while another writer is deleting it', () => {
+  let root: string;
+
+  beforeAll(() => {
+    root = tempDir('lock-deleting');
+  });
+
+  afterAll(() => {
+    removeDir(root);
+  });
+
+  /**
    * An exclusive create at a name another writer is deleting: Windows keeps the directory entry
    * until the delete completes and refuses the create with `EPERM`. Whoever loses the takeover
    * has to be refused for the lock, not fail with the operating system's words.
@@ -262,8 +303,8 @@ describe('a name Windows refuses while another writer is deleting it', () => {
     const lock = join(root, LOCK_FILE);
     const marker = join(root, LOCK_TAKEOVER_FILE);
     // A stale lock, and the marker of a takeover of it that died and left the marker behind.
-    writeFileSync(lock, JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() }));
-    writeFileSync(marker, JSON.stringify({ pid, token: 'marker', startedAt: new Date().toISOString() }));
+    writeFileSync(lock, lockBody(pid, 'gone'));
+    writeFileSync(marker, lockBody(pid, 'marker'));
     // The marker is being removed at that moment: the first create is refused, and the name is
     // still there when the writer looks again.
     const refusal = refusedExclusiveCreate(marker, 'EPERM', 'once');
@@ -356,9 +397,9 @@ describe('a takeover marker left behind by a writer that died', () => {
   it('refuses the folder while a takeover is marked, and says which file is in the way and how to clear it', async () => {
     const pid = await deadPid();
     // A stale lock, and the marker of a takeover of it that will never finish.
-    writeFileSync(join(root, LOCK_FILE), JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() }));
+    writeFileSync(join(root, LOCK_FILE), lockBody(pid, 'gone'));
     const marker = join(root, LOCK_TAKEOVER_FILE);
-    writeFileSync(marker, JSON.stringify({ pid, token: 'marker', startedAt: new Date().toISOString() }));
+    writeFileSync(marker, lockBody(pid, 'marker'));
     try {
       const error = await acquireProjectLock(root).then(
         () => undefined,
@@ -378,9 +419,9 @@ describe('a takeover marker left behind by a writer that died', () => {
 
   it('names the writer that marked a takeover, so the person can tell a live takeover from one that died', async () => {
     const pid = await deadPid();
-    writeFileSync(join(root, LOCK_FILE), JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() }));
+    writeFileSync(join(root, LOCK_FILE), lockBody(pid, 'gone'));
     const marker = join(root, LOCK_TAKEOVER_FILE);
-    writeFileSync(marker, JSON.stringify({ pid: process.pid, token: 'marker', startedAt: new Date().toISOString() }));
+    writeFileSync(marker, lockBody(process.pid, 'marker'));
     try {
       const error = await acquireProjectLock(root).then(
         () => undefined,
@@ -403,7 +444,7 @@ describe('a takeover marker left behind by a writer that died', () => {
 
   it('waits for a takeover whose marker is still being written, and does not tell the person to delete it', async () => {
     const pid = await deadPid();
-    writeFileSync(join(root, LOCK_FILE), JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() }));
+    writeFileSync(join(root, LOCK_FILE), lockBody(pid, 'gone'));
     const marker = join(root, LOCK_TAKEOVER_FILE);
     // The marker of a takeover that has created the file and not written its body yet.
     writeFileSync(marker, '');
@@ -431,7 +472,7 @@ describe('a takeover marker left behind by a writer that died', () => {
 
   it('names a marker whose body says nothing and that has been there for a while, and says how to clear it', async () => {
     const pid = await deadPid();
-    writeFileSync(join(root, LOCK_FILE), JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() }));
+    writeFileSync(join(root, LOCK_FILE), lockBody(pid, 'gone'));
     const marker = join(root, LOCK_TAKEOVER_FILE);
     writeFileSync(marker, '{"pid":');
     const old = new Date(Date.now() - 60_000);
@@ -458,7 +499,7 @@ describe('a takeover marker left behind by a writer that died', () => {
     const marker = join(root, LOCK_TAKEOVER_FILE);
     // A folder with a marker of a takeover that died, and no lock: there is nothing to take over,
     // so the lock is taken and the marker is left where it is.
-    writeFileSync(marker, JSON.stringify({ pid, token: 'marker', startedAt: new Date().toISOString() }));
+    writeFileSync(marker, lockBody(pid, 'marker'));
     const lock = await acquireProjectLock(root);
     const holder = JSON.parse(readFileSync(join(root, LOCK_FILE), 'utf8')) as { pid: number };
     expect(holder.pid).toBe(process.pid);
@@ -470,7 +511,7 @@ describe('a takeover marker left behind by a writer that died', () => {
   it('names a marker left beside the lock of a live holder, because a later writer would be refused for it', async () => {
     const pid = await deadPid();
     const marker = join(root, LOCK_TAKEOVER_FILE);
-    writeFileSync(marker, JSON.stringify({ pid, token: 'marker', startedAt: new Date().toISOString() }));
+    writeFileSync(marker, lockBody(pid, 'marker'));
     const lock = await acquireProjectLock(root);
     try {
       const error = await acquireProjectLock(root).then(
@@ -491,9 +532,9 @@ describe('a takeover marker left behind by a writer that died', () => {
   });
   it('names a marker it could not read, because a read that failed is not a marker that is gone', async () => {
     const pid = await deadPid();
-    writeFileSync(join(root, LOCK_FILE), JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() }));
+    writeFileSync(join(root, LOCK_FILE), lockBody(pid, 'gone'));
     const marker = join(root, LOCK_TAKEOVER_FILE);
-    writeFileSync(marker, JSON.stringify({ pid: process.pid, token: 'marker', startedAt: new Date().toISOString() }));
+    writeFileSync(marker, lockBody(process.pid, 'marker'));
     // The marker is pinned to a time in the future, so the unreadable branch is the one that is
     // reported however long this test takes.
     const beingMarked = new Date(Date.now() + 60_000);
@@ -546,7 +587,7 @@ describe('a takeover that finds a lock another writer is writing', () => {
   it('leaves the lock of the writer that won alone, and refuses the folder instead', async () => {
     const pid = await deadPid();
     const path = join(root, LOCK_FILE);
-    const stale = JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() });
+    const stale = lockBody(pid, 'gone');
     writeFileSync(path, stale);
     let reads = 0;
     await withFs(
@@ -574,8 +615,8 @@ describe('a takeover that finds a lock another writer is writing', () => {
   it('does not call a lock unreadable once it can be read, so the refusal does not tell the person to delete it', async () => {
     const pid = await deadPid();
     const path = join(root, LOCK_FILE);
-    const stale = JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() });
-    const winner = JSON.stringify({ pid: process.pid, token: 'winner', startedAt: new Date().toISOString() });
+    const stale = lockBody(pid, 'gone');
+    const winner = lockBody(process.pid, 'winner');
     writeFileSync(path, stale);
     let reads = 0;
     await withFs(
@@ -611,7 +652,7 @@ describe('a takeover that finds a lock another writer is writing', () => {
     const pid = await deadPid();
     const path = join(root, LOCK_FILE);
     const marker = join(root, LOCK_TAKEOVER_FILE);
-    writeFileSync(path, JSON.stringify({ pid, token: 'gone', startedAt: new Date().toISOString() }));
+    writeFileSync(path, lockBody(pid, 'gone'));
     const full = async (target: string, flags: string): Promise<FileHandle> => realFs.open(target, flags as never);
     let failed = false;
     await withFs(

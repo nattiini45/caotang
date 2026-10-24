@@ -42,21 +42,19 @@ async function until(check: () => boolean, what: string, ms = 5000): Promise<voi
 const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 150));
 
 /**
- * The budget for every fixture below — explicit and per-test, never `vitest.config.ts`'s default.
+ * The budget for the two notice tests below — the only server fixtures here measured above the
+ * 5 000 ms default, and explicit and per-test, never `vitest.config.ts`'s default.
  *
- * Each test starts a project fixture and a server over the wire (or the in-memory pair the stdio
- * tests use), and the two long notice tests also wait on the change feed. The fixture's cost is the
- * claim: seeding a writing project, opening it, starting the listener and connecting a real client.
- * Measured on one development machine under a loaded host (16 logical CPUs; another project's vitest
- * worker was using a core): the two long notice tests took **1 447 ms** and **1 499 ms** on the
- * first cold run of this file, then **439-600 ms** across three warm runs. In this package's own
- * suite (19 files, Vitest's default worker pool) they timed out at the 5 000 ms default; with a
- * 30 000 ms override the same suite passed, and those tests took **10 610 ms** and **7 718 ms**.
- * 30 000 ms clears every recorded figure with headroom and still fails a hang. Raising the config
- * default instead would move every other test's budget in the repo, which the timeout decision in
- * `packages/editor/test/dialect.test.ts` rules out and its guard rejects.
+ * Each starts a project fixture and a server, seeds a writing project, connects a real client and
+ * waits on the change feed. Measured on one development machine under a loaded host (16 logical
+ * CPUs; another project's vitest worker was using a core): in this package's own suite (19 files,
+ * Vitest's default worker pool) they timed out at the 5 000 ms default; with a 30 000 ms override
+ * the same suite passed, and the 2026-07-28 notice test took **10 610 ms** while the 2025-era one
+ * took **7 718 ms**. 30 000 ms clears both recorded figures with headroom and still fails a hang.
+ * The repo's convention is a measured per-test budget: the config default is intentionally not
+ * widened, and the guard in `packages/editor/test/dialect.test.ts` rejects a global `testTimeout`.
  */
-const WIRE_FIXTURE_TIMEOUT = 30_000;
+const SERVER_FIXTURE_TIMEOUT = 30_000;
 
 interface Seen {
   readonly updated: string[];
@@ -123,7 +121,7 @@ describe('a 2026-07-28 listen stream', () => {
     } finally {
       await client.close();
     }
-  }, WIRE_FIXTURE_TIMEOUT);
+  }, SERVER_FIXTURE_TIMEOUT);
 
   it('is told nothing by a read', async () => {
     const fixture = await writable('sub-read');
@@ -140,7 +138,7 @@ describe('a 2026-07-28 listen stream', () => {
     } finally {
       await client.close();
     }
-  }, WIRE_FIXTURE_TIMEOUT);
+  });
 
   it('is told once when another program changes the folder and the writes stop', async () => {
     const fixture = await writable('sub-drift');
@@ -162,7 +160,7 @@ describe('a 2026-07-28 listen stream', () => {
     } finally {
       await client.close();
     }
-  }, WIRE_FIXTURE_TIMEOUT);
+  });
 });
 
 describe('a 2025-era connection', () => {
@@ -189,7 +187,7 @@ describe('a 2025-era connection', () => {
     } finally {
       await client.close();
     }
-  }, WIRE_FIXTURE_TIMEOUT);
+  }, SERVER_FIXTURE_TIMEOUT);
 
   it('stops being told when the connection ends: the feed keeps no listener for a closed one', async () => {
     const fixture = await writable('sub-closed');
@@ -204,7 +202,7 @@ describe('a 2025-era connection', () => {
     await transport.terminateSession();
     await client.close();
     await until(() => feed.size === idle, 'the listener to be removed');
-  }, WIRE_FIXTURE_TIMEOUT);
+  });
 
   it('does not starve the table: connections that only listen are idle, and the oldest makes room for a new one', async () => {
     const root = tempDir('sub-table');
@@ -232,7 +230,7 @@ describe('a 2025-era connection', () => {
       await session.close();
       removeDir(root);
     }
-  }, WIRE_FIXTURE_TIMEOUT);
+  });
 });
 
 describe('a read-only server', () => {
@@ -253,7 +251,7 @@ describe('a read-only server', () => {
       await modern.close();
       await legacy.close();
     }
-  }, WIRE_FIXTURE_TIMEOUT);
+  });
 
   it('answers a listen request with nothing honoured', async () => {
     const fixture = await startFixture({ label: 'sub-ro-listen', allowWrites: false, seed: true, writing: true });
@@ -267,7 +265,7 @@ describe('a read-only server', () => {
     } finally {
       await client.close();
     }
-  }, WIRE_FIXTURE_TIMEOUT);
+  });
 });
 
 describe('over stdio', () => {
@@ -310,7 +308,7 @@ describe('over stdio', () => {
       await host.close();
       removeDir(root);
     }
-  }, WIRE_FIXTURE_TIMEOUT);
+  });
 
   it('tells a 2025-era subscriber of a write', async () => {
     const root = tempDir('sub-stdio-legacy');
@@ -325,5 +323,5 @@ describe('over stdio', () => {
       await host.close();
       removeDir(root);
     }
-  }, WIRE_FIXTURE_TIMEOUT);
+  });
 });
