@@ -27,13 +27,13 @@ import type { ProjectState } from '@caotang/store';
 import { DEMO_CHOICES } from '../app/demo.js';
 import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, MODE_HINTS, phaseLabel, spendLine, type DelegationCardView, type TurnView } from '../app/agent-model.js';
 import { formatUsd, turnCostOf } from '../app/plan-preview.js';
-import { resolveKey, shortcutLabel } from '../app/keymap.js';
+import { isImeEnter, resolveKey, shortcutLabel, type CompositionFacts } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
 import type { AgentController, AgentSnapshot } from '../app/agent.js';
 import type { StartIntent } from '../App.js';
 import type { ProjectSession } from '../app/session.js';
 import { useAssetRecords } from '../media/hooks.js';
-import { ConfirmDialog, EmptyState, useReport, useSession } from './shared.js';
+import { ConfirmDialog, EmptyState, useComposingEnter, useReport, useSession } from './shared.js';
 import { AgentQueue, type HeldNote } from './AgentQueue.js';
 import { openDialog } from './dialog-requests.js';
 import { PlanCard, planHeading } from './PlanCard.js';
@@ -73,6 +73,8 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
   const [held, setHeld] = useState<HeldNote | null>(null);
   const handled = useRef(0);
   const intentRef = useRef<HTMLInputElement>(null);
+  // The form's own Enter path: its implicit submit does not pass through resolveKey (ui-modules §2.5).
+  const intentIme = useComposingEnter();
 
   // A demo run that the first-run card started: the shell submits its intent once, when the panel is there. Every start is a
   // demo intent, so it runs on the built-in demo profile.
@@ -93,6 +95,10 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
   // Enter: send when no turn runs, queue as the next turn when one does.
   const submit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    // A form's Enter submission does not reach resolveKey, so it is guarded again here. A SubmitEvent carries no composition
+    // fact of its own, so the mark from the form's keydown says when this submit *is* the candidate-commit Enter; the
+    // nativeEvent check stays as the direct reading the brief asks for.
+    if (intentIme.takesSubmit() || isImeEnter(event.nativeEvent as CompositionFacts)) return;
     const text = intent.trim();
     if (text === '') return;
     setIntent('');
@@ -120,7 +126,15 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
     const target = event.target;
     if (event.defaultPrevented || (target instanceof HTMLElement && target.closest('dialog') !== null)) return;
     const action = resolveKey(
-      { key: event.key, ctrl: event.ctrlKey, meta: event.metaKey, shift: event.shiftKey, alt: event.altKey },
+      {
+        key: event.key,
+        ctrl: event.ctrlKey,
+        meta: event.metaKey,
+        shift: event.shiftKey,
+        alt: event.altKey,
+        // A React event's own isComposing is not the DOM's: the composition fact is read from the native event.
+        composing: isImeEnter(event.nativeEvent),
+      },
       {
         inTextField: target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement,
         inBinder: false,
@@ -206,7 +220,7 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
 
       {open ? (
         <div id="agent-body" className="agent-body">
-          <form className="agent-intent" onSubmit={submit}>
+          <form className="agent-intent" onKeyDown={intentIme.noteKey} onSubmit={submit}>
             <label>
               <span className="visually-hidden">Intent</span>
               <input

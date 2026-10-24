@@ -12,6 +12,7 @@ import { useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type
 
 import { LAYOUT, paginate, parseFountain, type LayoutLine, type LayoutPage, type TextRange } from '@caotang/screenplay';
 
+import { isImeEnter } from '../app/keymap.js';
 import { previewRowsOf } from './preview-rows.js';
 
 export interface ScreenplayPreviewProps {
@@ -43,6 +44,8 @@ export function ScreenplayPreview({ source, title, onOpenSource }: ScreenplayPre
   const tabbable = stop !== null && linked.includes(stop) ? stop : (linked[0] ?? null);
   // Up and Down move between the lines that open the Source tab, in the page's reading order.
   const onKey = (event: KeyboardEvent<HTMLElement>, line: LayoutLine): void => {
+    // The Enter that commits an IME candidate opens nothing; it is the candidate window's key.
+    if (event.key === 'Enter' && isImeEnter(event.nativeEvent)) return;
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       open(line);

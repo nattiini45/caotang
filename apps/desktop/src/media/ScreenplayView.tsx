@@ -9,6 +9,7 @@ import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState
 
 import { getBody, getRevision, type TreeNode } from '@caotang/store';
 
+import { isImeEnter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
 import type { RevealRequest } from '../components/EditorPane.js';
 import { radioStep } from '../components/radio-keys.js';
@@ -153,7 +154,8 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
     if (field.selectionStart !== field.selectionEnd) return;
     const at = field.selectionStart;
     let edit: KeyEdit | null = null;
-    if (event.key === 'Enter') edit = enterAfterCue(field.value, at) ?? enterOnEmptyDialogue(field.value, at);
+    // The Enter that commits an IME candidate belongs to the input method: the field keeps its own newline, and no cue edit runs.
+    if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) edit = enterAfterCue(field.value, at) ?? enterOnEmptyDialogue(field.value, at);
     else if (event.key === 'Tab') edit = cueCompletion(field.value, at, completions);
     if (edit === null) return;
     event.preventDefault();

@@ -12,6 +12,7 @@ import { getBody, type CodexEntry, type TreeNode } from '@caotang/store';
 
 import { explain } from './actions.js';
 import { InkGate } from './InkGate.js';
+import { isImeEnter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
 import { useCodexEntries } from '../media/hooks.js';
 import { useReport, useSession } from './shared.js';
@@ -139,7 +140,8 @@ function LocaleField({ value, onCommit }: { value: string; onCommit: (locale: st
           if (text.trim() !== value) onCommit(text.trim());
         }}
         onKeyDown={(event) => {
-          if (event.key === 'Enter') event.currentTarget.blur();
+          // The Enter that commits an IME candidate must not leave the field: the committed text is saved on blur.
+          if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) event.currentTarget.blur();
         }}
       />
     </label>

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { resolveKey, shortcutLabel, type KeyFacts } from '../../apps/desktop/src/app/keymap.js';
+import { isImeEnter, resolveKey, shortcutLabel, type KeyFacts } from '../../apps/desktop/src/app/keymap.js';
 import {
   cardsOf,
   planCardDrop,
@@ -12,7 +12,7 @@ import {
 import { IDS, project } from './fixtures.js';
 
 function keys(key: string, mods: Partial<Omit<KeyFacts, 'key'>> = {}): KeyFacts {
-  return { key, ctrl: false, meta: false, shift: false, alt: false, ...mods };
+  return { key, ctrl: false, meta: false, shift: false, alt: false, composing: false, ...mods };
 }
 
 const BINDER = { inTextField: false, inBinder: true };
@@ -92,6 +92,39 @@ test.describe('the keyboard map', () => {
     // Anywhere else Ctrl+Enter keeps its meaning: a line break in a field, open-in-editor outside one.
     expect(resolveKey(keys('Enter', { ctrl: true }), TYPING)).toBeNull();
     expect(resolveKey(keys('Enter', { ctrl: true }), ELSEWHERE)).toBe('open-in-editor');
+  });
+
+  test('the composing fact is isComposing, or the older Windows keyCode 229', () => {
+    expect(isImeEnter({ isComposing: true })).toBe(true);
+    expect(isImeEnter({ keyCode: 229 })).toBe(true);
+    expect(isImeEnter({ isComposing: true, keyCode: 13 })).toBe(true);
+    expect(isImeEnter({ isComposing: false, keyCode: 13 })).toBe(false);
+    expect(isImeEnter({})).toBe(false);
+  });
+
+  test('an Enter that commits an IME candidate is never an app action', () => {
+    // Send, steer and open: every Enter chord in the map yields while the candidate window owns the key.
+    expect(resolveKey(keys('Enter', { composing: true }), AGENT_INTENT)).toBeNull();
+    expect(resolveKey(keys('Enter', { ctrl: true, composing: true }), AGENT_INTENT)).toBeNull();
+    expect(resolveKey(keys('Enter', { meta: true, composing: true }), AGENT_INTENT)).toBeNull();
+    expect(resolveKey(keys('Enter', { ctrl: true, composing: true }), ELSEWHERE)).toBeNull();
+    expect(resolveKey(keys('Enter', { ctrl: true, composing: true }), BINDER)).toBeNull();
+    // A card's Enter selects it, so the same Enter while composing must not.
+    expect(resolveKey(keys('Enter', { composing: true }), CARD)).toBeNull();
+    // Not composing, the same keys keep their meaning.
+    expect(resolveKey(keys('Enter'), AGENT_INTENT)).toBe('agent-send');
+    expect(resolveKey(keys('Enter', { ctrl: true }), ELSEWHERE)).toBe('open-in-editor');
+    expect(resolveKey(keys('Enter'), CARD)).toBe('select-card');
+  });
+
+  test('composing does not silence the other keys: only Enter belongs to the input method', () => {
+    expect(resolveKey(keys('n', { ctrl: true, composing: true }), ELSEWHERE)).toBe('new-document');
+    expect(resolveKey(keys('z', { ctrl: true, composing: true }), ELSEWHERE)).toBe('undo');
+    expect(resolveKey(keys('F2', { composing: true }), BINDER)).toBe('rename');
+    expect(resolveKey(keys('Delete', { composing: true }), BINDER)).toBe('delete');
+    expect(resolveKey(keys('ArrowDown', { composing: true }), BINDER)).toBe('move-down');
+    expect(resolveKey(keys('Escape', { composing: true }), ELSEWHERE)).toBe('escape');
+    expect(resolveKey(keys(' ', { composing: true }), CARD)).toBe('select-card');
   });
 
   test('each action has the label a control shows for it', () => {

@@ -26,6 +26,7 @@ import {
 import type { ProjectState } from '@caotang/store';
 
 import { proposedByWords, type DraftCheck, type DraftedStep } from '../app/agent-model.js';
+import { isImeEnter } from '../app/keymap.js';
 import {
   costLineOf,
   formatUsd,
@@ -459,7 +460,8 @@ function ExpectField({ step, live, onEdit }: { step: PlanStepView; live: boolean
           if (next !== step.expect) onEdit([{ op: 'set', index: step.index, path: ['expect'], value: next }]);
         }}
         onKeyDown={(event) => {
-          if (event.key === 'Enter') event.currentTarget.blur();
+          // The Enter that commits an IME candidate must not leave the field and send a half-composed expectation.
+          if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) event.currentTarget.blur();
         }}
       />
     </label>
@@ -534,7 +536,8 @@ function TextParam({ label, name, value, live, onSend }: { label: string; name: 
           onChange={(event) => setDraft(event.target.value)}
           onBlur={commit}
           onKeyDown={(event) => {
-            if (event.key === 'Enter') event.currentTarget.blur();
+            // The Enter that commits an IME candidate must not leave the field and send a half-composed value.
+            if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) event.currentTarget.blur();
           }}
         />
       )}

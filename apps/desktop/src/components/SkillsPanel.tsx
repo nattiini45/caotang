@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { SKILL_FILE } from '@caotang/skills';
 
+import { isImeEnter } from '../app/keymap.js';
 import { importPicked, nameFromFile, pickedFromZip, type PickedFile } from '../app/skills-import.js';
 import {
   ALLOWED_TOOLS_NOTICE,
@@ -451,7 +452,8 @@ function NewSkill({ session, onBack, onCreated }: { session: ProjectSession; onB
           autoFocus
           onChange={(event) => setName(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === 'Enter') create();
+            // The Enter that commits an IME candidate creates nothing; the candidate's text is still being composed.
+            if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) create();
           }}
         />
         <span className="project-dialog-help">Lower-case letters, digits and hyphens, such as close-third-person.</span>

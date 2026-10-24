@@ -11,6 +11,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import type { VocabularyKind } from '@caotang/bus';
 
+import { isImeEnter } from '../app/keymap.js';
 import { explain, removeTerm, saveTerm } from './actions.js';
 import { useReturnFocus } from './dialog-focus.js';
 import { closeDialog, useDialogRequest } from './dialog-requests.js';
@@ -128,7 +129,8 @@ function VocabularyEditorDialog({ session, initial }: { session: ProjectSession;
               placeholder={kind === 'status' ? 'For example, Second pass' : 'For example, Act 2'}
               onChange={(event) => setDraftName(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter') add();
+                // The Enter that commits an IME candidate adds nothing; the candidate's text is still being composed.
+                if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) add();
               }}
             />
           </label>
@@ -219,7 +221,8 @@ function TermRow({
         maxLength={40}
         onChange={(event) => draftName.change(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === 'Enter' && changed) save();
+          // The Enter that commits an IME candidate saves nothing; the candidate's text is still being composed.
+          if (event.key === 'Enter' && changed && !isImeEnter(event.nativeEvent)) save();
         }}
       />
       <button type="button" className="button" disabled={!changed} onClick={save}>

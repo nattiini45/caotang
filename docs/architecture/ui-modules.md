@@ -72,6 +72,8 @@
 ### 2.5 Keyboard map (v0.1 minimum)
 `Ctrl+N` new doc in selection's parent · `F2` rename · `Delete` delete w/ confirm · arrow keys move selection · `Ctrl+Enter` open in editor (`view.setActiveDoc`) · `Escape` closes inline editors. (Full chord sheet = polish backlog; these are the Playwright-scripted set.)
 
+**Text entry and composition.** A key typed into a text field is never a shortcut, and an input method extends that rule to its candidate window. The Enter that commits a candidate is marked `KeyboardEvent.isComposing` (or, on older Windows paths, `keyCode === 229`); it never sends, saves, blurs, opens, selects or fires a shortcut, and the app does not cancel it, so the committed character lands. The keyboard map refuses every Enter action while the event is composing — the agent's send and steer, open-in-editor, and a corkboard card's select — and each Enter-handling site outside the map reads the same guard. Other keys keep their meaning while the writer composes, and every chord is unchanged when the writer is not composing. A form whose Enter submit does not pass through the map (the agent's Intent form, the projects list's new and rename forms, the knowledge list, the daily-target form, a shot's fields) guards its own submit from the composing Enter.
+
 ## 3. Corkboard (module 2.4)
 
 **Responsibility:** index-card grid for a container's children; drag-reorder; zoom. Owns view state only. **No commands of its own** — every gesture maps onto binder commands (verified against command-bus §9; the storyboard later extends cards with shot fields, still no new commands).

@@ -12,6 +12,7 @@ import { useState, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type 
 import type { ProjectState, TreeNode } from '@caotang/store';
 
 import { isContainer, nodeById, wordCountOf } from '../app/binder-model.js';
+import { isImeEnter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
 import { DEMO_CHOICES } from '../app/demo.js';
 import { hasDivider, splitNotes } from '../app/notes-model.js';
@@ -220,7 +221,8 @@ function KeywordsField({ session, node }: { session: ProjectSession; node: TreeN
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
-    if (event.key === 'Enter') {
+    // The Enter that commits an IME candidate adds nothing; the candidate's text is still being composed.
+    if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) {
       event.preventDefault();
       add();
     }

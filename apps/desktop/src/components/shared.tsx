@@ -17,6 +17,7 @@ import {
   type ReactNode,
 } from 'react';
 
+import { isImeEnter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
 
 /** Re-renders the caller whenever the session commits, saves or undoes anything. */
@@ -45,6 +46,38 @@ export const ReportContext = createContext<Report>(() => {});
 
 export function useReport(): Report {
   return useContext(ReportContext);
+}
+
+/* ------------------------------------------------------------------ *
+ * An IME's composing Enter reaches a form as a submit, which does
+ * not carry the composition fact the keydown has (ui-modules §2.5).
+ * ------------------------------------------------------------------ */
+
+/**
+ * Carries a composing Enter from a form's keydown to the submit it causes. A browser dispatches `submit` as a `SubmitEvent`,
+ * which has no `isComposing` or `keyCode`; the Enter keydown the form saw does. `noteKey` records a composing Enter, and
+ * `takesSubmit` consumes the mark once. The mark is dropped at the end of the keydown's own task, because a form's implicit
+ * submit is that keydown's default action in the same task — a Save clicked afterwards is never swallowed.
+ */
+export function useComposingEnter(): {
+  readonly noteKey: (event: ReactKeyboardEvent<HTMLElement>) => void;
+  readonly takesSubmit: () => boolean;
+} {
+  const marked = useRef(false);
+  return {
+    noteKey: (event) => {
+      if (event.key !== 'Enter' || !isImeEnter(event.nativeEvent)) return;
+      marked.current = true;
+      window.setTimeout(() => {
+        marked.current = false;
+      }, 0);
+    },
+    takesSubmit: () => {
+      if (!marked.current) return false;
+      marked.current = false;
+      return true;
+    },
+  };
 }
 
 /* ------------------------------------------------------------------ *
@@ -386,6 +419,8 @@ export function InlineText({
       onChange={(event) => setValue(event.target.value)}
       onKeyDown={(event) => {
         if (event.key === 'Enter') {
+          // The Enter that commits an IME candidate is the input method's: it neither saves nor leaves the field.
+          if (isImeEnter(event.nativeEvent)) return;
           event.preventDefault();
           event.stopPropagation();
           finish(true);

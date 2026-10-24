@@ -8,6 +8,7 @@
 import { useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 
 import type { AgentController, AgentSnapshot, QueuedMessage } from '../app/agent.js';
+import { isImeEnter } from '../app/keymap.js';
 import { QUEUE_PAUSED } from '../app/agent.js';
 
 /** The note the writer wrote while a card waits. The card is neither approved nor dropped by it: the writer chooses what happens to both. */
@@ -52,6 +53,8 @@ export function AgentQueue({
   };
   const onEditKey = (event: KeyboardEvent<HTMLInputElement>, id: string): void => {
     if (event.key !== 'Enter' && event.key !== 'Escape') return;
+    // The Enter that commits an IME candidate is the input method's: it neither edits the queued message nor leaves the field.
+    if (event.key === 'Enter' && isImeEnter(event.nativeEvent)) return;
     event.preventDefault();
     event.stopPropagation();
     finishEdit(id);

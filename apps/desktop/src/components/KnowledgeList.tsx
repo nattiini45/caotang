@@ -10,13 +10,16 @@ import { KNOWLEDGE_TEXT_LIMIT } from '@caotang/coherence';
 import { knowledgeRows, type KnowledgeRow, type LedgerLine } from '../app/knowledge-model.js';
 import type { ProjectSession } from '../app/session.js';
 import { explain } from './actions.js';
-import { useReport, useSession } from './shared.js';
+import { useComposingEnter, useReport, useSession } from './shared.js';
 
 export function KnowledgeList({ session, onOpenDocument }: { session: ProjectSession; onOpenDocument?: (docId: string) => void }): ReactNode {
   useSession(session);
   const report = useReport();
   const [draft, setDraft] = useState('');
   const [editing, setEditing] = useState<{ readonly id: string; readonly text: string } | null>(null);
+  // Both forms save on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from adding or editing a fact.
+  const addIme = useComposingEnter();
+  const editIme = useComposingEnter();
   const file = session.coherenceFile();
   const rows = knowledgeRows(session.state, file);
 
@@ -63,8 +66,10 @@ export function KnowledgeList({ session, onOpenDocument }: { session: ProjectSes
         <>
           <form
             className="knowledge-add"
+            onKeyDown={addIme.noteKey}
             onSubmit={(event) => {
               event.preventDefault();
+              if (addIme.takesSubmit()) return;
               add();
             }}
           >
@@ -90,8 +95,10 @@ export function KnowledgeList({ session, onOpenDocument }: { session: ProjectSes
                 {editing?.id === row.fact.id ? (
                   <form
                     className="knowledge-add"
+                    onKeyDown={editIme.noteKey}
                     onSubmit={(event) => {
                       event.preventDefault();
+                      if (editIme.takesSubmit()) return;
                       save(row.fact.id, editing.text);
                     }}
                   >

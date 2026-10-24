@@ -12,6 +12,7 @@ import type { CodexEntry, TreeNode } from '@caotang/store';
 import { attachEntry, explain, setSceneStyle } from './actions.js';
 import { afterCandidates, dialogueContainerChoices, modeLabel, povCandidates, sceneMetaOf } from '../app/findings-model.js';
 import { characterCandidates, pairWords } from '../app/knowledge-model.js';
+import { isImeEnter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
 import { useStoreDraft } from './store-draft.js';
 import { useReport, useSession } from './shared.js';
@@ -545,7 +546,8 @@ function NumberField({ label, value, onCommit }: { label: string; value: number 
         onChange={(event) => draft.change(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {
-          if (event.key === 'Enter') commit();
+          // The Enter that commits an IME candidate saves nothing; the candidate's text is still being composed.
+          if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) commit();
         }}
       />
     </label>

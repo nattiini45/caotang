@@ -15,7 +15,7 @@ import type { TreeNode } from '@caotang/store';
 import type { ZoomLevel } from '../app/corkboard-model.js';
 import type { ProjectSession } from '../app/session.js';
 import { radioStep } from '../components/radio-keys.js';
-import { EmptyState, useReport, useSession } from '../components/shared.js';
+import { EmptyState, useComposingEnter, useReport, useSession } from '../components/shared.js';
 import { ZoomControl } from '../components/ZoomControl.js';
 import { animaticLineOf } from './board-model.js';
 import { commitShotCommand } from './commit.js';
@@ -682,6 +682,8 @@ interface ShotFieldsProps {
 function ShotFields({ session, card, ports, message, onMessage }: ShotFieldsProps): ReactNode {
   const stored = draftOf(card);
   const [draft, setDraft] = useState<ShotDraft>(stored);
+  // The form saves on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from saving the shot.
+  const ime = useComposingEnter();
   // The stored values the draft was last brought up to date with, so a render can tell what the shot's own store changed since.
   const [synced, setSynced] = useState<ShotDraft>(stored);
   if (EDITABLE_FIELDS.some((field) => stored[field] !== synced[field])) {
@@ -729,8 +731,10 @@ function ShotFields({ session, card, ports, message, onMessage }: ShotFieldsProp
         aria-label={`Fields of shot ${card.number}`}
         // The engine checks every field and says why, so the browser's own minimum check is off: one set of words.
         noValidate
+        onKeyDown={ime.noteKey}
         onSubmit={(event) => {
           event.preventDefault();
+          if (ime.takesSubmit()) return;
           save();
         }}
       >

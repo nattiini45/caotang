@@ -11,6 +11,7 @@ import { todayLine, type TargetProgress } from '../app/session-progress.js';
 import { TARGET_MAX_WORDS } from '../app/settings.js';
 import { targetDraftOf } from '../app/target-draft.js';
 import { SessionRing } from './SessionRing.js';
+import { useComposingEnter } from './shared.js';
 import './target-quick-set.css';
 
 export function TargetQuickSet({ progress, onSetTarget }: { progress: TargetProgress; onSetTarget: (words: number) => void }): ReactNode {
@@ -20,6 +21,8 @@ export function TargetQuickSet({ progress, onSetTarget }: { progress: TargetProg
   const button = useRef<HTMLButtonElement>(null);
   const field = useRef<HTMLInputElement>(null);
   const formId = useId();
+  // The form saves on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from setting the target.
+  const ime = useComposingEnter();
 
   // Opening the form puts the writer in its field, with the current target there to change.
   useEffect(() => {
@@ -41,6 +44,7 @@ export function TargetQuickSet({ progress, onSetTarget }: { progress: TargetProg
 
   const save = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    if (ime.takesSubmit()) return;
     const draft = targetDraftOf(text);
     if (!draft.ok) {
       setProblem(draft.message);
@@ -77,6 +81,7 @@ export function TargetQuickSet({ progress, onSetTarget }: { progress: TargetProg
             noValidate
             onSubmit={save}
             onKeyDown={(event) => {
+              ime.noteKey(event);
               if (event.key !== 'Escape') return;
               event.preventDefault();
               close();

@@ -25,7 +25,7 @@ import { AgentController } from '../app/agent.js';
 import { childrenOf, newDocumentRefusalText, newItemParent, nodeById, summarizeSubtree } from '../app/binder-model.js';
 import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, folderIsEmpty, pickDirectory, type DirectoryHandleLike } from '../app/fs-access.js';
-import { resolveKey } from '../app/keymap.js';
+import { isImeEnter, resolveKey } from '../app/keymap.js';
 import { exportBundle, noteLeaveSuggestion, saveFolder, type FolderFileChange, type FolderSaveAnswers } from '../app/lifecycle.js';
 import type { ZoomLevel } from '../app/corkboard-model.js';
 import type { AppServices } from '../app/services.js';
@@ -388,7 +388,7 @@ export function Workspace({
       target instanceof HTMLInputElement ||
       (target instanceof HTMLElement && target.isContentEditable);
     const action = resolveKey(
-      { key: event.key, ctrl: event.ctrlKey, meta: event.metaKey, shift: event.shiftKey, alt: event.altKey },
+      { key: event.key, ctrl: event.ctrlKey, meta: event.metaKey, shift: event.shiftKey, alt: event.altKey, composing: isImeEnter(event) },
       { inTextField, inBinder: false },
     );
     if (action === null) return;

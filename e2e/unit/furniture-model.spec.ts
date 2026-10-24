@@ -11,7 +11,14 @@ const CORKBOARD = { inTextField: false, inBinder: false, inCorkboard: true };
 const SHELL = { inTextField: false, inBinder: false };
 
 function key(name: string, modifiers: { ctrl?: boolean; alt?: boolean; shift?: boolean } = {}) {
-  return { key: name, ctrl: modifiers.ctrl === true, meta: false, shift: modifiers.shift === true, alt: modifiers.alt === true };
+  return {
+    key: name,
+    ctrl: modifiers.ctrl === true,
+    meta: false,
+    shift: modifiers.shift === true,
+    alt: modifiers.alt === true,
+    composing: false,
+  };
 }
 
 test.describe('the keymap for the filter and the reorder chords (binder-filters §5, ui-modules §2.5, §3.2)', () => {

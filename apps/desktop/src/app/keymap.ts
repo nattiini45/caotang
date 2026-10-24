@@ -8,6 +8,9 @@
  * Ctrl+Z inside the editor is the editor's own undo (editor-engine §7's lane 1), so
  * the app-wide undo chord yields to any field, and so do the bare keys (F2, Delete,
  * arrows) that would otherwise eat a keystroke a writer meant as text.
+ *
+ * The same rule covers an input method's candidate window (ui-modules §2.5): the Enter that commits a candidate is the
+ * writer's text, not an app action, so a composing Enter resolves to nothing at all.
  */
 
 export type KeyAction =
@@ -40,6 +43,28 @@ export interface KeyFacts {
   readonly meta: boolean;
   readonly shift: boolean;
   readonly alt: boolean;
+  /**
+   * True when the key event belongs to an IME composition (`KeyboardEvent.isComposing`, or the older Windows
+   * `keyCode === 229`): its Enter commits a candidate, so it is never an app action.
+   */
+  readonly composing: boolean;
+}
+
+/** The parts of a key event that say whether it belongs to an IME composition. A DOM `KeyboardEvent` has both facts. */
+export interface CompositionFacts {
+  readonly isComposing?: boolean;
+  readonly keyCode?: number;
+}
+
+/**
+ * True when a key event belongs to an IME composition, and so is the candidate window's to act on rather than the app's.
+ * `isComposing` is the standard fact; `keyCode === 229` is what older Windows paths send for a key the input method is
+ * processing. A React handler passes `event.nativeEvent`, the DOM event both facts belong to.
+ *
+ * One guard for every Enter-handling site (ui-modules §2.5), so no site re-implements the test and a new one cannot forget it.
+ */
+export function isImeEnter(event: CompositionFacts): boolean {
+  return event.isComposing === true || event.keyCode === 229;
 }
 
 export interface KeyContext {
@@ -71,6 +96,11 @@ function command(facts: KeyFacts): boolean {
 export function resolveKey(facts: KeyFacts, context: KeyContext): KeyAction | null {
   const cmd = command(facts);
   const key = facts.key.length === 1 ? facts.key.toLowerCase() : facts.key;
+
+  // ui-modules §2.5: the Enter that commits an IME candidate is the input method's, never the app's. It is refused here,
+  // before any Enter chord is looked at, so agent-send, agent-steer and open-in-editor all yield — and so does any Enter
+  // action added later. Other keys keep their meaning: a composition is not a reason to silence the whole keyboard.
+  if (facts.composing && key === 'Enter') return null;
 
   if (cmd && !facts.alt && key === 'n' && !facts.shift) return 'new-document';
   if (cmd && !facts.alt && key === 'z' && !facts.shift) return context.inTextField ? null : 'undo';

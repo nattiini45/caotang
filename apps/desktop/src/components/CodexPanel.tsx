@@ -25,6 +25,7 @@ import {
   CODEX_VISUAL_REFS_MAX,
 } from '@caotang/bus';
 
+import { isImeEnter } from '../app/keymap.js';
 import {
   NO_FILTER,
   POLICY_HELP,
@@ -436,7 +437,8 @@ function NameField({ value, onCommit }: { value: string; onCommit: (name: string
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {
-          if (event.key === 'Enter') {
+          // The Enter that commits an IME candidate is the input method's: it does not commit the name.
+          if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) {
             event.preventDefault();
             commit();
           }
@@ -523,7 +525,8 @@ function ChipField({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
-    if (event.key === 'Enter') {
+    // The Enter that commits an IME candidate adds nothing; the candidate's text is still being composed.
+    if (event.key === 'Enter' && !isImeEnter(event.nativeEvent)) {
       event.preventDefault();
       add();
     }

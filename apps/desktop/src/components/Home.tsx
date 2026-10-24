@@ -42,7 +42,7 @@ import {
   type RecoveryRefusal,
 } from '../app/lifecycle.js';
 import type { AppServices } from '../app/services.js';
-import { ChoiceDialog, ConfirmDialog, EmptyState, formatCount, wordsLabel } from './shared.js';
+import { ChoiceDialog, ConfirmDialog, EmptyState, formatCount, useComposingEnter, wordsLabel } from './shared.js';
 import { EncodingDialog } from './EncodingDialog.js';
 import { FirstRun } from './FirstRun.js';
 import { RecoveryDialog } from './RecoveryDialog.js';
@@ -69,6 +69,9 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
   // The project whose name is being changed from this list, and the name as typed so far. Nothing is written until Save.
   const [renaming, setRenaming] = useState<{ readonly id: string; readonly text: string } | null>(null);
   const [settings, setSettings] = useState<SettingsSection | null>(null);
+  // Both forms here submit on Enter (ui-modules §2.5): the mark from the keydown keeps a composing Enter from creating or renaming.
+  const newProjectIme = useComposingEnter();
+  const renameIme = useComposingEnter();
   // A folder or bundle whose project file will not load, offered its recovery: nothing is written until the writer says yes.
   const [recovery, setRecovery] = useState<PendingRecovery | null>(null);
   // Why the writer's last accept of that recovery was refused, with nothing written, and the files named when a file was the reason: the
@@ -152,6 +155,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
 
   const create = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
+    if (newProjectIme.takesSubmit()) return;
     void run('Creating the project', async () => {
       const session = await createProject(store, name);
       setName('');
@@ -360,7 +364,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
 
       <section className="home-section" aria-labelledby="home-new">
         <h2 id="home-new">New project</h2>
-        <form className="new-project" onSubmit={create}>
+        <form className="new-project" onKeyDown={newProjectIme.noteKey} onSubmit={create}>
           <label>
             <span>Project name</span>
             <input
@@ -420,9 +424,11 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
                     aria-label={`New name for ${project.name}`}
                     onSubmit={(event) => {
                       event.preventDefault();
+                      if (renameIme.takesSubmit()) return;
                       renameProject(project.id, renaming.text);
                     }}
                     onKeyDown={(event) => {
+                      renameIme.noteKey(event);
                       if (event.key === 'Escape') setRenaming(null);
                     }}
                   >
