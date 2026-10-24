@@ -21,6 +21,7 @@ import {
 } from '../app/footer-model.js';
 import { furnitureFor, goalProbeOf } from '../app/furniture-store.js';
 import type { ProjectSession } from '../app/session.js';
+import { formatterLocale } from '../i18n/format-locale.js';
 import { formatCount, useComposingEnter, useReport, useSession } from './shared.js';
 
 type Comparator = 'at-least' | 'at-most' | 'about';
@@ -57,7 +58,9 @@ export function InspectorGoals({ session, node }: { session: ProjectSession; nod
   const windowed = kind !== 'project';
   const measured = metric === 'chars' && !windowed ? 'characters' : 'words';
   // A weekly goal with no reset day of its own starts on the first day of the week in the writer's locale (goals-progress §9.3).
-  const firstWeekday = localeFirstWeekday(typeof navigator === 'undefined' ? undefined : navigator.language);
+  // The week a goal resets on follows the formatter locale, not the system locale (i18n.md §4.2): a German UI on an American
+  // machine starts its weeks on Monday.
+  const firstWeekday = localeFirstWeekday(formatterLocale());
 
   // Changing a goal puts the focus on its figure, so a writer at the keyboard is already where the change is made.
   useEffect(() => {

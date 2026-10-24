@@ -15,8 +15,11 @@
 import { DETERMINISTIC_CHECK_IDS, MAX_FINDINGS_CAP, MAX_FINDINGS_DEFAULT, type DeterministicCheckId } from '@caotang/coherence';
 import type { ThinkingLevel } from '@caotang/gateway';
 import { isPermissionMode, type ContextConfig, type PermissionMode } from '@caotang/harness';
+import { numberFormat } from '@caotang/i18n';
 import { DEFAULT_RETENTION, resolveRetentionConfig, type RetentionConfig } from '@caotang/store';
 import { EMPTY_MCP_SETTINGS, loadMcpSettings, type McpSettings } from '@caotang/mcp-client';
+
+import { formatterLocale } from '../i18n/format-locale.js';
 
 /** The scopes a review or a scan can start with (coherence.md §6.2): one document, what changed since the last pass, the whole manuscript. */
 export const REVIEW_SCOPES = ['doc', 'changed', 'full'] as const;
@@ -391,13 +394,15 @@ export function contextConfigOf(context: ContextSettings): ContextConfig {
 
 /**
  * The Context section's warn line (ui-modules §5.2): when the total is below the layer caps the writer set, together, the total
- * cuts a layer before that layer reaches its own cap. Undefined when no total is set, or the total covers the caps.
+ * cuts a layer before that layer reaches its own cap. Undefined when no total is set, or the total covers the caps. The two
+ * figures are grouped in the formatter locale (i18n.md §4.2).
  */
-export function contextWarningOf(context: ContextSettings): string | undefined {
+export function contextWarningOf(context: ContextSettings, locale: string = formatterLocale()): string | undefined {
   if (context.totalBudgetTokens === undefined) return undefined;
   const caps = Object.values(context.layerBudgets).reduce<number>((sum, value) => sum + (value ?? 0), 0);
   if (caps === 0 || context.totalBudgetTokens >= caps) return undefined;
-  return `The total (${context.totalBudgetTokens.toLocaleString('en-US')} tokens) is below the layer caps together (${caps.toLocaleString('en-US')} tokens), so a layer can be cut before it reaches its own cap.`;
+  const count = numberFormat(locale);
+  return `The total (${count.format(context.totalBudgetTokens)} tokens) is below the layer caps together (${count.format(caps)} tokens), so a layer can be cut before it reaches its own cap.`;
 }
 
 /** Applies a patch to settings and normalises the result, so a patch cannot leave the record outside its clamps. */

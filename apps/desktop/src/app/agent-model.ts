@@ -25,7 +25,10 @@ import {
   type TurnPhase,
   type TurnReport,
 } from '@caotang/harness';
+import { numberFormat } from '@caotang/i18n';
 import type { TreeNode } from '@caotang/store';
+
+import { formatterLocale } from '../i18n/format-locale.js';
 
 /** How much of the streamed model text the panel keeps to show that work is happening. */
 export const STREAM_TAIL_CHARS = 240;
@@ -238,14 +241,16 @@ export function formatClock(milliseconds: number): string {
 
 /**
  * The live spend line (agent-harness §7.1): what the run has used of each limit the writer set, and the time worked. A figure with no
- * limit is shown on its own. `undefined` before the first model call, and for a turn that reported no spend.
+ * limit is shown on its own. `undefined` before the first model call, and for a turn that reported no spend. Token figures are
+ * grouped in the formatter locale (i18n.md §4.2); money keeps its fixed four-decimal cost reading.
  */
-export function spendLine(run: TurnView['run']): string | undefined {
+export function spendLine(run: TurnView['run'], locale: string = formatterLocale()): string | undefined {
   if (run === null) return undefined;
   const { spend, limits } = run;
+  const count = numberFormat(locale);
   const of = (used: string, limit: string | undefined): string => (limit === undefined ? used : `${used} of ${limit}`);
   const tokens = spend.promptTokens + spend.completionTokens;
-  const parts = [`${of(tokens.toLocaleString('en-US'), limits.maxTokens?.toLocaleString('en-US'))} tokens`];
+  const parts = [`${of(count.format(tokens), limits.maxTokens === undefined ? undefined : count.format(limits.maxTokens))} tokens`];
   if (spend.costUsd !== undefined || limits.maxCostUsd !== undefined) {
     parts.push(of(`$${(spend.costUsd ?? 0).toFixed(4)}`, limits.maxCostUsd === undefined ? undefined : `$${limits.maxCostUsd.toFixed(4)}`));
   }

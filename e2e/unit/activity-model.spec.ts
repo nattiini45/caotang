@@ -7,6 +7,7 @@ import {
   issuerLabel,
   isViewEvent,
   sourceBadge,
+  timeLabel,
   titleOf,
   visibleActivityCount,
 } from '../../apps/desktop/src/app/activity-model.js';
@@ -114,4 +115,12 @@ test('the source and the issuer are labelled for a reader', () => {
   expect(issuerLabel('agent')).toBe('Agent');
   expect(isViewEvent('view.setScroll')).toBe(true);
   expect(isViewEvent('binder.move')).toBe(false);
+});
+
+test('a row time is a clock time in the formatter locale, never the system locale by accident', () => {
+  // Three in the morning is one in every locale; only the day-period convention differs, so the test does not depend on a timezone.
+  const at = new Date(2026, 9, 31, 3, 4, 5).getTime();
+  expect(timeLabel(at, 'en-US')).toBe('03:04:05 AM');
+  expect(timeLabel(at, 'en-GB')).toBe('03:04:05');
+  expect(timeLabel(at, 'de-DE')).toBe('03:04:05');
 });

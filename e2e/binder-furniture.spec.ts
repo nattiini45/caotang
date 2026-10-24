@@ -76,8 +76,10 @@ test('the binder filters by text, a saved filter is kept across a reload, and go
   await goals.getByRole('button', { name: 'Add goal' }).click();
   await expect(goals.locator('.goal-sentence')).toContainText('at least 1,000 words on');
   await expect(goals.locator('.goal-line')).toContainText('0 of 1,000 words · in progress');
-  // A pace of one word a day is written in the singular (writer copy): the whole line, so "1 words/day" fails.
-  await expect(goals.locator('.goal-pace')).toHaveText('≈ 1 word/day to finish by 31 Dec 2030');
+  // A pace of one word a day is written in the singular (writer copy): the whole line, so "1 words/day" fails. The date is the
+  // formatter locale's (i18n.md §4.1, D3), and this suite runs a US-English browser, so it reads "Dec 31, 2030" where the footer
+  // used to pin "31 Dec 2030" whatever the system said.
+  await expect(goals.locator('.goal-pace')).toHaveText('≈ 1 word/day to finish by Dec 31, 2030');
   await expect(page.getByTestId('binder-footer').locator('.goal-sentence')).toContainText('at least 1,000 words on');
   await expect(page.getByTestId('binder-footer').getByTestId('goal-progress')).toContainText('0 of 1,000 words · in progress');
 

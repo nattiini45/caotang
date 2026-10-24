@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // No DOM: the package takes `navigator.languages` as an argument rather than reading a browser,
+    // so it type-checks and runs in the app, in Node and in a test alike.
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

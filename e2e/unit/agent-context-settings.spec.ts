@@ -51,15 +51,21 @@ test.describe('contextConfigOf maps the saved budgets to the assembler config sh
 
 test.describe('the warn line names a total that is below the layer caps together', () => {
   test('a total below the caps warns with both numbers, and a total that covers them does not', () => {
-    const warning = contextWarningOf({ totalBudgetTokens: 5_000, layerBudgets: { L2: 2_000, L4: 4_000 } });
+    const warning = contextWarningOf({ totalBudgetTokens: 5_000, layerBudgets: { L2: 2_000, L4: 4_000 } }, 'en-US');
     expect(warning).toContain('5,000 tokens');
     expect(warning).toContain('6,000 tokens');
-    expect(contextWarningOf({ totalBudgetTokens: 10_000, layerBudgets: { L2: 2_000, L4: 4_000 } })).toBeUndefined();
+    expect(contextWarningOf({ totalBudgetTokens: 10_000, layerBudgets: { L2: 2_000, L4: 4_000 } }, 'en-US')).toBeUndefined();
+  });
+
+  test('the warning groups its numbers the way the formatter locale does', () => {
+    const warning = contextWarningOf({ totalBudgetTokens: 5_000, layerBudgets: { L2: 2_000, L4: 4_000 } }, 'de-DE');
+    expect(warning).toContain('5.000 tokens');
+    expect(warning).toContain('6.000 tokens');
   });
 
   test('no total set, or no cap set, gives no warning', () => {
-    expect(contextWarningOf({ layerBudgets: { L2: 2_000 } })).toBeUndefined();
-    expect(contextWarningOf({ totalBudgetTokens: 1_000, layerBudgets: {} })).toBeUndefined();
+    expect(contextWarningOf({ layerBudgets: { L2: 2_000 } }, 'en-US')).toBeUndefined();
+    expect(contextWarningOf({ totalBudgetTokens: 1_000, layerBudgets: {} }, 'en-US')).toBeUndefined();
   });
 });
 

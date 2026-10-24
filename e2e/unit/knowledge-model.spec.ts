@@ -75,7 +75,13 @@ test.describe('the Knowledge list model (coherence.md §4.4, §8)', () => {
 
   test('offers the characters by name and leaves the other kinds of entry out', () => {
     const entries = [entry(BEN, 'ben'), entry('c_PLACE00001', 'The Lighthouse', 'location'), entry(ANNA, 'Anna')];
-    expect(characterCandidates(entries).map((candidate) => candidate.name)).toEqual(['Anna', 'ben']);
+    expect(characterCandidates(entries, 'en').map((candidate) => candidate.name)).toEqual(['Anna', 'ben']);
+  });
+
+  test('sorts the characters by the project language, not the interface’s (i18n.md §4.3, D9)', () => {
+    const entries = [entry('c_AALAND0001', 'Åland'), entry('c_ZEBRA00001', 'Zebra')];
+    expect(characterCandidates(entries, 'sv').map((candidate) => candidate.name)).toEqual(['Zebra', 'Åland']);
+    expect(characterCandidates(entries, 'en').map((candidate) => candidate.name)).toEqual(['Åland', 'Zebra']);
   });
 
   test('reads a declared pair as the character and the fact, each by name', () => {

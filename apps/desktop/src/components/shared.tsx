@@ -529,10 +529,5 @@ export function EmptyState({
   );
 }
 
-export function formatCount(n: number): string {
-  return new Intl.NumberFormat('en-US').format(n);
-}
-
-export function wordsLabel(n: number): string {
-  return `${formatCount(n)} ${n === 1 ? 'word' : 'words'}`;
-}
+/** A count as a panel shows it, grouped by the formatter locale. Defined in the model layer so a test can pin it. */
+export { formatCount, wordsLabel } from '../app/counts.js';

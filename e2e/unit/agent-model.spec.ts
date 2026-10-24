@@ -420,10 +420,12 @@ test('a budget event is the turn’s run, and its spend line reads against the l
   const spend = { modelCalls: 2, promptTokens: 3_000, completionTokens: 120, estimatedTokens: 0, steps: 1, activeMs: 83_000 };
   const after = reduceTurn(turn, { type: 'budget', turnId: TURN, spend, limits: { maxTokens: 50_000, maxActiveMs: 600_000 } });
   expect(after.run).toEqual({ spend, limits: { maxTokens: 50_000, maxActiveMs: 600_000 } });
-  expect(spendLine(after.run)).toBe('3,120 of 50,000 tokens · 1:23 of 10:00 worked');
+  expect(spendLine(after.run, 'en-US')).toBe('3,120 of 50,000 tokens · 1:23 of 10:00 worked');
   // A cost figure and a step limit join the line when they are set; without limits the figures stand alone.
   const priced = { ...spend, costUsd: 0.0123 };
-  expect(spendLine({ spend: priced, limits: { maxCostUsd: 0.5, maxSteps: 4 } })).toBe('3,120 tokens · $0.0123 of $0.5000 · 1 of 4 steps · 1:23 worked');
+  expect(spendLine({ spend: priced, limits: { maxCostUsd: 0.5, maxSteps: 4 } }, 'en-US')).toBe('3,120 tokens · $0.0123 of $0.5000 · 1 of 4 steps · 1:23 worked');
+  // The token figures are grouped the way the formatter locale groups numbers.
+  expect(spendLine(after.run, 'de-DE')).toBe('3.120 of 50.000 tokens · 1:23 of 10:00 worked');
   // Another turn's spend is not this turn's.
   expect(reduceTurn(turn, { type: 'budget', turnId: 'other.turn-9', spend, limits: {} })).toBe(turn);
 });

@@ -253,7 +253,14 @@ test.describe('the scene declarations model (coherence.md §5.2, §8)', () => {
   });
 
   test('a point of view is offered characters first, then the rest by name', () => {
-    expect(povCandidates([abbey, zed, ada]).map((entry) => entry.name)).toEqual(['Ada', 'Zed', 'Abbey']);
+    expect(povCandidates([abbey, zed, ada], 'en').map((entry) => entry.name)).toEqual(['Ada', 'Zed', 'Abbey']);
+  });
+
+  test('a point of view list sorts by the project language, not the interface’s (i18n.md §4.3, D9)', () => {
+    const åland = { ...ada, id: 'c_AALAND0001', name: 'Åland' };
+    const zebra = { ...ada, id: 'c_ZEBRA00001', name: 'Zebra' };
+    expect(povCandidates([åland, zebra], 'sv').map((entry) => entry.name)).toEqual(['Zebra', 'Åland']);
+    expect(povCandidates([åland, zebra], 'en').map((entry) => entry.name)).toEqual(['Åland', 'Zebra']);
   });
 
   test('a scene may only follow another document, never itself and never a folder', () => {

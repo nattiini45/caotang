@@ -14,6 +14,7 @@
  */
 
 import { CODEX_TYPE_ORDER, createMentionIndex, type MentionIndex } from '@caotang/codex';
+import { collatorFor } from '@caotang/i18n';
 import {
   getBody,
   getRevision,
@@ -23,6 +24,7 @@ import {
   type TreeNode,
 } from '@caotang/store';
 
+import { formatterLocale } from '../i18n/format-locale.js';
 import { childrenOf } from './binder-model.js';
 
 /** codex.md §2's type names, for a person. The enum itself is the store's. */
@@ -83,16 +85,19 @@ export interface CodexGroup {
 /**
  * The entries in groups by type, in codex.md §2's enum order, with unknown types last. Within a
  * group the names are in alphabetical order, case-insensitively, so the list reads top to bottom.
+ * Names are writer content and sort by the **project language** (i18n.md §4.3, D9); a project that
+ * names no language yet falls back to the formatter locale.
  */
-export function groupByType(entries: readonly CodexEntry[]): CodexGroup[] {
+export function groupByType(entries: readonly CodexEntry[], projectLanguage?: string): CodexGroup[] {
   const rank = (type: string): number => {
     const at = CODEX_TYPE_ORDER.indexOf(type);
     return at === -1 ? CODEX_TYPE_ORDER.length : at;
   };
+  const byName = collatorFor(projectLanguage ?? formatterLocale());
   const ordered = [...entries].sort(
     (a, b) =>
       rank(a.type) - rank(b.type) ||
-      a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) ||
+      byName.compare(a.name, b.name) ||
       (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
   );
   const groups: { type: string; label: string; entries: CodexEntry[] }[] = [];

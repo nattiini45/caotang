@@ -11,6 +11,8 @@
 
 import { useState, type ReactNode } from 'react';
 
+import { dateFormat } from '@caotang/i18n';
+
 import {
   KEPT_CHAPTER_TITLE,
   RELOAD_CHAPTER_TITLE,
@@ -24,6 +26,7 @@ import {
   type UnsentEntry,
 } from '../app/unsent-copy.js';
 import type { ProjectSession } from '../app/session.js';
+import { formatterLocale } from '../i18n/format-locale.js';
 import { createdNodeId, explain } from './actions.js';
 import { useSession } from './shared.js';
 import './unsent-words.css';
@@ -120,7 +123,7 @@ export function UnsentWords({ session }: { session: ProjectSession }): ReactNode
     <section className="footer-section unsent-words" aria-label="Words kept from a stopped tab" data-testid="unsent-words" data-answered={answered}>
       {entries.map((entry) => {
         const count = entry.documents.length;
-        const when = Number.isNaN(Date.parse(entry.savedAt)) ? '' : ` from ${new Date(entry.savedAt).toLocaleString()}`;
+        const when = Number.isNaN(Date.parse(entry.savedAt)) ? '' : ` from ${dateFormat(formatterLocale(), { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(entry.savedAt))}`;
         const reload = entry.origin === 'reload';
         return (
           <div key={entry.stopId} className="unsent-entry" data-stop={entry.stopId}>

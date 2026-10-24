@@ -35,7 +35,7 @@ import { formatUsd } from '../app/plan-preview.js';
 import type { ProjectSession } from '../app/session.js';
 import { explain } from './actions.js';
 import { KnowledgeList } from './KnowledgeList.js';
-import { EmptyState, useReport, useSession } from './shared.js';
+import { EmptyState, formatCount, useReport, useSession } from './shared.js';
 
 export interface FindingsPanelProps {
   readonly session: ProjectSession;
@@ -332,7 +332,7 @@ export function FindingsPanel({ session, onReveal, settings = DEFAULT_COHERENCE_
           </p>
           <p className="field-note">
             About {plan.estimate.extractCalls} model {plan.estimate.extractCalls === 1 ? 'call' : 'calls'} to read them, then up to{' '}
-            {plan.estimate.verifyCallsAtMost} to check the pairs they raise; about {plan.estimate.totalTokensAtMost.toLocaleString('en-US')} tokens
+            {plan.estimate.verifyCallsAtMost} to check the pairs they raise; about {formatCount(plan.estimate.totalTokensAtMost)} tokens
             at most (an estimate).
             {cost === undefined ? '' : ` About ${formatUsd(cost)} for the whole plan${costDetail?.includesThinking === true ? ', including thinking' : ''}, at this profile’s prices.`}
           </p>

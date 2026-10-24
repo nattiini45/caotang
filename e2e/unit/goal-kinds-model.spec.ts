@@ -63,31 +63,37 @@ function sessionOver(state: ProjectState, sittingWords = 0): ProjectSession {
 
 test.describe('the sentence and the unit a goal reads in (goals-progress §2.2, §9.2, §9.3)', () => {
   test('a characters goal reads in characters, on the node it attaches to, and keeps its date', () => {
-    expect(goalSentence({ comparator: 'at-least', target: 12_000, metric: 'chars', deadline: '2026-10-31' }, 'The Manuscript')).toBe(
+    expect(goalSentence({ comparator: 'at-least', target: 12_000, metric: 'chars', deadline: '2026-10-31' }, 'The Manuscript', 'en-GB')).toBe(
       'at least 12,000 characters on The Manuscript by 31 Oct 2026',
     );
   });
 
   test('a session goal reads as its window, and takes no node title or date', () => {
-    expect(goalSentence({ comparator: 'at-least', target: 7_000, metric: 'words', kind: 'weekly' }, 'The Manuscript')).toBe(
+    expect(goalSentence({ comparator: 'at-least', target: 7_000, metric: 'words', kind: 'weekly' }, 'The Manuscript', 'en-GB')).toBe(
       'at least 7,000 words this week',
     );
-    expect(goalSentence({ comparator: 'at-least', target: 30_000, metric: 'words', kind: 'monthly' }, 'The Manuscript')).toBe(
+    expect(goalSentence({ comparator: 'at-least', target: 30_000, metric: 'words', kind: 'monthly' }, 'The Manuscript', 'en-GB')).toBe(
       'at least 30,000 words this month',
     );
   });
 
   test('a words project goal reads as it did before the metric existed', () => {
-    expect(goalSentence({ comparator: 'at-most', target: 2_000, deadline: undefined }, 'Act 1')).toBe('at most 2,000 words on Act 1');
+    expect(goalSentence({ comparator: 'at-most', target: 2_000, deadline: undefined }, 'Act 1', 'en-GB')).toBe('at most 2,000 words on Act 1');
   });
 
   test('the unit and the pace count follow the metric, singular for one', () => {
     expect(unitOf({ metric: 'chars' })).toBe('characters');
     expect(unitOf({})).toBe('words');
-    expect(paceCountOf({ metric: 'chars' }, 1)).toBe('1 character');
-    expect(paceCountOf({ metric: 'chars' }, 850)).toBe('850 characters');
-    expect(paceCountOf({}, 1)).toBe('1 word');
-    expect(paceCountOf({}, 850)).toBe('850 words');
+    expect(paceCountOf({ metric: 'chars' }, 1, 'en-GB')).toBe('1 character');
+    expect(paceCountOf({ metric: 'chars' }, 850, 'en-GB')).toBe('850 characters');
+    expect(paceCountOf({}, 1, 'en-GB')).toBe('1 word');
+    expect(paceCountOf({}, 850, 'en-GB')).toBe('850 words');
+  });
+
+  test('the pace count groups the number the way the formatter locale does', () => {
+    expect(paceCountOf({}, 1_200, 'en-US')).toBe('1,200 words');
+    expect(paceCountOf({}, 1_200, 'de-DE')).toBe('1.200 words');
+    expect(paceCountOf({ metric: 'chars' }, 1_200, 'de-DE')).toBe('1.200 characters');
   });
 });
 

@@ -7,8 +7,10 @@
  */
 
 import { effectiveMode, knowledgeTreatmentOf, type CoherenceFile, type KnowledgeFact } from '@caotang/coherence';
+import { collatorFor } from '@caotang/i18n';
 import type { CodexEntry, ProjectState, TreeNode } from '@caotang/store';
 
+import { formatterLocale } from '../i18n/format-locale.js';
 import { childrenOf } from './binder-model.js';
 
 /** A document in binder order: the depth-first walk, siblings by their order. */
@@ -71,9 +73,13 @@ export function knowledgeRows(state: ProjectState, file: CoherenceFile | undefin
   });
 }
 
-/** The characters a Learns or Knows row may name: codex entries of type character, by name. */
-export function characterCandidates(entries: readonly CodexEntry[]): CodexEntry[] {
-  return entries.filter((entry) => entry.type === 'character').sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+/**
+ * The characters a Learns or Knows row may name: codex entries of type character, by name. Names are writer content and sort
+ * by the **project language** (i18n.md §4.3, D9); a project that names no language yet falls back to the formatter locale.
+ */
+export function characterCandidates(entries: readonly CodexEntry[], projectLanguage?: string): CodexEntry[] {
+  const byName = collatorFor(projectLanguage ?? formatterLocale());
+  return entries.filter((entry) => entry.type === 'character').sort((a, b) => byName.compare(a.name, b.name));
 }
 
 /** A declared pair in words, for a list in the Inspector: the character and the fact, each by name. */

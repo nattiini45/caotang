@@ -18,16 +18,30 @@ test.describe('the provider label (polish: the demo profile is marked once)', ()
 
 test.describe('the binder footer words (goals-progress §2.2, sprint timer)', () => {
   test('a goal reads as a sentence with its comparator, its place and its deadline', () => {
-    expect(goalSentence({ comparator: 'at-least', target: 12_000, deadline: '2026-10-31' }, 'The Manuscript')).toBe(
+    // The formatter locale is passed in; the locale decision itself is the app's accessor (i18n.md §4.1, D3).
+    expect(goalSentence({ comparator: 'at-least', target: 12_000, deadline: '2026-10-31' }, 'The Manuscript', 'en-GB')).toBe(
       'at least 12,000 words on The Manuscript by 31 Oct 2026',
     );
-    expect(goalSentence({ comparator: 'at-most', target: 2_000 }, 'Prologue')).toBe('at most 2,000 words on Prologue');
-    expect(goalSentence({ comparator: 'about', target: 900 }, 'Chapter 1')).toBe('about 900 words on Chapter 1');
+    expect(goalSentence({ comparator: 'at-most', target: 2_000 }, 'Prologue', 'en-GB')).toBe('at most 2,000 words on Prologue');
+    expect(goalSentence({ comparator: 'about', target: 900 }, 'Chapter 1', 'en-GB')).toBe('about 900 words on Chapter 1');
   });
 
-  test('a day reads as a short date, and an unreadable day is shown as it is', () => {
-    expect(formatDay('2026-01-05')).toBe('5 Jan 2026');
-    expect(formatDay('soon')).toBe('soon');
+  test('the same sentence under the formatter locale’s own grouping and date order', () => {
+    // This is the deliberate change: a US-English system now reads its own date order and grouping (D3), where
+    // the footer used to pin en-GB dates and en-US numbers whatever the system said.
+    expect(goalSentence({ comparator: 'at-least', target: 12_000, deadline: '2026-10-31' }, 'The Manuscript', 'en-US')).toBe(
+      'at least 12,000 words on The Manuscript by Oct 31, 2026',
+    );
+    expect(goalSentence({ comparator: 'at-least', target: 12_000, deadline: '2026-10-31' }, 'The Manuscript', 'de-DE')).toBe(
+      'at least 12.000 words on The Manuscript by 31. Okt. 2026',
+    );
+  });
+
+  test('a day reads as a short date in the formatter locale, and an unreadable day is shown as it is', () => {
+    expect(formatDay('2026-01-05', 'en-GB')).toBe('5 Jan 2026');
+    expect(formatDay('2026-01-05', 'en-US')).toBe('Jan 5, 2026');
+    expect(formatDay('2026-01-05', 'de-DE')).toBe('5. Jan. 2026');
+    expect(formatDay('soon', 'en-US')).toBe('soon');
   });
 
   test('each goal state has its words', () => {

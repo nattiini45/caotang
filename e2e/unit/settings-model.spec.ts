@@ -101,9 +101,14 @@ test.describe('the writing session and its target (goals-progress §2.1)', () =>
     expect(targetProgress(0, undefined)).toEqual({ words: 0, target: undefined, fraction: 0, met: false });
     expect(targetProgress(412, 800).fraction).toBeCloseTo(0.515, 3);
     expect(targetProgress(900, 800)).toMatchObject({ fraction: 1, met: true });
-    expect(todayLine(targetProgress(412, 800))).toBe('412 / 800 words today');
-    expect(todayLine(targetProgress(1, undefined))).toBe('1 word today');
-    expect(todayLine(targetProgress(2_000, undefined))).toBe('2,000 words today');
+    expect(todayLine(targetProgress(412, 800), 'en-US')).toBe('412 / 800 words today');
+    expect(todayLine(targetProgress(1, undefined), 'en-US')).toBe('1 word today');
+    expect(todayLine(targetProgress(2_000, undefined), 'en-US')).toBe('2,000 words today');
+  });
+
+  test('the status line groups its numbers the way the formatter locale does', () => {
+    expect(todayLine(targetProgress(2_000, 5_000), 'de-DE')).toBe('2.000 / 5.000 words today');
+    expect(todayLine(targetProgress(2_000, undefined), 'de-DE')).toBe('2.000 words today');
   });
 
   test('only sessions that ended on the device’s day count toward today', () => {

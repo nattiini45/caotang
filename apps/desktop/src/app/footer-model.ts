@@ -7,12 +7,13 @@
 import type { ProjectGoal } from '@caotang/furniture';
 import { SPRINT_MAX_MINUTES, SPRINT_MIN_MINUTES, paceWords } from '@caotang/furniture';
 import type { GoalState } from '@caotang/furniture';
+import { dateFormat, numberFormat } from '@caotang/i18n';
 
-const NUMBER = new Intl.NumberFormat('en-US');
+import { formatterLocale } from '../i18n/format-locale.js';
 
-/** A count as the footer shows it: thousands separated, as the rest of the app does. */
-export function countText(value: number): string {
-  return NUMBER.format(value);
+/** A count as the footer shows it, grouped the way the formatter locale groups numbers (i18n.md §4.2). */
+export function countText(value: number, locale: string = formatterLocale()): string {
+  return numberFormat(locale).format(value);
 }
 
 /** The sprint lengths the picker offers, in minutes. The timer bounds the free value (sprint.ts); these are the common ones. */
@@ -20,11 +21,14 @@ export const SPRINT_CHOICES: readonly number[] = [5, 10, 15, 25, 30, 45, 60].fil
   (choice) => choice >= SPRINT_MIN_MINUTES && choice <= SPRINT_MAX_MINUTES,
 );
 
-/** A local calendar day ("2026-10-31") as a short date for a person ("31 Oct 2026"). An unreadable day is shown as it is. */
-export function formatDay(day: string): string {
+/**
+ * A local calendar day ("2026-10-31") as a short date for a person ("31 Oct 2026", or "Oct 31, 2026" under a US system), in the
+ * formatter locale (i18n.md §4.1). An unreadable day is shown as it is.
+ */
+export function formatDay(day: string, locale: string = formatterLocale()): string {
   const [year, month, date] = day.split('-').map(Number);
   if (year === undefined || month === undefined || date === undefined) return day;
-  return new Date(year, month - 1, date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return dateFormat(locale, { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(year, month - 1, date));
 }
 
 /** What a goal counts, in the words the footer uses: "words", or "characters" for the `chars` metric (goals-progress §9.2). */
@@ -33,25 +37,26 @@ export function unitOf(goal: { readonly metric?: string }): string {
 }
 
 /** A pace line's count and noun, in the goal's own unit: "1 word", "850 characters" (goals-progress §2.2, §9.2). */
-export function paceCountOf(goal: { readonly metric?: string }, perDay: number): string {
-  if (unitOf(goal) === 'words') return paceWords(perDay);
-  return `${countText(perDay)} ${perDay === 1 ? 'character' : 'characters'}`;
+export function paceCountOf(goal: { readonly metric?: string }, perDay: number, locale: string = formatterLocale()): string {
+  if (unitOf(goal) === 'words') return paceWords(perDay, locale);
+  return `${countText(perDay, locale)} ${perDay === 1 ? 'character' : 'characters'}`;
 }
 
 /**
  * The comparator as a sentence (goals-progress §2.2, §9.2, §9.3): "at least 12,000 words on The Manuscript by 31 Oct 2026", or
  * "at least 12,000 characters on The Manuscript". A session goal is a window rather than a node, so it reads "at least 7,000 words
- * this week" or "this month", and takes no date.
+ * this week" or "this month", and takes no date. The count and the date are in the formatter locale (i18n.md §4.1).
  */
 export function goalSentence(
   goal: Pick<ProjectGoal, 'comparator' | 'target' | 'deadline'> & Partial<Pick<ProjectGoal, 'metric' | 'kind'>>,
   nodeTitle: string,
+  locale: string = formatterLocale(),
 ): string {
   const comparator = goal.comparator === 'at-least' ? 'at least' : goal.comparator === 'at-most' ? 'at most' : 'about';
-  const amount = `${comparator} ${countText(goal.target)} ${unitOf(goal)}`;
+  const amount = `${comparator} ${countText(goal.target, locale)} ${unitOf(goal)}`;
   if (goal.kind === 'weekly') return `${amount} this week`;
   if (goal.kind === 'monthly') return `${amount} this month`;
-  const deadline = goal.deadline === undefined ? '' : ` by ${formatDay(goal.deadline)}`;
+  const deadline = goal.deadline === undefined ? '' : ` by ${formatDay(goal.deadline, locale)}`;
   return `${amount} on ${nodeTitle}${deadline}`;
 }
 

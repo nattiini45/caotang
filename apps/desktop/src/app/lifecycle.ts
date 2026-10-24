@@ -33,6 +33,7 @@
  */
 
 import { COHERENCE_FILE, serializeCoherenceFile, type CoherenceFile } from '@caotang/coherence';
+import { collatorFor } from '@caotang/i18n';
 import {
   appendSession,
   bodyNamesOf,
@@ -88,6 +89,7 @@ import {
 import { newId } from '@caotang/ids';
 import type { McpClient } from '@caotang/mcp-client';
 
+import { formatterLocale } from '../i18n/format-locale.js';
 import { attachCoherence } from './coherence-io.js';
 import { applyEncodingDecisions, encodingResultLines, type EncodingDecision } from './encoding-review.js';
 import { changedDuringSave, pruneFolderBackups, watchSave } from './folder-guard.js';
@@ -253,6 +255,15 @@ export interface ProjectSummary {
   readonly words: number;
 }
 
+/**
+ * The projects screen's order (i18n.md §4.3): by name in the formatter locale, then by id so the order is total and stable.
+ * The list mixes projects written in different languages, so there is no one project language to sort by; these are UI rows,
+ * and they sort with the interface.
+ */
+export function projectOrder(a: ProjectSummary, b: ProjectSummary, locale: string = formatterLocale()): number {
+  return collatorFor(locale).compare(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+
 export interface Opened {
   readonly session: ProjectSession;
   /** Things the load noticed, each a sentence for a person: the identity made at open, a migration, a value the load changed, an orphan. */
@@ -377,7 +388,7 @@ export async function listProjects(store: RuntimeStore): Promise<ProjectSummary[
       words: Object.values(state.manifest.derived.wordCounts).reduce((sum, count) => sum + count, 0),
     });
   }
-  return summaries.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  return summaries.sort(projectOrder);
 }
 
 /** A new project: the three fixed roots and nothing else (ui-modules §2.4 — the empty state carries the next step). */

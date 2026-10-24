@@ -9,6 +9,7 @@
  */
 
 import { useState, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { collatorFor } from '@caotang/i18n';
 import type { ProjectState, TreeNode } from '@caotang/store';
 
 import { isContainer, nodeById, wordCountOf } from '../app/binder-model.js';
@@ -16,6 +17,7 @@ import { isImeEnter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
 import { DEMO_CHOICES } from '../app/demo.js';
 import { hasDivider, splitNotes } from '../app/notes-model.js';
+import { formatterLocale } from '../i18n/format-locale.js';
 import { InspectorGoals } from './InspectorGoals.js';
 import { SynopsisField } from './SynopsisField.js';
 import { openDialog } from './dialog-requests.js';
@@ -282,7 +284,7 @@ function KeywordsField({ session, node }: { session: ProjectSession; node: TreeN
   );
 }
 
-/** Every keyword any node in the project carries, for the suggestion list (§4.1: "autocomplete from existing keywords in-project"). */
+/** Every keyword any node in the project carries, for the suggestion list (§4.1: "autocomplete from existing keywords in-project"). The writer's own words sort by the project language (i18n.md §4.3, D9). */
 function allKeywords(state: ProjectState): string[] {
   const seen = new Map<string, string>();
   for (const node of state.manifest.tree) {
@@ -291,7 +293,7 @@ function allKeywords(state: ProjectState): string[] {
       if (!seen.has(key)) seen.set(key, keyword);
     }
   }
-  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  return [...seen.values()].sort(collatorFor(state.manifest.project.language ?? formatterLocale()).compare);
 }
 
 /**

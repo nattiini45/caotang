@@ -7,6 +7,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { SCENE_STYLES, THREAD_ID_LIMIT, THREAD_NOTE_LIMIT, TIMELINE_MODES, type KnowledgeLinkRecord, type ScenePatch, type SceneThread } from '@caotang/bus';
+import { collatorFor } from '@caotang/i18n';
 import type { CodexEntry, TreeNode } from '@caotang/store';
 
 import { attachEntry, explain, setSceneStyle } from './actions.js';
@@ -14,6 +15,7 @@ import { afterCandidates, dialogueContainerChoices, modeLabel, povCandidates, sc
 import { characterCandidates, pairWords } from '../app/knowledge-model.js';
 import { isImeEnter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
+import { formatterLocale } from '../i18n/format-locale.js';
 import { useStoreDraft } from './store-draft.js';
 import { useReport, useSession } from './shared.js';
 
@@ -78,7 +80,7 @@ export function CodexSection({
   const report = useReport();
   const entries = session.mentions.entriesOf(session.state);
   const attached = entries.filter((entry) => entry.attachments.includes(node.id));
-  const available = entries.filter((entry) => !entry.attachments.includes(node.id)).sort(byName);
+  const available = entries.filter((entry) => !entry.attachments.includes(node.id)).sort(byNameOf(session.state.manifest.project.language));
   const mentions =
     node.type === 'document'
       ? entries
@@ -158,8 +160,9 @@ export function CodexSection({
   );
 }
 
-function byName(a: CodexEntry, b: CodexEntry): number {
-  return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+function byNameOf(projectLanguage: string | undefined): (a: CodexEntry, b: CodexEntry) => number {
+  const collator = collatorFor(projectLanguage ?? formatterLocale());
+  return (a, b) => collator.compare(a.name, b.name);
 }
 
 /* ------------------------------------------------------------------ *
@@ -175,7 +178,7 @@ export function SceneMetaSection({ session, node }: { session: ProjectSession; n
   const report = useReport();
   const meta = sceneMetaOf(session.coherenceFile(), node.id);
   const entries = session.mentions.entriesOf(session.state);
-  const characters = povCandidates(entries);
+  const characters = povCandidates(entries, session.state.manifest.project.language);
   const documents = afterCandidates(session.state, node.id);
   const afterTitles = (meta.after ?? []).map((id) => ({ id, title: documents.find((doc) => doc.id === id)?.title ?? 'a document that is gone' }));
   const expected = (meta.expectedPresent ?? []).map((id) => ({ id, name: entries.find((entry) => entry.id === id)?.name ?? 'an entry that is gone' }));
@@ -266,7 +269,7 @@ export function SceneMetaSection({ session, node }: { session: ProjectSession; n
         addLabel="Add an entry expected here"
         candidates={entries
           .filter((entry) => !(meta.expectedPresent ?? []).includes(entry.id))
-          .sort(byName)
+          .sort(byNameOf(session.state.manifest.project.language))
           .map((entry) => ({ id: entry.id, label: entry.name }))}
         onAdd={(id) => apply({ expectedPresent_add: [id] })}
         onRemove={(id) => apply({ expectedPresent_remove: [id] })}
@@ -278,6 +281,7 @@ export function SceneMetaSection({ session, node }: { session: ProjectSession; n
         knows={meta.knows ?? []}
         entries={entries}
         facts={session.coherenceFile()?.knowledge ?? []}
+        projectLanguage={session.state.manifest.project.language}
         apply={apply}
       />
     </details>
@@ -294,15 +298,18 @@ function KnowledgeEditor({
   knows,
   entries,
   facts,
+  projectLanguage,
   apply,
 }: {
   learns: readonly KnowledgeLinkRecord[];
   knows: readonly KnowledgeLinkRecord[];
   entries: readonly CodexEntry[];
   facts: readonly { readonly id: string; readonly text: string }[];
+  /** The project's content language, which sorts the writer's own character names (i18n.md §4.3, D9). */
+  projectLanguage: string | undefined;
   apply: (patch: ScenePatch) => void;
 }): ReactNode {
-  const characters = characterCandidates(entries);
+  const characters = characterCandidates(entries, projectLanguage);
   const readyToDeclare = characters.length > 0 && facts.length > 0;
   return (
     <div className="scene-chips scene-knowledge" data-testid="scene-knowledge">

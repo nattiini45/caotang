@@ -11,7 +11,9 @@
 
 import type { ActivityEntry, CommandName, UndoGroup } from '@caotang/bus';
 import { CHECKPOINT_LABEL, type TurnReport } from '@caotang/harness';
+import { timeFormat } from '@caotang/i18n';
 
+import { formatterLocale } from '../i18n/format-locale.js';
 import { phaseLabel, type TurnView } from './agent-model.js';
 
 /** A person's name for each command. Typed over the closed set, so a new command is a compile error here. */
@@ -88,8 +90,9 @@ export function issuerLabel(issuedBy: ActivityEntry['issuedBy']): string {
   return issuedBy === 'agent' ? 'Agent' : 'You';
 }
 
-export function timeLabel(at: number): string {
-  return new Date(at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+/** The row's time, as a clock time in the formatter locale (i18n.md §4.2), never the system locale by accident. */
+export function timeLabel(at: number, locale: string = formatterLocale()): string {
+  return timeFormat(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(at));
 }
 
 export interface ActivityRow {

@@ -21,9 +21,11 @@ import {
   type SceneMeta,
   type ScopeSpec,
 } from '@caotang/coherence';
+import { collatorFor, dateFormat, numberFormat } from '@caotang/i18n';
 import { captureTextAnchor } from '@caotang/storyboard';
 import { getBody, getRevision, type CodexEntry, type ProjectState } from '@caotang/store';
 
+import { formatterLocale } from '../i18n/format-locale.js';
 import { childrenOf } from './binder-model.js';
 import { containersOf } from './coherence-facts.js';
 
@@ -247,19 +249,19 @@ export function rerunScopeOf(run: CoherenceRun): ScopeSpec | undefined {
 }
 
 /** Newest first: the history reads the way the writer looks for a recent run. */
-export function runViewsOf(file: CoherenceFile | undefined, docTitle: (docId: string) => string): RunView[] {
+export function runViewsOf(file: CoherenceFile | undefined, docTitle: (docId: string) => string, locale: string = formatterLocale()): RunView[] {
   if (file === undefined) return [];
-  return [...file.runs].reverse().map((run) => runViewOf(run, docTitle));
+  return [...file.runs].reverse().map((run) => runViewOf(run, docTitle, locale));
 }
 
-/** A run's time in words for the writer: a day and a clock time, in the reader's own locale. An unreadable stamp shows as it is. */
-export function runTimeLabel(at: string): string {
+/** A run's time in words for the writer: a day and a clock time, in the formatter locale (i18n.md §4.1, D3). An unreadable stamp shows as it is. */
+export function runTimeLabel(at: string, locale: string = formatterLocale()): string {
   const stamp = Date.parse(at);
   if (Number.isNaN(stamp)) return at;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(stamp));
+  return dateFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(stamp));
 }
 
-function runViewOf(run: CoherenceRun, docTitle: (docId: string) => string): RunView {
+function runViewOf(run: CoherenceRun, docTitle: (docId: string) => string, locale: string): RunView {
   const docs = run.scope.docIds;
   const scopeLabel =
     docs.length === 0
@@ -268,9 +270,10 @@ function runViewOf(run: CoherenceRun, docTitle: (docId: string) => string): RunV
         ? `"${docTitle(docs[0] ?? '')}"`
         : `${docs.length} documents`;
   const checkLabels = run.checkIds.map(checkLabelForRun);
+  const count = numberFormat(locale);
   return {
     id: run.id,
-    at: runTimeLabel(run.at),
+    at: runTimeLabel(run.at, locale),
     kind: RUN_KIND_LABELS[run.kind],
     status: run.status,
     scopeLabel,
@@ -281,7 +284,7 @@ function runViewOf(run: CoherenceRun, docTitle: (docId: string) => string): RunV
     tokenLine:
       run.tokens === undefined
         ? undefined
-        : `${run.tokens.promptTokens.toLocaleString('en-US')} tokens in, ${run.tokens.completionTokens.toLocaleString('en-US')} out${run.model === undefined ? '' : ` (${run.model})`}`,
+        : `${count.format(run.tokens.promptTokens)} tokens in, ${count.format(run.tokens.completionTokens)} out${run.model === undefined ? '' : ` (${run.model})`}`,
   };
 }
 
@@ -394,11 +397,16 @@ export function afterCandidates(state: ProjectState, docId: string): { id: strin
     .map((node) => ({ id: node.id, title: node.title }));
 }
 
-/** The codex entries a POV may name: characters first, since that is what a point of view is, then the rest by name. */
-export function povCandidates(entries: readonly CodexEntry[]): CodexEntry[] {
+/**
+ * The codex entries a POV may name: characters first, since that is what a point of view is, then the rest by name. Names are
+ * writer content, so they sort by the **project language** (i18n.md §4.3, D9): a Swedish novel sorts å after z under any
+ * interface. A project that names no language yet falls back to the formatter locale.
+ */
+export function povCandidates(entries: readonly CodexEntry[], projectLanguage?: string): CodexEntry[] {
+  const byName = collatorFor(projectLanguage ?? formatterLocale());
   return [...entries].sort((a, b) => {
     const rank = (entry: CodexEntry): number => (entry.type === 'character' ? 0 : 1);
-    return rank(a) - rank(b) || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    return rank(a) - rank(b) || byName.compare(a.name, b.name);
   });
 }
 

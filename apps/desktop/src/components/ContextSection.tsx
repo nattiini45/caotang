@@ -20,7 +20,7 @@ import {
   type ContextSettings,
 } from '../app/settings.js';
 import { PromptPreview } from './PlanCard.js';
-import { useComposingEnter } from './shared.js';
+import { formatCount, useComposingEnter } from './shared.js';
 
 /** Each layer's label and the default the spec gives it for a scene draft (context-assembly §2). */
 const LAYERS: readonly { readonly id: ContextLayerId; readonly label: string; readonly fallback: number }[] = [
@@ -29,7 +29,7 @@ const LAYERS: readonly { readonly id: ContextLayerId; readonly label: string; re
   { id: 'L5', label: 'Focus document text', fallback: 2_000 },
 ];
 
-const WORDS_OF = (value: number): string => value.toLocaleString('en-US');
+const WORDS_OF = (value: number): string => formatCount(value);
 
 /**
  * A typed budget read as a whole number in range. `null` for an empty field (the default applies), and `undefined` for a
