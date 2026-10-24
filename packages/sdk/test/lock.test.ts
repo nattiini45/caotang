@@ -201,27 +201,56 @@ describe('a name Windows refuses while another writer is deleting it', () => {
   });
 
   /**
-   * An exclusive create of `target`, refused with `code` once and then handed to the real
+   * An exclusive create of `name`, refused with `code` once and then handed to the real
    * filesystem, or on every attempt. Only a `wx` create is intercepted, so the fake models the
    * exclusive create and not every open of that path. `attempts` reads the number of tries, so a
    * test can pin the bound or its absence.
    */
-  function createRefused(
-    target: string,
+  function refusedExclusiveCreate(
+    name: string,
     code: string,
     mode: 'once' | 'always',
   ): { readonly open: typeof realFs.open; readonly attempts: () => number } {
     let attempts = 0;
     return {
       attempts: () => attempts,
-      open: (async (path: string, flags: string) => {
-        if (String(path) !== target || flags !== 'wx') return realFs.open(path, flags as never);
+      open: (async (target: string, flags: string) => {
+        if (String(target) !== name || flags !== 'wx') return realFs.open(target, flags as never);
         attempts += 1;
-        if (mode === 'once' && attempts > 1) return realFs.open(path, flags as never);
+        if (mode === 'once' && attempts > 1) return realFs.open(target, flags as never);
         throw Object.assign(new Error(`${code}: refused, open '${target}'`), { code });
       }) as unknown as typeof realFs.open,
     };
   }
+
+  /**
+   * The ordinary name-taken answer, without Windows deleting anything: the create finds a readable
+   * lock held by this live process, so the caller has to re-read the lock and refuse the folder
+   * for its holder rather than take it over or fail with the raw error.
+   */
+  it('refuses the folder for the live holder when the exclusive create finds the name taken', async () => {
+    const lock = join(root, LOCK_FILE);
+    writeFileSync(lock, JSON.stringify({ pid: process.pid, token: 'held', startedAt: new Date().toISOString() }));
+    const refusal = refusedExclusiveCreate(lock, 'EEXIST', 'always');
+    try {
+      await withFs({ open: refusal.open }, async (lockModule) => {
+        const error = await lockModule.acquireProjectLock(root).then(
+          () => undefined,
+          (caught: unknown) => caught,
+        );
+        expect(error).toBeInstanceOf(lockModule.ProjectLockedError);
+        expect((error as ProjectLockedError).holderPid).toBe(process.pid);
+        expect((error as ProjectLockedError).refusal.takeoverMarker).toBeUndefined();
+      });
+      // The name was taken once; the caller re-read the lock and refused it for its live holder,
+      // so there was no second create and no takeover.
+      expect(refusal.attempts()).toBe(1);
+      // The live holder's lock was left where it was.
+      expect(JSON.parse(readFileSync(lock, 'utf8'))).toMatchObject({ pid: process.pid, token: 'held' });
+    } finally {
+      clearLock(root);
+    }
+  });
 
   /**
    * An exclusive create at a name another writer is deleting: Windows keeps the directory entry
@@ -237,7 +266,7 @@ describe('a name Windows refuses while another writer is deleting it', () => {
     writeFileSync(marker, JSON.stringify({ pid, token: 'marker', startedAt: new Date().toISOString() }));
     // The marker is being removed at that moment: the first create is refused, and the name is
     // still there when the writer looks again.
-    const refusal = createRefused(marker, 'EPERM', 'once');
+    const refusal = refusedExclusiveCreate(marker, 'EPERM', 'once');
     try {
       await withFs({ open: refusal.open }, async (lockModule) => {
         const error = await lockModule.acquireProjectLock(root).then(
@@ -262,7 +291,7 @@ describe('a name Windows refuses while another writer is deleting it', () => {
     const lock = join(root, LOCK_FILE);
     // The lock of a writer that has only the release left to do: its name is refused for a
     // moment, and the next attempt creates this writer's lock.
-    const refusal = createRefused(lock, 'EPERM', 'once');
+    const refusal = refusedExclusiveCreate(lock, 'EPERM', 'once');
     try {
       await withFs({ open: refusal.open }, async (lockModule) => {
         const held = await lockModule.acquireProjectLock(root);
@@ -279,7 +308,7 @@ describe('a name Windows refuses while another writer is deleting it', () => {
 
   it("reports a refusal that outlasts the tries as the folder's, rather than as lock contention", async () => {
     const lock = join(root, LOCK_FILE);
-    const refusal = createRefused(lock, 'EPERM', 'always');
+    const refusal = refusedExclusiveCreate(lock, 'EPERM', 'always');
     await withFs({ open: refusal.open }, async (lockModule) => {
       const error = await lockModule.acquireProjectLock(root).then(
         () => undefined,
@@ -295,11 +324,12 @@ describe('a name Windows refuses while another writer is deleting it', () => {
   });
 
   it('does not retry a refusal that is not Windows deleting the name', async () => {
-    // Only `EPERM` is retried: an error the operating system reports as another code is not
-    // assumed to mean a delete, and is thrown at once.
+    // Only `EPERM` is retried. `EACCES`, `EBUSY`, `ENOSPC` and every other code that is neither
+    // `EEXIST` nor `EPERM` is rethrown once, not assumed to mean a delete, while `EEXIST` means
+    // the name is taken and is returned rather than thrown.
     const lock = join(root, LOCK_FILE);
     for (const code of ['EACCES', 'EBUSY', 'ENOSPC']) {
-      const refusal = createRefused(lock, code, 'always');
+      const refusal = refusedExclusiveCreate(lock, code, 'always');
       await withFs({ open: refusal.open }, async (lockModule) => {
         const error = await lockModule.acquireProjectLock(root).then(
           () => undefined,
