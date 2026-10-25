@@ -5,14 +5,14 @@
  *   (`apps/desktop/src/i18n/runtime.ts`), so English is present before the first paint and is the
  *   per-message fallback.
  * - **Every other locale is one `.po` file** under `apps/desktop/src/i18n/locales/<locale>/messages.po`,
- *   loaded by its own dynamic import. No non-English catalogue ships in L2; the loader is exercised by
+ *   loaded by its own dynamic import. No non-English catalogue ships in I3; the loader is exercised by
  *   tests and by the pseudo catalogues.
  * - **The pseudo catalogues are dev/test only.** They are real catalogue files (so the Vite plugin can
  *   compile them), but the only import of them sits behind `import.meta.env.DEV`, so the production
  *   build contains neither the catalogue nor its strings. Their ids are not language tags: the runtime
  *   maps them to `en-XA` (padded Latin) and `ar-XB` (right to left) before anything reaches `Intl`.
  *
- * The extractor scans only the app source: package-produced text is L5's, and model-facing text stays
+ * The extractor scans only the app source: package-produced text is I7's, and model-facing text stays
  * English outside the catalogue (§3.4).
  */
 import { defineConfig } from '@lingui/conf';

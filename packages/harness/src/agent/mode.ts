@@ -37,7 +37,9 @@ export const MODE_LABELS: Readonly<Record<PermissionMode, string>> = Object.free
 /**
  * The write tools `accept-edits` approves: native tools that change only the project's own data through the bus and undo in the
  * card's one group (agent-harness §4). A binder restructure, a project or folder import, an export, a review or a write outside
- * the project is not here and stays a card the writer decides, and neither is a write-confirm tool that needs the approved plan.
+ * the project is not here and stays a card the writer decides. The write-confirm rows are not here either: `pictures.place`,
+ * `pictures.transcribe`, `comic.derive`, `comic.scriptFromPages` and `timeline.edit` need the approved plan, so they ask under
+ * Accept edits and are approved under Auto.
  */
 export const ACCEPT_EDITS_TOOLS: ReadonlySet<string> = new Set([
   'scene.draft',

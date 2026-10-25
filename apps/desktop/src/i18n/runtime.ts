@@ -8,7 +8,7 @@
  * so the merge is what makes that true.
  *
  * **Other catalogues are loaded, then activated.** {@link activateCatalogue} rejects for a tag it has
- * no catalogue for and, for a catalogue it can load, activates only after the import has resolved. L4
+ * no catalogue for and, for a catalogue it can load, activates only after the import has resolved. I4
  * owns the picker and live switching; this module is the loader that path will call.
  *
  * **A catalogue id is not a language tag.** Lingui's pseudo modes are named `pseudo-LOCALE` and
@@ -18,11 +18,11 @@
  *
  * **Pseudo is dev/test only.** Both pseudo imports sit behind `import.meta.env.DEV`, which Vite
  * replaces with `false` in a production build, so the production graph contains neither the catalogue
- * nor its strings. The production branch refuses a pseudo tag before importing anything, even when
- * `?pseudo=1` is on the URL.
+ * nor its strings. The production branch refuses a pseudo tag before importing anything. There is no
+ * URL switch in this build; the picker's dev/test exposure arrives with I4.
  *
- * **One witness.** L2 converts exactly one rendered string, the Home screen's Settings button
- * (`components/Home.tsx`), to prove the transform and exercise the catalogue. L6 converts the rest.
+ * **One witness.** I3 converts exactly one rendered string, the Home screen's Settings button
+ * (`components/Home.tsx`), to prove the transform and exercise the catalogue. I5 converts the rest.
  */
 
 import { i18n, type Messages } from '@lingui/core';
@@ -32,24 +32,23 @@ import { messages as enMessages } from './locales/en/messages.po';
 /** The source locale. Always shipped; the per-message fallback (§3.3). */
 export const SOURCE_LOCALE_TAG = 'en';
 
-/** A catalogue the loader can resolve: its file/id name, the language tag it is activated under, and whether it is a test-only pseudo. */
+/** A catalogue the loader can resolve: its file/id name and the language tag it is activated under. */
 export interface Catalogue {
   readonly id: string;
   /** A valid BCP-47 tag, and what `Intl` may receive. */
   readonly tag: string;
-  readonly pseudo: boolean;
 }
 
-/** The only shipped catalogue in L2. A language joins this list when its `.po` file does (§3.3). */
-const ENGLISH: Catalogue = { id: 'en', tag: 'en', pseudo: false };
+/** The only shipped catalogue in I3. A language joins this table when its `.po` file does (§3.3). */
+const ENGLISH: Catalogue = { id: 'en', tag: 'en' };
 
 /**
  * The pseudo catalogues and the valid root tags they stand for. `en-XA` is the spec's accented,
  * pseudo-Latin tag; `ar-XB` is the right-to-left one. The ids never leave this module as tags.
  */
 export const PSEUDO_CATALOGUES: readonly Catalogue[] = [
-  { id: 'pseudo-LOCALE', tag: 'en-XA', pseudo: true },
-  { id: 'pseudo-RTL', tag: 'ar-XB', pseudo: true },
+  { id: 'pseudo-LOCALE', tag: 'en-XA' },
+  { id: 'pseudo-RTL', tag: 'ar-XB' },
 ];
 
 /** A tag with no catalogue in this build. */
@@ -85,14 +84,6 @@ export function tagForCatalogueId(id: string): string {
   const pseudo = PSEUDO_CATALOGUES.find((entry) => entry.id === id);
   if (pseudo !== undefined) return pseudo.tag;
   throw new UnknownCatalogueError(id);
-}
-
-/** The catalogue id behind a tag. Used by tests and by later tooling; activation keys on the tag. */
-export function catalogueIdForTag(tag: string): string {
-  if (tag === ENGLISH.tag) return ENGLISH.id;
-  const pseudo = PSEUDO_CATALOGUES.find((entry) => entry.tag === tag);
-  if (pseudo !== undefined) return pseudo.id;
-  throw new UnknownCatalogueError(tag);
 }
 
 /**
@@ -150,7 +141,7 @@ export function activateEnglish(): void {
   i18n.activate(ENGLISH.tag);
 }
 
-/** The tag that is active now. L4 publishes this to `<html lang>`; nothing here writes to the document. */
+/** The tag that is active now. I4 publishes this to `<html lang>`; nothing here writes to the document. */
 export function activeTag(): string {
   return i18n.locale ?? SOURCE_LOCALE_TAG;
 }

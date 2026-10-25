@@ -194,8 +194,9 @@ test('the data section says where the projects are kept, and that the browser ap
 
 test.describe('the request log clock follows the formatter locale', () => {
   // An English browser set to Britain: the formatter locale is en-GB, whose clock is 24-hour with no AM or PM. This proves the
-  // panel renders through the clock helper rather than the browser's own default; the helper's own tests, including the padded
-  // two-digit hour on an American system, are in e2e/unit/activity-model.spec.ts.
+  // panel shows a 24-hour clock under en-GB, so a regression to a fixed American clock (AM/PM) would fail it. It does not prove
+  // the helper itself: the pre-fix `toLocaleTimeString()` also printed 09:04:05 under en-GB. The padded two-digit hour is pinned by
+  // the helper's unit tests in e2e/unit/activity-model.spec.ts.
   test.use({ locale: 'en-GB' });
 
   test('shows a 24-hour time rather than the English default’s AM or PM', async ({ page }) => {

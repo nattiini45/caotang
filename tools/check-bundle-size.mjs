@@ -36,10 +36,10 @@ export const BUDGET = {
    * (#31). The Ink compiler (`ink-full`, 244 kB) loads when a project holds a dialogue container, which took the shared `src` chunk
    * under the limit, so `src` has no entry any more.
    *
-   * **L2 (#193) raised `index` and `initialGzip` for the compiled English catalogue and the Lingui runtime**, which must be in the
-   * entry before the first paint (i18n.md §3.3, §3.5). Measured on the L2 build: `index` 1,270.7 kB raw / 382.8 kB gzip (from
-   * 1,262.0 / 379.3 at L1), first load 769.2 kB gzip (from 765.7). The installed `en` catalogue is 25 bytes of compiled data; the rest
-   * is the about 3.5 kB gzip of runtime. No non-English catalogue ships in L2, so there is **no locale chunk to measure** yet: each
+   * **I3 (#193) raised `index` and `initialGzip` for the compiled English catalogue and the Lingui runtime**, which must be in the
+   * entry before the first paint (i18n.md §3.3, §3.5). Measured on the final I3 build: `index` 1,270.8 kB raw / 382.8 kB gzip (from
+   * 1,262.0 / 379.3 at I2), first load 769.2 kB gzip (from 765.7). The installed `en` catalogue is 25 bytes of compiled data; the rest
+   * is the about 3.5 kB gzip of runtime. No non-English catalogue ships in I3, so there is **no locale chunk to measure** yet: each
    * later locale is its own lazy chunk and its size is recorded when it ships.
    */
   allow: {

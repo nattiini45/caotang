@@ -1,8 +1,8 @@
 /**
- * The compiled-catalogue and toolchain gate (L2 / #193), as a test of what actually runs rather than
+ * The compiled-catalogue and toolchain gate (I3 / #193), as a test of what actually runs rather than
  * of configuration text.
  *
- * Four things are proved here:
+ * Five things are proved here:
  *
  * 1. **The Vitest transform runs the macros.** `test/fixtures/i18n-macro.tsx` holds a real `msg` macro;
  *    if the transform is missing the imported value is Lingui's untransformed stub and has no `id`.
@@ -29,7 +29,6 @@ import {
   activateEnglish,
   activeTag,
   catalogueForTag,
-  catalogueIdForTag,
   loadMessages,
   PSEUDO_CATALOGUES,
   PseudoCatalogueUnavailableError,
@@ -126,8 +125,6 @@ describe('pseudo catalogue ids never become language tags', () => {
   it('maps both pseudo ids to valid BCP-47 root tags', () => {
     expect(tagForCatalogueId('pseudo-LOCALE')).toBe('en-XA');
     expect(tagForCatalogueId('pseudo-RTL')).toBe('ar-XB');
-    expect(catalogueIdForTag('en-XA')).toBe('pseudo-LOCALE');
-    expect(catalogueIdForTag('ar-XB')).toBe('pseudo-RTL');
     expect(tagForCatalogueId('en')).toBe('en');
 
     for (const { id, tag } of PSEUDO_CATALOGUES) {
@@ -138,7 +135,7 @@ describe('pseudo catalogue ids never become language tags', () => {
   });
 
   it('hands Intl the mapped tag, never the catalogue id', () => {
-    // `formatLocale` is the caller that reaches `Intl.Locale`; this is the boundary L1 asked callers to
+    // `formatLocale` is the caller that reaches `Intl.Locale`; this is the boundary I2 asked callers to
     // respect. A raw pseudo id must never be what it receives.
     const locale = vi.spyOn(Intl, 'Locale');
     formatLocale(tagForCatalogueId('pseudo-RTL'), []);
@@ -150,7 +147,6 @@ describe('pseudo catalogue ids never become language tags', () => {
 
   it('rejects an unknown catalogue id rather than guessing a tag', () => {
     expect(() => tagForCatalogueId('pseudo-NOPE')).toThrow(UnknownCatalogueError);
-    expect(() => catalogueIdForTag('xx-YY')).toThrow(UnknownCatalogueError);
   });
 });
 

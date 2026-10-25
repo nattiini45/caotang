@@ -98,13 +98,13 @@ test('the built app opens on the projects screen with no console errors and no f
 /**
  * The transform witness in the production build, and the pseudo catalogues' absence from it.
  *
- * `Settings` is the one string L2 converts with a Lingui macro (`components/Home.tsx`). It is rendered
+ * `Settings` is the one string I3 converts with a Lingui macro (`components/Home.tsx`). It is rendered
  * from the compiled `en` catalogue that the entry imports, so seeing the English text proves the Vite
- * transform ran and the catalogue is present. `?pseudo=1` is the dev/test flag: a production build must
- * refuse it (the loader's production branch does), request no pseudo chunk and carry no pseudo text.
+ * transform ran and the catalogue is present. This build has no URL switch: `?pseudo=1` is a negative
+ * probe, and a production build must ignore it, request no pseudo chunk and carry no pseudo text.
  * The asset scan is the output half of that contract; the unit tests prove the loader's half.
  */
-test('the built app renders the transform witness in English, and a pseudo request stays English with no pseudo catalogue in the build', async ({ page }) => {
+test('the built app renders the transform witness in English, and a `?pseudo=1` URL fetches no pseudo catalogue in the build', async ({ page }) => {
   const problems = await watchForProblems(page);
   const chunks = watchChunks(page);
   await page.goto('/?pseudo=1');

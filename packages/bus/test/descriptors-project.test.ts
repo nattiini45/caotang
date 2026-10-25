@@ -112,8 +112,8 @@ describe('project.setMetadata', () => {
     expect(check(projectCommands.projectSetMetadata.validate, { patch: { language: null } })).toMatchObject({ ok: false });
   });
 
-  it('accepts the tags a writer uses, including a script and a region, and stores the canonical form', () => {
-    for (const language of ['en', 'de', 'en-GB', 'zh-Hant-TW', 'pt-BR']) {
+  it('accepts the tags a writer uses, including a script, a region and a private-use subtag, and stores the canonical form', () => {
+    for (const language of ['en', 'de', 'en-GB', 'zh-Hant-TW', 'pt-BR', 'en-x-foo']) {
       const out = check(projectCommands.projectSetMetadata.validate, { patch: { language } });
       expect(out, language).toEqual({ ok: true, value: { patch: { language } } });
     }
@@ -121,6 +121,8 @@ describe('project.setMetadata', () => {
     expect(lower).toEqual({ ok: true, value: { patch: { language: 'en-GB' } } });
     const reordered = check(projectCommands.projectSetMetadata.validate, { patch: { language: 'sl-rozaj-biske' } });
     expect(reordered).toEqual({ ok: true, value: { patch: { language: 'sl-biske-rozaj' } } });
+    const grandfathered = check(projectCommands.projectSetMetadata.validate, { patch: { language: 'art-lojban' } });
+    expect(grandfathered).toEqual({ ok: true, value: { patch: { language: 'jbo' } } });
   });
 
   it('refuses a tag Intl cannot read, so an unreadable tag is never written and never reaches a collator', () => {

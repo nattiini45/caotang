@@ -221,7 +221,7 @@ export function isSettled(turn: TurnView): boolean {
 export const MODE_HINTS: Readonly<Record<PermissionMode, string>> = Object.freeze({
   'plan-only': 'Reads run. Every write is refused and kept as a plan you can run later.',
   ask: 'Every plan and confirm card waits for your decision.',
-  'accept-edits': 'Cards that edit text and fields are approved as shown. Everything else asks.',
+  'accept-edits': 'Cards that change the project’s own text or fields (including dialogue drafts, prompt drafts and storyboard shots) are approved as shown. Everything else asks.',
   auto: 'Every card of the agent’s own tools is approved as shown, inside the turn’s budgets.',
 });
 

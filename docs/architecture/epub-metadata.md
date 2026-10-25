@@ -11,8 +11,8 @@
   "project": {
     "id": "p_9XK2M4Q7RZ",
     "name": "The Lighthouse Keeper",
-    "language": "en",                    // NEW — a tag Intl reads; see L1 below
-    "identifier": {                      // NEW — the EPUB unique-identifier floor; see L2
+    "language": "en",                    // NEW — a tag Intl reads; see the project.language row below
+    "identifier": {                      // NEW — the EPUB unique-identifier floor; see the project.identifier rows below
       "uuid": "urn:uuid:3f2a9c1e-8b4d-4a5e-9c7f-2d1e0a9b8c7d",
       "isbn": null                       // optional; set once the writer has one
     },
