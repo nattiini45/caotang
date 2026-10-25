@@ -701,7 +701,7 @@ export function Workspace({
                 Save to folder
               </button>
             ) : null}
-            <button type="button" className="button" onClick={() => setSettingsSection('providers')}>
+            <button type="button" className="button" onClick={() => setSettingsSection('providers')} data-testid="open-settings">
               Settings
             </button>
             <button

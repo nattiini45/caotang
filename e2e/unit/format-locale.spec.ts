@@ -3,29 +3,38 @@ import { expect, test } from '@playwright/test';
 import { localeFirstWeekday } from '../../packages/furniture/src/index.js';
 import { resolveUiLocale } from '../../packages/i18n/src/index.js';
 import { formatCount, wordsLabel } from '../../apps/desktop/src/app/counts.js';
-import { SHIPPED_UI_LOCALES, formatterLocale, uiLocale } from '../../apps/desktop/src/i18n/format-locale.js';
+import { SHIPPED_UI_LOCALES, formatterLocale, setUiLocaleTag, uiLocale } from '../../apps/desktop/src/i18n/format-locale.js';
 import { projectCollator } from '../../apps/desktop/src/i18n/project-collator.js';
 
 /**
- * The app's formatter-locale accessor (i18n.md §4.1, D3). These are the values I4 will make live; the
- * tests inject the system languages so their expectations do not depend on the machine running them.
+ * The app's formatter-locale accessor (i18n.md §4.1, D3). The runtime sets the tag only after a
+ * successful activation; these tests set it directly and inject the system languages, so their
+ * expectations do not depend on the machine running them.
  */
 test.describe('the app’s formatter locale (i18n.md §4.1, D3)', () => {
   test('the interface resolves to English while only the English catalogue ships', () => {
+    setUiLocaleTag('en');
     expect(SHIPPED_UI_LOCALES).toEqual(['en']);
-    expect(uiLocale(['en-GB'])).toBe('en');
-    expect(uiLocale(['de-DE'])).toBe('en');
-    expect(uiLocale(['fr-FR', 'en-AU'])).toBe('en');
+    expect(uiLocale()).toBe('en');
   });
 
   test('an English system keeps its region, and another system gets the English default region', () => {
+    setUiLocaleTag('en');
     expect(formatterLocale(['en-GB'])).toBe('en-GB');
     expect(formatterLocale(['en-AU'])).toBe('en-AU');
     expect(formatterLocale(['de-DE'])).toBe('en-US');
     expect(formatterLocale(['de-CH', 'en-GB'])).toBe('en-GB');
   });
 
+  test('after a switch the formatter follows the activated catalogue, with the system region only when the languages match', () => {
+    setUiLocaleTag('de');
+    expect(formatterLocale(['de-DE'])).toBe('de-DE');
+    expect(formatterLocale(['en-US'])).toBe('de-DE');
+    setUiLocaleTag('en');
+  });
+
   test('the result is a locale Intl accepts', () => {
+    setUiLocaleTag('en');
     expect(() => new Intl.NumberFormat(formatterLocale(['en-GB']))).not.toThrow();
   });
 

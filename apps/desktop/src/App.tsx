@@ -6,7 +6,7 @@
  * is gated on the same check (see `Workspace`). Opening a project asks the browser to keep its storage (ui-modules §5.3).
  */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { RuntimeStoreNewerError, type RuntimeStore } from '@caotang/store';
 
 import { runtimeStore } from './app/runtime.js';
@@ -15,6 +15,7 @@ import { droppedFieldsSentence } from './app/integrity-model.js';
 import { fixtureWireFactory } from './app/mcp.js';
 import { openAppServices, type AppServices } from './app/services.js';
 import type { DirectoryHandleLike } from './app/fs-access.js';
+import { initializeInterfaceLanguage, languageRevision, subscribeLanguage } from './i18n/language.js';
 import { openDemoSample, setSessionDefaults, type Opened } from './app/lifecycle.js';
 import { browserStorageHost, requestDurability } from './app/storage.js';
 import type { ProjectSession } from './app/session.js';
@@ -43,6 +44,9 @@ export function App(): ReactNode {
   // The session in view, mirrored in a ref so the test hook and the switch logic read the current one without re-rendering for it.
   const current = useRef<ProjectSession | null>(null);
   const serial = useRef(0);
+  // A switch activates in place; re-rendering the tree keeps the editor, its journal and every open
+  // card exactly where they are (i18n.md §3.3: no reload).
+  useSyncExternalStore(subscribeLanguage, languageRevision);
 
   useEffect(() => {
     let alive = true;
@@ -66,8 +70,12 @@ export function App(): ReactNode {
     const factory = typeof indexedDB === 'undefined' ? null : indexedDB;
     // The MCP transport is the development fixture's only in a development build; a shipped build uses the SDK's wire.
     const mcpWire = import.meta.env.DEV ? fixtureWireFactory() : undefined;
-    openAppServices(factory, { mcpWire }).then((opened) => {
+    openAppServices(factory, { mcpWire }).then(async (opened) => {
+      // The stored interface language is loaded before the first real screen, so the writer does not
+      // see English and then watch it change. A failed catalogue falls back to English with a notice.
+      const languageFailure = await initializeInterfaceLanguage(opened.settings.current().interfaceLanguage);
       if (!alive) return;
+      if (languageFailure !== null) setNotice(languageFailure);
       setServices(opened);
       // The session defaults follow the settings: the debounce and the checkpoint limits a new session starts with.
       const apply = (): void => {

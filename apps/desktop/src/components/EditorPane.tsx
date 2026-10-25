@@ -168,6 +168,9 @@ function DocumentEditor({
   const report = useReport();
   const snapshot = useSyncExternalStore(agent.subscribe, agent.snapshot);
   const host = useRef<HTMLDivElement>(null);
+  // The manuscript reads in the project's language and direction, whatever the interface language is
+  // (i18n.md §3.1, §5.4).
+  const contentLang = session.state.manifest.project.language;
   // The ghost bar's own element, brought into view when a draft lands (the effect below).
   const barRef = useRef<HTMLElement>(null);
   const [editor, setEditor] = useState<TiptapEditorInstance | null>(null);
@@ -309,7 +312,7 @@ function DocumentEditor({
     <article className="editor-pane" hidden={!visible}>
       <div className="editor-column">
         <header className="editor-head">
-          <h2 className="editor-title">{title}</h2>
+          <h2 className="editor-title" lang={contentLang} dir="auto">{title}</h2>
         </header>
 
         {load !== null && bannerOpen && (load.groups.length > 0 || load.dialect.length > 0) ? (
@@ -320,7 +323,7 @@ function DocumentEditor({
           <EmptyState title="The editor could not open this document">{failure}</EmptyState>
         ) : null}
 
-        <div ref={host} className="editor-host" />
+        <div ref={host} className="editor-host" lang={contentLang} dir="auto" />
 
         {ghostHere !== null && ghostFor !== undefined ? (
           <GhostBar

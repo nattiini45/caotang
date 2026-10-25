@@ -347,7 +347,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
       <header className="home-head">
         <div className="home-title">
           <h1>Caotang</h1>
-          <button type="button" className="button" onClick={() => setSettings('providers')}>
+          <button type="button" className="button" onClick={() => setSettings('providers')} data-testid="open-settings">
             <Trans>Settings</Trans>
           </button>
         </div>

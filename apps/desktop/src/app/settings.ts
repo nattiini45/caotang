@@ -167,6 +167,13 @@ export interface RoleSettings {
 }
 
 export interface AppSettings {
+  /**
+   * The interface language (§3.1): `'system'` or a catalogue tag. App-level, beside the other settings
+   * in `app-db`, and never part of a project. Whether the tag is available in this build is the
+   * loader's question; a stored tag this build does not ship falls back with a notice instead of
+   * changing what the record means.
+   */
+  readonly interfaceLanguage: string;
   readonly provider: {
     /** The active profile's id, mirrored from the profile store. `null` when no profile exists yet. */
     readonly activeProfileId: string | null;
@@ -209,6 +216,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = Object.freeze({
+  interfaceLanguage: 'system',
   provider: Object.freeze({ activeProfileId: null }),
   editor: Object.freeze({ autosaveDebounceMs: DEFAULT_DEBOUNCE_MS, focusModeHideRails: true }),
   session: Object.freeze({}),
@@ -223,6 +231,8 @@ export const DEFAULT_SETTINGS: AppSettings = Object.freeze({
 
 /** A patch: any field may be given, and the rest keep their values. A `dailyTargetWords` of 0 clears the target. */
 export interface SettingsPatch {
+  /** `'system'` or a catalogue tag. The switcher publishes this only after a successful activation. */
+  readonly interfaceLanguage?: string;
   /**
    * `roles` replaces the whole routing record: a role set to `'follow'` follows 'chat' again, and `null` (or an
    * empty record) clears every assignment, so each role follows the chat/active choice.
@@ -267,6 +277,23 @@ export function mcpLoadWarnings(raw: unknown, now: string = new Date().toISOStri
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * The interface-language preference as it loads. `'system'` stays; a language tag is kept in its
+ * canonical case and ordering; anything that is not a tag reads as `'system'`, so a hand-edited
+ * record cannot make the app ask `Intl` for nonsense. A canonical tag this build does not ship is
+ * left intact: the runtime falls back on load and says so, and a later build that ships it can use it.
+ */
+export function normalizeInterfaceLanguage(value: unknown): string {
+  if (typeof value !== 'string') return 'system';
+  const text = value.trim();
+  if (text === 'system' || text === '') return 'system';
+  try {
+    return Intl.getCanonicalLocales(text)[0] ?? 'system';
+  } catch {
+    return 'system';
+  }
 }
 
 /** A whole number within `[min, max]`, or the fallback. */
@@ -342,6 +369,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
   const roles = normalizeRoleSettings(provider['roles']);
 
   return {
+    interfaceLanguage: normalizeInterfaceLanguage(source['interfaceLanguage']),
     provider: {
       activeProfileId: typeof provider['activeProfileId'] === 'string' ? provider['activeProfileId'] : null,
       ...(roles === undefined ? {} : { roles }),
@@ -408,6 +436,7 @@ export function contextWarningOf(context: ContextSettings, locale: string = form
 /** Applies a patch to settings and normalises the result, so a patch cannot leave the record outside its clamps. */
 export function applyPatch(current: AppSettings, patch: SettingsPatch): AppSettings {
   const next: Record<string, unknown> = {
+    interfaceLanguage: patch.interfaceLanguage ?? current.interfaceLanguage,
     provider: { ...current.provider, ...(patch.provider ?? {}) },
     editor: { ...current.editor, ...(patch.editor ?? {}) },
     session: {

@@ -7,7 +7,9 @@
  * it concerns, never as a toast alone (context-assembly §6).
  */
 
-import { useEffect, useReducer, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
+import { t } from '@lingui/core/macro';
+import { numberFormat } from '@caotang/i18n';
 import {
   PRESETS,
   isLocalBase,
@@ -35,6 +37,10 @@ import {
   type RoleSettings,
 } from '../app/settings.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
+import { developerLanguageExposure, languageRevision, subscribeLanguage, switchInterfaceLanguage } from '../i18n/language.js';
+import { uiLocale } from '../i18n/format-locale.js';
+import { languageChoices, type InterfaceLanguageStats } from '../i18n/picker.js';
+import languageStats from '../i18n/locales/stats.json';
 import { timeLabel } from '../app/activity-model.js';
 import { DEMO_PROFILE_NAME, priceClearedBy, priceFromInputs } from '../app/providers.js';
 import { capsLine, modelDetails } from '../app/provider-details.js';
@@ -155,7 +161,7 @@ export function Settings({
             {section === 'writing' ? <WritingSection services={services} /> : null}
             {section === 'coherence' ? <CoherenceSection services={services} /> : null}
             {section === 'mcp' ? <McpSection mcp={services.mcp} /> : null}
-            {section === 'appearance' ? <AppearanceSection /> : null}
+            {section === 'appearance' ? <AppearanceSection services={services} /> : null}
             {section === 'data' ? <DataSection services={services} session={session} store={store} storage={storage} /> : null}
           </div>
         </div>
@@ -1067,26 +1073,103 @@ function WritingSection({ services }: { services: AppServices }): ReactNode {
  * Appearance
  * ------------------------------------------------------------------ */
 
-function AppearanceSection(): ReactNode {
+function AppearanceSection({ services }: { readonly services: AppServices }): ReactNode {
   const [theme, setTheme] = useState<Theme>(() => activeTheme());
-  const choose = (next: Theme): void => {
+  const chooseTheme = (next: Theme): void => {
     applyTheme(next);
     rememberTheme(next);
     setTheme(next);
   };
+
+  // The stored preference, the catalogue revision (a switch changes the native name of System), and the
+  // status line a switch leaves behind. The radio inputs stay mounted across all three, so focus does not
+  // move from the row the writer picked.
+  const settings = useSyncExternalStore(services.settings.subscribe, services.settings.current);
+  const revision = useSyncExternalStore(subscribeLanguage, languageRevision);
+  const [status, setStatus] = useState<
+    | { readonly kind: 'idle' }
+    | { readonly kind: 'loading' }
+    | { readonly kind: 'notice'; readonly tone: 'info' | 'error'; readonly message: string }
+  >({ kind: 'idle' });
+  const choices = useMemo(
+    () =>
+      languageChoices({
+        setting: settings.interfaceLanguage,
+        navigatorLanguages: typeof navigator === 'undefined' ? [] : navigator.languages,
+        stats: languageStats as InterfaceLanguageStats,
+        exposeDeveloperLanguages: developerLanguageExposure(),
+      }),
+    [settings.interfaceLanguage, revision],
+  );
+  // A stored tag this build does not ship falls back to English at start-up; the System row then shows
+  // the effective choice instead of leaving every row unticked.
+  const selected = choices.some((choice) => choice.setting.toLowerCase() === settings.interfaceLanguage.toLowerCase())
+    ? settings.interfaceLanguage
+    : 'system';
+
+  const chooseLanguage = (setting: string): void => {
+    setStatus({ kind: 'loading' });
+    void switchInterfaceLanguage(setting, services.settings).then((result) => {
+      // A superseded request must not overwrite the newer one's status line.
+      if (result.status === 'superseded') return;
+      if (result.status === 'switched') {
+        setStatus({ kind: 'idle' });
+        return;
+      }
+      setStatus({ kind: 'notice', tone: result.status === 'failed' ? 'error' : 'info', message: result.message });
+    });
+  };
+
   return (
     <section className="settings-section" aria-labelledby="settings-appearance">
       <h3 id="settings-appearance">Appearance</h3>
       <fieldset className="settings-radios">
         <legend>Theme</legend>
         <label className="check">
-          <input type="radio" name="theme" checked={theme === 'light'} onChange={() => choose('light')} /> Light
+          <input type="radio" name="theme" checked={theme === 'light'} onChange={() => chooseTheme('light')} /> Light
         </label>
         <label className="check">
-          <input type="radio" name="theme" checked={theme === 'dark'} onChange={() => choose('dark')} /> Dark
+          <input type="radio" name="theme" checked={theme === 'dark'} onChange={() => chooseTheme('dark')} /> Dark
         </label>
       </fieldset>
       <p className="muted">The choice is kept in this browser. Until you choose, the page follows the system.</p>
+
+      <fieldset className="settings-radios" data-testid="interface-language">
+        <legend>{t`Interface language`}</legend>
+        {choices.map((choice) => (
+          <label className="check" key={choice.setting}>
+            <input
+              type="radio"
+              name="interface-language"
+              value={choice.setting}
+              checked={selected.toLowerCase() === choice.setting.toLowerCase()}
+              onChange={() => chooseLanguage(choice.setting)}
+            />
+            {choice.setting === 'system' ? (
+              <>
+                {t`Follow the system`} — {choice.nativeName}
+              </>
+            ) : (
+              choice.nativeName
+            )}
+            {choice.completion === null ? null : (
+              <span className="muted">
+                {` ${numberFormat(uiLocale(), { style: 'percent', maximumFractionDigits: 1 }).format(choice.completion / 100)}`}
+              </span>
+            )}
+            {choice.preview ? <span className="muted">{` — ${t`Preview, partly English`}`}</span> : null}
+          </label>
+        ))}
+      </fieldset>
+      <p className="muted">
+        {t`The interface language changes straight away. The manuscript stays in its own language.`}
+      </p>
+      {status.kind === 'loading' ? <p role="status">{t`Changing the interface language…`}</p> : null}
+      {status.kind === 'notice' ? (
+        <p className={`form-message is-${status.tone}`} role={status.tone === 'error' ? 'alert' : 'status'}>
+          {status.message}
+        </p>
+      ) : null}
     </section>
   );
 }

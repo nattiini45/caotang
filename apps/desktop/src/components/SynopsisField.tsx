@@ -47,6 +47,8 @@ export function SynopsisField({
         maxLength={SYNOPSIS_MAX_CHARS}
         rows={variant === 'card' ? 2 : 4}
         placeholder="Add a synopsis"
+        lang={session.state.manifest.project.language}
+        dir="auto"
         value={field.value}
         onChange={(event) => field.change(event.target.value)}
         onBlur={field.flush}

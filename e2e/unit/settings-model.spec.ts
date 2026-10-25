@@ -1,6 +1,19 @@
 import { expect, test } from '@playwright/test';
 
-import { DEFAULT_SETTINGS, applyPatch, normalizeSettings } from '../../apps/desktop/src/app/settings.js';
+import {
+  DEFAULT_SETTINGS,
+  applyPatch,
+  normalizeInterfaceLanguage,
+  normalizeSettings,
+} from '../../apps/desktop/src/app/settings.js';
+import type { InterfaceCatalogue } from '../../apps/desktop/src/i18n/catalogues.js';
+import { languageChoices, type InterfaceLanguageStats } from '../../apps/desktop/src/i18n/picker.js';
+import {
+  ZIP_ENGINE,
+  createEmptyManifest,
+  createProjectState,
+  exportProjectZip,
+} from '../../packages/store/src/index.js';
 import { localDayKey } from '../../packages/gateway/src/index.js';
 import { localDayOfIso, targetProgress, todayLine, wordsWrittenOn } from '../../apps/desktop/src/app/session-progress.js';
 import {
@@ -181,5 +194,132 @@ test.describe('browser storage (ui-modules §5.3)', () => {
     expect(isBannerDismissedForVisit()).toBe(false);
     dismissBannerForVisit();
     expect(isBannerDismissedForVisit()).toBe(true);
+  });
+});
+
+/*
+ * I4 / #194: the interface-language preference, the Appearance picker's D5 gates, and the proof that
+ * the preference never enters a project bundle (i18n.md §3.1, §5.1, §9.2).
+ */
+
+test.describe('the interface-language preference', () => {
+  test('loads as System when the record has no value, a wrong type or a non-tag', () => {
+    expect(DEFAULT_SETTINGS.interfaceLanguage).toBe('system');
+    expect(normalizeSettings({}).interfaceLanguage).toBe('system');
+    expect(normalizeSettings({ interfaceLanguage: 7 }).interfaceLanguage).toBe('system');
+    expect(normalizeSettings({ interfaceLanguage: '' }).interfaceLanguage).toBe('system');
+    expect(normalizeSettings({ interfaceLanguage: 'not a language tag' }).interfaceLanguage).toBe('system');
+  });
+
+  test('keeps a stored catalogue tag, in canonical case, including a dev pseudo tag', () => {
+    expect(normalizeInterfaceLanguage('en-XA')).toBe('en-XA');
+    expect(normalizeInterfaceLanguage('EN-xa')).toBe('en-XA');
+    expect(normalizeInterfaceLanguage('ar-XB')).toBe('ar-XB');
+    // Whether this build ships the catalogue is the loader's question, not the record's.
+    expect(normalizeInterfaceLanguage('de')).toBe('de');
+  });
+
+  test('a patch changes only the preference, and an invalid patch reads as System', () => {
+    const current = normalizeSettings({ editor: { autosaveDebounceMs: 1200 } });
+    const next = applyPatch(current, { interfaceLanguage: 'en-XA' });
+    expect(next.interfaceLanguage).toBe('en-XA');
+    expect(next.editor.autosaveDebounceMs).toBe(1200);
+    expect(applyPatch(next, { interfaceLanguage: 'not a tag' }).interfaceLanguage).toBe('system');
+  });
+});
+
+const REAL_AND_PSEUDO: readonly InterfaceCatalogue[] = [
+  { id: 'en', tag: 'en', pseudo: false },
+  { id: 'de', tag: 'de', pseudo: false },
+  { id: 'fr', tag: 'fr', pseudo: false },
+  { id: 'ja', tag: 'ja', pseudo: false },
+  { id: 'pseudo-LOCALE', tag: 'en-XA', pseudo: true },
+];
+
+const LANGUAGE_STATS: InterfaceLanguageStats = {
+  sourceLocale: 'en',
+  locales: {
+    de: { completion: 96 },
+    fr: { completion: 72 },
+    ja: { completion: 59 },
+  },
+};
+
+function choices(options: { setting?: string; expose?: boolean } = {}) {
+  return languageChoices({
+    setting: options.setting ?? 'system',
+    navigatorLanguages: ['en-US'],
+    stats: LANGUAGE_STATS,
+    exposeDeveloperLanguages: options.expose ?? false,
+    catalogues: REAL_AND_PSEUDO,
+  });
+}
+
+function settingsOf(list: ReturnType<typeof choices>): string[] {
+  return list.map((entry) => entry.setting);
+}
+
+test.describe('the D5 picker gates', () => {
+  test('lists ≥ 95 % plainly, 60–94 % as Preview, and hides below 60 %', () => {
+    const list = choices();
+    expect(settingsOf(list)).toEqual(['system', 'en', 'de', 'fr']);
+    const de = list.find((entry) => entry.setting === 'de');
+    const fr = list.find((entry) => entry.setting === 'fr');
+    expect(de).toMatchObject({ completion: 96, preview: false });
+    expect(fr).toMatchObject({ completion: 72, preview: true });
+    expect(list.some((entry) => entry.setting === 'ja')).toBe(false);
+  });
+
+  test('the developer exposure reveals below-gate languages and the pseudo catalogues', () => {
+    const list = choices({ expose: true });
+    expect(settingsOf(list)).toEqual(['system', 'en', 'de', 'fr', 'ja', 'en-XA']);
+    expect(list.find((entry) => entry.setting === 'ja')).toMatchObject({ completion: 59, preview: true });
+    expect(list.find((entry) => entry.setting === 'en-XA')).toMatchObject({ pseudo: true, preview: false });
+  });
+
+  test('a below-gate language that is already selected stays visible, so the writer can switch away', () => {
+    const list = choices({ setting: 'ja' });
+    expect(settingsOf(list)).toContain('ja');
+    expect(list.find((entry) => entry.setting === 'ja')).toMatchObject({ preview: true });
+  });
+
+  test('a selected pseudo catalogue stays visible without the exposure flag', () => {
+    expect(settingsOf(choices({ setting: 'en-XA' }))).toContain('en-XA');
+  });
+
+  test('names each language in its own language', () => {
+    const list = choices({ expose: true });
+    const nameOf = (setting: string): string => list.find((entry) => entry.setting === setting)?.nativeName ?? '';
+    expect(nameOf('en')).toBe('English');
+    expect(nameOf('de')).toMatch(/Deutsch/);
+    expect(nameOf('fr')).toMatch(/français/);
+    expect(nameOf('ja')).toMatch(/日本語/);
+    // The System row is named by the catalogue it resolves to on this machine (en-US → English).
+    expect(nameOf('system')).toBe('English');
+  });
+});
+
+test.describe('the project bundle and the interface preference', () => {
+  const NOW = new Date('2026-10-25T00:00:00.000Z');
+
+  test('carries no interface-language preference and has the same bytes whatever the preference is', async () => {
+    const state = createProjectState(createEmptyManifest('Bundle Check', NOW));
+
+    // The preference is a legitimate app setting; it must simply never be an input to the project.
+    const preference = normalizeSettings({ interfaceLanguage: 'en-XA' });
+    expect(preference.interfaceLanguage).toBe('en-XA');
+
+    const before = await exportProjectZip(state, { now: NOW });
+    const after = await exportProjectZip(state, { now: NOW });
+    expect(after.bytes).toEqual(before.bytes);
+
+    const { unzipSync } = await ZIP_ENGINE.load();
+    const entries = unzipSync(after.bytes);
+    expect(Object.keys(entries)).toContain('caotang.json');
+    for (const [path, bytes] of Object.entries(entries)) {
+      const text = new TextDecoder().decode(bytes);
+      expect(text, `${path} carries the interface preference`).not.toContain('interfaceLanguage');
+      expect(text, `${path} carries the interface tag`).not.toContain('en-XA');
+    }
   });
 });

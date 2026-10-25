@@ -7,6 +7,34 @@ msgstr ""
 "X-Generator: @lingui/cli\n"
 "Language: en\n"
 
+#: apps/desktop/src/components/Settings.tsx
+msgid "Changing the interface language…"
+msgstr "Changing the interface language…"
+
+#: apps/desktop/src/components/Settings.tsx
+msgid "Follow the system"
+msgstr "Follow the system"
+
+#: apps/desktop/src/components/Settings.tsx
+msgid "Interface language"
+msgstr "Interface language"
+
+#: apps/desktop/src/components/Settings.tsx
+msgid "Preview, partly English"
+msgstr "Preview, partly English"
+
 #: apps/desktop/src/components/Home.tsx
 msgid "Settings"
 msgstr "Settings"
+
+#: apps/desktop/src/i18n/language.ts
+msgid "The interface language changed, but the choice could not be saved in this browser. It will go back to the saved language when you reload."
+msgstr "The interface language changed, but the choice could not be saved in this browser. It will go back to the saved language when you reload."
+
+#: apps/desktop/src/components/Settings.tsx
+msgid "The interface language changes straight away. The manuscript stays in its own language."
+msgstr "The interface language changes straight away. The manuscript stays in its own language."
+
+#: apps/desktop/src/i18n/language.ts
+msgid "The interface language could not be loaded. The language you were reading is still in use."
+msgstr "The interface language could not be loaded. The language you were reading is still in use."

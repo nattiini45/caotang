@@ -116,6 +116,7 @@ function CodexList({
   const totals = totalsOf(session.state, session.mentions, entries);
   const visible = entries.filter((entry) => matchesFilter(entry, filter));
   const groups = groupByType(visible, session.state.manifest.project.language);
+  const contentLang = session.state.manifest.project.language;
 
   const create = (): void => {
     const name = uniqueName(entries, 'Untitled entry');
@@ -224,7 +225,7 @@ function CodexList({
                   return (
                     <li key={entry.id}>
                       <button type="button" className="codex-row" onClick={() => onOpen(entry.id)}>
-                        <span className="codex-row-name">{entry.name}</span>
+                        <span className="codex-row-name" lang={contentLang} dir="auto">{entry.name}</span>
                         <span className={`codex-row-policy is-${entry.includePolicy}`}>
                           {POLICY_LABELS[entry.includePolicy]}
                         </span>
@@ -261,6 +262,7 @@ function CodexEntryEditor({
   const entries = session.mentions.entriesOf(session.state);
   const appearances = appearancesOf(session.state, entry.id, session.mentions, entries);
   const mentionCount = appearances.reduce((sum, appearance) => sum + appearance.count, 0);
+  const contentLang = session.state.manifest.project.language;
 
   /** One `codex.upsert` update that names only what it changes. A refusal is said, and the field keeps the stored value. */
   const change = (patch: Omit<CodexUpsertOp, 'action' | 'id'>): boolean => {
@@ -294,7 +296,7 @@ function CodexEntryEditor({
         <p className="eyebrow">
           {TYPE_LABELS[entry.type] ?? entry.type} · {originLabel(entry)}
         </p>
-        <h2 className="codex-entry-title">{entry.name}</h2>
+        <h2 className="codex-entry-title" lang={contentLang} dir="auto">{entry.name}</h2>
       </header>
 
       <NameField value={entry.name} onCommit={(name) => change({ name })} />
@@ -401,7 +403,7 @@ function CodexEntryEditor({
                     className="codex-row is-appearance"
                     onClick={() => onOpenDocument(appearance.docId, firstMentionIn(session, appearance.docId, entry.id))}
                   >
-                    <span className="codex-row-name">{appearance.title}</span>
+                    <span className="codex-row-name" lang={contentLang} dir="auto">{appearance.title}</span>
                     <span className="codex-row-count">{formatCount(appearance.count)}</span>
                   </button>
                 </li>

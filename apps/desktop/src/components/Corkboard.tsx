@@ -397,6 +397,8 @@ function Card(props: CardProps): ReactNode {
   // Small cards are title only (ui-modules §3.2): no synopsis, no status and no footer count.
   const titleOnly = zoom === 'S';
   const dropClass = dropZone ? ` is-drop-${dropZone}${props.dropRefused ? ' is-refused' : ''}` : '';
+  // Writer content reads in the project's direction, independent of the UI (i18n.md §5.4).
+  const contentLang = state.manifest.project.language;
 
   return (
     <article
@@ -433,6 +435,8 @@ function Card(props: CardProps): ReactNode {
         ) : (
           <h3
             className="card-title"
+            lang={contentLang}
+            dir="auto"
             onDoubleClick={(event) => {
               if (!isMovable(node)) return;
               event.stopPropagation();

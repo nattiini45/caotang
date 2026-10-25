@@ -20,6 +20,8 @@ export interface ScreenplayPreviewProps {
   readonly source: string;
   /** The fallback title for a title page the source does not carry. */
   readonly title: string;
+  /** The project's language, so the preview reads in the manuscript's direction (i18n.md §5.4). */
+  readonly lang?: string;
   /** Called with the span of the element a line prints, when the writer clicks the line or presses Enter on it. */
   readonly onOpenSource?: (range: TextRange) => void;
 }
@@ -29,7 +31,7 @@ export function previewPagesOf(source: string, title: string): readonly LayoutPa
   return paginate(parseFountain(source).elements, { title });
 }
 
-export function ScreenplayPreview({ source, title, onOpenSource }: ScreenplayPreviewProps): ReactNode {
+export function ScreenplayPreview({ source, title, lang, onOpenSource }: ScreenplayPreviewProps): ReactNode {
   const pages = useMemo(() => previewPagesOf(source, title), [source, title]);
   const root = useRef<HTMLDivElement>(null);
   // The one line in the tab order (a roving tabindex), by its page and index; the first linked line while that one is gone.
@@ -61,7 +63,7 @@ export function ScreenplayPreview({ source, title, onOpenSource }: ScreenplayPre
     next.focus();
   };
   return (
-    <div ref={root} className="sp-preview" aria-label="Paginated preview">
+    <div ref={root} className="sp-preview" aria-label="Paginated preview" lang={lang} dir="auto">
       <p className="field-note">
         {onOpenSource === undefined
           ? 'The page breaks follow the screenplay page: about 55 lines a page, 12 point Courier.'

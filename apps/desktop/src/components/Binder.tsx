@@ -643,6 +643,9 @@ function BinderRowView(props: RowViewProps): ReactNode {
   const vocabLabel = node.label === null ? undefined : state.manifest.vocabulary.labels.find((l) => l.id === node.label);
   const tooltip = synopsisPreview(node.synopsis);
   const dropClass = hover ? ` is-drop-${hover.zone}${hover.refusal ? ' is-refused' : ''}` : '';
+  // Writer content reads in the project's direction, independent of the UI (i18n.md §5.4).
+  const contentLang = state.manifest.project.language;
+  const content = { lang: contentLang, dir: 'auto' as const };
 
   if (row.kind === 'section') {
     return (
@@ -660,7 +663,9 @@ function BinderRowView(props: RowViewProps): ReactNode {
         onDragOver={props.onDragOver}
         onDrop={props.onDrop}
       >
-        <span className="row-title">{node.title}</span>
+        <span className="row-title" {...content}>
+          {node.title}
+        </span>
         <span className="row-meta">{itemsLabel(childrenOf(state, node.id).length)}</span>
       </div>
     );
@@ -723,7 +728,9 @@ function BinderRowView(props: RowViewProps): ReactNode {
           onCancel={props.onRenameCancel}
         />
       ) : (
-        <span className="row-title">{node.title}</span>
+        <span className="row-title" {...content}>
+          {node.title}
+        </span>
       )}
 
       <span className="row-meta">

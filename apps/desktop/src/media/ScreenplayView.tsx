@@ -306,7 +306,7 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
       <div className="sp-layout">
         <div className="sp-main">
           {mode === 'script' ? (
-            <article className="sp-page" aria-label="Formatted script">
+            <article className="sp-page" aria-label="Formatted script" lang={session.state.manifest.project.language} dir="auto">
               {model.titlePage === null ? null : <TitlePage entries={model.titlePage} />}
               {model.units.length === 0 ? (
                 <p className="muted">This scene is empty. Switch to Source and write its heading, which starts with INT. or EXT.</p>
@@ -315,7 +315,12 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
               )}
             </article>
           ) : mode === 'pages' ? (
-            <ScreenplayPreview source={deferred} title={node.title} onOpenSource={(range) => showSourceAt(range.from)} />
+            <ScreenplayPreview
+              source={deferred}
+              title={node.title}
+              lang={session.state.manifest.project.language}
+              onOpenSource={(range) => showSourceAt(range.from)}
+            />
           ) : (
             <div className="sp-source-pane">
               <div className="sp-source-bar">
