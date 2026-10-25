@@ -1,6 +1,6 @@
 # AGENTS.md — Caotang
 
-Caotang is a **local-first writing studio** for novels and long fiction: a browser app where the manuscript lives on your own machine (a project folder or the browser), an AI agent works in it under your approval, and a compile step exports Word, EPUB, Markdown, Fountain, Ink and storyboards.
+Caotang is a **local-first writing studio** for long-form work: novels and other long fiction first, and the scripts and serials a writer makes from them — screenplays, comics, podcasts, narrated video and newsletters. It is a browser app where the manuscript lives on your own machine (a project folder or the browser), an AI agent works in it under your approval, and a compile step exports Word, EPUB, Markdown, Fountain, Ink and storyboards. Pictures, comics, a timeline, interface languages and AV scripts are specified and not built; `docs/ROADMAP.md` says which.
 
 There is **no backend server, no account, no telemetry**. The app is static files; the model provider is the only network dependency, plus any MCP server you connect yourself.
 
