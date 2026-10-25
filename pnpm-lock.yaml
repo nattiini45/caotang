@@ -292,6 +292,9 @@ importers:
       '@lingui/core':
         specifier: 6.10.1
         version: 6.10.1(@babel/core@7.29.7(supports-color@7.2.0))
+      '@lingui/message-utils':
+        specifier: 6.10.1
+        version: 6.10.1
       '@lingui/react':
         specifier: 6.10.1
         version: 6.10.1(@babel/core@7.29.7(supports-color@7.2.0))(react@19.3.0)
@@ -314,6 +317,9 @@ importers:
 
   packages/bus:
     dependencies:
+      '@caotang/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       '@caotang/skills':
         specifier: workspace:*
         version: link:../skills
@@ -372,6 +378,9 @@ importers:
       '@caotang/codex':
         specifier: workspace:*
         version: link:../codex
+      '@caotang/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       '@caotang/ids':
         specifier: workspace:*
         version: link:../ids
@@ -416,6 +425,9 @@ importers:
       '@caotang/coherence':
         specifier: workspace:*
         version: link:../coherence
+      '@caotang/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       '@caotang/ids':
         specifier: workspace:*
         version: link:../ids
@@ -693,6 +705,9 @@ importers:
       '@caotang/gateway':
         specifier: workspace:*
         version: link:../gateway
+      '@caotang/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       '@caotang/ids':
         specifier: workspace:*
         version: link:../ids
@@ -901,6 +916,9 @@ importers:
       '@caotang/bus':
         specifier: workspace:*
         version: link:../bus
+      '@caotang/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       '@caotang/ids':
         specifier: workspace:*
         version: link:../ids

@@ -716,6 +716,7 @@ function finish<S>(
     // cannot disagree about what the command touched.
     affected: report.affected,
     summary: report.summary,
+    ...(report.summaryRef === undefined ? {} : { summaryRef: report.summaryRef }),
   });
 
   // Step 4's verdict, reported here for §7's reason — the group is intact above.

@@ -7,6 +7,7 @@
  * check testable with a fixture and nothing else.
  */
 
+import type { MessageRef } from '@caotang/i18n';
 import type { CodexEntry } from '@caotang/store';
 
 import type { CueFacts } from '../cues.js';
@@ -24,6 +25,8 @@ export interface DraftFinding {
   /** Scene passages, in the order the message reads. Codex-level checks quote none. */
   readonly evidence: readonly Evidence[];
   readonly message: string;
+  /** I7: the stable id, values and English template the app may render in another interface language. */
+  readonly messageRef?: MessageRef;
   /** §5.1: the declaration side, rendered as the "expected" line. */
   readonly expected?: string;
 }

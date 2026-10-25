@@ -8,6 +8,8 @@
  * truth for the manuscript: a finding quotes it, a scene declaration sits beside it.
  */
 
+import type { MessageRef } from '@caotang/i18n';
+
 /** project-format §1: a top-level file beside `caotang.json`, loaders ignore it when unknown. */
 export const COHERENCE_FILE = 'coherence.json';
 
@@ -198,6 +200,13 @@ export interface Finding {
   supersededBy?: string;
   /** Additive (not in §3): the one-line statement the inbox card shows. */
   message: string;
+  /**
+   * §3's additive message reference (I7): a deterministic check's stable id, values and English
+   * template. It sits beside {@link message}, which stays exactly as written for old files and for
+   * the MCP server, the SDK and the CLI. `llm:*` findings never carry one: the model writes its
+   * prose in the language of the scan and a later interface switch must not rewrite it.
+   */
+  messageRef?: MessageRef;
   /** Additive (not in §3): the declaration side, rendered as the "expected" line (§5.1). */
   expected?: string;
   /** Additive (not in §3): the free-text note from the last dismissal or fix. */

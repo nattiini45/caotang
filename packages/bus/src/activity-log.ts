@@ -68,6 +68,8 @@
  * surface renders it (command-bus §8 says which do not yet).
  */
 
+import type { MessageRef } from '@caotang/i18n';
+
 import type { CommandName } from './command.js';
 
 /**
@@ -101,6 +103,8 @@ export interface ActivityReport {
   readonly affected: readonly ActivityAffected[];
   /** §8's digest: *"moved 3 scenes into Chapter 4"*. Never empty, never a restatement of the command name. */
   readonly summary: string;
+  /** I7: the same digest as a message reference, when the apply has one. The English stays for MCP/CLI/SDK and old rows. */
+  readonly summaryRef?: MessageRef;
 }
 
 /**
@@ -139,6 +143,8 @@ export interface ActivityEntry {
   readonly affected: readonly ActivityAffected[];
   /** §8's digest. Required, and the pipeline refuses a dispatch that reported none. */
   readonly summary: string;
+  /** I7: the digest as a message reference when the apply supplied one; a stored row without it renders as written. */
+  readonly summaryRef?: MessageRef;
   /**
    * §8's agent-turn token cost, fed by the gateway ledger. **Declared and never
    * written by the bus**: the cost is the gateway's to measure, so a row that carried

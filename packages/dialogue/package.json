@@ -14,6 +14,7 @@
     "@caotang/bus": "workspace:*",
     "@caotang/codex": "workspace:*",
     "@caotang/coherence": "workspace:*",
+    "@caotang/i18n": "workspace:*",
     "@caotang/ids": "workspace:*",
     "@caotang/store": "workspace:*",
     "inkjs": "2.4.0"

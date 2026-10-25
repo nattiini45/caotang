@@ -1,3 +1,4 @@
+// i18n: package-refs
 /**
  * Artifact load path — [project-format.md §2 "Validation (load-time, in order)"](docs/architecture/project-format.md).
  *
@@ -23,6 +24,8 @@
  * A load that was fed a snapshot's bytes rather than `caotang.json` is the §5
  * recovery ladder's business; see `recovery.ts`.
  */
+
+import type { MessageRef } from '@caotang/i18n';
 
 import type { ArtifactFs } from './artifact-fs.js';
 import {
@@ -92,6 +95,11 @@ export interface LoadNotice {
    * its file name or a spec section. A notice without one is counted, not quoted, where an open speaks to the writer (lifecycle.ts).
    */
   say?: string;
+  /**
+   * I7: the writer-facing sentence as a message reference, when `say` has one. The English `say`
+   * stays as written; a UI renders the catalogue entry when it can, and this sentence otherwise.
+   */
+  messageRef?: MessageRef;
   /**
    * Set on a notice for a field the file carries that Caotang keeps in memory and does not use (project-format §6): the field's name. The next
    * save drops every such field, so only these notices say that something will be dropped (the open notice counts them, App.tsx).
@@ -429,6 +437,12 @@ export async function readProject(fs: ArtifactFs, options: ReadOptions = {}): Pr
         path: docPath,
         message: `the document “${node.title}” is not UTF-8 text (${encodingDetail(issue.encoding)}), so it is held: it opens empty, its file is left as it is, and saving will not overwrite it`,
         say: `Caotang cannot read the text of “${node.title}”, so it opens empty. Its file is left as it is, and saving will not overwrite it.`,
+        messageRef: {
+          id: 'store.load.unreadableDocument',
+          message:
+            'Caotang cannot read the text of “{title}”, so it opens empty. Its file is left as it is, and saving will not overwrite it.',
+          values: { title: node.title },
+        },
       });
       continue;
     }
@@ -446,6 +460,12 @@ export async function readProject(fs: ArtifactFs, options: ReadOptions = {}): Pr
         path: docPath,
         message: `the front matter of “${node.title}” cannot be read (${(cause as FrontMatterError).message}); its body is kept and the manifest’s details are used`,
         say: `The details at the top of “${node.title}” could not be read. Its text is kept, and the project’s own details for it are used.`,
+        messageRef: {
+          id: 'store.load.unreadableFrontMatter',
+          message:
+            'The details at the top of “{title}” could not be read. Its text is kept, and the project’s own details for it are used.',
+          values: { title: node.title },
+        },
       });
       state.documents.set(node.id, { id: node.id, body: raw, revision: 0 });
       continue;
@@ -471,6 +491,17 @@ export async function readProject(fs: ArtifactFs, options: ReadOptions = {}): Pr
         path: docPath,
         message: `the front matter of “${node.title}” differs from the manifest (${divergences.join(', ')}); the manifest’s details are kept`,
         say: divergenceSentence(node.title, divergences),
+        messageRef: {
+          id: 'store.load.frontMatterDiverged',
+          message: 'The file for “{title}” disagrees with the project about {which}. The project’s details are kept.',
+          values: {
+            title: node.title,
+            which:
+              divergences.filter((field) => field !== 'id').length === 0
+                ? 'its details'
+                : `its ${joinWords(divergences.filter((field) => field !== 'id'))}`,
+          },
+        },
       });
     }
 
@@ -506,7 +537,13 @@ export async function readProject(fs: ArtifactFs, options: ReadOptions = {}): Pr
 export async function importSkills(fs: ArtifactFs, state: ProjectState, notices: LoadNotice[]): Promise<void> {
   const read = await readSkills(fs);
   for (const [folder, files] of read.skills) state.skills.set(folder, files);
-  for (const notice of read.notices) notices.push({ path: notice.path, message: notice.message, say: notice.say });
+  for (const notice of read.notices) {
+    notices.push({
+      path: notice.path,
+      message: notice.message,
+      ...(notice.say === undefined ? {} : { say: notice.say }),
+    });
+  }
 }
 
 /**
@@ -750,6 +787,12 @@ export async function importOrphanDocuments(
         say:
           `“${title}” was in the project’s folder but not in the project, so it is added under ${RECOVERED_TITLE}. ` +
           'Caotang cannot read its text, so it opens empty, and saving will not overwrite its file.',
+        messageRef: {
+          id: 'store.load.recoveredUnreadable',
+          message:
+            '“{title}” was in the project’s folder but not in the project, so it is added under {folder}. Caotang cannot read its text, so it opens empty, and saving will not overwrite its file.',
+          values: { title, folder: RECOVERED_TITLE },
+        },
       });
     } else {
       state.documents.set(id, { id, body, revision: 0 });
@@ -757,6 +800,11 @@ export async function importOrphanDocuments(
         path,
         message: `imported as a Recovered document under the ${RECOVERED_TITLE} folder (§2 step 4)`,
         say: `“${title}” was in the project’s folder but not in the project, so it is added under ${RECOVERED_TITLE}.`,
+        messageRef: {
+          id: 'store.load.recovered',
+          message: '“{title}” was in the project’s folder but not in the project, so it is added under {folder}.',
+          values: { title, folder: RECOVERED_TITLE },
+        },
       });
     }
     imported.push(name);
@@ -906,6 +954,11 @@ export async function importOrphanCodex(
           : `imported codex entry "${entry.name}" as ${entry.id}, but ${path} is named for ${stem}; ` +
             `${path} is removed on the next save and the text is kept under codex/${entry.id}.md`,
       say: `The codex entry “${entry.name}” was in the project’s folder but not in the project, so it is added to the codex.`,
+      messageRef: {
+        id: 'store.load.recoveredCodexEntry',
+        message: 'The codex entry “{name}” was in the project’s folder but not in the project, so it is added to the codex.',
+        values: { name: entry.name },
+      },
     });
   }
 

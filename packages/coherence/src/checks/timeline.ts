@@ -1,3 +1,4 @@
+// i18n: package-refs
 /**
  * Timeline checks — [coherence.md §5.1 and §5.2.1](../../../../docs/architecture/coherence.md):
  * `timeline.order-drift`, `timeline.relation`, `timeline.window`, `timeline.overlap`, `timeline.gap`.
@@ -32,17 +33,37 @@ function compareDayOrder(list: readonly ScannedScene[], type: string, strand: st
     const early = sorted[i];
     const late = sorted[i + 1];
     if (early === undefined || late === undefined) continue;
-    if (dayOf(early) === dayOf(late)) continue;
+    const earlyDay = dayOf(early);
+    const lateDay = dayOf(late);
+    if (earlyDay === undefined || lateDay === undefined) continue;
+    if (earlyDay === lateDay) continue;
     if (early.binderIndex < late.binderIndex) continue;
     // `late` happens later in the story but sits earlier in the binder. Cite in binder order.
-    const where = strand === undefined ? 'in the binder' : `in the binder, within the ${strand} strand`;
+    const values = { lateTitle: late.title, earlyTitle: early.title, lateDay, earlyDay };
     drafts.push({
       checkId: 'timeline.order-drift',
       type,
       severity: 'info',
       factGroup: groupKey(pairKey(early.docId, late.docId), 'order-drift'),
       evidence: [headEvidence(late), headEvidence(early)],
-      message: `"${late.title}" comes before "${early.title}" ${where}, but happens after it (day ${dayOf(late)} against day ${dayOf(early)})`,
+      message:
+        strand === undefined
+          ? `"${late.title}" comes before "${early.title}" in the binder, but happens after it (day ${lateDay} against day ${earlyDay})`
+          : `"${late.title}" comes before "${early.title}" in the binder, within the ${strand} strand, but happens after it (day ${lateDay} against day ${earlyDay})`,
+      messageRef:
+        strand === undefined
+          ? {
+              id: 'coherence.timeline.orderDrift',
+              message:
+                '"{lateTitle}" comes before "{earlyTitle}" in the binder, but happens after it (day {lateDay} against day {earlyDay})',
+              values,
+            }
+          : {
+              id: 'coherence.timeline.orderDriftStrand',
+              message:
+                '"{lateTitle}" comes before "{earlyTitle}" in the binder, within the {strand} strand, but happens after it (day {lateDay} against day {earlyDay})',
+              values: { ...values, strand: strand as string },
+            },
       expected: `"${early.title}" before "${late.title}", as the days say`,
     });
   }
@@ -90,6 +111,18 @@ function gapsIn(list: readonly ScannedScene[], strand: string | undefined): Draf
       factGroup: groupKey(pairKey(early.docId, late.docId), 'gap'),
       evidence: [headEvidence(early), headEvidence(late)],
       message: `"${late.title}" happens ${days} days after "${early.title}"${strand === undefined ? '' : `, within the ${strand} strand`}`,
+      messageRef:
+        strand === undefined
+          ? {
+              id: 'coherence.timeline.gap',
+              message: '"{lateTitle}" happens {days} days after "{earlyTitle}"',
+              values: { lateTitle: late.title, earlyTitle: early.title, days },
+            }
+          : {
+              id: 'coherence.timeline.gapStrand',
+              message: '"{lateTitle}" happens {days} days after "{earlyTitle}", within the {strand} strand',
+              values: { lateTitle: late.title, earlyTitle: early.title, days, strand: strand as string },
+            },
       expected: 'declare a time skip on one of the scenes if the jump is intended, or accept the gap',
     });
   }
@@ -150,6 +183,12 @@ export function checkRelation(input: CheckInput): CheckOutput {
         factGroup: groupKey(scene.docId, `after:${dependency.docId}`),
         evidence: [headEvidence(scene), headEvidence(dependency)],
         message: `"${scene.title}" is declared to follow "${dependency.title}", but it happens on day ${day}, before day ${required}`,
+        messageRef: {
+          id: 'coherence.timeline.relation',
+          message:
+            '"{sceneTitle}" is declared to follow "{dependencyTitle}", but it happens on day {day}, before day {required}',
+          values: { sceneTitle: scene.title, dependencyTitle: dependency.title, day, required },
+        },
         expected: `day ${required} or later`,
       });
     }
@@ -184,6 +223,11 @@ export function checkWindow(input: CheckInput): CheckOutput {
         factGroup: groupKey(scene.docId, `within:${folder.id}`),
         evidence: [headEvidence(scene)],
         message: `"${scene.title}" falls outside "${folder.title}", which spans days ${start} to ${end}`,
+        messageRef: {
+          id: 'coherence.timeline.window',
+          message: '"{sceneTitle}" falls outside "{folderTitle}", which spans days {start} to {end}',
+          values: { sceneTitle: scene.title, folderTitle: folder.title, start, end },
+        },
         expected: `days ${start} to ${end}`,
       });
     }
@@ -225,6 +269,18 @@ export function checkOverlap(input: CheckInput): CheckOutput {
           factGroup: groupKey(pairKey(a.docId, b.docId), 'overlap'),
           evidence: [headEvidence(a), headEvidence(b)],
           message: `"${a.title}" and "${b.title}" share day${first === last ? '' : 's'} ${first === last ? first : `${first} to ${last}`}`,
+          messageRef:
+            first === last
+              ? {
+                  id: 'coherence.timeline.overlapDay',
+                  message: '"{aTitle}" and "{bTitle}" share day {day}',
+                  values: { aTitle: a.title, bTitle: b.title, day: first },
+                }
+              : {
+                  id: 'coherence.timeline.overlapDays',
+                  message: '"{aTitle}" and "{bTitle}" share days {first} to {last}',
+                  values: { aTitle: a.title, bTitle: b.title, first, last },
+                },
           expected: 'separate days, or declare the scene simultaneous if the overlap is intended',
         });
       }

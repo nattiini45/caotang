@@ -1,3 +1,4 @@
+// i18n: package-refs
 /**
  * The store's applies for the script and dialogue commands ([screenplay.md §2.2](docs/architecture/screenplay.md),
  * [dialogue-narrative.md §2.1 and §4](docs/architecture/dialogue-narrative.md)): the two imports and a container's settings.
@@ -164,6 +165,11 @@ export function scriptApplies(clock: ScriptClock): ScriptApplies {
         return { nodeId: id, title: node?.title ?? id };
       }),
       summary: `imported a ${format} script: ${scenes} scene${scenes === 1 ? '' : 's'} and ${folders} section${folders === 1 ? '' : 's'}`,
+      summaryRef: {
+        id: 'store.script.importSummary',
+        message: 'imported a {format} script: {scenes, plural, one {# scene} other {# scenes}} and {folders, plural, one {# section} other {# sections}}',
+        values: { format, scenes, folders },
+      },
     });
     if (script.titlePage !== null) {
       notices.push('The title page was read but not stored: set the project title and author on the project block.');

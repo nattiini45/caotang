@@ -125,7 +125,7 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 
 ### 2.20 `i18n` 🧭
 - **Responsibility:** one interface language, kept apart from the project (content) language: compiled message catalogs with a per-message English fallback, locale-aware formatting and sorting, a mirrored right-to-left interface, the agent writing to the writer in the interface language, translatable finding and notice text, and export boilerplate in the project language.
-- **Owns:** `packages/i18n` (locale resolution, `Intl` formatters, collation, bidi isolation, the `MessageRef` type), the desktop catalogs under `apps/desktop/src/i18n/`, the interface-language app setting. The pure contracts and the app's formatter accessor are built (I2); the catalogs, the language setting and RTL are specified, not built.
+- **Owns:** `packages/i18n` (locale resolution, `Intl` formatters, collation, bidi isolation, the `MessageRef` type), the desktop catalogs under `apps/desktop/src/i18n/`, the interface-language app setting. The pure contracts and the app's formatter accessor are built (I2), the live language setting and switcher are built (I4), and deterministic package text carries `MessageRef`s (I7); real translated catalogues, the rest of the surface strings and RTL are specified, not built.
 - **Spec:** [architecture/i18n.md](architecture/i18n.md).
 
 ## 3. Data model (sketch)
@@ -153,7 +153,7 @@ ComicBook      { readingDirection, letteringFace, capsTransform, esszett, pageSi
 ComicPage      { size, layout?, panels: Panel[] }                                                                       // comics.md §2 (planned)
 Panel          { id, rect, assetId?, crop?, border?, balloons: Balloon[] }                                              // comics.md §2 (planned)
 TimelineOp     { op: meta|move|shift|picture-when, …, expect }                                                         // timeline.md §4.3 (planned)
-MessageRef     { id, values?, message }                                                                          // i18n.md §3.2 (planned)
+MessageRef     { id, values?, message }                                                                          // i18n.md §3.2 (I7)
 Command        { id, name, params, issuedBy: user|agent, turnId?, callId?, createdAt }  // command-bus.md §2
 ActivityEntry  { at, command, issuedBy, turnId?, callId?, undoGroupId?, source?: native|mcp, affected[], tokensSpent?, summary, defect? } // command-bus.md §8
 AskBack        { code, reason, candidates?, revisionDrift?, options[] }           // agent-harness.md §2

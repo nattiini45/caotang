@@ -7,25 +7,565 @@ msgstr ""
 "X-Generator: @lingui/cli\n"
 "Language: en\n"
 
+#. Interpolated values: aTitle, bTitle, day
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/timeline.ts
+msgid "coherence.timeline.overlapDay"
+msgstr "\"{aTitle}\" and \"{bTitle}\" share day {day}"
+
+#. Interpolated values: aTitle, bTitle
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/timeline.ts
+msgid "coherence.timeline.overlapDays"
+msgstr "\"{aTitle}\" and \"{bTitle}\" share days {first} to {last}"
+
+#. Interpolated values: command, class
+#. js-lingui-explicit-id
+#: packages/bus/src/permission.ts
+msgid "bus.permission.never"
+msgstr "\"{command}\" is a {class}-class command and an agent may not emit it directly. The bus refused it; nothing was written."
+
+#. Interpolated values: command
+#. js-lingui-explicit-id
+#: packages/bus/src/permission.ts
+msgid "bus.permission.confirmRequired"
+msgstr "\"{command}\" is a write-confirm command, so it may run only inside an approved plan or behind a one-step confirm card. The bus refused it; nothing was written."
+
+#. Interpolated values: command, class
+#. js-lingui-explicit-id
+#: packages/bus/src/permission.ts
+msgid "bus.permission.hardDenied"
+msgstr "\"{command}\" is hard-denied for an agent ({class}) — the bus refused it, it was not dispatched, and nothing was written. No approved plan, confirm card or permission mode can approve this class."
+
+#. Interpolated values: command, status
+#. js-lingui-explicit-id
+#: packages/bus/src/permission.ts
+msgid "bus.permission.findingStatus"
+msgstr "\"{command}\" with status {status} is refused for an agent: the agent may set only \"fixed\". The bus refused it; nothing was written."
+
+#. Interpolated values: entry, sceneTitle
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/presence.ts
+msgid "coherence.presence.expectedAbsent"
+msgstr "\"{entry}\" is expected in \"{sceneTitle}\" but is never named there"
+
+#. Interpolated values: entry
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/codex.ts
+msgid "coherence.codex.neverMentioned"
+msgstr "\"{entry}\" is never named in the scanned manuscript"
+
+#. Interpolated values: entry, fact, sceneTitle, laterTitle
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/knowledge.ts
+msgid "coherence.knowledge.learnsLater"
+msgstr "\"{entry}\" knows that \"{fact}\" in \"{sceneTitle}\", but learns it only in \"{laterTitle}\""
+
+#. Interpolated values: entry, fact, sceneTitle
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/knowledge.ts
+msgid "coherence.knowledge.neverLearns"
+msgstr "\"{entry}\" knows that \"{fact}\" in \"{sceneTitle}\", but never learns it"
+
+#. Interpolated values: firstEntry, secondEntry, name
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/codex.ts
+msgid "coherence.codex.aliasCollision"
+msgstr "\"{firstEntry}\" and \"{secondEntry}\" both answer to \"{name}\""
+
+#. Interpolated values: knot
+#. js-lingui-explicit-id
+#: packages/dialogue/src/validate.ts
+msgid "coherence.branch.deadEnd"
+msgstr "\"{knot}\" is never diverted to, so no path in the story reaches it."
+
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/timeline.ts
+msgid "coherence.timeline.orderDrift"
+msgstr "\"{lateTitle}\" comes before \"{earlyTitle}\" in the binder, but happens after it (day {lateDay} against day {earlyDay})"
+
+#. Interpolated values: strand
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/timeline.ts
+msgid "coherence.timeline.orderDriftStrand"
+msgstr "\"{lateTitle}\" comes before \"{earlyTitle}\" in the binder, within the {strand} strand, but happens after it (day {lateDay} against day {earlyDay})"
+
+#. Interpolated values: lateTitle, earlyTitle
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/timeline.ts
+msgid "coherence.timeline.gap"
+msgstr "\"{lateTitle}\" happens {days} days after \"{earlyTitle}\""
+
+#. Interpolated values: lateTitle, earlyTitle, strand
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/timeline.ts
+msgid "coherence.timeline.gapStrand"
+msgstr "\"{lateTitle}\" happens {days} days after \"{earlyTitle}\", within the {strand} strand"
+
+#. Interpolated values: sceneTitle, thread, payoffTitle
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/plot.ts
+msgid "coherence.plot.payoffNotRead"
+msgstr "\"{sceneTitle}\" declares the thread \"{thread}\" with its payoff in \"{payoffTitle}\", which this scan did not read"
+
+#. Interpolated values: sceneTitle, thread, payoff
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/plot.ts
+msgid "coherence.plot.payoffUnresolved"
+msgstr "\"{sceneTitle}\" declares the thread \"{thread}\" with its payoff in {payoff}, which is not a document in the project"
+
+#. Interpolated values: sceneTitle, folderTitle
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/timeline.ts
+msgid "coherence.timeline.window"
+msgstr "\"{sceneTitle}\" falls outside \"{folderTitle}\", which spans days {start} to {end}"
+
+#. Interpolated values: sceneTitle, dependencyTitle
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/timeline.ts
+msgid "coherence.timeline.relation"
+msgstr "\"{sceneTitle}\" is declared to follow \"{dependencyTitle}\", but it happens on day {day}, before day {required}"
+
+#. Interpolated values: shotTitle
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/script.ts
+msgid "coherence.script.durationMissing"
+msgstr "\"{shotTitle}\" has no duration, so it is left out of the animatic totals"
+
+#. Interpolated values: speaker
+#. js-lingui-explicit-id
+#: packages/dialogue/src/validate.ts
+msgid "coherence.dialogue.ambiguousSpeaker"
+msgstr "\"{speaker}\" matches more than one codex character. Name the character exactly, or merge the entries."
+
+#. Interpolated values: speaker
+#. js-lingui-explicit-id
+#: packages/dialogue/src/validate.ts
+msgid "coherence.dialogue.unknownSpeaker"
+msgstr "\"{speaker}\" matches no codex character. Add a character entry, or correct the cue."
+
+#. Interpolated values: folder
+#. js-lingui-explicit-id
+#: packages/store/src/read.ts
+msgid "store.load.recovered"
+msgstr "“{title}” was in the project’s folder but not in the project, so it is added under {folder}."
+
+#. Interpolated values: folder
+#. js-lingui-explicit-id
+#: packages/store/src/read.ts
+msgid "store.load.recoveredUnreadable"
+msgstr "“{title}” was in the project’s folder but not in the project, so it is added under {folder}. Caotang cannot read its text, so it opens empty, and saving will not overwrite its file."
+
+#. js-lingui-explicit-id
+#: packages/bus/src/permission.ts
+msgid "bus.permission.dismissFinding"
+msgstr "\"coherence.setFindingStatus\" with status \"dismissed\" is hard-denied for an agent: dismissal is a writer judgment. The bus refused it; nothing was written, and no plan, card or grant can approve it."
+
+#. Interpolated values: spellings, sceneTitle, ownSpellings
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/script.ts
+msgid "coherence.script.cueSpelling"
+msgstr "{spellings} are cued as one character; \"{sceneTitle}\" cues {ownSpellings}"
+
+#. Interpolated values: shotTitle, sceneTitle
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/script.ts
+msgid "coherence.script.anchorDrift"
+msgstr "A dialogue anchor of \"{shotTitle}\" no longer matches the text of \"{sceneTitle}\""
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/cards.ts
+msgid "harness.plan.costThinking"
+msgstr "About {total} (prompt {prompt}, reply {reply} including thinking)."
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/cards.ts
+msgid "harness.plan.cost"
+msgstr "About {total} (prompt {prompt}, reply {reply})."
+
+#. Interpolated values: name
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.vocabularyUpsert.content"
+msgstr "Add or change the {kind} “{name}”"
+
+#. Interpolated values: doc
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.notesAppend.content"
+msgstr "Add to the notes of “{doc}”"
+
+#. Interpolated values: fact
+#. js-lingui-explicit-id
+#: packages/store/src/commands-coherence.ts
+msgid "store.coherence.addKnowledgeFact"
+msgstr "added the knowledge fact {fact}"
+
+#. Interpolated values: name
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.vocabularyUpsert.active"
+msgstr "Adding or changing the {kind} “{name}”"
+
+#. Interpolated values: doc
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.notesAppend.active"
+msgstr "Adding to the notes of “{doc}”"
+
+#. Interpolated values: title
+#. js-lingui-explicit-id
+#: packages/store/src/read.ts
+msgid "store.load.unreadableDocument"
+msgstr "Caotang cannot read the text of “{title}”, so it opens empty. Its file is left as it is, and saving will not overwrite it."
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.vocabularyUpsert.kind"
+msgstr "Change the {kind} vocabulary"
+
+#. Interpolated values: fact
+#. js-lingui-explicit-id
+#: packages/store/src/commands-coherence.ts
+msgid "store.coherence.changeKnowledgeFact"
+msgstr "changed the knowledge fact {fact}"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.vocabularyUpsert.kind.active"
+msgstr "Changing the {kind} vocabulary"
+
 #: apps/desktop/src/components/Settings.tsx
 msgid "Changing the interface language…"
 msgstr "Changing the interface language…"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.exportCompile.content"
+msgstr "Compile a {format} export"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.exportCompile.active"
+msgstr "Compiling a {format} export"
+
+#. Interpolated values: run
+#. js-lingui-explicit-id
+#: packages/store/src/commands-coherence.ts
+msgid "store.coherence.discardRun"
+msgstr "discarded {run}"
+
+#. Interpolated values: run
+#. js-lingui-explicit-id
+#: packages/store/src/commands-coherence.ts
+msgid "store.coherence.discardRunWithFindings"
+msgstr "discarded {run} and {count} untouched {count, plural, one {finding} other {findings}} it made"
+
+#. js-lingui-explicit-id
+#: packages/bus/src/permission.ts
+msgid "bus.permission.dismissFinding.hint"
+msgstr "do not retry — dismissal is a writer judgment, so put the finding and the reason you would give in your report and let the writer dismiss it in the findings inbox"
+
+#. js-lingui-explicit-id
+#: packages/bus/src/permission.ts
+msgid "bus.permission.hardDenied.hint.providerProfile"
+msgstr "do not retry — provider profiles are app-level settings, never a project command (§9); tell the user which profile they want and stop"
+
+#. js-lingui-explicit-id
+#: packages/bus/src/permission.ts
+msgid "bus.permission.hardDenied.hint.projectScope"
+msgstr "do not retry — stay inside the project the user has open; if the work needs another project, say so in your report instead of reaching into it"
+
+#. js-lingui-explicit-id
+#: packages/bus/src/permission.ts
+msgid "bus.permission.findingStatus.hint"
+msgstr "do not retry — the agent may mark a finding fixed once its text has changed, and re-opening or dismissing is the writer’s call; say what you changed in your report"
+
+#. js-lingui-explicit-id
+#: packages/bus/src/permission.ts
+msgid "bus.permission.hardDenied.hint.networkEgress"
+msgstr "do not retry — the bus has no network (§1) and the gateway owns transport; tell the user this needs doing outside Caotang rather than calling out from a tool"
+
+#. js-lingui-explicit-id
+#: packages/bus/src/permission.ts
+msgid "bus.permission.hardDenied.hint.deletion"
+msgstr "do not retry and do not ask for approval — propose it in your report; deletion is UI-only. project.deleteNode is hard-denied for agents and no plan, card or mode approves it"
+
+#. js-lingui-explicit-id
+#: packages/bus/src/permission.ts
+msgid "bus.permission.never.hint"
+msgstr "do not retry it as a direct call — either call the compound tool that owns it (scene.draft composes editor.insert and editor.replaceRange inside its own apply step, where the grant is inherited), or tell the user what you wanted to write and let them do it"
+
+#. Interpolated values: scene
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.plan.drafting"
+msgstr "Drafting “{scene}”"
+
+#. js-lingui-explicit-id
+#: packages/bus/src/permission.ts
+msgid "bus.permission.confirmRequired.hint"
+msgstr "emit it as a plan step and wait for the user to approve the plan card, or as a single op so the one-step confirm card can ask for it — do not retry it as a bare call"
+
+#. Interpolated values: count
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.synopsisFill.content"
+msgstr "Fill {count, plural, one {# synopsis} other {# synopses}}"
+
+#. Interpolated values: doc
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.synopsisFill.one"
+msgstr "Fill the synopsis of “{doc}”"
+
+#. Interpolated values: count
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.synopsisFill.active"
+msgstr "Filling {count, plural, one {# synopsis} other {# synopses}}"
+
+#. Interpolated values: doc
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.synopsisFill.one.active"
+msgstr "Filling the synopsis of “{doc}”"
 
 #: apps/desktop/src/components/Settings.tsx
 msgid "Follow the system"
 msgstr "Follow the system"
 
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.agentDelegate.content"
+msgstr "Hand work to the {agent} agent"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.agentDelegate.active"
+msgstr "Handing work to the {agent} agent"
+
+#. Interpolated values: title
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.docImport.content"
+msgstr "Import “{title}”"
+
+#. Interpolated values: count
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.codexImport.content"
+msgstr "Import {count, plural, one {# codex entry} other {# codex entries}}"
+
+#. js-lingui-explicit-id
+#: packages/store/src/commands-script.ts
+msgid "store.script.importSummary"
+msgstr "imported a {format} script: {scenes, plural, one {# scene} other {# scenes}} and {folders, plural, one {# section} other {# sections}}"
+
+#. Interpolated values: title
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.docImport.active"
+msgstr "Importing “{title}”"
+
+#. Interpolated values: count
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.codexImport.active"
+msgstr "Importing {count, plural, one {# codex entry} other {# codex entries}}"
+
 #: apps/desktop/src/components/Settings.tsx
 msgid "Interface language"
 msgstr "Interface language"
+
+#. Interpolated values: query
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.codexRead.content"
+msgstr "Look up “{query}” in the codex"
+
+#. Interpolated values: query
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.codexRead.active"
+msgstr "Looking up “{query}” in the codex"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.plan.content"
+msgstr "Plan"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.plan.active"
+msgstr "Planning"
+
+#. Interpolated values: entry, sceneTitle
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/presence.ts
+msgid "coherence.pov.notNamed"
+msgstr "POV \"{entry}\" is never named in \"{sceneTitle}\""
+
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/presence.ts
+msgid "coherence.pov.unresolved"
+msgstr "POV \"{pov}\" is not a codex entry, so its coverage cannot be checked; create the entry to check it"
 
 #: apps/desktop/src/components/Settings.tsx
 msgid "Preview, partly English"
 msgstr "Preview, partly English"
 
+#. Interpolated values: doc
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.notesRead.content"
+msgstr "Read the notes of “{doc}”"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.reads.one.content"
+msgstr "Read the project"
+
+#. Interpolated values: count
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.reads.content"
+msgstr "Read the project ({count, plural, one {# read} other {# reads}})"
+
+#. Interpolated values: name
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.skillLoad.content"
+msgstr "Read the skill “{name}”"
+
+#. Interpolated values: doc
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.notesRead.active"
+msgstr "Reading the notes of “{doc}”"
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.reads.one.active"
+msgstr "Reading the project"
+
+#. Interpolated values: count
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.reads.active"
+msgstr "Reading the project ({count, plural, one {# read} other {# reads}})"
+
+#. Interpolated values: name
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.skillLoad.active"
+msgstr "Reading the skill “{name}”"
+
+#. Interpolated values: fact
+#. js-lingui-explicit-id
+#: packages/store/src/commands-coherence.ts
+msgid "store.coherence.removeKnowledgeFact"
+msgstr "removed the knowledge fact {fact}"
+
+#. Interpolated values: fact
+#. js-lingui-explicit-id
+#: packages/store/src/commands-coherence.ts
+msgid "store.coherence.removeKnowledgeFactWithDeclarations"
+msgstr "removed the knowledge fact {fact} and {count} {count, plural, one {declaration} other {declarations}} of who learns or knows it"
+
+#. Interpolated values: title
+#. js-lingui-explicit-id
+#: packages/store/src/commands-project.ts
+msgid "store.project.renameSummary"
+msgstr "renamed the project to \"{title}\""
+
+#. Interpolated values: count
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.binderRestructure.content"
+msgstr "Restructure the binder ({count, plural, one {# change} other {# changes}})"
+
+#. Interpolated values: count
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.binderRestructure.active"
+msgstr "Restructuring the binder ({count, plural, one {# change} other {# changes}})"
+
+#. Interpolated values: name
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.filterSave.content"
+msgstr "Save the filter “{name}”"
+
+#. Interpolated values: name
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.filterSave.active"
+msgstr "Saving the filter “{name}”"
+
+#. Interpolated values: node
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.goalSave.content"
+msgstr "Set a goal for “{node}”"
+
+#. Interpolated values: node
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.goalSave.active"
+msgstr "Setting a goal for “{node}”"
+
 #: apps/desktop/src/components/Home.tsx
 msgid "Settings"
 msgstr "Settings"
+
+#. Interpolated values: step, total, activeForm
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.header.step"
+msgstr "Step {step} of {total} · {activeForm}"
+
+#. Interpolated values: sceneTitle
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/script.ts
+msgid "coherence.script.uncovered"
+msgstr "The {kind} at this point in \"{sceneTitle}\" is covered by no shot"
+
+#. Interpolated values: name
+#. js-lingui-explicit-id
+#: packages/store/src/read.ts
+msgid "store.load.recoveredCodexEntry"
+msgstr "The codex entry “{name}” was in the project’s folder but not in the project, so it is added to the codex."
+
+#. Interpolated values: cue, sceneTitle
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/script.ts
+msgid "coherence.script.cueUnmatched"
+msgstr "The cue \"{cue}\" in \"{sceneTitle}\" matches no codex entry"
+
+#. Interpolated values: title
+#. js-lingui-explicit-id
+#: packages/store/src/read.ts
+msgid "store.load.unreadableFrontMatter"
+msgstr "The details at the top of “{title}” could not be read. Its text is kept, and the project’s own details for it are used."
+
+#. Interpolated values: sceneTitle, dialogueName
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/medium.ts
+msgid "coherence.medium.speakerDialogueOnly"
+msgstr "The dialogue linked to the screenplay scene \"{sceneTitle}\" has a speaker \"{dialogueName}\" that the scene does not cue. Only speakers are compared, not lines or meaning."
+
+#. Interpolated values: title, which
+#. js-lingui-explicit-id
+#: packages/store/src/read.ts
+msgid "store.load.frontMatterDiverged"
+msgstr "The file for “{title}” disagrees with the project about {which}. The project’s details are kept."
+
+#. Interpolated values: where, line
+#. js-lingui-explicit-id
+#: packages/dialogue/src/validate.ts
+msgid "coherence.branch.looseEnd"
+msgstr "The flow in {where} runs out at line {line}: add a divert, a choice, or -> END."
 
 #: apps/desktop/src/i18n/language.ts
 msgid "The interface language changed, but the choice could not be saved in this browser. It will go back to the saved language when you reload."
@@ -38,3 +578,68 @@ msgstr "The interface language changes straight away. The manuscript stays in it
 #: apps/desktop/src/i18n/language.ts
 msgid "The interface language could not be loaded, so nothing changed. Check your connection and choose the language again."
 msgstr "The interface language could not be loaded, so nothing changed. Check your connection and choose the language again."
+
+#. Interpolated values: sceneTitle, screenplayName
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/medium.ts
+msgid "coherence.medium.speakerScreenplayOnly"
+msgstr "The screenplay scene \"{sceneTitle}\" cues \"{screenplayName}\", but its linked dialogue has no speaker by that name. Only speakers are compared, not lines or meaning."
+
+#. Interpolated values: sceneTitle, screenplayName, dialogueName, screenplayEntry, dialogueEntry
+#. js-lingui-explicit-id
+#: packages/coherence/src/checks/medium.ts
+msgid "coherence.medium.speakerDiffersTwoEntries"
+msgstr "The screenplay scene \"{sceneTitle}\" cues \"{screenplayName}\", but its linked dialogue says \"{dialogueName}\"; the codex has them as two characters, \"{screenplayEntry}\" and \"{dialogueEntry}\". Only speakers are compared, not lines or meaning."
+
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.plan.retrying"
+msgstr "Trying again"
+
+#. Interpolated values: target
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.metaSet.one"
+msgstr "Update “{target}”"
+
+#. Interpolated values: count
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.metaSet.content"
+msgstr "Update {count, plural, one {# document} other {# documents}}"
+
+#. Interpolated values: target
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.metaSet.one.active"
+msgstr "Updating “{target}”"
+
+#. Interpolated values: count
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.metaSet.active"
+msgstr "Updating {count, plural, one {# document} other {# documents}}"
+
+#. Interpolated values: content
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.header.waitingConfirm"
+msgstr "Waiting for you · {content}"
+
+#. Interpolated values: count
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.header.waitingPlan"
+msgstr "Waiting for you · Plan, {count, plural, one {# step} other {# steps}}"
+
+#. Interpolated values: count
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.codexWrite.content"
+msgstr "Write {count, plural, one {# codex entry} other {# codex entries}}"
+
+#. Interpolated values: count
+#. js-lingui-explicit-id
+#: packages/harness/src/agent/progress.ts
+msgid "harness.progress.codexWrite.active"
+msgstr "Writing {count, plural, one {# codex entry} other {# codex entries}}"

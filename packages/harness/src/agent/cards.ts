@@ -1,3 +1,4 @@
+// i18n: package-refs
 /**
  * The cards the agent panel shows, as data: the status card of each tool call (agent-harness §8),
  * the plan card a multi-step turn asks the user to approve (§2), and the edits a user can make to
@@ -9,6 +10,7 @@
 
 import type { CommandError, Result } from '@caotang/bus';
 import { err, ok } from '@caotang/bus';
+import type { MessageRef } from '@caotang/i18n';
 
 import type { PlanPreflight, PlanStep } from '../plan.js';
 import type { SubagentName } from '../tools/delegate.js';
@@ -379,6 +381,34 @@ export type StepCost = NonNullable<PromptPreview['cost']> & {
   /** The reply side counts the thinking the level asked for as well as the output cap; the card says "including thinking". */
   readonly includesThinking?: true;
 };
+
+/**
+ * A dollar amount for a plan card: four decimals under a dollar, where a single step's cost sits, two above it, and a floor
+ * word for an amount too small to show. Kept beside the reference below so the English and the id cannot drift.
+ */
+export function formatUsd(value: number): string {
+  if (value < 0.0001) return 'under $0.0001';
+  return value < 1 ? `$${value.toFixed(4)}` : `$${value.toFixed(2)}`;
+}
+
+/**
+ * The plan-card cost estimate as a message reference (I7): the same sentence {@link formatUsd} and the
+ * card already render, with each amount as a value so a translation may reorder them. Undefined when
+ * the profile has no price, as the English line is.
+ */
+export function costLineRef(cost: StepCost | undefined): MessageRef | undefined {
+  if (cost === undefined) return undefined;
+  const total = formatUsd(cost.totalUsd);
+  const prompt = formatUsd(cost.promptUsd);
+  const reply = formatUsd(cost.completionUsd);
+  return cost.includesThinking === true
+    ? {
+        id: 'harness.plan.costThinking',
+        message: 'About {total} (prompt {prompt}, reply {reply} including thinking).',
+        values: { total, prompt, reply },
+      }
+    : { id: 'harness.plan.cost', message: 'About {total} (prompt {prompt}, reply {reply}).', values: { total, prompt, reply } };
+}
 
 /**
  * What a coherence review's plan is estimated to cost at the active model's price (coherence.md §5.3: the card shows the cost

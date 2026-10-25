@@ -18,6 +18,7 @@
     "@caotang/dialogue": "workspace:*",
     "@caotang/editor": "workspace:*",
     "@caotang/gateway": "workspace:*",
+    "@caotang/i18n": "workspace:*",
     "@caotang/ids": "workspace:*",
     "@caotang/mcp-client": "workspace:*",
     "@caotang/skills": "workspace:*",

@@ -6,7 +6,10 @@
  * touches the DOM, and every id in the preview is named by its title, never shown raw.
  */
 
-import { refusalSentence } from '@caotang/harness';
+import { costLineRef, refusalSentence } from '@caotang/harness';
+import type { MessageRef } from '@caotang/i18n';
+
+import { renderRef } from '../i18n/render-ref.js';
 import { nodeById, type ProjectState } from '@caotang/store';
 
 /** One synopsis a batch writes: the document, whether the synopsis is new or replaces one, the text and its word count. */
@@ -422,10 +425,23 @@ export function stepPreviewOf(
  * row, since the writer looks at Approve to see what is stopping the plan.
  */
 export function refusalReasonOf(
-  steps: readonly { readonly status: string; readonly error?: { readonly message: string; readonly correctiveHint?: string } }[],
+  steps: readonly {
+    readonly status: string;
+    readonly error?: {
+      readonly message: string;
+      readonly messageRef?: MessageRef;
+      readonly correctiveHint?: string;
+      readonly correctiveHintRef?: MessageRef;
+    };
+  }[],
 ): string | undefined {
   const refused = steps.find((step) => step.status === 'refused' && step.error !== undefined)?.error;
-  return refused === undefined ? undefined : refusalSentence(refused.message, refused.correctiveHint);
+  if (refused === undefined) return undefined;
+  // I7: a bus refusal carries the same sentence as a ref; the English is the fallback for an old or
+  // untranslated id, never a raw ICU template.
+  const message = refused.messageRef === undefined ? refused.message : renderRef(refused.messageRef);
+  const hint = refused.correctiveHintRef === undefined ? refused.correctiveHint : renderRef(refused.correctiveHintRef);
+  return refusalSentence(message, hint);
 }
 
 /**
@@ -441,9 +457,10 @@ export function formatUsd(value: number): string {
 export function costLineOf(
   cost: { readonly promptUsd: number; readonly completionUsd: number; readonly totalUsd: number; readonly includesThinking?: true } | undefined,
 ): string | undefined {
-  if (cost === undefined) return undefined;
-  const reply = `reply ${formatUsd(cost.completionUsd)}${cost.includesThinking === true ? ' including thinking' : ''}`;
-  return `About ${formatUsd(cost.totalUsd)} (prompt ${formatUsd(cost.promptUsd)}, ${reply}).`;
+  // I7: the line is the harness ref, rendered through the active catalogue or compiled English. Its
+  // English is byte-identical to the sentence this function wrote before the ref existed.
+  const ref = costLineRef(cost);
+  return ref === undefined ? undefined : renderRef(ref);
 }
 
 /**

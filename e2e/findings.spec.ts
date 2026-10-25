@@ -235,7 +235,8 @@ test('two scenes a week or more apart raise a gap finding whose dismissal points
   const notes = page.getByRole('region', { name: 'Notes' });
   const gap = notes.locator('article.finding').filter({ hasText: '12 days after' });
   await expect(gap).toHaveCount(1);
-  await expect(gap).toContainText('"Scene B" happens 12 days after "Scene A"');
+  // The titles are writer content and are isolated once in the sentence (I7), so the marks sit between the quotes and the words.
+  await expect(gap).toContainText(/Scene B.*happens 12 days after.*Scene A/);
 
   // The dismissal dialog says what to declare instead, whichever reason is picked.
   await gap.getByRole('button', { name: 'Dismiss…' }).click();

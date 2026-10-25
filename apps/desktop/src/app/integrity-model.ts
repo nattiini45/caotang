@@ -3,6 +3,9 @@
  * demo run call these, and the model tests read them without a browser, so each rule is pinned where it is decided.
  */
 
+import type { MessageRef } from '@caotang/i18n';
+
+import { renderRef, titleValues } from '../i18n/render-ref.js';
 import type { SaveState, WrittenBody } from './session.js';
 
 /**
@@ -211,6 +214,8 @@ export function sentenceOf(text: string): string {
 export interface OpenNotice {
   /** The notice as a whole sentence in the writer's words (`LoadNotice.say`), or none when it cannot be put that way. */
   readonly say?: string;
+  /** I7: the same sentence as a reference. A notice without one reads its `say` exactly as written. */
+  readonly messageRef?: MessageRef;
 }
 
 /**
@@ -221,8 +226,12 @@ export function openNoticeLines(notices: readonly OpenNotice[]): string[] {
   const lines: string[] = [];
   let unsaid = 0;
   for (const notice of notices) {
-    if (notice.say === undefined) unsaid += 1;
-    else if (!lines.includes(notice.say)) lines.push(notice.say);
+    const sentence =
+      notice.messageRef === undefined
+        ? notice.say
+        : renderRef(notice.messageRef, { userValues: titleValues(notice.messageRef) });
+    if (sentence === undefined) unsaid += 1;
+    else if (!lines.includes(sentence)) lines.push(sentence);
   }
   if (unsaid > 0) {
     lines.push(

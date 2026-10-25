@@ -14,6 +14,7 @@ import {
   MODE_LABELS,
   groupCards,
   headerLineOf,
+  headerRefOf,
   phraseFor,
   type AskBack,
   type Decision,
@@ -40,6 +41,7 @@ import { PlanCard, planHeading } from './PlanCard.js';
 import { PlanOfferCard } from './PlanOfferCard.js';
 import { BackgroundTasks } from './BackgroundTasks.js';
 import { TaskChecklist } from './TaskChecklist.js';
+import { renderRef } from '../i18n/render-ref.js';
 
 export interface AgentPanelProps {
   readonly session: ProjectSession;
@@ -166,7 +168,8 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
 
   const provider = snapshot.providerName;
   const running = snapshot.turns[snapshot.turns.length - 1];
-  const stepLine = running === undefined || isSettled(running) ? null : headerLineOf(running.tasks);
+  const stepRef = running === undefined || isSettled(running) ? null : headerRefOf(running.tasks);
+  const stepLine = stepRef !== null ? renderRef(stepRef) : running === undefined || isSettled(running) ? null : headerLineOf(running.tasks);
   const spend = running === undefined || isSettled(running) ? undefined : spendLine(running.run);
   return (
     <section className={`agent${open ? ' is-open' : ''}`} aria-label="Agent" data-testid="agent-panel" onKeyDown={onPanelKey}>

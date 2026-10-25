@@ -36,6 +36,7 @@
     "@caotang/store": "workspace:*",
     "@caotang/video-prompt-pack": "workspace:*",
     "@lingui/core": "6.10.1",
+    "@lingui/message-utils": "6.10.1",
     "@lingui/react": "6.10.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"

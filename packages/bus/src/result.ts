@@ -31,9 +31,19 @@
  * validation failure … and **not a postcondition**".
  */
 
+import type { MessageRef } from '@caotang/i18n';
+
 export interface CommandError {
   code: CommandErrorCode;
   message: string;
+  /**
+   * I7: the same refusal as a stable id, values and English template. Additive: `message` stays the
+   * English the model, the CLI and the MCP server read, and a UI renders the catalogue entry when it
+   * has one, else this template with its values. Machine tool descriptions never change.
+   */
+  messageRef?: MessageRef;
+  /** I7: the corrective path beside {@link correctiveHint}, rendered the same way. */
+  correctiveHintRef?: MessageRef;
   /** params path or node id the failure is attached to, when attributable */
   target?: string;
   /** present on permission-gate rejections (§4) */
@@ -55,7 +65,10 @@ export interface PerOpFailure {
   target: string;
   code: CommandErrorCode;
   message: string;
+  /** I7: the per-op refusal and its next step as message references, beside the English. */
+  messageRef?: MessageRef;
   correctiveHint?: string;
+  correctiveHintRef?: MessageRef;
   /**
    * The op's own details, when it has any — the candidates an ambiguous name
    * matched, for instance. A per-op failure that dropped them would lose what

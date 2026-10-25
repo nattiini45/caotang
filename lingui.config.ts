@@ -17,6 +17,9 @@
  */
 import { defineConfig } from '@lingui/conf';
 import { formatter } from '@lingui/format-po';
+import { createBabelExtractor } from '@lingui/cli/api/extractors/babel';
+
+import { packageRefsExtractor } from './tools/package-refs-extractor.js';
 
 export default defineConfig({
   locales: ['en', 'pseudo-LOCALE', 'pseudo-RTL'],
@@ -24,10 +27,20 @@ export default defineConfig({
   catalogs: [
     {
       path: '<rootDir>/apps/desktop/src/i18n/locales/{locale}/messages',
-      include: ['<rootDir>/apps/desktop/src'],
+      include: [
+        '<rootDir>/apps/desktop/src',
+        // I7: package code emits MessageRefs, not macros. The custom extractor reads only the files
+        // marked `// i18n: package-refs`; the default extractor still handles the app's macros.
+        '<rootDir>/packages/harness/src',
+        '<rootDir>/packages/coherence/src',
+        '<rootDir>/packages/bus/src',
+        '<rootDir>/packages/store/src',
+        '<rootDir>/packages/dialogue/src',
+      ],
       exclude: ['<rootDir>/apps/desktop/src/i18n/locales'],
     },
   ],
+  extractors: [packageRefsExtractor, createBabelExtractor({ parserOptions: {} })],
   // Line numbers move on every edit and are not evidence a translation is stale; the origin (file) stays.
   format: formatter({ lineNumbers: false }),
   pseudoLocale: [

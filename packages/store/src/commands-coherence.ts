@@ -1,3 +1,4 @@
+// i18n: package-refs
 /**
  * The store's applies for `coherence.discardRun` and the knowledge facts — [coherence.md §4.4, §7.1 and §8](../../../docs/architecture/coherence.md).
  *
@@ -87,10 +88,19 @@ export const applyCoherenceDiscardRun: CommandApply<CoherenceDiscardRunParams, P
     restoreTaken(heldFile(state), run, runIndex, taken);
   });
   const count = removed.length;
-  const words = `discarded ${runWordsOf(run)}`;
+  const runWords = runWordsOf(run);
+  const words = `discarded ${runWords}`;
   context.report({
     affected: [],
     summary: count === 0 ? words : `${words} and ${count} untouched finding${count === 1 ? '' : 's'} it made`,
+    summaryRef:
+      count === 0
+        ? { id: 'store.coherence.discardRun', message: 'discarded {run}', values: { run: runWords } }
+        : {
+            id: 'store.coherence.discardRunWithFindings',
+            message: 'discarded {run} and {count} untouched {count, plural, one {finding} other {findings}} it made',
+            values: { run: runWords, count },
+          },
   });
   return { runId: params.runId, removedFindingIds: removed.map((finding) => finding.id) };
 };
@@ -181,7 +191,15 @@ export function knowledgeApplies(clock: { now(): number }): {
       current.knowledge = current.knowledge.filter((candidate) => candidate.id !== id);
       takePairs(current, id);
     });
-    context.report({ affected: [], summary: `added the knowledge fact ${factWords(fact)}` });
+    context.report({
+      affected: [],
+      summary: `added the knowledge fact ${factWords(fact)}`,
+      summaryRef: {
+        id: 'store.coherence.addKnowledgeFact',
+        message: 'added the knowledge fact {fact}',
+        values: { fact: factWords(fact) },
+      },
+    });
     return { factId: id };
   };
 
@@ -204,7 +222,15 @@ export function knowledgeApplies(clock: { now(): number }): {
       const index = heldFile(state).knowledge.findIndex((candidate) => candidate.id === before.id);
       if (index >= 0) heldFile(state).knowledge[index] = before;
     });
-    context.report({ affected: [], summary: `changed the knowledge fact ${factWords(fact)}` });
+    context.report({
+      affected: [],
+      summary: `changed the knowledge fact ${factWords(fact)}`,
+      summaryRef: {
+        id: 'store.coherence.changeKnowledgeFact',
+        message: 'changed the knowledge fact {fact}',
+        values: { fact: factWords(fact) },
+      },
+    });
     return { factId: params.factId };
   };
 
@@ -225,9 +251,19 @@ export function knowledgeApplies(clock: { now(): number }): {
       putPairsBack(current, taken, (docId) => state.manifest.tree.some((node) => node.id === docId));
     });
     const count = pairCount(taken);
+    const factLabel = factWords(fact);
     context.report({
       affected: [],
-      summary: `removed the knowledge fact ${factWords(fact)}${count === 0 ? '' : ` and ${count} declaration${count === 1 ? '' : 's'} of who learns or knows it`}`,
+      summary: `removed the knowledge fact ${factLabel}${count === 0 ? '' : ` and ${count} declaration${count === 1 ? '' : 's'} of who learns or knows it`}`,
+      summaryRef:
+        count === 0
+          ? { id: 'store.coherence.removeKnowledgeFact', message: 'removed the knowledge fact {fact}', values: { fact: factLabel } }
+          : {
+              id: 'store.coherence.removeKnowledgeFactWithDeclarations',
+              message:
+                'removed the knowledge fact {fact} and {count} {count, plural, one {declaration} other {declarations}} of who learns or knows it',
+              values: { fact: factLabel, count },
+            },
     });
     return { factId: params.factId, removedDeclarations: count };
   };

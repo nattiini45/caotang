@@ -1,3 +1,4 @@
+// i18n: package-refs
 /**
  * Knowledge — [coherence.md §4.4](../../../../docs/architecture/coherence.md): `knowledge.leak`.
  *
@@ -42,6 +43,18 @@ export function checkKnowledgeLeak(input: CheckInput): CheckOutput {
         factGroup: groupKey(entry.id, `knows:${fact.id}`),
         evidence: later === undefined ? [headEvidence(scene)] : [headEvidence(scene), headEvidence(later)],
         message: later === undefined ? `${knowing}, but never learns it` : `${knowing}, but learns it only in "${later.title}"`,
+        messageRef:
+          later === undefined
+            ? {
+                id: 'coherence.knowledge.neverLearns',
+                message: '"{entry}" knows that "{fact}" in "{sceneTitle}", but never learns it',
+                values: { entry: labelOf(entry), fact: fact.text, sceneTitle: scene.title },
+              }
+            : {
+                id: 'coherence.knowledge.learnsLater',
+                message: '"{entry}" knows that "{fact}" in "{sceneTitle}", but learns it only in "{laterTitle}"',
+                values: { entry: labelOf(entry), fact: fact.text, sceneTitle: scene.title, laterTitle: later.title },
+              },
         expected: `${labelOf(entry)} taught the fact in a scene at or before "${scene.title}"`,
       });
     }

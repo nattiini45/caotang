@@ -1,3 +1,4 @@
+// i18n: package-refs
 /**
  * Project export: the applies of the project block, the saved export recipes, the vocabulary and the cover import.
  * Their descriptors are the bus's (`projectCommands` in `@caotang/bus`, `descriptors-project.ts`), so a refusal here is
@@ -194,6 +195,11 @@ function projectRenameApply(clock: ApplyClock): ProjectApply<ProjectRenameParams
     context.report({
       affected: [{ nodeId: 'root', title: params.title }],
       summary: `renamed the project to "${params.title}"`,
+      summaryRef: {
+        id: 'store.project.renameSummary',
+        message: 'renamed the project to "{title}"',
+        values: { title: params.title },
+      },
     });
     return { title: params.title };
   };

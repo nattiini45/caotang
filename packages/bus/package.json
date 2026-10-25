@@ -11,6 +11,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@caotang/i18n": "workspace:*",
     "@caotang/skills": "workspace:*"
   },
   "scripts": {

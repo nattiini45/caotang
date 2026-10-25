@@ -103,6 +103,58 @@ function populated(): CoherenceFile {
 }
 
 describe('coherence.json codec', () => {
+  it('round-trips a deterministic finding’s messageRef, values included', () => {
+    const ref = {
+      id: 'coherence.presence.expectedAbsent',
+      message: '"{entry}" is expected in "{sceneTitle}" but is never named there',
+      values: { entry: 'Elena', sceneTitle: 'A' },
+    };
+    const file = { ...populated(), findings: [finding({ messageRef: ref })] };
+    const outcome = parseCoherenceFile(serializeCoherenceFile(file));
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind !== 'ok') return;
+    expect(outcome.file.findings[0]?.messageRef).toEqual(ref);
+    expect(outcome.file.findings[0]?.message).toBe('Elena is expected in "A" but is never named there');
+  });
+
+  it('loads a file written before messageRefs, keeping every finding and its English message as written', () => {
+    const before = populated();
+    const old = {
+      ...before,
+      findings: before.findings.map(({ messageRef: _ignored, ...rest }) => rest),
+    };
+    const outcome = parseCoherenceFile(JSON.stringify(old));
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind !== 'ok') return;
+    expect(outcome.notices).toEqual([]);
+    expect(outcome.file.findings).toHaveLength(2);
+    expect(outcome.file.findings[0]?.message).toBe('Elena is expected in "A" but is never named there');
+    expect(outcome.file.findings[0]?.messageRef).toBeUndefined();
+  });
+
+  it('ignores a malformed ref rather than losing the finding, and never gives a model-authored finding a ref', () => {
+    const deterministic = finding({ messageRef: { id: '', message: 'broken' } });
+    const llm = finding({
+      id: 'f_5H8QK2M9RT',
+      class: 'llm',
+      checkId: 'llm:characterization',
+      type: 'characterization',
+      status: 'dismissed',
+      dismissedReason: 'intentional',
+      evidence: [EVIDENCE, { docId: 'sB', quote: 'Elena is forty.', from: 3, to: 17 }],
+      reasoning: 'Thirty-four against forty.',
+      modelMeta: { model: 'fake-1', promptTokens: 120, completionTokens: 40 },
+      messageRef: { id: 'coherence.shouldNeverRender', message: 'Model prose' },
+    });
+    const outcome = parseCoherenceFile(serializeCoherenceFile({ ...populated(), findings: [deterministic, llm] }));
+    expect(outcome.kind).toBe('ok');
+    if (outcome.kind !== 'ok') return;
+    expect(outcome.file.findings).toHaveLength(2);
+    expect(outcome.file.findings[0]?.messageRef).toBeUndefined();
+    expect(outcome.file.findings[1]?.messageRef).toBeUndefined();
+    expect(outcome.file.findings[1]?.message).toBe('Elena is expected in "A" but is never named there');
+  });
+
   it('round-trips a populated file without loss', () => {
     const file = populated();
     const outcome = parseCoherenceFile(serializeCoherenceFile(file));

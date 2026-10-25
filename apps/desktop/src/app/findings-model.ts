@@ -21,7 +21,7 @@ import {
   type SceneMeta,
   type ScopeSpec,
 } from '@caotang/coherence';
-import { dateFormat, numberFormat } from '@caotang/i18n';
+import { dateFormat, numberFormat, type MessageRef } from '@caotang/i18n';
 import { captureTextAnchor } from '@caotang/storyboard';
 import { getBody, getRevision, type CodexEntry, type ProjectState } from '@caotang/store';
 
@@ -65,6 +65,8 @@ export interface FindingView {
   readonly severity: FindingSeverity;
   readonly status: FindingStatus;
   readonly message: string;
+  /** I7: the deterministic check's reference, when the finding has one. A model-authored finding has none. */
+  readonly messageRef?: MessageRef;
   readonly expected: string | undefined;
   readonly note: string | undefined;
   readonly dismissedReason: string | undefined;
@@ -128,6 +130,8 @@ export interface FindingGroupView {
   readonly factGroup: string;
   readonly severity: FindingSeverity;
   readonly heading: string;
+  /** I7: the heading's reference when the first finding has one, so the group card can render it in the UI language. */
+  readonly headingRef?: MessageRef;
   readonly findings: readonly FindingView[];
 }
 
@@ -184,6 +188,7 @@ export function groupsByFact(findings: readonly FindingView[], severity: Finding
     factGroup,
     severity,
     heading: members[0]?.message || members[0]?.typeLabel || 'Finding',
+    headingRef: members[0]?.messageRef,
     findings: members,
   }));
 }
@@ -201,6 +206,7 @@ function viewOf(state: ProjectState, order: ReadonlyMap<string, number>, finding
     severity: finding.severity,
     status: finding.status,
     message: finding.message,
+    messageRef: finding.messageRef,
     expected: finding.expected,
     note: finding.note,
     dismissedReason: finding.dismissedReason,

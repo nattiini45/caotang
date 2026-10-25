@@ -5,7 +5,16 @@
  */
 
 import type { ReactNode } from 'react';
-import { budgetLevelOf, type TaskList, type TaskState } from '@caotang/harness';
+import { budgetLevelOf, type TaskItem, type TaskList, type TaskState } from '@caotang/harness';
+
+import { renderRef } from '../i18n/render-ref.js';
+
+/** Progress values that are writer text: a document title, a codex name, a search query. */
+const WRITER_VALUES = ['doc', 'target', 'query', 'title', 'name', 'node', 'scene'] as const;
+
+function itemText(item: TaskItem): string {
+  return item.contentRef === undefined ? item.content : renderRef(item.contentRef, { userValues: WRITER_VALUES });
+}
 
 /** The state in words, so it does not rest on colour or the glyph alone (WCAG 1.4.1). */
 const STATE_WORDS: Readonly<Record<TaskState, string>> = {
@@ -50,7 +59,7 @@ export function TaskChecklist({ list, settled }: { list: TaskList; settled: bool
               <span className="task-glyph" aria-hidden="true">
                 {STATE_GLYPHS[item.state]}
               </span>
-              <span className="task-content">{item.content}</span>
+              <span className="task-content">{itemText(item)}</span>
               <span className="task-state">{STATE_WORDS[item.state]}</span>
               {item.reason !== undefined ? <span className="task-reason">{item.reason}</span> : null}
             </li>

@@ -18,6 +18,7 @@ import { useState, type ReactNode } from 'react';
 
 import type { ProjectSession } from '../app/session.js';
 import { issuerLabel, sourceBadge, timeLabel } from '../app/activity-model.js';
+import { renderRef, titleValues } from '../i18n/render-ref.js';
 import { activityWindow, ACTIVITY_PANEL_WINDOW, showOlderWindow } from './activity-window.js';
 import { EmptyState, useReport, useSession } from './shared.js';
 
@@ -75,33 +76,40 @@ export function ActivityPanel({ session, onExport }: { session: ProjectSession; 
         </EmptyState>
       ) : (
         <ol className="activity-list" aria-label="Activity">
-          {rows.map(({ index, entry, title, undo }) => (
-            <li key={index} className={`activity-row is-${entry.issuedBy}`} data-command={entry.command}>
-              <div className="activity-head">
-                <span className="activity-title">{title}</span>
-                <span className={`badge is-source-${entry.source}`} title={`Source: ${sourceBadge(entry.source)}`}>
-                  {sourceBadge(entry.source)}
-                </span>
-              </div>
-              <p className="activity-summary">{entry.summary}</p>
-              <p className="activity-meta">
-                <time dateTime={new Date(entry.at).toISOString()}>{timeLabel(entry.at)}</time>
-                <span> · {issuerLabel(entry.issuedBy)}</span>
-              </p>
-              {undo !== null ? (
-                <button
-                  type="button"
-                  className="button is-quiet activity-undo"
-                  disabled={undo.id !== newest}
-                  title={undo.id === newest ? undo.label : LATER_CHANGES_FIRST}
-                  aria-label={`Undo: ${entry.summary}`}
-                  onClick={() => undoGroup(undo.id, entry.summary)}
-                >
-                  Undo
-                </button>
-              ) : null}
-            </li>
-          ))}
+          {rows.map(({ index, entry, title, undo }) => {
+            // A row saved before I7 has no ref and reads exactly as written; a new row follows the UI language.
+            const summary =
+              entry.summaryRef === undefined
+                ? entry.summary
+                : renderRef(entry.summaryRef, { userValues: titleValues(entry.summaryRef) });
+            return (
+              <li key={index} className={`activity-row is-${entry.issuedBy}`} data-command={entry.command}>
+                <div className="activity-head">
+                  <span className="activity-title">{title}</span>
+                  <span className={`badge is-source-${entry.source}`} title={`Source: ${sourceBadge(entry.source)}`}>
+                    {sourceBadge(entry.source)}
+                  </span>
+                </div>
+                <p className="activity-summary">{summary}</p>
+                <p className="activity-meta">
+                  <time dateTime={new Date(entry.at).toISOString()}>{timeLabel(entry.at)}</time>
+                  <span> · {issuerLabel(entry.issuedBy)}</span>
+                </p>
+                {undo !== null ? (
+                  <button
+                    type="button"
+                    className="button is-quiet activity-undo"
+                    disabled={undo.id !== newest}
+                    title={undo.id === newest ? undo.label : LATER_CHANGES_FIRST}
+                    aria-label={`Undo: ${summary}`}
+                    onClick={() => undoGroup(undo.id, summary)}
+                  >
+                    Undo
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
         </ol>
       )}
 

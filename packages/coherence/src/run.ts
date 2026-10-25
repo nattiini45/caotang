@@ -50,6 +50,7 @@ function toUpsertDraft(draft: DraftFinding): UpsertDraft {
     factGroup: draft.factGroup,
     evidence: [...draft.evidence],
     message: draft.message,
+    ...(draft.messageRef !== undefined ? { messageRef: draft.messageRef } : {}),
     ...(draft.expected !== undefined ? { expected: draft.expected } : {}),
   };
 }

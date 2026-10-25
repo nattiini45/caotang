@@ -1,3 +1,4 @@
+// i18n: package-refs
 /**
  * Causality — [coherence.md §5.5](../../../../docs/architecture/coherence.md): `plot.unresolved-thread`.
  *
@@ -34,6 +35,18 @@ export function checkUnresolvedThread(input: CheckInput): CheckOutput {
           title === undefined
             ? `${declares} with its payoff in ${thread.payoff}, which is not a document in the project`
             : `${declares} with its payoff in "${title}", which this scan did not read`,
+        messageRef:
+          title === undefined
+            ? {
+                id: 'coherence.plot.payoffUnresolved',
+                message: '"{sceneTitle}" declares the thread "{thread}" with its payoff in {payoff}, which is not a document in the project',
+                values: { sceneTitle: scene.title, thread: thread.id, payoff: thread.payoff },
+              }
+            : {
+                id: 'coherence.plot.payoffNotRead',
+                message: '"{sceneTitle}" declares the thread "{thread}" with its payoff in "{payoffTitle}", which this scan did not read',
+                values: { sceneTitle: scene.title, thread: thread.id, payoffTitle: title },
+              },
         expected: title === undefined ? 'a document for the payoff' : 'the payoff in a scanned scene',
       });
     }

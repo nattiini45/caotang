@@ -32,6 +32,7 @@ import {
 import { DEFAULT_COHERENCE_SETTINGS, type CoherenceSettings, type ReviewScope } from '../app/settings.js';
 import { gatewayCoherenceModel, planCoherenceReview, reviewCostDetailFor, runCoherenceReview } from '../app/coherence-review.js';
 import { formatUsd } from '../app/plan-preview.js';
+import { renderRef, titleValues } from '../i18n/render-ref.js';
 import type { ProjectSession } from '../app/session.js';
 import { explain } from './actions.js';
 import { KnowledgeList } from './KnowledgeList.js';
@@ -481,10 +482,14 @@ function FindingGroupCard({
   onStatus: (findingId: string, next: 'open' | 'fixed') => void;
   onOpenAgent?: () => void;
 }): ReactNode {
+  const heading =
+    group.headingRef === undefined
+      ? group.heading
+      : renderRef(group.headingRef, { userValues: titleValues(group.headingRef) });
   return (
-    <div className="finding-group" role="group" aria-label={group.heading} data-group={group.factGroup}>
+    <div className="finding-group" role="group" aria-label={heading} data-group={group.factGroup}>
       <header className="finding-group-head">
-        <span className="finding-group-heading">{group.heading}</span>
+        <span className="finding-group-heading">{heading}</span>
         {group.findings.length > 1 ? <span className="finding-group-count">{group.findings.length} citations</span> : null}
       </header>
       {group.findings.map((finding) => (
@@ -541,6 +546,11 @@ function FindingCard({
 }): ReactNode {
   // What "Fix with agent" said when it was pressed: where the fix is, or why it could not start.
   const [fixNote, setFixNote] = useState<string | null>(null);
+  // A deterministic finding renders its ref in the active UI language, with each title isolated once.
+  const message =
+    finding.messageRef === undefined
+      ? finding.message
+      : renderRef(finding.messageRef, { userValues: titleValues(finding.messageRef) });
   // Each quoted passage's document title is its button's description, so the button's name is the passage itself.
   const baseId = useId();
   return (
@@ -549,7 +559,7 @@ function FindingCard({
         <span className="finding-type">{finding.typeLabel}</span>
         <span className={`status-chip is-${finding.status}`}>{finding.status === 'open' ? 'Open' : finding.status === 'fixed' ? 'Marked fixed' : 'Dismissed'}</span>
       </header>
-      <p className="finding-message">{finding.message}</p>
+      <p className="finding-message">{message}</p>
       {finding.expected !== undefined ? <p className="finding-expected">Expected: {finding.expected}</p> : null}
       {finding.quotes.length > 0 ? (
         <ul className="finding-quotes" aria-label="Quoted passages">
@@ -638,6 +648,10 @@ export function DismissPicker({
 }): ReactNode {
   const [reason, setReason] = useState<string | null>(null);
   const [note, setNote] = useState('');
+  const message =
+    finding.messageRef === undefined
+      ? finding.message
+      : renderRef(finding.messageRef, { userValues: titleValues(finding.messageRef) });
   const [complaint, setComplaint] = useState<string | null>(null);
   const reasons: ReasonView[] = dismissalReasons();
   const chosen = reasons.find((candidate) => candidate.id === reason);
@@ -652,7 +666,7 @@ export function DismissPicker({
     <section
       className="finding-dismiss"
       role="dialog"
-      aria-label={`Dismiss the finding: ${finding.message}`}
+      aria-label={`Dismiss the finding: ${message}`}
       data-testid="dismiss-picker"
       onKeyDown={(event) => {
         if (event.key !== 'Escape') return;
