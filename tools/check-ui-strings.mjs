@@ -22,11 +22,15 @@
  * undercounts strings built from fragments. The committed baseline is the number this repository
  * holds itself to; the §0.1 table is the earlier estimate and is not copied here.
  */
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, resolve, sep } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import ts from 'typescript';
+
+import { MODEL_FACING_MARKER, isMain, posixPath, sourceFilesUnder } from './i18n-lib.mjs';
+
+export { MODEL_FACING_MARKER };
 
 /** The tree whose English surface the ratchet covers. */
 export const UI_ROOT = 'apps/desktop/src';
@@ -36,9 +40,6 @@ export const BASELINE_FILE = 'tools/ui-strings-baseline.json';
 
 /** The site kinds, in report order. */
 export const KINDS = ['jsxText', 'attribute', 'literal', 'template'];
-
-/** The top-of-file marker that exempts a file from translation (i18n.md §3.4). */
-export const MODEL_FACING_MARKER = '// i18n: model-facing';
 
 /** JSX attributes whose values a writer reads. */
 export const USER_FACING_ATTRIBUTES = new Set([
@@ -77,36 +78,11 @@ const DEVELOPER_CALLEES = [
 
 const CJK = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]/;
 
-/** A file's relative path with forward slashes, for stable JSON keys on every platform. */
-function posixPath(path) {
-  return path.split(sep).join('/');
-}
-
 /** True when the source declares itself model-facing at the top (i18n.md §3.4). */
 export function isModelFacing(source) {
   return source
     .split(/\r?\n/, 12)
     .some((line) => line.trim().startsWith(MODEL_FACING_MARKER));
-}
-
-/** Every TypeScript/TSX source file under `root`, sorted, without tests or declarations. */
-function sourceFiles(root) {
-  const files = [];
-  const walk = (dir) => {
-    for (const entry of readdirSync(dir).sort()) {
-      const path = join(dir, entry);
-      const stat = statSync(path);
-      if (stat.isDirectory()) {
-        walk(path);
-        continue;
-      }
-      if (!/\.(ts|tsx)$/.test(entry)) continue;
-      if (/\.d\.ts$/.test(entry) || /\.(test|spec)\.(ts|tsx)$/.test(entry)) continue;
-      files.push(path);
-    }
-  };
-  walk(root);
-  return files;
 }
 
 /** True when the text has a letter a writer could read. */
@@ -345,7 +321,7 @@ function countsOf(sites) {
 export function scanTree(root) {
   const files = [];
   const sites = [];
-  for (const path of sourceFiles(root)) {
+  for (const path of sourceFilesUnder(root)) {
     const scan = scanSource(path, readFileSync(path, 'utf8'));
     const file = posixPath(relative(root, path));
     const counts = countsOf(scan.sites);
@@ -482,11 +458,6 @@ function renderSummary(tree) {
   return `${summary.sites} unwrapped user-facing site(s) in ${summary.files} file(s): ${rows}`;
 }
 
-function isMain() {
-  const entry = process.argv[1];
-  return entry !== undefined && pathToFileURL(resolve(entry)).href === import.meta.url;
-}
-
 function main() {
   const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   const uiRoot = join(root, UI_ROOT);
@@ -529,4 +500,4 @@ function main() {
   }
 }
 
-if (isMain()) main();
+if (isMain(import.meta.url)) main();

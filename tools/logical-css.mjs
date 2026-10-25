@@ -17,11 +17,13 @@
  * editor's ruler and media scrubbers are the genuinely physical cases §5.1 names, and they stay in
  * the allowlist until I9 re-checks them.
  */
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, resolve, sep } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import ts from 'typescript';
+
+import { isMain, posixPath, walkFiles } from './i18n-lib.mjs';
 
 /** The app source the guard covers. */
 export const APP_ROOT = 'apps/desktop/src';
@@ -44,10 +46,6 @@ const INLINE_DIRECTION_VALUED = new Map([
   ['float', 'float'],
   ['clear', 'clear'],
 ]);
-
-function posixPath(path) {
-  return path.split(sep).join('/');
-}
 
 /** Comments become spaces, and newlines survive, so line numbers stay true. */
 function stripComments(source) {
@@ -180,31 +178,23 @@ export function scanInlineStyles(path, source, file = path) {
 export function scanTree(root) {
   const occurrences = [];
   const files = new Set();
-  const walk = (dir) => {
-    for (const entry of readdirSync(dir).sort()) {
-      const path = join(dir, entry);
-      const stat = statSync(path);
-      if (stat.isDirectory()) {
-        walk(path);
-        continue;
-      }
-      const file = posixPath(relative(root, path));
-      if (/\.css$/.test(entry)) {
-        const found = scanCss(readFileSync(path, 'utf8'), file);
-        if (found.length > 0) files.add(file);
-        occurrences.push(...found);
-        continue;
-      }
-      if (/\.(ts|tsx)$/.test(entry)) {
-        if (/\.d\.ts$/.test(entry) || /\.(test|spec)\.(ts|tsx)$/.test(entry)) continue;
-        const source = readFileSync(path, 'utf8');
-        const found = scanInlineStyles(path, source, file);
-        if (found.length > 0) files.add(file);
-        occurrences.push(...found);
-      }
+  for (const path of walkFiles(root)) {
+    const entry = basename(path);
+    const file = posixPath(relative(root, path));
+    if (/\.css$/.test(entry)) {
+      const found = scanCss(readFileSync(path, 'utf8'), file);
+      if (found.length > 0) files.add(file);
+      occurrences.push(...found);
+      continue;
     }
-  };
-  walk(root);
+    if (/\.(ts|tsx)$/.test(entry)) {
+      if (/\.d\.ts$/.test(entry) || /\.(test|spec)\.(ts|tsx)$/.test(entry)) continue;
+      const source = readFileSync(path, 'utf8');
+      const found = scanInlineStyles(path, source, file);
+      if (found.length > 0) files.add(file);
+      occurrences.push(...found);
+    }
+  }
   occurrences.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.property.localeCompare(b.property));
   return { occurrences, files: [...files].sort() };
 }
@@ -289,11 +279,6 @@ export function lowerAllowlist(occurrences, allowlist) {
   return { allowlist: { version: 1, entries }, problems };
 }
 
-function isMain() {
-  const entry = process.argv[1];
-  return entry !== undefined && pathToFileURL(resolve(entry)).href === import.meta.url;
-}
-
 function main() {
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   const root = join(repoRoot, APP_ROOT);
@@ -334,4 +319,4 @@ function main() {
   }
 }
 
-if (isMain()) main();
+if (isMain(import.meta.url)) main();

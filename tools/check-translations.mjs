@@ -25,15 +25,19 @@
  * The human-readable report is the CLI's; tests import the functions and feed fixtures.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { createCompiledCatalog } from '@lingui/cli/api';
 import { parsePoFile } from '@lingui/format-po';
 import ts from 'typescript';
+
+import { MODEL_FACING_MARKER, isMain, posixPath, sourceFilesUnder } from './i18n-lib.mjs';
+
+export { MODEL_FACING_MARKER };
 
 /** The committed catalogues, relative to the repository root. */
 export const LOCALES_ROOT = 'apps/desktop/src/i18n/locales';
@@ -46,9 +50,6 @@ export const SOURCE_LOCALE = 'en';
 
 /** Dev/test catalogues with no translators; they are not picker entries. */
 export const PSEUDO_LOCALES = new Set(['pseudo-LOCALE', 'pseudo-RTL']);
-
-/** The top-of-file marker that makes a file model-facing (i18n.md §3.4). */
-export const MODEL_FACING_MARKER = '// i18n: model-facing';
 
 /** A stable header value, so a run on another day compares equal. */
 const NORMALISED_POT_DATE = '"POT-Creation-Date: 1970-01-01 00:00+0000\\n"';
@@ -74,10 +75,6 @@ export function compareCatalogues(committed, generated) {
     }
   }
   return [];
-}
-
-function posixPath(path) {
-  return path.split(sep).join('/');
 }
 
 /** Reads every committed `messages.po`, keyed by locale. */
@@ -325,26 +322,6 @@ export function checkTranslatorHygiene(catalogues) {
   return problems;
 }
 
-/** All TypeScript/TSX source files under a directory, without tests or declarations. */
-function sourceFilesUnder(root) {
-  const files = [];
-  const walk = (dir) => {
-    for (const entry of readdirSync(dir).sort()) {
-      const path = join(dir, entry);
-      const stat = statSync(path);
-      if (stat.isDirectory()) {
-        walk(path);
-        continue;
-      }
-      if (!/\.(ts|tsx)$/.test(entry)) continue;
-      if (/\.d\.ts$/.test(entry) || /\.(test|spec)\.(ts|tsx)$/.test(entry)) continue;
-      files.push(path);
-    }
-  };
-  if (statSync(root).isDirectory()) walk(root);
-  return files;
-}
-
 /**
  * The value-producing message forms the hygiene rule names: `t`, `msg` and the runtime lookup. The
  * inventory deliberately recognizes more forms, because it asks whether a string already belongs to
@@ -553,11 +530,6 @@ export function checkDrift(repoRoot, generated = extractToTemp(repoRoot)) {
   return problems;
 }
 
-function isMain() {
-  const entry = process.argv[1];
-  return entry !== undefined && pathToFileURL(resolve(entry)).href === import.meta.url;
-}
-
 function main() {
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   const cataloguesRoot = join(repoRoot, LOCALES_ROOT);
@@ -595,4 +567,4 @@ function main() {
   }
 }
 
-if (isMain()) main();
+if (isMain(import.meta.url)) main();
