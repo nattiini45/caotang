@@ -122,9 +122,18 @@ describe('translator hygiene', () => {
 });
 
 describe('the model-facing marker', () => {
-  it('fails a marked file that imports the message runtime, statically or dynamically', () => {
+  /**
+   * The fixture directory holds one static importer, one dynamic importer and one clean marked file.
+   * Both tests assert the same three-file outcome, so the count lives here.
+   */
+  function modelFacingFixtureProblems(): string[] {
     const problems = findModelFacingImports([resolve(fixtures, 'model-facing')]);
     expect(problems).toHaveLength(2);
+    return problems;
+  }
+
+  it('fails a marked file that imports the message runtime, statically or dynamically', () => {
+    const problems = modelFacingFixtureProblems();
     expect(problems).toEqual(
       expect.arrayContaining([
         expect.stringContaining('with-lingui.ts: a model-facing file imports @lingui/core/macro'),
@@ -138,7 +147,7 @@ describe('the model-facing marker', () => {
     expect(findModelFacingImports(repositorySourceRoots(repoRoot))).toEqual([]);
     // The fixture directory holds both a failing and a clean marked file; only the importers are
     // reported, so the marker alone passes.
-    expect(findModelFacingImports([resolve(fixtures, 'model-facing')])).toHaveLength(2);
+    modelFacingFixtureProblems();
   });
 });
 

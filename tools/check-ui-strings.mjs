@@ -54,10 +54,10 @@ export const USER_FACING_ATTRIBUTES = new Set([
 ]);
 
 /**
- * The inventory asks "is this string already a message?", so it recognizes every macro form,
- * including the descriptor and branch builders. The concatenation pass in
- * `check-translations.mjs` asks a narrower question and deliberately recognizes only the
- * value-producing forms; the two sets differ by design, not by accident.
+ * The inventory asks "is this string already a message?", so it recognizes every macro form:
+ * the value-producing `t` and `msg`, the descriptor builder `defineMessage`, and the branch
+ * builders `plural`, `select` and `selectOrdinal`. The concatenation pass in
+ * `check-translations.mjs` asks a narrower question; its comment says why the two sets differ.
  */
 const WRAPPER_CALLEES = new Set(['t', 'msg', 'defineMessage', 'plural', 'select', 'selectOrdinal']);
 
@@ -400,8 +400,8 @@ const REMEDY = 'wrap the string in t`…` or <Trans>…</Trans>';
  * Creates the baseline once. An existing file is never overwritten: lowering it is `--write`'s job,
  * and an unconditional seed would let `--init` raise the ratchet.
  */
-export function seedBaseline(path, tree, { fileExists = existsSync } = {}) {
-  if (fileExists(path)) return { ok: false, message: `${BASELINE_FILE} exists; lower it with --write` };
+export function seedBaseline(path, tree) {
+  if (existsSync(path)) return { ok: false, message: `${BASELINE_FILE} exists; lower it with --write` };
   const baseline = makeBaseline(tree);
   writeFileSync(path, renderBaseline(baseline));
   return { ok: true, baseline };

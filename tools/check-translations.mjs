@@ -347,9 +347,9 @@ function sourceFilesUnder(root) {
 
 /**
  * The value-producing message forms the hygiene rule names: `t`, `msg` and the runtime lookup. The
- * inventory's wrapper set is broader (`defineMessage`, `plural`, `select`) because it asks whether a
- * string already belongs to a message, not whether it is being assembled with `+`; a descriptor or a
- * branch builder is not the `t`…` + …` pattern.
+ * inventory deliberately recognizes more forms, because it asks whether a string already belongs to
+ * a message rather than whether it is being assembled with `+`; see `WRAPPER_CALLEES` in
+ * `check-ui-strings.mjs` for the broader set and the reason.
  */
 function isLinguiMessageExpression(node) {
   if (ts.isParenthesizedExpression(node)) return isLinguiMessageExpression(node.expression);

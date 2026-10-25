@@ -44,6 +44,16 @@ function treeOf(files: readonly { file: string; counts: FileCounts }[]): ScanTre
 
 const empty = (): FileCounts => ({ jsxText: 0, attribute: 0, literal: 0, template: 0 });
 
+/** Runs a test body against a fresh temporary directory, removed whatever it writes. */
+function withTempDir(run: (directory: string) => void): void {
+  const directory = mkdtempSync(join(tmpdir(), 'caotang-ratchet-'));
+  try {
+    run(directory);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 describe('the committed baseline', () => {
   it('covers the real tree: no file has more unwrapped sites than its allowance', () => {
     const tree = scanTree(resolve(repoRoot, UI_ROOT));
@@ -140,30 +150,24 @@ describe('the ratchet', () => {
 
   it('seeds a baseline only when the file is absent', () => {
     const tree = treeOf([{ file: 'a.tsx', counts: { ...empty(), jsxText: 1 } }]);
-    const directory = mkdtempSync(join(tmpdir(), 'caotang-ratchet-'));
-    try {
+    withTempDir((directory) => {
       const path = join(directory, 'baseline.json');
       const seeded = seedBaseline(path, tree);
       expect(seeded.ok).toBe(true);
       expect(readBaseline(path)).toEqual(makeBaseline(tree));
-    } finally {
-      rmSync(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   it('refuses to seed over an existing baseline, so --init cannot raise the ratchet', () => {
     const tree = treeOf([{ file: 'a.tsx', counts: { ...empty(), jsxText: 1 } }]);
-    const directory = mkdtempSync(join(tmpdir(), 'caotang-ratchet-'));
-    try {
+    withTempDir((directory) => {
       const path = join(directory, 'baseline.json');
       const existing = '{"version":1,"root":"apps/desktop/src","files":{}}\n';
       writeFileSync(path, existing);
       const seeded = seedBaseline(path, tree);
       expect(seeded).toEqual({ ok: false, message: `${BASELINE_FILE} exists; lower it with --write` });
       expect(readFileSync(path, 'utf8')).toBe(existing);
-    } finally {
-      rmSync(directory, { recursive: true, force: true });
-    }
+    });
   });
 
   it('builds a baseline from the measured tree, omitting files with no sites', () => {

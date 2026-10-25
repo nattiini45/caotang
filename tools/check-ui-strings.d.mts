@@ -47,7 +47,6 @@ export function renderBaseline(baseline: Baseline): string;
 export function seedBaseline(
   path: string,
   tree: ScanTree,
-  options?: { readonly fileExists?: (path: string) => boolean },
 ): { readonly ok: true; readonly baseline: Baseline } | { readonly ok: false; readonly message: string };
 export function compareToBaseline(tree: ScanTree, baseline: Baseline): readonly string[];
 export function lowerBaseline(tree: ScanTree, baseline: Baseline): { readonly baseline: Baseline; readonly problems: readonly string[] };
