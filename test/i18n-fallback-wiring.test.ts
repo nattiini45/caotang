@@ -1,5 +1,5 @@
 /**
- * G2: the *loader* wires the per-message English fallback, not only the `withEnglishFallback` helper.
+ * The *loader* wires the per-message English fallback, not only the `withEnglishFallback` helper.
  *
  * `test/i18n-build.test.ts` proves the helper and the activation primitive. Here the compiled pseudo
  * catalogues cover every id, so a "missing translation" cannot be shown with them. This file mocks the
@@ -9,7 +9,7 @@
  * (must render English) and one translated id (must win) in the same catalogue.
  */
 import { i18n } from '@lingui/core';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { witnessMessage } from './fixtures/i18n-macro.js';
 
@@ -25,10 +25,6 @@ vi.mock('../apps/desktop/src/i18n/locales/pseudo-LOCALE/messages.po', () => ({
 }));
 
 const { activateCatalogue, loadMessages } = await import('../apps/desktop/src/i18n/runtime.js');
-
-afterEach(() => {
-  vi.restoreAllMocks();
-});
 
 describe('the loader applies the English fallback to a partial catalogue', () => {
   it('loadMessages contains the English message for the missing id and the translation for the translated one', async () => {

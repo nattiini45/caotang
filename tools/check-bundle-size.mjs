@@ -46,7 +46,7 @@ export const BUDGET = {
     'fontkit.es': 750_000,
     index: 1_334_000,
   },
-  /** The first load, gzip: the entry chunk and the chunks index.html loads with it. L2 measured 769.2 kB gzip; +5% is 808,000. */
+  /** The first load, gzip: the entry chunk and the chunks index.html loads with it. I3 measured 769.2 kB gzip; +5% is 808,000. */
   initialGzip: 808_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is

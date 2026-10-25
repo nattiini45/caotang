@@ -1,5 +1,5 @@
 /**
- * A macro-bearing fixture for the toolchain gate (L2 / #193). It exists to prove that the repository's
+ * A macro-bearing fixture for the toolchain gate (I3 / #193). It exists to prove that the repository's
  * **actual** Vitest transform runs Lingui's macro transform on a real `msg` macro, not merely that the
  * plugin appears in a config file. `test/i18n-build.test.ts` imports it and inspects the descriptor.
  *
