@@ -1854,6 +1854,56 @@ dialog.confirm::backdrop {
   background: rgba(20, 19, 17, 0.35);
 }
 
+dialog.confirm:has(.folder-file-preview) {
+  width: min(760px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+.folder-file-preview {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.folder-file-preview .field-note {
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+
+.folder-diff {
+  max-height: min(28vh, 14rem);
+  overflow: auto;
+  margin: 0;
+  font: 12px/1.45 var(--mono, ui-monospace, monospace);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.folder-diff-line {
+  display: block;
+  min-height: 1em;
+}
+
+.folder-diff-line.is-folder {
+  color: var(--danger);
+}
+
+.folder-diff-line.is-tab {
+  color: var(--accent);
+}
+
+.folder-diff-line.is-context,
+.folder-diff-line.is-note {
+  color: var(--muted);
+}
+
+.folder-diff-line.is-note {
+  font-style: italic;
+}
+
 .confirm-body {
   display: flex;
   flex-direction: column;

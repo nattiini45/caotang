@@ -53,22 +53,26 @@ import {
   completeRecovery,
   exportBundle,
   folderChanges,
+  folderOverwriteSnapshotFor,
   importBundle,
   openDemoSample,
   openElsewhere,
   openFolder,
   openOrCreateSample,
   openProject,
+  previewFolderChanges,
   removeProject,
   saveFolder,
   takeLeaveSuggestion,
   noteLeaveSuggestion,
+  type FolderSaveOutcome,
   type OpenOutcome,
 } from '../../apps/desktop/src/app/lifecycle.js';
 import { FOLDER_BACKUP_KEEP, backupStamp, isBackupStamp, pruneFolderBackups, watchSave } from '../../apps/desktop/src/app/folder-guard.js';
 import {
   folderArtifactFs,
   type DirectoryHandleLike,
+  type HandleLike,
   type FileHandleLike,
 } from '../../apps/desktop/src/app/fs-access.js';
 
@@ -1064,6 +1068,38 @@ function changeAfterWrite(root: DirectoryHandleLike, path: string, change: () =>
   return racing;
 }
 
+/** A folder handle whose selected file can be listed but not read, as a browser denying file access can behave. */
+function unreadableFile(root: DirectoryHandleLike, path: string): DirectoryHandleLike {
+  const wrap = (dir: DirectoryHandleLike, at: string): DirectoryHandleLike => ({
+    ...dir,
+    async getDirectoryHandle(child: string, options?: { create?: boolean }) {
+      return wrap(await dir.getDirectoryHandle(child, options), `${at}${child}/`);
+    },
+    async getFileHandle(child: string, options?: { create?: boolean }) {
+      const handle = await dir.getFileHandle(child, options);
+      if (`${at}${child}` !== path) return handle;
+      return { ...handle, async getFile() { throw new Error('the browser denied this file read'); } };
+    },
+  });
+  const unreadable = wrap(root, '');
+  childrenOfHandle.set(unreadable, childrenOfHandle.get(root) ?? new Map());
+  return unreadable;
+}
+
+function withoutDirectoryListing(root: DirectoryHandleLike): DirectoryHandleLike {
+  const wrap = (directory: DirectoryHandleLike): DirectoryHandleLike => ({
+    ...directory,
+    async getDirectoryHandle(name, options) {
+      return wrap(await directory.getDirectoryHandle(name, options));
+    },
+    async *entries(): AsyncGenerator<[string, HandleLike]> {
+      yield* [];
+      throw new Error('folder previews must read only the named paths');
+    },
+  });
+  return wrap(root);
+}
+
 /** Sets the text of the file at `path` in an in-memory folder, as another program writing it would. */
 function setFileText(root: DirectoryHandleLike, path: string, text: string): void {
   const segments = path.split('/');
@@ -1094,6 +1130,14 @@ async function folderSession(
   return { session: opened.opened.session, root, state: opened.opened.session.state };
 }
 
+async function confirmFolderOverwrite(session: ProjectSession, root: DirectoryHandleLike, refusal?: FolderSaveOutcome): Promise<FolderSaveOutcome> {
+  const question = refusal ?? await saveFolder(session, root);
+  if (question.kind !== 'refused') throw new Error('the current folder state should ask before overwriting');
+  const overwriteSnapshot = folderOverwriteSnapshotFor(question);
+  if (overwriteSnapshot === undefined) throw new Error('the refusal should retain its overwrite snapshot');
+  return saveFolder(session, root, { overwriteConfirmed: true, overwriteSnapshot });
+}
+
 test.describe('saving to a folder: what is written, and what is left alone', () => {
   test('a folder holding the copy this session loaded is written, and the copy is read back as the new baseline', async () => {
     const { session, root } = await folderSession();
@@ -1113,7 +1157,7 @@ test.describe('saving to a folder: what is written, and what is left alone', () 
     expect(await saveFolder(session, root)).toEqual({ kind: 'refused', reason: 'changed', files: [] });
     expect(await folderArtifactFs(root).read(MANIFEST_FILE)).toBe(otherText);
 
-    expect(await saveFolder(session, root, { overwriteConfirmed: true })).toEqual({ kind: 'saved' });
+    expect(await confirmFolderOverwrite(session, root)).toEqual({ kind: 'saved' });
     await session.close();
   });
 
@@ -1128,14 +1172,55 @@ test.describe('saving to a folder: what is written, and what is left alone', () 
       kind: 'refused',
       reason: 'files',
       files: [{ label: 'the document “Scene A”', change: 'changed' }],
+      previewFiles: [{ path: `docs/${IDS.sceneA}.md`, label: 'the document “Scene A”', change: 'changed' }],
     });
     expect(await fs.read(`docs/${IDS.sceneA}.md`)).toBe(otherText);
 
     // The writer's yes replaces the document, and the folder then holds this tab's text. What it replaced is kept.
-    const saved = await saveFolder(session, root, { overwriteConfirmed: true });
+    const saved = await confirmFolderOverwrite(session, root);
     expect(saved).toMatchObject({ kind: 'saved' });
     expect(await fs.read(`${saved.kind === 'saved' ? saved.backup : ''}/docs/${IDS.sceneA}.md`)).toBe(otherText);
     expect(await fs.read(`docs/${IDS.sceneA}.md`)).toContain('Not written');
+    await session.close();
+  });
+
+  test('a second folder edit while the overwrite question is open is shown before saving', async () => {
+    const { session, root } = await folderSession();
+    const fs = folderArtifactFs(root);
+    const path = `docs/${IDS.sceneA}.md`;
+    const shownText = `---\nid: ${IDS.sceneA}\ntitle: Scene A\n---\n\nMCP text shown in the first question.\n`;
+    const laterText = `---\nid: ${IDS.sceneA}\ntitle: Scene A\n---\n\nMCP text changed while the question was open.\n`;
+    await fs.writeAtomic(path, shownText);
+
+    const firstQuestion = await saveFolder(session, root);
+    expect(firstQuestion).toMatchObject({ kind: 'refused', reason: 'files' });
+    if (firstQuestion.kind !== 'refused') throw new Error('the first edit should be refused');
+    const firstSnapshot = folderOverwriteSnapshotFor(firstQuestion);
+    if (firstSnapshot === undefined) throw new Error('the first question should retain its overwrite snapshot');
+    await fs.writeAtomic(path, laterText);
+
+    const staleAnswer = await saveFolder(session, root, {
+      overwriteConfirmed: true,
+      overwriteSnapshot: firstSnapshot,
+    });
+    expect(staleAnswer).toMatchObject({ kind: 'refused', reason: 'files' });
+    if (staleAnswer.kind !== 'refused') throw new Error('the newer edit should be refused again');
+    expect(await fs.read(path)).toBe(laterText);
+    const refreshed = await previewFolderChanges(session, root, staleAnswer.previewFiles ?? []);
+    expect(refreshed.previews.find((preview) => preview.path === path)?.lines).toContainEqual({
+      kind: 'folder',
+      text: 'MCP text changed while the question was open.',
+    });
+    const refreshedSnapshot = folderOverwriteSnapshotFor(staleAnswer);
+    if (refreshedSnapshot === undefined) throw new Error('the refreshed question should retain its overwrite snapshot');
+
+    const saved = await saveFolder(session, root, {
+      overwriteConfirmed: true,
+      overwriteSnapshot: refreshedSnapshot,
+    });
+    expect(saved.kind).toBe('saved');
+    if (saved.kind !== 'saved' || saved.backup === undefined) throw new Error('the confirmed save should keep a backup');
+    expect(await fs.read(`${saved.backup}/${path}`)).toBe(laterText);
     await session.close();
   });
 
@@ -1152,6 +1237,7 @@ test.describe('saving to a folder: what is written, and what is left alone', () 
       kind: 'refused',
       reason: 'files',
       files: [{ label: 'the document “Scene B”', change: 'changed' }],
+      previewFiles: [{ path: `docs/${IDS.sceneB}.md`, label: 'the document “Scene B”', change: 'changed' }],
       partial: true,
     });
     expect(await fs.read(`docs/${IDS.sceneA}.md`)).toContain('Written before the change');
@@ -1177,7 +1263,7 @@ test.describe('saving to a folder: what is written, and what is left alone', () 
     expect(await saveFolder(session, root)).toEqual({ kind: 'refused', reason: 'unknown', files: [] });
 
     // With the writer's yes, the folder is written, and its copy becomes the baseline.
-    expect(await saveFolder(session, root, { overwriteConfirmed: true })).toEqual({ kind: 'saved' });
+    expect(await confirmFolderOverwrite(session, root)).toEqual({ kind: 'saved' });
     // A document the session then deletes, and a document file another writer put in the folder.
     await folderArtifactFs(root).writeAtomic('docs/n_B2C3D4E5F6.md', '---\nid: n_B2C3D4E5F6\n---\n\nnot ours\n');
     state.documents.delete(IDS.sceneB);
@@ -1189,11 +1275,12 @@ test.describe('saving to a folder: what is written, and what is left alone', () 
       kind: 'refused',
       reason: 'files',
       files: [{ label: 'a document this copy does not hold', change: 'added' }],
+      previewFiles: [{ path: 'docs/n_B2C3D4E5F6.md', label: 'a document this copy does not hold', change: 'added' }],
     });
     expect(await fs.exists('docs/n_B2C3D4E5F6.md')).toBe(true);
 
     // The writer's yes saves, and removes only the document this session deleted.
-    expect(await saveFolder(session, root, { overwriteConfirmed: true })).toEqual({ kind: 'saved' });
+    expect(await confirmFolderOverwrite(session, root)).toEqual({ kind: 'saved' });
     expect(await fs.exists(`docs/${IDS.sceneB}.md`)).toBe(false);
     expect(await fs.exists('docs/n_B2C3D4E5F6.md')).toBe(true);
     await session.close();
@@ -1275,6 +1362,132 @@ const OTHER_A = `---\nid: ${IDS.sceneA}\ntitle: Scene A\n---\n\nWhat the MCP ser
 const OTHER_B = `---\nid: ${IDS.sceneB}\ntitle: Scene B\n---\n\nWhat the MCP server wrote into Scene B.\n`;
 const CODEX_ID = 'c_5H8QK2M9RT';
 
+test.describe('folder overwrite previews stay attached to their file paths', () => {
+  test('two added documents with the same generic label each show their own folder text', async () => {
+    const { session, root } = await folderSession();
+    const fs = folderArtifactFs(root);
+    const entries = [
+      { path: 'docs/n_B2C3D4E5F6.md', text: 'first server-only document' },
+      { path: 'docs/n_C3D4E5F6G7.md', text: 'second server-only document' },
+    ];
+    for (const entry of entries) await fs.writeAtomic(entry.path, entry.text);
+
+    const outcome = await saveFolder(session, root);
+    expect(outcome.kind).toBe('refused');
+    if (outcome.kind !== 'refused') throw new Error('the changed folder should be refused');
+    expect(outcome.files).toEqual([{ label: 'a document this copy does not hold', change: 'added' }]);
+    expect(outcome.previewFiles).toEqual(expect.arrayContaining(entries.map(({ path }) => ({
+      path,
+      label: 'a document this copy does not hold',
+      change: 'added',
+    }))));
+
+    const { previews } = await previewFolderChanges(session, root, outcome.previewFiles ?? []);
+    expect(previews).toHaveLength(2);
+    for (const entry of entries) {
+      const preview = previews.find((item) => item.path === entry.path);
+      expect(preview?.lines).toContainEqual({ kind: 'folder', text: entry.text });
+    }
+    await session.close();
+  });
+
+  test('limits the number of file previews and reports omitted comparisons', async () => {
+    const { session, root } = await folderSession();
+    const fs = folderArtifactFs(root);
+    const idPrefix = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+    for (let index = 0; index < 14; index += 1) {
+      const id = `n_${idPrefix[index]}234567890`;
+      await fs.writeAtomic(`docs/${id}.md`, `server-only document ${index}`);
+    }
+
+    const outcome = await saveFolder(session, root);
+    expect(outcome.kind).toBe('refused');
+    if (outcome.kind !== 'refused') throw new Error('the changed folder should be refused');
+    expect(outcome.previewFiles).toHaveLength(12);
+    expect(outcome.omittedPreviewFiles).toBe(2);
+    const batch = await previewFolderChanges(session, root, outcome.previewFiles ?? [], outcome.omittedPreviewFiles ?? 0);
+    expect(batch.previews).toHaveLength(12);
+    expect(batch.omitted).toBe(2);
+    await session.close();
+  });
+
+  test('reads only named paths when preparing a preview, without enumerating the folder', async () => {
+    const { session, root } = await folderSession();
+    const path = `docs/${IDS.sceneA}.md`;
+    await folderArtifactFs(root).writeAtomic(path, OTHER_A);
+
+    const outcome = await saveFolder(session, root);
+    expect(outcome.kind).toBe('refused');
+    if (outcome.kind !== 'refused') throw new Error('the changed folder should be refused');
+    const batch = await previewFolderChanges(session, withoutDirectoryListing(root), outcome.previewFiles ?? []);
+    expect(batch.previews.find((preview) => preview.path === path)?.lines).toContainEqual({ kind: 'folder', text: 'What the MCP server wrote into Scene A.' });
+    await session.close();
+  });
+
+  test('keeps the aggregate comparison text within the question-level limit', async () => {
+    const { session, root } = await folderSession();
+    const fs = folderArtifactFs(root);
+    for (let index = 0; index < 8; index += 1) {
+      const id = `n_${String.fromCharCode(65 + index)}234567890`;
+      const text = Array.from({ length: 80 }, (_, line) => `Line ${line}: ${'x'.repeat(120)}`).join('\n');
+      await fs.writeAtomic(`docs/${id}.md`, text);
+    }
+
+    const outcome = await saveFolder(session, root);
+    expect(outcome.kind).toBe('refused');
+    if (outcome.kind !== 'refused') throw new Error('the changed folder should be refused');
+    const batch = await previewFolderChanges(session, root, outcome.previewFiles ?? []);
+    const characters = batch.previews.flatMap((preview) => preview.lines).reduce((total, line) => total + 2 + Math.max(1, line.text.length) + 1, 0);
+    expect(characters).toBeLessThanOrEqual(48_000);
+    expect(batch.omitted).toBeGreaterThan(0);
+    await session.close();
+  });
+
+  test('two codex files with the same name each show their own changed text', async () => {
+    const firstId = 'c_AAAAAAAAAA';
+    const secondId = 'c_BBBBBBBBBB';
+    const state = project();
+    state.manifest.codex = [codexEntry(firstId, 'Shared name'), codexEntry(secondId, 'Shared name')];
+    const { session, root } = await folderSession(state);
+    const fs = folderArtifactFs(root);
+    const entries = [
+      { path: `codex/${firstId}.md`, text: 'first codex text from the server' },
+      { path: `codex/${secondId}.md`, text: 'second codex text from the server' },
+    ];
+    for (const entry of entries) await fs.writeAtomic(entry.path, entry.text);
+
+    const outcome = await saveFolder(session, root);
+    expect(outcome.kind).toBe('refused');
+    if (outcome.kind !== 'refused') throw new Error('the changed folder should be refused');
+    expect(outcome.files).toEqual([{ label: 'the codex entry “Shared name”', change: 'changed' }]);
+    const { previews } = await previewFolderChanges(session, root, outcome.previewFiles ?? []);
+    expect(previews).toHaveLength(2);
+    for (const entry of entries) {
+      const preview = previews.find((item) => item.path === entry.path);
+      expect(preview?.lines).toContainEqual({ kind: 'folder', text: entry.text });
+    }
+    await session.close();
+  });
+
+  test('a listed folder file that cannot be read is reported as unreadable, not absent', async () => {
+    const { session, root } = await folderSession();
+    const path = `docs/${IDS.sceneA}.md`;
+    await folderArtifactFs(root).writeAtomic(path, OTHER_A);
+    const outcome = await saveFolder(session, root);
+    expect(outcome.kind).toBe('refused');
+    if (outcome.kind !== 'refused') throw new Error('the changed folder should be refused');
+
+    const { previews } = await previewFolderChanges(session, unreadableFile(root, path), outcome.previewFiles ?? []);
+    const preview = previews.find((item) => item.path === path);
+    expect(preview?.lines).toContainEqual({
+      kind: 'note',
+      text: 'The folder version could not be read as text; it is not known to be missing.',
+    });
+    expect(preview?.lines).not.toContainEqual({ kind: 'note', text: 'No matching file is in the folder.' });
+    await session.close();
+  });
+});
+
 test.describe('a save the writer confirmed keeps what it replaces in .caotang-backup', () => {
   test('each changed document and codex file, and a changed document the tab deleted, is copied before it is replaced; unchanged files are not', async () => {
     const seed = project();
@@ -1294,7 +1507,7 @@ test.describe('a save the writer confirmed keeps what it replaces in .caotang-ba
     expect(asked.kind === 'refused' && asked.reason).toBe('files');
     expect(await fs.read(`docs/${IDS.sceneA}.md`)).toBe(OTHER_A);
 
-    const outcome = await saveFolder(session, root, { overwriteConfirmed: true });
+    const outcome = await confirmFolderOverwrite(session, root);
     expect(outcome.kind).toBe('saved');
     const backup = outcome.kind === 'saved' ? outcome.backup : undefined;
     expect(backup).toMatch(STAMPED);
@@ -1325,7 +1538,7 @@ test.describe('a save the writer confirmed keeps what it replaces in .caotang-ba
     await fs.writeAtomic(`docs/${IDS.sceneA}.md`, OTHER_A);
     await fs.writeAtomic('docs/n_B2C3D4E5F6.md', '---\nid: n_B2C3D4E5F6\n---\n\nnot in this book\n');
 
-    const outcome = await saveFolder(session, root, { overwriteConfirmed: true });
+    const outcome = await confirmFolderOverwrite(session, root);
     const backup = outcome.kind === 'saved' ? outcome.backup : undefined;
     expect(backup).toMatch(STAMPED);
     // The file with an id this book also uses is replaced and kept; the other is not touched, so it is not copied.
@@ -1338,7 +1551,7 @@ test.describe('a save the writer confirmed keeps what it replaces in .caotang-ba
     const { session, root } = await folderSession();
     const fs = folderArtifactFs(root);
     await fs.writeAtomic(`docs/${IDS.sceneA}.md`, OTHER_A);
-    const outcome = await saveFolder(session, root, { overwriteConfirmed: true });
+    const outcome = await confirmFolderOverwrite(session, root);
     expect(outcome.kind === 'saved' && outcome.backup).toMatch(STAMPED);
 
     expect([...(await projectFileDigests(fs)).keys()].filter((path) => path.includes(BACKUP_DIR))).toEqual([]);
@@ -1355,7 +1568,7 @@ test.describe('a save the writer confirmed keeps what it replaces in .caotang-ba
     await fs.writeAtomic(`docs/${IDS.sceneA}.md`, OTHER_A);
     session.dispatch('doc.write', { docId: IDS.sceneA, body: 'The tab’s Scene A' });
 
-    await expect(saveFolder(session, refusingBackups(root), { overwriteConfirmed: true })).rejects.toThrow('could not be kept');
+    await expect(confirmFolderOverwrite(session, refusingBackups(root))).rejects.toThrow('could not be kept');
     expect(await fs.read(`docs/${IDS.sceneA}.md`)).toBe(OTHER_A);
     await session.close();
   });
@@ -1394,6 +1607,7 @@ test.describe('a change made while the save writes is reported, not lost', () =>
       kind: 'refused',
       reason: 'files',
       files: [{ label: 'the document “Scene A”', change: 'changed' }],
+      previewFiles: [{ path: `docs/${IDS.sceneA}.md`, label: 'the document “Scene A”', change: 'changed' }],
       partial: true,
     });
     expect(await fs.read(`docs/${IDS.sceneA}.md`)).toBe(OTHER_A);
@@ -1434,6 +1648,7 @@ test.describe('a change made while the save writes is reported, not lost', () =>
       kind: 'refused',
       reason: 'files',
       files: [{ label: 'the document “Scene A”', change: 'changed' }],
+      previewFiles: [{ path: `docs/${IDS.sceneA}.md`, label: 'the document “Scene A”', change: 'changed' }],
       after: true,
     });
     expect(await fs.read(`docs/${IDS.sceneA}.md`)).toBe(OTHER_A);
@@ -1442,8 +1657,9 @@ test.describe('a change made while the save writes is reported, not lost', () =>
       kind: 'refused',
       reason: 'files',
       files: [{ label: 'the document “Scene A”', change: 'changed' }],
+      previewFiles: [{ path: `docs/${IDS.sceneA}.md`, label: 'the document “Scene A”', change: 'changed' }],
     });
-    const outcome = await saveFolder(session, root, { overwriteConfirmed: true });
+    const outcome = await confirmFolderOverwrite(session, root);
     const backup = outcome.kind === 'saved' ? outcome.backup : undefined;
     expect(await fs.read(`${backup}/docs/${IDS.sceneA}.md`)).toBe(OTHER_A);
     await session.close();
@@ -1459,6 +1675,7 @@ test.describe('a change made while the save writes is reported, not lost', () =>
       kind: 'refused',
       reason: 'files',
       files: [{ label: 'the document “Scene C”', change: 'changed' }],
+      previewFiles: [{ path: `docs/${IDS.sceneC}.md`, label: 'the document “Scene C”', change: 'changed' }],
       after: true,
     });
     await session.close();
@@ -1658,7 +1875,7 @@ test.describe('a save into a folder holding a project: another project, the orig
     expect(await saveFolder(session, root)).toEqual({ kind: 'refused', reason: 'unknown', files: [] });
     expect(await folderArtifactFs(root).read(MANIFEST_FILE)).toBe(theirs);
 
-    expect(await saveFolder(session, root, { overwriteConfirmed: true })).toEqual({ kind: 'saved' });
+    expect(await confirmFolderOverwrite(session, root)).toEqual({ kind: 'saved' });
     const onDisk = await readProject(folderArtifactFs(root));
     expect(onDisk.state.manifest.project.id).toBe(session.state.manifest.project.id);
     expect(await folderArtifactFs(root).read(`${MANIFEST_FILE}.bak.1`)).toBe(theirs);
@@ -1727,6 +1944,7 @@ test.describe('a save into a folder holding a project: another project, the orig
         kind: 'refused',
         reason: 'files',
         files: [{ label: 'the document “Scene B”', change: 'changed' }],
+        previewFiles: [{ path: `docs/${IDS.sceneB}.md`, label: 'the document “Scene B”', change: 'changed' }],
       });
       expect(await fs.read(`docs/${IDS.sceneB}.md`)).toContain('Edited by another program.');
       await third.close();
@@ -1744,7 +1962,7 @@ test.describe('a save into a folder holding a project: another project, the orig
     session.dispatch('doc.write', { docId: IDS.sceneA, body: 'This tab’s version' });
 
     expect(await saveFolder(session, root)).toEqual({ kind: 'refused', reason: 'earlier', files: [] });
-    expect(await saveFolder(session, root, { overwriteConfirmed: true })).toMatchObject({ kind: 'saved' });
+    expect(await confirmFolderOverwrite(session, root)).toMatchObject({ kind: 'saved' });
     expect((await readProject(folderArtifactFs(root))).state.documents.get(IDS.sceneA)?.body).toBe('This tab’s version');
     await session.close();
   });
@@ -2112,7 +2330,7 @@ test.describe('a folder whose version differs from this browser\'s asks which to
     expect(await readProject(folderArtifactFs(root)).then((loaded) => loaded.state.documents.get(IDS.sceneA)?.body)).not.toBe('Typed in this browser');
 
     // The writer's "Save over them" writes this browser's version into the folder.
-    expect(await saveFolder(opened.session, root, { overwriteConfirmed: true })).toMatchObject({ kind: 'saved' });
+    expect(await confirmFolderOverwrite(opened.session, root)).toMatchObject({ kind: 'saved' });
     const onDisk = await readProject(folderArtifactFs(root));
     expect(onDisk.state.documents.get(IDS.sceneA)?.body).toBe('Typed in this browser');
     expect(onDisk.state.manifest.project.id).toBe(id);

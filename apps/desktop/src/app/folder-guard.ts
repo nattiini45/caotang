@@ -168,6 +168,8 @@ export interface SaveSettled {
    * save (and none, if it had none), so the next save still sees that file as one another program changed.
    */
   readonly digests: Map<string, string>;
+  /** The exact digests currently read from the folder, including files that drifted during the save. */
+  readonly currentDigests: Map<string, string>;
 }
 
 /**
@@ -178,7 +180,8 @@ export async function changedDuringSave(fs: ArtifactFs, before: ReadonlyMap<stri
   const left = new Map(before);
   for (const [path, digest] of watch.written) left.set(path, digest);
   for (const path of watch.removed) left.delete(path);
-  const drift = driftOf(left, await projectFileDigests(fs));
+  const currentDigests = await projectFileDigests(fs);
+  const drift = driftOf(left, currentDigests);
   const digests = new Map(left);
   // A file that changed keeps its earlier digest, so the next save sees it changed. One removed after the save wrote it stays held as
   // written, so the next save sees the removal; one added is not held, so the next save sees it added.
@@ -187,5 +190,5 @@ export async function changedDuringSave(fs: ArtifactFs, before: ReadonlyMap<stri
     if (earlier === undefined) digests.delete(path);
     else digests.set(path, earlier);
   }
-  return { drift, digests };
+  return { drift, digests, currentDigests };
 }

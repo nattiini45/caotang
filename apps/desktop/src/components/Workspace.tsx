@@ -26,7 +26,17 @@ import { childrenOf, newDocumentRefusalText, newItemParent, nodeById, summarizeS
 import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, folderIsEmpty, pickDirectory, type DirectoryHandleLike } from '../app/fs-access.js';
 import { resolveKey } from '../app/keymap.js';
-import { exportBundle, noteLeaveSuggestion, saveFolder, type FolderFileChange, type FolderSaveAnswers } from '../app/lifecycle.js';
+import {
+  exportBundle,
+  folderOverwriteSnapshotFor,
+  noteLeaveSuggestion,
+  previewFolderChanges,
+  saveFolder,
+  type FolderFileChange,
+  type FolderFilePreview,
+  type FolderOverwriteSnapshot,
+  type FolderSaveAnswers,
+} from '../app/lifecycle.js';
 import type { ZoomLevel } from '../app/corkboard-model.js';
 import type { AppServices } from '../app/services.js';
 import { contextConfigOf } from '../app/settings.js';
@@ -529,10 +539,16 @@ export function Workspace({
       try {
         const outcome = await saveFolder(session, folder, answers);
         if (outcome.kind === 'refused') {
+          const overwriteSnapshot = folderOverwriteSnapshotFor(outcome);
+          if (overwriteSnapshot === undefined) throw new Error('The folder save question no longer matches the folder state. Save again to review it.');
+          const previewBatch = await previewFolderChanges(session, folder, outcome.previewFiles ?? [], outcome.omittedPreviewFiles ?? 0);
           setFolderOffer({
             folder,
             reason: outcome.reason,
+            overwriteSnapshot,
             files: outcome.files,
+            previews: previewBatch.previews,
+            omittedPreviews: previewBatch.omitted,
             partial: outcome.partial === true,
             after: outcome.after === true,
             removed: outcome.removed === true,
@@ -602,9 +618,11 @@ export function Workspace({
   /** The writer's yes to the question a folder save asked: the answer that question needs, and the save again. */
   const answerFolderQuestion = (): void => {
     if (folderOffer === null) return;
-    const { folder, reason, answers } = folderOffer;
+    const { folder, reason, answers, overwriteSnapshot } = folderOffer;
     setFolderOffer(null);
-    writeFolder(folder, reason === 'locked' ? { ...answers, lockConfirmed: true } : { ...answers, overwriteConfirmed: true });
+    writeFolder(folder, reason === 'locked'
+      ? { ...answers, lockConfirmed: true }
+      : { ...answers, overwriteConfirmed: true, overwriteSnapshot });
   };
 
   const toggleTheme = (): void => {
@@ -1027,8 +1045,13 @@ function SaveIndicator({ state, onExport }: { state: SaveState; onExport: () => 
 interface FolderOffer {
   readonly folder: DirectoryHandleLike;
   readonly reason: 'locked' | 'changed' | 'unknown' | 'earlier' | 'files';
+  readonly overwriteSnapshot: FolderOverwriteSnapshot;
   /** The documents and codex entries another program changed, removed or added, named in words (lifecycle `folderChanges`). */
   readonly files: readonly FolderFileChange[];
+  /** A read-only comparison of each named file's folder text and this tab's text. */
+  readonly previews: readonly FolderFilePreview[];
+  /** Number of exact file comparisons omitted by the preview-size limits. */
+  readonly omittedPreviews: number;
   /** The change was found part way through the save, so the files before it and the pictures were written, and these were not. */
   readonly partial: boolean;
   /** The change was found after the save was written in full: the folder holds the other program's version of these files. */
@@ -1039,16 +1062,42 @@ interface FolderOffer {
 }
 
 /** The changed files, one line each, for a question that names them. Nothing renders for a save with none. */
-function changedFilesList(files: readonly FolderFileChange[]): ReactNode {
+function changedFilesList(files: readonly FolderFileChange[], previews: readonly FolderFilePreview[], omittedPreviews: number): ReactNode {
   if (files.length === 0) return null;
+  const MAX_VISIBLE_FOLDER_FILE_LABELS = 12;
   const change = { changed: 'changed', removed: 'removed', added: 'added' } as const;
   return (
     <ul>
-      {files.map((file, index) => (
-        <li key={index}>
-          {file.label}: {change[file.change]}
-        </li>
-      ))}
+      {files.slice(0, MAX_VISIBLE_FOLDER_FILE_LABELS).map((file, index) => {
+        const filePreviews = previews.filter((item) => item.label === file.label && item.change === file.change);
+        return (
+          <li key={index}>
+            <div>{file.label}: {change[file.change]}</div>
+            {filePreviews.map((preview, previewIndex) => (
+              <section
+                className="folder-file-preview"
+                key={preview.path}
+                role="region"
+                aria-label={`Changes for ${file.label}${filePreviews.length > 1 ? `, file ${previewIndex + 1} of ${filePreviews.length}` : ''}`}
+              >
+                <p className="field-note">{filePreviews.length > 1 ? `File ${previewIndex + 1} of ${filePreviews.length} · ` : ''}− In the folder · + In this tab</p>
+                <pre className="folder-diff">
+                  {preview.lines.map((line, lineIndex) => {
+                    const marker = line.kind === 'folder' ? '− ' : line.kind === 'tab' ? '+ ' : line.kind === 'context' ? '  ' : '… ';
+                    return <span className={`folder-diff-line is-${line.kind}`} key={lineIndex}>{marker}{line.text || ' '}{'\n'}</span>;
+                  })}
+                </pre>
+              </section>
+            ))}
+          </li>
+        );
+      })}
+      {files.length > MAX_VISIBLE_FOLDER_FILE_LABELS ? (
+        <li className="field-note">{files.length - MAX_VISIBLE_FOLDER_FILE_LABELS} more changed file labels are not shown.</li>
+      ) : null}
+      {omittedPreviews > 0 ? (
+        <li className="field-note">Detailed comparisons for {omittedPreviews} more file{omittedPreviews === 1 ? '' : 's'} are not shown to keep the question manageable.</li>
+      ) : null}
     </ul>
   );
 }
@@ -1057,10 +1106,12 @@ function changedFilesList(files: readonly FolderFileChange[]): ReactNode {
 function folderQuestion({
   reason,
   files,
+  previews,
+  omittedPreviews,
   partial,
   after,
   removed,
-}: Pick<FolderOffer, 'reason' | 'files' | 'partial' | 'after' | 'removed'>): {
+}: Pick<FolderOffer, 'reason' | 'files' | 'previews' | 'omittedPreviews' | 'partial' | 'after' | 'removed'>): {
   readonly title: string;
   readonly body: ReactNode;
   readonly confirm: string;
@@ -1084,7 +1135,7 @@ function folderQuestion({
               that program&rsquo;s version of them:
             </p>
           ) : null}
-          {changedFilesList(files)}
+          {changedFilesList(files, previews, omittedPreviews)}
           <p>
             Saving writes this tab&rsquo;s version over them. The folder&rsquo;s version is kept first, in <code>.caotang-backup</code> in
             the folder, so if you need anything from it, copy it from there.
@@ -1125,7 +1176,7 @@ function folderQuestion({
           <p>
             Saving here writes <code>caotang.json</code> back into the folder from this tab, with the project as this tab holds it.
           </p>
-          {changedFilesList(files)}
+          {changedFilesList(files, previews, omittedPreviews)}
         </>
       ),
       confirm: 'Write it back',
@@ -1145,7 +1196,7 @@ function folderQuestion({
             To see the folder&rsquo;s newer copy, go to Projects and open the folder again: it opens as a separate project. Saving here
             writes <code>caotang.json</code> from this tab, and an older one that is there is kept as a backup.
           </p>
-          {changedFilesList(files)}
+          {changedFilesList(files, previews, omittedPreviews)}
         </>
       ),
       confirm: 'Save over it',
