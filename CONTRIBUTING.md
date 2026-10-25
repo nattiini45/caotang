@@ -42,6 +42,16 @@ After `pnpm build`, run `node tools/check-bundle-size.mjs`. It prints every JS c
 
 The numbers are in one object, `BUDGET`, at the top of `tools/check-bundle-size.mjs`. A heavy library that only some writers use (the MCP SDK, the Ink compiler, docx, fontkit) is loaded where it is used, not in the first paint. Code that compiles Ink needs the compiler loaded first: a Node entry awaits `loadInkCompiler()` before it opens a project, the vitest setup file (`test/setup-ink-compiler.ts`) does it for tests, and `compileInk` throws `InkCompilerNotLoaded` until it has. If your change makes the build grow past a number, load the new code on use if you can. If it cannot be, raise the number in the same change: build, run the script, put the new size plus about 5% in `BUDGET`, and say why in the commit. An allow-list entry is debt, and the script fails once its chunk is back under 500 kB, so remove the entry then.
 
+### Translation guards
+
+`pnpm verify` runs three repository guards, and each has a deliberately failing fixture under `test/fixtures/i18n-guards/`:
+
+- `tools/check-ui-strings.mjs` counts unwrapped user-facing strings in `apps/desktop/src` against `tools/ui-strings-baseline.json`. A new file starts at zero; a rename leaves a stale entry plus a zero-allowance path. When a file's count goes down, lower the baseline with `node tools/check-ui-strings.mjs --write` and commit it. Do not convert by adding an allowance for a new path.
+- `tools/check-translations.mjs` runs `lingui extract` and compares the result, compiles every message, checks placeholder parity and translator hygiene, and writes `apps/desktop/src/i18n/locales/stats.json`. After changing a catalogue, run `--write-stats`. Extraction rewrites `POT-Creation-Date`; the guard normalises that one header. Missing translations do not fail.
+- `tools/logical-css.mjs` fails on a physical direction declaration outside `tools/logical-css-allowlist.json`. The allowlist is per declaration context, never per file: a new physical rule needs an explicit allowlist edit in the same PR if it is genuinely physical (the editor's ruler, a page preview, a scrubber), and `--write` only lowers entries.
+
+See [i18n.md §8.2](docs/architecture/i18n.md#82-ci-checks-all-in-pnpm-verify) for the contract.
+
 ### PDF validation
 
 CI's `pdf-validate` job checks both PDFs the app writes with tools other than the ones that wrote them. To run it yourself after changing a PDF writer:

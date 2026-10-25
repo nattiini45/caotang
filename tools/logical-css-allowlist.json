@@ -1,0 +1,461 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "file": "components/encoding-dialog.css",
+      "context": ".encoding-list",
+      "property": "padding-right",
+      "count": 1
+    },
+    {
+      "file": "components/shared.tsx",
+      "context": "style={{…}}",
+      "property": "left",
+      "count": 1
+    },
+    {
+      "file": "components/target-quick-set.css",
+      "context": ".target-quick-set",
+      "property": "left",
+      "count": 1
+    },
+    {
+      "file": "features.css",
+      "context": ".mcp-import-result",
+      "property": "border-left",
+      "count": 1
+    },
+    {
+      "file": "media/DialogueView.tsx",
+      "context": "CSSProperties",
+      "property": "left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".dlg-badge",
+      "property": "margin-right",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".dlg-choices",
+      "property": "padding-left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".dlg-edges",
+      "property": "left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".dlg-errors",
+      "property": "border-left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".dlg-finding",
+      "property": "text-align=left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".dlg-line-id",
+      "property": "margin-left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".dlg-lines",
+      "property": "padding-left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".dlg-node",
+      "property": "text-align=left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".dlg-node.is-flagged",
+      "property": "border-left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".media-view .badge",
+      "property": "margin-right",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".pp-audio",
+      "property": "padding-left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".sb-covers",
+      "property": "padding-left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".sb-editor .counter",
+      "property": "text-align=right",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".sp-dual .sp-character",
+      "property": "margin-left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".sp-dual .sp-dialogue",
+      "property": "margin-left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".sp-dual .sp-parenthetical",
+      "property": "margin-left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".sp-scene-link",
+      "property": "text-align=left",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".sp-transition",
+      "property": "text-align=right",
+      "count": 1
+    },
+    {
+      "file": "media/media.css",
+      "context": ".twee-report ul",
+      "property": "padding-left",
+      "count": 1
+    },
+    {
+      "file": "media/ScreenplayPreview.tsx",
+      "context": "CSSProperties",
+      "property": "marginLeft",
+      "count": 1
+    },
+    {
+      "file": "media/ScreenplayPreview.tsx",
+      "context": "CSSProperties",
+      "property": "paddingLeft",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".activity-row.is-agent",
+      "property": "border-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".agent-mode legend",
+      "property": "float=left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".agent-mode legend",
+      "property": "margin-right",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".agent-stop",
+      "property": "margin-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".agent-task-errors",
+      "property": "padding-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".askback",
+      "property": "border-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".askback-options",
+      "property": "padding-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".badge.is-auto",
+      "property": "margin-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".codex-group-count",
+      "property": "margin-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".codex-row",
+      "property": "text-align=left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".context-reasons,\n.context-dropped",
+      "property": "padding-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".crumbs li + li::before",
+      "property": "margin-right",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".delegation-trace ol",
+      "property": "padding-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".editor-status .editor-save",
+      "property": "margin-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".findings ul",
+      "property": "padding-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".first-run",
+      "property": "border-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".held-plan ol",
+      "property": "padding-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".inspector",
+      "property": "border-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".load-banner",
+      "property": "border-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".load-banner ul",
+      "property": "padding-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".menu-item",
+      "property": "text-align=left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".menu-item.is-checked",
+      "property": "padding-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".menu-item.is-checked::before",
+      "property": "left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".menu-key",
+      "property": "float=right",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".menu-key",
+      "property": "margin-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".models ul",
+      "property": "padding-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".picker-button",
+      "property": "text-align=left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".plan-offer-steps",
+      "property": "padding-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".plan-step-controls",
+      "property": "margin-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".ProseMirror blockquote",
+      "property": "border-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".ProseMirror blockquote",
+      "property": "padding-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".ProseMirror p.is-editor-empty:first-child::before",
+      "property": "float=left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".rail",
+      "property": "border-right",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".row.is-drop-before::before,\n.row.is-drop-after::after",
+      "property": "left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".row.is-drop-before::before,\n.row.is-drop-after::after",
+      "property": "right",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".row.is-section",
+      "property": "padding-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".segmented-item",
+      "property": "border-right",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".segmented-item:last-child",
+      "property": "border-right",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".session-ring",
+      "property": "margin-right",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".settings-nav",
+      "property": "border-right",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".settings-nav-item",
+      "property": "text-align=left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".status-card",
+      "property": "border-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".status-card.is-done",
+      "property": "border-left-color",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".status-card.is-failed,\n.status-card.is-cancelled",
+      "property": "border-left-color",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".status-card.is-running",
+      "property": "border-left-color",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".status-line",
+      "property": "left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".storage-banner",
+      "property": "border-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".task-reason",
+      "property": "padding-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".task-state",
+      "property": "margin-left",
+      "count": 1
+    },
+    {
+      "file": "styles.css",
+      "context": ".usage-table th,\n.usage-table td,\n.request-table th,\n.request-table td",
+      "property": "text-align=left",
+      "count": 1
+    }
+  ]
+}

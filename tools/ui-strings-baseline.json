@@ -1,0 +1,654 @@
+{
+  "version": 1,
+  "root": "apps/desktop/src",
+  "files": {
+    "App.tsx": {
+      "jsxText": 3,
+      "attribute": 0,
+      "literal": 2,
+      "template": 2
+    },
+    "app/activity-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 53,
+      "template": 8
+    },
+    "app/agent-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 9,
+      "template": 14
+    },
+    "app/agent.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 11,
+      "template": 4
+    },
+    "app/binder-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 7,
+      "template": 1
+    },
+    "app/codex-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 4,
+      "template": 0
+    },
+    "app/coherence-io.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 3,
+      "template": 2
+    },
+    "app/context-preview.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 3,
+      "template": 0
+    },
+    "app/demo.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 13,
+      "template": 0
+    },
+    "app/empty-intents.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 2,
+      "template": 0
+    },
+    "app/encoding-review.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 12,
+      "template": 10
+    },
+    "app/findings-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 15,
+      "template": 6
+    },
+    "app/footer-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 7,
+      "template": 7
+    },
+    "app/furniture-store.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 3,
+      "template": 4
+    },
+    "app/integrity-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 6,
+      "template": 5
+    },
+    "app/keymap.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 2,
+      "template": 0
+    },
+    "app/knowledge-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 2,
+      "template": 0
+    },
+    "app/lifecycle.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 8,
+      "template": 5
+    },
+    "app/load-banner.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 21,
+      "template": 2
+    },
+    "app/mcp-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 10,
+      "template": 8
+    },
+    "app/mcp.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 1,
+      "template": 1
+    },
+    "app/pending-journal.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 2,
+      "template": 1
+    },
+    "app/plan-preview.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 17,
+      "template": 3
+    },
+    "app/project-assets.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 2,
+      "template": 0
+    },
+    "app/project-lease.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 1,
+      "template": 0
+    },
+    "app/provider-details.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 7,
+      "template": 5
+    },
+    "app/provider-label.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 0,
+      "template": 1
+    },
+    "app/providers.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 5,
+      "template": 9
+    },
+    "app/services.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 1,
+      "template": 3
+    },
+    "app/session-progress.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 0,
+      "template": 2
+    },
+    "app/session.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 9,
+      "template": 6
+    },
+    "app/settings.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 0,
+      "template": 1
+    },
+    "app/skills-import.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 2,
+      "template": 4
+    },
+    "app/skills-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 12,
+      "template": 12
+    },
+    "app/storage.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 3,
+      "template": 4
+    },
+    "app/target-draft.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 0,
+      "template": 1
+    },
+    "app/task-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 2,
+      "template": 7
+    },
+    "app/task-queue.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 5,
+      "template": 3
+    },
+    "app/theme.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 1,
+      "template": 0
+    },
+    "app/unsent-copy.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 3,
+      "template": 0
+    },
+    "components/ActivityPanel.tsx": {
+      "jsxText": 4,
+      "attribute": 4,
+      "literal": 1,
+      "template": 1
+    },
+    "components/AgentModeSettings.tsx": {
+      "jsxText": 10,
+      "attribute": 1,
+      "literal": 10,
+      "template": 1
+    },
+    "components/AgentPanel.tsx": {
+      "jsxText": 33,
+      "attribute": 14,
+      "literal": 18,
+      "template": 5
+    },
+    "components/AgentQueue.tsx": {
+      "jsxText": 10,
+      "attribute": 9,
+      "literal": 2,
+      "template": 0
+    },
+    "components/BackgroundTasks.tsx": {
+      "jsxText": 10,
+      "attribute": 2,
+      "literal": 1,
+      "template": 1
+    },
+    "components/Binder.tsx": {
+      "jsxText": 5,
+      "attribute": 8,
+      "literal": 16,
+      "template": 2
+    },
+    "components/BinderFilters.tsx": {
+      "jsxText": 14,
+      "attribute": 19,
+      "literal": 5,
+      "template": 1
+    },
+    "components/BinderFooter.tsx": {
+      "jsxText": 15,
+      "attribute": 10,
+      "literal": 5,
+      "template": 1
+    },
+    "components/CodexPanel.tsx": {
+      "jsxText": 21,
+      "attribute": 28,
+      "literal": 5,
+      "template": 4
+    },
+    "components/CoherenceSettings.tsx": {
+      "jsxText": 5,
+      "attribute": 0,
+      "literal": 1,
+      "template": 1
+    },
+    "components/ContextSection.tsx": {
+      "jsxText": 7,
+      "attribute": 3,
+      "literal": 6,
+      "template": 3
+    },
+    "components/Corkboard.tsx": {
+      "jsxText": 2,
+      "attribute": 7,
+      "literal": 6,
+      "template": 3
+    },
+    "components/EditorPane.tsx": {
+      "jsxText": 7,
+      "attribute": 5,
+      "literal": 6,
+      "template": 1
+    },
+    "components/EncodingDialog.tsx": {
+      "jsxText": 10,
+      "attribute": 1,
+      "literal": 9,
+      "template": 7
+    },
+    "components/ExportDialog.tsx": {
+      "jsxText": 22,
+      "attribute": 3,
+      "literal": 41,
+      "template": 11
+    },
+    "components/FindingsPanel.tsx": {
+      "jsxText": 40,
+      "attribute": 10,
+      "literal": 16,
+      "template": 9
+    },
+    "components/FirstRun.tsx": {
+      "jsxText": 5,
+      "attribute": 1,
+      "literal": 0,
+      "template": 0
+    },
+    "components/Home.tsx": {
+      "jsxText": 28,
+      "attribute": 9,
+      "literal": 15,
+      "template": 8
+    },
+    "components/InkGate.tsx": {
+      "jsxText": 4,
+      "attribute": 0,
+      "literal": 5,
+      "template": 0
+    },
+    "components/Inspector.tsx": {
+      "jsxText": 6,
+      "attribute": 11,
+      "literal": 7,
+      "template": 4
+    },
+    "components/InspectorDialogue.tsx": {
+      "jsxText": 13,
+      "attribute": 5,
+      "literal": 3,
+      "template": 0
+    },
+    "components/InspectorGoals.tsx": {
+      "jsxText": 23,
+      "attribute": 6,
+      "literal": 7,
+      "template": 2
+    },
+    "components/InspectorSections.tsx": {
+      "jsxText": 35,
+      "attribute": 24,
+      "literal": 7,
+      "template": 0
+    },
+    "components/KnowledgeList.tsx": {
+      "jsxText": 14,
+      "attribute": 9,
+      "literal": 1,
+      "template": 3
+    },
+    "components/LazySettings.tsx": {
+      "jsxText": 0,
+      "attribute": 1,
+      "literal": 0,
+      "template": 0
+    },
+    "components/McpCatalog.tsx": {
+      "jsxText": 11,
+      "attribute": 10,
+      "literal": 1,
+      "template": 0
+    },
+    "components/McpSection.tsx": {
+      "jsxText": 32,
+      "attribute": 11,
+      "literal": 10,
+      "template": 3
+    },
+    "components/PlanCard.tsx": {
+      "jsxText": 40,
+      "attribute": 20,
+      "literal": 16,
+      "template": 8
+    },
+    "components/PlanOfferCard.tsx": {
+      "jsxText": 9,
+      "attribute": 2,
+      "literal": 1,
+      "template": 0
+    },
+    "components/ProjectPanel.tsx": {
+      "jsxText": 11,
+      "attribute": 1,
+      "literal": 9,
+      "template": 2
+    },
+    "components/RecoveryDialog.tsx": {
+      "jsxText": 1,
+      "attribute": 0,
+      "literal": 12,
+      "template": 6
+    },
+    "components/ScriptImport.tsx": {
+      "jsxText": 4,
+      "attribute": 4,
+      "literal": 0,
+      "template": 6
+    },
+    "components/Settings.tsx": {
+      "jsxText": 99,
+      "attribute": 13,
+      "literal": 25,
+      "template": 13
+    },
+    "components/SkillsPanel.tsx": {
+      "jsxText": 38,
+      "attribute": 5,
+      "literal": 9,
+      "template": 11
+    },
+    "components/StaleTabNotice.tsx": {
+      "jsxText": 12,
+      "attribute": 0,
+      "literal": 6,
+      "template": 0
+    },
+    "components/SynopsisField.tsx": {
+      "jsxText": 0,
+      "attribute": 2,
+      "literal": 0,
+      "template": 0
+    },
+    "components/TargetQuickSet.tsx": {
+      "jsxText": 3,
+      "attribute": 2,
+      "literal": 1,
+      "template": 0
+    },
+    "components/TaskChecklist.tsx": {
+      "jsxText": 7,
+      "attribute": 1,
+      "literal": 2,
+      "template": 0
+    },
+    "components/TweeImportDialog.tsx": {
+      "jsxText": 2,
+      "attribute": 3,
+      "literal": 0,
+      "template": 0
+    },
+    "components/UnsentWords.tsx": {
+      "jsxText": 5,
+      "attribute": 1,
+      "literal": 6,
+      "template": 5
+    },
+    "components/VocabularyEditor.tsx": {
+      "jsxText": 9,
+      "attribute": 3,
+      "literal": 0,
+      "template": 4
+    },
+    "components/Workspace.tsx": {
+      "jsxText": 44,
+      "attribute": 12,
+      "literal": 26,
+      "template": 11
+    },
+    "components/WritingHistory.tsx": {
+      "jsxText": 10,
+      "attribute": 2,
+      "literal": 3,
+      "template": 1
+    },
+    "components/ZoomControl.tsx": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 4,
+      "template": 0
+    },
+    "components/activity-window.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 0,
+      "template": 1
+    },
+    "components/lazy-view.tsx": {
+      "jsxText": 4,
+      "attribute": 0,
+      "literal": 2,
+      "template": 1
+    },
+    "components/shared.tsx": {
+      "jsxText": 3,
+      "attribute": 0,
+      "literal": 0,
+      "template": 0
+    },
+    "i18n/runtime.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 0,
+      "template": 2
+    },
+    "media/DialogueView.tsx": {
+      "jsxText": 9,
+      "attribute": 12,
+      "literal": 5,
+      "template": 4
+    },
+    "media/MediaBoundary.tsx": {
+      "jsxText": 1,
+      "attribute": 1,
+      "literal": 0,
+      "template": 0
+    },
+    "media/PromptPackPanel.tsx": {
+      "jsxText": 14,
+      "attribute": 6,
+      "literal": 3,
+      "template": 5
+    },
+    "media/ScreenplayPreview.tsx": {
+      "jsxText": 1,
+      "attribute": 2,
+      "literal": 2,
+      "template": 1
+    },
+    "media/ScreenplayView.tsx": {
+      "jsxText": 19,
+      "attribute": 12,
+      "literal": 4,
+      "template": 2
+    },
+    "media/ShotCoverage.tsx": {
+      "jsxText": 7,
+      "attribute": 5,
+      "literal": 4,
+      "template": 1
+    },
+    "media/ShotLightbox.tsx": {
+      "jsxText": 1,
+      "attribute": 1,
+      "literal": 0,
+      "template": 0
+    },
+    "media/ShotPromptEditor.tsx": {
+      "jsxText": 39,
+      "attribute": 6,
+      "literal": 4,
+      "template": 3
+    },
+    "media/StoryboardView.tsx": {
+      "jsxText": 23,
+      "attribute": 18,
+      "literal": 23,
+      "template": 3
+    },
+    "media/board-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 0,
+      "template": 2
+    },
+    "media/coverage-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 5,
+      "template": 2
+    },
+    "media/create-menu.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 7,
+      "template": 0
+    },
+    "media/dialogue-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 1,
+      "template": 3
+    },
+    "media/element-menu.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 3,
+      "template": 1
+    },
+    "media/ink-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 3,
+      "template": 11
+    },
+    "media/prompt-edit-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 5,
+      "template": 6
+    },
+    "media/prompt-pack-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 18,
+      "template": 20
+    },
+    "media/screenplay-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 3,
+      "template": 0
+    },
+    "media/shot-image-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 7,
+      "template": 12
+    },
+    "media/storyboard-model.ts": {
+      "jsxText": 0,
+      "attribute": 0,
+      "literal": 8,
+      "template": 8
+    }
+  }
+}

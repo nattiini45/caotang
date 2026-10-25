@@ -1,0 +1,20 @@
+msgid ""
+msgstr ""
+"POT-Creation-Date: 2026-01-01 00:00+0000\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: @lingui/cli\n"
+"Language: en\n"
+
+#. Greets the writer by name.
+msgid "Hello {name}"
+msgstr "Hello {name}"
+
+#. Counts pages in the footer.
+msgid "{count, plural, one {# page} other {# pages}}"
+msgstr "{count, plural, one {# page} other {# pages}}"
+
+#. A label with no values; a comment is optional here.
+msgid "Goodbye"
+msgstr "Goodbye"
