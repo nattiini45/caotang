@@ -66,7 +66,7 @@ Hosting, deploying, FTP, SFTP and any push to a platform API. Subscriber lists, 
 
 ## 6. Phased plan
 
-Milestone **Web publishing**, epic filed with this spec; its four sub-issues are W1–W4 in the table below. Every feature issue updates `docs/USER-GUIDE.md`, `CHANGELOG.md` and `docs/ROADMAP.md` in the same pull request and flips this spec's status line for what it builds.
+Milestone **Web publishing**, epic #207. Issues: W1 #217, W2 #218, W3 #219, W4 #220. Every feature issue updates `docs/USER-GUIDE.md`, `CHANGELOG.md` and `docs/ROADMAP.md` in the same pull request and flips this spec's status line for what it builds. The AV script track's `podcast-rss` ([av-script.md](av-script.md) §5, S7 #214) extends W4's feed writer rather than writing a second one.
 
 | # | Title | Scope | Done when | Needs |
 |---|---|---|---|---|

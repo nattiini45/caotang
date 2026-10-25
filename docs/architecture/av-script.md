@@ -153,7 +153,7 @@ Three deterministic checks join the closed registry, appended so the existing or
 
 ## 9. Phased plan
 
-Milestone **Podcasts and video scripts**, epic filed with this spec; its nine sub-issues are S1–S9 in the table below. Every feature issue updates `docs/USER-GUIDE.md`, `CHANGELOG.md` and `docs/ROADMAP.md` in the same pull request and flips this spec's status line for what it builds.
+Milestone **Podcasts and video scripts**, epic #206. Issues: S1 #208, S2 #209, S3 #210, S4 #211, S5 #212, S6 #213, S7 #214, S8 #215, S9 #216. Every feature issue updates `docs/USER-GUIDE.md`, `CHANGELOG.md` and `docs/ROADMAP.md` in the same pull request and flips this spec's status line for what it builds. The show's research and planning needs no model of its own — `CodexEntry.type` is already an open string — and its three real gaps are filed without a milestone: #221 (typed detail sub-fields), #222 (external references) and #223 (a relations graph), all three already backlog in [codex.md](codex.md) §13.
 
 | # | Title | Scope | Done when | Needs |
 |---|---|---|---|---|
