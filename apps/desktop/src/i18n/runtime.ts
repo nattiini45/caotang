@@ -27,8 +27,9 @@
 import { i18n, type Messages } from '@lingui/core';
 
 import {
-  INTERFACE_CATALOGUES,
   interfaceCatalogueForId,
+  interfaceCatalogueForTag,
+  pseudoCatalogues,
   type InterfaceCatalogue,
 } from './catalogues.js';
 import { messages as enMessages } from './locales/en/messages.po';
@@ -45,16 +46,8 @@ interface CatalogueEntry extends Catalogue {
   readonly load: () => Promise<Messages>;
 }
 
-/** Every catalogue this build can activate, in picker order, paired with its loader. */
-const CATALOGUES: readonly CatalogueEntry[] = INTERFACE_CATALOGUES.map((entry) => ({
-  ...entry,
-  load: () => loadCatalogue(entry.id),
-}));
-
 /** The pseudo catalogues and the valid root tags they stand for, for tests and the dev picker. */
-export const PSEUDO_CATALOGUES: readonly Catalogue[] = INTERFACE_CATALOGUES.filter((entry) => entry.pseudo).map(
-  ({ id, tag, pseudo }) => ({ id, tag, pseudo }),
-);
+export const PSEUDO_CATALOGUES: readonly Catalogue[] = pseudoCatalogues();
 
 /** A tag with no catalogue in this build. */
 export class UnknownCatalogueError extends Error {
@@ -74,10 +67,10 @@ export class PseudoCatalogueUnavailableError extends Error {
 
 /** The table row for a tag, or a refusal. `dev` is injectable so a test can pin the production branch. */
 function entryForTag(tag: string, dev: boolean): CatalogueEntry {
-  const entry = CATALOGUES.find((candidate) => candidate.tag === tag);
-  if (entry === undefined) throw new UnknownCatalogueError(tag);
-  if (entry.pseudo && !dev) throw new PseudoCatalogueUnavailableError(tag);
-  return entry;
+  const identity = interfaceCatalogueForTag(tag);
+  if (identity === undefined) throw new UnknownCatalogueError(tag);
+  if (identity.pseudo && !dev) throw new PseudoCatalogueUnavailableError(tag);
+  return { ...identity, load: () => loadCatalogue(identity.id) };
 }
 
 /** The catalogue for a tag, or a refusal. `dev` is injectable so a test can pin the production branch. */

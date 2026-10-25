@@ -25,7 +25,7 @@ import { i18n, type Messages } from '@lingui/core';
 import { t } from '@lingui/core/macro';
 import { directionOf, resolveUiLocale } from '@caotang/i18n';
 
-import { catalogueTags } from './catalogues.js';
+import { catalogueTags, sameTag } from './catalogues.js';
 import { setUiLocaleTag, systemLanguages } from './format-locale.js';
 import { loadMessages, UnknownCatalogueError } from './runtime.js';
 
@@ -33,7 +33,10 @@ import { loadMessages, UnknownCatalogueError } from './runtime.js';
 export type SwitchResult =
   /** The catalogue loaded and is active; the preference was saved (or there was nothing to save). */
   | { readonly status: 'switched' }
-  /** The catalogue is active, but the preference could not be saved. The message is shown as-is. */
+  /**
+   * The catalogue is active and {@link LanguageController.setting} is the choice; only the write
+   * failed. The message is shown as-is.
+   */
   | { readonly status: 'kept'; readonly message: string }
   /** Nothing changed: the candidate catalogue could not be resolved or loaded. */
   | { readonly status: 'failed'; readonly message: string }
@@ -51,8 +54,8 @@ export interface LanguageMessages {
 export interface LanguageControllerOptions {
   /** The tag a stored setting names. May throw when this build has no such catalogue. */
   readonly resolve: (setting: string) => string;
-  readonly load: (tag: string) => Promise<unknown>;
-  readonly activate: (tag: string, messages: unknown) => void;
+  readonly load: (tag: string) => Promise<Messages>;
+  readonly activate: (tag: string, messages: Messages) => void;
   /** Publishes the tag where the page and the formatter decision can see it. */
   readonly publish: (tag: string) => void;
   readonly messages: LanguageMessages;
@@ -64,7 +67,12 @@ export interface LanguageController {
   subscribe(listener: () => void): () => void;
   /** Increases only when a catalogue was activated, so React can re-render without remounting. */
   revision(): number;
-  /** The setting behind the active catalogue; `'system'` until the first successful switch. */
+  /**
+   * The **effective** setting behind the active catalogue: what the screen and the formatter are
+   * using. It changes when a catalogue activates, before persistence. A failed write leaves this
+   * value and the screen in place (the settings store's in-memory record holds it too); a reload may
+   * then return to the last value that reached `app-db`. It is not a report of what was persisted.
+   */
   setting(): string;
 }
 
@@ -73,6 +81,7 @@ export function createLanguageController(options: LanguageControllerOptions): La
   const listeners = new Set<() => void>();
   let serial = 0;
   let revision = 0;
+  // The effective setting, not the persisted one: see `LanguageController.setting`.
   let setting = 'system';
 
   const switchTo = async (
@@ -89,7 +98,7 @@ export function createLanguageController(options: LanguageControllerOptions): La
       return { status: 'failed', message: options.messages.loadFailed() };
     }
 
-    let messages: unknown;
+    let messages: Messages;
     try {
       messages = await options.load(tag);
     } catch {
@@ -137,7 +146,7 @@ export function createLanguageController(options: LanguageControllerOptions): La
 function resolveSetting(setting: string): string {
   const dev = import.meta.env.DEV;
   if (setting === 'system') return resolveUiLocale('system', systemLanguages(), catalogueTags(dev));
-  const match = catalogueTags(dev).find((tag) => tag.toLowerCase() === setting.toLowerCase());
+  const match = catalogueTags(dev).find((tag) => sameTag(tag, setting));
   if (match === undefined) throw new UnknownCatalogueError(setting);
   return match;
 }
@@ -174,14 +183,15 @@ const controller = createLanguageController({
   resolve: resolveSetting,
   load: (tag) => loadMessages(tag),
   activate: (tag, messages) => {
-    i18n.load(tag, messages as Messages);
+    i18n.load(tag, messages);
     i18n.activate(tag);
     // Only now does the formatter decision see the new language (§4.1).
     setUiLocaleTag(tag);
   },
   publish: publishDocumentLanguage,
   messages: {
-    loadFailed: () => t`The interface language could not be loaded. The language you were reading is still in use.`,
+    loadFailed: () =>
+      t`The interface language could not be loaded, so nothing changed. Check your connection and choose the language again.`,
     persistFailed: () =>
       t`The interface language changed, but the choice could not be saved in this browser. It will go back to the saved language when you reload.`,
   },

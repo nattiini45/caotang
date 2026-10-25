@@ -36,5 +36,5 @@ msgid "The interface language changes straight away. The manuscript stays in its
 msgstr ""
 
 #: apps/desktop/src/i18n/language.ts
-msgid "The interface language could not be loaded. The language you were reading is still in use."
+msgid "The interface language could not be loaded, so nothing changed. Check your connection and choose the language again."
 msgstr ""

@@ -39,6 +39,16 @@ export function catalogueTags(dev: boolean): readonly string[] {
   return INTERFACE_CATALOGUES.filter((entry) => dev || !entry.pseudo).map((entry) => entry.tag);
 }
 
+/**
+ * True when two catalogue settings name the same tag. A stored setting is canonicalised by
+ * `normalizeInterfaceLanguage`, and `'system'` is compared by the switcher itself, so this only
+ * absorbs a mixed-case caller or a hand-edited record; the comparison is case-insensitive so a tag's
+ * case can never decide whether the picker shows a row as selected.
+ */
+export function sameTag(left: string, right: string): boolean {
+  return left.toLowerCase() === right.toLowerCase();
+}
+
 /** The pseudo catalogues, for tests and the developer-exposed picker. */
 export function pseudoCatalogues(): readonly InterfaceCatalogue[] {
   return INTERFACE_CATALOGUES.filter((entry) => entry.pseudo);

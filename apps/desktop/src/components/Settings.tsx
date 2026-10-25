@@ -39,6 +39,7 @@ import {
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import { developerLanguageExposure, languageRevision, subscribeLanguage, switchInterfaceLanguage } from '../i18n/language.js';
 import { uiLocale } from '../i18n/format-locale.js';
+import { sameTag } from '../i18n/catalogues.js';
 import { languageChoices, type InterfaceLanguageStats } from '../i18n/picker.js';
 import languageStats from '../i18n/locales/stats.json';
 import { timeLabel } from '../app/activity-model.js';
@@ -1103,7 +1104,7 @@ function AppearanceSection({ services }: { readonly services: AppServices }): Re
   );
   // A stored tag this build does not ship falls back to English at start-up; the System row then shows
   // the effective choice instead of leaving every row unticked.
-  const selected = choices.some((choice) => choice.setting.toLowerCase() === settings.interfaceLanguage.toLowerCase())
+  const selected = choices.some((choice) => sameTag(choice.setting, settings.interfaceLanguage))
     ? settings.interfaceLanguage
     : 'system';
 
@@ -1142,7 +1143,7 @@ function AppearanceSection({ services }: { readonly services: AppServices }): Re
               type="radio"
               name="interface-language"
               value={choice.setting}
-              checked={selected.toLowerCase() === choice.setting.toLowerCase()}
+              checked={sameTag(selected, choice.setting)}
               onChange={() => chooseLanguage(choice.setting)}
             />
             {choice.setting === 'system' ? (

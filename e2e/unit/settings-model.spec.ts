@@ -302,19 +302,20 @@ test.describe('the D5 picker gates', () => {
 test.describe('the project bundle and the interface preference', () => {
   const NOW = new Date('2026-10-25T00:00:00.000Z');
 
-  test('carries no interface-language preference and has the same bytes whatever the preference is', async () => {
+  test('carries no interface-language preference in any entry, and repeated exports of one state are byte-identical', async () => {
     const state = createProjectState(createEmptyManifest('Bundle Check', NOW));
 
-    // The preference is a legitimate app setting; it must simply never be an input to the project.
+    // The preference lives in app settings only; the state handed to the exporter has no field for it.
+    // The every-entry scan below is the evidence, and the two exports prove the export is deterministic.
     const preference = normalizeSettings({ interfaceLanguage: 'en-XA' });
     expect(preference.interfaceLanguage).toBe('en-XA');
 
-    const before = await exportProjectZip(state, { now: NOW });
-    const after = await exportProjectZip(state, { now: NOW });
-    expect(after.bytes).toEqual(before.bytes);
+    const first = await exportProjectZip(state, { now: NOW });
+    const second = await exportProjectZip(state, { now: NOW });
+    expect(second.bytes).toEqual(first.bytes);
 
     const { unzipSync } = await ZIP_ENGINE.load();
-    const entries = unzipSync(after.bytes);
+    const entries = unzipSync(second.bytes);
     expect(Object.keys(entries)).toContain('caotang.json');
     for (const [path, bytes] of Object.entries(entries)) {
       const text = new TextDecoder().decode(bytes);

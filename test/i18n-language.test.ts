@@ -3,6 +3,7 @@
  * failed load leaves the active catalogue and the stored setting alone. The controller is injected so
  * a load can be held open; no browser and no compiled pseudo catalogue is involved.
  */
+import type { Messages } from '@lingui/core';
 import { describe, expect, it } from 'vitest';
 
 import { createLanguageController, type SwitchResult } from '../apps/desktop/src/i18n/language.js';
@@ -23,7 +24,7 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve, reject };
 }
 
-function harness(load: (tag: string) => Promise<unknown>) {
+function harness(load: (tag: string) => Promise<Messages>) {
   const events: string[] = [];
   const controller = createLanguageController({
     resolve: (setting) => (setting === 'system' ? 'en' : setting),
@@ -50,7 +51,7 @@ const superseded: SwitchResult = { status: 'superseded' };
 
 describe('the language switch', () => {
   it('loads the catalogue before it activates and publishes it', async () => {
-    const gate = deferred<unknown>();
+    const gate = deferred<Messages>();
     const { controller, events } = harness(() => gate.promise);
 
     const switching = controller.switchTo('en-XA');
@@ -94,8 +95,8 @@ describe('the language switch', () => {
   });
 
   it('lets the latest request win when two loads race', async () => {
-    const first = deferred<unknown>();
-    const second = deferred<unknown>();
+    const first = deferred<Messages>();
+    const second = deferred<Messages>();
     const { controller, events } = harness((tag) => (tag === 'en-XA' ? first.promise : second.promise));
 
     const slow = controller.switchTo('en-XA');
@@ -116,7 +117,7 @@ describe('the language switch', () => {
   });
 
   it('does not resurrect an older successful load when the newer request fails', async () => {
-    const first = deferred<unknown>();
+    const first = deferred<Messages>();
     const { controller, events } = harness((tag) => (tag === 'en-XA' ? first.promise : Promise.reject(new Error('offline'))));
 
     const older = controller.switchTo('en-XA');
@@ -141,8 +142,8 @@ describe('the language switch', () => {
   });
 
   it('publishes the preference only after activation, and never for a superseded request', async () => {
-    const first = deferred<unknown>();
-    const second = deferred<unknown>();
+    const first = deferred<Messages>();
+    const second = deferred<Messages>();
     const saved: string[] = [];
     const { controller, events } = harness((tag) => (tag === 'en-XA' ? first.promise : second.promise));
 
