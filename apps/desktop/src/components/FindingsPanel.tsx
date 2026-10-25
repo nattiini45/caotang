@@ -16,6 +16,7 @@ import {
   SCOPE_CHOICES,
   dismissalLabelOf,
   dismissalReasons,
+  findingMessageText,
   nextOpenFindingId,
   openFindingCount,
   quoteIsCurrent,
@@ -547,10 +548,7 @@ function FindingCard({
   // What "Fix with agent" said when it was pressed: where the fix is, or why it could not start.
   const [fixNote, setFixNote] = useState<string | null>(null);
   // A deterministic finding renders its ref in the active UI language, with each title isolated once.
-  const message =
-    finding.messageRef === undefined
-      ? finding.message
-      : renderRef(finding.messageRef, { userValues: titleValues(finding.messageRef) });
+  const message = findingMessageText(finding);
   // Each quoted passage's document title is its button's description, so the button's name is the passage itself.
   const baseId = useId();
   return (
@@ -648,10 +646,7 @@ export function DismissPicker({
 }): ReactNode {
   const [reason, setReason] = useState<string | null>(null);
   const [note, setNote] = useState('');
-  const message =
-    finding.messageRef === undefined
-      ? finding.message
-      : renderRef(finding.messageRef, { userValues: titleValues(finding.messageRef) });
+  const message = findingMessageText(finding);
   const [complaint, setComplaint] = useState<string | null>(null);
   const reasons: ReasonView[] = dismissalReasons();
   const chosen = reasons.find((candidate) => candidate.id === reason);

@@ -9,7 +9,8 @@
  * { id: 'coherence.timeline.orderDrift', message: '…{earlyTitle}…', values: { earlyTitle: early.title } }
  * ```
  *
- * This extractor reads those literals from files marked `// i18n: package-refs` at the top. The
+ * This extractor reads those literals from files whose first `MARKER_WINDOW` characters (4,000)
+ * carry `// i18n: package-refs`. The
  * marker keeps every other `{ id, message }` shape (a load notice, a protocol frame) out of the
  * catalogue. A literal with `values` gets a translator comment, which the hygiene guard requires
  * for every message with values (§8.2).
@@ -18,7 +19,7 @@
 import type { ExtractorType } from '@lingui/conf';
 import ts from 'typescript';
 
-/** Opt-in marker: only a package file that starts with this line is scanned for refs. */
+/** Opt-in marker: a package file is scanned for refs only when this appears in its first 4,000 characters. */
 export const PACKAGE_REFS_MARKER = '// i18n: package-refs';
 
 const MARKER_WINDOW = 4000;

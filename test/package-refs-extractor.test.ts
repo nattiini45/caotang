@@ -42,6 +42,14 @@ const ref = {
     });
   });
 
+  it('looks for the marker in the first 4,000 characters only (MARKER_WINDOW)', () => {
+    const literal = `\nconst ref = { id: 'test.window', message: 'A sentence.' };`;
+    const inside = `${' '.repeat(3900)}${PACKAGE_REFS_MARKER}${literal}`;
+    expect(extract('packages/bus/src/window.ts', inside)).toHaveLength(1);
+    const outside = `${' '.repeat(4000)}${PACKAGE_REFS_MARKER}${literal}`;
+    expect(extract('packages/bus/src/window.ts', outside)).toEqual([]);
+  });
+
   it('ignores an object literal in a file without the marker, and gives a valueless message no comment', () => {
     const unmarked = `const ref = { id: 'not.extracted', message: 'No marker' };`;
     expect(extract('packages/bus/src/refusal.ts', unmarked)).toEqual([]);

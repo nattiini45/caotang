@@ -7,13 +7,10 @@
 import type { ReactNode } from 'react';
 import { budgetLevelOf, type TaskItem, type TaskList, type TaskState } from '@caotang/harness';
 
-import { renderRef } from '../i18n/render-ref.js';
-
-/** Progress values that are writer text: a document title, a codex name, a search query. */
-const WRITER_VALUES = ['doc', 'target', 'query', 'title', 'name', 'node', 'scene'] as const;
+import { renderRef, WRITER_VALUE_KEYS } from '../i18n/render-ref.js';
 
 function itemText(item: TaskItem): string {
-  return item.contentRef === undefined ? item.content : renderRef(item.contentRef, { userValues: WRITER_VALUES });
+  return item.contentRef === undefined ? item.content : renderRef(item.contentRef, { userValues: WRITER_VALUE_KEYS });
 }
 
 /** The state in words, so it does not rest on colour or the glyph alone (WCAG 1.4.1). */

@@ -927,7 +927,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (!deferred || harness.loadedNativeTools().some((listing) => listing.name === tool)) return error;
     const earlier = error.correctiveHint?.trim() ?? '';
     const ended = earlier === '' || earlier.endsWith('.') ? earlier : `${earlier}.`;
-    return { ...error, correctiveHint: `${ended}${ended === '' ? '' : ' '}Call tool.search with '${tool}' to load its parameters.` };
+    // The appended sentence is model-facing and has no template of its own, so the old hint's
+    // reference no longer matches the English. Drop it: a card that ever shows this refusal reads the
+    // English hint instead of a stale translation (i18n.md §6.3).
+    return {
+      ...error,
+      correctiveHint: `${ended}${ended === '' ? '' : ' '}Call tool.search with '${tool}' to load its parameters.`,
+      correctiveHintRef: undefined,
+    };
   };
 
   /** The external tool a name is, when the turn has loaded it (extensibility §5). Undefined for a native name. */

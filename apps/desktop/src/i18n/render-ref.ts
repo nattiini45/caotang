@@ -11,8 +11,8 @@
  *    raw `{title}` template.
  *
  * Values that name writer content are isolated here, exactly once, with the same FSI…PDI rule as
- * {@link isolatedText}. A caller names those keys; the findings surface uses {@link titleValues},
- * because every value it passes that is writer text ends in `Title`.
+ * {@link isolatedText}. A caller names those keys; the findings and notices surface uses
+ * {@link titleValues}, and the task list passes {@link WRITER_VALUE_KEYS}, so one list serves both.
  */
 import { I18n, i18n } from '@lingui/core';
 import { compileMessage } from '@lingui/message-utils/compileMessage';
@@ -23,6 +23,11 @@ const fallback = new I18n({});
 fallback.setMessagesCompiler(compileMessage);
 fallback.load('en-refs', {});
 fallback.activate('en-refs');
+/**
+ * Ids whose English template has been loaded into `fallback`. Extraction gives each id one template:
+ * a second template under the same id fails the catalog drift guard (§8.2), so the first template
+ * seen for an id is the only one this process can meet.
+ */
 const compiled = new Set<string>();
 
 export interface RenderRefOptions {
@@ -30,8 +35,13 @@ export interface RenderRefOptions {
   readonly userValues?: readonly string[];
 }
 
-/** Value names that are writer content: scene, shot and folder titles, codex names, a fact's text. */
-const WRITER_KEYS = new Set([
+/**
+ * Value names that are writer content: scene, shot and folder titles, codex names, a knot's label or
+ * id, a fact's text, and the task list's document, target, query, node and scene names. The progress
+ * checklist and the findings/notices path share this one list, so a writer key added for one is
+ * never missed by the other (I7).
+ */
+export const WRITER_VALUE_KEYS = [
   'title',
   'entry',
   'firstEntry',
@@ -43,7 +53,17 @@ const WRITER_KEYS = new Set([
   'speaker',
   'pov',
   'fact',
-]);
+  'name',
+  'where',
+  'knot',
+  'doc',
+  'target',
+  'query',
+  'node',
+  'scene',
+] as const;
+
+const WRITER_KEYS = new Set<string>(WRITER_VALUE_KEYS);
 
 /** The keys of a finding's (or notice's) ref values that are writer content, isolated once by the caller. */
 export function titleValues(ref: MessageRef): string[] {

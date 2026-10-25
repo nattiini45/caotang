@@ -6,7 +6,7 @@ import { i18n } from '@lingui/core';
 import { compileMessage } from '@lingui/message-utils/compileMessage';
 import { describe, expect, it } from 'vitest';
 
-import { renderRef, titleValues } from '../src/i18n/render-ref.js';
+import { renderRef, titleValues, WRITER_VALUE_KEYS } from '../src/i18n/render-ref.js';
 
 const FSI = '\u2068';
 const PDI = '\u2069';
@@ -35,6 +35,29 @@ describe('renderRef', () => {
     expect(text.split(PDI)).toHaveLength(3);
     expect(text).not.toContain(`${FSI}${FSI}`);
     expect(text).not.toContain(`${PDI}${PDI}`);
+  });
+
+  it('isolates a recovered codex name and a dialogue branch’s label and knot id once', () => {
+    const ref = {
+      id: 'test.branch.ref',
+      message: '{where} runs out; "{knot}" is never diverted to; {name} was recovered.',
+      values: { where: 'the flow in “The Lake”', knot: 'lake_end', name: 'Mara' },
+    };
+    expect(titleValues(ref)).toEqual(['where', 'knot', 'name']);
+    const text = renderRef(ref, { userValues: titleValues(ref) });
+    expect(text).toBe(
+      `${FSI}the flow in “The Lake”${PDI} runs out; "${FSI}lake_end${PDI}" is never diverted to; ${FSI}Mara${PDI} was recovered.`,
+    );
+    expect(text.split(FSI)).toHaveLength(4);
+    expect(text.split(PDI)).toHaveLength(4);
+  });
+
+  it('keeps one writer-key list for the task checklist and the findings path', () => {
+    // The checklist passes this list; `titleValues` reads it too. A key added for either surface is
+    // added once, so the two cannot drift (I7).
+    for (const key of ['doc', 'target', 'query', 'title', 'name', 'node', 'scene', 'where', 'knot']) {
+      expect(WRITER_VALUE_KEYS, key).toContain(key);
+    }
   });
 
   it('renders the active catalogue’s translation when it has the id', () => {

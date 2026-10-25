@@ -163,37 +163,10 @@ export interface PermissionGrant {
  * where an approval would normally arrive — so it is the one refusal a model is
  * most likely to retry by asking for a plan, a card or a mode. §4 already answers
  * that, so the sentence says so before it says anything else.
+ *
+ * Each is one I7 reference whose `message` is also the model-facing English, so the two cannot
+ * drift (the extractor reads a literal `message`, which is why the literal lives here).
  */
-const CORRECTIVE_PATHS: Readonly<Record<HardDenyClass, string>> = {
-  deletion:
-    'do not retry and do not ask for approval — propose it in your report; deletion is UI-only. project.deleteNode is hard-denied for agents and no plan, card or mode approves it',
-  'network-egress':
-    'do not retry — the bus has no network (§1) and the gateway owns transport; tell the user this needs doing outside Caotang rather than calling out from a tool',
-  'provider-profile':
-    'do not retry — provider profiles are app-level settings, never a project command (§9); tell the user which profile they want and stop',
-  'project-scope':
-    'do not retry — stay inside the project the user has open; if the work needs another project, say so in your report instead of reaching into it',
-};
-
-/** The hard-deny refusal. Checked before `agentRisk`, so nothing below can rescue it. */
-function hardDenied(name: CommandName, hardDeny: HardDenyClass): Result<never, CommandError> {
-  return err({
-    code: 'hard-denied',
-    message: `"${name}" is hard-denied for an agent (${hardDeny}) — the bus refused it, it was not dispatched, and nothing was written. No approved plan, confirm card or permission mode can approve this class.`,
-    target: name,
-    risk: 'never',
-    messageRef: {
-      id: 'bus.permission.hardDenied',
-      message:
-        '"{command}" is hard-denied for an agent ({class}) — the bus refused it, it was not dispatched, and nothing was written. No approved plan, confirm card or permission mode can approve this class.',
-      values: { command: name, class: hardDeny },
-    },
-    correctiveHint: CORRECTIVE_PATHS[hardDeny],
-    correctiveHintRef: HARD_DENY_HINT_REFS[hardDeny],
-  });
-}
-
-/** I7: the four corrective paths as references, beside the English map above. */
 const HARD_DENY_HINT_REFS: Readonly<Record<HardDenyClass, MessageRef>> = {
   deletion: {
     id: 'bus.permission.hardDenied.hint.deletion',
@@ -215,6 +188,49 @@ const HARD_DENY_HINT_REFS: Readonly<Record<HardDenyClass, MessageRef>> = {
     message:
       'do not retry — stay inside the project the user has open; if the work needs another project, say so in your report instead of reaching into it',
   },
+};
+
+/** The hard-deny refusal. Checked before `agentRisk`, so nothing below can rescue it. */
+function hardDenied(name: CommandName, hardDeny: HardDenyClass): Result<never, CommandError> {
+  return err({
+    code: 'hard-denied',
+    message: `"${name}" is hard-denied for an agent (${hardDeny}) — the bus refused it, it was not dispatched, and nothing was written. No approved plan, confirm card or permission mode can approve this class.`,
+    target: name,
+    risk: 'never',
+    messageRef: {
+      id: 'bus.permission.hardDenied',
+      message:
+        '"{command}" is hard-denied for an agent ({class}) — the bus refused it, it was not dispatched, and nothing was written. No approved plan, confirm card or permission mode can approve this class.',
+      values: { command: name, class: hardDeny },
+    },
+    correctiveHint: HARD_DENY_HINT_REFS[hardDeny].message,
+    correctiveHintRef: HARD_DENY_HINT_REFS[hardDeny],
+  });
+}
+
+/**
+ * The corrective paths below depend on the command or its status, so each is one I7 reference
+ * whose `message` is also the model-facing English, so the two cannot drift.
+ */
+const DISMISS_FINDING_HINT: MessageRef = {
+  id: 'bus.permission.dismissFinding.hint',
+  message:
+    'do not retry — dismissal is a writer judgment, so put the finding and the reason you would give in your report and let the writer dismiss it in the findings inbox',
+};
+const FINDING_STATUS_HINT: MessageRef = {
+  id: 'bus.permission.findingStatus.hint',
+  message:
+    'do not retry — the agent may mark a finding fixed once its text has changed, and re-opening or dismissing is the writer’s call; say what you changed in your report',
+};
+const NEVER_HINT: MessageRef = {
+  id: 'bus.permission.never.hint',
+  message:
+    'do not retry it as a direct call — either call the compound tool that owns it (scene.draft composes editor.insert and editor.replaceRange inside its own apply step, where the grant is inherited), or tell the user what you wanted to write and let them do it',
+};
+const CONFIRM_REQUIRED_HINT: MessageRef = {
+  id: 'bus.permission.confirmRequired.hint',
+  message:
+    'emit it as a plan step and wait for the user to approve the plan card, or as a single op so the one-step confirm card can ask for it — do not retry it as a bare call',
 };
 
 /**
@@ -243,13 +259,8 @@ function agentStatusRefusal(name: CommandName, params: unknown): Result<never, C
         message:
           '"coherence.setFindingStatus" with status "dismissed" is hard-denied for an agent: dismissal is a writer judgment. The bus refused it; nothing was written, and no plan, card or grant can approve it.',
       },
-      correctiveHint:
-        'do not retry — dismissal is a writer judgment, so put the finding and the reason you would give in your report and let the writer dismiss it in the findings inbox',
-      correctiveHintRef: {
-        id: 'bus.permission.dismissFinding.hint',
-        message:
-          'do not retry — dismissal is a writer judgment, so put the finding and the reason you would give in your report and let the writer dismiss it in the findings inbox',
-      },
+      correctiveHint: DISMISS_FINDING_HINT.message,
+      correctiveHintRef: DISMISS_FINDING_HINT,
     });
   }
   return err({
@@ -263,13 +274,8 @@ function agentStatusRefusal(name: CommandName, params: unknown): Result<never, C
         '"{command}" with status {status} is refused for an agent: the agent may set only "fixed". The bus refused it; nothing was written.',
       values: { command: name, status: JSON.stringify(status ?? null) },
     },
-    correctiveHint:
-      'do not retry — the agent may mark a finding fixed once its text has changed, and re-opening or dismissing is the writer’s call; say what you changed in your report',
-    correctiveHintRef: {
-      id: 'bus.permission.findingStatus.hint',
-      message:
-        'do not retry — the agent may mark a finding fixed once its text has changed, and re-opening or dismissing is the writer’s call; say what you changed in your report',
-    },
+    correctiveHint: FINDING_STATUS_HINT.message,
+    correctiveHintRef: FINDING_STATUS_HINT,
   });
 }
 
@@ -285,13 +291,8 @@ function neverRefused(name: CommandName, risk: AgentRisk): Result<never, Command
       message: '"{command}" is a {class}-class command and an agent may not emit it directly. The bus refused it; nothing was written.',
       values: { command: name, class: risk },
     },
-    correctiveHint:
-      'do not retry it as a direct call — either call the compound tool that owns it (scene.draft composes editor.insert and editor.replaceRange inside its own apply step, where the grant is inherited), or tell the user what you wanted to write and let them do it',
-    correctiveHintRef: {
-      id: 'bus.permission.never.hint',
-      message:
-        'do not retry it as a direct call — either call the compound tool that owns it (scene.draft composes editor.insert and editor.replaceRange inside its own apply step, where the grant is inherited), or tell the user what you wanted to write and let them do it',
-    },
+    correctiveHint: NEVER_HINT.message,
+    correctiveHintRef: NEVER_HINT,
   });
 }
 
@@ -308,13 +309,8 @@ function confirmRequired(name: CommandName): Result<never, CommandError> {
         '"{command}" is a write-confirm command, so it may run only inside an approved plan or behind a one-step confirm card. The bus refused it; nothing was written.',
       values: { command: name },
     },
-    correctiveHint:
-      'emit it as a plan step and wait for the user to approve the plan card, or as a single op so the one-step confirm card can ask for it — do not retry it as a bare call',
-    correctiveHintRef: {
-      id: 'bus.permission.confirmRequired.hint',
-      message:
-        'emit it as a plan step and wait for the user to approve the plan card, or as a single op so the one-step confirm card can ask for it — do not retry it as a bare call',
-    },
+    correctiveHint: CONFIRM_REQUIRED_HINT.message,
+    correctiveHintRef: CONFIRM_REQUIRED_HINT,
   });
 }
 

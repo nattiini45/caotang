@@ -27,6 +27,7 @@ import { getBody, getRevision, type CodexEntry, type ProjectState } from '@caota
 
 import { formatterLocale } from '../i18n/format-locale.js';
 import { projectCollator } from '../i18n/project-collator.js';
+import { renderRef, titleValues } from '../i18n/render-ref.js';
 import { childrenOf } from './binder-model.js';
 import { containersOf } from './coherence-facts.js';
 
@@ -54,6 +55,17 @@ export interface QuoteView {
   readonly quote: string;
   readonly from: number;
   readonly to: number;
+}
+
+/**
+ * The sentence a finding card shows (i18n.md §3.4, I7): a deterministic finding's reference in the
+ * current interface language with its writer titles isolated once; a model-authored finding has no
+ * reference, so the English it was stored with stays as written across a later locale switch.
+ */
+export function findingMessageText(finding: { readonly message: string; readonly messageRef?: MessageRef }): string {
+  return finding.messageRef === undefined
+    ? finding.message
+    : renderRef(finding.messageRef, { userValues: titleValues(finding.messageRef) });
 }
 
 /** One finding as the card shows it. */

@@ -169,6 +169,10 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
   const provider = snapshot.providerName;
   const running = snapshot.turns[snapshot.turns.length - 1];
   const stepRef = running === undefined || isSettled(running) ? null : headerRefOf(running.tasks);
+  // The header ref's values are the active step's English phrase fragments, not bare writer titles
+  // (progress.ts `headerRefOf`), so there is no value to isolate here. Composing the line from
+  // translatable parts is I6/I9 work (agent-harness.md §8, Message references); until then the
+  // header renders this reference's English frame with those fragments.
   const stepLine = stepRef !== null ? renderRef(stepRef) : running === undefined || isSettled(running) ? null : headerLineOf(running.tasks);
   const spend = running === undefined || isSettled(running) ? undefined : spendLine(running.run);
   return (
