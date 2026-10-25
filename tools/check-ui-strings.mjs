@@ -15,13 +15,14 @@
  * visible instead of silently carrying an allowance to a new name.
  *
  * Counts only go down. `--write` lowers existing entries and drops stale ones; it refuses to add a
- * positive allowance for a new path (run `--init` once to create the file). Convert the file instead.
+ * positive allowance for a new path. `--init` seeds the file once and refuses when it already exists,
+ * so it cannot raise the ratchet; convert the file instead.
  *
  * Classification is a heuristic, as §0.1 says: it overcounts JSX text split by inline elements and
  * undercounts strings built from fragments. The committed baseline is the number this repository
  * holds itself to; the §0.1 table is the earlier estimate and is not copied here.
  */
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -52,7 +53,12 @@ export const USER_FACING_ATTRIBUTES = new Set([
   'alt',
 ]);
 
-/** The macro callees that wrap a message. */
+/**
+ * The inventory asks "is this string already a message?", so it recognizes every macro form,
+ * including the descriptor and branch builders. The concatenation pass in
+ * `check-translations.mjs` asks a narrower question and deliberately recognizes only the
+ * value-producing forms; the two sets differ by design, not by accident.
+ */
 const WRAPPER_CALLEES = new Set(['t', 'msg', 'defineMessage', 'plural', 'select', 'selectOrdinal']);
 
 /** The JSX elements that wrap a message. */
@@ -387,21 +393,45 @@ export function renderBaseline(baseline) {
   return `${JSON.stringify({ version: 1, root: UI_ROOT, files }, null, 2)}\n`;
 }
 
+/** The remedy every over-allowance message names. */
+const REMEDY = 'wrap the string in t`…` or <Trans>…</Trans>';
+
+/**
+ * Creates the baseline once. An existing file is never overwritten: lowering it is `--write`'s job,
+ * and an unconditional seed would let `--init` raise the ratchet.
+ */
+export function seedBaseline(path, tree, { fileExists = existsSync } = {}) {
+  if (fileExists(path)) return { ok: false, message: `${BASELINE_FILE} exists; lower it with --write` };
+  const baseline = makeBaseline(tree);
+  writeFileSync(path, renderBaseline(baseline));
+  return { ok: true, baseline };
+}
+
 /**
  * Compares a scan against the baseline. A new path has zero allowance, an increased kind fails, and a
- * baseline path with no source file is stale (a rename must be moved deliberately).
+ * baseline path with no source file is stale (a rename must be moved deliberately). A file that has
+ * just been marked model-facing keeps its source path but drops to zero sites, so its remaining
+ * allowance fails until `--write` prunes it deliberately.
  */
 export function compareToBaseline(tree, baseline) {
   const problems = [];
   const measured = new Map(tree.files.map((entry) => [entry.file, entry]));
   for (const entry of tree.files) {
-    if (entry.modelFacing) continue;
     const allowed = baseline.files[entry.file];
+    if (entry.modelFacing) {
+      const allowance = Object.values(allowed ?? {}).reduce((sum, count) => sum + count, 0);
+      if (allowance > 0) {
+        problems.push(
+          `${entry.file}: marked model-facing, but the baseline still allows ${String(allowance)} site(s); run --write to prune the allowance deliberately`,
+        );
+      }
+      continue;
+    }
     if (!allowed) {
       const total = Object.values(entry.counts).reduce((sum, count) => sum + count, 0);
       if (total > 0) {
         problems.push(
-          `${entry.file}: ${total} unwrapped user-facing site(s), but a new file has an allowance of zero`,
+          `${entry.file}: ${String(total)} unwrapped user-facing site(s), but a new file has an allowance of zero; ${REMEDY}`,
         );
       }
       continue;
@@ -410,7 +440,7 @@ export function compareToBaseline(tree, baseline) {
       const count = entry.counts[kind] ?? 0;
       const cap = allowed[kind] ?? 0;
       if (count > cap) {
-        problems.push(`${entry.file}: ${kind} ${count} exceeds the baseline allowance ${cap}`);
+        problems.push(`${entry.file}: ${kind} ${String(count)} exceeds the baseline allowance ${String(cap)}; ${REMEDY}`);
       }
     }
   }
@@ -466,7 +496,12 @@ function main() {
   const tree = scanTree(uiRoot);
 
   if (init) {
-    writeFileSync(baselinePath, renderBaseline(makeBaseline(tree)));
+    const seeded = seedBaseline(baselinePath, tree);
+    if (!seeded.ok) {
+      console.error(seeded.message);
+      process.exitCode = 1;
+      return;
+    }
     console.log(`wrote ${BASELINE_FILE}`);
     console.log(renderSummary(tree));
     return;

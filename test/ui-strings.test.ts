@@ -3,8 +3,9 @@
  * fixtures prove each failure mode. The fixtures live under `test/fixtures/i18n-guards/`, outside
  * `apps/desktop/src`, so the real scan never sees them.
  */
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -13,11 +14,13 @@ import {
   KINDS,
   UI_ROOT,
   compareToBaseline,
+  lowerBaseline,
   makeBaseline,
   readBaseline,
   renderBaseline,
   scanSource,
   scanTree,
+  seedBaseline,
   summarise,
   type Baseline,
   type FileCounts,
@@ -97,12 +100,13 @@ describe('the ratchet', () => {
     const problems = compareToBaseline(treeOf([{ file: 'New.tsx', counts: { ...empty(), jsxText: 1 } }]), baseline);
     expect(problems).toHaveLength(1);
     expect(problems[0]).toContain('new file has an allowance of zero');
+    expect(problems[0]).toContain('wrap the string in t');
   });
 
   it('refuses an increase in one kind even when another kind went down', () => {
     const baseline: Baseline = { version: 1, root: UI_ROOT, files: { 'a.tsx': { ...empty(), jsxText: 2, literal: 1 } } };
     const problems = compareToBaseline(treeOf([{ file: 'a.tsx', counts: { ...empty(), jsxText: 3, literal: 0 } }]), baseline);
-    expect(problems).toEqual([expect.stringContaining('jsxText 3 exceeds the baseline allowance 2')]);
+    expect(problems).toEqual([expect.stringContaining('jsxText 3 exceeds the baseline allowance 2; wrap the string in t')]);
   });
 
   it('accepts a lower count: the baseline only ever goes down', () => {
@@ -117,6 +121,49 @@ describe('the ratchet', () => {
       expect.stringContaining('new.tsx: 1 unwrapped user-facing site(s)'),
       expect.stringContaining('old.tsx: stale baseline entry'),
     ]);
+  });
+
+  it('fails when a baselined file is marked model-facing, until --write prunes the allowance', () => {
+    const baseline: Baseline = { version: 1, root: UI_ROOT, files: { 'a.tsx': { ...empty(), jsxText: 1 } } };
+    const tree: ScanTree = {
+      root: '(test)',
+      files: [{ file: 'a.tsx', modelFacing: true, counts: empty() }],
+      sites: [],
+    };
+    expect(compareToBaseline(tree, baseline)).toEqual([
+      expect.stringContaining('a.tsx: marked model-facing, but the baseline still allows 1 site(s)'),
+    ]);
+    const lowered = lowerBaseline(tree, baseline);
+    expect(lowered.problems).toEqual([]);
+    expect(lowered.baseline.files).toEqual({});
+  });
+
+  it('seeds a baseline only when the file is absent', () => {
+    const tree = treeOf([{ file: 'a.tsx', counts: { ...empty(), jsxText: 1 } }]);
+    const directory = mkdtempSync(join(tmpdir(), 'caotang-ratchet-'));
+    try {
+      const path = join(directory, 'baseline.json');
+      const seeded = seedBaseline(path, tree);
+      expect(seeded.ok).toBe(true);
+      expect(readBaseline(path)).toEqual(makeBaseline(tree));
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses to seed over an existing baseline, so --init cannot raise the ratchet', () => {
+    const tree = treeOf([{ file: 'a.tsx', counts: { ...empty(), jsxText: 1 } }]);
+    const directory = mkdtempSync(join(tmpdir(), 'caotang-ratchet-'));
+    try {
+      const path = join(directory, 'baseline.json');
+      const existing = '{"version":1,"root":"apps/desktop/src","files":{}}\n';
+      writeFileSync(path, existing);
+      const seeded = seedBaseline(path, tree);
+      expect(seeded).toEqual({ ok: false, message: `${BASELINE_FILE} exists; lower it with --write` });
+      expect(readFileSync(path, 'utf8')).toBe(existing);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it('builds a baseline from the measured tree, omitting files with no sites', () => {

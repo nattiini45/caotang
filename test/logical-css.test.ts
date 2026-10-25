@@ -36,6 +36,11 @@ describe('the seeded allowlist', () => {
     expect(compareToAllowlist(tree.occurrences, allowlist)).toEqual([]);
   });
 
+  it('reports only the files that carry a declaration', () => {
+    const tree = scanTree(resolve(repoRoot, APP_ROOT));
+    expect([...tree.files].sort()).toEqual([...new Set(tree.occurrences.map((occurrence) => occurrence.file))].sort());
+  });
+
   it('serialises entries in a stable order', () => {
     const allowlist = makeAllowlist([
       { file: 'z.css', context: '.z', property: 'left', line: 1 },

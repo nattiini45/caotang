@@ -28,7 +28,8 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative, resolve, sep } from 'node:path';import { fileURLToPath, pathToFileURL } from 'node:url';
+import { dirname, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { createCompiledCatalog } from '@lingui/cli/api';
 import { parsePoFile } from '@lingui/format-po';
@@ -344,6 +345,12 @@ function sourceFilesUnder(root) {
   return files;
 }
 
+/**
+ * The value-producing message forms the hygiene rule names: `t`, `msg` and the runtime lookup. The
+ * inventory's wrapper set is broader (`defineMessage`, `plural`, `select`) because it asks whether a
+ * string already belongs to a message, not whether it is being assembled with `+`; a descriptor or a
+ * branch builder is not the `t`…` + …` pattern.
+ */
 function isLinguiMessageExpression(node) {
   if (ts.isParenthesizedExpression(node)) return isLinguiMessageExpression(node.expression);
   if (ts.isTaggedTemplateExpression(node)) {
@@ -401,10 +408,14 @@ export function findModelFacingImports(roots) {
         if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text.startsWith('@lingui/')) {
           problems.push(`${posixPath(relative(process.cwd(), path))}: a model-facing file imports ${node.moduleSpecifier.text}`);
         }
-        if (ts.isCallExpression(node) && (ts.isIdentifier(node.expression) && (node.expression.text === 'require' || node.expression.text === 'import'))) {
-          const argument = node.arguments[0];
-          if (argument && ts.isStringLiteral(argument) && argument.text.startsWith('@lingui/')) {
-            problems.push(`${posixPath(relative(process.cwd(), path))}: a model-facing file imports ${argument.text}`);
+        if (ts.isCallExpression(node)) {
+          const dynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword;
+          const requireCall = ts.isIdentifier(node.expression) && node.expression.text === 'require';
+          if (dynamicImport || requireCall) {
+            const argument = node.arguments[0];
+            if (argument && ts.isStringLiteral(argument) && argument.text.startsWith('@lingui/')) {
+              problems.push(`${posixPath(relative(process.cwd(), path))}: a model-facing file imports ${argument.text}`);
+            }
           }
         }
         ts.forEachChild(node, visit);

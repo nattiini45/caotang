@@ -172,10 +172,14 @@ export function scanInlineStyles(path, source, file = path) {
   return occurrences;
 }
 
-/** Scans the app for physical CSS declarations, in stylesheets and JSX style objects. */
+/**
+ * Scans the app for physical CSS declarations, in stylesheets and JSX style objects. `files` lists only
+ * the files that carry at least one declaration; a CSS file with no physical property is scanned but
+ * is not reported as an offending file.
+ */
 export function scanTree(root) {
   const occurrences = [];
-  const files = [];
+  const files = new Set();
   const walk = (dir) => {
     for (const entry of readdirSync(dir).sort()) {
       const path = join(dir, entry);
@@ -184,23 +188,25 @@ export function scanTree(root) {
         walk(path);
         continue;
       }
+      const file = posixPath(relative(root, path));
       if (/\.css$/.test(entry)) {
-        files.push(path);
-        occurrences.push(...scanCss(readFileSync(path, 'utf8'), posixPath(relative(root, path))));
+        const found = scanCss(readFileSync(path, 'utf8'), file);
+        if (found.length > 0) files.add(file);
+        occurrences.push(...found);
         continue;
       }
       if (/\.(ts|tsx)$/.test(entry)) {
         if (/\.d\.ts$/.test(entry) || /\.(test|spec)\.(ts|tsx)$/.test(entry)) continue;
         const source = readFileSync(path, 'utf8');
-        const found = scanInlineStyles(path, source, posixPath(relative(root, path)));
-        if (found.length > 0) files.push(path);
+        const found = scanInlineStyles(path, source, file);
+        if (found.length > 0) files.add(file);
         occurrences.push(...found);
       }
     }
   };
   walk(root);
   occurrences.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.property.localeCompare(b.property));
-  return { occurrences, files };
+  return { occurrences, files: [...files].sort() };
 }
 
 function keyOf(occurrence) {
@@ -303,7 +309,7 @@ function main() {
       return;
     }
     writeFileSync(allowlistPath, renderAllowlist(makeAllowlist(tree.occurrences)));
-    console.log(`wrote ${ALLOWLIST_FILE}: ${tree.occurrences.length} declaration(s)`);
+    console.log(`wrote ${ALLOWLIST_FILE}: ${tree.occurrences.length} declaration(s) in ${tree.files.length} file(s)`);
     return;
   }
 

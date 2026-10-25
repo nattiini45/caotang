@@ -122,17 +122,23 @@ describe('translator hygiene', () => {
 });
 
 describe('the model-facing marker', () => {
-  it('fails a marked file that imports the message runtime', () => {
-    expect(findModelFacingImports([resolve(fixtures, 'model-facing')])).toEqual([
-      expect.stringContaining('with-lingui.ts: a model-facing file imports @lingui/core/macro'),
-    ]);
+  it('fails a marked file that imports the message runtime, statically or dynamically', () => {
+    const problems = findModelFacingImports([resolve(fixtures, 'model-facing')]);
+    expect(problems).toHaveLength(2);
+    expect(problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('with-lingui.ts: a model-facing file imports @lingui/core/macro'),
+        expect.stringContaining('dynamic-lingui.ts: a model-facing file imports @lingui/core'),
+      ]),
+    );
+    expect(problems.some((problem) => problem.includes('without-lingui.ts'))).toBe(false);
   });
 
-  it('accepts a marked file that only keeps English text, and finds none in the real tree', () => {
+  it('finds none in the real tree; the marker alone is not a failure', () => {
     expect(findModelFacingImports(repositorySourceRoots(repoRoot))).toEqual([]);
-    // The fixture directory holds both files; only the one with the import is reported, so the
-    // marker alone is not the failure.
-    expect(findModelFacingImports([resolve(fixtures, 'model-facing')])).toHaveLength(1);
+    // The fixture directory holds both a failing and a clean marked file; only the importers are
+    // reported, so the marker alone passes.
+    expect(findModelFacingImports([resolve(fixtures, 'model-facing')])).toHaveLength(2);
   });
 });
 

@@ -24,6 +24,7 @@ export interface Allowlist {
 
 export interface CssScan {
   readonly occurrences: readonly Occurrence[];
+  /** The files that carry at least one physical declaration, not every file scanned. */
   readonly files: readonly string[];
 }
 
