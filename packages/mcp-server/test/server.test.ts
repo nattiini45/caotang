@@ -233,6 +233,26 @@ describe('the tool surface', () => {
     }
   });
 
+  it('is described with the tool counts it lists, in the package README, the host checks and the spec', async () => {
+    const reader = await connectClient(readOnly.url, readOnly.token);
+    const writer = await connectClient(writable.url, writable.token, acceptConfirm);
+    try {
+      const reads = (await reader.listTools()).tools.length;
+      const { tools } = await writer.listTools();
+      const confirms = tools.filter((tool) => tool.description?.startsWith('Requires user confirmation.')).length;
+      const text = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+      expect(text('../README.md')).toContain(`**Read-only server (${reads} tools), and always:**`);
+      expect(text('../README.md')).toContain(`**With \`--allow-writes\` (${tools.length} tools):**`);
+      expect(text('../HOST-CHECKS.md')).toContain(`the host lists ${tools.length} tools`);
+      const spec = text('../../../docs/architecture/extensibility.md');
+      expect(spec).toContain(`lists **${reads} read tools in every mode**`);
+      expect(spec).toContain(`**${tools.length - reads} more** (${tools.length - reads - confirms} write-auto, ${confirms} write-confirm`);
+    } finally {
+      await reader.close();
+      await writer.close();
+    }
+  });
+
   it('marks write-confirm tools as needing confirmation, and reads as read-only', async () => {
     const client = await connectClient(writable.url, writable.token);
     try {

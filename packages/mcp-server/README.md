@@ -113,7 +113,7 @@ These are the tools a host lists, measured from `tools/list` on a server started
 | `scene.brief` | read |
 | `dialogue.brief` | read |
 
-**With `--allow-writes` (24 tools):** the ten above, and:
+**With `--allow-writes` (26 tools):** the ten above, and:
 
 | Tool | Risk | What the host does |
 |---|---|---|

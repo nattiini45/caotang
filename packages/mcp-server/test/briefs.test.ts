@@ -376,6 +376,29 @@ describe('the project’s rules hold for the host-model pairs', () => {
     }
   });
 
+  it('does not name a read-denied document an apply reaches by a title prefix, and writes nothing', async () => {
+    const root = await ruled([HIDE]);
+    const server = await startOver(root, true);
+    const asked: string[] = [];
+    const client = await connectClient(server.url, server.token, (params) => {
+      asked.push(JSON.stringify(params));
+      return { action: 'accept', content: { confirmed: true } };
+    });
+    try {
+      const brief = dataOf(await client.callTool({ name: 'scene.brief', arguments: { doc: OPEN, instruction: 'More.', mode: 'continue' } })) as unknown as Brief;
+      const before = folderBytes(root);
+      const refused = await client.callTool({ name: 'scene.apply', arguments: { ...brief.applyWith, doc: 'The Secret S', text: 'More fog.' } });
+      expect(refusalText(refused)).toContain('off limits');
+      expect(JSON.stringify(refused)).not.toContain('Secret');
+      expect(asked).toEqual([]);
+      expect(folderBytes(root)).toEqual(before);
+    } finally {
+      await client.close();
+      await server.close();
+      removeDir(root);
+    }
+  });
+
   it('refuses an apply into a locked chapter that the rule names for scene.draft, and writes nothing', async () => {
     const root = await ruled([LOCK]);
     const server = await startOver(root, true);

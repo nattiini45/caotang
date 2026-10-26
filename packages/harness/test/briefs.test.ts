@@ -29,6 +29,7 @@ import {
   type RulesProvider,
 } from '../src/index.js';
 import { dialogueRole, sceneRole } from '../src/agent/drafting.js';
+import { heldBrief } from '../src/tools/briefs.js';
 import { OPENED, clock, FRIEND, LANDING, STORM, makeState, refusalOf, run, snapshotOf, valueOf } from './fixtures.js';
 import { mockGateway } from './agent/gateway.js';
 import { steps, transcript } from './agent/scripts.js';
@@ -440,6 +441,26 @@ describe('the rules of the project hold for a brief and an apply as they hold fo
     const refused = briefRefusal(ledger, 'scene.apply', params, state, hidden);
     expect(JSON.stringify(refused)).not.toContain('n_TW1N000002');
     expect(JSON.stringify(briefRefusal(ledger, 'scene.apply', params, state))).toContain('n_TW1N000002');
+  });
+
+  it('does not name a withheld document that an apply reaches by a unique title prefix, nor a focus that has become withheld', () => {
+    const state = project();
+    secret(state);
+    const ledger = createBriefLedger({ now: () => clock.now() });
+    const { harness } = hostOf(state, () => ({ rules: [{ effect: 'deny', tool: 'scene.draft', scope: { subtree: CHAPTER_HIDDEN }, access: 'read', source: 'project' }] }), ledger);
+    const given = briefOf(brief(harness, 'scene.brief', { doc: LANDING, instruction: 'x', mode: 'continue' }).data);
+    const hidden = harness.withheld('scene.apply');
+    const params = { doc: 'The Secret', text: 'x', mode: 'continue', briefId: given.briefId };
+    // The server's check leaves it to the gate; the held check, if reached, refuses without a title.
+    expect(briefRefusal(ledger, 'scene.apply', params, state, hidden)).toBeUndefined();
+    const held = heldBrief(ledger, 'scene.apply', params, state, hidden);
+    expect(held.ok).toBe(false);
+    expect(JSON.stringify(held)).not.toContain('Secret');
+    // A brief made for a document a rule later withholds does not name it when the apply names another.
+    const toSecret = ledger.mint({ kind: 'scene', focus: 'n_SECRET0001', revision: 1, digest: 'd', mode: 'continue' });
+    const elsewhere = briefRefusal(ledger, 'scene.apply', { doc: LANDING, text: 'x', mode: 'continue', briefId: toSecret.id }, state, hidden);
+    expect(elsewhere?.code).toBe('invalid-params');
+    expect(JSON.stringify(elsewhere)).not.toContain('Secret');
   });
 
   it('refuses a brief and an apply aimed at a withheld or locked document, as the in-app tool is refused', () => {

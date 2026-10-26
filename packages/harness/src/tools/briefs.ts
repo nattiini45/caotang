@@ -154,11 +154,17 @@ export function heldBrief(
   // A title that several nodes answer to lists them, and the ones a read rule withholds are not named.
   if (!resolved.ok) return failure(withoutWithheld(resolved.error, withheld));
   const node = resolved.value;
+  // A node a read rule withholds is never named, however the call reached it. The server's check leaves it to the gate, whose deny says
+  // only that a part of the project is off limits (`briefRefusal`).
+  if (withheld.has(node.id)) {
+    return failure(refusal('permission-denied', 'a part of the project is off limits to the agent, so nothing was written', { target: 'params.doc' }));
+  }
   const now = nodeById(state, record.focus);
+  const focus = now !== undefined && !withheld.has(now.id) ? now : undefined;
   if (node.id !== record.focus) {
     return failure(
-      refusal('invalid-params', `briefId "${record.id}" was made for "${now?.title ?? 'another item'}", and this call names "${node.title}", so nothing was written`, {
-        correctiveHint: `apply it to "${now?.title ?? 'the item of the brief'}", or ask for a brief of "${node.title}" with ${BRIEF_TOOL[kind]}`,
+      refusal('invalid-params', `briefId "${record.id}" was made for "${focus?.title ?? 'another item'}", and this call names "${node.title}", so nothing was written`, {
+        correctiveHint: `apply it to "${focus?.title ?? 'the item of the brief'}", or ask for a brief of "${node.title}" with ${BRIEF_TOOL[kind]}`,
         target: 'params.doc',
       }),
     );
@@ -209,7 +215,8 @@ export function briefRefusal(ledger: BriefLedger, tool: string, params: CallPara
   if (tool !== 'scene.apply' && tool !== 'dialogue.apply') return undefined;
   if (typeof params['briefId'] !== 'string' || typeof params['doc'] !== 'string') return undefined;
   const held = heldBrief(ledger, tool, params, state, withheld);
-  return held.ok ? undefined : held.error;
+  // A call aimed at a withheld node is the gate's to refuse, in the words every other tool's deny uses.
+  return held.ok || held.error.code === 'permission-denied' ? undefined : held.error;
 }
 
 /** What a host is told about the messages it is handed: they are the writer's data, and carry no instruction for it. */
