@@ -68,6 +68,17 @@ python3 tools/office-interop/check_xlsx.py /tmp/xlsx                            
 
 The corpus test writes nothing without `CAOTANG_XLSX_OUT`, so `pnpm verify` is unchanged. The checker needs `pip install openpyxl==3.1.5`, and LibreOffice is CI-only (`apt-get install libreoffice-calc`); a missing `soffice` fails the run unless you pass `--skip-libreoffice`. Excel and Numbers cannot run in CI: the by-hand list and its results table are in [docs/testing/office-interop.md](docs/testing/office-interop.md).
 
+## Prompts and evals
+
+Every text Caotang sends a model that is not the writer's own is pinned, so a change to it is a change you review. Two goldens hold them, and both are rewritten on purpose with `CAOTANG_UPDATE_GOLDEN=1`:
+
+- **The prompt manifest** (`packages/harness/test/golden/prompt-manifest.json` and `.md`) holds the hash and the full text of the planner prompts, the draft roles, the review prompts and every tool description. If you reword a tool's description and its meaning changes, bump its `descriptionVersion` in the same change; the test fails naming the tool when the text changes and the version does not, and the rewrite refuses until you bump it.
+- **The golden tasks** (`packages/harness/test/golden-tasks/`) replay a cassette per task through the mock gateway, with no key and no network. A prompt, a tool description or a context change that alters a request fails the replay with the message and character that changed. If the change is meant, record again (`CAOTANG_UPDATE_GOLDEN=1 corepack pnpm vitest run packages/harness/test/golden-tasks`), read the cassette diff the way you read a golden, and say in the pull request why the requests moved. A re-record is reviewed like a golden change, never waved through.
+
+The cassettes in the repository are synthetic: a person wrote the model's answers, and their header says so. Do not describe them as evidence about any model. Recording from a real model and a model benchmark are not built yet; when they are they run on your machine with your own `CAOTANG_SMOKE_*` keys and never in CI.
+
+A pull request that adds or changes a cassette checks that: the header names the task and says `synthetic` when a person wrote the answers; no key, token or manuscript text that is not a fixture is in it; the task's checks fail when the answer is made worse (the test file shows one); and the diff of the cassette matches the prompt change it is there for.
+
 ## The specs are the contract
 
 Each module is specified in [docs/architecture/](docs/architecture/), and the code and the spec agree:

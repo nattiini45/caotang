@@ -113,6 +113,8 @@ pnpm exec playwright install firefox webkit  # once, for the optional cross-brow
 CAOTANG_E2E_BROWSERS=all pnpm exec playwright test --project=webkit  # run a cross-browser project
 ```
 
+The agent's golden writing tasks run inside `pnpm verify`: each replays a committed cassette through the mock provider, with no key and no network, and fails when a prompt or tool description would send a model something different from what was recorded. The cassettes are synthetic (hand-written answers), so they guard the prompts and the harness and say nothing about any model. Recording from real models and a model benchmark are not available yet.
+
 `pnpm verify` does not run the desktop's pure model specs in `e2e/unit`, because they are Playwright specs. `pnpm test:e2e` runs them, with the dev-server suite and a smoke test of the production build (`e2e/prod-smoke.spec.ts`), which uses `vite preview` on its own port.
 
 The end-to-end suite starts its own dev server, or, outside CI and when `CAOTANG_E2E_PORT` is not set, reuses one already on port 5173. To run it beside another copy of Caotang, give each checkout its own port with `CAOTANG_E2E_PORT`, for example `CAOTANG_E2E_PORT=5183 pnpm test:e2e`. In PowerShell, set it first with `$env:CAOTANG_E2E_PORT = 5183`. The production preview then uses that port plus 1000, or `CAOTANG_E2E_PREVIEW_PORT` when you set it.

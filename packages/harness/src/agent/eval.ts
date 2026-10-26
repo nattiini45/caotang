@@ -31,6 +31,7 @@ import { createHarness } from '../runtime.js';
 import type { SkillsOption } from '../tools/skills.js';
 import type { AskBackCode } from '../plan.js';
 import { canonicalJson } from '../util.js';
+import { producedOutputs, runChecks, type Check, type CheckVerdict } from './checks.js';
 import { createAgentSession, type AgentSession, type AgentSessionOptions } from './loop.js';
 import { createAgentPorts } from './ports.js';
 import { createContextPort, type ContextPortOptions } from './context.js';
@@ -190,6 +191,10 @@ export interface Scenario {
   readonly skills?: SkillsOption;
   /** What the writer does during the turn, at fixed moments: the turn's signal is aborted, or a note is sent to it. */
   readonly writer?: readonly WriterAction[];
+  /** Run-context checks (agent-harness §9), read over the finished turn beside the expectation. A failed check is a failure of the run. */
+  readonly checks?: readonly Check[];
+  /** The cassette the scenario's gateway replays (cassette.ts), when it replays one: named in a failure so the reader knows what to re-record. */
+  readonly cassette?: string;
   readonly expect: Expectation;
 }
 
@@ -222,6 +227,8 @@ export interface ScenarioRun {
   readonly state: ProjectState;
   /** The project's bytes before the turn, for the undo-replay check. */
   readonly before: string;
+  /** What the scenario's run-context checks found, read over the project as the turn left it (before any restore). Present only when the scenario has checks. */
+  readonly verdicts?: readonly CheckVerdict[];
   /** Present when the scenario asked for a restore: whether it ran, and the project's bytes after it. */
   readonly restored?: { readonly ok: boolean; readonly message: string; readonly after: string };
 }
@@ -253,6 +260,11 @@ export function projectBytes(state: ProjectState): string {
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([id, record]) => [id, { id: record.id, body: record.body }] as const);
   return canonicalJson({ manifest: state.manifest, documents, declinedCodexFiles: [...state.declinedCodexFiles].sort(), agentFiles: agentFileTexts(state.agentFiles) });
+}
+
+/** The run-context checks over a finished turn. `initial` is a second build of the scenario's project, which no turn has touched. */
+function verdictsOf(list: readonly Check[], initial: ProjectState, state: ProjectState, report: TurnReport, requests: readonly ChatRequest[]): readonly CheckVerdict[] {
+  return runChecks(list, { before: initial, after: state, report, requests, outputs: producedOutputs(initial, state, report) });
 }
 
 /** Runs a scenario once, end to end, and returns what it did. Nothing is asserted here. */
@@ -349,14 +361,17 @@ export async function runScenario(scenario: Scenario): Promise<ScenarioRun> {
           ...(resolved?.forcePlan === true ? { forcePlan: true } : {}),
           ...signal,
         });
-  if (scenario.expect.restores !== true) return { report, events, requests, pending, state, before };
+  // The checks read the project the turn left, so they run before a restore puts the old one back.
+  const verdicts = scenario.checks === undefined ? undefined : verdictsOf(scenario.checks, scenario.project(), state, report, requests);
+  const kept = verdicts === undefined ? {} : { verdicts };
+  if (scenario.expect.restores !== true) return { report, events, requests, pending, state, before, ...kept };
   const outcome = session.restore(report.turnId);
   const restored = {
     ok: outcome.ok,
     message: outcome.ok ? '' : outcome.error.message,
     after: projectBytes(state),
   };
-  return { report, events, requests, pending, state, before, restored };
+  return { report, events, requests, pending, state, before, restored, ...kept };
 }
 
 /** A card item matches when its kind, decision and tools agree. Tools are compared as a multiset when unordered. */
@@ -549,6 +564,7 @@ export function checkRun(scenario: Scenario, run: ScenarioRun): string[] {
   }
   failures.push(...reachedFailures(scenario, run));
   if (expect.state !== undefined) failures.push(...expect.state(run.state, report));
+  for (const result of run.verdicts ?? []) if (!result.pass) failures.push(`check ${result.id}: ${result.detail}`);
   return failures;
 }
 

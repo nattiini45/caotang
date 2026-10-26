@@ -147,6 +147,15 @@ describe('the metadata table as a whole', () => {
     }
   });
 
+  // A description edit without a bump is caught by the prompt manifest golden (test/golden/prompt-manifest.test.ts), which keeps each
+  // row's hash beside the version it was written under. Here the manifest is only read back: every row is in it, at its version.
+  it('has every row in the prompt manifest, at the descriptionVersion the row declares', () => {
+    const manifest = JSON.parse(readFileSync(resolve(__dirname, 'golden/prompt-manifest.json'), 'utf8')) as { id: string; descriptionVersion?: number }[];
+    for (const meta of TOOL_METADATA) {
+      expect(manifest.find((entry) => entry.id === `tool.${meta.name}`)?.descriptionVersion, meta.name).toBe(meta.descriptionVersion);
+    }
+  });
+
   it('declares doc.import as write-confirm and undoable, as the lead decided', () => {
     const meta = metadataFor('doc.import');
     expect(meta?.risk).toBe('write-confirm');
