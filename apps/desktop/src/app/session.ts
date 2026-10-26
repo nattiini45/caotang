@@ -754,6 +754,25 @@ export class ProjectSession {
     return true;
   }
 
+  /* ------------------------------------------------------------------ *
+   * The agent's files (context-assembly.md §2, layer LI): CAOTANG.md and the memory notes
+   * ------------------------------------------------------------------ */
+
+  /** Replaces CAOTANG.md (`project.setInstructions`). `expectedDigest` is the digest of the text the panel showed, so a change made since is a conflict. */
+  setInstructions(text: string, expectedDigest?: string): Result<ExecutionOutcome, CommandError> {
+    return this.dispatch('project.setInstructions', { text, ...(expectedDigest === undefined ? {} : { expectedDigest }) });
+  }
+
+  /** Saves one memory note (`memory.write`): a new one, or the one at `slug` with `expectedDigest` the digest of the body the panel showed. */
+  writeMemoryNote(note: { slug: string; type: 'style' | 'preference' | 'process' | 'reference'; title: string; body: string }, expectedDigest?: string): Result<ExecutionOutcome, CommandError> {
+    return this.dispatch('memory.write', { ...note, ...(expectedDigest === undefined ? {} : { expectedDigest }) });
+  }
+
+  /** Forgets one memory note (`memory.forget`). The writer's alone: the panel asks first, and one undo brings the note back. */
+  forgetMemoryNote(slug: string): Result<ExecutionOutcome, CommandError> {
+    return this.dispatch('memory.forget', { slug });
+  }
+
   /**
    * Imports an image as a shot's picture (`shot.importImage`, storyboard.md §3.1): the bytes are staged, the command names them
    * and the shot, and the file and the shot's `image` are one undo group. A refusal is kept for the status line, as every

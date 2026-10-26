@@ -1722,7 +1722,10 @@ export async function saveFolder(
   const watch = watchSave(fs, { now, expected: before, held: held === null ? null : held.digests, report });
   const toWrite = copyState(session.state);
   // As with documents, only the copy's own folder can hold skill files this session removed. Any other folder keeps every file it has.
-  if (held === null) toWrite.removedSkillFiles.clear();
+  if (held === null) {
+    toWrite.removedSkillFiles.clear();
+    toWrite.removedAgentFiles.clear();
+  }
   try {
     await writeProject(watch.fs, toWrite, {
       now,
@@ -1754,6 +1757,8 @@ export async function saveFolder(
   }
   // The skill files the folder no longer holds are no longer owed a removal.
   if (held !== null) for (const path of [...session.state.removedSkillFiles]) if (!toWrite.removedSkillFiles.has(path)) session.state.removedSkillFiles.delete(path);
+  // Likewise the forgotten memory notes: a file the folder no longer holds is no longer owed a removal.
+  if (held !== null) for (const path of [...session.state.removedAgentFiles]) if (!toWrite.removedAgentFiles.has(path)) session.state.removedAgentFiles.delete(path);
   // What is on disk now is what the next save is checked against, so it is read back rather than assumed, with one exception: a file another
   // program changed while the save wrote (the folder's files are digested again and compared with what the save left, folder-guard.ts) is
   // not taken as this save's own, so the next save asks about it. The same goes for caotang.json.

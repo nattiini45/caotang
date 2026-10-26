@@ -62,8 +62,11 @@ export const CONTEXT_TOTAL_MAX = 200_000;
 export const CONTEXT_LAYER_MIN = 200;
 export const CONTEXT_LAYER_MAX = 50_000;
 
-/** The layers whose budgets the spec names as config-exposed: the codex (L2), the story so far (L4) and the continuity tail (L5). */
-export const CONTEXT_LAYERS = ['L2', 'L4', 'L5'] as const;
+/**
+ * The layers whose budgets the spec names as config-exposed: the writer's instructions (LI), the codex (L2), the story so far (L4) and the
+ * continuity tail (L5).
+ */
+export const CONTEXT_LAYERS = ['LI', 'L2', 'L4', 'L5'] as const;
 export type ContextLayerId = (typeof CONTEXT_LAYERS)[number];
 
 export interface ContextSettings {

@@ -7,6 +7,9 @@
 
 import { useState, type FormEvent, type ReactNode } from 'react';
 
+import { DEFAULT_INSTRUCTIONS_BUDGET } from '@caotang/harness';
+
+import { agentInstructionsView, tokensLabel, type AgentInstructionsView } from '../app/agent-instructions-model.js';
 import { contextPreviewOf, type ContextPreviewView } from '../app/context-preview.js';
 import type { AppServices } from '../app/services.js';
 import type { ProjectSession } from '../app/session.js';
@@ -23,6 +26,7 @@ import { PromptPreview } from './PlanCard.js';
 
 /** Each layer's label and the default the spec gives it for a scene draft (context-assembly §2). */
 const LAYERS: readonly { readonly id: ContextLayerId; readonly label: string; readonly fallback: number }[] = [
+  { id: 'LI', label: 'Instructions (CAOTANG.md and memory)', fallback: DEFAULT_INSTRUCTIONS_BUDGET },
   { id: 'L2', label: 'Codex entries', fallback: 1_000 },
   { id: 'L4', label: 'Story so far, from the synopses', fallback: 2_000 },
   { id: 'L5', label: 'Focus document text', fallback: 2_000 },
@@ -72,6 +76,27 @@ function BudgetPreview({ draft }: { draft: ContextSettings }): ReactNode {
 }
 
 /**
+ * What the instructions layer does with the open project's CAOTANG.md and memory index under the cap now typed (context-assembly §2, LI):
+ * how much it sends, and the sentence it records for a file it cuts, shown as the preview and the plan card show it. Nothing for a
+ * project with neither.
+ */
+function InstructionsCap({ view }: { view: AgentInstructionsView }): ReactNode {
+  if (view.file === null && view.indexTokens === 0) return null;
+  return (
+    <div data-testid="instructions-cap">
+      <p className="muted">
+        This project’s instructions and memory index send {tokensLabel(view.sentTokens)} of the {tokensLabel(view.budget)} the layer allows.
+      </p>
+      {view.capLines.map((line) => (
+        <p key={line} className="status-line is-error" role="status">
+          {line}.
+        </p>
+      ))}
+    </div>
+  );
+}
+
+/**
  * The prompt the preview link shows (context-assembly §5): the plan card's own prompt view for a scene draft of the open document,
  * or the sentence that says why there is none.
  */
@@ -88,6 +113,7 @@ export function ContextSection({ services, session = null }: { services: AppServ
   const current = services.settings.current().context;
   const [total, setTotal] = useState(current.totalBudgetTokens === undefined ? '' : String(current.totalBudgetTokens));
   const [layers, setLayers] = useState<Record<ContextLayerId, string>>(() => ({
+    LI: current.layerBudgets.LI === undefined ? '' : String(current.layerBudgets.LI),
     L2: current.layerBudgets.L2 === undefined ? '' : String(current.layerBudgets.L2),
     L4: current.layerBudgets.L4 === undefined ? '' : String(current.layerBudgets.L4),
     L5: current.layerBudgets.L5 === undefined ? '' : String(current.layerBudgets.L5),
@@ -95,6 +121,8 @@ export function ContextSection({ services, session = null }: { services: AppServ
   const [message, setMessage] = useState<string | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const warning = contextWarningOf(draftOf(total, layers));
+  // The open project's instructions under the cap typed now: what the layer would send, and what it would cut.
+  const instructions = session === null ? null : agentInstructionsView(session.state, draftOf(total, layers).layerBudgets.LI);
 
   const save = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -159,6 +187,7 @@ export function ContextSection({ services, session = null }: { services: AppServ
             {warning}
           </p>
         ) : null}
+        {instructions === null ? null : <InstructionsCap view={instructions} />}
         <BudgetPreview draft={draftOf(total, layers)} />
         {session === null ? null : (
           <div className="context-prompt">

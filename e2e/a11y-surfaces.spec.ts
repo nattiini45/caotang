@@ -206,6 +206,19 @@ test('every surface of the shell and its dialogs passes the colour-contrast, tar
   await page.keyboard.press('Escape');
   await expect(page.locator('dialog.project-dialog')).toBeHidden();
 
+  // The Agent instructions panel, with a note in it, so its list rows, chips and budget line are on the page.
+  await page.getByRole('button', { name: 'Instructions', exact: true }).click();
+  const instructions = page.getByRole('dialog', { name: 'Agent instructions' });
+  await expect(instructions).toBeVisible();
+  await instructions.getByRole('button', { name: 'Add a note…' }).click();
+  await instructions.getByRole('textbox', { name: 'Title' }).fill('Dialogue tags');
+  await instructions.getByRole('textbox', { name: 'Note' }).fill('Use said.');
+  await instructions.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(instructions.getByTestId('memory-note-dialogue-tags')).toBeVisible();
+  await check('agent instructions', 'dialog[aria-labelledby="agent-instructions-title"]');
+  await page.keyboard.press('Escape');
+  await expect(instructions).toBeHidden();
+
   // Focus mode keeps the toolbar, with its Projects button (the button was squeezed to a target under 24 px).
   await page.getByRole('button', { name: 'Focus', exact: true }).click();
   await check('focus toolbar', '.toolbar');

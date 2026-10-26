@@ -45,6 +45,7 @@ test.describe('the view model of a notes rewrite is the old notes and the new, w
     );
     expect(view).toEqual({
       kind: 'notes',
+      subject: 'notes',
       doc: 'The Landing',
       segments: [
         { kind: 'same', text: 'Fix ' },

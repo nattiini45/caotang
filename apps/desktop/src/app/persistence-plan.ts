@@ -24,7 +24,7 @@
  */
 
 import type { SkillFile } from '@caotang/skills';
-import { createProjectState, type Manifest, type ProjectState } from '@caotang/store';
+import { cloneAgentFiles, createProjectState, type AgentFiles, type Manifest, type ProjectState } from '@caotang/store';
 
 export interface DocumentShadow {
   readonly body: string;
@@ -40,6 +40,11 @@ export interface Shadow {
    * new array in the map), so two states hold the same skills exactly when they hold the same arrays.
    */
   readonly skills: ReadonlyMap<string, readonly SkillFile[]>;
+  /**
+   * The agent's files (CAOTANG.md and the memory notes). A command replaces `ProjectState.agentFiles` as a whole and never edits it in place,
+   * so two states hold the same files exactly when they hold the same object.
+   */
+  readonly agentFiles: AgentFiles;
 }
 
 export interface CreatedDocument {
@@ -71,6 +76,8 @@ export type PersistPlan =
       readonly bodies: readonly BodyWrite[];
       /** A detached copy of the project's skills, present only when they changed. */
       readonly skills: ReadonlyMap<string, readonly SkillFile[]> | null;
+      /** A detached copy of the agent's files, present only when they changed. */
+      readonly agentFiles: AgentFiles | null;
       readonly next: Shadow;
     };
 
@@ -80,7 +87,7 @@ export function shadowOf(state: ProjectState): Shadow {
   for (const [id, record] of state.documents) {
     docs.set(id, { body: record.body, revision: record.revision });
   }
-  return { manifestJson: JSON.stringify(state.manifest), docs, skills: new Map(state.skills) };
+  return { manifestJson: JSON.stringify(state.manifest), docs, skills: new Map(state.skills), agentFiles: state.agentFiles };
 }
 
 /** Whether two sets of skills are the same arrays folder for folder (see {@link Shadow.skills}). */
@@ -126,7 +133,8 @@ export function planPersistence(shadow: Shadow | null, state: ProjectState): Per
   const structural =
     next.manifestJson !== shadow.manifestJson || createDocuments.length > 0 || removeDocumentIds.length > 0;
   const skillsChanged = !sameSkills(shadow.skills, state.skills);
-  if (!structural && bodies.length === 0 && !skillsChanged) return { kind: 'none' };
+  const agentFilesChanged = shadow.agentFiles !== state.agentFiles;
+  if (!structural && bodies.length === 0 && !skillsChanged && !agentFilesChanged) return { kind: 'none' };
 
   return {
     kind: 'incremental',
@@ -135,6 +143,7 @@ export function planPersistence(shadow: Shadow | null, state: ProjectState): Per
     removeDocumentIds,
     bodies,
     skills: skillsChanged ? copySkills(state.skills) : null,
+    agentFiles: agentFilesChanged ? cloneAgentFiles(state.agentFiles) : null,
     next,
   };
 }
@@ -159,5 +168,7 @@ export function copyState(state: ProjectState): ProjectState {
   for (const [path, text] of state.declinedText) copy.declinedText.set(path, text);
   for (const [folder, files] of copySkills(state.skills)) copy.skills.set(folder, files);
   for (const path of state.removedSkillFiles) copy.removedSkillFiles.add(path);
+  copy.agentFiles = cloneAgentFiles(state.agentFiles);
+  for (const path of state.removedAgentFiles) copy.removedAgentFiles.add(path);
   return copy;
 }
