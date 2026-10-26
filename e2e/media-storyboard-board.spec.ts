@@ -36,9 +36,10 @@ test('a card dragged onto another takes its place through binder.move, and Later
   const second = await cards.nth(1).getAttribute('data-shot-id');
   expect(first).not.toBeNull();
   expect(second).not.toBeNull();
+  // Start and land in the card's empty padding, not on the text inside its draggable article.
   await cards.nth(1).dragTo(cards.nth(0), {
-    sourcePosition: { x: 48, y: 24 },
-    targetPosition: { x: 48, y: 24 },
+    sourcePosition: { x: 6, y: 6 },
+    targetPosition: { x: 6, y: 6 },
   });
   await expect.poll(() => cards.nth(0).getAttribute('data-shot-id')).toBe(second);
   expect((await trace(page)).some((row) => row.command === 'binder.move')).toBe(true);

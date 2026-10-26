@@ -30,7 +30,7 @@ pnpm exec playwright install firefox webkit # optional, for the nightly cross-br
 CAOTANG_E2E_BROWSERS=all pnpm exec playwright test --project=webkit
 ```
 
-These checks must pass before a pull request is merged. CI runs `pnpm verify`, the production build, bundle-size check, MCP pack and CLI build on Node 22.12.0 and 24; Chromium E2E runs on Node 24 in parallel. A separate workflow runs Firefox and WebKit E2E on every pull request and nightly, two shards per browser, then merges their reports into one HTML report.
+These checks must pass before a pull request is merged. CI runs `pnpm verify`, the production build, bundle-size check, MCP pack and CLI build on Node 22.12.0 and 24; the Node 22.12 leg verifies the pinned pnpm tarball's SHA-512 before installing it directly, while Node 24 uses Corepack. Chromium E2E runs on Node 24 in parallel. A separate workflow runs Firefox and WebKit E2E on every pull request and nightly, two shards per browser, then merges their reports into one HTML report.
 
 CI on a pull request from a fork runs with a read-only token (`permissions: contents: read`), so a workflow run cannot change the repository. If this is your first contribution, a maintainer approves your pull request's first CI run before it starts; this is a repository setting, and it only means the checks wait a little.
 

@@ -319,10 +319,10 @@ test('a drop on the board that matches no shot imports nothing, names every file
 test('a card dragged on the board still reorders, and a file dropped on a card still goes on that card whatever its name', async ({ page }) => {
   const { cards } = await storyboardWithThreeShots(page);
   const ids = await cards.evaluateAll((items) => items.map((item) => item.getAttribute('data-shot-id')));
-  // With three cards, the fixed agent panel covers the second card's centre in Firefox; use its visible header instead.
+  // The agent panel covers the second card's centre in Firefox; start in its empty padding, not on draggable text.
   await cards.nth(1).dragTo(cards.nth(0), {
-    sourcePosition: { x: 48, y: 24 },
-    targetPosition: { x: 48, y: 24 },
+    sourcePosition: { x: 6, y: 6 },
+    targetPosition: { x: 6, y: 6 },
   });
   await expect.poll(() => cards.nth(0).getAttribute('data-shot-id')).toBe(ids[1]);
   expect(await ran(page, 'binder.move')).toBeGreaterThan(0);

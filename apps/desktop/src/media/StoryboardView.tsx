@@ -399,16 +399,15 @@ export function ShotBoard({ session, folder, ports, focus = null, zoom: zoomProp
                   setDragId(card.id);
                 }}
                 onShotDragOver={(event) => {
-                  if (!isShotDrag(event) && dragId === null) return;
+                  if (!isShotDrag(event)) return;
                   event.preventDefault();
                   setDropId(card.id);
                 }}
                 onShotDrop={(event) => {
-                  if (!isShotDrag(event) && dragId === null) return;
+                  if (!isShotDrag(event)) return;
                   event.preventDefault();
-                  // Keep the in-page source id as a fallback for browsers that redact custom transfer payloads.
-                  const movedId = event.dataTransfer.getData(SHOT_DRAG_TYPE) || dragId;
-                  const moved = movedId === null ? undefined : cards.find((candidate) => candidate.id === movedId);
+                  const movedId = event.dataTransfer.getData(SHOT_DRAG_TYPE);
+                  const moved = cards.find((candidate) => candidate.id === movedId);
                   setDragId(null);
                   setDropId(null);
                   if (moved !== undefined && moved.id !== card.id) step(moved, card.index);
