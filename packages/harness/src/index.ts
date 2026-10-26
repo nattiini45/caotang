@@ -243,6 +243,7 @@ export {
   CHECKPOINT_LABEL,
   DEFAULT_MAX_MODEL_CALLS,
   EXTERNAL_CHECKPOINT_NOTE,
+  RESUMED_CHECKPOINT_NOTE,
   type AgentEvent,
   type CardRecord,
   type Decision,
@@ -255,6 +256,35 @@ export {
   type TurnStatus,
   type TurnStop,
 } from './agent/events.js';
+
+// The run log (agent-harness §5.1): events written ahead of the work, the resume check, and an in-memory port.
+export {
+  NOT_LOGGED_NOTICE,
+  RUN_LOG_VERSION,
+  createMemoryRunLog,
+  createRunWriter,
+  newRunRecord,
+  parseRunEvents,
+  planResume,
+  statusOfTurn,
+  structureDigest,
+  summarizeRun,
+  type AppliedStep,
+  type MemoryRunLog,
+  type PendingStep,
+  type ReplayCard,
+  type ResumeVerdict,
+  type ResumeView,
+  type Revisions,
+  type RunEvent,
+  type RunEventDraft,
+  type RunLogOptions,
+  type RunLogPort,
+  type RunRecord,
+  type RunReplay,
+  type RunSummary,
+  type RunWriter,
+} from './agent/run-log.js';
 export {
   DRAFT_SYSTEM_PREFIX,
   PLANNER_SYSTEM_PREFIX,

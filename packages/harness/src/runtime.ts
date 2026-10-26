@@ -1088,7 +1088,8 @@ export function createHarness(options: HarnessOptions): Harness {
 
     // What runs is the plan, the step it resumes from, and the drafts staged for it: a replay must match all three.
     const fingerprint = canonicalJson({ plan, from: options.from ?? 0, proposals: options.proposals ?? [] });
-    const replay = planCache.lookup(turn.turnId, turn.callId);
+    // A run that stops before the plan's end is one step of a logged plan: each step has a call id of its own, and the bus dedupes it.
+    const replay = options.until === undefined ? planCache.lookup(turn.turnId, turn.callId) : undefined;
     if (replay !== undefined) {
       return replay.fingerprint === fingerprint
         ? ok(replay.outcome)
@@ -1097,7 +1098,7 @@ export function createHarness(options: HarnessOptions): Harness {
 
     const outcome = runPlan(plan, turn, host, options);
     const reached = outcome.status === 'applied' || ((outcome.status === 'failed' || outcome.status === 'stopped') && outcome.completed.length > 0);
-    if (reached) planCache.record(turn.turnId, turn.callId, fingerprint, outcome);
+    if (reached && options.until === undefined) planCache.record(turn.turnId, turn.callId, fingerprint, outcome);
     return ok(outcome);
   }
 
