@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import type { ElicitRequestParams, ElicitResult } from '@modelcontextprotocol/client';
 import { loadCoherence, parseCoherenceFile, saveCoherence, type CoherenceFile } from '@caotang/coherence';
-import { addDocument, addFolder, createEmptyManifest, createProjectState, readProject, writeProject, type ProjectState } from '@caotang/store';
+import { addDocument, addFolder, createEmptyManifest, createProjectState, readProject, writeProject, type ExportRecipe, type ProjectState } from '@caotang/store';
 
 import {
   NodeArtifactFs,
@@ -139,6 +139,8 @@ export async function startFixture(options: {
   readonly shotAction?: string;
   /** With `shot`: the asset id of the shot's picture. The file is the test's to write into `assets/`. */
   readonly shotImage?: string;
+  /** With `seed`: export recipes saved in the project before it is opened. */
+  readonly recipes?: readonly ExportRecipe[];
 }): Promise<Fixture> {
   const root = tempDir(options.label);
   if (options.seed === true && options.writing === true) {
@@ -149,6 +151,12 @@ export async function startFixture(options: {
       ...(options.shotAction === undefined ? {} : { shotAction: options.shotAction }),
       ...(options.shotImage === undefined ? {} : { shotImage: options.shotImage }),
     });
+  }
+  if (options.seed === true && options.recipes !== undefined) {
+    const fs = new NodeArtifactFs(root);
+    const { state } = await readProject(fs, { now: OPENED });
+    state.manifest.recipes = [...options.recipes];
+    await writeProject(fs, state, { now: OPENED });
   }
   const session = await openProject({
     root,

@@ -375,6 +375,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
       // The contact sheet reads its pictures' bytes when its file renders, from the same store the cover is read from.
       readAsset,
       ...(request.options.pageSize === undefined ? {} : { pageSize: request.options.pageSize }),
+      ...(request.options.scriptFont === undefined ? {} : { scriptFont: request.options.scriptFont }),
       ...(request.options.paperFrames === undefined ? {} : { paperFrames: request.options.paperFrames }),
       // Colour emoji (screenplay.md §5.3, storyboard.md §6). Absent is each format's own default, which media.ts applies.
       ...(request.options.colourEmoji === undefined ? {} : { colourEmoji: request.options.colourEmoji }),

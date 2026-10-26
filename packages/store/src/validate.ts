@@ -31,7 +31,7 @@ import {
   type AppliedMigration,
   type FormatContext,
 } from './migrations.js';
-import { CHAR_LIMIT_MAX, CRITERIA_KEYS, SCENE_NUMBER_OPTIONS, SCENE_STYLES, filterNameFits } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, CRITERIA_KEYS, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, SCENE_STYLES, filterNameFits } from '@caotang/bus';
 // The shapes the bus names for the furniture commands. The *values* the bus
 // refuses at the command boundary are restated below, for the load; the types
 // are the bus's own, so a value the bus does not know cannot be listed here.
@@ -161,6 +161,7 @@ function isRecipeOptions(v: unknown): boolean {
     (o['sceneNumbers'] === undefined || isSceneNumbers(o['sceneNumbers'])) &&
     (o['continued'] === undefined || typeof o['continued'] === 'boolean') &&
     (o['pageSize'] === undefined || o['pageSize'] === 'A4' || o['pageSize'] === 'Letter') &&
+    (o['scriptFont'] === undefined || isScriptFont(o['scriptFont'])) &&
     (o['paperFrames'] === undefined || typeof o['paperFrames'] === 'boolean') &&
     (o['colourEmoji'] === undefined || typeof o['colourEmoji'] === 'boolean')
   );
@@ -172,6 +173,11 @@ function isRecipeOptions(v: unknown): boolean {
  */
 function isSceneNumbers(v: unknown): v is (typeof SCENE_NUMBER_OPTIONS)[number] {
   return typeof v === 'string' && (SCENE_NUMBER_OPTIONS as readonly string[]).includes(v);
+}
+
+/** The screenplay PDF's Latin face (screenplay.md §5.3): one the bus accepts, from its own export. */
+function isScriptFont(v: unknown): boolean {
+  return typeof v === 'string' && (RECIPE_SCRIPT_FONTS as readonly string[]).includes(v);
 }
 
 /** exporter.md §2's recipe shape, the three fields a recipe cannot do without. */
@@ -396,7 +402,7 @@ function validateFields(
           // a saved selection the writer chose, and the options it cannot read fall back to the template's defaults.
           const options = (recipe as Record<string, unknown>)['options'];
           if (options !== undefined && !isRecipeOptions(options)) {
-            warn(`recipes[${i}].options`, 'not a set of recipe options (titlePage, toc, author, charLimit, sceneNumbers, continued, pageSize, paperFrames, colourEmoji); dropped, and the recipe uses the template defaults');
+            warn(`recipes[${i}].options`, 'not a set of recipe options (titlePage, toc, author, charLimit, sceneNumbers, continued, pageSize, scriptFont, paperFrames, colourEmoji); dropped, and the recipe uses the template defaults');
             delete (recipe as Record<string, unknown>)['options'];
           }
           return true;

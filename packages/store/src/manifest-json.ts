@@ -27,7 +27,7 @@
  * both directions, and the load path is where a version changes.
  */
 
-import { CHAR_LIMIT_MAX, SCENE_NUMBER_OPTIONS } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS } from '@caotang/bus';
 import type { PermissionRule } from './agent-rules.js';
 import { jsonValueProblem } from './json-value.js';
 import type {
@@ -406,6 +406,10 @@ function recipeOptions(o: NonNullable<ExportRecipe['options']>): string {
   if (typeof o.continued === 'boolean') pairs.push(['continued', String(o.continued)]);
   if (o.pageSize === 'A4' || o.pageSize === 'Letter') {
     pairs.push(['pageSize', str(o.pageSize, 'recipe.options.pageSize')]);
+  }
+  const font: unknown = o.scriptFont;
+  if (typeof font === 'string' && (RECIPE_SCRIPT_FONTS as readonly string[]).includes(font)) {
+    pairs.push(['scriptFont', str(font, 'recipe.options.scriptFont')]);
   }
   if (typeof o.paperFrames === 'boolean') pairs.push(['paperFrames', String(o.paperFrames)]);
   if (typeof o.colourEmoji === 'boolean') pairs.push(['colourEmoji', String(o.colourEmoji)]);

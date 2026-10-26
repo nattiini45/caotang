@@ -20,7 +20,7 @@
  * (storyboard.md §6) is drawn the same way: its page plan runs here, and its pictures are read when it renders.
  */
 
-import { drawPdf, layoutPdf, preparePdf, renderFdx, renderFountain, isScreenplayKind, PDF_MIME, type PdfLayout, type PdfRenderOptions, type SceneNumberPlacement } from '@caotang/screenplay';
+import { drawPdf, layoutPdf, preparePdf, renderFdx, renderFountain, isScreenplayKind, PDF_MIME, type PdfLayout, type PdfRenderOptions, type SceneNumberPlacement, type ScriptFont } from '@caotang/screenplay';
 import {
   TABLE_COLUMNS,
   exportCsv,
@@ -121,8 +121,10 @@ export interface MediaRequest {
    * picture on the sheet shows its caption, and the log says so.
    */
   readonly readAsset?: (path: string) => Promise<Uint8Array | null>;
-  /** The contact sheet's paper, A4 or US Letter (storyboard.md §6). Absent is A4. Only `contact-sheet-pdf` reads it. */
+  /** The paper, A4 or US Letter (screenplay.md §5.3, storyboard.md §6). Absent is Letter for `pdf` and A4 for `contact-sheet-pdf`. Only those two read it. */
   readonly pageSize?: PageSize;
+  /** The screenplay PDF's Latin face (screenplay.md §5.3). Absent is Courier Prime. Only `pdf` reads it. */
+  readonly scriptFont?: ScriptFont;
   /** The contact sheet prints blank numbered frames to draw on, not the shots' pictures (storyboard.md §6). Absent is off. Only `contact-sheet-pdf` reads it. */
   readonly paperFrames?: boolean;
   /**
@@ -328,7 +330,7 @@ function fountainOutput(request: MediaRequest): MediaOutput {
 
 /**
  * The screenplay PDF (screenplay.md §5.3). The selection, the gate and the pagination are the plan's, so a refusal writes
- * nothing and the log row can give the page count. The file is drawn in the queue, with Courier Prime embedded, and the CJK, emoji,
+ * nothing and the log row can give the page count. The file is drawn in the queue, with Courier Prime (or the recipe font, Cousine) embedded, and the CJK, emoji,
  * Arabic, Hebrew and Devanagari fonts when the script needs them. A script with any of them is laid out twice: here, before any font is
  * read, with a column for each letter of a word, which is what the gate and the page count in the log are made of; and again when the
  * file is drawn, with the words measured in their fonts (screenplay.md §5.3). When the measured layout has another page count, the
@@ -346,6 +348,9 @@ function pdfOutput(request: MediaRequest): MediaOutput {
     sceneNumbers: request.sceneNumbers ?? 'off',
     continued: request.continued ?? true,
     ...(request.language === undefined ? {} : { language: request.language }),
+    // Absent keeps Letter and Courier Prime, which is what every recipe saved before the choice existed gets.
+    ...(request.pageSize === undefined ? {} : { pageSize: request.pageSize }),
+    ...(request.scriptFont === undefined ? {} : { scriptFont: request.scriptFont }),
     // The screenplay PDF is black and white unless Colour emoji is on: scripts are usually printed and photocopied that way.
     ...((request.colourEmoji ?? colourEmojiDefault('pdf')) ? { colourEmoji: true } : {}),
   };
@@ -362,6 +367,7 @@ function pdfOutput(request: MediaRequest): MediaOutput {
   }
   const pages = layout.scriptPageCount;
   const titled = layout.pages.length > pages ? ', and a title page' : '';
+  const setting = `${layout.pageSize === 'A4' ? ', on A4' : ''}${request.scriptFont === 'cousine' ? ', in Cousine' : request.scriptFont === 'courier' ? ', in the base-14 Courier' : ''}`;
   return {
     files: [
       {
@@ -396,7 +402,7 @@ function pdfOutput(request: MediaRequest): MediaOutput {
       ...left,
       ...layout.notes,
       ...unloadedFontNotes(layout, request),
-      `pdf: ${pages} script ${pages === 1 ? 'page' : 'pages'}${titled}, about ${pages} ${pages === 1 ? 'minute' : 'minutes'} of screen time at a page a minute`,
+      `pdf: ${pages} script ${pages === 1 ? 'page' : 'pages'}${titled}${setting}, about ${pages} ${pages === 1 ? 'minute' : 'minutes'} of screen time at a page a minute`,
     ],
   };
 }
