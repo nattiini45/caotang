@@ -46,7 +46,14 @@
  * The mode (agent-harness §4) is the app's `agent.defaultMode` setting until the writer picks another for this panel; that pick is
  * the session override, held here and never saved. The loop reads it at each card, so a switch in the middle of a turn applies from
  * the next card. A card the mode approves never reaches `decide`: the loop applies it, and `beforeAutoApply` saves the writer's typing
- * first, as an approval here does. Plan-only keeps the writes it refused, and "Switch to Ask and run this plan" sends them as a plan.
+ * first, as an approval here does. If the typing cannot be saved, the card is not applied: it is put to the writer with the reason, as a stale card is. Plan-only keeps the writes it refused, and "Switch to Ask and run this plan" sends them as a plan.
+ *
+ * ## Interrupted runs
+ *
+ * Every turn is logged ahead of its work in the runtime database (agent-harness §5.1). A run a reload, a crash or a closed tab left
+ * unfinished is found marked interrupted when the project opens (lifecycle.ts), and the panel offers it as a card: Resume and Discard log.
+ * Resume is the writer's click and nothing else: it can re-issue a paid model call. The log is checked against the project first, and a
+ * write that did not land or a document that moved on is said by name instead of resuming. Discard log deletes the log and keeps the writes.
  *
  * ## Restore
  *
@@ -61,12 +68,16 @@ import {
   createBudgetMeter,
   createContextPort,
   preloadFor,
+  RUN_LOG_VERSION,
+  structureDigest,
+  summarizeRun,
   DEFAULT_ACTIVE_MS,
   PERMISSION_MODES,
   type BudgetMeter,
   type ContextConfig,
   type AgentEvent,
   type AgentSession,
+  type BudgetSpend,
   type Decision,
   type OfferAnswer,
   type PendingCard,
@@ -74,13 +85,14 @@ import {
   type PlanCardView,
   type PlanOffer,
   type RunLimits,
+  type RunLogPort,
   type TurnOptions,
   type TurnReport,
 } from '@caotang/harness';
 import { newId } from '@caotang/ids';
-import { nodeById } from '@caotang/store';
+import { createRunLogPort, nodeById } from '@caotang/store';
 
-import { documentIdFor, draftCheckOf, newTurnView, reduceTurn, type DraftCheck, type GhostView, type TurnView } from './agent-model.js';
+import { documentIdFor, draftCheckOf, newTurnView, reduceTurn, spendLine, type DraftCheck, type GhostView, type TurnView } from './agent-model.js';
 import { fixPlanFor } from './findings-model.js';
 import { DEFAULT_AGENT_SETTINGS, type AgentSettings } from './settings.js';
 import { requestInkCompilerFor } from './ink-compiler.js';
@@ -93,6 +105,24 @@ import { TaskStore, type TaskRecord } from './task-store.js';
 /** Where a turn runs. The demo intents run on the built-in demo profile, whatever is active (context-assembly §6). */
 export interface SubmitOptions {
   readonly demo?: boolean;
+  /** The spend an interrupted run had when it stopped: a resumed turn's meter starts from it, so the run's limits count what it already used. */
+  readonly restoredSpend?: BudgetSpend;
+}
+
+/** A run the project was left with, as the panel's interrupted-run card shows it (agent-harness §5.1). */
+export interface InterruptedRunView {
+  readonly runId: string;
+  /** What the writer asked for. */
+  readonly intent: string;
+  /** Steps applied, and the steps of the plan the run was on. */
+  readonly applied: number;
+  readonly total: number;
+  /** The run's spend in the words the panel's spend line uses, or `null` when the log holds none. */
+  readonly spend: string | null;
+  /** Whether Resume is offered. */
+  readonly resumable: boolean;
+  /** Why it is not, or what to know before resuming, as a sentence. */
+  readonly note: string | null;
 }
 
 /** A message the writer typed while a turn ran. It is a future turn: it starts once the turn before it has settled. */
@@ -142,6 +172,8 @@ export interface AgentSnapshot {
   readonly stoppable: boolean;
   /** Stop was pressed and the turn has not settled yet. */
   readonly stopping: boolean;
+  /** The runs this project was left with unfinished, oldest first. */
+  readonly interrupted: readonly InterruptedRunView[];
   /** The messages typed while a turn ran, in the order they will run. */
   readonly queue: readonly QueuedMessage[];
   /** The queue waits instead of running, after a turn that stopped on a question or never ran. */
@@ -209,6 +241,9 @@ export class AgentController {
   private queueSeq = 0;
   private pendingNotes: PendingNote[] = [];
   private announcement = '';
+  /** The runs found interrupted, read from the run log when the panel attaches and after each turn. */
+  private interrupted: InterruptedRunView[] = [];
+  private readonly runLog: RunLogPort;
   private intentForNextTurn: string | null = null;
   private providerForNextTurn: string | null = null;
   private priceForNextTurn: { readonly prompt: number; readonly completion: number } | null = null;
@@ -243,6 +278,13 @@ export class AgentController {
   private snapshotValue: AgentSnapshot;
   /** Whether the panel that shows this controller has gone. A detached controller refuses to park a decision. */
   private detached = false;
+  /**
+   * Whether the writer was told that the interrupted runs could not be checked; the check runs after every turn, so once is enough
+   * until a check works again, which tells again if the log later stops being readable.
+   */
+  private runLogUnreadableTold = false;
+  /** The number of the latest check of the interrupted runs, so a check that finishes after a newer one has started is dropped. */
+  private loadSeq = 0;
   /** The offer the loop is waiting on, with the way to answer it. */
   private offer: { view: OfferView; resolve: (answer: OfferAnswer) => void } | null = null;
   private readonly tasks: TaskQueue;
@@ -270,6 +312,7 @@ export class AgentController {
       ...(background.locksAvailable === undefined ? {} : { locksAvailable: background.locksAvailable }),
       ...(background.sleep === undefined ? {} : { sleep: background.sleep }),
     });
+    this.runLog = createRunLogPort(session.runtimeStore());
     this.tasks.subscribe(() => this.onTasksChanged());
     this.snapshotValue = this.buildSnapshot();
   }
@@ -303,6 +346,7 @@ export class AgentController {
       busy: this.busy,
       stoppable: this.busy || this.pending !== null,
       stopping: this.stopping,
+      interrupted: this.interrupted,
       queue: this.queue,
       queuePaused: this.queuePaused,
       notes: this.pendingNotes,
@@ -385,10 +429,35 @@ export class AgentController {
     return this.turnWith(turn.intent, {}, (agent, options) => agent.submitPlan(turn.intent, { steps: held }, options));
   }
 
-  /** Saves the writer's typing before a card the mode approved applies, and lists the images again before a compile, as an approval does. */
-  private async beforeAutoApply(card: PlanCardView): Promise<void> {
-    await this.session.autosave.flush().catch(() => undefined);
-    if (card.steps.some((step) => step.tool.startsWith('export.compile'))) await this.session.exportsReady().catch(() => undefined);
+  /** Saves the writer's typing. False when it could not be written: the flush reports a failed write or a conflict rather than rejecting. */
+  private async typingSaved(): Promise<boolean> {
+    try {
+      const reports = await this.session.autosave.flush();
+      return !reports.some((report) => report.outcome === 'failed' || report.outcome === 'conflict');
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Saves the writer's typing before a card the mode approved applies, and lists the images again before a compile, as an approval does.
+   * When either fails the card is not applied unattended: the reason is said here and returned, and the loop puts the card to the writer.
+   */
+  private async beforeAutoApply(card: PlanCardView): Promise<string | void> {
+    let held: string | undefined;
+    if (!(await this.typingSaved())) {
+      held = 'Your typing could not be saved, so this card was not applied automatically. Approve it once your words are saved.';
+    } else if (card.steps.some((step) => step.tool.startsWith('export.compile'))) {
+      try {
+        await this.session.exportsReady();
+      } catch {
+        held = 'The project’s images could not be listed again, so this export was not applied automatically. Approve it to try again.';
+      }
+    }
+    if (held === undefined) return;
+    this.message = held;
+    this.bump();
+    return held;
   }
 
   /** How many turns this controller has started. A queued message counts once it starts, never while it waits. */
@@ -481,9 +550,19 @@ export class AgentController {
           meter: () => this.meter ?? undefined,
           price: () => this.priceForNextTurn ?? undefined,
           beforeAutoApply: (card) => this.beforeAutoApply(card),
+          runLog: {
+            port: this.runLog,
+            projectId: this.session.projectId,
+            // A step's record is written only once the project holds the step, so "applied" in the log means saved.
+            flush: () => this.session.saved(),
+            onNotice: (message) => {
+              this.message = message;
+              this.bump();
+            },
+          },
         }));
       this.runningAgent = agent;
-      this.meter = createBudgetMeter(this.runLimits());
+      this.meter = createBudgetMeter(this.runLimits(), options.restoredSpend === undefined ? {} : { restored: options.restoredSpend });
       report = await start(agent, {
         signal: abort.signal,
         profileId: profile.id,
@@ -514,6 +593,7 @@ export class AgentController {
       // Usage and the request log are kept after every turn, so a closed tab loses at most the turn in flight.
       void this.providers.persist();
       this.afterTurn(report);
+      void this.loadInterrupted();
       this.bump();
     }
   }
@@ -542,6 +622,125 @@ export class AgentController {
   private nextQueueId(): string {
     this.queueSeq += 1;
     return `queued-${this.queueSeq}`;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Interrupted runs
+   * ------------------------------------------------------------------ */
+
+  /**
+   * Reads the project's unfinished runs from the run log and checks each against the project as it stands. A run whose log could not be
+   * written is not offered: it does not describe the run. A log this build cannot read is offered for discarding only.
+   */
+  async loadInterrupted(): Promise<void> {
+    if (this.busy) return;
+    const turns = this.turnsStarted;
+    const seq = (this.loadSeq += 1);
+    // A turn that has started since, a newer check, or a panel that has gone: what this check found is no longer the list to show.
+    const superseded = (): boolean => this.busy || this.turnsStarted !== turns || this.loadSeq !== seq || this.detached;
+    let rows: Awaited<ReturnType<RunLogPort['open']>>;
+    try {
+      rows = await this.runLog.open(this.session.projectId);
+    } catch (error) {
+      // Said once, and never over a message the writer has not read yet, such as a turn's own result, nor over a turn that has begun.
+      if (!superseded() && !this.runLogUnreadableTold && this.message === null) {
+        this.runLogUnreadableTold = true;
+        this.message = `Interrupted agent runs could not be checked: ${error instanceof Error ? error.message : String(error)}`;
+        this.bump();
+      }
+      return;
+    }
+    // The log can be read again: a later failure is worth saying again.
+    this.runLogUnreadableTold = false;
+    const views: InterruptedRunView[] = [];
+    for (const run of rows) {
+      if (run.status !== 'interrupted' || run.cannotResume === true) continue;
+      let summary: ReturnType<typeof summarizeRun>;
+      try {
+        summary = await this.summarizeLogged(run.runId);
+      } catch {
+        // A read that failed, or a document the project could not give: the run stays listed, and only the writer discards it.
+        views.push({ runId: run.runId, intent: run.intent, applied: 0, total: 0, spend: null, resumable: false, note: 'This run’s log could not be read just now. It has not been changed; reopen the project to try again, or discard it.' });
+        continue;
+      }
+      if (run.schema !== RUN_LOG_VERSION || summary === undefined) {
+        views.push({ runId: run.runId, intent: run.intent, applied: 0, total: 0, spend: null, resumable: false, note: 'This run’s log is damaged or was written by another version of Caotang, so it cannot be resumed.' });
+        continue;
+      }
+      views.push({
+        runId: run.runId,
+        intent: summary.intent,
+        applied: summary.applied,
+        total: summary.total,
+        spend: summary.spend === undefined ? null : (spendLine({ spend: summary.spend, limits: this.runLimits() }) ?? null),
+        resumable: summary.resumable,
+        note: summary.note ?? null,
+      });
+    }
+    if (superseded()) return;
+    const same = JSON.stringify(views) === JSON.stringify(this.interrupted);
+    this.interrupted = views;
+    if (!same) this.bump();
+  }
+
+  /** A run's log read and checked against the project as it stands. Rejects when the log cannot be read. */
+  private async summarizeLogged(runId: string): Promise<ReturnType<typeof summarizeRun>> {
+    const tree = this.session.state.manifest.tree;
+    return summarizeRun(await this.runLog.events(runId), (id) => this.session.state.documents.get(id)?.revision, {
+      nameOf: (id) => tree.find((node) => node.id === id)?.title ?? id,
+      structure: () => structureDigest(this.session.state.manifest),
+    });
+  }
+
+  /**
+   * Resumes an interrupted run. The writer's click calls it, and nothing else does. A card the run was showing comes back needing its own
+   * Approve; a run that was waiting on the model asks it again, and the call the stop lost counts as spent against the run's limits.
+   */
+  async resumeRun(runId: string): Promise<TurnReport | null> {
+    if (this.busy) {
+      this.message = 'The agent is working on another turn. Resume the run when it has finished.';
+      this.bump();
+      return null;
+    }
+    const view = this.interrupted.find((entry) => entry.runId === runId);
+    if (view === undefined || !view.resumable) {
+      this.message = 'That run can no longer be resumed.';
+      this.bump();
+      return null;
+    }
+    // The resumed meter starts from the logged spend. A log that cannot be read gives no spend to start from, so the run is not resumed.
+    let restoredSpend: BudgetSpend | undefined;
+    let readError: string | undefined;
+    try {
+      restoredSpend = (await this.summarizeLogged(runId))?.restoredSpend;
+    } catch (error) {
+      readError = error instanceof Error ? error.message : String(error);
+    }
+    if (restoredSpend === undefined) {
+      // A read that failed may work next time; a log that was read and cannot be summarized will not.
+      this.message =
+        readError !== undefined
+          ? `The run log could not be read: ${readError}. The run was not resumed. Try again, or discard the log.`
+          : 'This run’s log is damaged or was written by another version of Caotang, so the run was not resumed. You can discard the log.';
+      this.bump();
+      return null;
+    }
+    this.announcement = 'Resuming the run.';
+    return this.turnWith(view.intent, { restoredSpend }, (agent, turn) => agent.resume(runId, turn));
+  }
+
+  /** "Discard log": deletes the run's log and nothing else. What the run wrote stays in the project. */
+  async discardRun(runId: string): Promise<void> {
+    try {
+      await this.runLog.discard(runId);
+    } catch (error) {
+      this.message = `The run log could not be discarded: ${error instanceof Error ? error.message : String(error)}`;
+      this.bump();
+      return;
+    }
+    this.announcement = 'Run log discarded. What the agent wrote stays in the project.';
+    await this.loadInterrupted();
+    this.bump();
   }
 
   /* ------------------------------------------------------------------ *
@@ -697,26 +896,53 @@ export class AgentController {
       }
     }
     // The card the decision answers, read before it leaves the screen: an approved compile needs its images listed again first.
-    const card = this.pending?.card ?? null;
+    const parked = this.pending;
+    const card = parked?.card ?? null;
     this.resolveDecision = null;
     this.pending = null;
-    if (decision.action !== 'edit') this.clearGhosts();
+    // An approval keeps the drafts on screen until the typing is saved, so a card that has to wait again still has them.
+    if (decision.action !== 'edit' && decision.action !== 'approve') this.clearGhosts();
     this.message = null;
     this.bump();
     if (decision.action === 'approve') {
       // The turn is still running: the loop applies the approved steps under it, and an adjust call may follow. `busy` stays set
       // until the turn settles (turnWith), so the panel shows Working and no second turn starts meanwhile.
       const compiles = card?.steps.some((step) => step.tool.startsWith('export.compile')) ?? false;
-      void this.session.autosave
-        .flush()
-        .catch(() => undefined)
-        // An approved compile lists the project's images again, as the export dialog's compile does (session.exportsReady): the
-        // compile reads the listing it last made, and an image added since would be missing from the shot list.
-        .then(() => (compiles ? this.session.exportsReady().catch(() => undefined) : undefined))
-        .then(() => {
-          resolve(decision);
+      void (async () => {
+        if (!(await this.typingSaved())) {
+          // Nothing is applied on top of typing that did not reach the store: the card waits for the writer again.
+          this.message = 'Your typing could not be saved, so the card was not applied. Approve it again once your words are saved.';
+          if (parked !== null && !this.stopping && !this.detached && this.resolveDecision === null) {
+            this.pending = parked;
+            this.resolveDecision = resolve;
+          } else {
+            resolve({ action: 'cancel' });
+          }
           this.bump();
-        });
+          return;
+        }
+        this.clearGhosts();
+        // An approved compile lists the project's images again, as the export dialog's compile does (session.exportsReady): the
+        // compile reads the listing it last made, and an image added since would be missing from the shot list. When the listing
+        // fails the dialog does not compile, and neither does the card: it waits for the writer again, as for unsaved typing.
+        if (compiles) {
+          try {
+            await this.session.exportsReady();
+          } catch (error) {
+            this.message = `The project’s images could not be listed again (${error instanceof Error ? error.message : String(error)}), so the export was not applied. Approve it again to try once more.`;
+            if (parked !== null && !this.stopping && !this.detached && this.resolveDecision === null) {
+              this.pending = parked;
+              this.resolveDecision = resolve;
+            } else {
+              resolve({ action: 'cancel' });
+            }
+            this.bump();
+            return;
+          }
+        }
+        resolve(decision);
+        this.bump();
+      })();
       return;
     }
     resolve(decision);
@@ -1042,6 +1268,7 @@ export class AgentController {
    */
   attach(): void {
     this.detached = false;
+    void this.loadInterrupted();
     this.queueWork = this.queueWork.then(() => this.tasks.open());
     // Registered here, where the panel that shows the controller attaches it, so a controller React discarded (StrictMode builds
     // one twice) is never the one a findings panel reaches.

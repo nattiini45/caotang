@@ -36,6 +36,7 @@ import {
   type Fixture,
   LANDING,
   CHAPTER_ONE,
+  CHAPTER_TWO,
   SHOTS_FOLDER,
 } from './support.js';
 
@@ -1199,6 +1200,32 @@ describe('the confirmation round trip on the wire', () => {
       expect(readFileSync(join(fixture.root, 'exports', csv[0] ?? ''), 'utf8')).toContain('The harbour, empty.');
     } finally {
       listing.mockRestore();
+      await client.close();
+      await fixture.close();
+    }
+  }, 30_000);
+
+  it('export.compile through a recipe with paper A4 and the font Cousine writes the screenplay PDF on A4 pages in Cousine', async () => {
+    const fixture = await startFixture({
+      label: 'export-a4',
+      allowWrites: true,
+      seed: true,
+      writing: true,
+      recipes: [{ name: 'A4 script', includeRootIds: [CHAPTER_TWO], format: 'pdf', options: { pageSize: 'A4', scriptFont: 'cousine' } }],
+    });
+    const client = await connectClient(fixture.url, fixture.token, () => ({ action: 'accept', content: { confirmed: true } }));
+    try {
+      const result = await client.callTool({ name: 'export.compile', arguments: { format: 'pdf', recipeName: 'A4 script' } });
+      expect(result.isError).not.toBe(true);
+      const pdf = readdirSync(join(fixture.root, 'exports')).filter((name) => name.endsWith('.pdf'));
+      expect(pdf).toHaveLength(1);
+      const bytes = readFileSync(join(fixture.root, 'exports', pdf[0] ?? '')).toString('latin1');
+      const boxes = [...bytes.matchAll(/\/MediaBox \[([^\]]+)\]/g)].map((match) => match[1]);
+      expect(boxes.length).toBeGreaterThan(0);
+      expect(new Set(boxes)).toEqual(new Set(['0 0 595.28 841.89']));
+      expect(bytes).toContain('/BaseFont /Cousine-Regular');
+      expect(bytes).toContain('(INT. HARBOUR - NIGHT) Tj');
+    } finally {
       await client.close();
       await fixture.close();
     }

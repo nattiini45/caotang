@@ -10,8 +10,7 @@
  * the call site in `test/exporter.test.ts`.
  */
 
-import type { SceneNumberPlacement } from '@caotang/screenplay';
-import type { ProjectState } from '@caotang/store';
+import type { ExportRecipeOptions as StoreExportRecipeOptions, ProjectState } from '@caotang/store';
 
 /**
  * The formats this build compiles. The prose formats are exporter.md §2 and §3 (`epub` is §3a's). The rest
@@ -99,38 +98,11 @@ export interface ExportSelection {
   readonly docFilter?: (doc: FilterDocument) => boolean;
 }
 
-export interface ExportRecipeOptions {
-  /** Front matter: the title page. Default on. */
-  readonly titlePage?: boolean;
-  /** Generated contents list where the format supports one. Default on. */
-  readonly toc?: boolean;
-  /** Shown on the title page and in the EPUB package metadata. */
-  readonly author?: string;
-  /**
-   * The dialogue table's character limit (dialogue-narrative.md §4): the `charLimit` column of each line. Absent means no limit.
-   * Only the dialogue table (`dialogue-csv` and `dialogue-xlsx`) reads it, and the other formats ignore it. A whole number above zero (the bus caps it at its own maximum).
-   */
-  readonly charLimit?: number;
-  /**
-   * The screenplay PDF's scene numbers (screenplay.md §5.3), in the paginator's shared type: in the left margin, the
-   * right, both, or off. Absent means off. Only `pdf` reads it.
-   */
-  readonly sceneNumbers?: SceneNumberPlacement;
-  /** `(MORE)` and `NAME (CONT'D)` where the screenplay PDF splits a speech across a page (screenplay.md §5.3). Default on. Only `pdf` reads it. */
-  readonly continued?: boolean;
-  /** The contact sheet's paper (storyboard.md §6): `A4` or `Letter`. Absent is A4. Only `contact-sheet-pdf` reads it. */
-  readonly pageSize?: 'A4' | 'Letter';
-  /**
-   * The contact sheet prints blank numbered frames to draw on instead of the shots' pictures (storyboard.md §6, the paper-photo round
-   * trip). Absent is off. Only `contact-sheet-pdf` reads it.
-   */
-  readonly paperFrames?: boolean;
-  /**
-   * Emoji print in colour (screenplay.md §5.3, storyboard.md §6): Noto Color Emoji's pictures, as vectors, instead of the black-and-white
-   * Noto Emoji. Absent is the format's default: off for `pdf`, on for `contact-sheet-pdf`; an explicit value always wins. Only those two read it.
-   */
-  readonly colourEmoji?: boolean;
-}
+/**
+ * A recipe's options: the store's type (the one the manifest holds and the bus writes), read-only here. Each key says which formats read it in
+ * `packages/store/src/manifest.ts`; the type-equality checks in `test/scene-numbers-union.test.ts` pin its bus-typed fields to the renderers'.
+ */
+export type ExportRecipeOptions = Readonly<StoreExportRecipeOptions>;
 
 /**
  * exporter.md §2: a named, saved selection — "paperback draft" vs "beta read" are one click. Recipes live in the

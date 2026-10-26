@@ -235,15 +235,29 @@ describe('the user guide’s reviewed claims match the code', () => {
   it('states the screenplay PDF’s margins, page numbering and recipe controls as the layout and the dialog have them', () => {
     const pdfSection = guide.slice(guide.indexOf('### The screenplay PDF'), guide.indexOf('## Writing dialogue'));
     const paginate = read('packages/screenplay/src/paginate.ts');
-    // US Letter at 72 points an inch: 1.5 inches is 108 points, 1 inch is 72.
-    expect(pdfSection).toContain('sets the script on US Letter pages');
+    // US Letter at 72 points an inch: 1.5 inches is 108 points, 1 inch is 72. A4 is 210 by 297 mm.
+    expect(pdfSection).toContain('sets the script on US Letter or A4 pages');
     expect(paginate).toContain('pageWidth: 612,');
     expect(paginate).toContain('pageHeight: 792,');
-    expect(pdfSection).toContain('The margins are 1.5 inches on the left and 1 inch on the other three sides.');
+    expect(paginate).toContain('A4: Object.freeze({ pageWidth: 595.28, pageHeight: 841.89, marginRight: 55.28, marginBottom: 121.89 })');
+    expect(pdfSection).toContain('The margins are 1.5 inches on the left and 1 inch on the other three sides on Letter.');
     for (const margin of ['marginLeft: 108,', 'marginRight: 72,', 'marginTop: 72,', 'marginBottom: 72,']) expect(paginate).toContain(margin);
+    // The paper and the face are controls of the dialog, in the words the guide uses, and Letter and Courier Prime are what it preselects.
+    expect(pdfSection).toContain('**Paper size** is US Letter unless you choose A4 in the recipe.');
+    expect(pdfSection).toContain('A4 is taller, and the extra height is white space at the foot of the page.');
+    expect(pdfSection).toContain('**Font** is Courier Prime at 12 point unless you choose another in the recipe: **Cousine (like Courier New)**, or **Courier (the reader\u2019s own)**.');
+    const dialogSource = read('apps/desktop/src/components/ExportDialog.tsx');
+    expect(dialogSource).toContain('<span className="export-option-label">Paper size</span>');
+    expect(dialogSource).toContain('<span className="export-option-label">Font</span>');
+    expect(dialogSource).toContain("value={shown.pageSize ?? 'Letter'}");
+    expect(dialogSource).toContain("value={shown.scriptFont ?? 'courier-prime'}");
+    expect(dialogSource).toContain("'courier-prime': 'Courier Prime',");
+    expect(dialogSource).toContain("courier: 'Courier (the reader\u2019s own)',");
+    expect(dialogSource).toContain("cousine: 'Cousine (like Courier New)',");
+    expect(read('packages/exporter/src/media.ts')).toContain('...(request.scriptFont === undefined ? {} : { scriptFont: request.scriptFont }),');
     expect(pdfSection).toContain('Script pages count from 1. The number is printed at the top right from page 2.');
     expect(paginate).toContain('const all = number >= 2 ? [...lines, pageNumberLine(number)] : [...lines];');
-    expect(paginate).toContain('x: LAYOUT.pageWidth - LAYOUT.marginRight - text.length * LAYOUT.charWidth,');
+    expect(paginate).toContain('x: LAYOUT.textRight - text.length * LAYOUT.charWidth,');
     expect(paginate).toContain('y: LAYOUT.pageNumberY,');
     expect(paginate).toContain('pageNumberY: 46,');
     // The recipe controls, in the words the export dialog shows.
@@ -375,6 +389,15 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(read('apps/desktop/src/app/agent.ts')).toContain("'The last turn stopped on a question. Answer it or choose Run the queue.'");
     expect(guide).toContain('answer the question or choose **Run the queue**');
     expect(changelog).toContain('**Stop** (or **Esc**, with the Intent box empty) ends a running turn');
+  });
+
+  it('says in the guide what the panel says when an interrupted run’s log cannot be read', () => {
+    const controller = read('apps/desktop/src/app/agent.ts');
+    expect(controller).toContain('Interrupted agent runs could not be checked: ');
+    expect(controller).toContain('The run was not resumed. Try again, or discard the log.');
+    expect(controller).toContain('so the run was not resumed. You can discard the log.');
+    expect(guide).toContain('the panel says once that interrupted runs could not be checked and shows no card');
+    expect(guide).toContain('the run is not resumed and the panel says so: try again, or choose **Discard log**');
   });
 
   it('names the Agent setting in the words the section shows, and says it is off by default', () => {

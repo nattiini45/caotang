@@ -6,7 +6,7 @@
  * unknown-tolerant rules that make them safe.
  */
 
-import type { SceneNumbersOption } from '@caotang/bus';
+import type { RecipeScriptFont, SceneNumbersOption } from '@caotang/bus';
 
 import type { PermissionRule } from './agent-rules.js';
 
@@ -55,8 +55,10 @@ export interface ExportRecipeOptions {
   sceneNumbers?: SceneNumbersOption;
   /** `(MORE)` and `(CONT'D)` across a page break in the screenplay PDF (screenplay.md §5.3). Absent = on. */
   continued?: boolean;
-  /** The contact sheet's paper (storyboard.md §6). Absent = A4. */
+  /** The paper of the screenplay PDF (screenplay.md §5.3) and the contact sheet (storyboard.md §6). Absent = Letter for the first, A4 for the second. */
   pageSize?: 'A4' | 'Letter';
+  /** The screenplay PDF's Latin face (screenplay.md §5.3). Absent = courier-prime. */
+  scriptFont?: RecipeScriptFont;
   /** The contact sheet prints blank numbered frames to draw on (storyboard.md §6). Absent = off. */
   paperFrames?: boolean;
   /** Emoji print in colour in the screenplay PDF and the contact sheet (screenplay.md §5.3). Absent = the format's default: off for the screenplay PDF, on for the contact sheet. */

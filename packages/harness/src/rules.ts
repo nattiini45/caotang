@@ -241,6 +241,19 @@ export function withheldNodes(set: RuleSet, state: Pick<ProjectState, 'manifest'
   return out;
 }
 
+/**
+ * The nodes any read-deny keeps from some tool, whatever the tool. A conversation already held was filtered by this much at least, so a
+ * resume compares it with what it was when the run's last prompt was built.
+ */
+export function withheldAnywhere(set: RuleSet, state: Pick<ProjectState, 'manifest'>): ReadonlySet<string> {
+  const out = new Set<string>();
+  for (const rule of set.rules) {
+    if (rule.effect !== 'deny' || rule.scope === undefined || (rule.access ?? 'any') === 'write') continue;
+    for (const id of scopeNodes(rule.scope, state.manifest.tree) ?? []) out.add(id);
+  }
+  return out;
+}
+
 const SOURCE_WORDS: Readonly<Record<RuleSource, string>> = { app: 'your app settings', project: 'this project’s file', session: 'this session' };
 
 const noteOf = (rule: SourcedRule): string => (rule.note === undefined ? '' : ` (${rule.note})`);

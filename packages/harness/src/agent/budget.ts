@@ -97,6 +97,9 @@ const COST_EPSILON = 1e-9;
 const costOf = (price: { readonly prompt: number; readonly completion: number }, promptTokens: number, completionTokens: number): number =>
   (promptTokens / 1_000) * price.prompt + (completionTokens / 1_000) * price.completion;
 
+/** A token figure the meter can add: finite and not below zero. */
+const isAmount = (value: number): boolean => Number.isFinite(value) && value >= 0;
+
 export function createBudgetMeter(limits: RunLimits = {}, options: BudgetMeterOptions = {}): BudgetMeter {
   const clock = options.clock ?? systemClock;
   const restored = options.restored;
@@ -115,7 +118,8 @@ export function createBudgetMeter(limits: RunLimits = {}, options: BudgetMeterOp
   let timer: TimerId | undefined;
   const held = new Map<string, Reservation>();
 
-  const activeMs = (): number => activeBase + (runningSince === undefined ? 0 : clock.now() - runningSince);
+  // A clock stepped backwards must not take time off what the run has already used.
+  const activeMs = (): number => activeBase + (runningSince === undefined ? 0 : Math.max(0, clock.now() - runningSince));
 
   const timeHit = (): BudgetStop | undefined => {
     const now = clock.now();
@@ -219,10 +223,12 @@ export function createBudgetMeter(limits: RunLimits = {}, options: BudgetMeterOp
 
     settle(reservation, usage, estimate) {
       if (!held.delete(reservation.id)) return;
-      const used = usage ?? estimate ?? { promptTokens: reservation.promptTokens, completionTokens: reservation.maxOutputTokens };
+      // A figure a provider reports that is not an amount (negative or not finite) is no usage: the call settles at the estimate.
+      const reported = usage !== undefined && isAmount(usage.promptTokens) && isAmount(usage.completionTokens) ? usage : undefined;
+      const used = reported ?? estimate ?? { promptTokens: reservation.promptTokens, completionTokens: reservation.maxOutputTokens };
       promptTokens += used.promptTokens;
       completionTokens += used.completionTokens;
-      if (usage === undefined) estimatedTokens += used.promptTokens + used.completionTokens;
+      if (reported === undefined) estimatedTokens += used.promptTokens + used.completionTokens;
       if (reservation.price !== undefined) costUsd = (costUsd ?? 0) + costOf(reservation.price, used.promptTokens, used.completionTokens);
     },
 

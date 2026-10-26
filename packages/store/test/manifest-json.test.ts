@@ -190,6 +190,28 @@ describe('manifest serializer', () => {
     expect(r.warnings.map((w) => w.path)).toContain('recipes[0].options');
   });
 
+  it('keeps the screenplay PDF’s paper and font through a save and a load, and drops any other font with a warning', () => {
+    for (const scriptFont of ['courier-prime', 'courier', 'cousine'] as const) {
+      const m = rich();
+      m.recipes = [{ name: 'script', includeRootIds: ['manuscript'], format: 'pdf', options: { pageSize: 'A4', scriptFont } }];
+      const reloaded = JSON.parse(serializeManifest(m)) as Manifest;
+      expect(reloaded.recipes?.[0]?.options).toEqual({ pageSize: 'A4', scriptFont });
+      const r = validateManifest(reloaded, { docFiles: [] });
+      expect(r.warnings.map((w) => w.path), scriptFont).not.toContain('recipes[0].options');
+      expect((r.manifest as Manifest).recipes?.[0]?.options).toEqual({ pageSize: 'A4', scriptFont });
+    }
+    for (const bad of ['Courier New', 'COURIER', 3, true]) {
+      const m = rich();
+      m.recipes = [{ name: 'script', includeRootIds: ['manuscript'], format: 'pdf', options: { scriptFont: bad as unknown as 'courier' } }];
+      expect((JSON.parse(serializeManifest(m)) as Manifest).recipes?.[0]?.options, String(bad)).toEqual({});
+      expect(validateManifest(m, { docFiles: [] }).warnings.map((w) => w.path), String(bad)).toContain('recipes[0].options');
+    }
+    // A recipe saved before the option existed has none, and loads as it was.
+    const old = rich();
+    old.recipes = [{ name: 'before', includeRootIds: ['manuscript'], format: 'pdf', options: { sceneNumbers: 'left' } }];
+    expect((validateManifest(JSON.parse(serializeManifest(old)) as Manifest, { docFiles: [] }).manifest as Manifest).recipes?.[0]?.options).toEqual({ sceneNumbers: 'left' });
+  });
+
   it('keeps the contact sheet’s paper frames switch, a boolean, through a save and a load, and drops any other value with a warning', () => {
     for (const good of [true, false]) {
       const m = rich();

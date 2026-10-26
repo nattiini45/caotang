@@ -59,10 +59,11 @@ export const METADATA_PATCH_KEYS = ['author', 'language', 'isbn', 'coverAssetId'
 
 /**
  * The keys a recipe's options carry (exporter.md §2; `charLimit` is dialogue-narrative.md §4's column, made a recipe option;
- * `sceneNumbers` and `continued` are the screenplay PDF's options, screenplay.md §5.3; `pageSize` is the contact sheet's
- * paper and `paperFrames` its blank frames, storyboard.md §6; `colourEmoji` is both PDFs' colour emoji, screenplay.md §5.3).
+ * `sceneNumbers`, `continued` and `scriptFont` are the screenplay PDF's options, screenplay.md §5.3; `pageSize` is the paper of both PDFs
+ * (Letter for the screenplay PDF, A4 for the contact sheet when it is absent) and `paperFrames` the contact sheet's blank frames,
+ * storyboard.md §6; `colourEmoji` is both PDFs' colour emoji, screenplay.md §5.3).
  */
-const RECIPE_OPTION_KEYS = ['titlePage', 'toc', 'author', 'charLimit', 'sceneNumbers', 'continued', 'pageSize', 'paperFrames', 'colourEmoji'] as const;
+const RECIPE_OPTION_KEYS = ['titlePage', 'toc', 'author', 'charLimit', 'sceneNumbers', 'continued', 'pageSize', 'scriptFont', 'paperFrames', 'colourEmoji'] as const;
 
 /** Where the screenplay PDF may print scene numbers (screenplay.md §5.3). */
 export const SCENE_NUMBER_OPTIONS = ['off', 'left', 'right', 'both'] as const;
@@ -74,8 +75,13 @@ export const SCENE_NUMBER_OPTIONS = ['off', 'left', 'right', 'both'] as const;
  */
 export type SceneNumbersOption = (typeof SCENE_NUMBER_OPTIONS)[number];
 
-/** The papers a contact sheet is drawn on (storyboard.md §6). */
+/** The papers the PDFs are drawn on (screenplay.md §5.3, storyboard.md §6). */
 export const RECIPE_PAGE_SIZES = ['A4', 'Letter'] as const;
+
+/** The Latin faces of the screenplay PDF (screenplay.md §5.3). The screenplay package holds the same list; a test keeps the two equal. */
+export const RECIPE_SCRIPT_FONTS = ['courier-prime', 'courier', 'cousine'] as const;
+
+export type RecipeScriptFont = (typeof RECIPE_SCRIPT_FONTS)[number];
 
 const VOCABULARY_KINDS: readonly VocabularyKind[] = ['status', 'label'];
 
@@ -184,11 +190,22 @@ function recipeOptionsOf(value: unknown): Result<RecipeOptionsParams | undefined
     if (pageSize !== 'A4' && pageSize !== 'Letter') {
       return invalid(
         `params.options.pageSize must be one of ${RECIPE_PAGE_SIZES.join(', ')}, got ${showValue(pageSize)}`,
-        `pass ${RECIPE_PAGE_SIZES.join(' or ')}, or leave it out for A4`,
+        `pass ${RECIPE_PAGE_SIZES.join(' or ')}, or leave it out for the format's own paper (Letter for the screenplay PDF, A4 for the contact sheet)`,
         'options.pageSize',
       );
     }
     typed.pageSize = pageSize;
+  }
+  const scriptFont = value['scriptFont'];
+  if (scriptFont !== undefined) {
+    if (typeof scriptFont !== 'string' || !(RECIPE_SCRIPT_FONTS as readonly string[]).includes(scriptFont)) {
+      return invalid(
+        `params.options.scriptFont must be one of ${RECIPE_SCRIPT_FONTS.join(', ')}, got ${showValue(scriptFont)}`,
+        `pass one of ${RECIPE_SCRIPT_FONTS.join(', ')}, or leave it out for courier-prime`,
+        'options.scriptFont',
+      );
+    }
+    typed.scriptFont = scriptFont as (typeof RECIPE_SCRIPT_FONTS)[number];
   }
   return ok(typed);
 }

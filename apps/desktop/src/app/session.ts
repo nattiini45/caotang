@@ -80,6 +80,7 @@ import {
   createSessionTracker,
   domFlushSignals,
   evictSnapshots,
+  pruneRuns,
   getRevision,
   isBodyType,
   resolveRetentionConfig,
@@ -682,6 +683,8 @@ export class ProjectSession {
   private async sweepSnapshots(): Promise<void> {
     try {
       await evictSnapshots(this.runtime, this.projectId, Date.now(), this.retention);
+      // The agent's run logs keep the checkpoints' clock: thirty days, fifty runs (agent-harness §5.1).
+      await pruneRuns(this.runtime, this.projectId);
     } catch (error) {
       this.maintenanceFailure = error;
       this.bump();
@@ -1310,6 +1313,22 @@ export class ProjectSession {
     if (this.autosave.dirtyDocIds().length > 0) return 'saving';
     if (this.coherenceInFlight > 0) return 'saving';
     return 'saved';
+  }
+
+  /** The runtime store this project lives in: the agent's run log is kept beside it (agent-harness §5.1). */
+  runtimeStore(): RuntimeStore {
+    return this.runtime;
+  }
+
+  /**
+   * Resolves when the store holds every change made so far, the agent's included, and refuses when it cannot: the agent writes a step's
+   * record only after this, so the record means the step is on disk. Lighter than `settle`, which also reads the project's pictures.
+   */
+  async saved(): Promise<void> {
+    await this.autosave.flush();
+    await this.persistence.settle();
+    const state = this.saveState();
+    if (state === 'failed' || state === 'conflict') throw new Error('the project could not be saved');
   }
 
   /** Resolves when the store holds everything this session has done so far. */

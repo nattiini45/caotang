@@ -311,6 +311,10 @@ export {
   PROJECT_STORE,
   RUNTIME_DB_NAME,
   RUNTIME_DB_VERSION,
+  RUN_EVENT_RUN_INDEX,
+  RUN_EVENT_STORE,
+  RUN_PROJECT_INDEX,
+  RUN_STORE,
   SESSION_PROJECT_INDEX,
   SESSION_STORE,
   SNAPSHOT_PROJECT_INDEX,
@@ -346,6 +350,31 @@ export {
   type WriteDocumentResult,
   type WriteProjectStateResult,
 } from './runtime/store.js';
+
+export {
+  DEFAULT_RUN_RETENTION,
+  OPEN_RUN_STATUSES,
+  RunExistsError,
+  RunNotFoundError,
+  appendRunEvents,
+  createRunLogPort,
+  createRun,
+  deleteRun,
+  markRunsInterrupted,
+  pruneRuns,
+  readOpenRuns,
+  readRun,
+  readRunEvents,
+  readRuns,
+  updateRun,
+  type RunEventInput,
+  type RunEventRow,
+  type RunPatch,
+  type RunLogStorePort,
+  type RunRetention,
+  type RunRow,
+  type RunStatus,
+} from './runtime/run-log-store.js';
 
 export {
   DEFAULT_RETENTION,

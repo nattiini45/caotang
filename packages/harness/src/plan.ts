@@ -112,9 +112,12 @@ export interface AskBack {
  * retry the step that failed without re-running the steps before it. `proposals` is one entry per
  * step, aligned by index, holding what the agent loop staged for a model-backed step. `signal` is the writer's
  * stop: it is read before each step, never inside one, so a started step finishes and the steps after it do not run.
+ * `until` ends the run before that step (exclusive): the agent loop runs a logged plan one step at a time, so each step's record is
+ * written before it runs and after it is saved (agent-harness §5.1). A run with `until` is not recorded in the plan replay cache.
  */
 export interface PlanOptions {
   readonly from?: number;
+  readonly until?: number;
   readonly proposals?: readonly unknown[];
   readonly signal?: AbortSignal;
 }
@@ -146,6 +149,13 @@ function startOf(plan: Plan, options: PlanOptions): number {
   const from = options.from ?? 0;
   if (!Number.isInteger(from) || from < 0 || from > plan.steps.length) return 0;
   return from;
+}
+
+/** The step index a run stops before: the plan's end unless `until` names an earlier step. */
+function endOf(plan: Plan, options: PlanOptions): number {
+  const until = options.until;
+  if (until === undefined || !Number.isInteger(until) || until < 0 || until > plan.steps.length) return plan.steps.length;
+  return until;
 }
 
 /** A plan as the model sent it, checked against the plan schema. */
@@ -214,7 +224,8 @@ function lookupKinds(error: CommandError): readonly LookupKind[] {
 /** Checks every step from the plan's start, in order, with no effect. */
 export function preflight(plan: Plan, host: PlanHost, options: PlanOptions = {}): PlanPreflight {
   const steps: PlanStepPreflight[] = [];
-  for (let index = startOf(plan, options); index < plan.steps.length; index += 1) {
+  const end = endOf(plan, options);
+  for (let index = startOf(plan, options); index < end; index += 1) {
     const step = plan.steps[index] as PlanStep;
     const base = { index, tool: step.tool, expect: step.expect };
     if (!host.known(step.tool)) {
@@ -335,7 +346,8 @@ export function runPlan(
   if (!pre.ok) return { status: 'refused', preflight: pre };
 
   const completed: StepResult[] = [];
-  for (let index = startOf(plan, options); index < plan.steps.length; index += 1) {
+  const end = endOf(plan, options);
+  for (let index = startOf(plan, options); index < end; index += 1) {
     if (options.signal?.aborted === true) {
       const stopped = completed.find((entry) => entry.value.undoGroupId !== undefined)?.value.undoGroupId;
       return { status: 'stopped', completed, stoppedAt: index, ...(stopped === undefined ? {} : { undoGroupId: stopped }) };

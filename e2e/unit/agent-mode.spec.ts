@@ -121,3 +121,31 @@ test('Accept edits applies the synopses with no card, as one checkpoint, and the
   expect(getBody(state, state.manifest.tree.find((node) => node.title === 'The Friend')?.id ?? '')).toBe('');
   await session.close();
 });
+
+test('Accept edits does not apply a card unattended when the writer’s typing could not be saved: the card is put to the writer, and an approval waits for the save', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const { session, controller } = await controllerOver(state, store);
+  const saves = session.autosave as unknown as { flush: () => Promise<{ docId: string; outcome: string }[]> };
+  const flush = saves.flush.bind(saves);
+  let failing = true;
+  saves.flush = async () => (failing ? [{ docId: 'any', outcome: 'failed' }] : flush());
+  controller.setMode('accept-edits');
+  const running = controller.submit(DEMO_INTENTS.fillSynopses, { demo: true });
+  await until(() => controller.snapshot().pending !== null, 'the held card to wait for the writer');
+  expect(controller.snapshot().message).toContain('Your typing could not be saved, so this card was not applied automatically');
+  expect(synopsisOf(state, 'The Storm')).toBe('');
+  // Approving while the save still fails leaves the card where it is and says so; nothing is written.
+  controller.answer({ action: 'approve' });
+  await until(() => controller.snapshot().message?.includes('Approve it again') === true, 'the approval to be refused');
+  expect(controller.snapshot().pending).not.toBeNull();
+  expect(synopsisOf(state, 'The Storm')).toBe('');
+  // Once the save works the same card can be approved and applies.
+  failing = false;
+  controller.answer({ action: 'approve' });
+  const report = await running;
+  expect(report?.status).toBe('applied');
+  expect(report?.cards.map((card) => card.kind)).toEqual(['confirm']);
+  expect(synopsisOf(state, 'The Storm')).not.toBe('');
+  await session.close();
+});
