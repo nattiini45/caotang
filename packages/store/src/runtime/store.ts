@@ -170,6 +170,13 @@ export interface ProjectRow {
    */
   coherenceFiles?: Record<string, string>;
   /**
+   * The project's recurring-tasks artifact set (agent-harness.md §12), by its project-relative path: `tasks.json` and its `.bak.N`
+   * snapshots and any kept `.corrupt-<ts>` copy. The same home the coherence set has, for the same reason, and kept apart from it so
+   * that rewriting one set cannot tear the other. Optional, and absent means no tasks file yet. A manifest write leaves it alone, and
+   * the only writer is {@link writeTaskFiles}.
+   */
+  taskFiles?: Record<string, string>;
+  /**
    * `ProjectState.skills`, flattened: every skill file by its path inside `.agents/skills/` (`<folder>/<path>`), as bytes. The
    * store is a view over the state, so a rehydrated state holds the skills the project had. Optional, and absent means no skills,
    * which is what a row written before skills existed has. A structural commit carries it across, as it does `declinedText`.
@@ -717,6 +724,9 @@ export function commitProject(store: RuntimeStore, commit: ProjectCommit): Promi
         if (previous?.coherenceFiles !== undefined) {
           row.coherenceFiles = { ...previous.coherenceFiles };
         }
+        if (previous?.taskFiles !== undefined) {
+          row.taskFiles = { ...previous.taskFiles };
+        }
         projects.put(row);
         for (const doc of commit.createDocuments ?? []) {
           // `add`, not `put`. A `put` at a key that is taken overwrites the row, so a
@@ -894,6 +904,7 @@ export function writeProjectState(
       previousRequest.onsuccess = guarded(fail, () => {
         const previous = previousRequest.result as ProjectRow | undefined;
         if (previous?.coherenceFiles !== undefined) project.coherenceFiles = { ...previous.coherenceFiles };
+        if (previous?.taskFiles !== undefined) project.taskFiles = { ...previous.taskFiles };
         projects.put(project);
       });
 
@@ -958,6 +969,38 @@ export function writeCoherenceFiles(store: RuntimeStore, projectId: string, file
         return;
       }
       projects.put({ ...row, coherenceFiles: { ...files } });
+      done(undefined);
+    });
+  });
+}
+
+/** The project's recurring-tasks artifact set, by path (ProjectRow.taskFiles), read as {@link readCoherenceFiles} reads its set. */
+export function readTaskFiles(store: RuntimeStore, projectId: string): Promise<Record<string, string>> {
+  return transact<Record<string, string>>(store.db, [PROJECT_STORE], 'readonly', (tx, done, fail) => {
+    const request = tx.objectStore(PROJECT_STORE).get(projectId);
+    request.onsuccess = guarded(fail, () => {
+      const row = request.result as ProjectRow | undefined;
+      if (!row) {
+        fail(new ProjectNotFoundError(projectId));
+        return;
+      }
+      done({ ...(row.taskFiles ?? {}) });
+    });
+  });
+}
+
+/** Replaces the project's recurring-tasks artifact set with `files` (ProjectRow.taskFiles), whole, in one read-and-put transaction. */
+export function writeTaskFiles(store: RuntimeStore, projectId: string, files: Readonly<Record<string, string>>): Promise<void> {
+  return transact<void>(store.db, [PROJECT_STORE], 'readwrite', (tx, done, fail) => {
+    const projects = tx.objectStore(PROJECT_STORE);
+    const request = projects.get(projectId);
+    request.onsuccess = guarded(fail, () => {
+      const row = request.result as ProjectRow | undefined;
+      if (!row) {
+        fail(new ProjectNotFoundError(projectId));
+        return;
+      }
+      projects.put({ ...row, taskFiles: { ...files } });
       done(undefined);
     });
   });

@@ -117,6 +117,7 @@ import { ProjectAssets, coverFileHeld } from './project-assets.js';
 import { SkillReviews } from './skill-reviews.js';
 import { skillsView, type SkillsView } from './skills-model.js';
 import type { DirectoryHandleLike } from './fs-access.js';
+import type { TasksHome } from './tasks-io.js';
 import { Persistence } from './persistence.js';
 import type { Shadow } from './persistence-plan.js';
 import { dropHistoryOf } from './history-store.js';
@@ -333,6 +334,8 @@ export class ProjectSession {
   private readonly rejections: RejectedDispatch[] = [];
   /** The coherence file's write port and what its load said, once the file is attached (coherence.md §3). */
   private coherencePort: CoherencePort | null = null;
+  /** The project's recurring tasks and where they are saved (tasks-io.ts). Null until the lifecycle has loaded them. */
+  private tasksHome_: TasksHome | null = null;
   private coherenceWritable = false;
   private coherenceNotices: readonly string[] = [];
   /** Why the last findings save to this browser failed. The save indicator reads failed while it is set. */
@@ -1160,6 +1163,23 @@ export class ProjectSession {
     return this.state.coherence as CoherenceFile | undefined;
   }
 
+  /** Gives the session its recurring tasks, as the lifecycle loaded them (agent-harness.md §12). They are not project state: no command changes them. */
+  attachTasks(home: TasksHome): void {
+    this.tasksHome_ = home;
+    this.bump();
+  }
+
+  /** The project's recurring tasks and where they are saved, or `null` when none were loaded. */
+  tasksHome(): TasksHome | null {
+    return this.tasksHome_;
+  }
+
+  /** Makes a folder a place the tasks file is saved to, as `attachCoherenceFolder` does for the findings. */
+  async attachTasksFolder(root: DirectoryHandleLike): Promise<void> {
+    if (this.persistence.isStopped()) return;
+    await this.tasksHome_?.attachFolder(root);
+  }
+
   /** What the findings tab reads about the file: attached, writable, what the load noticed, and the last save's failure. */
   coherenceStatus(): CoherenceStatus {
     return {
@@ -1339,6 +1359,7 @@ export class ProjectSession {
     await this.autosave.flush();
     await this.persistence.settle();
     await this.coherenceQueue;
+    await this.tasksHome_?.settled();
   }
 
   /**
@@ -1463,6 +1484,7 @@ export class ProjectSession {
         await this.autosave.flush();
         await this.persistence.settle();
         await this.coherenceQueue;
+        await this.tasksHome_?.settled();
         this.pending.prune();
         this.autosave.dispose();
         if (this.sitting.isOpen() && (this.sitting.pending()?.docIds.length ?? 0) > 0) {
