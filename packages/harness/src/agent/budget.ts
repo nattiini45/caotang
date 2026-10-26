@@ -98,7 +98,7 @@ const costOf = (price: { readonly prompt: number; readonly completion: number },
   (promptTokens / 1_000) * price.prompt + (completionTokens / 1_000) * price.completion;
 
 /** A token figure the meter can add: finite and not below zero. */
-const isCount = (value: number): boolean => Number.isFinite(value) && value >= 0;
+const isAmount = (value: number): boolean => Number.isFinite(value) && value >= 0;
 
 export function createBudgetMeter(limits: RunLimits = {}, options: BudgetMeterOptions = {}): BudgetMeter {
   const clock = options.clock ?? systemClock;
@@ -224,7 +224,7 @@ export function createBudgetMeter(limits: RunLimits = {}, options: BudgetMeterOp
     settle(reservation, usage, estimate) {
       if (!held.delete(reservation.id)) return;
       // A figure a provider reports that cannot be a count (negative or not finite) is no usage: the call settles at the estimate.
-      const reported = usage !== undefined && isCount(usage.promptTokens) && isCount(usage.completionTokens) ? usage : undefined;
+      const reported = usage !== undefined && isAmount(usage.promptTokens) && isAmount(usage.completionTokens) ? usage : undefined;
       const used = reported ?? estimate ?? { promptTokens: reservation.promptTokens, completionTokens: reservation.maxOutputTokens };
       promptTokens += used.promptTokens;
       completionTokens += used.completionTokens;

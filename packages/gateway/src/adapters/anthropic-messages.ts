@@ -34,7 +34,7 @@ import type {
 } from './types.js';
 
 /** A token figure that can be a count: a number, finite and not below zero. Anything else is no usage. */
-const isCount = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
+const isAmount = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
 
 function mapStopReason(raw: unknown): FinishReason | undefined {
   if (typeof raw !== 'string') return undefined;
@@ -191,8 +191,8 @@ function anthropicStreamParser(): StreamParser {
         case 'message_start': {
           const message = record.message as Record<string, unknown> | undefined;
           const usage = message?.usage as Record<string, unknown> | undefined;
-          if (isCount(usage?.input_tokens)) promptTokens = usage.input_tokens;
-          if (isCount(usage?.output_tokens)) completionTokens = usage.output_tokens;
+          if (isAmount(usage?.input_tokens)) promptTokens = usage.input_tokens;
+          if (isAmount(usage?.output_tokens)) completionTokens = usage.output_tokens;
           return [];
         }
         case 'content_block_start': {
@@ -243,7 +243,7 @@ function anthropicStreamParser(): StreamParser {
         case 'message_delta': {
           const delta = record.delta as Record<string, unknown> | undefined;
           const usage = record.usage as Record<string, unknown> | undefined;
-          if (isCount(usage?.output_tokens)) completionTokens = usage.output_tokens;
+          if (isAmount(usage?.output_tokens)) completionTokens = usage.output_tokens;
           const finish = mapStopReason(delta?.stop_reason);
           return [...(finish !== undefined ? [{ finish }] : []), ...usagePiece()];
         }
