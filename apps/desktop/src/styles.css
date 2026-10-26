@@ -26,7 +26,7 @@
   --radius: 8px;
   --ui: ui-sans-serif, system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --manuscript: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
-  --rail-w: 264px;
+  --rail-w: 288px;
   --inspector-w: 296px;
   font-family: var(--ui);
 }
@@ -371,7 +371,9 @@ button.chip {
 
 .rail-tabs {
   display: flex;
-  gap: 2px;
+  /* Five tabs: a narrow rail wraps the last onto a second line rather than hiding it. */
+  flex-wrap: wrap;
+  gap: 0;
   padding: 6px 8px 0;
   border-bottom: 1px solid var(--line);
 }
@@ -379,7 +381,7 @@ button.chip {
 .rail-tab {
   font: inherit;
   font-size: 13px;
-  padding: 8px 10px;
+  padding: 8px 5px;
   border: none;
   border-bottom: 2px solid transparent;
   background: none;
@@ -3431,4 +3433,190 @@ dialog.confirm:has(.folder-file-preview) {
   margin: 0 0 8px;
   padding-left: 20px;
   font-size: 12.5px;
+}
+
+/* ------------------------------------------------------------------ *
+ * The Trace tab (agent-harness §5.2)
+ * ------------------------------------------------------------------ */
+
+.trace {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.trace-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.trace-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.trace-faint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.trace-turns,
+.trace-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.trace-turn {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.trace-turn-head,
+.trace-row summary {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  width: 100%;
+  padding: 6px 8px;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.trace-turn-head[aria-expanded='true'] {
+  border-bottom: 1px solid var(--line);
+}
+
+.trace-rows {
+  padding: 4px;
+}
+
+.trace-row {
+  border-left: 3px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--panel);
+}
+
+.trace-row.is-call {
+  border-left-color: var(--accent);
+}
+
+.trace-row.is-tool {
+  border-left-color: var(--warn);
+}
+
+.trace-row summary {
+  list-style-position: inside;
+}
+
+.trace-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.trace-facts {
+  color: var(--muted);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
+.trace-track {
+  position: relative;
+  display: block;
+  height: 5px;
+  margin-top: 3px;
+  border-radius: 3px;
+  background: var(--line);
+}
+
+.trace-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+.trace-detail {
+  padding: 2px 8px 8px;
+}
+
+.trace-detail h4 {
+  margin: 8px 0 4px;
+  font-size: 12px;
+}
+
+.trace-message {
+  margin: 3px 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.trace-message > summary {
+  padding: 3px 6px;
+  cursor: pointer;
+}
+
+.trace-role {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+}
+
+.trace-text {
+  margin: 0;
+  padding: 6px 8px;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.45;
+  background: var(--bg);
+}
+
+.trace-note-row {
+  display: block;
+  padding: 4px 8px;
+  color: var(--ink-soft);
+  font-size: 11.5px;
+}
+
+.trace-error {
+  margin: 0 0 4px;
+  color: var(--danger);
+}
+
+.trace-scope {
+  margin: 0;
+  padding: 0;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  /* Two radios whose targets (24 px, WCAG 2.2 2.5.8) do not touch. */
+  gap: 12px;
+}
+
+.trace-scope legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 600;
 }

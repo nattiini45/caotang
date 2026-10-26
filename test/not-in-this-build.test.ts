@@ -63,6 +63,7 @@ const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp
   // The CJK sentence of the limits: "Text in Noto Sans Mono CJK has no bold", "Chinese, Japanese and Korean text has no bold". Another script's missing bold does not match.
   { name: 'bold CJK on the contact sheet', pattern: /(?:Chinese, Japanese and Korean|Noto (?:Sans )?(?:Mono )?CJK)[^.\n]*\bno bold/i },
   { name: 'the storyboard contact sheet PDF', pattern: /storyboard PDF|PDF (?:exports? |output )?(?:of|for) (?:a )?storyboards?|PDF of a storyboard/i },
+  { name: 'the agent trace', pattern: /agent traces? (?:view|export)/i },
 ];
 
 describe('the built-feature patterns flag a stale claim and nothing else', () => {
