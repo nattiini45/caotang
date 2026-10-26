@@ -8,6 +8,7 @@
  * cannot read its own earlier prompts.
  *
  * Off means off: no observer is attached to the gateway, the sessions are given no sink, and what was kept is cleared at once.
+ * A model call already under way tells nothing either: its observer writes through the switch, so its reply never lands.
  */
 
 import { createTraceStore, traceGateway, type TraceExportOptions, type TraceSink, type TraceStore } from '@caotang/harness';
@@ -36,7 +37,8 @@ export class TabTrace {
     if (enabled === this.on) return;
     this.on = enabled;
     if (enabled) {
-      this.gateway.setObserver(traceGateway(this.store));
+      // A call under way keeps the observer it started with, so the sink it writes through checks the switch on every record.
+      this.gateway.setObserver(traceGateway({ write: (record) => { if (this.on) this.store.write(record); } }));
     } else {
       this.gateway.setObserver(undefined);
       this.store.clear();

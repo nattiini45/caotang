@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { MemoryIndexedDb, openRuntimeStore } from '../../packages/store/src/index.js';
+import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore } from '../../packages/gateway/src/index.js';
 import { DEMO_INTENTS } from '../../packages/gateway/src/mock/index.js';
 import { TRACE_REVIEWS, parseTrace, type TraceRecord } from '../../packages/harness/src/index.js';
 
@@ -96,6 +97,30 @@ test('with the setting off, no observer is attached and no sink is given, and th
   expect(providers.trace.store.turns()).toEqual([]);
   expect(providers.trace.store.bytes).toBe(0);
   await session.close();
+});
+
+test('turning the setting off while a model call is streaming keeps its reply out of the store', async () => {
+  const keys = createKeyStore(createMemoryVaultPort());
+  const profiles = createProfileStore({ keys });
+  await profiles.create({ name: 'Demo', kind: 'mock' });
+  const gateway = createGateway({ profiles, keys, clock: createManualClock(0) });
+  const trace = new TabTrace(gateway);
+  trace.keep(true);
+
+  const stream = gateway.complete({ messages: [{ role: 'user', content: 'a line the mock echoes back' }] })[Symbol.asyncIterator]();
+  await stream.next();
+  expect(kindsOf(trace.store.records())).toEqual(['model.request']);
+
+  trace.keep(false);
+  while (!(await stream.next()).done) {
+    // drain: the response is told when the call ends
+  }
+  expect(trace.store.records()).toEqual([]);
+  expect(trace.store.turns()).toEqual([]);
+
+  trace.keep(true);
+  await gateway.complete({ messages: [{ role: 'user', content: 'and the next call is traced' }] })[Symbol.asyncIterator]().next();
+  expect(kindsOf(trace.store.records())).toContain('model.request');
 });
 
 test('the setting is a boolean in the existing settings record: on unless turned off', () => {
