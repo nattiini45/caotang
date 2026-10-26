@@ -118,7 +118,7 @@ export interface SubmitOptions {
    * of the modes in play (`effectiveMode`), so this only ever lowers a turn; the panel's pick is not changed.
    */
   readonly mode?: PermissionMode;
-  /** The most model calls this turn may make, over the setting's. A recurring task's `maxModelCalls`. */
+  /** The most model calls this turn may make. A recurring task's `maxModelCalls`; it can only lower the setting's limit, never raise it. */
   readonly maxModelCalls?: number;
 }
 
@@ -580,7 +580,8 @@ export class AgentController {
           budget: () => {
             // The model-call bound is read at each turn; the time limit is the meter's, not a turn budget.
             const { maxActiveMinutes: _minutes, ...budget } = this.agentSettings().budget;
-            return this.runCalls === null ? budget : { ...budget, maxModelCalls: this.runCalls };
+            // A task's cap can only lower the writer's limit, never raise it.
+            return this.runCalls === null ? budget : { ...budget, maxModelCalls: Math.min(budget.maxModelCalls ?? Infinity, this.runCalls) };
           },
           meter: () => this.meter ?? undefined,
           price: () => this.priceForNextTurn ?? undefined,
