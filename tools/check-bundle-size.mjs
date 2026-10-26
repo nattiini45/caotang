@@ -49,7 +49,9 @@ export const BUDGET = {
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
   // 5,902.2 kB measured with the instructions layer, the agent files and recurring tasks (Wave 17).
-  totalJs: 5_950_000,
+  // 5,954.2 kB measured with the four host-model rows (scene.brief and the rest, #81): the app carries their registry metadata, params and
+  // preflights and none of their ports, which only the MCP server builds.
+  totalJs: 6_000_000,
 };
 
 const KB = 1000;

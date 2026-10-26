@@ -144,6 +144,7 @@ export function plannerTools(tools: readonly ToolListing[], surface: PlannerSurf
     (tool) =>
       tool.callable &&
       tool.wired &&
+      tool.externalOnly !== true &&
       !(reviewWired && tool.name === 'continuity.scan') &&
       (only === undefined || only.has(tool.name)) &&
       (surface.all === true || tool.load === 'core' || loaded.has(tool.name)),

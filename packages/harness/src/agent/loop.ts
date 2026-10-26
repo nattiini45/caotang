@@ -678,7 +678,7 @@ function expectOf(text: string): string {
  * A selection the editor captured, read from a step's params: its body offsets and the text found there.
  * `undefined` for anything that is not one, so a rewrite with no usable selection is assembled without one.
  */
-function spanOf(value: unknown): SelectionSpan | undefined {
+export function spanOf(value: unknown): SelectionSpan | undefined {
   if (!isRecord(value)) return undefined;
   const { from, to, exact } = value;
   if (typeof from !== 'number' || typeof to !== 'number' || typeof exact !== 'string') return undefined;

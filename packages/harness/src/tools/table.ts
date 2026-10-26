@@ -41,7 +41,11 @@ import { notesAppendParams, prepareNotesAppend, metaSetParams, prepareMetaSet, r
 import {
   codexReadParams,
   continuityScanParams,
+  dialogueApplyParams,
+  dialogueBriefParams,
   refineSceneDraft,
+  sceneApplyParams,
+  sceneBriefParams,
   sceneDraftParams,
   synopsisFillParams,
 } from './ports.js';
@@ -94,6 +98,11 @@ const DEFINITIONS: Readonly<Record<ToolName, Definition>> = {
   'memory.read': { kind: 'native', params: memoryReadParams, prepare: prepareMemoryRead },
   // Delegation to a built-in helper agent (agent-harness §2): the loop answers it; the port is the answer outside a turn.
   'agent.delegate': { kind: 'port', port: 'agent.delegate', params: delegateParams },
+  // The host-model pairs (agent-harness §3, "External-only rows"): the in-app tool's arguments in, the host's reply back through the in-app port.
+  'scene.brief': { kind: 'port', port: 'scene.brief', params: sceneBriefParams, refine: refineSceneDraft },
+  'scene.apply': { kind: 'port', port: 'scene.apply', params: sceneApplyParams, refine: refineSceneDraft },
+  'dialogue.brief': { kind: 'port', port: 'dialogue.brief', params: dialogueBriefParams },
+  'dialogue.apply': { kind: 'port', port: 'dialogue.apply', params: dialogueApplyParams },
   // The allowlisted bus primitives, each built from its command's descriptor (tools/primitive.ts).
   ...Object.fromEntries(PRIMITIVE_TOOL_NAMES.map((name) => [name, primitiveDefinition(name)])) as Record<PrimitiveToolName, Definition>,
 };

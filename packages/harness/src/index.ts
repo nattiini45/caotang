@@ -246,6 +246,16 @@ export {
   type SubagentRunner,
   type SubagentSpec,
 } from './agent/subagent.js';
+export {
+  BRIEF_CAP,
+  BRIEF_TTL_MS,
+  briefRefusal,
+  createBriefLedger,
+  createBriefPorts,
+  type BriefKind,
+  type BriefLedger,
+  type BriefRecord,
+} from './tools/briefs.js';
 export { createAgentPorts, draftModeRefusal, previewFor, codexReadPort, sceneDraftPort, synopsisFillPort, continuityScanPort } from './agent/ports.js';
 // The reads an MCP resource serves, whole, and the node lookups the server's prompts share with the tools (extensibility §9).
 export { codexInOrder, readBody, readCodexEntry, readNotes, type BodyRead, type NotesRead } from './resource-reads.js';

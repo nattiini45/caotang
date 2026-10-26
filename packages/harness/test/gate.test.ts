@@ -53,6 +53,7 @@ describe('the tool-level permission matrix', () => {
   const writeConfirm = TOOL_METADATA.filter((meta) => meta.risk === 'write-confirm').map((meta) => meta.name);
   const writeAuto = TOOL_METADATA.filter((meta) => meta.risk === 'write-auto').map((meta) => meta.name);
 
+  // The host-model applies, scene.apply and dialogue.apply, are write-confirm too (agent-harness §3, "External-only rows").
   // The extensions add two write-confirm tools (codex.import, coherence.review) and one write-auto tool
   // (coherence.setFindingStatus, restricted to `fixed` by the coherence tool's own rule); the
   // storyboard and prompt-pack modules' write tools: shots.derive and prompt.draft (write-confirm), and the
@@ -66,6 +67,7 @@ describe('the tool-level permission matrix', () => {
       'codex.import',
       'codex.write',
       'coherence.review',
+      'dialogue.apply',
       'dialogue.draft',
       'doc.import',
       'export.compile',
@@ -73,6 +75,7 @@ describe('the tool-level permission matrix', () => {
       'memory.write',
       'notes.replace',
       'prompt.draft',
+      'scene.apply',
       'scene.draft',
       'shots.derive',
       'synopsis.fill',
@@ -96,6 +99,8 @@ describe('the tool-level permission matrix', () => {
           'shots.derive': implemented,
           'prompt.draft': implemented,
           'dialogue.draft': implemented,
+          'scene.apply': implemented,
+          'dialogue.apply': implemented,
         },
       },
       makeState(),
@@ -134,6 +139,8 @@ describe('a delegated agent’s calls (agent-harness §2, "Delegate")', () => {
           'shots.derive': implemented,
           'prompt.draft': implemented,
           'dialogue.draft': implemented,
+          'scene.apply': implemented,
+          'dialogue.apply': implemented,
         },
       },
       state,
@@ -227,6 +234,11 @@ function minimalParams(name: string): Record<string, unknown> {
       return { selection: { root: 'manuscript' }, format: 'md' };
     case 'scene.draft':
       return { doc: LANDING, instruction: 'Write.' };
+    case 'scene.apply':
+      // A brief the ledger does not hold: the gate, not the brief check, answers.
+      return { doc: LANDING, text: 'Write.', briefId: 'b_0000000000' };
+    case 'dialogue.apply':
+      return { doc: LANDING, ink: 'Hi.', briefId: 'b_0000000000' };
     case 'synopsis.fill':
       return { docs: [LANDING] };
     case 'shots.derive':

@@ -121,6 +121,26 @@ export function sceneDraftPreflight(params: CallParams, state: ProjectState): Co
 }
 
 /**
+ * The state check of a `scene.apply` call: the mode rule of its draft, and for a rewrite the anchor, resolved against the body as it
+ * stands. The reply is the host's, so the placement is the only part of the draft this can check before the writer is asked.
+ */
+export function sceneApplyPreflight(params: CallParams, state: ProjectState): CommandError | undefined {
+  const refused = sceneDraftPreflight(params, state);
+  if (refused !== undefined) return refused;
+  const node = resolveNode(state, String(params['doc']), DOCUMENT, 'document', 'params.doc');
+  if (!node.ok) return node.error;
+  const mode = typeof params['mode'] === 'string' ? params['mode'] : 'draft';
+  const placed = placement(mode, getBody(state, node.value.id), '', getRevision(state, node.value.id), params['selection'] as TextAnchor | undefined);
+  return placed.ok ? undefined : placed.error;
+}
+
+/** The state check of a `dialogue.apply` call: the dialogue module's own check of the Ink against the container, as `dialogue.draft` runs it. */
+export function dialogueApplyPreflight(params: CallParams, state: ProjectState): CommandError | undefined {
+  const checked = dialogueDraftTool({ doc: params['doc'], fromBeats: params['fromBeats'] }, { state, proposal: { ink: String(params['ink'] ?? '').trim() } });
+  return checked.ok ? undefined : checked.error;
+}
+
+/**
  * The derive a `shots.derive` step makes from its params and the proposal staged for it (storyboard.md §4): planned against the scene
  * as it stands, and changing nothing. Undefined while nothing is staged — that is "no proposal yet", not "the scene is gone";
  * a scene that does not resolve returns the not-found error here, at preflight, so a plan card never promises a derive the apply
@@ -174,10 +194,12 @@ export function shotsDeriveScenePreflight(params: CallParams, state: ProjectStat
 export const portPreflights: Partial<Record<PortToolName, (params: CallParams, state: ProjectState, proposal?: unknown) => CommandError | undefined>> = {
   'scene.draft': sceneDraftPreflight,
   'shots.derive': shotsDerivePreflight,
+  'scene.apply': sceneApplyPreflight,
+  'dialogue.apply': dialogueApplyPreflight,
 };
 
 /** The range a draft occupies, and the text that goes there, for each mode. Pure over the body it is given. */
-function placement(
+export function placement(
   mode: string,
   body: string,
   text: string,

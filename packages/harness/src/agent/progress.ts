@@ -150,6 +150,11 @@ export const TASK_PHRASES: Readonly<Record<ToolName, TaskPhraseFn>> = {
     const agent = textOf(params, 'agent');
     return agent === undefined ? phrase('Hand work to a helper agent', 'Handing work to a helper agent') : phrase(`Hand work to the ${agent} agent`, `Handing work to the ${agent} agent`);
   },
+  // The host-model pairs never run in a turn of the app; the phrases keep the table total.
+  'scene.brief': aboutDoc('Brief a draft of', 'Briefing a draft of', 'Brief a draft', 'Briefing a draft'),
+  'scene.apply': aboutDoc('Write the drafted text into', 'Writing the drafted text into', 'Write a drafted text', 'Writing a drafted text'),
+  'dialogue.brief': aboutDoc('Brief dialogue in', 'Briefing dialogue in', 'Brief dialogue', 'Briefing dialogue'),
+  'dialogue.apply': aboutDoc('Write the drafted dialogue into', 'Writing the drafted dialogue into', 'Write drafted dialogue', 'Writing drafted dialogue'),
   'notes.replace': aboutDoc('Rewrite the notes of', 'Rewriting the notes of', 'Rewrite notes', 'Rewriting notes'),
   'synopsis.set': aboutDoc('Set the synopsis of', 'Setting the synopsis of', 'Set a synopsis', 'Setting a synopsis'),
   'vocabulary.upsert': (params) => {

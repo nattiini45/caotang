@@ -191,7 +191,12 @@ export type PortToolName =
   // The project's skills (extensibility.md §10). Wired only where the app supplies `HarnessOptions.skills`, so the outward MCP server, which does not, never lists it.
   | 'skill.load'
   // Delegation (agent-harness §2): answered by the agent loop; the port (tools/delegate.ts) is what a caller outside a turn gets.
-  | 'agent.delegate';
+  | 'agent.delegate'
+  // The host-model pairs (agent-harness §3, "External-only rows"), wired only where a brief ledger is supplied: the MCP server.
+  | 'scene.brief'
+  | 'scene.apply'
+  | 'dialogue.brief'
+  | 'dialogue.apply';
 
 interface EntryBase {
   readonly meta: ToolMetadata;

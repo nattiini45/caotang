@@ -111,7 +111,7 @@ describe('the metadata table as a whole', () => {
     const extensions = TOOL_METADATA.filter((meta) => meta.surface === 'extension').map((meta) => meta.name);
     // Then tool.search (extensibility §5), then the storyboard and prompt-pack modules' tools. Each is an
     // extension row, so none can be mistaken for part of the frozen v0.1 surface. The dialogue module's two rows close the
-    // list (dialogue-narrative.md §7), then the skills row (extensibility §10) and the delegation row (agent-harness §2), the memory read follows them (context-assembly §2, LI), and the seven allowlisted bus primitives close it (agent-harness §3).
+    // list (dialogue-narrative.md §7), then the skills row (extensibility §10) and the delegation row (agent-harness §2), the memory read follows them (context-assembly §2, LI), the four external-only host-model rows follow the delegation row (agent-harness §3), and the seven allowlisted bus primitives close it (agent-harness §3).
     expect(extensions).toEqual([
       'doc.import',
       'codex.import',
@@ -128,6 +128,10 @@ describe('the metadata table as a whole', () => {
       'skill.load',
       'memory.read',
       'agent.delegate',
+      'scene.brief',
+      'scene.apply',
+      'dialogue.brief',
+      'dialogue.apply',
       'notes.replace',
       'synopsis.set',
       'vocabulary.upsert',
