@@ -65,10 +65,18 @@ export interface NotesDiffSegment {
   readonly text: string;
 }
 
+/**
+ * The tools whose card shows the old and the new text as a word-by-word difference: the notes of a document, a memory note, and CAOTANG.md.
+ * Each sends `{doc, before, after}` (agent-harness §3).
+ */
+const TEXT_DIFF_TOOLS: ReadonlySet<string> = new Set(['notes.replace', 'memory.write', 'instructions.propose']);
+
 /** What `notes.replace` does to a document's notes, word by word, old to new (agent-harness §3). */
 export interface NotesPreviewView {
   readonly kind: 'notes';
   readonly doc: string;
+  /** What the text is, in the card's words: a document's notes, a memory note, or CAOTANG.md. */
+  readonly subject: 'notes' | 'memory' | 'instructions';
   readonly segments: readonly NotesDiffSegment[];
   readonly wordsBefore: number;
   readonly wordsAfter: number;
@@ -325,9 +333,10 @@ export function stepPreviewOf(
   pictureNames: ReadonlyMap<string, string> = new Map(),
 ): StepPreviewView | undefined {
   if (!isRecord(preview)) return undefined;
-  if (tool === 'notes.replace' && typeof preview['before'] === 'string' && typeof preview['after'] === 'string') {
+  if (TEXT_DIFF_TOOLS.has(tool) && typeof preview['before'] === 'string' && typeof preview['after'] === 'string') {
     return {
       kind: 'notes',
+      subject: tool === 'memory.write' ? 'memory' : tool === 'instructions.propose' ? 'instructions' : 'notes',
       doc: typeof preview['doc'] === 'string' ? preview['doc'] : '',
       segments: wordDiff(preview['before'], preview['after']),
       wordsBefore: wordCount(preview['before']),

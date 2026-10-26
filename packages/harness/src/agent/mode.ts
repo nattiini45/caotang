@@ -52,6 +52,12 @@ export const ACCEPT_EDITS_TOOLS: ReadonlySet<string> = new Set([
   'shots.annotate',
 ]);
 
+/**
+ * The write tools no mode approves, Auto included: a memory note or a change to CAOTANG.md rewrites what every later request says, which is
+ * exactly what a prompt-injected tool result would ask for, so the card is the writer's in every mode (context-assembly.md §2, layer LI).
+ */
+export const NEVER_AUTO_APPROVED_TOOLS: ReadonlySet<string> = new Set(['memory.write', 'instructions.propose']);
+
 /** What a turn may spend before it stops on a question. A missing limit is not enforced. */
 export interface TurnBudget {
   /** Model requests, retries and drafts included. */
@@ -236,6 +242,7 @@ export function modePolicy(mode: PermissionMode, options: ModePolicyOptions = {}
     noHuman,
     approves(card) {
       if (!decides || tainted() || card.external) return false;
+      if (card.tools.some((tool) => NEVER_AUTO_APPROVED_TOOLS.has(tool))) return false;
       return mode === 'auto' || card.tools.every((tool) => ACCEPT_EDITS_TOOLS.has(tool));
     },
   };

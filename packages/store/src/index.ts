@@ -97,8 +97,40 @@ export {
   skillFilePath,
   snapshotFile,
 } from './paths.js';
+export { agentFileCommandRegistrations } from './commands-agent-files.js';
 export { createSkillStaging, type SkillStaging, type StagedSkill } from './commands-skills.js';
 export { isSkillFilePath, readSkills, type ReadSkills, type SkillsNotice } from './skills-fs.js';
+export {
+  INSTRUCTIONS_FALLBACK,
+  INSTRUCTIONS_FILE,
+  INSTRUCTIONS_MAX_CHARS,
+  MEMORY_BODY_MAX_CHARS,
+  MEMORY_DIR,
+  MEMORY_INDEX,
+  MEMORY_MAX_FILES,
+  MEMORY_SLUG_MAX_CHARS,
+  MEMORY_TITLE_MAX_CHARS,
+  MEMORY_TYPES,
+  agentFileTexts,
+  cloneAgentFiles,
+  emptyAgentFiles,
+  hasAgentFiles,
+  isAgentFilePath,
+  isMemorySlug,
+  memoryIndexOf,
+  memoryPath,
+  memorySlugOfPath,
+  parseAgentFiles,
+  parseMemoryFile,
+  serializeMemoryFile,
+  slugOf,
+  type AgentFiles,
+  type MemoryFile,
+  type MemoryParse,
+  type MemoryType,
+  type ParsedAgentFiles,
+} from './agent-files.js';
+export { listAgentFilePaths, readAgentFiles, type ReadAgentFiles } from './agent-files-fs.js';
 export { createBinderNode, type MediaCreateParams } from './commands-media.js';
 
 export {
@@ -337,6 +369,7 @@ export {
   readSessions,
   writeBodySnapshot,
   writeCoherenceFiles,
+  writeProjectAgentFiles,
   writeProjectSkills,
   writeDocumentBody,
   writeProjectState,

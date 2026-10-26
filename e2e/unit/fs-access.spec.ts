@@ -38,7 +38,7 @@ function directoryHandle(name: string, children: Map<string, Node>): DirectoryHa
         node = { kind: 'directory', children: new Map() };
         children.set(child, node);
       }
-      if (node.kind !== 'directory') throw new Error(`${child} is a file`);
+      if (node.kind !== 'directory') throw Object.assign(new Error(`${child} is a file`), { name: 'TypeMismatchError' });
       return directoryHandle(child, node.children);
     },
     async getFileHandle(child, options) {
@@ -48,7 +48,7 @@ function directoryHandle(name: string, children: Map<string, Node>): DirectoryHa
         node = { kind: 'file', text: '' };
         children.set(child, node);
       }
-      if (node.kind !== 'file') throw new Error(`${child} is a folder`);
+      if (node.kind !== 'file') throw Object.assign(new Error(`${child} is a folder`), { name: 'TypeMismatchError' });
       return fileHandle(child, node);
     },
     async removeEntry(child) {
@@ -126,6 +126,18 @@ test.describe('the project folder, as an artifact', () => {
     await fs.remove('a.txt');
     await fs.remove('a.txt');
     expect(await fs.exists('a.txt')).toBe(false);
+  });
+
+  test('a folder exists as a folder, and a file as a file: a browser answers a mismatch with TypeMismatchError', async () => {
+    const { root } = emptyRoot();
+    const fs = folderArtifactFs(root);
+    await fs.writeAtomic('memory/MEMORY.md', 'index');
+    await fs.writeAtomic('CAOTANG.md', 'rules');
+    expect(await fs.exists('memory')).toBe(true);
+    expect(await fs.exists('CAOTANG.md')).toBe(true);
+    expect(await fs.exists('memory/MEMORY.md')).toBe(true);
+    expect(await fs.exists('memory/none.md')).toBe(false);
+    expect(await fs.exists('nothing')).toBe(false);
   });
 
   test('a whole project survives a trip through the folder: written, then read back to the same tree', async () => {

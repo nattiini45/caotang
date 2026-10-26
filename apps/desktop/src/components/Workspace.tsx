@@ -21,7 +21,7 @@ import {
 import type { ProjectState, RuntimeStore } from '@caotang/store';
 
 import { activityMarkdown } from '../app/activity-model.js';
-import { AgentController } from '../app/agent.js';
+import { AgentController, type SubmitOptions } from '../app/agent.js';
 import { childrenOf, newDocumentRefusalText, newItemParent, nodeById, summarizeSubtree } from '../app/binder-model.js';
 import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, folderIsEmpty, pickDirectory, type DirectoryHandleLike } from '../app/fs-access.js';
@@ -62,6 +62,7 @@ import { openFindingCount } from '../app/findings-model.js';
 import { ExportDialog, type ExportSelection } from './ExportDialog.js';
 import { openDialog } from './dialog-requests.js';
 import { ProjectPanel } from './ProjectPanel.js';
+import { AgentInstructionsPanel } from './AgentInstructionsPanel.js';
 import { SkillsPanel } from './SkillsPanel.js';
 import { VocabularyEditor } from './VocabularyEditor.js';
 import { Inspector } from './Inspector.js';
@@ -367,9 +368,9 @@ export function Workspace({
 
   /** An empty state's next step (ui-modules §0.3): the agent panel opens, and the controller runs the request through its usual path. */
   const runAgentIntent = useCallback(
-    (intent: string): void => {
+    (intent: string, options?: SubmitOptions): void => {
       setAgentOpen(true);
-      void agent.submit(intent);
+      void agent.submit(intent, options);
     },
     [agent],
   );
@@ -699,6 +700,14 @@ export function Workspace({
             <button type="button" className="button" title="Reusable writing instructions for the agent" onClick={() => openDialog({ kind: 'skills' })}>
               Skills
             </button>
+            <button
+              type="button"
+              className="button"
+              title="CAOTANG.md, your standing instructions, and the notes the agent keeps"
+              onClick={() => openDialog({ kind: 'agent-instructions' })}
+            >
+              Instructions
+            </button>
             <button type="button" className="button" onClick={() => setExporting(true)}>
               Compile…
             </button>
@@ -916,6 +925,7 @@ export function Workspace({
         ) : null}
         <ProjectPanel session={session} />
         <SkillsPanel session={session} />
+        <AgentInstructionsPanel session={session} services={services} onAgentIntent={runAgentIntent} />
         <VocabularyEditor session={session} />
 
 

@@ -58,6 +58,8 @@ export const NEVER_EXPOSED = [
   'skill.write',
   'skill.delete',
   'skill.setEnabled',
+  // A memory note is the writer's to forget: hard-denied for an agent as a deletion (command-bus §4).
+  'memory.forget',
 ] as const satisfies readonly CommandName[];
 
 export type NeverExposed = (typeof NEVER_EXPOSED)[number];
@@ -65,8 +67,11 @@ export type NeverExposed = (typeof NEVER_EXPOSED)[number];
 /** A command a spec may name. Being exposable is necessary, not sufficient: a spec is still on the allowlist or it is not a tool. */
 export type ExposablePrimitive = Exclude<CommandName, NeverExposed>;
 
-/** The first wave (issue #56, owner decision). A tool joins the allowlist by an owner decision, never by being exposable. */
-export const PRIMITIVE_TOOL_NAMES = ['notes.replace', 'synopsis.set', 'vocabulary.upsert', 'filter.save', 'goal.save'] as const;
+/**
+ * The first wave (issue #56, owner decision) and the two rows issue #71 names, `memory.write` and `instructions.propose`. A tool joins the
+ * allowlist by an owner decision, never by being exposable.
+ */
+export const PRIMITIVE_TOOL_NAMES = ['notes.replace', 'synopsis.set', 'vocabulary.upsert', 'filter.save', 'goal.save', 'memory.write', 'instructions.propose'] as const;
 
 export type PrimitiveToolName = (typeof PRIMITIVE_TOOL_NAMES)[number];
 

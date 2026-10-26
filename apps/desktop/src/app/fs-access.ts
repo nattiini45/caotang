@@ -86,6 +86,10 @@ function isNotFound(error: unknown): boolean {
   return (error as { name?: string } | null)?.name === 'NotFoundError';
 }
 
+function isTypeMismatch(error: unknown): boolean {
+  return (error as { name?: string } | null)?.name === 'TypeMismatchError';
+}
+
 /** Split `a/b/c.md` into the directory segments and the basename. */
 function splitPath(path: string): { segments: string[]; name: string } {
   const parts = path.split('/').filter((segment) => segment.length > 0);
@@ -170,7 +174,8 @@ export function folderArtifactFs(root: DirectoryHandleLike): ArtifactFs {
         await directory.getFileHandle(name);
         return true;
       } catch (error) {
-        if (!isNotFound(error)) throw error;
+        // A browser answers a name that is a folder with TypeMismatchError, not NotFoundError: the folder check below settles it.
+        if (!isNotFound(error) && !isTypeMismatch(error)) throw error;
       }
       try {
         await directory.getDirectoryHandle(name);

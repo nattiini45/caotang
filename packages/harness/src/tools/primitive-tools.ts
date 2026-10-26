@@ -12,17 +12,24 @@ import {
   GOAL_COMPARATORS,
   GOAL_KINDS,
   GOAL_METRICS,
+  INSTRUCTIONS_MAX_CHARS,
+  MEMORY_BODY_MAX_CHARS,
+  MEMORY_TITLE_MAX_CHARS,
+  MEMORY_TYPES,
   MONTHLY_RESET_MAX,
   NOTES_MAX,
   SEARCH_SURFACES,
   SYNOPSIS_MAX,
   VOCABULARY_NAME_MAX,
   ok,
+  slugOf,
+  textDigest,
   type CommandError,
   type Result,
 } from '@caotang/bus';
-import { nodeById } from '@caotang/store';
+import { nodeById, type AgentFiles } from '@caotang/store';
 
+import { failure, invalidParams } from '../errors.js';
 import { resolveNode, DOCUMENT, TARGET, type NodeFilter } from '../resolve.js';
 import { param } from '../schema.js';
 import type { CallParams, PrepareContext } from '../types.js';
@@ -229,6 +236,85 @@ const goalSave = primitiveTool({
   },
 });
 
+/** The slug of a topic file path: `memory/<slug>.md`. */
+const slugOfPath = (path: string): string => path.slice('memory/'.length, -'.md'.length);
+
+/** The slug a note is written under: the one the caller named, the one a note of that title has, or one made from the title that no other note holds. */
+function slugFor(files: AgentFiles, params: CallParams): Result<string, CommandError> {
+  const named = params['slug'];
+  if (typeof named === 'string') return ok(named);
+  const title = text(params, 'title').trim();
+  const same = files.memory.find((note) => note.title.trim().toLowerCase() === title.toLowerCase());
+  if (same !== undefined) return ok(same.slug);
+  const base = slugOf(title);
+  if (base === '') {
+    return failure(invalidParams('the title has no letter or digit to make a slug from', 'give the note a title in words, or pass a slug', 'params.title')) as Result<string, CommandError>;
+  }
+  const taken = new Set([...files.memory.map((note) => note.slug), ...[...files.declined.keys()].map(slugOfPath), ...files.unreadable.filter((path) => path.startsWith('memory/')).map(slugOfPath)]);
+  let slug = base;
+  for (let n = 2; taken.has(slug); n += 1) slug = `${base.slice(0, 60)}-${n}`;
+  return ok(slug);
+}
+
+const memoryWrite = primitiveTool({
+  tool: 'memory.write',
+  command: 'memory.write',
+  description: `Save one memory note in the project: a habit, a preference or a process the writer wants kept for later requests, such as "no semicolons in dialogue" or "end scenes on a line of dialogue". The note's title and first line join the memory index, which every request carries, so keep both short; the body is at most ${MEMORY_BODY_MAX_CHARS} characters. A story fact, such as a character's handedness, belongs in the codex (codex.write): a title that is a codex entry's name or alias is refused. Writing a title that a note already has updates that note; pass the digest memory.read gave as expectedDigest so a change made since is not overwritten. The card shows the old and the new body as a word-by-word difference. Undo restores the note, or removes it if it was new.`,
+  descriptionVersion: 1,
+  keywords: ['memory', 'remember', 'preference', 'style', 'habit', 'note', 'instructions'],
+  response_token_cap: 500,
+  params: param.object(
+    'The memory note to save.',
+    {
+      title: param.string(`A few words naming the habit, at most ${MEMORY_TITLE_MAX_CHARS} characters, on one line.`, { nonBlank: true, maxLength: MEMORY_TITLE_MAX_CHARS }),
+      type: param.choice('style (how the prose reads), preference (what the writer likes or avoids), process (how the writer works) or reference (where to look).', MEMORY_TYPES),
+      body: param.string(`The note, at most ${MEMORY_BODY_MAX_CHARS} characters. Lead with the rule in one line.`, { nonBlank: true, maxLength: MEMORY_BODY_MAX_CHARS }),
+      slug: param.string('The note’s slug, to update one by name. Leave it out to make one from the title.', { nonBlank: true, maxLength: 64 }),
+      expectedDigest: param.string('The digest memory.read gave for the note you are changing. Leave it out for a new note.', { nonBlank: true, maxLength: 64 }),
+    },
+    ['title', 'type', 'body'],
+  ),
+  toCommand: (params, context): Mapped => {
+    const slug = slugFor(context.state.agentFiles, params);
+    if (!slug.ok) return slug;
+    return ok({ slug: slug.value, type: text(params, 'type'), title: text(params, 'title'), body: text(params, 'body'), ...pick(params, ['expectedDigest']) });
+  },
+  preview: (command, context) => {
+    const held = context.state.agentFiles.memory.find((note) => note.slug === command['slug']);
+    return { doc: `Memory note: ${text(command, 'title')}`, before: held?.body ?? '', after: text(command, 'body') };
+  },
+  report: (command, outcome) => {
+    const created = (outcome.result as { readonly created?: unknown } | undefined)?.created === true;
+    return {
+      data: { slug: command['slug'], created, digest: textDigest(text(command, 'body')) },
+      summary: `${created ? 'saved' : 'updated'} the memory note "${text(command, 'title')}"`,
+    };
+  },
+});
+
+const instructionsPropose = primitiveTool({
+  tool: 'instructions.propose',
+  command: 'project.setInstructions',
+  description: `Propose a new CAOTANG.md, the writer's standing instructions that every request carries, such as "British spelling. Past tense, close third person on Mara." Send the whole file, at most ${INSTRUCTIONS_MAX_CHARS} characters; only about 1,500 tokens of it are sent to the model, so keep it short. The writer approves the card, which shows the old and the new text as a word-by-word difference; nothing changes before that. Pass the digest memory.read gave for CAOTANG.md as expectedDigest. Use memory.write for one habit you learned, and keep this for the rules the writer asks to be written down. Undo restores the file as it was.`,
+  descriptionVersion: 1,
+  keywords: ['instructions', 'CAOTANG.md', 'rules', 'style guide', 'standing', 'house style'],
+  response_token_cap: 500,
+  params: param.object(
+    'The proposed CAOTANG.md.',
+    {
+      text: param.string(`The whole new CAOTANG.md, at most ${INSTRUCTIONS_MAX_CHARS} characters.`, { maxLength: INSTRUCTIONS_MAX_CHARS }),
+      expectedDigest: param.string('The digest memory.read gave for CAOTANG.md. Leave it out when the project has none.', { nonBlank: true, maxLength: 64 }),
+    },
+    ['text'],
+  ),
+  toCommand: (params): Mapped => ok({ text: text(params, 'text'), ...pick(params, ['expectedDigest']) }),
+  preview: (command, context) => ({ doc: 'CAOTANG.md', before: context.state.agentFiles.instructions?.text ?? '', after: text(command, 'text') }),
+  report: (command) => ({
+    data: { file: 'CAOTANG.md', characters: text(command, 'text').length, digest: textDigest(text(command, 'text')) },
+    summary: `changed CAOTANG.md (${text(command, 'text').length} characters)`,
+  }),
+});
+
 /** Every primitive exposed as a tool, in registry order. A name is added here by an owner decision (docs/decisions.md). */
-export const PRIMITIVE_TOOLS: readonly PrimitiveTool[] = [notesReplace, synopsisSet, vocabularyUpsert, filterSave, goalSave];
+export const PRIMITIVE_TOOLS: readonly PrimitiveTool[] = [notesReplace, synopsisSet, vocabularyUpsert, filterSave, goalSave, memoryWrite, instructionsPropose];
 

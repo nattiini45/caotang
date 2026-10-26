@@ -137,6 +137,15 @@ export const TASK_PHRASES: Readonly<Record<ToolName, TaskPhraseFn>> = {
     const name = textOf(params, 'name');
     return name === undefined ? phrase('Read a skill', 'Reading a skill') : phrase(`Read the skill ${quoted(name)}`, `Reading the skill ${quoted(name)}`);
   },
+  'memory.read': (params) => {
+    const slug = textOf(params, 'slug');
+    return slug === undefined ? phrase('Read the memory notes', 'Reading the memory notes') : phrase(`Read the memory note ${quoted(slug)}`, `Reading the memory note ${quoted(slug)}`);
+  },
+  'memory.write': (params) => {
+    const title = textOf(params, 'title');
+    return title === undefined ? phrase('Save a memory note', 'Saving a memory note') : phrase(`Save the memory note ${quoted(title)}`, `Saving the memory note ${quoted(title)}`);
+  },
+  'instructions.propose': () => phrase('Change CAOTANG.md', 'Changing CAOTANG.md'),
   'agent.delegate': (params) => {
     const agent = textOf(params, 'agent');
     return agent === undefined ? phrase('Hand work to a helper agent', 'Handing work to a helper agent') : phrase(`Hand work to the ${agent} agent`, `Handing work to the ${agent} agent`);

@@ -25,6 +25,8 @@ export function describeDrop(reason: DropReason): string {
       return `dropped budget (${reason.layer}, ${reason.budget} tokens, rank ${reason.rank})`;
     case 'total-budget':
       return `dropped total budget (${reason.total} tokens, ${reason.layer}, rank ${reason.rank})`;
+    case 'instructions-cap':
+      return `${reason.file} is ${formatCount(reason.totalTokens)} tokens; the first ${formatCount(reason.sentTokens)} were sent`;
     case 'reserve-overflow':
       return `the codex's always entries need ${formatCount(reason.need)} tokens; the layer's budget is ${formatCount(reason.budget)}`;
   }

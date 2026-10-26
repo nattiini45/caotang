@@ -86,6 +86,7 @@ import {
   type PlanOffer,
   type RunLimits,
   type RunLogPort,
+  type ToolName,
   type TurnOptions,
   type TurnReport,
 } from '@caotang/harness';
@@ -105,6 +106,8 @@ import { TaskStore, type TaskRecord } from './task-store.js';
 /** Where a turn runs. The demo intents run on the built-in demo profile, whatever is active (context-assembly §6). */
 export interface SubmitOptions {
   readonly demo?: boolean;
+  /** Deferred rows loaded for this turn before the planner's first request, besides the ones the active document preloads. */
+  readonly preload?: readonly ToolName[];
   /** The spend an interrupted run had when it stopped: a resumed turn's meter starts from it, so the run's limits count what it already used. */
   readonly restoredSpend?: BudgetSpend;
 }
@@ -378,7 +381,7 @@ export class AgentController {
     if (trimmed === '') return null;
     // A turn about a dialogue container or a storyboard starts with that module's tools loaded (PRELOAD_BY_CONTEXT), so it
     // costs no search. The node is the one the writer has selected, which is the document the centre pane shows.
-    const preload = preloadFor(this.activeNode());
+    const preload = [...new Set([...preloadFor(this.activeNode()), ...(options.preload ?? [])])];
     return this.turnWith(trimmed, options, (agent, turn) => agent.submit(trimmed, { preload, ...turn }));
   }
 

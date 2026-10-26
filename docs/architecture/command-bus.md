@@ -1,6 +1,6 @@
 # Command bus & undo — the spine every module talks through (v1)
 
-> Status: built. §9 lists every one of the registry's 51 command names (`packages/bus/src/command.ts` `COMMAND_NAMES`).
+> Status: built. §9 lists every one of the registry's 54 command names (`packages/bus/src/command.ts` `COMMAND_NAMES`).
 > Cross-refs: tool registry = [agent-harness.md](agent-harness.md) §3 · write-ahead snapshots = [project-format.md](project-format.md) §4 · edit anchors = [edit-anchors.md](edit-anchors.md) · usage ledger = [provider-gateway.md](provider-gateway.md) §6.
 
 ## 1. Purpose
@@ -14,7 +14,7 @@ Non-goals: no network in the bus (the gateway owns transport); no cross-worker b
 ```ts
 interface Command {
   id: string;                 // "cmd_" + 10 chars Crockford base32 (same generator family as node ids)
-  name: CommandName;          // from the registry (§9; 51 names)
+  name: CommandName;          // from the registry (§9; 54 names)
   params: object;             // flat, enum-constrained, schema-validated
   issuedBy: 'user' | 'agent';
   turnId?: string;            // agent turn this command belongs to (agent-issued only)
@@ -61,7 +61,7 @@ validate → permission gate (§4) → apply → postconditions → undo-group r
   - The writer's **agent rules** (agent-harness §4) run in the harness before dispatch, in the order hard-deny, deny, ask. They need the binder tree, which the gate does not have, so the gate stays pure over `(descriptor, command, context)` and is not changed: a deny or an ask never reaches it, and a rule can only refuse a call or ask for a card the gate would have let through.
 - **Grant inheritance (compound tools):** compound tools execute their sub-mutations *inside their own apply step*, not as separate bus dispatches — internal primitives (`editor.replaceRange` inside `scene.draft`) inherit the compound tool's granted permission and are never individually gated. Direct agent emission of a `never`-class command is refused even inside approved plans.
 - **Allowlisted primitives (agent-harness §3, "Primitives as deferred tools"):** a short set of primitives is exposed as tools of their own, each gated *as its command is*: the tool's risk is the descriptor's `agentRisk`, so a `write-confirm` primitive still needs the approved plan or the confirm card and a `write-auto` one applies at once. They dispatch as ordinary agent commands and never under an inherited grant. The set is the harness's `PRIMITIVE_TOOLS`; the commands that may never be on it (every delete, `doc.write`, `editor.insert`, `editor.replaceRange`, `view.*`, `project.importAsset`, `shot.importImage`, `shot.importImages`, `mcp.invoke`, the four `skill.*` commands) are `NeverExposed` in the harness types, so naming one does not compile.
-- **Hard-deny, non-approvable by any flow** (mirrors Claude Code's "actions no mode auto-approves" list): network egress beyond the configured provider endpoint; deleting nodes or codex entries; mutating provider profiles; leaving project scope.
+- **Hard-deny, non-approvable by any flow** (mirrors Claude Code's "actions no mode auto-approves" list): network egress beyond the configured provider endpoint; deleting nodes or codex entries (a memory note is the same class: `memory.forget`); mutating provider profiles; leaving project scope.
 - **Permission modes decide cards, never the gate** (agent-harness §4). `PermissionContext` has no mode: `approvedPlan` and `confirmed` are facts about the flow, set when a plan or one-step card is approved, and a mode that approves a card sets the same facts the writer's approval does. Every mode leaves the hard-deny list, the `never` class and the param-dependent refusals (a dismissal) exactly as they are.
 
 ## 5. Undo & the checkpoint framing
@@ -135,7 +135,7 @@ The log keeps every row it is given. The Activity panel shows a 200-row window o
 
 ## 9. v0.1 command registry (closed set)
 
-The heading keeps the name the v0.1 table had. The table lists all 51 of the registry's names: the v0.1 rows and those each module added (their owning specs are named in the notes). Reads are **not commands** — modules read the store directly; only mutations route through the bus. Provider/settings mutation is app-level state, never a project command (agentRisk `never`, hard-deny §4). `sessions.jsonl` appends are session-tracker side-effects of doc writes, not commands.
+The heading keeps the name the v0.1 table had. The table lists all 54 of the registry's names: the v0.1 rows and those each module added (their owning specs are named in the notes). Reads are **not commands** — modules read the store directly; only mutations route through the bus. Provider/settings mutation is app-level state, never a project command (agentRisk `never`, hard-deny §4). `sessions.jsonl` appends are session-tracker side-effects of doc writes, not commands.
 
 | Command | Params (essentials) | agentRisk | undo | Notes |
 |---|---|---|---|---|
@@ -188,6 +188,9 @@ The heading keeps the name the v0.1 table had. The table lists all 51 of the reg
 | `skill.write` | `{name, path, text}` | **never** | compensable | One text file of a skill, created or replaced: `SKILL.md`, or a file beside it such as `references/style.md`. A new skill starts with its `SKILL.md`; the caps are the import's. The text is not checked as a skill: a `SKILL.md` that does not parse is listed with the reason and is not offered. User-only. |
 | `skill.delete` | `{name}` | **never** | compensable | The whole skill, every file of it. A folder save removes those files and no others. One undo brings the skill back. User-only. |
 | `skill.setEnabled` | `{name, enabled}` | **never** | inverse | Whether the agent may be told about the skill. Kept in the manifest's `disabledSkills`, so the skill's files are not touched. A skill that is on is still not offered until the writer has reviewed it. User-only. |
+| `project.setInstructions` | `{text, expectedDigest?}` | write-confirm | compensable | Replaces the text of `CAOTANG.md`, the writer's standing instructions (context-assembly.md §2, layer LI). Up to 50,000 characters. An empty text leaves the file empty, which keeps an `AGENTS.md` beside it unread. `expectedDigest` is the digest of the text the caller read (`textDigest`); the write is refused with `revision-conflict` when the file is no longer that text. Refused for a file that is not UTF-8. For an agent it is write-confirm, because it changes every later prompt; the plan or confirm card shows the old and new text as a word diff. Undo puts the file back as it was, absent included.
+| `memory.write` | `{slug, type, title, body, expectedDigest?}` | write-confirm | compensable | Creates or updates one memory note (`memory/<slug>.md`) and regenerates its line in `memory/MEMORY.md` (project-format.md §1). `type` is `style`, `preference`, `process` or `reference`; the body is at most 4,000 characters; a project keeps at most 200 notes. **A title that is a codex entry's name or alias is refused, naming `codex.write`**: a story fact has one home, the codex. `modified`, `origin` (`agent` or `writer`, from `issuedBy`) and `sourceTurn` are the apply's, never params. `expectedDigest` is the digest of the body the caller read (`memory.read` gives it), for an update. A slug that names a note the load could not read is refused. Agent write-confirm, for the reason `project.setInstructions` is. Undo restores the note, or removes it if it was new. |
+| `memory.forget` | `{slug}` | **never** | compensable | Removes one memory note and its index line. The writer's alone: **hard-denied for an agent as a deletion** (§4), like `project.deleteNode`, and the UI asks first. A save removes that file and no other. One undo brings the note back. |
 
 The `agentRisk` and `undo` columns are the descriptors' own (`packages/bus/src/descriptors*.ts`), and the owning spec for each is named in its notes.
 

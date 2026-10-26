@@ -48,6 +48,7 @@ export type {
   UndoKind,
   UndoPayload,
   UndoScope,
+  ValidationAgentFiles,
   ValidationCodexEntry,
   ValidationDocument,
   ValidationNode,
@@ -88,6 +89,20 @@ export * as commands from './descriptors.js';
 export * as projectCommands from './descriptors-project.js';
 // The skill commands (extensibility.md §10), by name. The store reads them here.
 export * as skillCommands from './descriptors-skills.js';
+// The agent-file commands (context-assembly.md §2, layer LI), by name, and the rules the store's file codec shares with them.
+export * as agentFileCommands from './descriptors-agent-files.js';
+export {
+  INSTRUCTIONS_MAX_CHARS,
+  MEMORY_BODY_MAX_CHARS,
+  MEMORY_MAX_FILES,
+  MEMORY_SLUG_MAX_CHARS,
+  MEMORY_TITLE_MAX_CHARS,
+  MEMORY_TYPES,
+  isMemorySlug,
+  slugOf,
+  textDigest,
+  type MemoryType,
+} from './agent-files-rules.js';
 export {
   AUTHOR_MAX,
   CHAR_LIMIT_MAX,
@@ -102,6 +117,9 @@ export {
 } from './descriptors-project.js';
 export type {
   ProjectImportAssetParams,
+  MemoryForgetParams,
+  MemoryWriteParams,
+  ProjectSetInstructionsParams,
   SkillDeleteParams,
   SkillImportParams,
   SkillSetEnabledParams,

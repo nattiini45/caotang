@@ -9,7 +9,7 @@
  * `packages/store/test/bus-snapshot.test.ts`.
  */
 
-import type { ValidationCoherence, ValidationNode, ValidationSnapshot } from '../src/index.js';
+import type { ValidationAgentFiles, ValidationCoherence, ValidationNode, ValidationSnapshot } from '../src/index.js';
 
 export const ROOT = 'root';
 export const MANUSCRIPT = 'manuscript';
@@ -45,7 +45,7 @@ export function makeSnapshot(overrides: {
   bodies?: Record<string, string>;
   statuses?: string[];
   labels?: string[];
-  codex?: { id: string; name: string }[];
+  codex?: { id: string; name: string; aliases?: string[] }[];
   /** The saved export recipes (exporter.md §2), for the rows whose refusals read them. Absent means none. */
   recipes?: { name: string; includeRootIds?: string[] }[];
   /** The coherence file (coherence.md §3), for the rows whose refusals read its findings, scene declarations or runs. */
@@ -54,6 +54,8 @@ export function makeSnapshot(overrides: {
   skills?: Record<string, { path: string; length: number }[]>;
   /** The skills the writer turned off. Absent means every skill is on. */
   disabledSkills?: string[];
+  /** The agent's files (project-format.md §1), for the rows whose refusals read them. Absent means none. */
+  agentFiles?: ValidationAgentFiles;
 } = {}): ValidationSnapshot {
   const tree =
     overrides.tree ??
@@ -94,6 +96,7 @@ export function makeSnapshot(overrides: {
     },
     documents,
     ...(overrides.coherence === undefined ? {} : { coherence: overrides.coherence }),
+    ...(overrides.agentFiles === undefined ? {} : { agentFiles: overrides.agentFiles }),
     ...(overrides.skills === undefined
       ? {}
       : { skills: new Map(Object.entries(overrides.skills).map(([folder, files]) => [folder, files.map((f) => ({ path: f.path, bytes: { length: f.length } }))])) }),

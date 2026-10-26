@@ -238,9 +238,10 @@ export {
   type ContextRequest,
 } from './agent/context.js';
 // The Context section's preview: the prompt a scene draft would send, assembled as the loop assembles it (context-assembly §5).
-export { scenePromptPreview, type ScenePreviewOptions } from './agent/step-preview.js';
+export { instructionsReport, scenePromptPreview, type InstructionsReport, type ScenePreviewOptions } from './agent/step-preview.js';
 // The plan card renders a step's prompt preview; the app reads its shape from here, not from @caotang/context.
 export type { ContextConfig, PreviewLayer, PromptPreview } from '@caotang/context';
+export { DEFAULT_INSTRUCTIONS_BUDGET } from '@caotang/context';
 export {
   MODEL_BACKED_TOOLS,
   RESOLVE_BADGE,

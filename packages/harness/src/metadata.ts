@@ -79,6 +79,8 @@ export const TOOL_NAMES = [
   'dialogue.table',
   // The project's skills (extensibility.md §10).
   'skill.load',
+  // The writer's instructions and the agent's memory (context-assembly.md §2, layer LI). The two writes are allowlisted primitives, below.
+  'memory.read',
   // Delegation to a built-in helper agent (agent-harness §2).
   'agent.delegate',
   // The allowlisted bus primitives (tools/primitive.ts), each a deferred extension row.
@@ -337,6 +339,21 @@ const ROWS: readonly ToolRow[] = [
     surface: 'extension',
     load: 'deferred',
     keywords: ['skill', 'skills', 'instructions', 'style', 'conventions', 'guidance'],
+  },
+  // The writer's instructions and the agent's memory notes (context-assembly.md §2, layer LI). CAOTANG.md and the memory index are already in
+  // every request, so this row is for a note's whole text and for the digests the two write rows take. `memory.write` and
+  // `instructions.propose` are allowlisted primitive rows (tools/primitive-tools.ts).
+  {
+    name: 'memory.read',
+    risk: 'read',
+    undoable: false,
+    response_token_cap: 4000,
+    descriptionVersion: 1,
+    description:
+      'Read the memory notes the project keeps. With no slug, list the notes (slug, type, title, size and digest) and the digest of CAOTANG.md; with a slug, read that note whole. The digest is what memory.write and instructions.propose take as expectedDigest. Read-only. A note is a habit or preference, never a story fact: those live in the codex.',
+    surface: 'extension',
+    load: 'deferred',
+    keywords: ['memory', 'remember', 'notes', 'preferences', 'instructions', 'CAOTANG.md', 'habits'],
   },
   // Delegation (agent-harness §2, "Delegate"): a read whose work the agent loop does. The helper has its own context, read tools and
   // call budget, and can only read and propose steps, so the row is a read like `skill.load`. It is wired where the agent ports are
