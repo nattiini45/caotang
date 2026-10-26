@@ -66,7 +66,8 @@ export class TaskRuns {
 
   /** Forgets a task's history, when the task is deleted. */
   async forget(taskId: string): Promise<void> {
-    if (!this.histories.delete(taskId) || this.db === null) return;
+    this.histories.delete(taskId);
+    if (this.db === null) return;
     try {
       await this.db.delete([keyOf(this.projectId, taskId)]);
     } catch (error) {

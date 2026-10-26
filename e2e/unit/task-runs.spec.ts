@@ -118,3 +118,24 @@ test('a database that cannot be read gives no history and says why, and a stand-
   expect(runs.failure).toBe('blocked');
   expect((await TaskRuns.open(PROJECT, {})).history(TASK)).toEqual([]);
 });
+
+test('a task that is deleted has its stored history deleted even when this session never held it', async () => {
+  const deleted: string[][] = [];
+  const db = {
+    taskRuns: {
+      list: () => Promise.reject(new Error('could not list')),
+      put: () => Promise.resolve(),
+      delete: (keys: readonly string[]) => {
+        deleted.push([...keys]);
+        return Promise.resolve();
+      },
+    },
+  };
+  const runs = await TaskRuns.open(PROJECT, db);
+  expect(runs.history(TASK)).toEqual([]);
+  await runs.forget(TASK);
+  expect(deleted).toEqual([[`${PROJECT}:${TASK}`]]);
+
+  // With nowhere to keep the history there is nothing to delete, and forgetting is not an error.
+  await expect(TaskRuns.none(PROJECT).forget(TASK)).resolves.toBeUndefined();
+});
