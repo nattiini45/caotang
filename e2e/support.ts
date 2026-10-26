@@ -67,6 +67,25 @@ export function card(page: Page, title: string): Locator {
   return page.locator('article.card', { has: page.getByRole('heading', { name: title, exact: true }) });
 }
 
+/** Drag one storyboard card to another through stepped mouse input and wait for the board's real drop-target state. */
+export async function dragShotCard(page: Page, source: Locator, target: Locator): Promise<void> {
+  const [sourceBox, targetBox] = await Promise.all([source.boundingBox(), target.boundingBox()]);
+  if (sourceBox === null || targetBox === null) throw new Error('shot card is not visible for dragging');
+
+  // The blank gap below the header avoids starting a text selection or hitting the card's image controls.
+  const start = { x: sourceBox.x + 18, y: sourceBox.y + 32 };
+  const end = { x: targetBox.x + 18, y: targetBox.y + 32 };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  try {
+    await page.mouse.move(start.x + 10, start.y, { steps: 4 });
+    await page.mouse.move(end.x, end.y, { steps: 12 });
+    await expect(target).toHaveClass(/is-drop-target/);
+  } finally {
+    await page.mouse.up();
+  }
+}
+
 /** Match a text exactly, so "Chapter 1" does not also match "Chapter 10". */
 function exactly(text: string): RegExp {
   return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);

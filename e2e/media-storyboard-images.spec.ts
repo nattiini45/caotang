@@ -11,7 +11,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { binderTitle, createProject, firstChapter, trace, waitForSaved } from './support.js';
+import { binderTitle, createProject, dragShotCard, firstChapter, trace, waitForSaved } from './support.js';
 
 const PROJECT = 'Picture Book';
 /** A 1×1 PNG, the smallest picture the store will take. */
@@ -319,11 +319,8 @@ test('a drop on the board that matches no shot imports nothing, names every file
 test('a card dragged on the board still reorders, and a file dropped on a card still goes on that card whatever its name', async ({ page }) => {
   const { cards } = await storyboardWithThreeShots(page);
   const ids = await cards.evaluateAll((items) => items.map((item) => item.getAttribute('data-shot-id')));
-  // The agent panel covers the second card's centre in Firefox; start in its empty padding, not on draggable text.
-  await cards.nth(1).dragTo(cards.nth(0), {
-    sourcePosition: { x: 6, y: 6 },
-    targetPosition: { x: 6, y: 6 },
-  });
+  // The panel can cover a card's centre; use the blank gap below its header and let the browser deliver stepped native drag events.
+  await dragShotCard(page, cards.nth(1), cards.nth(0));
   await expect.poll(() => cards.nth(0).getAttribute('data-shot-id')).toBe(ids[1]);
   expect(await ran(page, 'binder.move')).toBeGreaterThan(0);
   expect(await ran(page, 'shot.importImages')).toBe(0);
