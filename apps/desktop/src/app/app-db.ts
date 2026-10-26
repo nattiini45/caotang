@@ -12,13 +12,16 @@
  * read or write here.
  */
 
+import type { TaskRunRecord } from '@caotang/tasks';
+
 /** The database name. No project uses it, and the project store has its own. */
 export const APP_DB_NAME = 'caotang-app';
 /**
  * Version 2 adds the editor's history journals (`STORE_HISTORY`); version 3 adds the writer's reviews of a project's skills
- * (`STORE_SKILL_REVIEWS`). Each upgrade only adds a store, so the `kv` records and the journals are untouched by it.
+ * (`STORE_SKILL_REVIEWS`); version 4 adds the run history of a project's recurring tasks (`STORE_TASK_RUNS`). Each upgrade only adds
+ * a store, so the `kv` records, the journals and the reviews are untouched by it.
  */
-const APP_DB_VERSION = 3;
+const APP_DB_VERSION = 4;
 const STORE_KV = 'kv';
 /** Per-document undo journals (history-store.ts), keyed `<projectId>:<docId>`. Per-viewer state: no export, bundle or agent reads it. */
 const STORE_HISTORY = 'editor-history';
@@ -30,6 +33,12 @@ const STORE_HISTORY_META = 'editor-history-meta';
  * export, so a shared project cannot ship its own approval (extensibility.md §10).
  */
 const STORE_SKILL_REVIEWS = 'skill-reviews';
+
+/**
+ * When each recurring task of a project last ran on this machine, and its history (task-runs.ts), keyed `<projectId>:<taskId>`. Kept
+ * here and never in a project, a bundle or an export: what a writer has already seen is the writer's, not the folder's.
+ */
+const STORE_TASK_RUNS = 'task-runs';
 
 /** The record keys. One value per key, so a save replaces a whole record at once. */
 export const APP_KEYS = {
@@ -81,6 +90,23 @@ export interface SkillReviewDb {
   delete(keys: readonly string[]): Promise<void>;
 }
 
+/** The runs of one recurring task of one project on this machine, newest first and bounded (`withRun` in `@caotang/tasks`). */
+export interface TaskRunRow {
+  readonly key: string;
+  readonly projectId: string;
+  readonly taskId: string;
+  readonly history: readonly TaskRunRecord[];
+}
+
+/** The recurring tasks' run history, in the database's `task-runs` store. */
+export interface TaskRunDb {
+  /** Every task's history kept for a project. */
+  list(projectId: string): Promise<readonly TaskRunRow[]>;
+  put(row: TaskRunRow): Promise<void>;
+  /** Removes the histories kept under these keys. */
+  delete(keys: readonly string[]): Promise<void>;
+}
+
 /** One record of the `kv` store, as `AppDb.list` returns it. */
 export interface KvRow<T = unknown> {
   readonly key: string;
@@ -100,6 +126,8 @@ export interface AppDb {
   readonly history?: HistoryDb;
   /** The writer's skill reviews. Absent on a stand-in that keeps only settings; no skill is then reviewed across a reload. */
   readonly reviews?: SkillReviewDb;
+  /** The recurring tasks' run history. Absent on a stand-in that keeps only settings; a task is then offered again after a reload. */
+  readonly taskRuns?: TaskRunDb;
   close(): void;
 }
 
@@ -140,6 +168,9 @@ export function openAppDb(factory: IDBFactory, name: string = APP_DB_NAME): Prom
       if (!db.objectStoreNames.contains(STORE_HISTORY_META)) db.createObjectStore(STORE_HISTORY_META, { keyPath: 'key' });
       if (!db.objectStoreNames.contains(STORE_SKILL_REVIEWS)) {
         db.createObjectStore(STORE_SKILL_REVIEWS, { keyPath: 'key' }).createIndex('byProject', 'projectId');
+      }
+      if (!db.objectStoreNames.contains(STORE_TASK_RUNS)) {
+        db.createObjectStore(STORE_TASK_RUNS, { keyPath: 'key' }).createIndex('byProject', 'projectId');
       }
     };
     request.onsuccess = () => {
@@ -209,6 +240,23 @@ export function openAppDb(factory: IDBFactory, name: string = APP_DB_NAME): Prom
             if (keys.length === 0) return;
             const tx = db.transaction(STORE_SKILL_REVIEWS, 'readwrite');
             for (const key of keys) tx.objectStore(STORE_SKILL_REVIEWS).delete(key);
+            await committed(tx);
+          },
+        },
+        taskRuns: {
+          async list(projectId: string): Promise<readonly TaskRunRow[]> {
+            const tx = db.transaction(STORE_TASK_RUNS, 'readonly');
+            return requestOf(tx.objectStore(STORE_TASK_RUNS).index('byProject').getAll(projectId) as IDBRequest<TaskRunRow[]>, tx);
+          },
+          async put(row: TaskRunRow): Promise<void> {
+            const tx = db.transaction(STORE_TASK_RUNS, 'readwrite');
+            tx.objectStore(STORE_TASK_RUNS).put(row);
+            await committed(tx);
+          },
+          async delete(keys: readonly string[]): Promise<void> {
+            if (keys.length === 0) return;
+            const tx = db.transaction(STORE_TASK_RUNS, 'readwrite');
+            for (const key of keys) tx.objectStore(STORE_TASK_RUNS).delete(key);
             await committed(tx);
           },
         },

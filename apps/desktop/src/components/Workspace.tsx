@@ -49,6 +49,7 @@ import { saveStateWords } from '../app/integrity-model.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import type { StartIntent } from '../App.js';
 import { AgentPanel } from './AgentPanel.js';
+import { RecurringTasks } from '../app/recurring-tasks.js';
 import { Binder, type CenterMode } from './Binder.js';
 import { CodexPanel } from './CodexPanel.js';
 import { ActivityPanel } from './ActivityPanel.js';
@@ -188,6 +189,15 @@ export function Workspace({
     agent.attach();
     return () => agent.detach();
   }, [agent]);
+  // The project's recurring tasks (agent-harness.md §12): looked at as the project opens and every minute while the tab is visible.
+  const recurring = useMemo(
+    () => new RecurringTasks({ session, agent, enabledChecks: () => services.settings.current().coherence.enabledChecks }),
+    [session, agent, services.settings],
+  );
+  useEffect(() => {
+    void recurring.attach();
+    return () => recurring.detach();
+  }, [recurring]);
   // Today's stored words, read now and every few seconds: a sitting that ends elsewhere still counts toward the target.
   useEffect(() => {
     let alive = true;
@@ -877,6 +887,7 @@ export function Workspace({
             <AgentPanel
               session={session}
               agent={agent}
+              recurring={recurring}
               startIntent={startIntent}
               open={agentOpen}
               onToggle={() => setAgentOpen((on) => !on)}

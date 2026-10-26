@@ -240,6 +240,7 @@ export {
 // The Context section's preview: the prompt a scene draft would send, assembled as the loop assembles it (context-assembly §5).
 export { instructionsReport, scenePromptPreview, type InstructionsReport, type ScenePreviewOptions } from './agent/step-preview.js';
 // The plan card renders a step's prompt preview; the app reads its shape from here, not from @caotang/context.
+export { withheldState } from '@caotang/context';
 export type { ContextConfig, PreviewLayer, PromptPreview } from '@caotang/context';
 export { DEFAULT_INSTRUCTIONS_BUDGET } from '@caotang/context';
 export {
@@ -381,6 +382,6 @@ export {
 } from './types.js';
 export { CHARS_PER_TOKEN, estimateTokens, fitsCap } from './tokens.js';
 export { refusal, notWired } from './errors.js';
-export { coherenceAsyncPorts, coherencePorts, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
+export { coherenceAsyncPorts, coherencePorts, excludedBy, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
 export { codexImportParams, prepareCodexImport } from './tools/codex-import.js';
 export { parsedSkillsOf, skillBlock, skillLabel, skillStatesOf, type LoadedSkill, type SkillsOption } from './tools/skills.js';

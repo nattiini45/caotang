@@ -319,6 +319,16 @@ Some things you would otherwise say in every request: "British spelling. Past te
 
 The files travel with the project: a project folder, a `.caotang` bundle and this browser's copy all carry them, and the Caotang MCP server lets a connected program read them, never change them. A note file that Caotang cannot read is kept exactly as it is and listed as one it cannot read; opening the project never deletes it.
 
+## Recurring tasks
+
+A recurring task is something you want done again and again: a continuity scan every Monday, or "read the scenes I changed today and tell me what is loose" each evening. Open the agent panel and find **Recurring tasks**. **New task** asks for a name, what it does (**Ask the agent**, or **Scan for continuity problems**), when it is due (**Only when I run it**, **Each time the project opens**, **Every day** or **Every week**, from a time of day in your own clock), and what it may do (**Ask before it changes anything**, or **Change nothing**). A task that asks the agent can be given **Most model calls in a run**. Each task has **Run now**, **Edit**, **Turn off** and **Delete**, and **Runs on this machine** lists what it did, with the model calls and tokens it used.
+
+When a task is due you are **offered** it: a card with **Run now** and **Skip**, shown even when the agent panel is closed, and read out to a screen reader. **Skip** keeps the offer from coming back until the task's next time. A task you did not get to for several days is offered once, not once for each day. **Run now** on a task that asks the agent is an ordinary agent turn, with its plan card and its checkpoint, run on the model you chose for the **Background** task in **Settings › Providers**. The task's own limit on what it may do can only lower the panel's mode, never raise it.
+
+A **scan** task set to **Start it by itself** runs without being asked when it is due. It reads your project and calls no model, so it sends nothing anywhere. It leaves out any document you have told the agent not to read, and it adds its findings to the Findings tab like a scan you start there. A task that uses the model never starts by itself in this build: it is offered, whatever you set, and the form says so.
+
+Tasks run only while the project is open in a visible tab. Nothing runs in the background, and a task that came due while the tab was closed is offered the next time you open the project. The tasks themselves are kept in the project, in `tasks.json` beside `caotang.json`, and travel in a bundle; when each task last ran, what you skipped and what the runs used stay in this browser and do not travel. The agent cannot make, change or run a task: they are yours.
+
 ## Skills
 
 A skill is a set of instructions you write once and the agent follows when your request fits it: "draft in close third person, past tense, no adverbs in dialogue tags", or "fill synopses in three beats", or "use these slug-line conventions". The codex holds facts about your story; a skill holds how you want the agent to work. Choose **Skills** in the toolbar to open the panel.
@@ -503,5 +513,6 @@ A developer can run the agent against a project folder from a Node script, a com
 - **Skill scripts and files.** Skills that include scripts: Caotang uses their instructions and does not run the scripts. The agent cannot read the other files kept with a skill, a skill's list of allowed tools does not limit the agent, and there are no skills shared across projects and no way to run a skill by name. Only the project's `.agents/skills` folder is read.
 - **Helper agents.** Only the Reader and General agents exist; you cannot write your own. A helper cannot start another helper, and helpers run one at a time.
 - **Background tasks.** A task is drafted only while the project is open in this tab: close the tab and it stops, and **Resume** finishes it when you open the project again. A coherence review cannot be queued yet; it runs now. A background call waits for the agent to be free, but one already sent still counts against a rate-limited key.
+- **Recurring tasks.** Only a scan starts by itself. A task that asks the agent is always offered, never started without you, and there is no setting to let it start by itself yet. Tasks do not run while the project is closed or the tab is hidden, there is no command line for them, and the agent cannot make one. A task's plan can be read from `tasks.json` but not written in the panel.
 - **The desktop app.** Caotang runs in the browser. A desktop wrapper is not in this build.
 - **The hosted instance.** Sign-up, synced end-to-end encrypted projects and the provider relay are planned and not in this build; Caotang stores everything in this browser or a folder you choose.

@@ -85,6 +85,7 @@ packages/sdk/            run the agent from Node against a project folder (@caot
 packages/skills/         Agent Skills folders: the SKILL.md reader, the caps, the review pin, the model's catalog
 packages/store/          the project store and the manifest
 packages/storyboard/     shot cards and animatics
+packages/tasks/          recurring agent tasks: tasks.json, when a task is due, what a task may do (pure; the run and the history are the app's)
 packages/video-prompt-pack/
 vendor/noto-sans-cjk/    @caotang/font-noto-cjk
 vendor/noto-emoji/       @caotang/font-noto-emoji

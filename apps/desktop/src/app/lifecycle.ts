@@ -33,6 +33,7 @@
  */
 
 import { COHERENCE_FILE, serializeCoherenceFile, type CoherenceFile } from '@caotang/coherence';
+import { TASKS_FILE } from '@caotang/tasks';
 import {
   ArtifactNotFoundError,
   appendSession,
@@ -81,7 +82,9 @@ import {
   type WriteReport,
   markRunsInterrupted,
   readCoherenceFiles,
+  readTaskFiles,
   writeCoherenceFiles,
+  writeTaskFiles,
   writeProjectState,
   type ProjectState,
   type RecoveryOffer,
@@ -124,6 +127,8 @@ import { sampleProjectState } from './demo.js';
 import { dropHistoryOf } from './history-store.js';
 import { SkillReviews, dropReviewsOf } from './skill-reviews.js';
 import { dropTasksOf } from './task-store.js';
+import { dropTaskRunsOf } from './task-runs.js';
+import { openTasksHome } from './tasks-io.js';
 import { recoverPending, recoveryNotice } from './pending-journal.js';
 import { copyState, shadowOf, type Shadow } from './persistence-plan.js';
 import { acquireProjectLease, ProjectOpenElsewhereError, type ProjectLease } from './project-lease.js';
@@ -235,6 +240,8 @@ async function sessionFor(
       onClosed: () => lease.release(),
     });
     await attachCoherence(session, store, folder);
+    // The recurring tasks are read the same way, and a failure to read them is a notice in the Tasks panel and never a reason not to open.
+    session.attachTasks(await openTasksHome(state.manifest.project.id, store, folder));
     // The dialogue checks compile Ink synchronously, so a project with a dialogue container opens once the compiler has loaded (ink-compiler.ts).
     // A failed load does not stop the open: the dialogue views say so and offer Try again.
     await requestInkCompilerFor(state);
@@ -337,6 +344,7 @@ export type EncodingResume =
       readonly sessions: readonly SessionRecord[];
       readonly assets: Readonly<Record<string, Uint8Array>>;
       readonly coherence: string | undefined;
+      readonly tasks: string | undefined;
     }
   /** An accepted recovery: the write already ran, so the answers are applied and the result adopted. */
   | { readonly kind: 'recovery'; readonly sessions: readonly SessionRecord[]; readonly folder: DirectoryHandleLike | null };
@@ -488,6 +496,8 @@ export async function removeProject(store: RuntimeStore, projectId: string): Pro
     await dropReviewsOf(projectId);
     // So do its background tasks, which hold text drawn from it (task-store.ts).
     await dropTasksOf(projectId);
+    // And the run history of its recurring tasks (task-runs.ts).
+    await dropTaskRunsOf(projectId);
   } finally {
     lease.release();
   }
@@ -530,7 +540,7 @@ export interface ExportedBundle {
 export async function exportBundle(store: RuntimeStore, session: ProjectSession): Promise<ExportedBundle> {
   await session.settle();
   const sessions = await readSessions(store, session.projectId);
-  const bundle = await bundleOf(session.state, sessions, session.assets, coherenceTextOf(session));
+  const bundle = await bundleOf(session.state, sessions, session.assets, coherenceTextOf(session), session.tasksHome()?.text());
   session.markExported();
   return bundle;
 }
@@ -554,10 +564,11 @@ export async function exportStoredBundle(
   const state = await readProjectState(store, projectId);
   const sessions = await readSessions(store, projectId);
   const coherence = (await readCoherenceFiles(store, projectId))[COHERENCE_FILE];
+  const tasks = (await readTaskFiles(store, projectId))[TASKS_FILE];
   const assets = assetsFor(projectId);
   // The browser's copy is listed before the bundle reads the pictures, so a reloaded page's pictures are in the bundle.
   await assets.ready();
-  return bundleOf(state, sessions, assets, coherence, copyFor);
+  return bundleOf(state, sessions, assets, coherence, tasks, copyFor);
 }
 
 /**
@@ -573,6 +584,7 @@ async function bundleOf(
   sessions: readonly SessionRecord[],
   assets: ProjectAssets,
   coherence: string | undefined,
+  tasks: string | undefined,
   copyFor: 'user' | 'internal' = 'user',
 ): Promise<ExportedBundle> {
   const notices: string[] = [];
@@ -583,11 +595,12 @@ async function bundleOf(
       'the cover image is not available in this browser, so the bundle has no cover. A project kept in a folder has its cover there: open that folder, or choose the cover again in the project panel',
     );
   }
-  // The findings file rides beside caotang.json (coherence.md §3), and the images in assets/.
+  // The findings file and the recurring tasks ride beside caotang.json (coherence.md §3, agent-harness.md §12), and the images in assets/.
   const exported = await exportProjectZip(state, {
     sessions,
     assets: await assets.snapshot(),
     ...(coherence === undefined ? {} : { coherence }),
+    ...(tasks === undefined ? {} : { tasks }),
     copyFor,
   });
   // A file the load declined because its bytes are not UTF-8 has no text to carry, and the copy says what
@@ -625,6 +638,7 @@ async function adopt(
   folder: DirectoryHandleLike | null = null,
   assets: Readonly<Record<string, Uint8Array>> = {},
   coherence?: string,
+  tasks?: string,
 ): Promise<Opened> {
   const originalId = state.manifest.project.id;
   const taken = new Set(await listProjectIds(store));
@@ -635,11 +649,13 @@ async function adopt(
   }
   // A bundle that carried a findings file gives the working copy its set before the session reads it, so the file the bundle
   // holds is the one the project opens with (coherence.md §3, §7).
-  if (coherence !== undefined) {
+  if (coherence !== undefined || tasks !== undefined) {
     // The project row must exist before its set can be attached to it, so the state is written first; the session's own first
-    // write then replaces the same row, and keeps the set (ProjectRow.coherenceFiles).
+    // write then replaces the same row, and keeps the sets (ProjectRow.coherenceFiles, ProjectRow.taskFiles). The recurring tasks come
+    // as the bundle wrote them; nothing about when they last ran or whether one may start by itself travels with them.
     await writeProjectState(store, state, { now: new Date() });
-    await writeCoherenceFiles(store, state.manifest.project.id, { [COHERENCE_FILE]: coherence });
+    if (coherence !== undefined) await writeCoherenceFiles(store, state.manifest.project.id, { [COHERENCE_FILE]: coherence });
+    if (tasks !== undefined) await writeTaskFiles(store, state.manifest.project.id, { [TASKS_FILE]: tasks });
   }
   const session = await sessionFor(store, state, null, await leaseFor(state.manifest.project.id), folder);
   // A copy made with a fresh id remembers the project it was copied from, so it is never saved into that project's folder (`saveFolder`).
@@ -950,6 +966,7 @@ export async function importBundle(store: RuntimeStore, bytes: Uint8Array, name:
     return { kind: 'recover', recovery: await recoveryFor(name, unpacked.fs, unpacked.sessions, null, new Map()) };
   }
   const coherence = (await unpacked.fs.exists(COHERENCE_FILE)) ? await unpacked.fs.read(COHERENCE_FILE) : undefined;
+  const tasks = (await unpacked.fs.exists(TASKS_FILE)) ? await unpacked.fs.read(TASKS_FILE) : undefined;
   // A bundle's non-UTF-8 files pause the import the same way a folder's do: the answers are applied to the
   // unpacked copy in memory, before the project is adopted — so the working copy is made from the converted text.
   if (loaded.encodingIssues.length > 0) {
@@ -959,7 +976,7 @@ export async function importBundle(store: RuntimeStore, bytes: Uint8Array, name:
         name,
         issues: loaded.encodingIssues,
         fs: unpacked.fs,
-        resume: { kind: 'bundle', sessions: unpacked.sessions, assets: unpacked.assets, coherence },
+        resume: { kind: 'bundle', sessions: unpacked.sessions, assets: unpacked.assets, coherence, tasks },
         cancelNote: '',
       },
     };
@@ -975,6 +992,7 @@ export async function importBundle(store: RuntimeStore, bytes: Uint8Array, name:
       null,
       unpacked.assets,
       coherence,
+      tasks,
     ),
   };
 }
@@ -1441,6 +1459,7 @@ export async function completeEncodingReview(
           null,
           resume.assets,
           resume.coherence,
+          resume.tasks,
         ),
       };
     case 'recovery': {
@@ -1771,6 +1790,7 @@ export async function saveFolder(
   holdFolderCopy(session, root, manifestMoved ? written : manifestNow, settled.digests);
   // The findings file goes beside the project, and stays in step with it from now on (coherence.md §3).
   await session.attachCoherenceFolder(root);
+  await session.attachTasksFolder(root);
   // The project remembers the folder it was saved to, so the projects list can reopen it with one click (folder-memory.ts).
   await rememberFolder(session.projectId, root);
   await rememberHeldCopy(session);

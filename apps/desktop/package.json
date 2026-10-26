@@ -34,6 +34,7 @@
     "@caotang/skills": "workspace:*",
     "@caotang/storyboard": "workspace:*",
     "@caotang/store": "workspace:*",
+    "@caotang/tasks": "workspace:*",
     "@caotang/video-prompt-pack": "workspace:*",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"

@@ -140,6 +140,7 @@ A project is a folder:
 caotang.json          the manifest: the binder tree, the codex, the vocabulary, recipes, filters and goals
 caotang.json.bak.1..3 the three previous manifests
 coherence.json        the findings and check runs, beside the manifest
+tasks.json            the recurring agent tasks, definitions only (when each last ran stays in the browser)
 docs/                 one file per scene, note or dialogue container, named by id: .md, .fountain or .ink
 codex/                one file per codex entry
 assets/               images: storyboard pictures and the cover
