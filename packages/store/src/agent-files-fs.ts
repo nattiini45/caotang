@@ -22,11 +22,14 @@ import {
   type ParsedAgentFiles,
 } from './agent-files.js';
 
-/** The paths of the agent files the folder holds, sorted. `AGENTS.md` only counts when `CAOTANG.md` is absent, since only then is it read. */
+/**
+ * The paths of the agent files the folder holds, sorted. `AGENTS.md` is listed whenever it exists, so the digests of a folder do not change
+ * shape when `CAOTANG.md` appears beside it; `readAgentFiles` reads it only while `CAOTANG.md` is absent.
+ */
 export async function listAgentFilePaths(fs: ArtifactFs): Promise<string[]> {
   const out: string[] = [];
   if (await fs.exists(INSTRUCTIONS_FILE)) out.push(INSTRUCTIONS_FILE);
-  else if (await fs.exists(INSTRUCTIONS_FALLBACK)) out.push(INSTRUCTIONS_FALLBACK);
+  if (await fs.exists(INSTRUCTIONS_FALLBACK)) out.push(INSTRUCTIONS_FALLBACK);
   if (await fs.exists(MEMORY_DIR)) {
     for (const name of await fs.listFiles(MEMORY_DIR)) {
       const path = `${MEMORY_DIR}/${name}`;
@@ -61,7 +64,10 @@ export interface ReadAgentFiles extends ParsedAgentFiles {
 export async function readAgentFiles(fs: ArtifactFs): Promise<ReadAgentFiles> {
   const texts: Record<string, string> = {};
   const held: { path: string; bytes: Uint8Array }[] = [];
-  for (const path of await listAgentFilePaths(fs)) {
+  const listed = await listAgentFilePaths(fs);
+  const hasPrimary = listed.includes(INSTRUCTIONS_FILE);
+  for (const path of listed) {
+    if (hasPrimary && path === INSTRUCTIONS_FALLBACK) continue;
     const text = await readText(fs, path);
     if (text === null) continue;
     if (text === undefined) {

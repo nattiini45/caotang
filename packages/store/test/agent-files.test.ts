@@ -279,15 +279,16 @@ describe('an agent file changed by another program during a folder save', () => 
     expect(await fs.read(INSTRUCTIONS_FILE)).toBe('Edited elsewhere.\n');
   });
 
-  it('counts AGENTS.md as a project file only while CAOTANG.md is absent', async () => {
+  it('digests AGENTS.md whenever it exists, so creating CAOTANG.md beside it is not drift', async () => {
     const fs = new MemoryArtifactFs();
     await writeProject(fs, project(), { now: NOW });
     fs.putFile(INSTRUCTIONS_FALLBACK, 'x');
-    expect([...(await projectFileDigests(fs)).keys()]).toContain(INSTRUCTIONS_FALLBACK);
+    const held = await projectFileDigests(fs);
+    expect([...held.keys()]).toContain(INSTRUCTIONS_FALLBACK);
     fs.putFile(INSTRUCTIONS_FILE, 'y');
-    const paths = [...(await projectFileDigests(fs)).keys()];
-    expect(paths).toContain(INSTRUCTIONS_FILE);
-    expect(paths).not.toContain(INSTRUCTIONS_FALLBACK);
+    const now = await projectFileDigests(fs);
+    expect([...now.keys()]).toEqual(expect.arrayContaining([INSTRUCTIONS_FILE, INSTRUCTIONS_FALLBACK]));
+    expect(driftOf(held, now)).toEqual({ changed: [], removed: [], added: [INSTRUCTIONS_FILE] });
   });
 
   it('counts the agent files as project files, and nothing else under memory/', () => {
