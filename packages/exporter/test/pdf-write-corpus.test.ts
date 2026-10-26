@@ -15,7 +15,7 @@ import { resolve } from 'node:path';
 import { crc32, deflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
-import { loadArabicFontInNode, loadCjkFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
+import { loadArabicFontInNode, loadCjkFontInNode, loadColourEmojiInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
 import { MemoryArtifactFs, type ExportRecipeOptions, type ProjectState } from '@caotang/store';
 import { addShotNode } from '@caotang/storyboard';
 import type { AssetRecord } from '@caotang/video-prompt-pack';
@@ -54,6 +54,8 @@ const COURIER = { name: 'CourierPrime', embedded: true, toUnicode: false } as co
 const CJK = { name: 'NotoSansMonoCJKsc-Regular', embedded: true, toUnicode: true } as const;
 const EMOJI = { name: 'NotoEmoji-Regular', embedded: true, toUnicode: true } as const;
 const ARABIC = { name: 'NotoSansArabic-Regular', embedded: true, toUnicode: true } as const;
+/** The colour emoji: a Type 3 font, which has no BaseFont and no font program, so the validators name it `Type3` (tools/pdf-validate/check.mjs). */
+const TYPE3 = { name: 'Type3', embedded: true, toUnicode: true } as const;
 const HEBREW = { name: 'NotoSansHebrew-Regular', embedded: true, toUnicode: true } as const;
 const DEVANAGARI = { name: 'NotoSansDevanagari-Regular', embedded: true, toUnicode: true } as const;
 /** The contact sheet's built-in font: base-14, so it is not embedded. */
@@ -210,6 +212,16 @@ const CORPUS: readonly Case[] = [
     fonts: [COURIER, EMOJI],
   },
   {
+    // Colour emoji (screenplay.md §5.3): the pictures are Type 3 glyphs, each with its whole sequence in ToUnicode.
+    file: 'screenplay-colour-emoji.pdf',
+    format: 'pdf',
+    build: () => ({ state: sceneWith('INT. STUDIO - DAY\n\nMARA\nAction 🎬 and family 👨‍👩‍👧, flag 🇯🇵, pride 🏳️‍🌈, key 1️⃣, thumb 👍🏽.') }),
+    options: { titlePage: false, colourEmoji: true },
+    pages: [['INT. STUDIO - DAY', 'Action', '🎬', '👨‍👩‍👧', '🇯🇵', '🏳️‍🌈', '1️⃣', '👍🏽']],
+    size: LETTER,
+    fonts: [COURIER, TYPE3],
+  },
+  {
     file: 'screenplay-arabic-hebrew.pdf',
     format: 'pdf',
     // Right-to-left words are drawn glyph by glyph in visual order, each glyph with its text in ToUnicode and no /ActualText, so
@@ -261,9 +273,20 @@ const CORPUS: readonly Case[] = [
     file: 'sheet-cjk-emoji.pdf',
     format: 'contact-sheet-pdf',
     build: () => ({ state: sheetWith('World', '草堂 at dawn, ようこそ 🎬 👨‍👩‍👧'), files: {} }),
+    options: { colourEmoji: false },
     pages: [['Mara sets the kettle down.', '草堂 at dawn', 'ようこそ', '🎬', '👨‍👩‍👧']],
     size: A4,
     fonts: [HELVETICA, CJK, EMOJI],
+  },
+  {
+    // The contact sheet's emoji are in colour by default, so the black-and-white case above turns it off, and this one names it.
+    file: 'sheet-colour-emoji.pdf',
+    format: 'contact-sheet-pdf',
+    build: () => ({ state: sheetWith('World', 'Cut 🎬 👨‍👩‍👧 🇯🇵 🏳️‍🌈 👍🏽'), files: {} }),
+    options: { colourEmoji: true },
+    pages: [['Mara sets the kettle down.', 'Cut', '🎬', '👨‍👩‍👧', '🇯🇵', '🏳️‍🌈', '👍🏽']],
+    size: A4,
+    fonts: [HELVETICA, TYPE3],
   },
   {
     file: 'sheet-cjk-ko.pdf',
@@ -318,6 +341,7 @@ describe.skipIf(OUT === '')('the PDF write corpus', () => {
       readAsset: async (path) => files?.[path] ?? null,
       loadFallbackFont: loadCjkFontInNode,
       loadEmojiFont: loadEmojiFontInNode,
+      loadColourEmoji: loadColourEmojiInNode,
       loadArabicFont: loadArabicFontInNode,
       loadHebrewFont: loadHebrewFontInNode,
       loadDevanagariFont: loadDevanagariFontInNode,
