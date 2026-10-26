@@ -254,3 +254,50 @@ test('the Pages tab of a screenplay scene, with its lines that open the Source t
   // (WCAG 2.5.8, the equivalent-control exception), which axe cannot know.
   expect(await problemsIn(page, '.sp-preview', ['color-contrast', 'aria-allowed-role'])).toEqual([]);
 });
+
+test('the recurring tasks, with a task due, its form, its runs and a confirmation, pass the colour-contrast, target-size and role rules', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await createProject(page, 'Tasks Surface');
+  await page.getByRole('button', { name: 'Agent', exact: true }).click();
+  const tasks = page.getByTestId('recurring-tasks');
+  await expect(tasks).toBeVisible();
+
+  const make = async (name: string, does: string, when: string): Promise<void> => {
+    await page.getByRole('button', { name: 'New task' }).click();
+    const form = page.getByRole('form', { name: 'New task' });
+    await form.getByLabel('Task name').fill(name);
+    await form.getByLabel('What it does').selectOption({ label: does });
+    if (does === 'Ask the agent') await form.getByLabel('What to ask').fill('Look over the newest scene.');
+    await form.getByLabel('When', { exact: true }).selectOption({ label: when });
+    if (when === 'Every day') await form.getByLabel('From').fill('00:00');
+    // The form is checked while it is open, with every control it can show.
+    if (when === 'Every week') expect([...(await contrastProblemsIn(page, '.recurring-form')), ...(await shellProblemsIn(page, '.recurring-form'))]).toEqual([]);
+    await form.getByRole('button', { name: 'Save task' }).click();
+    await expect(tasks.locator('[data-task]', { hasText: name })).toBeVisible();
+  };
+  await make('Weekly scan', 'Scan for continuity problems', 'Every week');
+  await make('Daily read', 'Ask the agent', 'Every day');
+  const scan = tasks.locator('[data-task]', { hasText: 'Weekly scan' });
+  await scan.getByRole('button', { name: /^Run now/ }).click();
+  await scan.getByText(/Runs on this machine/).click();
+  await expect(scan.getByRole('list', { name: 'Runs of Weekly scan' })).toContainText('Done');
+
+  // The daily task is due as the project opens again, and its offer is shown with the drawer closed.
+  await page.reload();
+  const row = page.getByRole('listitem').filter({ hasText: 'Tasks Surface' });
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  await row.getByRole('button', { name: 'Open' }).click();
+  await expect(page.getByTestId('task-offers').getByRole('group', { name: 'Task due: Daily read' })).toBeVisible({ timeout: 20_000 });
+  expect([...(await contrastProblemsIn(page, '.recurring-offers')), ...(await shellProblemsIn(page, '.recurring-offers'))]).toEqual([]);
+
+  await page.getByRole('button', { name: 'Agent', exact: true }).click();
+  await expect(tasks).toBeVisible();
+  await tasks.locator('[data-task]', { hasText: 'Weekly scan' }).getByText(/Runs on this machine/).click();
+  expect([...(await contrastProblemsIn(page, '.recurring')), ...(await shellProblemsIn(page, '.recurring'))]).toEqual([]);
+
+  await tasks.locator('[data-task]', { hasText: 'Daily read' }).getByRole('button', { name: /^Delete/ }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  expect([...(await contrastProblemsIn(page, 'dialog[open]')), ...(await shellProblemsIn(page, 'dialog[open]'))]).toEqual([]);
+});

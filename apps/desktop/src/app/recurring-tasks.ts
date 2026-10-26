@@ -6,7 +6,7 @@
  * A task that is due shows a card with Run now and Skip. Nothing the card offers starts until the writer clicks, with one exception:
  * a `scan` task whose file says `run` starts by itself, because it reads the project, calls no model and sends nothing anywhere
  * (`effectiveWhenDue`). A task that uses a model is offered whatever its file says: the consent a model task would need to start by
- * itself, and the Inbox its results would stage into, are not part of this build, and the panel says so on the task.
+ * itself, and a place for an unattended run's results to wait for review, are not part of this build, and the panel says so on the task.
  *
  * ## Only while the project is open
  *
