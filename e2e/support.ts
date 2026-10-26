@@ -69,12 +69,14 @@ export function card(page: Page, title: string): Locator {
 
 /** Drag one storyboard card to another through stepped mouse input and wait for the board's real drop-target state. */
 export async function dragShotCard(page: Page, source: Locator, target: Locator): Promise<void> {
+  // Keep the source clear of the fixed agent footer, then recompute boxes after the scroll.
+  await source.scrollIntoViewIfNeeded();
   const [sourceBox, targetBox] = await Promise.all([source.boundingBox(), target.boundingBox()]);
   if (sourceBox === null || targetBox === null) throw new Error('shot card is not visible for dragging');
 
-  // The blank gap below the header avoids starting a text selection or hitting the card's image controls.
-  const start = { x: sourceBox.x + 18, y: sourceBox.y + 32 };
-  const end = { x: targetBox.x + 18, y: targetBox.y + 32 };
+  // Start in the blank gap below the header; end well inside the card, below the sticky board bar.
+  const start = { x: sourceBox.x + sourceBox.width / 2, y: sourceBox.y + 32 };
+  const end = { x: targetBox.x + targetBox.width / 2, y: targetBox.y + targetBox.height * 0.75 };
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   try {
