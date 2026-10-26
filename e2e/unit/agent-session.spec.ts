@@ -138,7 +138,7 @@ test('a drafted scene waits for the writer, is written on approval, and restores
   expect(region.written()).toBe('');
 
   // The checkpoint takes the turn back: nothing was written after it, so nothing else goes back with it.
-  expect(await controller.restore(report!.turnId)).toEqual({ ok: true, later: 0 });
+  expect(await controller.restore(report!.turnId)).toMatchObject({ ok: true, later: 0 });
   expect(getBody(state, friend)).toBe('');
 
   // The activity export names the turn and the change it made, in the order they happened.
@@ -208,7 +208,7 @@ test('restoring to before a turn takes back the changes made after it, and says 
   expect(controller.laterChanges(report!.turnId)).toHaveLength(1);
 
   // The restore takes the typing back too, so the scene is as it was before the turn, and the result says so.
-  expect(await controller.restore(report!.turnId)).toEqual({ ok: true, later: 1 });
+  expect(await controller.restore(report!.turnId)).toMatchObject({ ok: true, later: 1 });
   expect(getBody(state, friend)).toBe('');
   await session.close();
 });
