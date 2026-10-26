@@ -47,6 +47,7 @@ export {
   emojiStyleOf,
   firstCodePoint,
   graphemesOf,
+  hasExtendedPictographic,
   isEmojiCluster,
   isEmojiPicture,
   type EmojiStyle,

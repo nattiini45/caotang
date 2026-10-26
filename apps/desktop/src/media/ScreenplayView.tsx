@@ -75,6 +75,8 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
   const [opened] = useState(() => ({ body: stored, revision }));
   const synced = useRef<{ body: string; revision: number }>(opened);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
+  // A browser may collapse a textarea's selection when it loses focus; keep the caret for the Element button's click and keyboard path.
+  const lastSourceCaret = useRef<number | null>(null);
   // The formatted view reads the draft a moment late, so a fast typist never waits on a re-parse.
   const deferred = useDeferredValue(draft);
   const model = useMemo(() => screenplayModelOf(deferred), [deferred]);
@@ -179,10 +181,11 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
     const field = sourceRef.current;
     if (field === null) return;
     const rect = (elementButtonRef.current ?? field).getBoundingClientRect();
+    const caret = field.ownerDocument.activeElement === field ? field.selectionStart : (lastSourceCaret.current ?? field.selectionStart);
     setElementMenu({
       anchor: { x: rect.left, y: rect.bottom + 4 },
       text: field.value,
-      entries: elementEntries(field.value, field.selectionStart, platform),
+      entries: elementEntries(field.value, caret, platform),
     });
   };
 
@@ -337,6 +340,9 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
                 segments={segments}
                 onChange={onSourceChange}
                 onKeyDown={onSourceKeyDown}
+                onBlur={(event) => {
+                  lastSourceCaret.current = event.currentTarget.selectionStart;
+                }}
               />
               {elementMenu === null ? null : (
                 <Menu

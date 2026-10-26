@@ -7,7 +7,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
-import { binderTitle, createProject, firstChapter, trace, waitForSaved } from './support.js';
+import { binderTitle, createProject, dragShotCard, firstChapter, trace, waitForSaved } from './support.js';
 
 const PROJECT = 'Board Walk';
 
@@ -36,8 +36,8 @@ test('a card dragged onto another takes its place through binder.move, and Later
   const second = await cards.nth(1).getAttribute('data-shot-id');
   expect(first).not.toBeNull();
   expect(second).not.toBeNull();
-
-  await cards.nth(1).dragTo(cards.nth(0));
+  // Use a stepped native drag from the blank gap below each header; wait until the board accepts the drop before releasing.
+  await dragShotCard(page, cards.nth(1), cards.nth(0));
   await expect.poll(() => cards.nth(0).getAttribute('data-shot-id')).toBe(second);
   expect((await trace(page)).some((row) => row.command === 'binder.move')).toBe(true);
 

@@ -67,6 +67,27 @@ export function card(page: Page, title: string): Locator {
   return page.locator('article.card', { has: page.getByRole('heading', { name: title, exact: true }) });
 }
 
+/** Drag one storyboard card to another through stepped mouse input and wait for the board's real drop-target state. */
+export async function dragShotCard(page: Page, source: Locator, target: Locator): Promise<void> {
+  // Keep the source clear of the fixed agent footer, then recompute boxes after the scroll.
+  await source.scrollIntoViewIfNeeded();
+  const [sourceBox, targetBox] = await Promise.all([source.boundingBox(), target.boundingBox()]);
+  if (sourceBox === null || targetBox === null) throw new Error('shot card is not visible for dragging');
+
+  // Start in the blank gap below the header; end well inside the card, below the sticky board bar.
+  const start = { x: sourceBox.x + sourceBox.width / 2, y: sourceBox.y + 32 };
+  const end = { x: targetBox.x + targetBox.width / 2, y: targetBox.y + targetBox.height * 0.75 };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  try {
+    await page.mouse.move(start.x + 10, start.y, { steps: 4 });
+    await page.mouse.move(end.x, end.y, { steps: 12 });
+    await expect(target).toHaveClass(/is-drop-target/);
+  } finally {
+    await page.mouse.up();
+  }
+}
+
 /** Match a text exactly, so "Chapter 1" does not also match "Chapter 10". */
 function exactly(text: string): RegExp {
   return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);

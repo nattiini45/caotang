@@ -1,8 +1,12 @@
-# The standing gate: lint, typecheck, unit tests, the production build, then the Playwright suite.
+# The standing gate: lint, typecheck, unit tests, the production build and the Playwright suite.
 #
 # What runs, and on which Node:
-#   - Three jobs, `verify`, `office-interop` and `pdf-validate`, all on Node 24 only. There is deliberately no Node version matrix: Actions minutes are
-#     limited, and the engines range (22.12 or later in 22, 24, and 26 or later) is stated in the README, not tested here.
+#   - `verify_matrix` runs the frozen engine-strict install, verification, build, bundle-size check, MCP pack and CLI build
+#     on Node 22.12.0 and 24 for every PR and main push. Stable required `verify` waits for both matrix legs, Chromium E2E,
+#     and the called Firefox/WebKit workflow; it passes only when all three gates succeed.
+#   - `e2e (chromium)` runs on Node 24 in parallel with the matrix and Firefox/WebKit's four shards. The cross-browser
+#     workflow merges the sharded reports and also runs nightly/on demand.
+#   - `office-interop` and `pdf-validate` remain separate Node 24 jobs and run alongside the PR gate.
 #   - `pnpm verify` runs lint, typecheck and the vitest suites (packages/ and test/). The desktop's pure model specs live in
 #     e2e/unit as Playwright specs, so they run under `pnpm test:e2e`, not under `pnpm verify`.
 #   - `pnpm build` builds the desktop app, which writes THIRD-PARTY-NOTICES.md beside it. `tools/check-bundle-size.mjs` then checks
@@ -23,8 +27,10 @@
 # Details that are load-bearing rather than tidy:
 #   - permissions stay `contents: read`: the workflow needs no write token, so a pull request from a fork cannot use it to
 #     change the repository. First-time contributors' runs wait for a maintainer's approval (a repository setting).
-#   - pnpm comes from the packageManager field (corepack), so CI and every contributor run the same pnpm major. The lockfile
-#     format depends on it.
+#   - CI uses the exact pnpm release and integrity in the packageManager field. Node 22.12.0's bundled Corepack 0.29.4 cannot
+#     verify pnpm 12.9.1's current signing key, and an updated Corepack left an incomplete cache on the hosted runner. That
+#     matrix leg installs the pinned pnpm tarball only after checking its SHA-512 against packageManager; Node 24 uses Corepack.
+#     The lockfile format depends on the pnpm major.
 name: ci
 
 on:
@@ -40,21 +46,42 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
+  verify_matrix:
+    name: verify (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.12.0', '24']
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
+
+      - name: Install pinned pnpm for Node 22.12.0
+        if: matrix.node == '22.12.0'
+        run: |
+          spec="$(node -p "require('./package.json').packageManager")"
+          version="${spec#pnpm@}"
+          version="${version%%+*}"
+          expected="${spec#*+}"
+          tarball_name="$(npm pack "pnpm@$version" --pack-destination "$RUNNER_TEMP" --silent)"
+          tarball="$RUNNER_TEMP/$tarball_name"
+          actual_integrity="$(node -e 'const fs = require("node:fs"), crypto = require("node:crypto"); process.stdout.write(`sha512.${crypto.createHash("sha512").update(fs.readFileSync(process.argv[1])).digest("hex")}`)' "$tarball")"
+          test "$actual_integrity" = "$expected"
+          npm install --prefix "$RUNNER_TEMP/pnpm" --no-save "$tarball"
+          test "$("$RUNNER_TEMP/pnpm/node_modules/.bin/pnpm" --version)" = "$version"
+          echo "$RUNNER_TEMP/pnpm/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: Enable corepack (pnpm from packageManager)
+        if: matrix.node != '22.12.0'
         run: corepack enable
 
-      - name: Install
-        run: pnpm install --frozen-lockfile
+      - name: Install (frozen lockfile, strict engines)
+        run: pnpm install --frozen-lockfile --engine-strict
 
       - name: Lint, typecheck, unit tests
         run: pnpm verify
@@ -71,6 +98,40 @@ jobs:
       - name: Build the caotang command-line bundle (one file, with its fonts/)
         run: pnpm --filter @caotang/cli run build
 
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    needs: [verify_matrix, e2e, e2e_browsers]
+    if: always()
+    steps:
+      - name: Require Node matrix and all browser runs
+        env:
+          MATRIX_RESULT: ${{ needs.verify_matrix.result }}
+          CHROMIUM_RESULT: ${{ needs.e2e.result }}
+          CROSS_BROWSER_RESULT: ${{ needs.e2e_browsers.result }}
+        run: |
+          test "$MATRIX_RESULT" = success
+          test "$CHROMIUM_RESULT" = success
+          test "$CROSS_BROWSER_RESULT" = success
+
+  e2e:
+    name: e2e (chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Enable corepack (pnpm from packageManager)
+        run: corepack enable
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
       - name: Install Chromium for Playwright
         run: pnpm exec playwright install --with-deps chromium
 
@@ -86,6 +147,12 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  e2e_browsers:
+    name: Firefox and WebKit E2E
+    uses: ./.github/workflows/e2e-browsers.yml
+    permissions:
+      contents: read
 
   office-interop:
     runs-on: ubuntu-latest

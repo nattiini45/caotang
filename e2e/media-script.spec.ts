@@ -128,9 +128,19 @@ test('the element menu turns the caret\'s line into the element chosen, from the
   await expect(source(page)).toBeFocused();
   await expect(source(page)).toHaveValue(['INT. HOUSE - DAY', '', '@marcus', 'Hi.'].join('\n'));
 
-  // The caret is after the cue, so the next line down is the dialogue. The Element button opens the menu too, and a digit chooses.
+  // Start at the converted cue's end, then keep the vertical navigation under test after the edit.
+  const converted = ['INT. HOUSE - DAY', '', '@marcus', 'Hi.'].join('\n');
+  const cueCaret = converted.indexOf('@marcus') + '@marcus'.length;
+  const dialogueCaret = converted.indexOf('Hi.') + 'Hi.'.length;
+  await source(page).evaluate((field, at) => {
+    const input = field as HTMLTextAreaElement;
+    input.focus();
+    input.setSelectionRange(at, at);
+  }, cueCaret);
   await source(page).press('ArrowDown');
   await source(page).press('End');
+  expect(await caretOf(page)).toEqual([dialogueCaret, dialogueCaret]);
+  // The Element button opens the menu too, and a digit chooses.
   await page.getByRole('button', { name: 'Element', exact: true }).click();
   await expect(menu.getByRole('menuitemradio', { name: 'Dialogue' })).toHaveAttribute('aria-checked', 'true');
   await page.keyboard.press('4');
@@ -447,6 +457,8 @@ test('Ctrl+Z after a chord leaves the text a menu choice leaves', async ({ page 
       await page.keyboard.press(await chord(page, 7));
     }
     await expect(source(page)).toHaveValue('> Anna waits. <');
+    // Menu selection restores the editor focus asynchronously; send Undo only after the same control is active.
+    await expect(source(page)).toBeFocused();
     await page.keyboard.press('ControlOrMeta+z');
     afterUndo[route] = await source(page).inputValue();
   }

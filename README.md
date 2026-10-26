@@ -31,9 +31,9 @@ Not in this build yet: the desktop wrapper. [docs/USER-GUIDE.md](docs/USER-GUIDE
 
 ## Requirements
 
-- **Node.js.** The `engines` field of [package.json](package.json) allows Node 22.12 or later in the 22 line, 24.x, and 26 or later. Continuous integration tests Node 24 only.
-- **pnpm** 12.9.1, the version the `packageManager` field pins. Run `corepack enable`, and the right pnpm is used.
-- **A browser.** The app is written for current browsers. The end-to-end suite gates every pull request in Chromium, and runs nightly in Firefox and WebKit. Opening and saving a project folder needs Chrome or Edge, or another Chromium-based browser. Bundles work in any browser.
+- **Node.js.** The `engines` field of [package.json](package.json) allows Node 22.12 or later in the 22 line, 24.x, and 26 or later. Continuous integration tests the 22.12.0 floor and Node 24; Node 26 is allowed but not covered.
+- **pnpm** 12.9.1, pinned in `packageManager`. With Node 22.12.0, update Corepack first with `npm install --global corepack@0.34.3`; the bundled Corepack 0.29.4 cannot verify pnpm's current signing key. Then run `corepack enable`.
+- **A browser.** The app is written for current browsers. End-to-end tests gate every pull request in Chromium, Firefox and WebKit; the Firefox and WebKit suite also runs nightly and on demand. Opening and saving a project folder needs Chrome or Edge, or another Chromium-based browser. Bundles work in any browser.
 - **A window at least 960 px wide.** The layout is made for that width, and a narrower window scrolls rather than overlapping. Under 1100 px the toolbar wraps onto a second row and the side panels narrow.
 
 ## Install and run
@@ -106,15 +106,17 @@ The repository's [Pages workflow](.github/workflows/pages.yml) deploys caotang.a
 
 ```sh
 pnpm verify                             # lint, typecheck, and the unit tests in packages/ and test/
-pnpm exec playwright install chromium   # once, for the browser the end-to-end tests use (firefox webkit as well, for the nightly projects)
-pnpm test:e2e                           # the Playwright suite
+pnpm exec playwright install chromium   # once, for the browser the pull-request end-to-end tests use
+pnpm test:e2e                           # the Chromium Playwright suite
+pnpm exec playwright install firefox webkit  # once, for the optional cross-browser suite
+CAOTANG_E2E_BROWSERS=all pnpm exec playwright test --project=webkit  # run a cross-browser project
 ```
 
 `pnpm verify` does not run the desktop's pure model specs in `e2e/unit`, because they are Playwright specs. `pnpm test:e2e` runs them, with the dev-server suite and a smoke test of the production build (`e2e/prod-smoke.spec.ts`), which uses `vite preview` on its own port.
 
 The end-to-end suite starts its own dev server, or, outside CI and when `CAOTANG_E2E_PORT` is not set, reuses one already on port 5173. To run it beside another copy of Caotang, give each checkout its own port with `CAOTANG_E2E_PORT`, for example `CAOTANG_E2E_PORT=5183 pnpm test:e2e`. In PowerShell, set it first with `$env:CAOTANG_E2E_PORT = 5183`. The production preview then uses that port plus 1000, or `CAOTANG_E2E_PREVIEW_PORT` when you set it.
 
-Continuous integration (`.github/workflows/ci.yml`) runs `pnpm verify`, `pnpm build`, packs the MCP server bundle, and runs `pnpm test:e2e`, all on Node 24 in one job, a second job (`office-interop`) that writes the `.xlsx` corpus and opens it in openpyxl and LibreOffice, and a third (`pdf-validate`) that writes the PDF corpus and checks it with pdf.js, qpdf, Poppler, Ghostscript and MuPDF. A nightly workflow (`.github/workflows/e2e-browsers.yml`, also runnable by hand) runs the suite in Firefox and WebKit in shards: set `CAOTANG_E2E_BROWSERS=all` to get those projects locally, as in `CAOTANG_E2E_BROWSERS=all pnpm exec playwright test --project=webkit`. The specs that need a project folder skip outside Chromium; `e2e/non-chromium-storage.spec.ts` covers the bundle-only path those browsers use.
+Continuous integration (`.github/workflows/ci.yml`) runs a `verify` matrix on Node 22.12.0 and 24. Each leg uses a frozen, engine-strict install, then runs `pnpm verify`, `pnpm build`, the bundle-size check, the MCP server pack and the CLI bundle build. Node 22.12 CI installs the pnpm tarball directly after checking its SHA-512 against the `packageManager` pin; Node 24 uses Corepack. The Node 24 Chromium E2E suite runs as an independent job in parallel, alongside `office-interop` (the `.xlsx` corpus in openpyxl and LibreOffice) and `pdf-validate` (pdf.js, qpdf, Poppler, Ghostscript and MuPDF). A separate workflow gates pull requests in Firefox and WebKit, also runs nightly and on demand, and shards each browser into two jobs whose results merge into one HTML report uploaded when a shard fails. Set `CAOTANG_E2E_BROWSERS=all` locally to enable those projects. Folder-access specs skip outside Chromium, and `e2e/non-chromium-storage.spec.ts` checks the bundle-only path those browsers use.
 
 A real-key check of the provider presets, `e2e/provider-smoke.spec.ts`, runs only with `CAOTANG_SMOKE_<PRESET>` keys set, on your machine or by a maintainer's manual dispatch of the `provider-smoke` workflow (`gh workflow run provider-smoke.yml -f presets="anthropic deepseek"`); it never runs on a pull request. See [providers-browser-cors.md](docs/architecture/providers-browser-cors.md#3-the-real-key-round).
 
