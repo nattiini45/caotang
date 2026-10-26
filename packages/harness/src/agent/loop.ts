@@ -73,6 +73,7 @@ import type { Harness, RuleCheck, ToolListing } from '../runtime.js';
 import type { ToolName } from '../metadata.js';
 import type { CallParams, ToolCall, ToolOutcome } from '../types.js';
 import { canonicalJson, isRecord } from '../util.js';
+import type { TraceInput, TraceSink } from './trace.js';
 import { isCommandName } from '../commands/slash.js';
 import { CONTINUITY_MAX_DOCS, SYNOPSIS_MAX_DOCS } from '../tools/ports.js';
 import type { DelegateParams } from '../tools/delegate.js';
@@ -285,6 +286,13 @@ export interface AgentSessionOptions {
    * and no turn behaves differently: a logged turn runs a plan one step at a time, awaiting the log between steps.
    */
   readonly runLog?: RunLogOptions;
+  /**
+   * Where the turn's records go (agent-harness §5.2): the turn, its context, its tools and their results, its cards and its report.
+   * The model calls themselves are the gateway observer's (`traceGateway`), joined to these by turn id and call index, and each
+   * request carries its `callIndex` only when a sink is given. Absent, nothing is recorded and no request changes. A sink that
+   * throws is ignored: the trace is a view of the turn, never part of it.
+   */
+  readonly trace?: TraceSink;
 }
 
 /** The plan a writer is asked about before it is staged. */
@@ -519,6 +527,8 @@ interface Turn {
   converses: boolean;
   /** Counts the calls a turn makes, so every call id within it is unique. */
   seq: number;
+  /** The model requests the turn has made, a delegated agent's included: the `callIndex` the trace joins on. */
+  calls: number;
   /** The turn's undo group, recorded the moment a run applies anything, so no path loses it. */
   undoGroupId?: string;
   /** The mode the last card (or the start) read: what the turn's report and checkpoint print. */
@@ -899,6 +909,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     });
   const emit = (event: AgentEvent): void => options.emit?.(event);
   const now = options.clock ?? Date.now;
+  const sink = options.trace;
+  const trace = (record: TraceInput): void => {
+    try {
+      sink?.write(record);
+    } catch {
+      // the trace is a view of the turn, never part of it
+    }
+  };
   const configured = (): Partial<TurnBudget> | undefined => (typeof options.budget === 'function' ? options.budget() : options.budget);
   const boundNow = (): number => options.maxModelCalls ?? configured()?.maxModelCalls ?? DEFAULT_MAX_MODEL_CALLS;
   /** The model-call bound of the turn that started last, as `latestPins` is: read at each turn, so a change in Settings applies to the next one. */
@@ -1068,6 +1086,35 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   };
 
   /**
+   * Adds a call's row to the turn's trace and tells the trace sink the call and the result the model is handed back: the same
+   * value that goes into the results message or the native tool message. A call a delegated agent made has no body here.
+   */
+  const pushRow = (turn: Turn, row: TraceEntry, body?: unknown): void => {
+    turn.trace.push(row);
+    if (sink === undefined) return;
+    const finishedAt = now();
+    const startedAt = turn.statusCards.find((card) => card.id === row.callId)?.startedAt;
+    trace({ kind: 'tool.call', at: startedAt ?? finishedAt, turnId: turn.id, callId: row.callId, tool: row.tool, risk: riskOf(row.tool), ...(row.agentPath === undefined ? {} : { agentPath: row.agentPath }), params: row.params });
+    trace({
+      kind: 'tool.result',
+      at: finishedAt,
+      turnId: turn.id,
+      callId: row.callId,
+      outcome: row.outcome,
+      ...(row.code === undefined ? {} : { code: row.code }),
+      ...(startedAt === undefined ? {} : { startedAt }),
+      finishedAt,
+      ...(body === undefined ? {} : { body }),
+    });
+  };
+
+  /** Adds a card decision to the turn's report, and to the trace. */
+  const pushCard = (turn: Turn, card: CardRecord): void => {
+    turn.cards.push(card);
+    trace({ kind: 'card', at: now(), turnId: turn.id, card });
+  };
+
+  /**
    * The refusal the model gets for an external step the turn has not loaded: a qualified name needs tool.search first (§5),
    * and nothing runs for it. A loaded external tool is staged like any other step. A read runs in the reply's order, and a
    * write asks the writer on a one-step confirm card of its own (extensibility §4 rule 2), so a reply may mix native and
@@ -1163,9 +1210,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           const hit = hitOf(turn, usageOf(turn), true);
           if (hit !== undefined) throw new BudgetExceeded(budgetStop(hit));
         }
-        const sent = role === undefined ? request : { ...request, role };
-        const reservation = reserveCall(turn, sent);
+        const asked = role === undefined ? request : { ...request, role };
+        const reservation = reserveCall(turn, asked);
         turn.modelCalls += 1;
+        turn.calls += 1;
+        const sent = sink === undefined ? asked : { ...asked, callIndex: turn.calls };
         emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
         return settling(turn, reservation, gateway.complete(sent, signal));
       },
@@ -1195,9 +1244,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       gateway: {
         complete: (request, signal) => {
           if (used >= limit) throw modelCallBound(limit);
-          const sent = options.role === undefined ? request : { ...request, role: options.role };
-          const reservation = reserveCall(turn, sent);
+          const asked = options.role === undefined ? request : { ...request, role: options.role };
+          const reservation = reserveCall(turn, asked);
           used += 1;
+          turn.calls += 1;
+          const sent = sink === undefined ? asked : { ...asked, callIndex: turn.calls };
           return settling(turn, reservation, gateway.complete(sent, signal));
         },
       },
@@ -1566,7 +1617,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         const message = refusalSentence(denied.message, denied.correctiveHint);
         refusals.push({ index, tool: step.tool, message });
         refusedBeforeCard(turn, step, message);
-        turn.trace.push({ tool: step.tool, callId: `${turn.id}:rule${index}`, outcome: 'refused', code: denied.code, params: step.params });
+        pushRow(turn, { tool: step.tool, callId: `${turn.id}:rule${index}`, outcome: 'refused', code: denied.code, params: step.params }, message);
         continue;
       }
       if (!MODEL_BACKED.has(step.tool)) continue;
@@ -1807,7 +1858,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   /** Records one read's outcome: its trace row, its step, its card's last move, and any findings it made. */
   function settleRead(turn: Turn, index: number, step: PlanStep, callId: string, outcome: ToolOutcome): { tool: string; ok: boolean; body: unknown } {
     if (outcome.ok) {
-      turn.trace.push({ tool: step.tool, callId, outcome: 'ok', params: step.params });
+      pushRow(turn, { tool: step.tool, callId, outcome: 'ok', params: step.params }, outcome.value.data);
       turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'done', summary: outcome.value.summary, data: outcome.value.data });
       moveCard(turn, callId, 'done', { summary: outcome.value.summary });
       if (Array.isArray(outcome.value.data['findings'])) {
@@ -1816,7 +1867,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       return { tool: step.tool, ok: true, body: outcome.value.data };
     }
     const reason = errorSummary(withLoadHint(step.tool, outcome.error));
-    turn.trace.push({ tool: step.tool, callId, outcome: 'refused', code: outcome.error.code, params: step.params });
+    pushRow(turn, { tool: step.tool, callId, outcome: 'refused', code: outcome.error.code, params: step.params }, reason);
     turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'failed', error: reason });
     moveCard(turn, callId, 'failed', { error: reason });
     return { tool: step.tool, ok: false, body: reason };
@@ -1884,7 +1935,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       read: (call) => Promise.resolve(harness.call(call, { turnId: turn.id, agentPath, ...signalOf(turn) })),
       trace: (entry) => {
         const row: TraceEntry = { ...entry, agentPath };
-        turn.trace.push(row);
+        pushRow(turn, row);
         view = { ...view, trace: [...view.trace, row] };
         showDelegation(turn, id, view);
       },
@@ -1940,7 +1991,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         callId = `${id}.confirm`;
         const decided = await decideCard(turn, 'confirm', callId, { editable: oneStep(step, index, proposal), from: 0, revision: 0, humanOnly: true });
         if (decided.settled === 'cancelled') {
-          turn.cards.push({ kind: 'confirm', tools: [step.tool], decision: 'cancelled', edits: decided.edits, retries: decided.retries });
+          pushCard(turn, { kind: 'confirm', tools: [step.tool], decision: 'cancelled', edits: decided.edits, retries: decided.retries });
           moveCard(turn, callId, 'cancelled');
           turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'cancelled' });
           return { status: 'cancelled' };
@@ -1951,7 +2002,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         } else {
           // The card may have edited the step, so the run takes the step as the writer left it.
           const approved = decided.editable.steps[0] ?? step;
-          turn.cards.push({ kind: 'confirm', tools: [step.tool], decision: 'approved', edits: decided.edits, retries: decided.retries });
+          pushCard(turn, { kind: 'confirm', tools: [step.tool], decision: 'approved', edits: decided.edits, retries: decided.retries });
           phase(turn, 'running');
           moveCard(turn, callId, 'running');
           // agent.delegate is answered by the loop, not by the harness, so an approved one starts its agent the way an unasked one does.
@@ -2303,20 +2354,20 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (!outcome.ok && turn.signal?.aborted === true) {
       // The wait ended because the writer stopped the turn: the step did not finish, and that is not a refusal to adjust.
       moveCard(turn, id, 'failed', { error: STOPPED_STEP });
-      turn.trace.push({ tool: step.tool, callId: id, outcome: 'not-run', params: step.params });
+      pushRow(turn, { tool: step.tool, callId: id, outcome: 'not-run', params: step.params }, STOPPED_STEP);
       turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'cancelled' });
       wireResult(turn, step, { ok: false, body: STOPPED_STEP });
       return { ok: false, cancelled: true, effect: write, completed: [] };
     }
     if (outcome.ok) {
-      turn.trace.push({ tool: step.tool, callId: id, outcome: 'ok', params: step.params });
+      pushRow(turn, { tool: step.tool, callId: id, outcome: 'ok', params: step.params }, outcome.value.data);
       turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'done', summary: outcome.value.summary, data: outcome.value.data });
       moveCard(turn, id, 'done', { summary: outcome.value.summary });
       wireResult(turn, step, { ok: true, body: outcome.value.data });
       return { ok: true, effect: true, completed: [index] };
     }
     const reason = errorSummary(outcome.error);
-    turn.trace.push({ tool: step.tool, callId: id, outcome: 'refused', code: outcome.error.code, params: step.params });
+    pushRow(turn, { tool: step.tool, callId: id, outcome: 'refused', code: outcome.error.code, params: step.params }, reason);
     turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'failed', error: reason });
     moveCard(turn, id, 'failed', { error: reason });
     wireResult(turn, step, { ok: false, body: reason });
@@ -2334,7 +2385,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const id = callIdFor(kind, prefix, index);
       cardFor(turn, id, later.tool, later.params, 'pending-approval');
       moveCard(turn, id, 'cancelled');
-      turn.trace.push({ tool: later.tool, callId: id, outcome: 'not-run', params: later.params });
+      pushRow(turn, { tool: later.tool, callId: id, outcome: 'not-run', params: later.params }, NOT_RUN);
       turn.steps.push({ index, tool: later.tool, expect: later.expect, status: 'cancelled' });
     }
   }
@@ -2387,7 +2438,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         // An external write: its own one-step card, shown with the step as the writer approved it in the plan (or as it stands).
         const decided = await decideCard(turn, 'confirm', id, { editable: oneStep(step, index, editable.proposals[index]), from: 0, revision: 0, nested: true });
         if (decided.settled === 'cancelled') {
-          turn.cards.push({ kind: 'confirm', tools: [step.tool], decision: 'cancelled', edits: decided.edits, retries: decided.retries });
+          pushCard(turn, { kind: 'confirm', tools: [step.tool], decision: 'cancelled', edits: decided.edits, retries: decided.retries });
           moveCard(turn, id, 'cancelled');
           turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'cancelled' });
           cancelAfter(turn, editable, index, 'plan', prefix);
@@ -2405,7 +2456,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
             ...(undoGroupId === undefined ? {} : { undoGroupId }),
           };
         }
-        turn.cards.push({ kind: 'confirm', tools: [step.tool], decision: 'approved', edits: decided.edits, retries: decided.retries });
+        pushCard(turn, { kind: 'confirm', tools: [step.tool], decision: 'approved', edits: decided.edits, retries: decided.retries });
         phase(turn, 'running');
         const approved = decided.editable.steps[0] ?? step;
         // The step the writer left in the card is the call's answer, even when an edit made it a new object.
@@ -2450,7 +2501,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         const doneId = callIdFor('plan', prefix, done.index);
         cardFor(turn, doneId, ran.tool, ran.params, 'pending-approval');
         moveCard(turn, doneId, 'running');
-        turn.trace.push({ tool: ran.tool, callId: doneId, outcome: 'ok', params: ran.params });
+        pushRow(turn, { tool: ran.tool, callId: doneId, outcome: 'ok', params: ran.params }, done.value.data);
         turn.steps.push({ index: done.index, tool: ran.tool, expect: ran.expect, status: 'done', summary: done.value.summary, data: done.value.data });
         moveCard(turn, doneId, 'done', { summary: done.value.summary });
         wireResult(turn, ran, { ok: true, body: done.value.data });
@@ -2471,7 +2522,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const reason = errorSummary(outcome.error);
       cardFor(turn, failedId, failed.tool, failed.params, 'pending-approval');
       moveCard(turn, failedId, 'running');
-      turn.trace.push({ tool: failed.tool, callId: failedId, outcome: 'refused', code: outcome.error.code, params: failed.params });
+      pushRow(turn, { tool: failed.tool, callId: failedId, outcome: 'refused', code: outcome.error.code, params: failed.params }, reason);
       turn.steps.push({ index: failedIndex, tool: failed.tool, expect: failed.expect, status: 'failed', error: reason });
       moveCard(turn, failedId, 'failed', { error: reason });
       wireResult(turn, failed, { ok: false, body: reason });
@@ -2524,14 +2575,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (outcome.ok) await logApplied(turn, id, from, step.tool, outcome.value.summary, before);
       else await logFailed(turn, id, from, step.tool, outcome.error.message);
       if (outcome.ok) {
-        turn.trace.push({ tool: step.tool, callId: id, outcome: 'ok', params: step.params });
+        pushRow(turn, { tool: step.tool, callId: id, outcome: 'ok', params: step.params }, outcome.value.data);
         turn.steps.push({ index: from, tool: step.tool, expect: step.expect, status: 'done', summary: outcome.value.summary, data: outcome.value.data });
         moveCard(turn, id, 'done', { summary: outcome.value.summary });
         wireResult(turn, step, { ok: true, body: outcome.value.data });
         return { ok: true, ...(outcome.value.undoGroupId === undefined ? {} : { undoGroupId: outcome.value.undoGroupId }), effect: true, completed: [from] };
       }
       const reason = errorSummary(outcome.error);
-      turn.trace.push({ tool: step.tool, callId: id, outcome: 'refused', code: outcome.error.code, params: step.params });
+      pushRow(turn, { tool: step.tool, callId: id, outcome: 'refused', code: outcome.error.code, params: step.params }, reason);
       turn.steps.push({ index: from, tool: step.tool, expect: step.expect, status: 'failed', error: reason });
       moveCard(turn, id, 'failed', { error: reason });
       wireResult(turn, step, { ok: false, body: reason });
@@ -2569,7 +2620,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const id = callIdFor(kind, prefix, done.index);
       cardFor(turn, id, step.tool, step.params, 'pending-approval');
       moveCard(turn, id, 'running');
-      turn.trace.push({ tool: step.tool, callId: id, outcome: 'ok', params: step.params });
+      pushRow(turn, { tool: step.tool, callId: id, outcome: 'ok', params: step.params }, done.value.data);
       turn.steps.push({ index: done.index, tool: step.tool, expect: step.expect, status: 'done', summary: done.value.summary, data: done.value.data });
       moveCard(turn, id, 'done', { summary: done.value.summary });
       wireResult(turn, step, { ok: true, body: done.value.data });
@@ -2589,7 +2640,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const reason = errorSummary(outcome.error);
     cardFor(turn, failedId, failed.tool, failed.params, 'pending-approval');
     moveCard(turn, failedId, 'running');
-    turn.trace.push({ tool: failed.tool, callId: failedId, outcome: 'refused', code: outcome.error.code, params: failed.params });
+    pushRow(turn, { tool: failed.tool, callId: failedId, outcome: 'refused', code: outcome.error.code, params: failed.params }, reason);
     turn.steps.push({ index: failedIndex, tool: failed.tool, expect: failed.expect, status: 'failed', error: reason });
     moveCard(turn, failedId, 'failed', { error: reason });
     wireResult(turn, failed, { ok: false, body: reason });
@@ -2599,7 +2650,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const id = callIdFor(kind, prefix, index);
       cardFor(turn, id, later.tool, later.params, 'pending-approval');
       moveCard(turn, id, 'cancelled');
-      turn.trace.push({ tool: later.tool, callId: id, outcome: 'not-run', params: later.params });
+      pushRow(turn, { tool: later.tool, callId: id, outcome: 'not-run', params: later.params }, NOT_RUN);
       turn.steps.push({ index, tool: later.tool, expect: later.expect, status: 'cancelled' });
     }
     const group = outcome.undoGroupId;
@@ -2682,7 +2733,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       await logCard(turn, 'confirm', editable, 'running');
       await turn.run?.append({ t: 'card.decided', turnId: turn.id, decision: 'auto' });
       const executed = await execute(turn, editable, 0, 'confirm', prefix, 'auto');
-      turn.cards.push({ kind: 'auto', tools: [single.tool], decision: 'auto', edits: 0, retries: 0 });
+      pushCard(turn, { kind: 'auto', tools: [single.tool], decision: 'auto', edits: 0, retries: 0 });
       return settle(turn, executed);
     }
 
@@ -2705,7 +2756,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
       const tools = editable.steps.slice(from).map((step) => step.tool);
       if (decided.settled === 'cancelled') {
-        turn.cards.push({ kind, tools, decision: 'cancelled', edits, retries });
+        pushCard(turn, { kind, tools, decision: 'cancelled', edits, retries });
         for (const [index, step] of editable.steps.entries()) {
           if (index < from || ranAt(editable, index)) continue;
           const id = callIdFor(kind, attemptPrefix, index);
@@ -2721,7 +2772,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         }
         return { status: 'cancelled' };
       }
-      turn.cards.push(decided.auto === true ? { kind: 'auto', tools, decision: 'auto', edits, retries } : { kind, tools, decision: 'approved', edits, retries });
+      pushCard(turn, decided.auto === true ? { kind: 'auto', tools, decision: 'auto', edits, retries } : { kind, tools, decision: 'approved', edits, retries });
       phase(turn, 'running');
       const acceptedCut = decided.acceptedCut === true;
       const executed = await execute(turn, editable, from, kind, attemptPrefix, 'confirmed', acceptedCut);
@@ -2753,6 +2804,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       ladder += 1;
       phase(turn, 'retrying');
       emit({ type: 'ladder', turnId: turn.id, callId: callIdFor(kind, attemptPrefix, failedAt), attempt: ladder, askBack });
+      trace({ kind: 'ladder', at: now(), turnId: turn.id, callId: callIdFor(kind, attemptPrefix, failedAt), attempt: ladder, reason: askBack.reason });
       // The run's calls are answered first: the failed step's tool message carries its refusal, and the
       // corrective text that follows names what to correct, as the JSON wire's retry does.
       flushWire(turn);
@@ -3010,6 +3062,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const { planner, skills, dropped } = plannerAssembly(turn.native, intent, turn.priorTurns);
     turn.dropped.push(...dropped);
     emit({ type: 'context', turnId: turn.id, layers: planner.prompt.layers.map((layer) => ({ id: layer.id, tokens: layer.tokens })), dropped });
+    trace({ kind: 'context', at: now(), turnId: turn.id, callIndex: turn.calls + 1, layers: planner.prompt.layers.map((layer) => ({ id: layer.id, tokens: layer.tokens })), dropped });
     turn.messages.push(...planner.messages);
     // A preload loads the rows as a search would have, and their descriptors follow the request in the same slot a search's do
     // (`loadedToolsMessage`), so the cached prefix is untouched. Nothing is preloaded when every tool is declared already.
@@ -3156,6 +3209,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       deciding: false,
       converses: false,
       seq: 0,
+      calls: 0,
       mode: modeNow(),
       budget: { ...DEFAULT_TURN_BUDGET, ...configured(), maxModelCalls },
       held: [],
@@ -3243,6 +3297,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     turn.run = await openRun(turn, intent, logPlan);
     const slot = started.push({ turnId: turn.id, intent }) - 1;
     running.set(turn.id, turn);
+    trace({ kind: 'turn.start', at: now(), turnId: turn.id, intent });
     if (policyOf(turn).decides) takeBase(turn);
     phase(turn, 'started');
 
@@ -3294,6 +3349,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       });
     }
     phase(turn, settled.status === 'replied' || settled.status === 'applied' ? 'done' : settled.status === 'cancelled' ? 'cancelled' : 'failed');
+    trace({ kind: 'turn.end', at: now(), turnId: turn.id, report });
     emit({ type: 'report', turnId: turn.id, report });
     return report;
   }
@@ -3314,7 +3370,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     for (const applied of replay.applied) {
       const step = card?.completed.includes(applied.index) === true ? card.steps[applied.index] : undefined;
       turn.steps.push({ index: applied.index, tool: applied.tool, expect: step?.expect ?? '', status: 'done', ...(applied.summary === undefined ? {} : { summary: applied.summary }) });
-      turn.trace.push({ tool: applied.tool, callId: applied.callId, outcome: 'ok', params: step?.params ?? {} });
+      pushRow(turn, { tool: applied.tool, callId: applied.callId, outcome: 'ok', params: step?.params ?? {} });
     }
 
     if (card !== undefined) {

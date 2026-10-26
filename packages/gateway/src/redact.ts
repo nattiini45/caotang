@@ -29,7 +29,8 @@ export function redact(text: string, secrets: readonly (string | undefined)[] = 
 export function redactDeep<T>(value: T, secrets: readonly (string | undefined)[] = []): T {
   if (typeof value === 'string') return redact(value, secrets) as T;
   if (Array.isArray(value)) return value.map((item: unknown) => redactDeep(item, secrets)) as T;
-  if (value !== null && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+  const proto: unknown = value !== null && typeof value === 'object' ? Object.getPrototypeOf(value) : undefined;
+  if (value !== null && typeof value === 'object' && (proto === Object.prototype || proto === null)) {
     const out: Record<string, unknown> = {};
     for (const [key, item] of Object.entries(value)) out[key] = redactDeep(item, secrets);
     return out as T;
