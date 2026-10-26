@@ -1,0 +1,19 @@
+{
+  "formatVersion": 1,
+  "findings": [],
+  "runs": [],
+  "sceneMeta": {
+    "n_7K2QX9M4A1": {
+      "expectedPresent": [
+        "c_5H8QK2M9RT"
+      ]
+    },
+    "n_8M3RY1N5B2": {
+      "expectedPresent": [
+        "c_5H8QK2M9RT"
+      ]
+    }
+  },
+  "worldRules": [],
+  "reviewState": {}
+}

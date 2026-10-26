@@ -1,5 +1,5 @@
-# Publishes a GitHub release when a version tag is pushed: the MCP server bundle (.mcpb) built from the tagged source, and its
-# SHA-256 in SHA256SUMS. CONTRIBUTING.md ("Releasing") says how to cut one.
+# Publishes a GitHub release when a version tag is pushed: the MCP server bundle (.mcpb) and the command-line bundle (caotang.mjs)
+# built from the tagged source, and their SHA-256 in SHA256SUMS. CONTRIBUTING.md ("Releasing") says how to cut one.
 #
 # Details that are load-bearing rather than tidy:
 #   - The tag must be v<version>, and that version must be the one in packages/mcp-server/package.json, packages/mcp-server/manifest.json
@@ -50,16 +50,19 @@ jobs:
       - name: Pack the MCP server bundle (manifest checked by the pinned MCPB CLI)
         run: pnpm --filter @caotang/mcp-server run pack
 
-      - name: Write the SHA-256 of the bundle
-        working-directory: packages/mcp-server/dist
-        run: |
-          sha256sum caotang-mcp-*.mcpb > SHA256SUMS
-          cat SHA256SUMS
+      - name: Build the caotang command-line bundle (the file the continuity-scan template pins)
+        run: pnpm --filter @caotang/cli run build
 
-      - name: Create the release with the bundle and its SHA-256
+      - name: Write the SHA-256 of the bundles
+        run: |
+          (cd packages/mcp-server/dist && sha256sum caotang-mcp-*.mcpb) > packages/mcp-server/dist/SHA256SUMS
+          (cd packages/cli/dist && sha256sum caotang.mjs) >> packages/mcp-server/dist/SHA256SUMS
+          cat packages/mcp-server/dist/SHA256SUMS
+
+      - name: Create the release with the bundles and their SHA-256
         run: |
           node tools/release.mjs notes "${TAG#v}" > release-notes.md
-          gh release create "$TAG" packages/mcp-server/dist/caotang-mcp-*.mcpb packages/mcp-server/dist/SHA256SUMS \
+          gh release create "$TAG" packages/mcp-server/dist/caotang-mcp-*.mcpb packages/cli/dist/caotang.mjs packages/mcp-server/dist/SHA256SUMS \
             --verify-tag --title "Caotang ${TAG#v}" --notes-file release-notes.md
         env:
           TAG: ${{ github.ref_name }}

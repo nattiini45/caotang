@@ -119,6 +119,36 @@ describe('runScan', () => {
     expect(result.findings.filter((finding) => finding.file === `docs/${HARBOUR}.md`)).toEqual([]);
   });
 
+  it('is partial and exits 8 when a document is not UTF-8, because that document was never checked', async () => {
+    const { fs } = await seedProject({ bodies: { [HARBOUR]: 'Elena waits.' } });
+    const path = `docs/${HARBOUR}.md`;
+    await fs.writeBytesAtomic(path, new Uint8Array([0xff, 0xfe, 0xfa, 0x20, 0x62, 0x61, 0x64]));
+    const result = await runScan(fs, { now: NOW });
+    expect(result.status).toBe('partial');
+    expect(result.unread).toEqual([path]);
+    expect(result.notices.some((notice) => notice.includes('not UTF-8') && notice.includes('The Harbour'))).toBe(true);
+    expect(result.exitCode).toBe(8);
+    // The outcome is not hidden when every finding is dismissed or none is open: --fail-on never still only reports.
+    expect((await runScan(fs, { now: NOW, failOn: 'never' })).exitCode).toBe(0);
+  });
+
+  it('exits 7 rather than 8 when a document is unread and a finding also fails the run', async () => {
+    const { fs } = await seedProject();
+    await fs.writeBytesAtomic(`docs/${SHORE}.md`, new Uint8Array([0xff, 0xfe, 0xfa]));
+    const result = await runScan(fs, { now: NOW });
+    expect(result.counts.error).toBeGreaterThan(0);
+    expect(result.exitCode).toBe(7);
+    expect(result.status).toBe('partial');
+  });
+
+  it('is complete, with no notice and an empty unread list, when every file reads', async () => {
+    const { fs } = await seedProject();
+    const result = await runScan(fs, { now: NOW }, { dialogueFacts: () => ({ findings: [], containerIds: [], speakersByContainer: new Map() }) });
+    expect(result.unread).toEqual([]);
+    expect(result.notices).toEqual([]);
+    expect(result.status).toBe('complete');
+  });
+
   it('places a screenplay finding in its .fountain file, and a legacy .md body in the .md the loader read', async () => {
     const { fs } = await seedProject({ expecting: [SCRIPT] });
     const fountain = await runScan(fs, { now: NOW });

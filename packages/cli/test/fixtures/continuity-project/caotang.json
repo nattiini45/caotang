@@ -1,0 +1,45 @@
+{
+  "app": "caotang",
+  "formatVersion": 1,
+  "project": {
+    "id": "p_E3MSDZR2RS",
+    "name": "The Lighthouse Keeper",
+    "createdAt": "2026-10-20T09:00:00.000Z",
+    "modifiedAt": "2026-10-20T09:00:00.000Z",
+    "language": "de",
+    "identifier": { "uuid": "urn:uuid:c4a306d2-891a-4624-9c42-004dac943a94" }
+  },
+  "vocabulary": {
+    "statuses": [
+      { "id": "draft", "name": "Draft", "color": "#8a8a8a" },
+      { "id": "revised", "name": "Revised", "color": "#4a90d9" },
+      { "id": "final", "name": "Final", "color": "#3fa66a" }
+    ],
+    "labels": []
+  },
+  "tree": [
+    { "id": "root", "parentId": null, "type": "root", "title": "The Lighthouse Keeper", "order": 0, "status": null, "label": null, "keywords": [], "synopsis": "", "notes": "" },
+    { "id": "manuscript", "parentId": "root", "type": "folder", "title": "Manuscript", "order": 10, "status": null, "label": null, "keywords": [], "synopsis": "", "notes": "" },
+    { "id": "research", "parentId": "root", "type": "folder", "title": "Research", "order": 20, "status": null, "label": null, "keywords": [], "synopsis": "", "notes": "" },
+    { "id": "n_7K2QX9M4A1", "parentId": "manuscript", "type": "document", "title": "The Harbour", "order": 10, "status": null, "label": null, "keywords": [], "synopsis": "", "notes": "", "createdAt": "2026-10-20T09:00:00.000Z", "updatedAt": "2026-10-20T09:00:00.000Z" },
+    { "id": "n_8M3RY1N5B2", "parentId": "manuscript", "type": "document", "title": "The Shore", "order": 20, "status": null, "label": null, "keywords": [], "synopsis": "", "notes": "", "createdAt": "2026-10-20T09:00:00.000Z", "updatedAt": "2026-10-20T09:00:00.000Z" },
+    { "id": "n_9P4SZ2Q6C3", "parentId": "manuscript", "type": "document", "title": "The Script", "order": 30, "status": null, "label": null, "keywords": [], "synopsis": "", "notes": "", "kind": "screenplay", "createdAt": "2026-10-20T09:00:00.000Z", "updatedAt": "2026-10-20T09:00:00.000Z" },
+    { "id": "n_AQ5T03R7D4", "parentId": "manuscript", "type": "dialogue", "title": "The Choices", "order": 40, "status": null, "label": null, "keywords": [], "synopsis": "", "notes": "", "kind": "branching", "createdAt": "2026-10-20T09:00:00.000Z", "updatedAt": "2026-10-20T09:00:00.000Z" }
+  ],
+  "derived": {
+    "wordCounts": {
+      "n_7K2QX9M4A1": 6,
+      "n_8M3RY1N5B2": 4,
+      "n_9P4SZ2Q6C3": 8,
+      "n_AQ5T03R7D4": 6
+    },
+    "computedAt": "2026-10-20T09:00:00.000Z",
+    "ruleVersion": 2
+  },
+  "codex": [
+    { "id": "c_5H8QK2M9RT", "name": "Elena", "aliases": [], "type": "character", "description": "The keeper.", "includePolicy": "detected", "caseSensitive": false, "exclude": [], "attachments": [], "keywords": [], "origin": "manual", "sources": [], "createdAt": "2026-10-20T09:00:00.000Z", "updatedAt": "2026-10-20T09:00:00.000Z" }
+  ],
+  "recipes": [
+    { "name": "Manuscript", "includeRootIds": ["manuscript"], "format": "docx", "templateId": "default", "options": {} }
+  ]
+}

@@ -20,7 +20,7 @@ The first release (0.1.0) is a complete writing studio that runs in the browser:
 - **Non-UTF-8 files.** A document whose file is not UTF-8 opens into a review: Caotang detects the likely encoding, previews the text, and converts the file only when you choose to, keeping the original bytes as a backup.
 - **Filters and goals.** Saved binder filters, project goals with deadline pacing, weekly and monthly goals that reset on the day you choose, a sprint timer and a writing history.
 - **SDK.** Run the agent from a Node script, a CLI or CI against a project folder, with an approval policy in place of the cards, a diff before anything is saved, and the provider key held in memory ([packages/sdk/README.md](../packages/sdk/README.md)).
-- **Command line.** Run the agent on a project folder from a terminal or a script, read-only unless you say otherwise.
+- **Command line.** Run the agent on a project folder from a terminal or a script, read-only unless you say otherwise. `caotang scan` runs the continuity checks on a folder with no model and no key, and a GitHub Actions template runs it every night.
 - **MCP.** Connect external Model Context Protocol servers to the agent, under per-call approval. Caotang also ships its own MCP server, so other AI tools can read a project folder and, if you allow it, change it with confirmation.
 
 The app is live at [caotang.app/app](https://caotang.app/app/), with a landing page at [caotang.app](https://caotang.app/). The [user guide](USER-GUIDE.md) describes all of it, and its last section lists what is not in this build yet.

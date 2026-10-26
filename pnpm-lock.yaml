@@ -303,6 +303,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@caotang/coherence':
+        specifier: workspace:*
+        version: link:../coherence
       '@caotang/font-noto-arabic':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-arabic
@@ -330,6 +333,9 @@ importers:
       '@caotang/pdf-fonts':
         specifier: workspace:*
         version: link:../pdf-fonts
+      '@caotang/scan':
+        specifier: workspace:*
+        version: link:../scan
       '@caotang/sdk':
         specifier: workspace:*
         version: link:../sdk
