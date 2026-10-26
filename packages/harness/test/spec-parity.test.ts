@@ -111,7 +111,7 @@ describe('the metadata table as a whole', () => {
     const extensions = TOOL_METADATA.filter((meta) => meta.surface === 'extension').map((meta) => meta.name);
     // Then tool.search (extensibility §5), then the storyboard and prompt-pack modules' tools. Each is an
     // extension row, so none can be mistaken for part of the frozen v0.1 surface. The dialogue module's two rows close the
-    // list (dialogue-narrative.md §7), then the skills row (extensibility §10) and the delegation row (agent-harness §2), and the five allowlisted bus primitives close it (agent-harness §3).
+    // list (dialogue-narrative.md §7), then the skills row (extensibility §10) and the delegation row (agent-harness §2), the memory read follows them (context-assembly §2, LI), and the seven allowlisted bus primitives close it (agent-harness §3).
     expect(extensions).toEqual([
       'doc.import',
       'codex.import',
@@ -126,12 +126,15 @@ describe('the metadata table as a whole', () => {
       'dialogue.draft',
       'dialogue.table',
       'skill.load',
+      'memory.read',
       'agent.delegate',
       'notes.replace',
       'synopsis.set',
       'vocabulary.upsert',
       'filter.save',
       'goal.save',
+      'memory.write',
+      'instructions.propose',
     ]);
     expect(TOOL_METADATA.filter((meta) => meta.surface === 'v0.1')).toHaveLength(14);
   });
@@ -178,7 +181,7 @@ describe('the per-tool context budgets, checked against context-assembly.md §3'
     expect(profileFor('synopsis.fill').layers).not.toContain('L2');
   });
 
-  it('the metadata tools are L0, L1 and L7 only', () => {
-    expect(profileFor('meta').layers).toEqual(['L0', 'L1', 'L7']);
+  it('the metadata tools are L0, L1 and L7 only, and LI when the project has instructions', () => {
+    expect(profileFor('meta').layers).toEqual(['L0', 'LI', 'L1', 'L7']);
   });
 });

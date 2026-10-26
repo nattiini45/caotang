@@ -46,6 +46,7 @@ import {
   synopsisFillParams,
 } from './ports.js';
 import { delegateParams } from './delegate.js';
+import { memoryReadParams, prepareMemoryRead } from './memory.js';
 import { skillLoadParams } from './skills.js';
 import type { CallParams } from '../types.js';
 import type { CommandError } from '@caotang/bus';
@@ -89,6 +90,8 @@ const DEFINITIONS: Readonly<Record<ToolName, Definition>> = {
   'dialogue.table': extensionDefinition(DIALOGUE_TOOL_ENTRIES, 'dialogue.table'),
   // The project's skills (extensibility.md §10).
   'skill.load': { kind: 'port', port: 'skill.load', params: skillLoadParams },
+  // The writer's instructions and the agent's memory notes (context-assembly.md §2, layer LI).
+  'memory.read': { kind: 'native', params: memoryReadParams, prepare: prepareMemoryRead },
   // Delegation to a built-in helper agent (agent-harness §2): the loop answers it; the port is the answer outside a turn.
   'agent.delegate': { kind: 'port', port: 'agent.delegate', params: delegateParams },
   // The allowlisted bus primitives, each built from its command's descriptor (tools/primitive.ts).
