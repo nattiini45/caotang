@@ -1,4 +1,4 @@
-# The end-to-end suite in Firefox and WebKit. Nightly and on demand, not on pull requests: ci.yml gates a pull request on Chromium.
+# The end-to-end suite in Firefox and WebKit. It gates pull requests, also runs nightly, and can be dispatched on demand.
 #
 # What runs:
 #   - The `firefox` and `webkit` projects of playwright.config.ts (they exist only with CAOTANG_E2E_BROWSERS=all), each in two
@@ -13,6 +13,7 @@
 name: e2e-browsers
 
 on:
+  pull_request:
   schedule:
     - cron: '30 3 * * *'
   workflow_dispatch:

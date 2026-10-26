@@ -6,9 +6,9 @@ Thank you for helping. This page covers setting up, the checks a change must pas
 
 You need:
 
-- **Node.js** in a version the `engines` field of [package.json](package.json) allows: 22.12 or later in the 22 line, 24, or 26 and later. CI runs Node 24.
+- **Node.js** in a version the `engines` field of [package.json](package.json) allows: 22.12 or later in the 22 line, 24, or 26 and later. CI tests the 22.12.0 floor and Node 24; Node 26 is allowed but not covered.
 - **pnpm** in the version the `packageManager` field pins. Run `corepack enable` once and the right pnpm is used automatically.
-- **A Chromium-based browser** to run the end-to-end tests and to try folder saves. Firefox and WebKit are optional: the nightly workflow runs the suite in them (see the README's Test section).
+- **A Chromium-based browser** to run the end-to-end tests locally and to try folder saves. Firefox and WebKit are optional locally; CI gates pull requests in all three engines and also runs Firefox/WebKit nightly.
 
 Then:
 
@@ -24,11 +24,13 @@ pnpm dev        # the app at http://127.0.0.1:5173
 ```sh
 pnpm verify                             # lint, typecheck and the unit tests
 pnpm build                              # the production build in apps/desktop/dist/
-pnpm exec playwright install chromium   # once, for the end-to-end tests
-pnpm test:e2e                           # the Playwright suite, including a production-build smoke test
+pnpm exec playwright install chromium      # once, for the pull-request end-to-end tests
+pnpm test:e2e                              # Chromium suite, including a production-build smoke test
+pnpm exec playwright install firefox webkit # optional, for the nightly cross-browser suite
+CAOTANG_E2E_BROWSERS=all pnpm exec playwright test --project=webkit
 ```
 
-All three must pass before a pull request is merged. CI runs the same commands on Node 24, and also packs the MCP server bundle.
+These checks must pass before a pull request is merged. CI runs `pnpm verify`, the production build, bundle-size check, MCP pack and CLI build on Node 22.12.0 and 24; Chromium E2E runs on Node 24 in parallel. A separate workflow runs Firefox and WebKit E2E on every pull request and nightly, two shards per browser, then merges their reports into one HTML report.
 
 CI on a pull request from a fork runs with a read-only token (`permissions: contents: read`), so a workflow run cannot change the repository. If this is your first contribution, a maintainer approves your pull request's first CI run before it starts; this is a repository setting, and it only means the checks wait a little.
 

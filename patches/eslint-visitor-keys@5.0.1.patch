@@ -1,0 +1,13 @@
+diff --git a/package.json b/package.json
+index d61f90619c2d85199adcafbc2f4d293fe6142384..1fb5afb2f3bf69e41cd17c028054fa43bbabbc0e 100644
+--- a/package.json
++++ b/package.json
+@@ -23,7 +23,7 @@
+     "lib"
+   ],
+   "engines": {
+-    "node": "^20.19.0 || ^22.13.0 || >=24"
++    "node": "^20.19.0 || ^22.12.0 || >=24"
+   },
+   "devDependencies": {
+     "rollup-plugin-dts": "^6.2.3",

@@ -46,7 +46,7 @@
     "@caotang/bus": "workspace:*",
     "@caotang/editor-audit": "workspace:*",
     "@types/mdast": "4.0.4",
-    "jsdom": "29.1.1"
+    "jsdom": "28.1.0"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
