@@ -1142,13 +1142,20 @@ export class AgentController {
   }
 
   /**
-   * "Restore both": the project first, then the conversation. If the project restore stops part way the conversation is left as it is,
+   * "Restore both": the project first, then the conversation. If the project restore stops part way, or a turn started meanwhile, the conversation is left as it is,
    * the turns that were taken back are still marked restored, and the reason is returned.
    */
-  async restoreBoth(turnId: string): Promise<{ readonly ok: true; readonly later: number; readonly intent: string } | { readonly ok: false; readonly message: string }> {
+  async restoreBoth(
+    turnId: string,
+  ): Promise<{ readonly ok: true; readonly later: number; readonly intent: string } | { readonly ok: false; readonly message: string; readonly projectRestored: boolean }> {
     const outcome = await this.restore(turnId);
-    if (!outcome.ok) return { ok: false, message: outcome.message };
-    return { ok: true, later: outcome.later, intent: this.rewindConversation(turnId)?.intent ?? '' };
+    if (!outcome.ok) return { ok: false, message: outcome.message, projectRestored: false };
+    // The restore awaits the autosave flush, so a turn may have started since the menu opened; the rewind is refused while one runs.
+    const rewound = this.rewindConversation(turnId);
+    if (rewound === null) {
+      return { ok: false, message: 'The project was restored, but a turn is running, so the conversation was not rewound.', projectRestored: true };
+    }
+    return { ok: true, later: outcome.later, intent: rewound.intent };
   }
 
   /**

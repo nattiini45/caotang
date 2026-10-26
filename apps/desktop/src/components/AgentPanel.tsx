@@ -226,7 +226,7 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
       return;
     }
     void agent.restoreBoth(turnId).then((outcome) => {
-      if (!outcome.ok) report({ text: `${outcome.message} The conversation was not rewound.`, tone: 'error' });
+      if (!outcome.ok) report({ text: outcome.projectRestored ? outcome.message : `${outcome.message} The conversation was not rewound.`, tone: 'error' });
       else {
         report({ text: `${restoredLine(outcome.later)} The conversation was rewound too.`, tone: 'info' });
         refill(outcome.intent);

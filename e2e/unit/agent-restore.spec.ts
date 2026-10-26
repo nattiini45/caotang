@@ -219,6 +219,22 @@ test('restore both with a compensation that fails leaves the conversation alone,
   expect(shown.match(/restored by the writer/g)).toHaveLength(1);
 });
 
+test('restore both says the conversation was not rewound when a turn started while the project restore ran', async () => {
+  const f = await fixture();
+  const [first] = await f.run(1);
+
+  const both = f.controller.restoreBoth(first!.turnId);
+  const next = f.controller.submit(INTENTS[1]);
+  const outcome = await both;
+  await next;
+
+  expect(outcome).toEqual({ ok: false, projectRestored: true, message: expect.stringContaining('conversation was not rewound') });
+  expect(f.controller.snapshot().turns[0]!.rewound).toBe(false);
+  expect(f.controller.snapshot().turns[0]!.restoredAt).not.toBeNull();
+  expect(f.bodyOf('The Ferry')).toBe('');
+  await f.close();
+});
+
 test('a turn cannot be rewound while one is running', async () => {
   const f = await fixture();
   const [first] = await f.run(1);
