@@ -91,7 +91,7 @@ interface RunnableChecks {
  * The codex's own detector, run over one body with the spellings the body adds (a screenplay's cue names). The scan counts
  * mentions with it, as the Findings tab's scan does (session.ts countInEntries), so the two scans agree.
  */
-const countIn: MentionDetector = (body, entries, terms) => countMentions(body, compileCodex(entries), terms);
+export const countIn: MentionDetector = (body, entries, terms) => countMentions(body, compileCodex(entries), terms);
 
 /** The checks a scan runs, or the refusal when the writer has turned every one of them off. */
 function runnableChecks(requested: unknown, enabled: readonly DeterministicCheckId[] | undefined): RunnableChecks | ToolFailure {
@@ -128,7 +128,7 @@ function excludedBy(withheld: ReadonlySet<string> | undefined): ((node: TreeNode
  * takes a `CoherenceFile`, and the state holds the store's structural copy of it (coherence-state.ts):
  * the coherence module's file is assignable to that copy, so the downcast below is the only one.
  */
-function heldFile(state: ProjectState): CoherenceFile {
+export function heldFile(state: ProjectState): CoherenceFile {
   return (state.coherence as CoherenceFile | undefined) ?? emptyCoherenceFile();
 }
 
