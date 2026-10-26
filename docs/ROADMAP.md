@@ -44,6 +44,7 @@ Each of these is its own milestone, designed when its turn comes.
 - **Timeline.** The story on a timeline of story days, reading order, or both, including prologues before day 0 and epilogues years later; every change you make on it is a proposal you review and apply as one undo step. Specified, not built: see [timeline.md](architecture/timeline.md).
 - **Interface languages.** Menus, panels and messages in your language, set apart from the language you write in, starting with German; numbers and dates in your locale; a mirrored interface for right-to-left languages, as a preview until a native reader has checked it. Specified, not built: see [i18n.md](architecture/i18n.md).
 - **Mobile app**, reaching your projects on the hosted instance.
+- **More of the agent for outside tools.** Synopses, continuity findings, the review, shots and prompts as a brief and an apply for the connected tool's own model, as scenes and dialogue have, once what they write can be kept safely; and a run of several changes from an outside tool staged as one change you confirm and undo once.
 - **Signed MCP bundle.** The `.mcpb` bundle ships unsigned today. It will be signed once the bundling tool produces signed bundles that hosts accept.
 
 ## Not planned

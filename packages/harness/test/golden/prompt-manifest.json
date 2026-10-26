@@ -235,6 +235,26 @@
     "descriptionVersion": 1
   },
   {
+    "id": "tool.scene.brief",
+    "sha256": "ca5d96119465f15de756f23f9dcfd4548e3a5a822d4dafb8e3ecb8297de54641",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.scene.apply",
+    "sha256": "945f7e71d6d29e84e898cff346045cfafa1b862435719baf59b3aff6d6b5b334",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.dialogue.brief",
+    "sha256": "73a9cab6abdfced893b47ca7caa2814b64fccb9559091e774b642d4588cc33b6",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.dialogue.apply",
+    "sha256": "96fe96599ac2bff9afc3ff64e5334b93336c6f2d2b46f54b4754c2cde084004f",
+    "descriptionVersion": 1
+  },
+  {
     "id": "tool.notes.replace",
     "sha256": "1b6b6221603684ce51ad9cb6fa302961b962c0cb0c395d121c2d079d07ffe10c",
     "descriptionVersion": 1

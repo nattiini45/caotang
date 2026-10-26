@@ -16,7 +16,7 @@ import { resolve } from 'node:path';
 import type { CommandError } from '@caotang/bus';
 import type { ExportDispatch, ExporterService } from '@caotang/exporter';
 import { withheldState } from '@caotang/context';
-import { createProductHarness, metadataFor, type Harness, type RulesProvider, type ToolOutcome } from '@caotang/harness';
+import { briefRefusal, createBriefLedger, createBriefPorts, createProductHarness, metadataFor, type Harness, type RulesProvider, type ToolOutcome } from '@caotang/harness';
 import {
   MCP_VOICE,
   isCodexFileName,
@@ -244,9 +244,12 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
   try {
     const { fs, state, exporter } = folder;
     // codex.read is a pure read over the manifest's codex, so it runs here as it does in the app.
-    // The three model-backed tools stay unwired ('external' ports): this server holds no provider profile or key,
-    // and those tools would draft with Caotang's model, not the caller's.
+    // The model-backed tools stay unwired ('external' ports): this server holds no provider profile or key, and those tools would
+    // draft with Caotang's model, not the caller's. The brief/apply pairs are wired instead: the host's own model does the writing, and
+    // the ledger holds the briefs it was handed, in memory only (agent-harness §3, "External-only rows").
+    const briefs = createBriefLedger({ now: () => now().getTime() });
     const harness = createProductHarness({
+      externalPorts: createBriefPorts({ ledger: briefs }),
       state,
       registry: folder.registry,
       externalWrites: options.allowWrites,
@@ -326,6 +329,10 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
         // A folder that changed stops every write (callConfirmed), so a write is refused here, as the accept would refuse it, and no
         // question is asked for it.
         if (folder.changed && changesProject(name)) return notMadeError(name, folder.stoppedError(false));
+        // An apply whose brief is gone, expired or stale is refused before the host is asked to confirm a text that could not be written, and
+        // before the placement checks, so the refusal says the brief is stale and not that the text no longer fits.
+        const stale = typeof params === 'object' && params !== null ? briefRefusal(briefs, name, params as Record<string, unknown>, state, harness.withheld(name)) : undefined;
+        if (stale !== undefined) return stale;
         // A plan of one step is checked by the tool's own prepare, with no effect (plan.ts), which is the check the accept runs first. A step
         // is deferred only when an earlier step may create what it names, and a plan of one has none, so a refusal here is final.
         const preflight = harness.previewPlan({ steps: [{ tool: name, params, expect: 'the call as the host asked it' }] });

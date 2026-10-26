@@ -104,6 +104,11 @@ function counted(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
 }
 
+/** A word-count change with its sign: `+120`, `-8`, `0`. */
+function signed(delta: number): string {
+  return delta > 0 ? `+${delta}` : `${delta}`;
+}
+
 /** A value a confirmation quotes, clipped, or `undefined` when there is nothing to quote. */
 function quotedOf(value: unknown, max = 60): string | undefined {
   return typeof value === 'string' && value.trim() !== '' ? `"${clip(value, max)}"` : undefined;
@@ -184,6 +189,18 @@ export function confirmationSummary(
       const head = `import ${counted(entries.length, 'codex entry', 'codex entries')}`;
       const described = entries.map((entry) => codexEntryOf(entry, entryNameOf));
       return described.length === 0 ? head : `${head}: ${listedOf(described)}`;
+    }
+    case 'scene.apply': {
+      // The text is this call's arguments, and the dialog names the document and the change in words only (extensibility §9).
+      const text = typeof params['text'] === 'string' ? params['text'] : '';
+      const selected = params['mode'] === 'rewrite_selection' ? (params['selection'] as { exact?: unknown } | undefined)?.exact : undefined;
+      const delta = countBody(text).words - (typeof selected === 'string' ? countBody(selected).words : 0);
+      const verb = params['mode'] === 'rewrite_selection' ? 'rewrite a passage of' : params['mode'] === 'continue' ? 'continue' : 'write a draft into';
+      return `${verb} ${named(params['doc'])} (${signed(delta)} ${Math.abs(delta) === 1 ? 'word' : 'words'})`;
+    }
+    case 'dialogue.apply': {
+      const words = typeof params['ink'] === 'string' ? countBody(params['ink']).words : 0;
+      return `add dialogue to ${named(params['doc'])} (${signed(words)} ${words === 1 ? 'word' : 'words'})`;
     }
     case 'export.compile': {
       const format = typeof params['format'] === 'string' ? clip(params['format'], 16) : 'a file';

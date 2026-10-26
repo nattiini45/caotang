@@ -233,6 +233,26 @@ describe('the tool surface', () => {
     }
   });
 
+  it('is described with the tool counts it lists, in the package README, the host checks and the spec', async () => {
+    const reader = await connectClient(readOnly.url, readOnly.token);
+    const writer = await connectClient(writable.url, writable.token, acceptConfirm);
+    try {
+      const reads = (await reader.listTools()).tools.length;
+      const { tools } = await writer.listTools();
+      const confirms = tools.filter((tool) => tool.description?.startsWith('Requires user confirmation.')).length;
+      const text = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+      expect(text('../README.md')).toContain(`**Read-only server (${reads} tools), and always:**`);
+      expect(text('../README.md')).toContain(`**With \`--allow-writes\` (${tools.length} tools):**`);
+      expect(text('../HOST-CHECKS.md')).toContain(`the host lists ${tools.length} tools`);
+      const spec = text('../../../docs/architecture/extensibility.md');
+      expect(spec).toContain(`lists **${reads} read tools in every mode**`);
+      expect(spec).toContain(`**${tools.length - reads} more** (${tools.length - reads - confirms} write-auto, ${confirms} write-confirm`);
+    } finally {
+      await reader.close();
+      await writer.close();
+    }
+  });
+
   it('marks write-confirm tools as needing confirmation, and reads as read-only', async () => {
     const client = await connectClient(writable.url, writable.token);
     try {
@@ -813,7 +833,18 @@ describe('the registry seam', () => {
         roClient = await connectClient(readOnly.url, readOnly.token);
         const rwClient = await connectClient(writable.url, writable.token);
         try {
-          expect(await listedNames(roClient)).toEqual(['binder.read_tree', 'codex.read', 'coherence.scan', 'dialogue.table', 'doc.read', 'memory.read', 'notes.read', 'project.overview']);
+          expect(await listedNames(roClient)).toEqual([
+            'binder.read_tree',
+            'codex.read',
+            'coherence.scan',
+            'dialogue.brief',
+            'dialogue.table',
+            'doc.read',
+            'memory.read',
+            'notes.read',
+            'project.overview',
+            'scene.brief',
+          ]);
           expect(await listedNames(rwClient)).toEqual([
             'binder.read_tree',
             'binder.restructure',
@@ -822,6 +853,8 @@ describe('the registry seam', () => {
             'codex.write',
             'coherence.scan',
             'coherence.setFindingStatus',
+            'dialogue.apply',
+            'dialogue.brief',
             'dialogue.table',
             'doc.import',
             'doc.read',
@@ -834,6 +867,8 @@ describe('the registry seam', () => {
             'notes.read',
             'notes.replace',
             'project.overview',
+            'scene.apply',
+            'scene.brief',
             'shots.annotate',
             'synopsis.set',
             'vocabulary.upsert',

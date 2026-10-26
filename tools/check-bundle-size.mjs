@@ -50,6 +50,8 @@ export const BUDGET = {
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
   // 5,902.2 kB measured with the instructions layer, the agent files and recurring tasks (Wave 17).
   // 5,964.6 kB measured with the restore planner, the step and conversation rewind menus (#53); the ceiling is that plus about 0.6%.
+  // 5,954.2 kB measured with the four host-model rows (scene.brief and the rest, #81): the app carries their registry metadata, params and
+  // preflights and none of their ports, which only the MCP server builds.
   totalJs: 6_000_000,
 };
 
