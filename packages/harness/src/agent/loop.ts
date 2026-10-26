@@ -428,6 +428,8 @@ export interface AgentSession {
   restoreStep(turnId: string, stepId?: string): Result<UndoOutcome, CommandError>;
   /** The step ids of a finished turn whose restore would take something back, in the order the steps ran. Read live: a step taken back is not listed. */
   restorableSteps(turnId: string): readonly string[];
+  /** The call id a restore to before `stepId` begins at: the first step from it on that still has changes in the turn's undo group, or `undefined`. */
+  stepStart(turnId: string, stepId: string): string | undefined;
   /**
    * Drops this turn and every later one from the conversation the planner sees (L6), and returns the turn's intent so the Intent
    * box can offer it again. It touches no project state and no activity row, and the turns stay in `reports()`. An unknown turn
@@ -3571,6 +3573,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         return err(refusal('not-found', `step ${stepId} of turn ${turnId} and the steps after it wrote nothing that is still in the project, so there is nothing to restore`, { correctiveHint: 'restore a step that changed the project, or the whole turn' }));
       }
       return harness.undo.undoFrom(report.undoGroupId, first);
+    },
+
+    stepStart(turnId: string, stepId: string): string | undefined {
+      const groupId = finished.find((entry) => entry.turnId === turnId)?.undoGroupId;
+      return groupId === undefined ? undefined : firstWriting(turnId, groupId, stepId);
     },
 
     restorableSteps(turnId: string): readonly string[] {

@@ -121,6 +121,8 @@ async function fixture() {
 }
 
 /** The turns of the recent-turns section of a drafting request, as the lines the model reads. */
+const idOf = (f: { session: ProjectSession }, title: string): string => f.session.state.manifest.tree.find((node) => node.title === title)!.id;
+
 const turnsIn = (request: string | undefined): string => (request ?? '').slice((request ?? '').indexOf('# Recent turns'), (request ?? '').indexOf('# Task'));
 
 test('restoring a turn marks every turn it took back as restored, in the panel and in the next prompt', async () => {
@@ -285,5 +287,98 @@ test('a step restore that cannot take a later change back stops there, and leave
   expect(f.statusOf('The Storm')).toBe('revised');
   expect(f.controller.snapshot().turns[0]!.restoredFromStep).toBeNull();
   expect([...f.controller.restorableSteps(turn!.turnId)]).toEqual(cards);
+  await f.close();
+});
+
+test('a turn whose changes are elsewhere is restored alone: the plan is exact, the later turn and the typing after it stay', async () => {
+  const f = await fixture();
+  const [first, second] = await f.run(2);
+  const typed = f.session.dispatch('doc.write', { docId: idOf(f, 'The Reef'), body: 'Typed after both.' });
+  expect(typed.ok).toBe(true);
+
+  const plan = await f.controller.restorePlan(first!.turnId);
+  expect(plan?.kind).toBe('exact');
+
+  const outcome = await f.controller.restoreOnly(first!.turnId);
+
+  expect(outcome).toMatchObject({ ok: true, kept: 2 });
+  expect(f.bodyOf('The Ferry')).toBe('');
+  expect(f.bodyOf('The Gale')).not.toBe('');
+  expect(f.bodyOf('The Reef')).toBe('Typed after both.');
+  expect(f.controller.snapshot().turns.map((turn) => turn.restoredAt !== null)).toEqual([true, false]);
+
+  await f.controller.submit(INTENTS[3]);
+  await f.close();
+  const shown = turnsIn(f.seen[f.seen.length - 1]);
+  expect(shown).toContain(`- Turn ${first!.turnId}`);
+  expect(shown).toContain(`- Turn ${second!.turnId}`);
+  // Only the turn that was taken back says so; the one that stays does not.
+  expect(shown.match(/restored by the writer/g)).toHaveLength(1);
+});
+
+test('a later write to the same scene makes the plan with-later, and restoring only refuses without touching anything', async () => {
+  const f = await fixture();
+  const [first] = await f.run(1);
+  const ferry = idOf(f, 'The Ferry');
+  const before = f.bodyOf('The Ferry');
+  f.session.dispatch('doc.write', { docId: ferry, body: `${before} And the writer kept typing.` });
+
+  const plan = await f.controller.restorePlan(first!.turnId);
+  expect(plan).toMatchObject({ kind: 'with-later', reason: 'overlap' });
+  expect(plan?.kind === 'with-later' && plan.overlap).toEqual([ferry]);
+
+  const outcome = await f.controller.restoreOnly(first!.turnId);
+  expect(outcome.ok).toBe(false);
+  expect(f.bodyOf('The Ferry')).toContain('And the writer kept typing.');
+  expect(f.controller.snapshot().turns[0]!.restoredAt).toBeNull();
+  await f.close();
+});
+
+test('typing after the plan was made, in the same scene, is not lost to a restore that was proved before it', async () => {
+  const f = await fixture();
+  const [first] = await f.run(1);
+  const other = idOf(f, 'The Gale');
+  f.session.dispatch('doc.write', { docId: other, body: 'Elsewhere.' });
+  expect((await f.controller.restorePlan(first!.turnId))?.kind).toBe('exact');
+
+  // The writer types into the turn's own scene while the dialog is open.
+  f.session.dispatch('doc.write', { docId: idOf(f, 'The Ferry'), body: `${f.bodyOf('The Ferry')} Late words.` });
+  const outcome = await f.controller.restoreOnly(first!.turnId);
+
+  expect(outcome.ok).toBe(false);
+  expect(f.bodyOf('The Ferry')).toContain('Late words.');
+  expect(f.bodyOf('The Gale')).toBe('Elsewhere.');
+  await f.close();
+});
+
+test('a step restored alone keeps the steps before it and a later turn, and marks the turn restored from the step', async () => {
+  const f = await fixture();
+  const turn = await f.controller.submit(STATUSES);
+  const later = await f.controller.submit(INTENTS[0]);
+  const cards = f.controller.snapshot().turns[0]!.cards.map((card) => card.id);
+
+  const plan = await f.controller.restorePlan(turn!.turnId, cards[1]);
+  expect(plan?.kind).toBe('exact');
+  const outcome = await f.controller.restoreOnly(turn!.turnId, cards[1]);
+
+  expect(outcome).toMatchObject({ ok: true, kept: 1 });
+  expect(f.statusOf('The Landing')).toBe('draft');
+  expect(f.statusOf('The Storm')).not.toBe('revised');
+  expect(f.statusOf('The Friend')).not.toBe('final');
+  expect(f.bodyOf('The Ferry')).not.toBe('');
+  const views = f.controller.snapshot().turns;
+  expect(views.map((view) => view.restoredFromStep)).toEqual([2, null]);
+  expect(views[1]!.restoredAt).toBeNull();
+  expect(f.session.undo.group(views[0]!.checkpoint!.undoGroupId)).toBeDefined();
+  expect(later?.status).toBe('applied');
+  await f.close();
+});
+
+test('a turn that wrote a global thing is never offered to be restored alone', async () => {
+  const f = await fixture();
+  const [first] = await f.run(1);
+  // A change to the project's name is not a change to any one scene.
+  expect(f.session.dispatch('project.rename', { title: 'The Keeper’s Year' }).ok).toBe(true);
+  expect((await f.controller.restorePlan(first!.turnId))?.kind).toBe('with-later');
   await f.close();
 });

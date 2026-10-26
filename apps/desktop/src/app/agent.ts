@@ -108,6 +108,7 @@ import { DEFAULT_AGENT_SETTINGS, type AgentSettings } from './settings.js';
 import { requestInkCompilerFor } from './ink-compiler.js';
 import type { ProviderService } from './providers.js';
 import type { ProjectSession, RestoreResult } from './session.js';
+import type { RestorePlan } from '@caotang/bus';
 import { TaskQueue, type TaskAgent } from './task-queue.js';
 import { announcementFor, viewOf, type TaskView } from './task-model.js';
 import { TaskStore, type TaskRecord } from './task-store.js';
@@ -1102,6 +1103,37 @@ export class AgentController {
     this.noteRestored(outcome.undone, outcome.ok && number > 0 ? { turnId, step: number } : undefined);
     this.bump();
     return outcome;
+  }
+
+  /**
+   * Whether the turn (or its steps from `stepId` on) can be taken back without the changes made after it: the planner's answer for
+   * the dialog, after pending typing is saved. `null` when the turn or the step has nothing to restore.
+   */
+  async restorePlan(turnId: string, stepId?: string): Promise<RestorePlan | null> {
+    const group = this.checkpointOf(turnId);
+    if (group === undefined) return null;
+    const from = stepId === undefined ? undefined : this.sessionOf(turnId)?.stepStart(turnId, stepId);
+    if (stepId !== undefined && from === undefined) return null;
+    return this.session.restorePlanFor(group, from);
+  }
+
+  /**
+   * "Restore only this (keep your later edits)": the turn, or its steps from `stepId` on, are taken back and the changes after it stay.
+   * The plan is proved again first (`ProjectSession.restoreExact`), so edits typed since the dialog opened cannot be taken back by
+   * mistake. `kept` is how many later changes stayed.
+   */
+  async restoreOnly(turnId: string, stepId?: string): Promise<RestoreResult & { readonly kept: number }> {
+    const group = this.checkpointOf(turnId);
+    const from = stepId === undefined ? undefined : this.sessionOf(turnId)?.stepStart(turnId, stepId);
+    if (group === undefined || (stepId !== undefined && from === undefined)) {
+      return { ok: false, message: 'That turn wrote nothing, so there is nothing to restore.', undone: [], kept: 0 };
+    }
+    const kept = this.session.laterChangesAfter(group).length;
+    const outcome = await this.session.restoreExact(group, from);
+    const number = stepId === undefined ? 0 : (this.turns.find((turn) => turn.turnId === turnId)?.cards.findIndex((card) => card.id === stepId) ?? -1) + 1;
+    this.noteRestored(outcome.undone, outcome.ok && stepId !== undefined && number > 0 ? { turnId, step: number } : undefined);
+    this.bump();
+    return { ...outcome, kept };
   }
 
   /** The steps of a turn a restore to before that step would take something back, by status-card id. Read from the undo stack each time. */

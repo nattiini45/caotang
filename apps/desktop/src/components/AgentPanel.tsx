@@ -72,6 +72,8 @@ interface PendingRestore {
   readonly note?: string;
   /** The step (status-card id) the restore begins at; absent for the whole turn. */
   readonly stepId?: string;
+  /** The planner proved this restore can leave the later changes standing: the dialog then offers to keep them. */
+  readonly exact?: boolean;
 }
 
 export function AgentPanel({ session, agent, recurring, startIntent, open, onToggle, sample }: AgentPanelProps): ReactNode {
@@ -118,7 +120,7 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
     if (outcome.kind === 'kept') return;
     setIntent('');
     setOldInstruction(null);
-    if (outcome.kind === 'restore') setRestoring(restoreOf(agent, outcome.turnId, outcome.summary, false));
+    if (outcome.kind === 'restore') openRestore(restoreOf(agent, outcome.turnId, outcome.summary, false));
   };
   const submit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -178,6 +180,31 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
     if (result === null) return;
     report({ text: 'Rewound the conversation to before that turn. The project was not changed.', tone: 'info' });
     refill(result.intent);
+  };
+
+  // The dialog opens at once with the full restore; the planner is asked after pending typing is saved, and the dialog gains "keep your
+  // later edits" only when it proves the later changes are elsewhere. A newer dialog is never changed by an older answer.
+  const openRestore = (next: PendingRestore): void => {
+    setRestoring(next);
+    if (next.both || next.later.length === 0) return;
+    void agent.restorePlan(next.turnId, next.stepId).then((plan) => {
+      // Saving the typing may have added a change to the list the dialog shows, so the list is read again with the answer.
+      setRestoring((now) =>
+        now !== null && now.turnId === next.turnId && now.stepId === next.stepId && !now.both
+          ? { ...now, later: agent.laterChanges(now.turnId), exact: plan?.kind === 'exact' }
+          : now,
+      );
+    });
+  };
+
+  const confirmOnly = (): void => {
+    if (restoring === null) return;
+    const { turnId, stepId } = restoring;
+    setRestoring(null);
+    void agent.restoreOnly(turnId, stepId).then((outcome) => {
+      if (!outcome.ok) report({ text: outcome.message, tone: 'error' });
+      else report({ text: onlyLine(stepId !== undefined, outcome.kept), tone: 'info' });
+    });
   };
 
   const confirmRestore = (): void => {
@@ -363,8 +390,8 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
                     canRewind={agent.canRewind(turn.turnId)}
                     onDecide={(decision) => agent.answer(decision)}
                     restorable={agent.restorableSteps(turn.turnId)}
-                    onRestore={(turnId, summary, both) => setRestoring(restoreOf(agent, turnId, summary, both))}
-                    onRestoreStep={(turnId, summary, stepId) => setRestoring(restoreOf(agent, turnId, summary, false, stepId))}
+                    onRestore={(turnId, summary, both) => openRestore(restoreOf(agent, turnId, summary, both))}
+                    onRestoreStep={(turnId, summary, stepId) => openRestore(restoreOf(agent, turnId, summary, false, stepId))}
                     onRewind={rewind}
                     onRunHeld={(turnId) => void agent.runHeldPlan(turnId)}
                   />
@@ -398,6 +425,11 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
               : 'Restore to before this turn?'
         }
         confirmLabel={restoring?.both === true ? 'Restore both' : 'Restore'}
+        alternate={
+          restoring?.exact === true && restoring.later.length > 0
+            ? { label: restoring.stepId !== undefined ? 'Restore only this step (keep your later edits)' : 'Restore only this turn (keep your later edits)', onSelect: confirmOnly }
+            : undefined
+        }
         onCancel={() => setRestoring(null)}
         onConfirm={confirmRestore}
       >
@@ -414,9 +446,15 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
           </p>
         )}
         {restoring?.note === undefined ? null : <p className="muted">{restoring.note}</p>}
+        {restoring?.exact === true && restoring.later.length > 0 ? (
+          <p data-testid="restore-exact">
+            Your later changes are in other parts of the project, so this can be taken back on its own and they stay. Restore takes them back
+            too.
+          </p>
+        ) : null}
         {restoring !== null && restoring.later.length > 0 ? (
           <>
-            <p>It also takes back these later changes, oldest first:</p>
+            <p>{restoring.exact === true ? 'Restore would also take back these later changes, oldest first:' : 'It also takes back these later changes, oldest first:'}</p>
             <ul aria-label="Later changes">
               {restoring.later.map((line, index) => (
                 <li key={`${index}:${line}`}>{line}</li>
@@ -466,6 +504,12 @@ function runsOf(turns: readonly TurnView[]): readonly { readonly rewound: boolea
     else runs.push({ rewound: turn.rewound, turns: [turn] });
   }
   return runs;
+}
+
+/** What a restore that kept the later edits says. */
+function onlyLine(step: boolean, kept: number): string {
+  const what = step ? 'that step' : 'that turn';
+  return `Restored to before ${what}. Your ${kept} later ${kept === 1 ? 'change was' : 'changes were'} kept.`;
 }
 
 /** What a finished step restore says: how many later changes went back with it, if any. */

@@ -233,6 +233,7 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   confirmLabel,
+  alternate,
   children,
 }: {
   open: boolean;
@@ -240,6 +241,8 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
   confirmLabel: string;
+  /** A second way to go ahead, between Cancel and the confirmation: a gentler action the dialog offers only when it applies. */
+  alternate?: { readonly label: string; readonly onSelect: () => void };
   children: ReactNode;
 }): ReactNode {
   const ref = useRef<HTMLDialogElement>(null);
@@ -270,6 +273,11 @@ export function ConfirmDialog({
           <button type="button" className="button" autoFocus onClick={onCancel}>
             Cancel
           </button>
+          {alternate === undefined ? null : (
+            <button type="button" className="button is-primary" data-testid="confirm-alternate" onClick={alternate.onSelect}>
+              {alternate.label}
+            </button>
+          )}
           <button type="button" className="button is-danger" onClick={onConfirm}>
             {confirmLabel}
           </button>

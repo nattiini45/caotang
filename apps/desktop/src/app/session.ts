@@ -52,6 +52,7 @@ import {
   createViewState,
   execute,
   executeAsync,
+  restorePlan,
   type ActivityLog,
   type BusContext,
   type Command,
@@ -61,6 +62,7 @@ import {
   type CommandRegistry,
   type DocWriteParams,
   type ExecutionOutcome,
+  type RestorePlan,
   type Result,
   type UndoGroup,
   type UndoOutcome,
@@ -84,6 +86,7 @@ import {
   pruneRuns,
   getRevision,
   isBodyType,
+  nodeById,
   resolveRetentionConfig,
   systemCommandClock,
   writeBodySnapshot,
@@ -1109,6 +1112,49 @@ export class ProjectSession {
       if (step === undefined || group.id !== id) undone.push(group.id);
     }
     return { ok: true, later: groups.length - 1 - at, undone };
+  }
+
+  /**
+   * Whether the checkpoint `id` (from the step `fromCallId` on, when given) can be taken back without the changes made after it.
+   * Pending typing is saved first, so it is one of those changes. The answer is `restorePlan`'s: `exact` only on a proof that the
+   * target and every later group touch different nodes, and `with-later` for everything else, including anything it cannot read.
+   */
+  async restorePlanFor(id: string, fromCallId?: string): Promise<RestorePlan> {
+    await this.autosave.flush();
+    return this.planNow(id, fromCallId);
+  }
+
+  private planNow(id: string, fromCallId?: string): RestorePlan {
+    const ancestorsOf = (nodeId: string): readonly string[] => {
+      const chain: string[] = [];
+      for (let at = nodeById(this.state, nodeId); at !== undefined && at.parentId !== null; at = nodeById(this.state, at.parentId)) chain.push(at.parentId);
+      return chain;
+    };
+    return restorePlan(this.undo.groups(), this.log.entries(), { groupId: id, ...(fromCallId === undefined ? {} : { fromCallId }) }, ancestorsOf);
+  }
+
+  /**
+   * "Restore only this (keep your later edits)": takes back the checkpoint `id`, or its steps from `fromCallId` on, and nothing after it.
+   * The plan is made again here, after the typing is saved, because the writer's edits since the dialog opened may now meet the change; if
+   * it is no longer exact nothing is restored and the writer is told, since the full restore would take those edits back and they chose
+   * not to. A compensation that fails is reported and stops there, with what was done kept, as `restoreBefore` does.
+   */
+  async restoreExact(id: string, fromCallId?: string): Promise<RestoreResult> {
+    await this.autosave.flush();
+    this.lastUndoMessage = null;
+    if (this.planNow(id, fromCallId).kind !== 'exact') {
+      return {
+        ok: false,
+        message: 'Your edits since the dialog opened now overlap this change, so nothing was restored. The full restore takes them back too; your edits are as they were.',
+        undone: [],
+      };
+    }
+    const taken = fromCallId === undefined ? this.undoNow(id) : this.settleUndo(this.undo.undoFrom(id, fromCallId));
+    if (!taken) {
+      const reason = this.lastUndoMessage ?? 'a change could not be taken back';
+      return { ok: false, message: `The restore stopped part way, because the change could not be taken back: ${reason}. Your later edits were not touched.`, undone: [] };
+    }
+    return { ok: true, later: 0, undone: fromCallId === undefined ? [id] : [] };
   }
 
   /** The changes a restore to before `id` would also take back: each later group, oldest first, in the words the log gives it. */
