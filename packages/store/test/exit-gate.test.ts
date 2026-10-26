@@ -810,6 +810,10 @@ describe('§10 — the permission matrix, over the registry that implements the 
       case 'skill.setEnabled':
         state.skills.set('close-third', [{ path: 'SKILL.md', bytes: new Uint8Array([45, 45, 45]) }]);
         return name === 'skill.delete' ? { name: 'close-third' } : { name: 'close-third', enabled: false };
+      // A memory note is the writer's to forget (hard-denied for an agent, like project.deleteNode).
+      case 'memory.forget':
+        state.agentFiles = { memory: [{ slug: 'style-dialogue', type: 'style', title: 'Dialogue tags', body: 'Use said.', modified: '', origin: 'writer' }], declined: new Map(), unreadable: [] };
+        return { slug: 'style-dialogue' };
       default:
         throw new Error(`no user params for the never-class name ${name}`);
     }
@@ -822,6 +826,7 @@ describe('§10 — the permission matrix, over the registry that implements the 
       'editor.insert',
       'editor.replaceRange',
       'mcp.readResource',
+      'memory.forget',
       'project.deleteNode',
       'skill.delete',
       'skill.import',
@@ -869,7 +874,7 @@ describe('§10 — the permission matrix, over the registry that implements the 
       // destructive, the requirement of a dialog.
       expect(result.ok, `${name} must be allowed for a user`).toBe(true);
       if (!result.ok) continue;
-      expect(result.value.grant.requiresUserConfirm).toBe(name === 'project.deleteNode');
+      expect(result.value.grant.requiresUserConfirm).toBe(name === 'project.deleteNode' || name === 'memory.forget');
     }
   });
 });

@@ -1608,8 +1608,9 @@ describe('the bus/store split these applies depend on', () => {
     // The knowledge facts add three names with applies of the store's own: 46 + 3 = 49 names, 37 + 3 = 40 implemented.
     // `mcp.readResource` (the writer's read of a resource) is descriptor-only until its injected half is supplied, like `mcp.invoke`: 50 names, 40 implemented.
     // `shot.importImages` (the batch of `shot.importImage`) is descriptor-only for the same reason as `shot.importImage`: 51 names, 40 implemented.
-    expect(Object.keys(registry)).toHaveLength(51);
-    expect(implemented).toHaveLength(40);
+    // The agent's files add three names with applies of the store's own: 51 + 3 = 54 names, 40 + 3 = 43 implemented.
+    expect(Object.keys(registry)).toHaveLength(54);
+    expect(implemented).toHaveLength(43);
   });
 });
 

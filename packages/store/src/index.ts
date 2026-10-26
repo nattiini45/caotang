@@ -97,6 +97,7 @@ export {
   skillFilePath,
   snapshotFile,
 } from './paths.js';
+export { agentFileCommandRegistrations } from './commands-agent-files.js';
 export { createSkillStaging, type SkillStaging, type StagedSkill } from './commands-skills.js';
 export { isSkillFilePath, readSkills, type ReadSkills, type SkillsNotice } from './skills-fs.js';
 export {

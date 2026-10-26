@@ -134,7 +134,8 @@ export async function writeAgentFiles(fs: ArtifactFs, files: AgentFiles, out: Ag
 export async function removeAgentFiles(fs: ArtifactFs, files: AgentFiles, removed: Set<string>, out: AgentFilesWrite): Promise<void> {
   const held = new Set(Object.keys(agentFileTexts(files)));
   for (const path of [...removed].sort()) {
-    if (isAgentFilePath(path) && !held.has(path) && (await fs.exists(path)) && !(await holdsNonText(fs, path))) {
+    // AGENTS.md is read-only: it is never removed, whatever the set says.
+    if (isAgentFilePath(path) && path !== INSTRUCTIONS_FALLBACK && !held.has(path) && (await fs.exists(path)) && !(await holdsNonText(fs, path))) {
       await out.guard(path);
       try {
         await fs.remove(path);

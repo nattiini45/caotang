@@ -136,6 +136,12 @@ export const COMMAND_NAMES = [
   'skill.write',
   'skill.delete',
   'skill.setEnabled',
+  // The agent's files (context-assembly.md §2, layer LI): the writer's CAOTANG.md and the agent's memory notes. `project.setInstructions`
+  // and `memory.write` are write-confirm for an agent, and `memory.forget` is the writer's alone (never, and hard-denied as a deletion).
+  // Their applies are the store's (`commands-agent-files.ts`).
+  'project.setInstructions',
+  'memory.write',
+  'memory.forget',
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
@@ -211,6 +217,8 @@ export interface ValidationCodexEntry {
   readonly name: string;
   /** The entry's kind (`character`, `location`, …). The scene declarations of who learns and knows a fact take a character. */
   readonly type?: string;
+  /** The entry's other names. `memory.write` refuses a title that is one of them. Absent reads as none. */
+  readonly aliases?: readonly string[];
   /**
    * codex.md §2's citations, held by the entry; an update's new ones are appended to
    * them. Only the count is read here, so only the document id is named.
@@ -283,6 +291,18 @@ export interface ValidationSnapshot {
   readonly coherence?: ValidationCoherence;
   /** The project's skills, by folder name (extensibility.md §10). Additive — absent means none. */
   readonly skills?: ReadonlyMap<string, readonly ValidationSkillFile[]>;
+  /** The agent's files (project-format.md §1): CAOTANG.md and the memory notes. Additive — absent means none. */
+  readonly agentFiles?: ValidationAgentFiles;
+}
+
+/** The agent's files as a validate reads them. */
+export interface ValidationAgentFiles {
+  readonly instructions?: { readonly path: string; readonly text: string };
+  readonly memory: readonly { readonly slug: string; readonly title: string; readonly body: string }[];
+  /** Notes that did not parse, by path. */
+  readonly declined: ReadonlyMap<string, string>;
+  /** Agent files the load could not read as text, by path. */
+  readonly unreadable: readonly string[];
 }
 
 /** One file of a skill as a validate reads it: its path inside the skill folder and how long its bytes are. */
@@ -589,6 +609,9 @@ export interface CommandParams {
   'skill.write': SkillWriteParams;
   'skill.delete': SkillDeleteParams;
   'skill.setEnabled': SkillSetEnabledParams;
+  'project.setInstructions': ProjectSetInstructionsParams;
+  'memory.write': MemoryWriteParams;
+  'memory.forget': MemoryForgetParams;
 }
 
 /**
@@ -922,6 +945,28 @@ export type SkillDeleteParams = { name: string };
 
 /** `skill.setEnabled`: whether the agent may be told about the skill. The skill's files are not touched. */
 export type SkillSetEnabledParams = { name: string; enabled: boolean };
+
+/**
+ * `project.setInstructions` (context-assembly.md §2, layer LI): replace the text of `CAOTANG.md`. An empty text leaves the file empty, which
+ * keeps an `AGENTS.md` beside it unread. `expectedDigest` is the digest of the text the caller read (`textDigest`); the write is refused
+ * when the file is no longer that text.
+ */
+export type ProjectSetInstructionsParams = { text: string; expectedDigest?: string };
+
+/**
+ * `memory.write`: create or update one memory note and its line in `memory/MEMORY.md`. `expectedDigest` is the digest of the note body the
+ * caller read, for an update; a new note carries none. The note's `modified`, `origin` and `sourceTurn` are the apply's, never params.
+ */
+export type MemoryWriteParams = {
+  slug: string;
+  type: 'style' | 'preference' | 'process' | 'reference';
+  title: string;
+  body: string;
+  expectedDigest?: string;
+};
+
+/** `memory.forget`: remove one memory note and its index line. The writer's alone. */
+export type MemoryForgetParams = { slug: string };
 
 /** The two vocabularies (project-format.md §2). */
 export type VocabularyKind = 'status' | 'label';

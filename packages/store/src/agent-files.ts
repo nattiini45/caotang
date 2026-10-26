@@ -11,6 +11,8 @@
  * project row (`ProjectRow.agentFiles`), and the bundle carries them at its root (zip.ts).
  */
 
+import { MEMORY_TYPES, isMemorySlug, type MemoryType } from '@caotang/bus';
+
 import { emitScalar, parseFrontMatterFields, FrontMatterError } from './frontmatter.js';
 import { composeFile, fenceLineEnding, readBody } from './file-body.js';
 
@@ -19,17 +21,18 @@ export const INSTRUCTIONS_FALLBACK = 'AGENTS.md';
 export const MEMORY_DIR = 'memory';
 export const MEMORY_INDEX = 'memory/MEMORY.md';
 
-export const MEMORY_TYPES = ['style', 'preference', 'process', 'reference'] as const;
-export type MemoryType = (typeof MEMORY_TYPES)[number];
-
-/** A topic's body, in characters (the `memory.write` cap). */
-export const MEMORY_BODY_MAX_CHARS = 4_000;
-export const MEMORY_TITLE_MAX_CHARS = 120;
-export const MEMORY_SLUG_MAX_CHARS = 64;
-/** How many topic files a project holds. Past it `memory.write` is refused and the writer prunes. */
-export const MEMORY_MAX_FILES = 200;
-/** `CAOTANG.md`, in characters. The layer sends far less (its token cap); this bounds what a project keeps. */
-export const INSTRUCTIONS_MAX_CHARS = 50_000;
+// The caps, the types and the slug rules are the bus's: its `validate` refuses a bad one before any effect, and this codec reads the same.
+export {
+  INSTRUCTIONS_MAX_CHARS,
+  MEMORY_BODY_MAX_CHARS,
+  MEMORY_MAX_FILES,
+  MEMORY_SLUG_MAX_CHARS,
+  MEMORY_TITLE_MAX_CHARS,
+  MEMORY_TYPES,
+  isMemorySlug,
+  slugOf,
+  type MemoryType,
+} from '@caotang/bus';
 
 export interface MemoryFile {
   /** Lowercase, hyphenated; the file is `memory/<slug>.md`. */
@@ -59,40 +62,6 @@ export function emptyAgentFiles(): AgentFiles {
 }
 
 export const memoryPath = (slug: string): string => `${MEMORY_DIR}/${slug}.md`;
-
-/** A slug: lowercase letters and digits in hyphen-separated runs. Scanned, not matched by a backtracking pattern. */
-export function isMemorySlug(value: string): boolean {
-  if (value.length === 0 || value.length > MEMORY_SLUG_MAX_CHARS) return false;
-  for (const part of value.split('-')) {
-    if (part.length === 0) return false;
-    for (const char of part) {
-      const code = char.charCodeAt(0);
-      const digit = code >= 48 && code <= 57;
-      const lower = code >= 97 && code <= 122;
-      if (!digit && !lower) return false;
-    }
-  }
-  return true;
-}
-
-/** A slug derived from a title: lowercase, anything else a hyphen, runs collapsed. Empty when the title has no letter or digit. */
-export function slugOf(title: string): string {
-  let out = '';
-  let pending = false;
-  for (const char of title.toLowerCase()) {
-    const code = char.charCodeAt(0);
-    const word = (code >= 48 && code <= 57) || (code >= 97 && code <= 122);
-    if (word) {
-      if (pending && out !== '') out += '-';
-      out += char;
-      pending = false;
-    } else {
-      pending = true;
-    }
-    if (out.length >= MEMORY_SLUG_MAX_CHARS) break;
-  }
-  return out.endsWith('-') ? out.slice(0, -1) : out;
-}
 
 /** The slug a `memory/<slug>.md` path names, or `undefined` for any other path (including the index). */
 export function memorySlugOfPath(path: string): string | undefined {
