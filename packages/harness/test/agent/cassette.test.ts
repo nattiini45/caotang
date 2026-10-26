@@ -99,7 +99,7 @@ describe('parseCassette and serializeCassette', () => {
 
   it('refuses a field outside the schema, on every record', () => {
     const [head, ex] = lines(good) as [string, string];
-    refused(`${head.replace('}', ',"run":"x"}')}\n${ex}`, 'unknown field "run"');
+    refused(`${JSON.stringify({ ...(JSON.parse(head) as object), run: 'x' })}\n${ex}`, 'unknown field "run"');
     refused(`${head}\n${ex.replace('"kind":"exchange"', '"kind":"exchange","extra":1')}`, 'unknown field "extra"');
     refused(`${head}\n${ex.replace('"response":{', '"response":{"hook":"x",')}`, 'unknown field "hook"');
   });
