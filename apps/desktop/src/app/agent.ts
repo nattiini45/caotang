@@ -658,6 +658,7 @@ export class AgentController {
       this.bump();
       return null;
     }
+    // The resumed meter starts from the logged spend. A log that cannot be read gives no spend to start from, so the run is not resumed.
     let restoredSpend: BudgetSpend | undefined;
     try {
       const tree = this.session.state.manifest.tree;
@@ -667,8 +668,13 @@ export class AgentController {
     } catch {
       restoredSpend = undefined;
     }
+    if (restoredSpend === undefined) {
+      this.message = 'The run log could not be read, so the run was not resumed. Try again, or discard the log.';
+      this.bump();
+      return null;
+    }
     this.announcement = 'Resuming the run.';
-    return this.turnWith(view.intent, restoredSpend === undefined ? {} : { restoredSpend }, (agent, turn) => agent.resume(runId, turn));
+    return this.turnWith(view.intent, { restoredSpend }, (agent, turn) => agent.resume(runId, turn));
   }
 
   /** "Discard log": deletes the run's log and nothing else. What the run wrote stays in the project. */

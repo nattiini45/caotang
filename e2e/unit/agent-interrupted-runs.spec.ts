@@ -207,3 +207,85 @@ test('loadInterrupted leaves the list alone while a turn is running, and fills i
   expect(controller.snapshot().interrupted.map((view) => view.runId)).toEqual(['run_GOOD']);
   await session.close();
 });
+
+/** The log of a run that stopped on its plan card, with the spend it had by then and a model call the stop lost. */
+function waitingOnCard(intent: string, landing: string, spend: Record<string, number>): Record<string, unknown>[] {
+  return [
+    { t: 'turn.start', v: RUN_LOG_VERSION, turnId: 't1', intent, wire: 'planner', native: false },
+    { t: 'messages', turnId: 't1', appended: [{ role: 'user', content: `Request: ${intent}` }] },
+    { t: 'spend', turnId: 't1', spend, reservedCalls: 1 },
+    {
+      t: 'card.pending',
+      turnId: 't1',
+      kind: 'plan',
+      steps: [{ tool: 'meta.set', params: { targets: [landing], label: 'act-2' }, expect: 'The Landing is labelled' }],
+      proposals: [null],
+      revisions: [null],
+      done: [],
+    },
+  ];
+}
+
+/** Counts every model call the controller makes, whatever it asks. */
+function countingModel(calls: { count: number }): MockScript {
+  return {
+    match: () => true,
+    respond: () => {
+      calls.count += 1;
+      return { content: JSON.stringify({ reply: 'Nothing to do.' }) };
+    },
+  };
+}
+
+test('Resume does not start when the run log cannot be read a second time: it says so, makes no model call and keeps the log', async () => {
+  const calls = { count: 0 };
+  const { port, projectId, controller, session, landing } = await open([countingModel(calls)]);
+  const spend = { modelCalls: 3, promptTokens: 100, completionTokens: 40, estimatedTokens: 0, steps: 0, activeMs: 500 };
+  await seed(port, { runId: 'run_GOOD', projectId, intent: 'Label the landing.', events: waitingOnCard('Label the landing.', landing, spend) });
+  await controller.loadInterrupted();
+  expect(controller.snapshot().interrupted.map((view) => [view.runId, view.resumable])).toEqual([['run_GOOD', true]]);
+
+  // The first read (the card's) worked; the one Resume makes fails once, and the run's own reads after it would work.
+  const log = (controller as unknown as { runLog: { events: (runId: string) => Promise<readonly unknown[]> } }).runLog;
+  const read = log.events.bind(log);
+  let failed = false;
+  log.events = async (runId) => {
+    if (failed) return read(runId);
+    failed = true;
+    throw new Error('the store could not be read');
+  };
+  const resumed = controller.resumeRun('run_GOOD');
+  const report = await Promise.race([resumed, sleep(300).then(() => 'started' as const)]);
+  // A run that started would be waiting on its plan card: settle it so the test ends.
+  if (controller.snapshot().pending !== null) controller.answer({ action: 'cancel' });
+  await resumed;
+
+  expect(report).toBeNull();
+  const snapshot = controller.snapshot();
+  expect(snapshot.message).toBe('The run log could not be read, so the run was not resumed. Try again, or discard the log.');
+  expect(snapshot.busy).toBe(false);
+  expect(snapshot.pending).toBeNull();
+  expect(snapshot.turns).toHaveLength(0);
+  expect(calls.count).toBe(0);
+  expect((await port.open(projectId)).map((run) => run.runId)).toEqual(['run_GOOD']);
+  await session.close();
+});
+
+test('Resume starts the run’s meter from the spend its log holds, with the model call the stop lost counted as spent', async () => {
+  const calls = { count: 0 };
+  const { port, projectId, controller, session, landing } = await open([countingModel(calls)]);
+  const spend = { modelCalls: 3, promptTokens: 100, completionTokens: 40, estimatedTokens: 0, steps: 0, activeMs: 500 };
+  await seed(port, { runId: 'run_GOOD', projectId, intent: 'Label the landing.', events: waitingOnCard('Label the landing.', landing, spend) });
+  await controller.loadInterrupted();
+
+  const resumed = controller.resumeRun('run_GOOD');
+  await until(() => controller.snapshot().pending !== null, 'the plan card to come back');
+  controller.answer({ action: 'cancel' });
+  const report = await resumed;
+
+  expect(report?.spend).toMatchObject({ modelCalls: 4, promptTokens: 100, completionTokens: 40 });
+  expect(report?.status).toBe('cancelled');
+  expect(report?.modelCalls).toBe(4);
+  expect(calls.count).toBe(0);
+  await session.close();
+});
