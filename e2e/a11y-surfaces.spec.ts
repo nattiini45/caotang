@@ -355,3 +355,20 @@ test('the agent’s Intent combobox, with its command list open and a command’
   await expect(page.getByTestId('agent-command-note')).toContainText('matches');
   expect(await problemsIn(page, '.agent', rules)).toEqual([]);
 });
+
+test('the Trace tab, with a turn and a model call open, and its export dialog, pass the colour-contrast, target-size and role rules', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Check for continuity problems', exact: true }).click();
+  await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Trace' }).click();
+  const call = page.getByTestId('trace-call').first();
+  await call.locator('summary').first().click();
+  await expect(call.getByRole('heading', { name: 'Reply' })).toBeVisible();
+  await page.getByTestId('trace-tool').first().locator('summary').click();
+
+  expect([...(await contrastProblemsIn(page, '.trace')), ...(await shellProblemsIn(page, '.trace'))]).toEqual([]);
+
+  await page.getByRole('button', { name: 'Export trace…' }).click();
+  await expect(page.getByRole('dialog', { name: 'Export trace' })).toBeVisible();
+  expect([...(await contrastProblemsIn(page, 'dialog[open].confirm')), ...(await shellProblemsIn(page, 'dialog[open].confirm'))]).toEqual([]);
+});

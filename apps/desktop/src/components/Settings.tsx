@@ -1005,6 +1005,7 @@ function RequestLogPanel({ services }: { services: AppServices }): ReactNode {
 
 function AgentSection({ services, session }: { services: AppServices; session: ProjectSession | null }): ReactNode {
   const [loadEvery, setLoadEvery] = useState(services.settings.current().agent.loadEveryTool);
+  const [keepTraces, setKeepTraces] = useState(services.settings.current().agent.keepTraces);
   const [message, setMessage] = useState<string | null>(null);
 
   const change = (next: boolean): void => {
@@ -1026,6 +1027,22 @@ function AgentSection({ services, session }: { services: AppServices; session: P
         <span>Load every tool on every request</span>
       </label>
       <FormMessage message={message === null ? null : { text: message, tone: 'info' }} />
+      <p className="settings-note">
+        The Trace tab shows what each turn sent to the model and got back. It holds your prompts and manuscript text, only in this tab’s memory, and a
+        reload clears it. Turn it off to gather nothing.
+      </p>
+      <label className="settings-check">
+        <input
+          type="checkbox"
+          checked={keepTraces}
+          data-testid="agent-keep-traces"
+          onChange={(event) => {
+            setKeepTraces(event.target.checked);
+            void services.settings.update({ agent: { keepTraces: event.target.checked } });
+          }}
+        />
+        <span>Keep agent traces for this tab</span>
+      </label>
       <AgentModeSettings services={services} />
       <AgentRulesSettings services={services} session={session} />
     </section>

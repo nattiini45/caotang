@@ -247,6 +247,11 @@ export interface ChatRequest {
    * carries no semantics, and `turnId` stays the parent turn's, so the turn's totals sum its children.
    */
   agentPath?: string;
+  /**
+   * Which model request of its turn this is (1-based, a delegated agent's calls counted too). Attribution only: it joins a
+   * gateway trace event to the harness records of the same call (agent-harness §5.2) and changes nothing on the wire.
+   */
+  callIndex?: number;
 }
 
 /**

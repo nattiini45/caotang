@@ -53,6 +53,7 @@ import { RecurringTasks } from '../app/recurring-tasks.js';
 import { Binder, type CenterMode } from './Binder.js';
 import { CodexPanel } from './CodexPanel.js';
 import { ActivityPanel } from './ActivityPanel.js';
+import { TracePanel } from './TracePanel.js';
 import { mediaKindOf, mediaPortsFor, mediaViewFor } from '../media/index.js';
 
 import { Corkboard } from './Corkboard.js';
@@ -80,10 +81,10 @@ import {
 } from './actions.js';
 import { ChoiceDialog, ConfirmDialog, ReportContext, formatCount, useSession, wordsLabel, type StatusMessage } from './shared.js';
 
-type RailTab = 'binder' | 'codex' | 'activity' | 'findings';
+type RailTab = 'binder' | 'codex' | 'activity' | 'trace' | 'findings';
 
 /** The rail's tabs in the order the arrow keys walk them (WAI-ARIA tabs). */
-const RAIL_TABS: readonly RailTab[] = ['binder', 'codex', 'activity', 'findings'];
+const RAIL_TABS: readonly RailTab[] = ['binder', 'codex', 'activity', 'trace', 'findings'];
 /** The centre views, in the order the arrow keys walk the radio group. */
 const CENTER_VIEWS: readonly CenterMode[] = ['editor', 'corkboard'];
 
@@ -751,6 +752,7 @@ export function Workspace({
               <RailTabButton tab="binder" current={rail} label="Binder" onSelect={setRail} />
               <RailTabButton tab="codex" current={rail} label="Codex" onSelect={setRail} />
               <RailTabButton tab="activity" current={rail} label="Activity" onSelect={setRail} />
+              <RailTabButton tab="trace" current={rail} label="Trace" onSelect={setRail} />
               <RailTabButton
                 tab="findings"
                 current={rail}
@@ -784,6 +786,8 @@ export function Workspace({
                   onOpenAgent={() => setAgentOpen(true)}
                   onOpenDocument={openDocument}
                 />
+              ) : rail === 'trace' ? (
+                <TracePanel services={services} projectName={state.manifest.project.name} />
               ) : (
                 <ActivityPanel
                   session={session}

@@ -16,7 +16,7 @@ import {
 
 test.describe('settings (ui-modules §5.1)', () => {
   test('the Agent slice loads off, reads only a true as on, and a patch changes it alone', () => {
-    const off = { loadEveryTool: false, defaultMode: 'ask', lockAuto: false, budget: {}, rules: [] };
+    const off = { loadEveryTool: false, keepTraces: true, defaultMode: 'ask', lockAuto: false, budget: {}, rules: [] };
     expect(DEFAULT_SETTINGS.agent).toEqual(off);
     // A record written before the slice existed has none, which reads as off.
     expect(normalizeSettings({ editor: {} }).agent).toEqual(off);
@@ -39,6 +39,13 @@ test.describe('settings (ui-modules §5.1)', () => {
     const auto = applyPatch(DEFAULT_SETTINGS, { agent: { defaultMode: 'auto', loadEveryTool: true } });
     expect(auto.agent).toMatchObject({ defaultMode: 'auto', loadEveryTool: true });
     expect(applyPatch(auto, { agent: { lockAuto: true } }).agent).toMatchObject({ defaultMode: 'ask', lockAuto: true, loadEveryTool: true });
+  });
+
+  test('keepTraces is a stored field: a patch turns it off alone and it reads back off (ui-modules §5.1)', () => {
+    const off = applyPatch(DEFAULT_SETTINGS, { agent: { keepTraces: false } });
+    expect(off.agent).toEqual({ ...DEFAULT_SETTINGS.agent, keepTraces: false });
+    expect(normalizeSettings(JSON.parse(JSON.stringify(off))).agent.keepTraces).toBe(false);
+    expect(applyPatch(off, { agent: { loadEveryTool: true } }).agent).toMatchObject({ keepTraces: false, loadEveryTool: true });
   });
 
   test('the turn limits load clamped to their ranges, a bad one reads as unset, and a patch replaces the record', () => {

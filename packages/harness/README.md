@@ -72,6 +72,7 @@ The two system prefixes (`PLANNER_SYSTEM_PREFIX`, `DRAFT_SYSTEM_PREFIX`) are dup
 | `src/agent/cards.ts` | Status cards (their lifecycle), grouping, plan cards, edits, the dependency badge, the steps that have run |
 | `src/agent/loop.ts` | `createAgentSession`: the turn, the decisions, the ladder, the conflict re-show, the bound, the report, the restore |
 | `src/agent/events.ts` | The event stream (§8), the report, the trace, the checkpoint label |
+| `src/agent/trace.ts` | The agent trace (§5.2): the `caotang.trace/1` records and their schema, the in-tab store, the gateway observer and `parseTrace` |
 | `src/commands/` | Slash commands (§2): `parseSlash`, `expandTemplate` and `resolveSlash` (`slash.ts`), the nine built-ins and the plans they build (`builtins.ts`), and the document resolver (`resolver.ts`); pure, no model |
 | `src/agent/eval.ts` | The scenario format, the runner, the matchers, the undo-replay check |
 

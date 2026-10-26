@@ -18,12 +18,15 @@
  *
  * The runner builds everything from the scenario and nothing else: a fresh project, a fresh harness
  * with the agent ports, a fresh session. Two runs of one scenario see the same bytes, so an eval is
- * a regression test and not a sample. This module has no runtime dependency on the gateway: the
- * caller builds the gateway, and the runner only reads it.
+ * a regression test and not a sample. The caller builds the gateway and the runner only reads it; the one thing it
+ * takes from the gateway at run time is the manual clock a traced run uses.
+ *
+ * A run can also write a trace (`runScenario(scenario, { trace })`, agent-harness §5.2): the same `caotang.trace/1` records
+ * the app keeps, from a clock that moves one millisecond per record, so two runs of one scenario write the same bytes.
  */
 
 import type { CoherenceModel, ModelReply, ModelRequest } from '@caotang/coherence';
-import type { ChatRequest, Gateway } from '@caotang/gateway';
+import { createManualClock, type ChatRequest, type Clock, type Gateway, type GatewayTraceEvent } from '@caotang/gateway';
 import { agentFileTexts, type ProjectState } from '@caotang/store';
 
 import { metadataFor, type ToolName } from '../metadata.js';
@@ -40,6 +43,7 @@ import { resolveSlash } from '../commands/slash.js';
 import { emptyTaskList, reduceTaskList, type TaskState } from './progress.js';
 import { createProjectCommandRegistry } from '@caotang/store';
 
+import { traceGateway, type TraceSink } from './trace.js';
 import type { AgentEvent, CardRecord, Decision, PendingCard, TraceEntry, TurnPhase, TurnReport, TurnStatus } from './events.js';
 
 export type ScenarioCategory =
@@ -153,6 +157,12 @@ export interface Expectation {
   readonly state?: (state: ProjectState, report: TurnReport) => readonly string[];
 }
 
+/** What a traced run lends the scenario's gateway: the observer that writes its calls to the trace, and the clock the whole run reads. */
+export interface GatewayHooks {
+  readonly observe: (event: GatewayTraceEvent) => void;
+  readonly clock: Clock;
+}
+
 /** A decision the scenario makes on a card, or a function that makes it from the card it is shown. */
 export type ScenarioDecision = Decision | ((pending: PendingCard) => Decision);
 
@@ -161,8 +171,11 @@ export interface Scenario {
   readonly category: ScenarioCategory;
   readonly intent: string;
   readonly project: () => ProjectState;
-  /** Builds the gateway for this scenario. The mock scripts it answers with are the scenario's model. */
-  readonly gateway: (state: ProjectState) => Promise<Gateway>;
+  /**
+   * Builds the gateway for this scenario. The mock scripts it answers with are the scenario's model. A traced run hands it the
+   * observer and the clock to give `createGateway`; a builder that ignores them still traces the turn, without its model calls.
+   */
+  readonly gateway: (state: ProjectState, hooks?: GatewayHooks) => Promise<Gateway>;
   readonly contextOptions?: Partial<Omit<ContextPortOptions, 'state'>>;
   /** Used in order, one per card. A card with no decision left is approved. */
   readonly decisions?: readonly ScenarioDecision[];
@@ -268,10 +281,22 @@ function verdictsOf(list: readonly Check[], initial: ProjectState, state: Projec
 }
 
 /** Runs a scenario once, end to end, and returns what it did. Nothing is asserted here. */
-export async function runScenario(scenario: Scenario): Promise<ScenarioRun> {
+export async function runScenario(scenario: Scenario, options: { readonly trace?: TraceSink } = {}): Promise<ScenarioRun> {
   const state = scenario.project();
   const requests: ChatRequest[] = [];
-  const gateway = recording(await scenario.gateway(state), requests);
+  // A traced run reads one clock everywhere, and it moves a millisecond per record, so a trace is a function of the scenario.
+  const clock = options.trace === undefined ? undefined : createManualClock(0);
+  const sink: TraceSink | undefined =
+    options.trace === undefined || clock === undefined
+      ? undefined
+      : {
+          write: (record) => {
+            options.trace?.write(record);
+            clock.advance(1);
+          },
+        };
+  const hooks: GatewayHooks | undefined = sink === undefined || clock === undefined ? undefined : { observe: traceGateway(sink), clock };
+  const gateway = recording(await scenario.gateway(state, hooks), requests);
   const writer = scenario.writer ?? [];
   const stop = new AbortController();
   const held: { session?: AgentSession; turnId?: string } = {};
@@ -341,6 +366,7 @@ export async function runScenario(scenario: Scenario): Promise<ScenarioRun> {
     },
     // A fixed session name, so two runs of one scenario name the same turns and see the same bytes.
     sessionId: 'eval',
+    ...(sink === undefined || clock === undefined ? {} : { trace: sink, clock: () => clock.now() }),
     ...(scenario.maxRetries === undefined ? {} : { maxRetries: scenario.maxRetries }),
     ...(scenario.modelCallBound === undefined ? {} : { maxModelCalls: scenario.modelCallBound }),
     ...(scenario.modeOptions ?? {}),
