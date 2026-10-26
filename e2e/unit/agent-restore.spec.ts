@@ -68,6 +68,24 @@ function autoApprover(controller: AgentController): () => void {
   });
 }
 
+/** A planner script for a three-step plan: a status for each of three documents of the sample, one step each. */
+function plansThreeStatuses(intent: string): MockScript {
+  return {
+    match: (req) => isPlannerCall(req) && userTextOf(req).includes(`Request: ${intent}`),
+    respond: () => ({
+      content: JSON.stringify({
+        steps: [
+          { tool: 'meta.set', params: { targets: ['The Landing'], status: 'draft' }, expect: 'The Landing is a draft' },
+          { tool: 'meta.set', params: { targets: ['The Storm'], status: 'revised' }, expect: 'The Storm is revised' },
+          { tool: 'meta.set', params: { targets: ['The Friend'], status: 'final' }, expect: 'The Friend is final' },
+        ],
+      }),
+    }),
+  };
+}
+
+const STATUSES = 'Set three statuses.';
+
 async function fixture() {
   const state: ProjectState = sampleProjectState();
   for (const title of SCENES) addDocument(state, { parentId: 'manuscript', title, kind: 'screenplay', body: '', now: new Date() });
@@ -78,6 +96,7 @@ async function fixture() {
     session,
     await scriptedProviders([
       ...SCENES.map((scene, index) => plansASceneDraft(scene, INTENTS[index]!)),
+      plansThreeStatuses(STATUSES),
       {
         match: (req) => isDraftCall(req) && userTextOf(req).includes('Continue the chapter.'),
         respond: (req) => {
@@ -97,7 +116,8 @@ async function fixture() {
     for (let index = 0; index < count; index += 1) reports.push(await controller.submit(INTENTS[index]!));
     return reports;
   };
-  return { controller, session, seen, bodyOf, run, close: async () => (unsubscribe(), await session.close()) };
+  const statusOf = (title: string): string | null => state.manifest.tree.find((node) => node.title === title)?.status ?? null;
+  return { controller, session, seen, bodyOf, statusOf, run, close: async () => (unsubscribe(), await session.close()) };
 }
 
 /** The turns of the recent-turns section of a drafting request, as the lines the model reads. */
@@ -204,5 +224,66 @@ test('a turn cannot be rewound while one is running', async () => {
   expect(f.controller.canRewind(first!.turnId)).toBe(false);
   expect(f.controller.rewindConversation(first!.turnId)).toBeNull();
   await pending;
+  await f.close();
+});
+
+test('restoring to before step 2 keeps step 1, takes back the later turn whole, and tells the next prompt which is which', async () => {
+  const f = await fixture();
+  const before = ['The Landing', 'The Storm', 'The Friend'].map((title) => f.statusOf(title));
+  const turn = await f.controller.submit(STATUSES);
+  const later = await f.controller.submit(INTENTS[0]);
+  expect(['The Landing', 'The Storm', 'The Friend'].map((title) => f.statusOf(title))).toEqual(['draft', 'revised', 'final']);
+  expect(f.bodyOf('The Ferry')).not.toBe('');
+
+  const cards = f.controller.snapshot().turns[0]!.cards.map((card) => card.id);
+  expect(cards).toHaveLength(3);
+  expect([...f.controller.restorableSteps(turn!.turnId)]).toEqual(cards);
+
+  const outcome = await f.controller.restoreStep(turn!.turnId, cards[1]!);
+
+  expect(outcome).toMatchObject({ ok: true, later: 1 });
+  // The later turn went whole, step 1 stays, and steps 2 and 3 are gone.
+  expect(f.statusOf('The Landing')).toBe('draft');
+  expect(f.statusOf('The Storm')).toBe(before[1]);
+  expect(f.statusOf('The Friend')).toBe(before[2]);
+  expect(f.bodyOf('The Ferry')).toBe('');
+  expect([...f.controller.restorableSteps(turn!.turnId)]).toEqual([cards[0]]);
+  const views = f.controller.snapshot().turns;
+  expect(views.map((view) => view.restoredFromStep)).toEqual([2, null]);
+  expect(views.map((view) => view.restoredAt !== null)).toEqual([true, true]);
+  expect(f.session.undo.group(views[0]!.checkpoint!.undoGroupId)).toBeDefined();
+  expect(f.session.undo.group(views[1]!.checkpoint!.undoGroupId)).toBeUndefined();
+
+  await f.controller.submit(INTENTS[1]);
+  await f.close();
+  const shown = turnsIn(f.seen[f.seen.length - 1]);
+  expect(shown).toContain(`- Turn ${turn!.turnId}`);
+  expect(shown).toContain(`- Turn ${later!.turnId}`);
+  expect(shown).toMatch(/steps 2 onward restored by the writer at \d\d:\d\d; those changes are no longer in the project/);
+  expect(shown).toContain('; these changes are no longer in the project');
+  expect(shown.match(/restored by the writer/g)).toHaveLength(2);
+});
+
+test('a step restore that cannot take a later change back stops there, and leaves the turn as it was', async () => {
+  const f = await fixture();
+  const turn = await f.controller.submit(STATUSES);
+  const failing = { issuedBy: 'user', name: 'doc.write' } as unknown as Command;
+  f.session.undo.register(f.session.undo.targetFor(failing, 0), {
+    kind: 'compensable',
+    commandId: 'cmd_failing',
+    name: 'doc.write',
+    label: 'a change that cannot be taken back',
+    restore: () => {
+      throw new Error('the stored text moved');
+    },
+  });
+  const cards = f.controller.snapshot().turns[0]!.cards.map((card) => card.id);
+
+  const outcome = await f.controller.restoreStep(turn!.turnId, cards[1]!);
+
+  expect(outcome.ok).toBe(false);
+  expect(f.statusOf('The Storm')).toBe('revised');
+  expect(f.controller.snapshot().turns[0]!.restoredFromStep).toBeNull();
+  expect([...f.controller.restorableSteps(turn!.turnId)]).toEqual(cards);
   await f.close();
 });

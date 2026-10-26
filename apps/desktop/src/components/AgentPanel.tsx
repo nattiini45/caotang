@@ -25,7 +25,7 @@ import {
 import type { ProjectState } from '@caotang/store';
 
 import { DEMO_CHOICES } from '../app/demo.js';
-import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, MODE_HINTS, phaseLabel, spendLine, type DelegationCardView, type TurnView } from '../app/agent-model.js';
+import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, MODE_HINTS, phaseLabel, spendLine, stepMenuOf, type DelegationCardView, type TurnView } from '../app/agent-model.js';
 import { formatUsd, turnCostOf } from '../app/plan-preview.js';
 import { resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
@@ -70,6 +70,8 @@ interface PendingRestore {
   readonly later: readonly string[];
   readonly both: boolean;
   readonly note?: string;
+  /** The step (status-card id) the restore begins at; absent for the whole turn. */
+  readonly stepId?: string;
 }
 
 export function AgentPanel({ session, agent, recurring, startIntent, open, onToggle, sample }: AgentPanelProps): ReactNode {
@@ -180,8 +182,15 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
 
   const confirmRestore = (): void => {
     if (restoring === null) return;
-    const { turnId, both } = restoring;
+    const { turnId, both, stepId } = restoring;
     setRestoring(null);
+    if (stepId !== undefined) {
+      void agent.restoreStep(turnId, stepId).then((outcome) => {
+        if (!outcome.ok) report({ text: outcome.message, tone: 'error' });
+        else report({ text: restoredStepLine(outcome.later), tone: 'info' });
+      });
+      return;
+    }
     if (!both) {
       void agent.restore(turnId).then((outcome) => {
         if (!outcome.ok) report({ text: outcome.message, tone: 'error' });
@@ -353,7 +362,9 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
                     stands={turn.checkpoint !== null && session.undo.group(turn.checkpoint.undoGroupId) !== undefined}
                     canRewind={agent.canRewind(turn.turnId)}
                     onDecide={(decision) => agent.answer(decision)}
+                    restorable={agent.restorableSteps(turn.turnId)}
                     onRestore={(turnId, summary, both) => setRestoring(restoreOf(agent, turnId, summary, both))}
+                    onRestoreStep={(turnId, summary, stepId) => setRestoring(restoreOf(agent, turnId, summary, false, stepId))}
                     onRewind={rewind}
                     onRunHeld={(turnId) => void agent.runHeldPlan(turnId)}
                   />
@@ -379,16 +390,29 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
 
       <ConfirmDialog
         open={restoring !== null}
-        title={restoring?.both === true ? 'Restore the project and rewind the conversation?' : 'Restore to before this turn?'}
+        title={
+          restoring?.stepId !== undefined
+            ? 'Restore to before this step?'
+            : restoring?.both === true
+              ? 'Restore the project and rewind the conversation?'
+              : 'Restore to before this turn?'
+        }
         confirmLabel={restoring?.both === true ? 'Restore both' : 'Restore'}
         onCancel={() => setRestoring(null)}
         onConfirm={confirmRestore}
       >
-        <p>
-          This restores the project to its state before this turn{restoring?.summary ? `: ${restoring.summary}` : ''}. Your edits since then
-          are included in the restore.
-          {restoring?.both === true ? ' The agent then forgets this turn and the ones after it.' : ''}
-        </p>
+        {restoring?.stepId !== undefined ? (
+          <p>
+            This restores the project to its state before this step of the turn{restoring.summary ? `: ${restoring.summary}` : ''}. The
+            steps after it, and your edits since then, are included in the restore. The steps before it stay.
+          </p>
+        ) : (
+          <p>
+            This restores the project to its state before this turn{restoring?.summary ? `: ${restoring.summary}` : ''}. Your edits since then
+            are included in the restore.
+            {restoring?.both === true ? ' The agent then forgets this turn and the ones after it.' : ''}
+          </p>
+        )}
         {restoring?.note === undefined ? null : <p className="muted">{restoring.note}</p>}
         {restoring !== null && restoring.later.length > 0 ? (
           <>
@@ -425,9 +449,9 @@ function CommandNoteView({ note, onDismiss }: { note: CommandNote; onDismiss: ()
 }
 
 /** The restore dialog's state for a turn: the later changes it would also take back are read now, from the undo stack. */
-function restoreOf(agent: AgentController, turnId: string, summary: string, both: boolean): PendingRestore {
+function restoreOf(agent: AgentController, turnId: string, summary: string, both: boolean, stepId?: string): PendingRestore {
   const note = agent.snapshot().turns.find((turn) => turn.turnId === turnId)?.checkpoint?.note;
-  return { turnId, summary, later: agent.laterChanges(turnId), both, ...(note === undefined ? {} : { note }) };
+  return { turnId, summary, later: agent.laterChanges(turnId), both, ...(note === undefined ? {} : { note }), ...(stepId === undefined ? {} : { stepId }) };
 }
 
 /**
@@ -442,6 +466,12 @@ function runsOf(turns: readonly TurnView[]): readonly { readonly rewound: boolea
     else runs.push({ rewound: turn.rewound, turns: [turn] });
   }
   return runs;
+}
+
+/** What a finished step restore says: how many later changes went back with it, if any. */
+function restoredStepLine(later: number): string {
+  if (later === 0) return 'Restored to before that step.';
+  return `Restored to before that step. ${later} later ${later === 1 ? 'change was' : 'changes were'} taken back with it.`;
 }
 
 /** What a finished restore says: how many later changes went back with the turn, if any. */
@@ -462,8 +492,10 @@ function TurnBlock({
   pictureNames,
   stands,
   canRewind,
+  restorable,
   onDecide,
   onRestore,
+  onRestoreStep,
   onRewind,
   onRunHeld,
 }: {
@@ -477,8 +509,11 @@ function TurnBlock({
   stands: boolean;
   /** The conversation can be rewound to before this turn: nothing runs and the turn is still sent to the model. */
   canRewind: boolean;
+  /** The steps of the turn a restore to before that step would take something back, by status-card id. */
+  restorable: ReadonlySet<string>;
   onDecide: (decision: Decision) => void;
   onRestore: (turnId: string, summary: string, both: boolean) => void;
+  onRestoreStep: (turnId: string, summary: string, stepId: string) => void;
   onRewind: (turnId: string) => void;
   /** Switches to Ask and runs the writes Plan only refused in the turn. */
   onRunHeld: (turnId: string) => void;
@@ -563,7 +598,16 @@ function TurnBlock({
         </details>
       ) : null}
 
-      {turn.cards.length > 0 ? <StatusCards cards={turn.cards} /> : null}
+      {turn.cards.length > 0 ? (
+        <StatusCards
+          cards={turn.cards}
+          steps={
+            settled
+              ? { restorable, disabled: snapshot.busy || !stands, onRestore: (stepId) => onRestoreStep(turn.turnId, turn.report?.summary ?? '', stepId) }
+              : undefined
+          }
+        />
+      ) : null}
 
       {turn.steering.length > 0 ? (
         <ul className="agent-notes" aria-label="Notes you sent during this turn">
@@ -611,20 +655,26 @@ function TurnBlock({
         />
       ) : null}
 
+      {turn.restoredFromStep !== null && stands ? (
+        <p className="muted agent-partial-restore" data-testid="partial-restore">
+          Restored from step {turn.restoredFromStep}: the steps before it are still in the project.
+        </p>
+      ) : null}
+
       {turn.report !== null ? <ReportLine report={turn.report} price={turn.price} /> : null}
     </li>
   );
 }
 
 /** The status cards of one turn, consecutive calls grouped (agent-harness §8). */
-export function StatusCards({ cards }: { cards: readonly StatusCard[] }): ReactNode {
+export function StatusCards({ cards, steps }: { cards: readonly StatusCard[]; steps?: StepRestore }): ReactNode {
   const items = groupCards(cards);
   return (
     <ol className="status-cards" aria-label="Tool calls">
       {items.map((item) =>
         item.kind === 'card' ? (
           <li key={item.card.id}>
-            <StatusCardRow card={item.card} />
+            <StatusCardRow card={item.card} steps={steps} />
           </li>
         ) : (
           <li key={item.cards[0]?.id ?? item.turnId}>
@@ -633,7 +683,7 @@ export function StatusCards({ cards }: { cards: readonly StatusCard[] }): ReactN
                 {item.cards.length} calls · {item.expanded ? 'running' : 'done'}
               </summary>
               {item.cards.map((card) => (
-                <StatusCardRow key={card.id} card={card} />
+                <StatusCardRow key={card.id} card={card} steps={steps} />
               ))}
             </details>
           </li>
@@ -641,6 +691,13 @@ export function StatusCards({ cards }: { cards: readonly StatusCard[] }): ReactN
       )}
     </ol>
   );
+}
+
+/** What a finished turn lets the writer do with its steps: which can be restored to before, and how. */
+interface StepRestore {
+  readonly restorable: ReadonlySet<string>;
+  readonly disabled: boolean;
+  readonly onRestore: (stepId: string) => void;
 }
 
 const STATUS_WORDS: Readonly<Record<StatusCard['status'], string>> = {
@@ -651,8 +708,11 @@ const STATUS_WORDS: Readonly<Record<StatusCard['status'], string>> = {
   failed: 'Failed',
 };
 
-function StatusCardRow({ card }: { card: StatusCard }): ReactNode {
+function StatusCardRow({ card, steps }: { card: StatusCard; steps?: StepRestore }): ReactNode {
   const delegation = delegationViewOf(card);
+  // A step of a finished turn that changed the project can be restored to before it; a step that called an outside tool says its effects stay.
+  const restorable = steps?.restorable.has(card.id) === true;
+  const menu = stepMenuOf(card, restorable);
   return (
     <article className={`status-card is-${card.status}`} data-tool={card.tool} data-status={card.status}>
       <header className="status-card-head">
@@ -660,6 +720,21 @@ function StatusCardRow({ card }: { card: StatusCard }): ReactNode {
         <span className={`badge is-risk-${card.risk.replace(/[^a-z]+/g, '-')}`}>{card.risk}</span>
         <span className={`status-pill is-${card.status}`}>{STATUS_WORDS[card.status]}</span>
         <ElapsedTime card={card} />
+        {steps !== undefined && menu.show ? (
+          <TurnMenu
+            label={`Rewind options for step ${card.tool}`}
+            testId="step-menu"
+            note={menu.note}
+            items={[
+              {
+                label: 'Restore project to before this step',
+                hint: 'Takes back this step and the ones after it. The steps before it stay.',
+                disabled: steps.disabled || !restorable,
+                onSelect: () => steps.onRestore(card.id),
+              },
+            ]}
+          />
+        ) : null}
       </header>
       {delegation === undefined ? null : <DelegationBlock view={delegation} />}
       {card.summary !== undefined || card.error !== undefined ? (

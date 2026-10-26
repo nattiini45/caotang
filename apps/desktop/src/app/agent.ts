@@ -1089,6 +1089,27 @@ export class AgentController {
   }
 
   /**
+   * Restores the project to before one step of a turn (`stepId` is the step's status-card id). The turns after it are taken back
+   * first, as `restore` does, and then the turn's own steps from that one onward; the steps before stay. Every turn that was taken
+   * back whole is marked restored for the agent, and this one is marked as restored from this step.
+   */
+  async restoreStep(turnId: string, stepId: string): Promise<RestoreResult> {
+    const group = this.checkpointOf(turnId);
+    const agent = this.sessionOf(turnId);
+    if (group === undefined || agent === undefined) return { ok: false, message: 'That turn wrote nothing, so there is nothing to restore.', undone: [] };
+    const outcome = await this.session.restoreBefore(group, () => agent.restoreStep(turnId, stepId));
+    const number = (this.turns.find((turn) => turn.turnId === turnId)?.cards.findIndex((card) => card.id === stepId) ?? -1) + 1;
+    this.noteRestored(outcome.undone, outcome.ok && number > 0 ? { turnId, step: number } : undefined);
+    this.bump();
+    return outcome;
+  }
+
+  /** The steps of a turn a restore to before that step would take something back, by status-card id. Read from the undo stack each time. */
+  restorableSteps(turnId: string): ReadonlySet<string> {
+    return new Set(this.sessionOf(turnId)?.restorableSteps(turnId) ?? []);
+  }
+
+  /**
    * "Restore both": the project first, then the conversation. If the project restore stops part way the conversation is left as it is,
    * the turns that were taken back are still marked restored, and the reason is returned.
    */
@@ -1126,17 +1147,25 @@ export class AgentController {
     return [...this.sessions.values()].find((agent) => agent.reports().some((report) => report.turnId === turnId));
   }
 
-  /** Tells each session which of its turns the writer took back, so the next prompt says so. `groups` are undo group ids. */
-  private noteRestored(groups: readonly string[], fromStep?: number): void {
-    const taken = this.turns.filter((turn) => groups.includes(turn.checkpoint?.undoGroupId ?? turn.report?.undoGroupId ?? ''));
+  /**
+   * Tells each session which of its turns the writer took back, so the next prompt says so. `groups` are the undo groups taken back
+   * whole; `partial` is the turn whose steps from `step` (1-based) onward were taken back, and it comes first among the turns of its session.
+   */
+  private noteRestored(groups: readonly string[], partial?: { readonly turnId: string; readonly step: number }): void {
+    const whole = this.turns.filter((turn) => groups.includes(turn.checkpoint?.undoGroupId ?? turn.report?.undoGroupId ?? ''));
+    const taken = partial === undefined ? whole : [...this.turns.filter((turn) => turn.turnId === partial.turnId), ...whole];
     if (taken.length === 0) return;
     const at = this.clock();
     for (const agent of this.sessions.values()) {
       const ids = taken.filter((turn) => this.sessionOf(turn.turnId) === agent).map((turn) => turn.turnId);
-      if (ids.length > 0) agent.markRestored(ids, at, fromStep);
+      if (ids.length > 0) agent.markRestored(ids, at, partial !== undefined && ids[0] === partial.turnId ? partial.step : undefined);
     }
     const ids = new Set(taken.map((turn) => turn.turnId));
-    this.turns = this.turns.map((turn) => (ids.has(turn.turnId) && !turn.rewound ? { ...turn, restoredAt: at } : turn));
+    this.turns = this.turns.map((turn) =>
+      ids.has(turn.turnId) && !turn.rewound
+        ? { ...turn, restoredAt: at, restoredFromStep: partial !== undefined && turn.turnId === partial.turnId ? partial.step : null }
+        : turn,
+    );
   }
 
   /** Whether a restore to before this turn can be offered: the turn is still held here and wrote something. */

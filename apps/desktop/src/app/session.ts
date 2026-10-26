@@ -63,6 +63,7 @@ import {
   type ExecutionOutcome,
   type Result,
   type UndoGroup,
+  type UndoOutcome,
   type UndoStore,
   type ViewState,
 } from '@caotang/bus';
@@ -1080,8 +1081,12 @@ export class ProjectSession {
    * binder change returns in the order it was made, which is the only order in which a body snapshot is exact (command-bus
    * §5). Pending typing is saved first, and typing made after the turn is taken back with it, as the confirmation says.
    * Nothing older than `id` is touched.
+   *
+   * With `step`, the group itself is not taken back whole: the later groups go first as above, and then `step` runs the group's own
+   * restore to before one step of it (`UndoStore.undoFrom`, through the agent session that knows the step), so the steps before it
+   * stay. The group is then not in `undone`: it is still on the stack, with those steps.
    */
-  async restoreBefore(id: string): Promise<RestoreResult> {
+  async restoreBefore(id: string, step?: () => Result<UndoOutcome, CommandError>): Promise<RestoreResult> {
     await this.autosave.flush();
     this.lastUndoMessage = null;
     const groups = this.undo.groups();
@@ -1089,15 +1094,19 @@ export class ProjectSession {
     if (at === -1) return { ok: false, message: ALREADY_UNDONE, undone: [] };
     const undone: string[] = [];
     for (const group of groups.slice(at).reverse()) {
-      if (!this.undoNow(group.id)) {
+      const taken = step !== undefined && group.id === id ? this.settleUndo(step()) : this.undoNow(group.id);
+      if (!taken) {
         const reason = this.lastUndoMessage ?? 'a change could not be taken back';
+        const own = step !== undefined && group.id === id;
         return {
           ok: false,
-          message: `The restore stopped part way, because a later change could not be taken back: ${reason}. Changes made before that one were not touched.`,
+          message: own
+            ? `The restore stopped part way, because the step could not be taken back: ${reason}. Changes made before it were not touched.`
+            : `The restore stopped part way, because a later change could not be taken back: ${reason}. Changes made before that one were not touched.`,
           undone,
         };
       }
-      undone.push(group.id);
+      if (step === undefined || group.id !== id) undone.push(group.id);
     }
     return { ok: true, later: groups.length - 1 - at, undone };
   }
@@ -1148,7 +1157,11 @@ export class ProjectSession {
   }
 
   private undoNow(id: string): boolean {
-    const outcome = this.undo.undo(id);
+    return this.settleUndo(this.undo.undo(id));
+  }
+
+  /** What follows an undo of any kind: stored text moved, so the session's own-write record is cleared, and the change is saved. */
+  private settleUndo(outcome: Result<UndoOutcome, CommandError>): boolean {
     // An undo moves stored text without going through `writeDocument`, so no write this session made describes the
     // stored body any more. The editor's own-write test must not match one of them against the undone text (EditorPane).
     this.written.clear();
