@@ -91,6 +91,14 @@ export type UndoEntry =
       readonly callId?: string;
     };
 
+/**
+ * Whether an entry belongs to the tool call `callId`: its own id, or one that extends it with `:` (a compound tool's `:idx`
+ * sub-command, a port's `:port:N` retry). Not `.`, because `p.1` is a prefix of `p.10`.
+ */
+export function entryOfCall(entry: UndoEntry, callId: string): boolean {
+  return entry.callId !== undefined && (entry.callId === callId || entry.callId.startsWith(`${callId}:`));
+}
+
 export interface UndoGroup {
   readonly id: string;
   readonly kind: UndoGroupKind;
@@ -298,7 +306,7 @@ export function createUndoStore(options: UndoStoreOptions = {}): UndoStore {
 
   /** The first entry of the step `callId`: its id, or an id that extends it with `:` (a compound's `:idx`, a port's `:port:N`). */
   function stepStart(record: GroupRecord, callId: string): number {
-    return record.entries.findIndex((entry) => entry.callId !== undefined && (entry.callId === callId || entry.callId.startsWith(`${callId}:`)));
+    return record.entries.findIndex((entry) => entryOfCall(entry, callId));
   }
 
   function undoFrom(id: string, callId: string): Result<UndoOutcome, CommandError> {

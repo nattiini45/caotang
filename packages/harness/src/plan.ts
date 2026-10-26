@@ -328,6 +328,11 @@ function optionsFor(code: AskBackCode): readonly string[] {
   }
 }
 
+/** The call id a plan's step is dispatched under: the plan's own id and the step's index in the whole plan. */
+export function planStepCallId(planCallId: string, index: number): string {
+  return `${planCallId}.${index}`;
+}
+
 /**
  * Runs an approved plan as one turn.
  *
@@ -358,7 +363,7 @@ export function runPlan(
     const outcome = host.run(
       {
         name: step.tool,
-        callId: `${turn.callId}.${index}`,
+        callId: planStepCallId(turn.callId, index),
         params: step.params,
         ...(proposal === undefined || proposal === null ? {} : { proposal }),
       },

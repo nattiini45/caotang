@@ -57,7 +57,7 @@
  */
 
 import { preloadAnchorLibraries } from '@caotang/editor';
-import { err, ok, type CommandError, type Result, type UndoOutcome } from '@caotang/bus';
+import { entryOfCall, err, ok, type CommandError, type Result, type UndoOutcome } from '@caotang/bus';
 import { ContextError, type AgentTask, type PromptPreview, type RecentTurn, type SelectionSpan } from '@caotang/context';
 import { estimateTokens, usageFor, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
 import { newId } from '@caotang/ids';
@@ -67,7 +67,7 @@ import { dialogueDraftTool, resolveContainer } from '@caotang/dialogue';
 import { stagePromptDraftTool, stagePromptVariantTool } from '@caotang/video-prompt-pack';
 
 import { limitExceeded, refusal } from '../errors.js';
-import { askBackFor, parsePlan, type AskBack, type AskBackCode, type Plan, type PlanOptions, type PlanOutcome, type PlanPreflight, type PlanStep, type StepResult } from '../plan.js';
+import { askBackFor, parsePlan, planStepCallId, type AskBack, type AskBackCode, type Plan, type PlanOptions, type PlanOutcome, type PlanPreflight, type PlanStep, type StepResult } from '../plan.js';
 import { DOCUMENT, descendantsOf, resolveNode } from '../resolve.js';
 import type { Harness, RuleCheck, ToolListing } from '../runtime.js';
 import type { ToolName } from '../metadata.js';
@@ -419,6 +419,15 @@ export interface AgentSession {
   resume(runId: string, options?: TurnOptions): Promise<TurnReport>;
   /** Reverses a turn's undo group: "restore to before this turn" (command-bus §5). */
   restore(turnId: string): Result<UndoOutcome, CommandError>;
+  /**
+   * Puts the project back to before one step of a finished turn: that step's changes and those of every step after it are taken back,
+   * newest first, and the steps before it stay (command-bus §5, `undoFrom`). `stepId` is the step's status-card id; the call id the step
+   * was dispatched under is the harness's own record, never rebuilt from the id. A step that wrote nothing (a read) starts the restore
+   * at the next step that did. No `stepId` is the whole turn, as `restore`. It restores the project only: an external step's effects stay.
+   */
+  restoreStep(turnId: string, stepId?: string): Result<UndoOutcome, CommandError>;
+  /** The step ids of a finished turn whose restore would take something back, in the order the steps ran. Read live: a step taken back is not listed. */
+  restorableSteps(turnId: string): readonly string[];
   /**
    * Drops this turn and every later one from the conversation the planner sees (L6), and returns the turn's intent so the Intent
    * box can offer it again. It touches no project state and no activity row, and the turns stay in `reports()`. An unknown turn
@@ -939,6 +948,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const finished: TurnReport[] = [];
   /** Every turn this session has started, oldest first, with its intent: what L6 is built from (context-assembly §2). */
   const started: RecentTurn[] = [];
+  /**
+   * The call id each step of a turn was dispatched under, in the order the steps ran: the step's status-card id, and the id its commands carry
+   * (a plan names a step `<plan>.<index>`, a mixed plan's native run `<prefix>.s<k>.<index>`, a one-step card its own id). `restoreStep` reads
+   * it, so a restore never rebuilds a call id from a card id.
+   */
+  const stepCalls = new Map<string, { readonly stepId: string; readonly callId: string }[]>();
   let turnCounter = 0;
   /** The turns that are running, by id: what `steer` reaches. */
   const running = new Map<string, Turn>();
@@ -1102,6 +1117,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * Adds a call's row to the turn's trace and tells the trace sink the call and the result the model is handed back: the same
    * value that goes into the results message or the native tool message. A call a delegated agent made has no body here.
    */
+  /** Records the call id a step's commands were dispatched under (`restoreStep`). Only ids this harness built reach it, never model or server text. */
+  const recordStep = (turn: Turn, stepId: string, callId: string): void => {
+    const calls = stepCalls.get(turn.id) ?? [];
+    calls.push({ stepId, callId });
+    stepCalls.set(turn.id, calls);
+  };
+
   const pushRow = (turn: Turn, row: TraceEntry, body?: unknown): void => {
     turn.trace.push(row);
     if (sinkNow() === undefined) return;
@@ -1479,7 +1501,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const group = (): { undoGroupId?: string } => (undoGroupId === undefined ? {} : { undoGroupId });
     for (let index = planOptions.from ?? 0; index < plan.steps.length; index += 1) {
       const step = plan.steps[index] as PlanStep;
-      const callId = `${context.callId}.${index}`;
+      const callId = planStepCallId(context.callId, index);
       if (planOptions.signal?.aborted === true) return ok({ status: 'stopped', completed, stoppedAt: index, ...group() });
       await logIntent(turn, callId, index, step.tool);
       const before = revisionsNow();
@@ -2373,6 +2395,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       return { ok: false, cancelled: true, effect: write, completed: [] };
     }
     if (outcome.ok) {
+      recordStep(turn, id, id);
       pushRow(turn, { tool: step.tool, callId: id, outcome: 'ok', params: step.params }, outcome.value.data);
       turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'done', summary: outcome.value.summary, data: outcome.value.data });
       moveCard(turn, id, 'done', { summary: outcome.value.summary });
@@ -2487,10 +2510,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // it may name what an earlier native step created; `from` makes the harness run the run alone.
       let end = index;
       while (end < editable.steps.length && !awaited((editable.steps[end] as PlanStep).tool)) end += 1;
+      const runCall = `${prefix}.s${index}`;
       const result = await planRun(
         turn,
         { steps: editable.steps.slice(0, end) },
-        { turnId: turn.id, callId: `${prefix}.s${index}` },
+        { turnId: turn.id, callId: runCall },
         { from: index, proposals: acceptedCut ? stripCut(editable.proposals.slice(0, end)) : editable.proposals.slice(0, end), ...signalOf(turn) },
       );
       if (!result.ok) {
@@ -2512,6 +2536,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       for (const done of finished) {
         const ran = editable.steps[done.index] as PlanStep;
         const doneId = callIdFor('plan', prefix, done.index);
+        recordStep(turn, doneId, planStepCallId(runCall, done.index));
         cardFor(turn, doneId, ran.tool, ran.params, 'pending-approval');
         moveCard(turn, doneId, 'running');
         pushRow(turn, { tool: ran.tool, callId: doneId, outcome: 'ok', params: ran.params }, done.value.data);
@@ -2588,6 +2613,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       if (outcome.ok) await logApplied(turn, id, from, step.tool, outcome.value.summary, before);
       else await logFailed(turn, id, from, step.tool, outcome.error.message);
       if (outcome.ok) {
+        recordStep(turn, id, id);
         pushRow(turn, { tool: step.tool, callId: id, outcome: 'ok', params: step.params }, outcome.value.data);
         turn.steps.push({ index: from, tool: step.tool, expect: step.expect, status: 'done', summary: outcome.value.summary, data: outcome.value.data });
         moveCard(turn, id, 'done', { summary: outcome.value.summary });
@@ -2631,6 +2657,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     for (const done of finished) {
       const step = editable.steps[done.index] as PlanStep;
       const id = callIdFor(kind, prefix, done.index);
+      recordStep(turn, id, planStepCallId(prefix, done.index));
       cardFor(turn, id, step.tool, step.params, 'pending-approval');
       moveCard(turn, id, 'running');
       pushRow(turn, { tool: step.tool, callId: id, outcome: 'ok', params: step.params }, done.value.data);
@@ -3298,6 +3325,15 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     await turn.run.append({ t: 'turn.end', turnId: turn.id, status: report.status, summary: report.summary }, { status: statusOfTurn(report.status) });
   }
 
+  /** The call id of the first step, from `stepId` on, that still has entries in the turn's undo group: where a restore to before `stepId` begins. */
+  function firstWriting(turnId: string, groupId: string, stepId: string): string | undefined {
+    const calls = stepCalls.get(turnId) ?? [];
+    const at = calls.findIndex((call) => call.stepId === stepId);
+    const group = harness.undo.group(groupId);
+    if (at === -1 || group === undefined) return undefined;
+    return calls.slice(at).find((call) => group.entries.some((entry) => entryOfCall(entry, call.callId)))?.callId;
+  }
+
   async function runTurn(
     intent: string,
     turnOptions: SubmitOptions,
@@ -3522,6 +3558,26 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         return err(refusal('not-found', `turn ${turnId} has no checkpoint: it wrote nothing, or it has not finished`, { correctiveHint: 'restore a turn that wrote something, by its id' }));
       }
       return harness.undo.undo(report.undoGroupId);
+    },
+
+    restoreStep(turnId: string, stepId?: string): Result<UndoOutcome, CommandError> {
+      const report = finished.find((entry) => entry.turnId === turnId);
+      if (report === undefined || report.undoGroupId === undefined) {
+        return err(refusal('not-found', `turn ${turnId} has no checkpoint: it wrote nothing, or it has not finished`, { correctiveHint: 'restore a turn that wrote something, by its id' }));
+      }
+      if (stepId === undefined) return harness.undo.undo(report.undoGroupId);
+      const first = firstWriting(turnId, report.undoGroupId, stepId);
+      if (first === undefined) {
+        return err(refusal('not-found', `step ${stepId} of turn ${turnId} and the steps after it wrote nothing that is still in the project, so there is nothing to restore`, { correctiveHint: 'restore a step that changed the project, or the whole turn' }));
+      }
+      return harness.undo.undoFrom(report.undoGroupId, first);
+    },
+
+    restorableSteps(turnId: string): readonly string[] {
+      const report = finished.find((entry) => entry.turnId === turnId);
+      const calls = stepCalls.get(turnId) ?? [];
+      if (report?.undoGroupId === undefined) return [];
+      return calls.filter((call) => firstWriting(turnId, report.undoGroupId!, call.stepId) !== undefined).map((call) => call.stepId);
     },
 
     rewindConversation(turnId: string): { readonly intent: string; readonly rewound: readonly string[] } {

@@ -75,7 +75,6 @@ function rig(options: { failing?: readonly string[]; dispatchInverses?: boolean 
       }) as CommandApply<never, unknown>,
     },
   } as unknown as CommandRegistry;
-  let undo: UndoStore;
   const bus: BusContext<Lines> = {
     state: lines,
     view: createViewState(),
@@ -87,7 +86,7 @@ function rig(options: { failing?: readonly string[]; dispatchInverses?: boolean 
     idempotency: createIdempotencyCache(),
     notify: () => undefined,
   };
-  undo = createUndoStore(inverse ? { dispatch: (command) => execute(command, bus as BusContext, registry) } : {});
+  const undo: UndoStore = createUndoStore(inverse ? { dispatch: (command) => execute(command, bus as BusContext, registry) } : {});
   return { lines, undo, bus, registry };
 }
 
