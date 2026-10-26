@@ -21,8 +21,8 @@ import { startLocalStub, type LocalStub, type StubConfig } from './local-stub.js
  * The result per preset is attached to the test run as JSON (`cors-sweep` attachment). The registry's `cors` field is checked
  * against the chat route: a preset flagged 'ok' whose chat route the browser cannot reach is a stale row and fails; 'blocked' rows
  * are asserted to actually fail on the chat route, so the disabled badge the UI shows is the truth. A preset whose
- * chat route is readable but whose models route is not stays 'ok' and is reported honestly: as a `cors-models-route` annotation
- * on the test and in the attachment. The app says so too when it meets that case (gateway `modelListUnreadable`).
+ * chat route is readable but whose models route is not stays 'ok' and is reported honestly: the test records a `cors-models-route`
+ * annotation, and the attachment holds both routes' results. The app says so too when it meets that case (gateway `modelListUnreadable`).
  */
 
 type Outcome = 'ok' | 'blocked' | 'http-error' | 'error';
@@ -52,7 +52,10 @@ interface ProbeRequest {
   readonly body?: string;
 }
 
-/** The two requests the app makes to a preset from a page, with the headers a real call carries and a placeholder credential. */
+/**
+ * The two requests the app makes to a preset from a page: the chat POST, and the model-list GET Settings makes when a profile is
+ * saved. Each carries the headers its own real call carries (the adapter's 'complete' or 'models' headers) and a placeholder credential.
+ */
 function requestsFor(presetId: string): { chat: ProbeRequest; models?: ProbeRequest } {
   const preset = presetFor(presetId)!;
   // The route the gateway takes for the preset's default model: a preset can send some models down another adapter (OpenCode's

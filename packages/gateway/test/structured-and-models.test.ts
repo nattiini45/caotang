@@ -201,6 +201,7 @@ describe('listModels (§3)', () => {
     const error = await listWhenRejected(h, profile.id);
 
     expect(error.kind).toBe('network');
+    expect(error.rejected).toBe(true);
     expect(error.message).toBe(providerMessages.modelListUnreadable('api.anthropic.com'));
     // True things only: it names the list, says chat may still work, and does not tell the writer to correct the base URL.
     expect(error.message).toContain('model list');
@@ -215,7 +216,16 @@ describe('listModels (§3)', () => {
     const endpoint = await addEndpoint(generic);
     const rejected = await listWhenRejected(generic, endpoint.id);
     expect(rejected.kind).toBe('network');
+    expect(rejected.rejected).toBe(true);
     expect(rejected.message).toContain('Could not reach a.example');
+
+    // A preset the sweep found blocked is greyed out in Settings; its rejection keeps the plain message too.
+    const zai = harness({ net: new ScriptedFetch().push(rejects, rejects, rejects) });
+    const blocked = await addEndpoint(zai, { preset: 'zhipu-zai', baseUrl: 'https://api.z.ai/api/paas/v4' });
+    const refused = await listWhenRejected(zai, blocked.id);
+    expect(refused.kind).toBe('network');
+    expect(refused.message).toContain('Could not reach api.z.ai');
+    expect(refused.message).not.toBe(providerMessages.modelListUnreadable('api.z.ai'));
 
     // A timeout is a network failure the browser did not reject, so it says what it always said.
     const hang = (): Promise<Response> => new Promise<Response>(() => undefined);
@@ -223,8 +233,28 @@ describe('listModels (§3)', () => {
     const anthropic = await addEndpoint(slow, { preset: 'anthropic', baseUrl: 'https://api.anthropic.com/v1' });
     const timedOut = await listWhenRejected(slow, anthropic.id);
     expect(timedOut.kind).toBe('network');
+    expect(timedOut.rejected).not.toBe(true);
     expect(timedOut.message).toContain('Could not reach api.anthropic.com');
     expect(timedOut.message).toContain('no response within');
+  });
+
+  it('leaves a rejected chat request with the plain network message: only the model list is reworded', async () => {
+    const h = harness({ net: new ScriptedFetch().push(rejects, rejects, rejects) });
+    await addEndpoint(h, { preset: 'anthropic', baseUrl: 'https://api.anthropic.com/v1' });
+    let outcome: { error?: unknown } | undefined;
+    const run = collect(h.gateway.complete(userMessage('hello'))).then((result) => {
+      outcome = result;
+    });
+    for (let i = 0; i < 10 && outcome === undefined; i++) {
+      await flush();
+      h.clock.advance(5_000);
+    }
+    await run;
+    const error = outcome?.error as ProviderError;
+    expect(error.kind).toBe('network');
+    expect(error.rejected).toBe(true);
+    expect(error.message).toContain('Could not reach api.anthropic.com');
+    expect(error.message).not.toBe(providerMessages.modelListUnreadable('api.anthropic.com'));
   });
 
   it('answers for the mock profile from the fixed list, with no network', async () => {
