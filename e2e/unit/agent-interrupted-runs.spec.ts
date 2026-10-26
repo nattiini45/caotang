@@ -91,7 +91,7 @@ async function seed(port: ReturnType<typeof createRunLogPort>, run: Seed): Promi
     ...(run.cannotResume === undefined ? {} : { cannotResume: true as const }),
   };
   await port.create(row);
-  await port.append(run.runId, run.events.map((event, seq) => ({ ...event, seq, at: clock + seq }) as RunEventInput));
+  await port.append(run.runId, run.events.map((event, seq) => ({ ...event, seq, at: clock + seq }) as unknown as RunEventInput));
 }
 
 const STEPS = [

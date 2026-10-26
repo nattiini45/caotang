@@ -229,7 +229,7 @@ describe('structureDigest', () => {
   });
 
   it('lets a step that began before a save be re-run, and refuses it when the structure moved', () => {
-    const recorded = log(start, user, card, approved, { ...intent(0, { [A]: 1 }), structure: structureDigest(manifest('old', nodes)) });
+    const recorded = log(start, user, card, approved, { ...intent(0, { [A]: 1 }), structure: structureDigest(manifest('old', nodes)) } as RunEventDraft);
     expect(planResume(recorded, project({ [A]: 1 }), { structure: () => structureDigest(manifest('new', nodes)) })).toMatchObject({ ok: true, kind: 're-run' });
     expect(planResume(recorded, project({ [A]: 1 }), { structure: () => structureDigest(manifest('new', nodes.slice(1))) })).toMatchObject({ ok: false, reason: 'revision-drift' });
   });
