@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // DOM is here for the types the harness and the store re-export (IndexedDB, HTMLElement). Types only; nothing here touches a DOM.
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}
