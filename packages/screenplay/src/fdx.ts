@@ -190,7 +190,7 @@ function stripSelfClosing(source: string, name: string): string {
  * a Windows editor saved can carry either, so the reader sees the folded text.
  */
 function normaliseXml(xml: string): string {
-  const text = xml.startsWith('﻿') ? xml.slice(1) : xml;
+  const text = xml.charCodeAt(0) === 0xfeff ? xml.slice(1) : xml;
   return text.includes('\r') ? text.replace(/\r\n?/g, '\n') : text;
 }
 
@@ -271,10 +271,11 @@ function labelled(text: string): { key: string; value: string } | null {
 
 /**
  * Reads the `<TitlePage>` of an FDX document into title-page entries, best effort: Final Draft's title page is free
- * layout, so only what can be named is. A `Key: value` paragraph, which is how `renderFdx` writes an entry, keeps its
- * key. A credit line (`Written by`) gives the Credit and the line after it the Author, the first other line is the
- * Title, a line with `draft` in it is the Draft date, and every other line goes to Notes. Null when there is no
- * title page or it holds no text.
+ * layout, so only what can be named is. In the order the lines are tried: a credit line (`Written by`, `By`, ...), bare or
+ * as the key of a `Key: value` paragraph, gives the Credit, and its value or the next line gives the Author; any other
+ * `Key: value` paragraph, which is how `renderFdx` writes an entry, keeps its key; a line holding the whole word `draft`,
+ * of at most 60 characters, is the Draft date; the first other line is the Title, but only while no credit line has been
+ * seen; every remaining line goes to Notes. Null when there is no title page or it holds no text.
  */
 export function parseFdxTitlePage(xml: string): Record<string, string> | null {
   const source = stripSelfClosing(normaliseXml(xml), '<Paragraph');
@@ -324,7 +325,11 @@ function fdxElements(paragraphs: readonly FdxParagraph[], notices: string[]): Sc
     switch (p.type) {
       case 'Scene Heading': {
         // The number goes where Fountain keeps it, unless the heading carries one already or this one could not be read back.
-        const numbered = p.number !== null && !p.number.includes('#') && !p.number.includes('\n') && sceneNumberOf(text) === null;
+        const carriable = p.number !== null && !p.number.includes('#') && !p.number.includes('\n');
+        if (p.number !== null && !carriable) {
+          notices.push(`"${text}": its Final Draft number "${p.number.replace(/\n/g, ' ')}" cannot be carried into a Fountain heading; it was left out.`);
+        }
+        const numbered = carriable && sceneNumberOf(text) === null;
         elements.push({ type: 'scene_heading', text: numbered ? `${text} #${p.number}#` : text, forced: false });
         break;
       }

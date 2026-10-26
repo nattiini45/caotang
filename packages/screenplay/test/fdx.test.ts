@@ -278,9 +278,23 @@ describe('importFdx — scene numbers', () => {
     expect(scenes[0]?.lengthEighths).toBe(8);
   });
 
-  it('does not write a Number that holds a hash, which Fountain could not carry', () => {
+  it('does not write a Number that holds a hash, which Fountain could not carry, and says it left it out', () => {
     const xml = '<Paragraph Type="Scene Heading" Number="1#2"><Text>INT. A - DAY</Text></Paragraph>';
     expect(scenesOf(xml).map((s) => s.heading)).toEqual(['INT. A - DAY']);
+    expect(importFdx(xml).notices).toContain('"INT. A - DAY": its Final Draft number "1#2" cannot be carried into a Fountain heading; it was left out.');
+  });
+
+  it('says so for a Number that holds a line feed too, on one line', () => {
+    const xml = '<Paragraph Type="Scene Heading" Number="1&#10;2"><Text>INT. A - DAY</Text></Paragraph>';
+    expect(scenesOf(xml).map((s) => s.heading)).toEqual(['INT. A - DAY']);
+    expect(importFdx(xml).notices).toContain('"INT. A - DAY": its Final Draft number "1 2" cannot be carried into a Fountain heading; it was left out.');
+  });
+
+  it('says nothing for a Number it carries, or one the heading already carries', () => {
+    const plain = '<Paragraph Type="Scene Heading" Number="2A"><Text>INT. A - DAY</Text></Paragraph>';
+    expect(importFdx(plain).notices).toEqual([]);
+    const same = '<Paragraph Type="Scene Heading" Number="2A"><Text>INT. A - DAY #2A#</Text></Paragraph>';
+    expect(importFdx(same).notices).toEqual([]);
   });
 });
 
@@ -305,6 +319,19 @@ describe('importFdx — the title page', () => {
     expect(parseFdxTitlePage(FDX_SAMPLE)).toBeNull();
     expect(importFdx(FDX_SAMPLE).titlePage).toBeNull();
     expect(parseFdxTitlePage('<TitlePage><Content><Paragraph/></Content></TitlePage>')).toBeNull();
+  });
+
+  it('takes a line after the credit for Notes, not Title, and a long line with draft in it for Notes, not Draft date', () => {
+    const page = (lines: readonly string[]): string =>
+      `<TitlePage><Content>${lines.map((line) => `<Paragraph><Text>${line}</Text></Paragraph>`).join('')}</Content></TitlePage>`;
+    expect(parseFdxTitlePage(page(['Written by', 'A. Writer', 'Based on a short story']))).toEqual({
+      Credit: 'Written by',
+      Author: 'A. Writer',
+      Notes: 'Based on a short story',
+    });
+    const long = 'A draft of the world as it was before the long winter set in and the roads closed';
+    expect(long.length).toBeGreaterThan(60);
+    expect(parseFdxTitlePage(page(['THE KEEPER', long]))).toEqual({ Title: 'THE KEEPER', Notes: long });
   });
 
   it('reads a Written by: line as the credit and the author', () => {
