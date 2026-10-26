@@ -14,7 +14,7 @@
  */
 
 import type { RandomBytes } from '@caotang/ids';
-import type { ProjectState } from '@caotang/store';
+import type { ProjectState, TreeNode } from '@caotang/store';
 
 import { groupFindings, type FindingGroup } from './groups.js';
 import { runDeterministic } from './run.js';
@@ -253,6 +253,8 @@ export interface CoherenceToolContext {
   readonly currentFile?: () => CoherenceFile;
   /** The writer's stop: a review that sees it fired ends its run as partial, with the findings it has (`ReviewRunOptions.signal`). */
   readonly signal?: AbortSignal;
+  /** Documents a read rule keeps from the agent (agent-harness §4): they are not scanned or reviewed. Absent, only archived documents are left out. */
+  readonly isExcluded?: (node: TreeNode) => boolean;
 }
 
 export interface ToolSuccess<T> {
@@ -323,7 +325,10 @@ export function scanTool(params: Readonly<Record<string, unknown>>, context: Coh
   try {
     const scope = toScope(params.scope);
     const includeDocIds = scope.mode === 'doc' ? new Set(scope.docIds) : undefined;
-    const snapshot = snapshotManuscript(context.state, context.file, includeDocIds === undefined ? {} : { includeDocIds });
+    const snapshot = snapshotManuscript(context.state, context.file, {
+      ...(includeDocIds === undefined ? {} : { includeDocIds }),
+      ...(context.isExcluded === undefined ? {} : { isExcluded: context.isExcluded }),
+    });
     const count = resolveScope(snapshot, context.file, scope).length;
     if (count > SCAN_DOC_GUARD && context.approvedLargeScope !== true) {
       return {
@@ -334,6 +339,7 @@ export function scanTool(params: Readonly<Record<string, unknown>>, context: Coh
     }
     const result = runDeterministic(context.state, context.file, {
       scope,
+      ...(context.isExcluded !== undefined ? { isExcluded: context.isExcluded } : {}),
       ...(picked.checks !== undefined ? { checks: picked.checks } : {}),
       now: context.now,
       ...(context.mentions !== undefined ? { mentions: context.mentions } : {}),
@@ -383,6 +389,7 @@ export function previewReviewTool(params: Readonly<Record<string, unknown>>, con
         scope: toScope(params.scope),
         ...(Array.isArray(params.categories) ? { categories: params.categories as LlmCategory[] } : {}),
         ...(typeof params.maxFindings === 'number' ? { maxFindings: params.maxFindings } : {}),
+        ...(context.isExcluded !== undefined ? { isExcluded: context.isExcluded } : {}),
       },
       context.review,
     );
@@ -418,6 +425,7 @@ export async function executeReviewTool(
       ...(context.review !== undefined ? { context: context.review } : {}),
       ...(context.currentFile !== undefined ? { currentFile: context.currentFile } : {}),
       ...(context.signal !== undefined ? { signal: context.signal } : {}),
+      ...(context.isExcluded !== undefined ? { isExcluded: context.isExcluded } : {}),
       randomBytes: context.randomBytes,
     });
     const upserted = new Set(result.run.findingsUpserted);

@@ -33,6 +33,7 @@
 
 import { err, ok, type CommandError, type Result } from '@caotang/bus';
 import { compileCodex, countMentions } from '@caotang/codex';
+import { withheldState } from '@caotang/context';
 import {
   DETERMINISTIC_CHECK_IDS,
   SCAN_DOC_GUARD,
@@ -51,7 +52,7 @@ import {
   type ScanData,
   type ToolFailure,
 } from '@caotang/coherence';
-import type { ProjectState } from '@caotang/store';
+import type { ProjectState, TreeNode } from '@caotang/store';
 
 import { refusal } from '../errors.js';
 import { capOf } from '../metadata.js';
@@ -112,6 +113,14 @@ function runnableChecks(requested: unknown, enabled: readonly DeterministicCheck
 /** Whether a checks answer is a refusal rather than the checks to run. */
 function isRefusal(value: RunnableChecks | ToolFailure): value is ToolFailure {
   return 'ok' in value;
+}
+
+/**
+ * What a read rule keeps out of a scan or a review (agent-harness §4): the withheld documents are left out like archived ones, so
+ * no finding quotes them. Undefined when nothing is withheld, which leaves the engine's own rule.
+ */
+function excludedBy(withheld: ReadonlySet<string> | undefined): ((node: TreeNode) => boolean) | undefined {
+  return withheld === undefined || withheld.size === 0 ? undefined : (node) => node.status === 'archived' || withheld.has(node.id);
 }
 
 /**
@@ -189,7 +198,9 @@ export function coherencePorts(clock: () => number, source: CoherenceSource = {}
     // The checks the writer has on (Settings › Coherence), and the checks the model named among them (coherence.md §5.1).
     const runnable = runnableChecks(params['checks'], source.checks?.());
     if (isRefusal(runnable)) return failure(refusal('invalid-params', runnable.message, { target: 'coherence.scan' }));
-    const dialogue = source.dialogue?.(context.state);
+    // The dialogue facts are read from the project as the agent may read it, so a container in a withheld subtree yields none.
+    const dialogue = source.dialogue?.(context.withheld === undefined ? context.state : withheldState(context.state, context.withheld));
+    const excluded = excludedBy(context.withheld);
     const scanParams: Readonly<Record<string, unknown>> = runnable.checks === undefined ? params : { ...params, checks: [...runnable.checks] };
     const outcome = scanTool(scanParams, {
       state: context.state,
@@ -198,6 +209,7 @@ export function coherencePorts(clock: () => number, source: CoherenceSource = {}
       approvedLargeScope,
       detector: countIn,
       ...(dialogue === undefined ? {} : { dialogue }),
+      ...(excluded === undefined ? {} : { isExcluded: excluded }),
     });
     if (!outcome.ok) return failure(refusalOf(outcome, 'coherence.scan'));
     // The appender side-effect of coherence.md §7 tool 15: the run and its findings join the held file. The
@@ -262,14 +274,22 @@ export function coherencePorts(clock: () => number, source: CoherenceSource = {}
  * the plan is what the card shows before the writer approves it: the documents, the cost estimate and the first prompt. Refused,
  * with the sentence the writer can act on, when no provider is active.
  */
-export function stageReviewPlan(params: CallParams, state: ProjectState, clock: () => number, source: CoherenceSource): Result<ReviewPlan, CommandError> {
+export function stageReviewPlan(
+  params: CallParams,
+  state: ProjectState,
+  clock: () => number,
+  source: CoherenceSource,
+  withheld?: ReadonlySet<string>,
+): Result<ReviewPlan, CommandError> {
   const model = source.model?.();
+  const excluded = excludedBy(withheld);
   const outcome = previewReviewTool(params, {
     state,
     file: heldFile(state),
     now: new Date(clock()),
     ...(model === undefined ? {} : { model }),
-    ...(source.review === undefined ? {} : { review: source.review(state) }),
+    ...(source.review === undefined ? {} : { review: source.review(withheld === undefined ? state : withheldState(state, withheld)) }),
+    ...(excluded === undefined ? {} : { isExcluded: excluded }),
   });
   if (!outcome.ok) return err(refusalOf(outcome, 'coherence.review'));
   return ok(outcome.data.plan);
@@ -303,7 +323,8 @@ export function coherenceAsyncPorts(clock: () => number, source: CoherenceSource
       file: heldFile(context.state),
       now: new Date(clock()),
       model,
-      ...(source.review === undefined ? {} : { review: source.review(context.state) }),
+      ...(source.review === undefined ? {} : { review: source.review(context.withheld === undefined ? context.state : withheldState(context.state, context.withheld)) }),
+      ...(excludedBy(context.withheld) === undefined ? {} : { isExcluded: excludedBy(context.withheld) }),
       currentFile: () => heldFile(context.state),
       ...(context.signal === undefined ? {} : { signal: context.signal }),
     });

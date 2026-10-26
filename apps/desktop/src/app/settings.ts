@@ -15,7 +15,7 @@
 import { DETERMINISTIC_CHECK_IDS, MAX_FINDINGS_CAP, MAX_FINDINGS_DEFAULT, type DeterministicCheckId } from '@caotang/coherence';
 import type { ThinkingLevel } from '@caotang/gateway';
 import { isPermissionMode, type ContextConfig, type PermissionMode } from '@caotang/harness';
-import { DEFAULT_RETENTION, resolveRetentionConfig, type RetentionConfig } from '@caotang/store';
+import { DEFAULT_RETENTION, parseRules, resolveRetentionConfig, type PermissionRule, type RetentionConfig } from '@caotang/store';
 import { EMPTY_MCP_SETTINGS, loadMcpSettings, type McpSettings } from '@caotang/mcp-client';
 
 /** The scopes a review or a scan can start with (coherence.md §6.2): one document, what changed since the last pass, the whole manuscript. */
@@ -85,6 +85,11 @@ export interface AgentSettings {
   readonly lockAuto: boolean;
   /** The limits a turn is held to. A limit left out keeps the harness's default, or is not enforced (agent-harness §4, §7.1). */
   readonly budget: AgentBudgetSettings;
+  /**
+   * The writer's own rules for the agent, in every project (agent-harness §4, Rules): deny or ask a tool, never a folder, since a binder id
+   * belongs to one project. A rule for a folder is made in the binder and kept in that project's file.
+   */
+  readonly rules: readonly PermissionRule[];
 }
 
 /**
@@ -104,7 +109,7 @@ export interface AgentBudgetSettings {
   readonly maxSteps?: number;
 }
 
-export const DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false, defaultMode: 'ask', lockAuto: false, budget: Object.freeze({}) });
+export const DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false, defaultMode: 'ask', lockAuto: false, budget: Object.freeze({}), rules: Object.freeze([]) });
 
 /** The whole numbers a budget field may hold. A field outside them reads as unset. */
 export const AGENT_BUDGET_RANGES = {
@@ -135,6 +140,8 @@ export function normalizeAgent(raw: unknown): AgentSettings {
     defaultMode: stored === 'auto' && lockAuto ? 'ask' : stored,
     lockAuto,
     budget: limits,
+    // A rule that cannot be read is dropped, field by field like the rest; the Settings list shows what is kept.
+    rules: parseRules(source['rules'], { toolOnly: true }).rules,
   };
 }
 

@@ -42,6 +42,7 @@ import type {
   GoalMetricParam,
 } from '@caotang/bus';
 import { isGeneratedId, isIdWithPrefix } from '@caotang/ids';
+import { parseRules } from './agent-rules.js';
 import { bodyNamesOf, isBodyType } from './paths.js';
 import { isJsonNumber, jsonValueProblem } from './json-value.js';
 import {
@@ -639,6 +640,7 @@ function validateFields(
   }
   validateFilters(source, warn);
   validateGoals(source, nodeIds, warn);
+  validateAgent(source, nodeIds, warn);
 
   // Step 3 — derived (rebuildable; absence is not an error)
   if (source.derived !== undefined && !isRecord(source.derived)) {
@@ -1152,6 +1154,40 @@ function validateFilters(source: Record<string, unknown>, warn: (path: string, m
     return true;
   });
   source['filters'] = kept;
+}
+
+/**
+ * Step 3's `agent.rules` — [agent-harness.md §4](docs/architecture/agent-harness.md), Rules.
+ *
+ * The convention is the one `filters[]` sets: a rule that cannot be read is dropped with a warning that names it, and the load goes
+ * on. A dropped rule is a restriction lost, so the warning is the only place the writer learns of it. A rule whose subtree names a
+ * node the tree no longer holds is kept and flagged: it is inert, and it never blocks a load. An `allow` rule is dropped with a
+ * warning, since this build has none and a project file may never grant the agent power. An unknown key on `agent` is kept as it is.
+ */
+function validateAgent(
+  source: Record<string, unknown>,
+  nodeIds: ReadonlySet<string>,
+  warn: (path: string, message: string) => void,
+): void {
+  const raw = source['agent'];
+  if (raw === undefined) return;
+  if (!isRecord(raw)) {
+    warn('agent', 'expected an object; dropped');
+    delete source['agent'];
+    return;
+  }
+  if (raw['rules'] === undefined) return;
+  const parsed = parseRules(raw['rules'], { at: 'agent.rules' });
+  for (const message of parsed.warnings) {
+    const at = /^[^:]*/.exec(message)?.[0] ?? 'agent.rules';
+    warn(at, message.slice(at.length).replace(/^:s*/, ''));
+  }
+  parsed.rules.forEach((rule, i) => {
+    if (rule.scope !== undefined && 'subtree' in rule.scope && !nodeIds.has(rule.scope.subtree)) {
+      warn(`agent.rules[${i}].scope`, `names a binder node (${rule.scope.subtree}) that is not in this project, so the rule has no effect`);
+    }
+  });
+  raw['rules'] = parsed.rules.map((rule) => ({ ...rule }));
 }
 
 /**

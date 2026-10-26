@@ -97,6 +97,11 @@ export interface AppSnapshot {
   readonly turns?: readonly RecentTurn[];
   /** Activity rows, for the turns' outcome and undo-group lines. */
   readonly activity?: readonly ActivityEntry[];
+  /**
+   * Binder nodes a read-deny keeps out of the prompt (agent-harness §4). Assembly works on a view of the project without them and
+   * lists each in the preview as withheld; see `withhold`.
+   */
+  readonly withheld?: ReadonlySet<string>;
 }
 
 /** A model's limits and prices, as the gateway's profile and `listModels` report them. */
@@ -144,6 +149,8 @@ export type DropReason =
   | { readonly kind: 'forward-outline' }
   /** A continuity scope longer than the document limit. */
   | { readonly kind: 'scope-limit'; readonly limit: number }
+  /** A read rule keeps this item from the agent (agent-harness §4), so it is not in the prompt. Listed for the writer only. */
+  | { readonly kind: 'withheld' }
   /** The layer's own budget was full. `budget` is the effective budget in tokens. */
   | { readonly kind: 'budget'; readonly layer: LayerId; readonly budget: number; readonly rank: number }
   /** The whole prompt was over `contextBudget`, and this item was in the prune order (§2). */

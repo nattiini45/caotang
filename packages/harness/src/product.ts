@@ -29,6 +29,8 @@ export interface ProductHarnessOptions {
   readonly presentAssets?: () => ReadonlySet<string>;
   readonly clock?: () => number;
   readonly notify?: HarnessOptions['notify'];
+  /** The agent rules, read at each call (agent-harness §4). Absent, there are none. */
+  readonly rules?: HarnessOptions['rules'];
 }
 
 export function createProductHarness(options: ProductHarnessOptions): Harness {
@@ -43,6 +45,7 @@ export function createProductHarness(options: ProductHarnessOptions): Harness {
     ...(options.skills === undefined ? {} : { skills: options.skills }),
     ...(options.presentAssets === undefined ? {} : { presentAssets: options.presentAssets }),
     ...(options.notify === undefined ? {} : { notify: options.notify }),
+    ...(options.rules === undefined ? {} : { rules: options.rules }),
     ...(agent
       ? { coherence: { dialogue: dialogueFactsOf, review: reviewContextOf, ...options.coherence } }
       : options.coherence === undefined

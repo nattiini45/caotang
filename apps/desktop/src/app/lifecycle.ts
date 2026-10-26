@@ -77,6 +77,7 @@ import {
   type ProjectFileChange,
   type LoadNotice,
   type LoadResult,
+  type PermissionRule,
   type WriteReport,
   readCoherenceFiles,
   writeCoherenceFiles,
@@ -140,6 +141,8 @@ export interface SessionDefaults {
   readonly mcp?: { readonly client: McpClient };
   /** What the agent's coherence tools read from the app: the checks the writer has on, and the review's model (coherence.md §7). */
   readonly coherence?: SessionCoherence;
+  /** The writer's own agent rules, read by every session at each agent call (Settings › Agent; agent-harness §4). */
+  readonly appRules?: () => readonly PermissionRule[];
 }
 
 let defaults: SessionDefaults = {};
@@ -222,6 +225,7 @@ async function sessionFor(
       presentAssets: () => assetsFor(state.manifest.project.id).presentIds(),
       ...(defaults.mcp === undefined ? {} : { mcp: defaults.mcp }),
       ...(defaults.coherence === undefined ? {} : { coherence: defaults.coherence }),
+      ...(defaults.appRules === undefined ? {} : { appRules: defaults.appRules }),
       ...(defaults.debounceMs === undefined ? {} : { debounceMs: defaults.debounceMs }),
       ...(defaults.retention === undefined ? {} : { retention: defaults.retention }),
       onClosed: () => lease.release(),

@@ -16,6 +16,7 @@ export { describeDrop } from './drops.js';
 export { SYSTEM_PROMPT_VERSION } from './layers/system.js';
 export { FOCUS_MARKER } from './layers/focus.js';
 
+export { entryWithheld, withhold, withheldState, type WithheldView } from './withheld.js';
 export { ContextError, type ContextErrorCode } from './errors.js';
 
 export {

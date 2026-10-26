@@ -4,6 +4,7 @@ import { TOOL_SEARCH_META } from '@caotang/mcp-client';
 import { STORYBOARD_TOOL_ENTRIES } from '@caotang/storyboard';
 import { PROMPT_PACK_TOOL_ENTRIES } from '@caotang/video-prompt-pack';
 
+import { TOOL_TARGETS, type ToolTargets } from './targets.js';
 import { SUBAGENT_BLURBS } from './tools/delegate.js';
 import { PRIMITIVE_TOOLS } from './tools/primitive-tools.js';
 import { PRIMITIVE_TOOL_NAMES } from './tools/primitive.js';
@@ -118,9 +119,17 @@ export interface ToolMetadata {
   readonly load: ToolLoad;
   /** Extra search terms for a deferred row (its module, synonyms). Matched by `tool.search`, never shown to the model. */
   readonly keywords?: readonly string[];
+  /**
+   * The binder nodes a call reads and writes, for the agent rules ([agent-harness.md §4](../../../docs/architecture/agent-harness.md)), or
+   * `'project'` for a call that names none. Every row declares one (`targets.ts`), so a rule cannot be bypassed by a tool that forgot to.
+   */
+  readonly targets: ToolTargets;
 }
 
-export const TOOL_METADATA: readonly ToolMetadata[] = [
+/** A row as its module declares it, before the registry joins its `targets`. */
+export type ToolRow = Omit<ToolMetadata, 'targets'>;
+
+const ROWS: readonly ToolRow[] = [
   {
     name: 'project.overview',
     risk: 'read',
@@ -346,6 +355,9 @@ export const TOOL_METADATA: readonly ToolMetadata[] = [
   // The allowlisted bus primitives (agent-harness §3). Their risk and undo are their command's descriptor's, read by the factory.
   ...PRIMITIVE_TOOLS.map((tool) => tool.meta),
 ];
+
+/** The table, each row joined to its `targets` (targets.ts). */
+export const TOOL_METADATA: readonly ToolMetadata[] = ROWS.map((row) => ({ ...row, targets: TOOL_TARGETS[row.name] }));
 
 /** Looks a name up in the metadata table. Undefined for a name that is not a tool. */
 export function metadataFor(name: string): ToolMetadata | undefined {
