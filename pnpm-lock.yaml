@@ -233,6 +233,9 @@ importers:
       '@caotang/font-noto-cjk':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-cjk
+      '@caotang/font-noto-color-emoji':
+        specifier: workspace:*
+        version: link:../../vendor/noto-color-emoji
       '@caotang/font-noto-devanagari':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-devanagari
@@ -303,6 +306,9 @@ importers:
       '@caotang/font-noto-cjk':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-cjk
+      '@caotang/font-noto-color-emoji':
+        specifier: workspace:*
+        version: link:../../vendor/noto-color-emoji
       '@caotang/font-noto-devanagari':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-devanagari
@@ -727,6 +733,9 @@ importers:
       '@caotang/font-noto-cjk':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-cjk
+      '@caotang/font-noto-color-emoji':
+        specifier: workspace:*
+        version: link:../../vendor/noto-color-emoji
       '@caotang/font-noto-devanagari':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-devanagari
@@ -776,6 +785,9 @@ importers:
       '@caotang/font-noto-cjk':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-cjk
+      '@caotang/font-noto-color-emoji':
+        specifier: workspace:*
+        version: link:../../vendor/noto-color-emoji
       '@caotang/font-noto-devanagari':
         specifier: workspace:*
         version: link:../../vendor/noto-sans-devanagari
@@ -912,6 +924,8 @@ importers:
       '@caotang/store':
         specifier: workspace:*
         version: link:../store
+
+  vendor/noto-color-emoji: {}
 
   vendor/noto-emoji: {}
 

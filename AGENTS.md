@@ -88,6 +88,7 @@ packages/storyboard/     shot cards and animatics
 packages/video-prompt-pack/
 vendor/noto-sans-cjk/    @caotang/font-noto-cjk
 vendor/noto-emoji/       @caotang/font-noto-emoji
+vendor/noto-color-emoji/ @caotang/font-noto-color-emoji (the colour emoji, compiled offline to PDF operators)
 vendor/noto-sans-arabic/ @caotang/font-noto-arabic
 vendor/noto-sans-hebrew/ @caotang/font-noto-hebrew
 site/                    the marketing landing page (GitHub Pages root)

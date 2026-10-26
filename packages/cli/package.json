@@ -16,6 +16,7 @@
   "dependencies": {
     "@caotang/font-noto-arabic": "workspace:*",
     "@caotang/font-noto-cjk": "workspace:*",
+    "@caotang/font-noto-color-emoji": "workspace:*",
     "@caotang/font-noto-devanagari": "workspace:*",
     "@caotang/font-noto-emoji": "workspace:*",
     "@caotang/font-noto-hebrew": "workspace:*",
