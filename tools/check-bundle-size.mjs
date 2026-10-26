@@ -49,7 +49,8 @@ export const BUDGET = {
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
   // 5,902.2 kB measured with the instructions layer, the agent files and recurring tasks (Wave 17).
-  totalJs: 5_950_000,
+  // 5,964.6 kB measured with the restore planner, the step and conversation rewind menus (#53); the ceiling is that plus about 0.6%.
+  totalJs: 6_000_000,
 };
 
 const KB = 1000;
