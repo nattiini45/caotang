@@ -1,8 +1,8 @@
 # The standing gate: lint, typecheck, unit tests, the production build and the Playwright suite.
 #
 # What runs, and on which Node:
-#   - `verify` is a Node matrix (22.12.0 and 24): frozen engine-strict install, verify, build, bundle-size check,
-#     MCP pack and CLI build. Both the declared 22.12 floor and current 24 line run on every PR and main push.
+#   - `verify_matrix` runs the frozen engine-strict install, verification, build, bundle-size check, MCP pack and CLI build
+#     on Node 22.12.0 and 24 for every PR and main push. `verify` preserves the stable required check and passes only if both legs pass.
 #   - `e2e (chromium)` runs on Node 24 in parallel with the matrix. `e2e-browsers.yml` gates pull requests with Firefox and
 #     WebKit in four parallel shards, also runs nightly/on demand, and uploads their merged HTML report when a shard fails.
 #   - `office-interop` and `pdf-validate` remain separate Node 24 jobs and run alongside the PR gate.
@@ -43,7 +43,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
+  verify_matrix:
     name: verify (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -78,6 +78,18 @@ jobs:
 
       - name: Build the caotang command-line bundle (one file, with its fonts/)
         run: pnpm --filter @caotang/cli run build
+
+  verify:
+    name: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    needs: verify_matrix
+    if: always()
+    steps:
+      - name: Require both Node matrix runs
+        env:
+          MATRIX_RESULT: ${{ needs.verify_matrix.result }}
+        run: test "$MATRIX_RESULT" = success
 
   e2e:
     name: e2e (chromium)
