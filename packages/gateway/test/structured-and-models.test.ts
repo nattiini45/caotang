@@ -5,9 +5,9 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { localDayKey, ProviderError } from '../src/index.js';
+import { localDayKey, ProviderError, providerMessages } from '../src/index.js';
 import { createMockProvider, MOCK_MODELS } from '../src/mock/index.js';
-import { addEndpoint, collect, delta, finish, harness, KEY, ScriptedFetch, sseResponse, userMessage } from './helpers.js';
+import { addEndpoint, collect, delta, finish, flush, harness, KEY, ScriptedFetch, sseResponse, userMessage, type Harness } from './helpers.js';
 
 const schema = { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] };
 const structured = { messages: [{ role: 'user' as const, content: 'draft a title' }], responseFormat: { jsonSchemaHint: schema } };
@@ -170,6 +170,61 @@ describe('listModels (§3)', () => {
     const profile = await addEndpoint(h);
     const error = await h.gateway.listModels(profile.id).catch((e: unknown) => e);
     expect((error as ProviderError).kind).toBe('protocol');
+  });
+
+  /** Runs a listing whose every attempt the browser rejects, advancing the clock through the retries. */
+  async function listWhenRejected(h: Harness, profileId: string): Promise<ProviderError> {
+    let settled: unknown;
+    const run = h.gateway.listModels(profileId).then(
+      () => undefined,
+      (e: unknown) => {
+        settled = e;
+      },
+    );
+    for (let i = 0; i < 10 && settled === undefined; i++) {
+      await flush();
+      h.clock.advance(5_000);
+    }
+    await run;
+    return settled as ProviderError;
+  }
+
+  const rejects = (): Response => {
+    throw new TypeError('Failed to fetch');
+  };
+
+  it('says the browser would not let the page read the list, not that the host is unreachable, for a preset the sweep found reachable', async () => {
+    const net = new ScriptedFetch().push(rejects, rejects, rejects);
+    const h = harness({ net });
+    const profile = await addEndpoint(h, { preset: 'anthropic', baseUrl: 'https://api.anthropic.com/v1' });
+
+    const error = await listWhenRejected(h, profile.id);
+
+    expect(error.kind).toBe('network');
+    expect(error.message).toBe(providerMessages.modelListUnreadable('api.anthropic.com'));
+    // True things only: it names the list, says chat may still work, and does not tell the writer to correct the base URL.
+    expect(error.message).toContain('model list');
+    expect(error.message).toContain('Chat may still work');
+    expect(error.message).not.toContain('Could not reach');
+    expect(error.message).not.toContain('base URL');
+    expect(net.calls.every((call) => call.url === 'https://api.anthropic.com/v1/models')).toBe(true);
+  });
+
+  it('keeps the plain network message for an endpoint the sweep has not vouched for, and for a failure that is not a browser rejection', async () => {
+    const generic = harness({ net: new ScriptedFetch().push(rejects, rejects, rejects) });
+    const endpoint = await addEndpoint(generic);
+    const rejected = await listWhenRejected(generic, endpoint.id);
+    expect(rejected.kind).toBe('network');
+    expect(rejected.message).toContain('Could not reach a.example');
+
+    // A timeout is a network failure the browser did not reject, so it says what it always said.
+    const hang = (): Promise<Response> => new Promise<Response>(() => undefined);
+    const slow = harness({ net: new ScriptedFetch().push(hang, hang, hang) });
+    const anthropic = await addEndpoint(slow, { preset: 'anthropic', baseUrl: 'https://api.anthropic.com/v1' });
+    const timedOut = await listWhenRejected(slow, anthropic.id);
+    expect(timedOut.kind).toBe('network');
+    expect(timedOut.message).toContain('Could not reach api.anthropic.com');
+    expect(timedOut.message).toContain('no response within');
   });
 
   it('answers for the mock profile from the fixed list, with no network', async () => {

@@ -173,9 +173,9 @@ function scoped(deps: TransportDeps, spec: CallSpec): TransportDeps {
   return spec.timeouts === undefined ? deps : { ...deps, timeouts: { ...deps.timeouts, ...spec.timeouts } };
 }
 
-function networkError(spec: CallSpec, reason: string): ProviderError {
+function networkError(spec: CallSpec, reason: string, rejected = false): ProviderError {
   const detail = clean(reason, spec);
-  return new ProviderError('network', providerMessages.network(spec.host, detail), { detail });
+  return new ProviderError('network', providerMessages.network(spec.host, detail), { detail, ...(rejected ? { rejected } : {}) });
 }
 
 function protocolError(spec: CallSpec, raw: string): ProviderError {
@@ -386,7 +386,7 @@ async function connect(deps: TransportDeps, spec: CallSpec, deadline: Deadline, 
     });
   } catch (err) {
     // A fetch that throws rather than rejecting is still a failure to reach the provider.
-    throw (await localFailure(deps, spec, err)) ?? networkError(spec, describe(err));
+    throw (await localFailure(deps, spec, err)) ?? networkError(spec, describe(err), true);
   }
   const limit = limitAt(
     deps,
@@ -408,7 +408,7 @@ async function connect(deps: TransportDeps, spec: CallSpec, deadline: Deadline, 
   } catch (err) {
     if (err instanceof DeadlineReached) throw networkError(spec, limit.reason);
     if (err instanceof CallerCancelled) throw err;
-    throw (await localFailure(deps, spec, err)) ?? networkError(spec, describe(err));
+    throw (await localFailure(deps, spec, err)) ?? networkError(spec, describe(err), true);
   }
 
   if (response.type === 'opaqueredirect' || (response.status >= 300 && response.status < 400)) {
