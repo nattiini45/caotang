@@ -249,6 +249,41 @@ test.describe('a scan starts by itself and calls no model', () => {
     await ruled.session.close();
   });
 
+  test('a whole-project scan that a read rule left with no document records that nothing was scanned, not a clean result', async () => {
+    const task = seedTask(1, { schedule: { kind: 'manual' }, body: { kind: 'scan', scope: 'full' } });
+    const r = await rig([task]);
+    r.session.setAgentAccess('manuscript', 'none');
+    await r.recurring.runNow(task.id);
+    const record = r.runs.history(task.id)[0];
+    expect(record).toMatchObject({ status: 'failed', requests: 0 });
+    expect(record?.summary).toContain('Nothing was scanned');
+    expect(record?.summary).toContain('A rule in this project may be keeping the manuscript from the agent');
+    await r.session.close();
+  });
+
+  test('a scan that Settings › Coherence has cut down names the checks it did not run', async () => {
+    const task = seedTask(1, { schedule: { kind: 'manual' }, body: { kind: 'scan', scope: 'full' } });
+    const r = await rig([task]);
+    const some = new RecurringTasks({ session: r.session, agent: r.agent, runs: r.runs, enabledChecks: () => ['pov.coverage'], now: () => r.clock.now, timeZone: () => BERLIN, visible: () => true, every: () => () => undefined });
+    await some.runNow(task.id);
+    const record = r.runs.history(task.id)[0];
+    expect(record?.status).toBe('done');
+    expect(record?.summary).toMatch(/^Scan /);
+    expect(record?.summary).toContain('turned off in Settings › Coherence: codex.alias-collisions');
+    expect(record?.summary).not.toContain('pov.coverage,');
+    await r.session.close();
+  });
+
+  test('a scan with every check on and a manuscript to read keeps its plain summary', async () => {
+    const task = seedTask(1, { schedule: { kind: 'manual' }, body: { kind: 'scan', scope: 'full' } });
+    const r = await rig([task]);
+    await r.recurring.runNow(task.id);
+    const record = r.runs.history(task.id)[0];
+    expect(record?.status).toBe('done');
+    expect(record?.summary).toMatch(/^Scan \w+: \d+ finding\(s\) in \d+ group\(s\) across [1-9]\d* document\(s\)\.$/);
+    await r.session.close();
+  });
+
   test('a scan whose every check is turned off records that nothing ran, and says why', async () => {
     const task = seedTask(1, { schedule: { kind: 'manual' }, body: { kind: 'scan', scope: 'full' } });
     const r = await rig([task]);

@@ -201,6 +201,7 @@ describe('the coherence tools (§7)', () => {
     expect(result.file).toBeDefined();
     expect(result.summary).toMatch(/^Scan /);
     expect(typeof result.data.runId).toBe('string');
+    expect(result.data.documents).toBe(2);
   });
 
   it('refuses a document scope with no document, or more than one', () => {

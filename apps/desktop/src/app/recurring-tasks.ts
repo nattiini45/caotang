@@ -424,16 +424,27 @@ export class RecurringTasks {
     const { session } = this.options;
     await requestInkCompilerFor(session.state);
     const on = (this.options.enabledChecks ?? (() => DETERMINISTIC_CHECK_IDS))();
-    const checks = (body.checks ?? DETERMINISTIC_CHECK_IDS).filter((id) => on.includes(id));
+    const asked = body.checks ?? DETERMINISTIC_CHECK_IDS;
+    const checks = asked.filter((id) => on.includes(id));
     if (checks.length === 0) return this.recordOf(task, trigger, 'failed', 'Every check this scan would run is turned off in Settings › Coherence, so nothing ran.');
+    // A document a read rule keeps from the agent is left out of this scan, as it is of the agent's own.
+    const withheld = session.harness.withheld('coherence.scan');
     const result = session.scanCoherence({
       approvedLargeScope: false,
       scope: body.scope === 'full' ? { mode: 'full' } : { mode: 'changed' },
       checks,
-      // A document a read rule keeps from the agent is left out of this scan, as it is of the agent's own.
-      withheld: session.harness.withheld('coherence.scan'),
+      withheld,
     });
-    return result.ok ? this.recordOf(task, trigger, 'done', result.summary) : this.recordOf(task, trigger, 'failed', result.message);
+    if (!result.ok) return this.recordOf(task, trigger, 'failed', result.message);
+    // A whole-project scan that had no document to read found nothing because it looked at nothing, which is not a clean result.
+    if (body.scope === 'full' && result.data.documents === 0) {
+      const why = withheld.size > 0 ? ' A rule in this project may be keeping the manuscript from the agent.' : '';
+      return this.recordOf(task, trigger, 'failed', `Nothing was scanned: no document was open to this scan.${why}`);
+    }
+    // The checks Settings › Coherence has off are left out, and the record says so, as the agent's own scan does.
+    const skipped = asked.filter((id) => !on.includes(id));
+    const left = skipped.length === 0 ? '' : ` Not run, because they are turned off in Settings › Coherence: ${skipped.join(', ')}.`;
+    return this.recordOf(task, trigger, 'done', `${result.summary}${left}`);
   }
 
   /* ------------------------------------------------------------------ *
