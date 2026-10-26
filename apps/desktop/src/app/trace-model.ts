@@ -165,7 +165,7 @@ export function turnTimeline(store: TraceStore, turnId: string): TraceTimeline {
           reply: textOf(record.content),
           ...(record.reasoningText === undefined ? {} : { reasoning: textOf(record.reasoningText) }),
           replyCalls: (record.toolCalls ?? []).map((call) => `${call.name}(${textOf(call.argumentsJson)})`),
-          ...(record.error === undefined ? {} : { error: `${record.error.kind}: ${record.error.message}` }),
+          ...(record.error === undefined ? {} : { error: `${record.error.kind}: ${textOf(record.error.message)}` }),
           ...(record.truncated === undefined ? {} : { cut: record.truncated.chars }),
         }));
         break;

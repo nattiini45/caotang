@@ -334,6 +334,16 @@ describe('an export that leaves out the manuscript text', () => {
     expect(byKind('turn.end')).toMatchObject({ report: { status: 'replied', tokens: { promptTokens: 10 }, cards: [{ decision: 'approved', edits: 1 }], trace: [{ tool: 'doc.read', outcome: 'ok' }] } });
   });
 
+  it('stubs the message of a provider error, which quotes the start of the body the provider sent', () => {
+    const s = store();
+    const message = `a.example sent a response Caotang could not read: ${MARK} {"choices":[{"message":{"content":"${MARK} reply"}}]}`;
+    s.write({ ...(response('t.turn-1', 1, '') as object), error: { kind: 'protocol', message } } as unknown as TraceInput);
+    const text = s.toJsonl({ omitText: true });
+    expect(text).not.toContain(MARK);
+    expect(parsed(text).find((record) => record.kind === 'model.response')).toMatchObject({ error: { kind: 'protocol', message: { omitted: { chars: message.length } } } });
+    expect(s.toJsonl()).toContain(MARK);
+  });
+
   it('leaves the store itself whole', () => {
     const s = filled();
     s.toJsonl({ omitText: true });

@@ -130,7 +130,7 @@ export interface ModelResponseRecord extends Base {
   readonly 'gen_ai.usage.output_tokens': number;
   /** Whether the tokens are the provider's or the local `ceil(chars/4)` estimate. */
   readonly usageSource: 'provider' | 'estimate';
-  readonly error?: { readonly kind: string; readonly message: string };
+  readonly error?: { readonly kind: string; readonly message: Text };
   readonly truncated?: { readonly chars: number };
 }
 export interface ContextRecord extends Base {
@@ -390,6 +390,8 @@ export function omitRecord(record: TraceRecord): TraceRecord {
         content: omitText(record.content),
         ...(record.reasoningText === undefined ? {} : { reasoningText: omitText(record.reasoningText) }),
         ...(record.toolCalls === undefined ? {} : { toolCalls: omitCalls(record.toolCalls) }),
+        // The message quotes the start of the provider's body, which can be the reply text or an echo of the prompt.
+        ...(record.error === undefined ? {} : { error: { ...record.error, message: omitText(record.error.message) } }),
       };
     case 'context':
       return { ...record, dropped: record.dropped.map(omitText) };
