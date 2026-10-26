@@ -244,8 +244,11 @@ export interface AgentSessionOptions {
   readonly sessionBudget?: SessionBudget | (() => SessionBudget);
   /** The price per 1,000 tokens the cost limit reads (provider-gateway §2). Absent, a turn has no cost to hold to a limit. */
   readonly price?: () => { readonly prompt: number; readonly completion: number } | undefined;
-  /** Awaited before a card the mode approves is applied, so the app can save the writer's typing as an approval does. */
-  readonly beforeAutoApply?: (card: PlanCardView) => Promise<void>;
+  /**
+   * Awaited before a card the mode approves is applied, so the app can save the writer's typing as an approval does. A reason it
+   * answers means the card is not applied unattended: it is shown to the writer with that reason, as a stale card is, and the writer decides.
+   */
+  readonly beforeAutoApply?: (card: PlanCardView) => Promise<string | void>;
   /**
    * The run limits (agent-harness §7.1), or a function that reads the meter of the turn about to start. Every model call reserves its
    * worst case from the meter before it is sent, a time limit aborts the turn's signal, and a step limit refuses a plan before it is drafted.
@@ -2107,6 +2110,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     let edits = 0;
     let retries = 0;
     let stalls = 0;
+    // Why the app would not let the mode apply this card: once it holds the card, the card is the writer's.
+    let held: string | undefined;
     for (;;) {
       // Before the card is shown, so a stop leaves no pending card behind.
       checkStop(turn);
@@ -2121,6 +2126,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // A rule that asks makes the card the writer's in every mode.
       const auto =
         start.humanOnly !== true &&
+        held === undefined &&
         shown.card.approvable &&
         !remaining.some(asksWriter) &&
         policy.approves({ tools: writes.map((step) => step.tool), external: remaining.some((step) => loadedExternal(step.tool) !== undefined) });
@@ -2134,8 +2140,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       showGhosts(turn, editable, kind, prefix);
       if (start.nested !== true) await logCard(turn, kind, editable, auto ? 'running' : 'awaiting-approval');
       if (auto) {
-        await options.beforeAutoApply?.(shown.card);
+        const hold = await options.beforeAutoApply?.(shown.card);
         checkStop(turn);
+        if (typeof hold === 'string') {
+          held = hold;
+          notice = hold;
+          continue;
+        }
         return { settled: 'approved', editable, edits, retries, auto: true };
       }
       phase(turn, 'awaiting-approval');

@@ -318,6 +318,41 @@ describe('accept-edits', () => {
   });
 });
 
+describe('a card the app holds back', () => {
+  const HOLD = 'Your typing could not be saved, so this card was not applied automatically.';
+
+  it('in accept-edits is put to the writer with the reason, as an ordinary card, and nothing is applied when the writer cancels', async () => {
+    const intent = 'Continue The Landing.';
+    const scripts = [
+      transcript(intent, [steps({ tool: 'scene.draft', params: { doc: 'The Landing', instruction: 'Go on.', mode: 'continue' }, expect: 'continued' })]),
+      prose('Brief: Go on.', 'And then the storm.'),
+    ];
+    const run = await turn(intent, scripts, { mode: 'accept-edits', beforeAutoApply: async () => HOLD, decisions: [{ action: 'cancel' }] });
+    expect(run.asked).toHaveLength(1);
+    expect(run.asked[0]?.card.notice).toBe(HOLD);
+    expect(run.report.status).toBe('cancelled');
+    expect(record(run.report)).toEqual([['confirm', ['scene.draft'], 'cancelled']]);
+    expect(run.state.documents.get(LANDING)?.body).toBe(LANDING_BODY);
+  });
+
+  it('in auto asks once and applies the card when the writer approves it', async () => {
+    const intent = 'Add a chapter.';
+    const reply = steps({ tool: 'binder.restructure', params: { ops: [{ action: 'create', parent: 'manuscript', type: 'folder', title: 'Chapter 3' }] }, expect: 'a chapter' });
+    let tried = 0;
+    const run = await turn(intent, [transcript(intent, [reply])], {
+      mode: 'auto',
+      beforeAutoApply: async () => {
+        tried += 1;
+        return HOLD;
+      },
+    });
+    expect(tried).toBe(1);
+    expect(run.asked).toHaveLength(1);
+    expect(record(run.report)).toEqual([['confirm', ['binder.restructure'], 'approved']]);
+    expect(run.state.manifest.tree.some((node) => node.title === 'Chapter 3')).toBe(true);
+  });
+});
+
 describe('auto', () => {
   it('approves a restructure as shown, and records the card as the policy’s', async () => {
     const intent = 'Add a chapter.';

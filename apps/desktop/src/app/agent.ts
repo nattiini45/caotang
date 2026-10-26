@@ -46,7 +46,7 @@
  * The mode (agent-harness §4) is the app's `agent.defaultMode` setting until the writer picks another for this panel; that pick is
  * the session override, held here and never saved. The loop reads it at each card, so a switch in the middle of a turn applies from
  * the next card. A card the mode approves never reaches `decide`: the loop applies it, and `beforeAutoApply` saves the writer's typing
- * first, as an approval here does. Plan-only keeps the writes it refused, and "Switch to Ask and run this plan" sends them as a plan.
+ * first, as an approval here does. If the typing cannot be saved, the card is not applied: it is put to the writer with the reason, as a stale card is. Plan-only keeps the writes it refused, and "Switch to Ask and run this plan" sends them as a plan.
  *
  * ## Interrupted runs
  *
@@ -424,10 +424,35 @@ export class AgentController {
     return this.turnWith(turn.intent, {}, (agent, options) => agent.submitPlan(turn.intent, { steps: held }, options));
   }
 
-  /** Saves the writer's typing before a card the mode approved applies, and lists the images again before a compile, as an approval does. */
-  private async beforeAutoApply(card: PlanCardView): Promise<void> {
-    await this.session.autosave.flush().catch(() => undefined);
-    if (card.steps.some((step) => step.tool.startsWith('export.compile'))) await this.session.exportsReady().catch(() => undefined);
+  /** Saves the writer's typing. False when it could not be written: the flush reports a failed write or a conflict rather than rejecting. */
+  private async typingSaved(): Promise<boolean> {
+    try {
+      const reports = await this.session.autosave.flush();
+      return !reports.some((report) => report.outcome === 'failed' || report.outcome === 'conflict');
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Saves the writer's typing before a card the mode approved applies, and lists the images again before a compile, as an approval does.
+   * When either fails the card is not applied unattended: the reason is said here and returned, and the loop puts the card to the writer.
+   */
+  private async beforeAutoApply(card: PlanCardView): Promise<string | void> {
+    let held: string | undefined;
+    if (!(await this.typingSaved())) {
+      held = 'Your typing could not be saved, so this card was not applied automatically. Approve it once your words are saved.';
+    } else if (card.steps.some((step) => step.tool.startsWith('export.compile'))) {
+      try {
+        await this.session.exportsReady();
+      } catch {
+        held = 'The project’s images could not be listed again, so this export was not applied automatically. Approve it to try again.';
+      }
+    }
+    if (held === undefined) return;
+    this.message = held;
+    this.bump();
+    return held;
   }
 
   /** How many turns this controller has started. A queued message counts once it starts, never while it waits. */
@@ -852,26 +877,38 @@ export class AgentController {
       }
     }
     // The card the decision answers, read before it leaves the screen: an approved compile needs its images listed again first.
-    const card = this.pending?.card ?? null;
+    const parked = this.pending;
+    const card = parked?.card ?? null;
     this.resolveDecision = null;
     this.pending = null;
-    if (decision.action !== 'edit') this.clearGhosts();
+    // An approval keeps the drafts on screen until the typing is saved, so a card that has to wait again still has them.
+    if (decision.action !== 'edit' && decision.action !== 'approve') this.clearGhosts();
     this.message = null;
     this.bump();
     if (decision.action === 'approve') {
       // The turn is still running: the loop applies the approved steps under it, and an adjust call may follow. `busy` stays set
       // until the turn settles (turnWith), so the panel shows Working and no second turn starts meanwhile.
       const compiles = card?.steps.some((step) => step.tool.startsWith('export.compile')) ?? false;
-      void this.session.autosave
-        .flush()
-        .catch(() => undefined)
+      void (async () => {
+        if (!(await this.typingSaved())) {
+          // Nothing is applied on top of typing that did not reach the store: the card waits for the writer again.
+          this.message = 'Your typing could not be saved, so the card was not applied. Approve it again once your words are saved.';
+          if (parked !== null && !this.stopping && !this.detached && this.resolveDecision === null) {
+            this.pending = parked;
+            this.resolveDecision = resolve;
+          } else {
+            resolve({ action: 'cancel' });
+          }
+          this.bump();
+          return;
+        }
+        this.clearGhosts();
         // An approved compile lists the project's images again, as the export dialog's compile does (session.exportsReady): the
         // compile reads the listing it last made, and an image added since would be missing from the shot list.
-        .then(() => (compiles ? this.session.exportsReady().catch(() => undefined) : undefined))
-        .then(() => {
-          resolve(decision);
-          this.bump();
-        });
+        if (compiles) await this.session.exportsReady().catch(() => undefined);
+        resolve(decision);
+        this.bump();
+      })();
       return;
     }
     resolve(decision);
