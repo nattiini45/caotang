@@ -59,7 +59,7 @@ export const PRESETS: readonly PresetDef[] = [
     defaultModel: 'claude-sonnet-5-5',
     quirks: { browserAccess: true },
     cors: 'ok',
-    corsNote: 'Browser calls are supported; the adapter sends anthropic-dangerous-direct-browser-access.',
+    corsNote: 'Browser calls are supported; the adapter sends anthropic-dangerous-direct-browser-access. As of 2026-10 a wrong key makes the model list unreadable to a page (saving says so), while chat reports it as a rejected key.',
     docsUrl: 'https://platform.claude.com/docs',
     models: [
       // Window and output cap: Anthropic's model overview, "Compare models" table (1M and 128K tokens for all four),
@@ -344,8 +344,9 @@ export const PRESETS: readonly PresetDef[] = [
     defaultModel: 'glm-5.3',
     quirks: {},
     // The BYOK base is the general paas/v4 host; Coding Plan bases are excluded.
-    cors: 'ok',
-    corsNote: 'The paas/v4 API answers the browser preflight; the sweep read a 401 for a placeholder key.',
+    // Only GET /models answers a preflight; the chat route (POST) is refused, so the page cannot talk to it (sweep, 2026-10-26).
+    cors: 'blocked',
+    corsNote: 'The chat route refuses the browser preflight (only the model list answers it), so a web page cannot chat with it.',
     docsUrl: 'https://docs.z.ai',
     models: [
       // glm-5.3 family cannot disable thinking; medium is unsupported (send high).
@@ -465,8 +466,9 @@ export const PRESETS: readonly PresetDef[] = [
       // The docs ask clients to send their own user agent.
       extraHeaders: { 'user-agent': 'caotang' },
     },
-    cors: 'ok',
-    corsNote: 'The inference host answers the browser preflight; the sweep read a 401 for a placeholder key. `user-agent` is a forbidden header in the browser — it is sent only where fetch allows it (desktop/hosted).',
+    // The chat and Messages routes answer a preflight with 404 (only GET /models is allowed), so the page cannot call them (sweep, 2026-10-26).
+    cors: 'blocked',
+    corsNote: 'The inference host refuses the browser preflight on its chat routes (only the model list is allowed), so a web page cannot chat with it. `user-agent` is a forbidden header in the browser — it is sent only where fetch allows it (desktop/hosted).',
     docsUrl: 'https://opencode.ai/docs',
     // Vision, tools and thinking parameters are documented on no route: every row is
     // text-only (vision: false) and nothing else is claimed.
