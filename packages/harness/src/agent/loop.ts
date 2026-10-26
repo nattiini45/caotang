@@ -3126,8 +3126,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
             ...(turn.pins.model === undefined ? {} : { model: turn.pins.model }),
           }),
         );
-      } catch {
-        writer.fail(undefined);
+      } catch (error) {
+        writer.fail(error);
         return writer;
       }
     }

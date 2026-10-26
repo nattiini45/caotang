@@ -10,6 +10,7 @@ import { rebuildDerived, setBody, type Manifest } from '@caotang/store';
 import {
   createMemoryRunLog,
   createRunWriter,
+  NOT_LOGGED_NOTICE,
   newRunRecord,
   planResume,
   structureDigest,
@@ -313,7 +314,21 @@ describe('the run writer', () => {
     await writer.append(card);
     expect(writer.broken).toBe(true);
     expect(notices).toHaveLength(1);
+    expect(notices[0]).toContain(NOT_LOGGED_NOTICE);
+    expect(notices[0]).toContain('the store refused the append');
     expect((await port.events('run_F')).length).toBe(1);
     expect((await port.open('p'))[0]).toMatchObject({ cannotResume: true });
+  });
+
+  it('carries the cause of a failure that is not an append, once', () => {
+    const notices: string[] = [];
+    const writer = createRunWriter({ port: createMemoryRunLog(), runId: 'run_G', nextSeq: 0, onNotice: (message) => notices.push(message) });
+    writer.fail('no space');
+    writer.fail(new Error('again'));
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toContain('no space');
+    const bare: string[] = [];
+    createRunWriter({ port: createMemoryRunLog(), runId: 'run_H', nextSeq: 0, onNotice: (message) => bare.push(message) }).fail();
+    expect(bare).toEqual([NOT_LOGGED_NOTICE]);
   });
 });

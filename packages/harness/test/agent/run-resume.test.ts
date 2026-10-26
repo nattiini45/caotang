@@ -408,6 +408,35 @@ describe('a run resumed between cards is held to the read rules in force when it
 });
 
 describe('a log that cannot be written', () => {
+  it('says why when the run cannot be logged from its first write', async () => {
+    const state = makeState();
+    const log = createMemoryRunLog();
+    const notices: string[] = [];
+    const gateway = await mockGateway(scripts());
+    const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now });
+    const session = createAgentSession({
+      harness,
+      gateway,
+      context: createContextPort({ state }),
+      decide: async () => ({ action: 'approve' }),
+      sessionId: 'never-opened',
+      runLog: {
+        port: {
+          ...log,
+          create: async () => {
+            throw new Error('the quota is full');
+          },
+        },
+        projectId: PROJECT,
+        onNotice: (message) => notices.push(message),
+      },
+    });
+    const report = await session.submit(INTENT);
+    expect(report.status).toBe('applied');
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toContain('the quota is full');
+  });
+
   it('does not stop the turn: the writer is told once, and the run is not offered for resume', async () => {
     const state = makeState();
     const log = createMemoryRunLog();

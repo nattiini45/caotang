@@ -143,8 +143,8 @@ export interface RunWriter {
   readonly broken: boolean;
   /** Numbers, stamps and stores one event, with the status change that goes with it. Never rejects. */
   append(event: RunEventDraft, patch?: RunPatch): Promise<void>;
-  /** Marks the log as no longer describing the run, for a failure that is not an append (the flush). */
-  fail(cause: unknown): void;
+  /** Marks the log as no longer describing the run, for a failure that is not an append (the flush, the first write). The notice carries the cause when there is one. */
+  fail(cause?: unknown): void;
 }
 
 export interface RunWriterOptions {
@@ -162,10 +162,11 @@ export function createRunWriter(options: RunWriterOptions): RunWriter {
   let broken = false;
   let queue: Promise<void> = Promise.resolve();
 
-  const fail = (): void => {
+  const fail = (cause?: unknown): void => {
     if (broken) return;
     broken = true;
-    options.onNotice?.(NOT_LOGGED_NOTICE);
+    const reason = cause === undefined ? '' : cause instanceof Error ? cause.message : String(cause);
+    options.onNotice?.(reason === '' ? NOT_LOGGED_NOTICE : `${NOT_LOGGED_NOTICE} (${reason})`);
     // Best effort: a store that refused the append may take this, and the record then says why the run is not offered.
     queue = queue.then(() => options.port.update(options.runId, { cannotResume: true, updatedAt: clock() }).catch(() => undefined));
   };
@@ -182,8 +183,8 @@ export function createRunWriter(options: RunWriterOptions): RunWriter {
         seq += 1;
         try {
           await options.port.append(options.runId, [stamped], { ...patch, updatedAt: stamped.at });
-        } catch {
-          fail();
+        } catch (error) {
+          fail(error);
         }
       });
       queue = run;
