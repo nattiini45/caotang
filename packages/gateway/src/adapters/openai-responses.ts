@@ -35,7 +35,9 @@ function usageOf(raw: unknown): Usage | undefined {
   const record = raw as Record<string, unknown>;
   const prompt = record.input_tokens ?? record.prompt_tokens;
   const completion = record.output_tokens ?? record.completion_tokens;
+  // A figure that cannot be a count (negative, or not finite) is no usage.
   if (typeof prompt !== 'number' || typeof completion !== 'number') return undefined;
+  if (!(Number.isFinite(prompt) && prompt >= 0 && Number.isFinite(completion) && completion >= 0)) return undefined;
   return { promptTokens: prompt, completionTokens: completion };
 }
 

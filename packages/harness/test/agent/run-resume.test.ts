@@ -5,18 +5,20 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { ChatRequest } from '@caotang/gateway';
+import type { ChatChunk, ChatRequest, Clock } from '@caotang/gateway';
 import { createKeyStore, createManualClock, createMemoryVaultPort, createGateway, createProfileStore } from '@caotang/gateway';
-import { createMockProvider } from '@caotang/gateway/mock';
+import { createMockProvider, isPlannerCall, userTextOf, type MockScript } from '@caotang/gateway/mock';
 import { addDocument, getBody, type ProjectState } from '@caotang/store';
 
 import {
   createAgentPorts,
   createAgentSession,
+  createBudgetMeter,
   createContextPort,
   createHarness,
   createMemoryRunLog,
   newRunRecord,
+  parseRunEvents,
   planResume,
   type AgentSession,
   type Decision,
@@ -404,6 +406,47 @@ describe('a run resumed between cards is held to the read rules in force when it
     const runId = await droppedBetweenCards(state, log, HIDE_SECRET);
     const { report } = await resumeUnder(state, log, runId, { rules: [] });
     expect(report.status).toBe('replied');
+  });
+});
+
+describe('a log of a run whose clock and provider gave figures that are not counts', () => {
+  it('still reads back: the clock stepped back and the provider reported a negative count', async () => {
+    const state = makeState();
+    const log = createMemoryRunLog();
+    // A clock that is set back by more than the run has been going, as a corrected system time does.
+    let now = 1_000_000;
+    const stepped: Clock = { now: () => now, setTimeout: () => 0, clearTimeout: () => undefined };
+    const meter = createBudgetMeter({}, { clock: stepped });
+    now -= 5_000;
+    const reporting: MockScript = {
+      match: (req) => isPlannerCall(req) && userTextOf(req).includes(`Request: ${INTENT}`),
+      respond: (req): AsyncIterable<ChatChunk> =>
+        (async function* (): AsyncGenerator<ChatChunk> {
+          const first = req.messages.filter((message) => message.role === 'assistant').length === 0;
+          yield { delta: first ? steps({ tool: 'meta.set', params: { targets: [FRIEND], label: 'act-2' }, expect: 'The Friend is labelled' }) : answer('Done.') };
+          yield { finishReason: 'stop', usage: { promptTokens: -5, completionTokens: Number.POSITIVE_INFINITY } };
+        })(),
+    };
+    const dropping = dropsAtIntent(log, 0);
+    const gateway = await mockGateway([reporting]);
+    const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now });
+    const session = createAgentSession({
+      harness,
+      gateway,
+      context: createContextPort({ state }),
+      decide: async () => ({ action: 'approve' }),
+      sessionId: 'odd-figures',
+      meter,
+      runLog: { port: dropping.port, projectId: PROJECT },
+    });
+    // The tab goes as the first step is about to begin, so the log holds the card and the spend.
+    void session.submit(INTENT);
+    await dropping.dropped;
+    const [run] = await log.open(PROJECT);
+    const rows = await log.events(run?.runId ?? '');
+    expect(rows.some((event) => (event as RunEvent).t === 'spend')).toBe(true);
+    expect(parseRunEvents(rows)).toMatchObject({ ok: true });
+    expect(run?.cannotResume).toBeUndefined();
   });
 });
 

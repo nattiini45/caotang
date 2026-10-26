@@ -1276,9 +1276,23 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
   /** What the turn has spent, from its meter when it has one and from the gateway's ledger otherwise. */
   const spendOf = (turn: Turn): BudgetSpend => {
-    if (turn.meter !== undefined) return turn.meter.spend();
+    if (turn.meter !== undefined) return loggable(turn.meter.spend());
     const totals = gateway.ledger.turnTotals(turn.id);
-    return { modelCalls: turn.modelCalls, promptTokens: totals.promptTokens, completionTokens: totals.completionTokens, estimatedTokens: 0, steps: writesOf(turn).length, activeMs: 0 };
+    return loggable({ modelCalls: turn.modelCalls, promptTokens: totals.promptTokens, completionTokens: totals.completionTokens, estimatedTokens: 0, steps: writesOf(turn).length, activeMs: 0 });
+  };
+
+  /** The spend as the log keeps it: every figure finite and not below zero, whatever a clock or a provider reported, so the log reads back. */
+  const loggable = (spend: BudgetSpend): BudgetSpend => {
+    const amount = (value: number): number => (Number.isFinite(value) && value >= 0 ? value : 0);
+    return {
+      modelCalls: amount(spend.modelCalls),
+      promptTokens: amount(spend.promptTokens),
+      completionTokens: amount(spend.completionTokens),
+      estimatedTokens: amount(spend.estimatedTokens),
+      ...(spend.costUsd === undefined ? {} : { costUsd: amount(spend.costUsd) }),
+      steps: amount(spend.steps),
+      activeMs: amount(spend.activeMs),
+    };
   };
 
   /**
