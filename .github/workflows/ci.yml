@@ -133,7 +133,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Chromium for Playwright
-        run: pnpm exec playwright install --with-deps chromium
+        # --with-deps installs Chromium's system packages through apt: write the retry setting first (tools/ci/apt-install.sh).
+        run: |
+          bash tools/ci/apt-install.sh
+          pnpm exec playwright install --with-deps chromium
 
       - name: End-to-end (dev suite, and the production-preview smoke test)
         run: pnpm test:e2e
@@ -170,11 +173,9 @@ jobs:
         run: corepack enable
 
       - name: Install LibreOffice and openpyxl (CI only; neither ships)
-        # man-db rebuilds its index after every package by default, which alone can outlast the job; it is not needed here.
+        # tools/ci/apt-install.sh retries a slow mirror within a time limit instead of letting it run out the job's time.
         run: |
-          sudo rm -f /var/lib/man-db/auto-update
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libreoffice-calc
+          bash tools/ci/apt-install.sh libreoffice-calc
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install openpyxl==3.1.5
 
@@ -211,9 +212,8 @@ jobs:
         run: corepack enable
 
       - name: Install the PDF tools (CI only; none of them ships)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends qpdf poppler-utils ghostscript mupdf-tools
+        # tools/ci/apt-install.sh retries a slow mirror within a time limit instead of letting it run out the job's time.
+        run: APT_DOWNLOAD_SECONDS=180 bash tools/ci/apt-install.sh qpdf poppler-utils ghostscript mupdf-tools
 
       - name: Install
         run: pnpm install --frozen-lockfile

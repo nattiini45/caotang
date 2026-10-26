@@ -176,7 +176,7 @@ describe('the pdf-validate job in ci.yml', () => {
       mutool: 'mupdf-tools',
     };
     expect([...EXTERNAL_TOOLS].sort()).toEqual(Object.keys(packages).sort());
-    const install = job.split('\n').find((line) => line.includes('apt-get install')) ?? '';
+    const install = job.split('\n').find((line) => line.includes('bash tools/ci/apt-install.sh')) ?? '';
     for (const tool of EXTERNAL_TOOLS) expect(install, tool).toContain(packages[tool]);
   });
 
