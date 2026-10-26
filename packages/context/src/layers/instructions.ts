@@ -41,6 +41,22 @@ function linesOf(text: string): string[] {
   return lines;
 }
 
+/**
+ * The index lines that do not point at a note the load kept as declined or could not read. The index is rebuilt only when a note is written
+ * or forgotten, so a note whose front matter was broken by hand still has its line there; the agent does not see that note, so it does not see
+ * its title or first line either. A line is kept when its first link names no such note, so the writer's own lines stay.
+ */
+function withoutUnseenNotes(lines: readonly string[], app: AppSnapshot): string[] {
+  const { declined, unreadable } = app.state.agentFiles;
+  if (declined.size === 0 && unreadable.length === 0) return [...lines];
+  return lines.filter((line) => {
+    const target = /\]\(([^)\s]+)\)/.exec(line)?.[1];
+    if (target === undefined) return true;
+    const path = `memory/${target}`;
+    return !declined.has(path) && !unreadable.includes(path);
+  });
+}
+
 /** The two texts the layer sends, from the snapshot's own fields or else from the project's agent files. */
 function sourcesOf(app: AppSnapshot): Source[] {
   const instructions = app.instructions ?? app.state.agentFiles.instructions;
@@ -51,7 +67,7 @@ function sourcesOf(app: AppSnapshot): Source[] {
     const file = 'source' in instructions ? instructions.source : instructions.path;
     out.push({ file, heading: `## ${file}`, lines: instructionLines });
   }
-  const indexLines = index === undefined ? [] : linesOf(index);
+  const indexLines = index === undefined ? [] : withoutUnseenNotes(linesOf(index), app);
   if (indexLines.length > 0) out.push({ file: 'memory/MEMORY.md', heading: '## Memory index', intro: INDEX_INTRO, lines: indexLines });
   return out;
 }

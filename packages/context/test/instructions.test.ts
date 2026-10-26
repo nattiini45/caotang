@@ -4,6 +4,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { parseAgentFiles, serializeMemoryFile } from '@caotang/store';
+
 import {
   LAYER_IDS,
   assemble,
@@ -87,6 +89,44 @@ describe('LI renders between L0 and L1', () => {
     const fileOnly = userOf(assemble(META, withInstructions(buildApp(), { index: '' })));
     expect(fileOnly).toContain('## CAOTANG.md');
     expect(fileOnly).not.toContain('## Memory index');
+  });
+
+  it('leaves out the index line of a note the load declined or could not read, and keeps the lines of the notes it read', () => {
+    const index = [
+      '- [Dialogue tags](style-dialogue.md) (style): Use "said" for tags.',
+      '- [Secret plan](secret-plan.md) (reference): The killer is the butler',
+      '- [Odd bytes](odd-bytes.md) (reference): The killer is the cook',
+    ].join('\n');
+    const parsed = parseAgentFiles(
+      {
+        'memory/MEMORY.md': index,
+        'memory/style-dialogue.md': serializeMemoryFile({
+          slug: 'style-dialogue',
+          type: 'style',
+          title: 'Dialogue tags',
+          body: 'Use "said" for tags.',
+          modified: '2026-10-01T10:00:00.000Z',
+          origin: 'writer',
+        }),
+        'memory/secret-plan.md': 'The killer is the butler',
+      },
+      ['memory/odd-bytes.md'],
+    );
+    expect(parsed.files.declined.has('memory/secret-plan.md')).toBe(true);
+    const app = buildApp();
+    app.state.agentFiles = parsed.files;
+    const user = userOf(assemble(META, app));
+    expect(user).toContain('Dialogue tags');
+    for (const hidden of ['Secret plan', 'The killer is the butler', 'Odd bytes', 'The killer is the cook']) expect(user).not.toContain(hidden);
+
+    // With only declined lines left, the layer has no index to send, and no heading for it.
+    const only = buildApp();
+    only.state.agentFiles = { ...parsed.files, index: '- [Secret plan](secret-plan.md) (reference): The killer is the butler\n' };
+    expect(userOf(assemble(META, only))).not.toContain('## Memory index');
+    expect(layer(assemble(META, only), 'LI').included).toBe(false);
+    // The snapshot's own index is held to the same rule.
+    const override = { ...app, memoryIndex: index };
+    expect(userOf(assemble(META, override))).not.toContain('Secret plan');
   });
 
   it('names AGENTS.md when that is the file read', () => {
