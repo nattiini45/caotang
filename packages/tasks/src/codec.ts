@@ -1,8 +1,9 @@
 /**
  * `tasks.json` text ⇄ {@link TasksFile} (agent-harness.md §12), with the project-format §2/§6 tolerance rules per item.
  *
- * - **Whole file.** Text that is not JSON, or has no usable `formatVersion`, is `corrupt` and the caller runs the recovery
- *   posture (file.ts). A file from a newer format is `newer` and is never overwritten.
+ * - **Whole file.** Text that is not JSON, or has a `formatVersion` that is not a whole number from 1, is `corrupt` and the caller
+ *   runs the recovery posture (file.ts). A file from a newer format is `newer`, and valid JSON that is not an object or has no
+ *   `formatVersion` at all is `foreign`, most likely another program's file: neither is ever overwritten.
  * - **Per task.** A task that fails its field contract is dropped and named in a notice. One bad task never blocks the load.
  *   A plan with a step that does not parse is kept as written and marked with a `problem`, so the writer sees it and a save
  *   does not lose it.
@@ -38,7 +39,8 @@ export type LoadNoticeCode =
   | 'too-many-tasks'
   | 'corrupt-file'
   | 'restored-from-snapshot'
-  | 'newer-format';
+  | 'newer-format'
+  | 'foreign-file';
 
 /** One line for the load report. Plain language: it is shown to the writer. */
 export interface LoadNotice {
@@ -49,7 +51,8 @@ export interface LoadNotice {
 export type ParseOutcome =
   | { readonly kind: 'ok'; readonly file: TasksFile; readonly notices: LoadNotice[] }
   | { readonly kind: 'corrupt'; readonly reason: string }
-  | { readonly kind: 'newer'; readonly formatVersion: number };
+  | { readonly kind: 'newer'; readonly formatVersion: number }
+  | { readonly kind: 'foreign' };
 
 type Obj = Record<string, unknown>;
 
@@ -183,9 +186,10 @@ export function parseTasksFile(text: string): ParseOutcome {
   } catch (error) {
     return { kind: 'corrupt', reason: error instanceof Error ? error.message : 'not JSON' };
   }
-  if (!isRecord(raw)) return { kind: 'corrupt', reason: 'the file is not a JSON object' };
+  // Well-formed JSON that does not claim to be a Caotang tasks file is someone else's, and is left as it is.
+  if (!isRecord(raw) || !('formatVersion' in raw)) return { kind: 'foreign' };
   const version = raw['formatVersion'];
-  if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) return { kind: 'corrupt', reason: 'it has no formatVersion' };
+  if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) return { kind: 'corrupt', reason: 'its formatVersion is not a whole number from 1' };
   if (version > TASKS_FORMAT_VERSION) return { kind: 'newer', formatVersion: version };
   if (raw['tasks'] !== undefined && !Array.isArray(raw['tasks'])) return { kind: 'corrupt', reason: 'tasks is not a list' };
 

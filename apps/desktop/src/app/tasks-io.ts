@@ -119,7 +119,7 @@ export class TasksHome {
    */
   save(next: TasksFile): Promise<string | null> {
     if (!this.writable || !this.mirror.readable) {
-      return Promise.resolve('tasks.json cannot be saved here: it was written by a newer Caotang, or could not be read when the project opened.');
+      return Promise.resolve('tasks.json cannot be saved here: it was written by a newer Caotang, is not a Caotang tasks file, or could not be read when the project opened.');
     }
     this.file = next;
     return this.enqueue(async () => {

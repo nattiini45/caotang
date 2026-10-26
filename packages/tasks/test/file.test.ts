@@ -70,6 +70,56 @@ describe('tasks.json on disk', () => {
   });
 });
 
+describe('a tasks.json that is not ours', () => {
+  const foreign = '{"tasks":[{"title":"buy milk"}]}';
+
+  it('is shown as read-only and left byte for byte as it was, with no corrupt copy kept', async () => {
+    const fs = new MemoryArtifactFs();
+    await fs.writeAtomic(TASKS_FILE, foreign);
+    const load = await loadTasks(fs, { now: NOW });
+    expect(load).toMatchObject({ status: 'read-only', writable: false });
+    expect(load.file.tasks).toEqual([]);
+    expect(load.notices.map((notice) => notice.code)).toEqual(['foreign-file']);
+    expect(load.notices[0]?.message).toContain('not a Caotang tasks file');
+    expect(await fs.read(TASKS_FILE)).toBe(foreign);
+    expect((await fs.listFiles('')).filter((name) => name.startsWith(TASKS_FILE))).toEqual([TASKS_FILE]);
+  });
+
+  it('is not saved over, and a save leaves it as it was', async () => {
+    const fs = new MemoryArtifactFs();
+    await fs.writeAtomic(TASKS_FILE, foreign);
+    const load = await loadTasks(fs);
+    await expect(saveTasks(fs, load, fileOf(task(1)))).rejects.toMatchObject({ code: 'read-only' });
+    expect(await fs.read(TASKS_FILE)).toBe(foreign);
+  });
+
+  it('is not saved over when it appeared after the load either', async () => {
+    const fs = new MemoryArtifactFs();
+    const load = await loadTasks(fs);
+    await fs.writeAtomic(TASKS_FILE, foreign);
+    await expect(saveTasks(fs, load, fileOf(task(1)))).rejects.toMatchObject({ code: 'read-only' });
+    expect(await fs.read(TASKS_FILE)).toBe(foreign);
+  });
+
+  it('is told apart from a file that claims to be ours and cannot be read, which is kept and recovered', async () => {
+    for (const text of ['{ half a file', '{"formatVersion":"1"}']) {
+      const fs = new MemoryArtifactFs();
+      await fs.writeAtomic(TASKS_FILE, text);
+      const recovered = await loadTasks(fs, { now: NOW });
+      expect(recovered.status, text).toBe('recovered');
+      expect(await fs.read(recovered.preservedAs ?? ''), text).toBe(text);
+    }
+  });
+
+  it('is skipped as a snapshot, so recovery never restores from it', async () => {
+    const fs = new MemoryArtifactFs();
+    await fs.writeAtomic(tasksSnapshotFile(1), foreign);
+    await fs.writeAtomic(TASKS_FILE, 'not json');
+    const recovered = await loadTasks(fs, { now: NOW });
+    expect(recovered.notices.map((notice) => notice.code)).toEqual(['corrupt-file']);
+  });
+});
+
 describe('run history', () => {
   const record = (n: number, patch: Partial<TaskRunRecord> = {}): TaskRunRecord => ({
     taskId: task(1).id,

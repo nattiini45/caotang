@@ -51,8 +51,14 @@ describe('tasks.json codec', () => {
 
   it('reports text that is not JSON, a file with no format version, and a file from a newer format', () => {
     expect(parseTasksFile('{nope').kind).toBe('corrupt');
-    expect(parseTasksFile('[]').kind).toBe('corrupt');
-    expect(parseTasksFile('{"tasks":[]}').kind).toBe('corrupt');
+    expect(parseTasksFile('{"formatVersion":"1"}').kind).toBe('corrupt');
+    expect(parseTasksFile('{"formatVersion":0,"tasks":[]}').kind).toBe('corrupt');
+    expect(parseTasksFile('{"formatVersion":1.5,"tasks":[]}').kind).toBe('corrupt');
+    // Well-formed JSON that does not claim to be ours is someone else's file.
+    expect(parseTasksFile('[]')).toEqual({ kind: 'foreign' });
+    expect(parseTasksFile('3')).toEqual({ kind: 'foreign' });
+    expect(parseTasksFile('{"tasks":[]}')).toEqual({ kind: 'foreign' });
+    expect(parseTasksFile('{"tasks":[{"title":"buy milk"}]}')).toEqual({ kind: 'foreign' });
     expect(parseTasksFile('{"formatVersion":1,"tasks":{}}').kind).toBe('corrupt');
     expect(parseTasksFile('{"formatVersion":2,"tasks":[]}')).toEqual({ kind: 'newer', formatVersion: 2 });
   });

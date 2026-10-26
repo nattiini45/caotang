@@ -39,14 +39,14 @@ export type LoadStatus =
   | 'loaded'
   /** Unreadable; the original is kept and the file was restored from a snapshot, or started empty. */
   | 'recovered'
-  /** Written by a newer Caotang. Shown, never overwritten. */
+  /** Written by a newer Caotang, or not a Caotang tasks file at all. Shown, never overwritten. */
   | 'read-only';
 
 export interface LoadResult {
   readonly status: LoadStatus;
   readonly file: TasksFile;
   readonly notices: LoadNotice[];
-  /** False only for `read-only`: a save would destroy a newer format. */
+  /** False only for `read-only`: a save would destroy a newer format, or a file that is not ours. */
   readonly writable: boolean;
   /** Set on `recovered`: the name the unreadable file was kept under. */
   readonly preservedAs?: string;
@@ -75,6 +75,20 @@ export async function loadTasks(fs: ArtifactFs, options: { readonly now?: Date }
   const text = await fs.read(TASKS_FILE);
   const outcome = parseTasksFile(text);
   if (outcome.kind === 'ok') return { status: 'loaded', file: outcome.file, notices: outcome.notices, writable: true };
+  if (outcome.kind === 'foreign') {
+    return {
+      status: 'read-only',
+      file: emptyTasksFile(),
+      notices: [
+        {
+          code: 'foreign-file',
+          message:
+            'tasks.json in this folder is not a Caotang tasks file (it has no formatVersion). It is left as it is, and tasks are not saved to it until it is renamed or removed.',
+        },
+      ],
+      writable: false,
+    };
+  }
   if (outcome.kind === 'newer') {
     return {
       status: 'read-only',
@@ -141,6 +155,9 @@ async function rotateTasks(fs: ArtifactFs, next: string, now: Date): Promise<voi
   if (outcome.kind === 'newer') {
     throw new TasksError('read-only', 'tasks.json was written by a newer Caotang while this one was open, and it cannot be saved over.');
   }
+  if (outcome.kind === 'foreign') {
+    throw new TasksError('read-only', 'tasks.json is not a Caotang tasks file (it has no formatVersion), and it cannot be saved over.');
+  }
   if (outcome.kind === 'corrupt') {
     await fs.writeAtomic(corruptTasksFile(now), current);
     return;
@@ -157,7 +174,7 @@ async function rotateTasks(fs: ArtifactFs, next: string, now: Date): Promise<voi
 
 /** Writes the file atomically after rotating the previous generation. Refuses a read-only load, so a newer file is never overwritten. */
 export async function saveTasks(fs: ArtifactFs, load: LoadResult, file: TasksFile, options: { readonly now?: Date } = {}): Promise<void> {
-  if (!load.writable) throw new TasksError('read-only', 'tasks.json was written by a newer Caotang and cannot be saved by this one.');
+  if (!load.writable) throw new TasksError('read-only', 'tasks.json was written by a newer Caotang, or is not a Caotang tasks file, and cannot be saved by this one.');
   const text = serializeTasksFile(file);
   await rotateTasks(fs, text, options.now ?? new Date());
   await fs.writeAtomic(TASKS_FILE, text);
