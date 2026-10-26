@@ -159,8 +159,13 @@ async function runRead(runtime: ToolRuntime, uri: string, name: string, params: 
  */
 export function registerCaotangResources(server: McpServer, runtime: ToolRuntime): readonly string[] {
   const { session } = runtime;
-  // What a read rule withholds from the agent is not listed or served here either (agent-harness §4, Rules).
-  const stateNow = (): ProjectState => session.readable('resource');
+  // What a read rule withholds from the agent is not listed or served here either (agent-harness §4, Rules). A resource is the read
+  // tool it mirrors, so a rule aimed at that tool alone holds here too; a listing names documents, as the binder does.
+  const stateOf = (...mirrors: readonly string[]) => (): ProjectState => session.readable('resource', mirrors);
+  const docsNow = stateOf('doc.read', 'binder.read_tree');
+  const docNow = stateOf('doc.read');
+  const notesNow = stateOf('notes.read');
+  const codexNow = stateOf('codex.read');
 
   server.registerResource(
     'project',
@@ -203,7 +208,7 @@ export function registerCaotangResources(server: McpServer, runtime: ToolRuntime
       cacheHint: NO_SHARED_CACHE,
     },
     (uri) => {
-      const entries = codexInOrder(stateNow()).map((entry) => ({ id: entry.id, name: entry.name, type: entry.type, aliases: aliasesOf(entry), includePolicy: entry.includePolicy }));
+      const entries = codexInOrder(codexNow()).map((entry) => ({ id: entry.id, name: entry.name, type: entry.type, aliases: aliasesOf(entry), includePolicy: entry.includePolicy }));
       return contentsOf(uri.href, 'The codex index', JSON.stringify({ entries }, null, 2), JSON_TYPE);
     },
   );
@@ -212,17 +217,17 @@ export function registerCaotangResources(server: McpServer, runtime: ToolRuntime
     'doc',
     new ResourceTemplate(DOC_TEMPLATE, {
       list: () => ({
-        resources: bodiesInOrder(stateNow()).map((node) => ({
+        resources: bodiesInOrder(docsNow()).map((node) => ({
           uri: docUri(node.id),
           name: node.title,
           title: node.title,
           mimeType: mimeTypeOf(node),
-          size: Buffer.byteLength(getBody(stateNow(), node.id), 'utf8'),
+          size: Buffer.byteLength(getBody(docsNow(), node.id), 'utf8'),
         })),
       }),
       complete: {
         id: (typed) =>
-          bodiesInOrder(stateNow())
+          bodiesInOrder(docsNow())
             .filter((node) => matches(typed, node.title, node.id))
             .map((node) => node.id)
             .slice(0, COMPLETION_LIMIT),
@@ -234,7 +239,7 @@ export function registerCaotangResources(server: McpServer, runtime: ToolRuntime
       cacheHint: NO_SHARED_CACHE,
     },
     (uri, variables) => {
-      const read = readBody(stateNow(), idOf(variables));
+      const read = readBody(docNow(), idOf(variables));
       if (!read.ok) throw notFound(uri.href, read.error);
       return contentsOf(uri.href, read.value.title, read.value.text, mimeTypeOf(read.value));
     },
@@ -246,7 +251,7 @@ export function registerCaotangResources(server: McpServer, runtime: ToolRuntime
       list: undefined,
       complete: {
         id: (typed) =>
-          stateNow()
+          notesNow()
             .manifest.tree.filter((node) => node.type !== 'root' && matches(typed, node.title, node.id))
             .map((node) => node.id)
             .slice(0, COMPLETION_LIMIT),
@@ -259,7 +264,7 @@ export function registerCaotangResources(server: McpServer, runtime: ToolRuntime
       cacheHint: NO_SHARED_CACHE,
     },
     (uri, variables) => {
-      const read = readNotes(stateNow(), idOf(variables));
+      const read = readNotes(notesNow(), idOf(variables));
       if (!read.ok) throw notFound(uri.href, read.error);
       return contentsOf(uri.href, read.value.title, notesMarkdown(read.value), MARKDOWN);
     },
@@ -269,7 +274,7 @@ export function registerCaotangResources(server: McpServer, runtime: ToolRuntime
     'codex-entry',
     new ResourceTemplate(CODEX_ENTRY_TEMPLATE, {
       list: () => ({
-        resources: codexInOrder(stateNow()).map((entry) => ({
+        resources: codexInOrder(codexNow()).map((entry) => ({
           uri: codexEntryUri(entry.id),
           name: entry.name,
           title: entry.name,
@@ -278,7 +283,7 @@ export function registerCaotangResources(server: McpServer, runtime: ToolRuntime
       }),
       complete: {
         id: (typed) =>
-          codexInOrder(stateNow())
+          codexInOrder(codexNow())
             .filter((entry) => matches(typed, entry.name, entry.id) || aliasesOf(entry).some((alias) => matches(typed, alias)))
             .map((entry) => entry.id)
             .slice(0, COMPLETION_LIMIT),
@@ -291,7 +296,7 @@ export function registerCaotangResources(server: McpServer, runtime: ToolRuntime
       cacheHint: NO_SHARED_CACHE,
     },
     (uri, variables) => {
-      const read = readCodexEntry(stateNow(), idOf(variables));
+      const read = readCodexEntry(codexNow(), idOf(variables));
       if (!read.ok) throw notFound(uri.href, read.error);
       return contentsOf(uri.href, read.value.name, codexMarkdown(read.value), MARKDOWN);
     },

@@ -126,6 +126,23 @@ describe('the project’s rules at the server', () => {
     }
   });
 
+  it('holds a read-deny aimed at one read tool to the resource that mirrors it', async () => {
+    const root = await project([{ effect: 'deny', tool: 'doc.*', scope: { subtree: ACT_TWO }, access: 'read' }, { effect: 'deny', tool: 'notes.read', scope: { subtree: ACT_TWO }, access: 'read' }]);
+    const server = await startOver(root, false);
+    const client = await connectClient(server.url, server.token);
+    try {
+      expect(JSON.stringify((await client.listResources()).resources)).not.toContain('Secret');
+      await expect(client.readResource({ uri: `caotang://doc/${SECRET}` })).rejects.toBeDefined();
+      await expect(client.readResource({ uri: `caotang://notes/${SECRET}` })).rejects.toBeDefined();
+      const open = await client.readResource({ uri: `caotang://doc/${OPEN}` });
+      expect(JSON.stringify(open)).toContain('Fog.');
+    } finally {
+      await client.close();
+      await server.close();
+      removeDir(root);
+    }
+  });
+
   it('fails closed when a rule in the file could not be read: every write is refused, a read is not', async () => {
     const root = await project([LOCK, { effect: 'deny' }]);
     const notes: string[] = [];

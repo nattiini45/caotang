@@ -108,9 +108,10 @@ export interface ProjectSession {
   readonly harness: Harness;
   /**
    * The project as a host may read it outside a tool call: a resource or a prompt (agent-harness §4, Rules). The nodes a read rule
-   * withholds from the agent are not in it, so a resource does not list or serve them and a prompt does not assemble them.
+   * withholds from the agent are not in it, so a resource does not list or serve them and a prompt does not assemble them. `mirrors`
+   * names the read tools the resource stands for: a read-deny aimed at `doc.read` alone keeps its nodes from `caotang://doc` too.
    */
-  readable(use: 'resource' | 'prompt'): ProjectState;
+  readable(use: 'resource' | 'prompt', mirrors?: readonly string[]): ProjectState;
   readonly exporter: ExporterService;
   readonly allowWrites: boolean;
   /** Whether this open made the project, rather than finding one. */
@@ -279,7 +280,11 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
       fs,
       state,
       harness,
-      readable: (use) => withheldState(state, harness.withheld(use === 'resource' ? 'mcp.resource' : 'mcp.prompt')),
+      readable: (use, mirrors = []) => {
+        const hidden = new Set<string>();
+        for (const tool of [use === 'resource' ? 'mcp.resource' : 'mcp.prompt', ...mirrors]) for (const id of harness.withheld(tool)) hidden.add(id);
+        return withheldState(state, hidden);
+      },
       exporter,
       allowWrites: options.allowWrites,
       created: folder.created,
