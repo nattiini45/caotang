@@ -523,6 +523,37 @@ test('an approved compile waits for the writer again when the project’s images
   await session.close();
 });
 
+test('an approved compile whose image listing fails after Stop is cancelled, not parked again, and nothing is exported', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const session = await sessionOver(state, store);
+  const compile = planOf({ tool: 'export.compile', params: { selection: { root: 'manuscript' }, format: 'md' }, expect: 'the manuscript is compiled' });
+  const controller = new AgentController(
+    session,
+    await scriptedProviders([{ match: (req) => isPlannerCall(req) && userTextOf(req).includes('Request: Compile the manuscript.'), respond: () => ({ content: compile }) }]),
+  );
+  let listing = false;
+  let fail: (error: Error) => void = () => undefined;
+  session.exportsReady = () =>
+    new Promise<void>((_, reject) => {
+      listing = true;
+      fail = reject;
+    });
+
+  const running = controller.submit('Compile the manuscript.');
+  await until(() => controller.snapshot().approvable, 'the compile card');
+  controller.answer({ action: 'approve' });
+  await until(() => listing, 'the image listing');
+  controller.stop();
+  fail(new Error('the listing failed'));
+  await running;
+
+  expect(controller.snapshot().pending).toBeNull();
+  expect(controller.snapshot().busy).toBe(false);
+  expect(session.harness.log.entries().some((entry) => entry.command.startsWith('export.'))).toBe(false);
+  await session.close();
+});
+
 test('a compile the mode approves is held for the writer when the project’s images could not be listed again, and nothing is exported', async () => {
   const state = sampleProjectState();
   const store = await openRuntimeStore(new MemoryIndexedDb());
