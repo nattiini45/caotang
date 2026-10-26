@@ -161,6 +161,8 @@ export type { IdempotencyCache } from './idempotency.js';
 export { createIdempotencyCache } from './idempotency.js';
 export type { SettledUndoScope, UndoDispatch, UndoEntry, UndoGroup, UndoGroupKind, UndoOutcome, UndoStore, UndoStoreOptions, UndoTarget } from './undo.js';
 export { applyContext, createUndoScope, createUndoStore, entryOfCall } from './undo.js';
+export { FOOTPRINT_CLASS, restorePlan } from './restore-plan.js';
+export type { RestorePlan, RestoreTarget } from './restore-plan.js';
 export {
   createViewState,
   isViewState,
