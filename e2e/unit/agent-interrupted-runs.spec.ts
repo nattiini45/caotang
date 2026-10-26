@@ -159,6 +159,37 @@ test('a run whose log cannot be summarized is skipped, and the runs after it are
   await session.close();
 });
 
+test('when the run log cannot be opened the writer is told once, and a message already showing is left alone', async () => {
+  const { controller, session } = await open();
+  const log = (controller as unknown as { runLog: { open: (projectId: string) => Promise<readonly unknown[]> } }).runLog;
+  log.open = async () => {
+    throw new Error('the store is not available');
+  };
+
+  await controller.loadInterrupted();
+  expect(controller.snapshot().message).toBe('Interrupted agent runs could not be checked: the store is not available');
+  expect(controller.snapshot().interrupted).toEqual([]);
+
+  // A later check, after the writer has moved on, does not say it again.
+  (controller as unknown as { message: string | null }).message = null;
+  controller.refresh();
+  await controller.loadInterrupted();
+  expect(controller.snapshot().message).toBeNull();
+  await session.close();
+
+  // And a message already showing, such as a turn's result, is not replaced.
+  const second = await open();
+  const other = (second.controller as unknown as { runLog: { open: (projectId: string) => Promise<readonly unknown[]> }; message: string | null });
+  other.runLog.open = async () => {
+    throw new Error('the store is not available');
+  };
+  other.message = 'The turn stopped unexpectedly: boom';
+  second.controller.refresh();
+  await second.controller.loadInterrupted();
+  expect(second.controller.snapshot().message).toBe('The turn stopped unexpectedly: boom');
+  await second.session.close();
+});
+
 test('a log of another version or with a damaged event is offered for discarding only, with a note and no counts', async () => {
   const { state, port, projectId, controller, session, landing, revision } = await open();
   const events = appliedFirstStep('Label the scenes.', structureDigest(state.manifest), { [landing]: revision });

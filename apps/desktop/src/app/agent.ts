@@ -278,6 +278,8 @@ export class AgentController {
   private snapshotValue: AgentSnapshot;
   /** Whether the panel that shows this controller has gone. A detached controller refuses to park a decision. */
   private detached = false;
+  /** Whether the writer was told that the interrupted runs could not be checked; the check runs after every turn, so once is enough. */
+  private runLogUnreadableTold = false;
   /** The offer the loop is waiting on, with the way to answer it. */
   private offer: { view: OfferView; resolve: (answer: OfferAnswer) => void } | null = null;
   private readonly tasks: TaskQueue;
@@ -605,7 +607,13 @@ export class AgentController {
     let rows: Awaited<ReturnType<RunLogPort['open']>>;
     try {
       rows = await this.runLog.open(this.session.projectId);
-    } catch {
+    } catch (error) {
+      // Said once, and never over a message the writer has not read yet, such as a turn's own result.
+      if (!this.runLogUnreadableTold && this.message === null && !this.detached) {
+        this.runLogUnreadableTold = true;
+        this.message = `Interrupted agent runs could not be checked: ${error instanceof Error ? error.message : String(error)}`;
+        this.bump();
+      }
       return;
     }
     const views: InterruptedRunView[] = [];
