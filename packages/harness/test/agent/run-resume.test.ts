@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import type { ChatRequest } from '@caotang/gateway';
 import { createKeyStore, createManualClock, createMemoryVaultPort, createGateway, createProfileStore } from '@caotang/gateway';
 import { createMockProvider } from '@caotang/gateway/mock';
-import { getBody, type ProjectState } from '@caotang/store';
+import { addDocument, getBody, type ProjectState } from '@caotang/store';
 
 import {
   createAgentPorts,
@@ -23,6 +23,7 @@ import {
   type MemoryRunLog,
   type PendingCard,
   type RunEvent,
+  type RuleSet,
   type RunLogPort,
 } from '../../src/index.js';
 import { FRIEND, LANDING, STORM, clock, makeState } from '../fixtures.js';
@@ -295,6 +296,87 @@ describe('resuming refuses what it cannot make safe', () => {
     expect(last?.role).toBe('user');
     expect(last?.content).toContain('nothing in it ran');
     expect(seen.at(-1)?.messages.filter((message) => message.role === 'assistant')).toHaveLength(1);
+  });
+});
+
+describe('a run resumed between cards is held to the read rules in force when it resumes', () => {
+  // A document the plan does not touch, so the run still reaches its card with the rule in force.
+  const SECRET = 'n_SECRETDOC1';
+  const HIDE_SECRET: RuleSet = { rules: [{ effect: 'deny', tool: '*', scope: { subtree: SECRET }, access: 'read', source: 'project' }] };
+  const stateWithSecret = (): ProjectState => {
+    const state = makeState();
+    addDocument(state, { parentId: 'manuscript', title: 'Secret Draft', now: new Date('2026-10-08T09:00:00.000Z'), id: SECRET, synopsis: 'Who really owns the lamp.' });
+    return state;
+  };
+
+  /** A run dropped as its first card is about to be written, under `rules`: the logged conversation is the planner's prompt and its plan. */
+  async function droppedBetweenCards(state: ProjectState, log: MemoryRunLog, rules: RuleSet) {
+    let hang = (): void => {};
+    const hung = new Promise<void>((resolve) => {
+      hang = resolve;
+    });
+    const port: RunLogPort = {
+      ...log,
+      append: (runId, events, patch) => {
+        if (events.some((event) => event.t === 'card.pending')) {
+          hang();
+          return new Promise<void>(() => {});
+        }
+        return log.append(runId, events, patch);
+      },
+    };
+    const gateway = await mockGateway(scripts());
+    const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now, rules: () => rules });
+    const session = createAgentSession({ harness, gateway, decide: async () => ({ action: 'approve' }), sessionId: 'dropped', runLog: { port, projectId: PROJECT } });
+    void session.submit(INTENT);
+    await hung;
+    const [run] = await log.open(PROJECT);
+    return run?.runId ?? '';
+  }
+
+  async function resumeUnder(state: ProjectState, log: MemoryRunLog, runId: string, rules: RuleSet) {
+    const requests: ChatRequest[] = [];
+    const gateway = await mockGateway([transcript(INTENT, [answer('Understood, nothing has been applied.')], requests)]);
+    const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now, rules: () => rules });
+    const session = createAgentSession({ harness, gateway, decide: async () => ({ action: 'cancel' }), sessionId: 'resumed', runLog: { port: log, projectId: PROJECT } });
+    return { report: await session.resume(runId), requests };
+  }
+
+  it('sends nothing to the provider, and names nothing it withholds, when a rule was added after the run began', async () => {
+    const state = stateWithSecret();
+    const log = createMemoryRunLog();
+    const runId = await droppedBetweenCards(state, log, { rules: [] });
+    // The logged first request holds the project as it was shown then, the secret document among it.
+    expect(JSON.stringify(await log.events(runId))).toContain('Secret Draft');
+
+    const { report, requests } = await resumeUnder(state, log, runId, HIDE_SECRET);
+    expect(report.status).toBe('failed');
+    expect(report.askBack?.reason).toContain('a rule now keeps part of the project from the agent');
+    expect(JSON.stringify(report)).not.toContain('Secret Draft');
+    expect(requests).toHaveLength(0);
+    // The run stays on the list, for the writer to discard or to resume once the rule is gone.
+    expect((await log.open(PROJECT)).map((entry) => entry.runId)).toEqual([runId]);
+  });
+
+  it('resumes when the rule was already in force, and the request carries none of what it withholds', async () => {
+    const state = stateWithSecret();
+    const log = createMemoryRunLog();
+    const runId = await droppedBetweenCards(state, log, HIDE_SECRET);
+    const dump = JSON.stringify(await log.events(runId));
+    expect(dump).not.toContain('Secret Draft');
+
+    const { report, requests } = await resumeUnder(state, log, runId, HIDE_SECRET);
+    expect(report.status).toBe('replied');
+    expect(requests).toHaveLength(1);
+    expect(JSON.stringify(requests)).not.toContain('Secret Draft');
+  });
+
+  it('resumes when the rule was lifted since the run began', async () => {
+    const state = stateWithSecret();
+    const log = createMemoryRunLog();
+    const runId = await droppedBetweenCards(state, log, HIDE_SECRET);
+    const { report } = await resumeUnder(state, log, runId, { rules: [] });
+    expect(report.status).toBe('replied');
   });
 });
 

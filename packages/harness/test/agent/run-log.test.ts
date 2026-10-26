@@ -49,6 +49,15 @@ const user: RunEventDraft = { t: 'messages', turnId: 't1', appended: [{ role: 'u
 const project = (revisions: Record<string, number>) => (id: string) => revisions[id];
 
 describe('planResume', () => {
+  it('reports the nodes a read rule kept from the conversation when its last turn began, none for a log that recorded nothing', () => {
+    const resumed: RunEventDraft = { ...start, turnId: 't2', resumedFrom: 't1', withheld: [A] };
+    const recorded = planResume(log(start, user, resumed), project({}));
+    expect(recorded.ok && recorded.replay.withheld).toEqual([A]);
+    const bare = planResume(log(start, user), project({}));
+    expect(bare.ok && bare.replay.withheld).toEqual([]);
+    expect(planResume(log({ ...start, withheld: [1] } as unknown as RunEventDraft), project({}))).toMatchObject({ ok: false, reason: 'schema' });
+  });
+
   it('resumes cleanly after a step applied: the card comes back with that step done', () => {
     const events = log(start, user, card, approved, intent(0, { [A]: 1, [B]: 1 }), applied(0, { [A]: 2 }));
     const verdict = planResume(events, project({ [A]: 2, [B]: 1 }));

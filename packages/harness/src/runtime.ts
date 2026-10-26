@@ -102,6 +102,7 @@ import {
   askRefusal,
   evaluateRules,
   ruleRefusal,
+  withheldAnywhere,
   withheldNodes,
   type CallTargets,
   type RuleSet,
@@ -302,6 +303,8 @@ export interface Harness {
   ruleCheck(tool: string, params: unknown, external?: { readonly writes: boolean }): RuleCheck;
   /** The binder nodes a read-deny keeps from what `tool` reads: prompts, read tools and scans leave them out. */
   withheld(tool: string): ReadonlySet<string>;
+  /** The binder nodes a read-deny keeps from any tool: what a prompt built now would leave out, whichever tool it was for. */
+  withheldAnywhere(): ReadonlySet<string>;
 }
 
 /**
@@ -1328,6 +1331,10 @@ export function createHarness(options: HarnessOptions): Harness {
     },
     loadedExternalTools: () => index().tools.filter((tool) => loaded.isLoaded(tool.qualifiedName)),
     withheld: withheldFor,
+    withheldAnywhere: () => {
+      const set = currentRules();
+      return set.rules.length === 0 ? NO_WITHHELD : withheldAnywhere(set, state);
+    },
     ruleCheck: (tool, params, loadedExternal) => {
       const set = currentRules();
       if (set.rules.length === 0 && set.unreadable !== true) return {};

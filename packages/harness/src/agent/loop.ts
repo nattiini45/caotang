@@ -3140,6 +3140,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         wire: plan.mode === 'new' ? plan.wire : plan.replay.wire,
         native: plan.mode === 'new' ? nativeTools(turn) !== undefined : plan.replay.native,
         ...(plan.mode === 'resume' ? { resumedFrom: plan.replay.turnId } : {}),
+        // A restored card builds no new prompt, so the conversation behind it keeps the filter it was built with.
+        withheld: plan.mode === 'resume' && plan.replay.card !== undefined ? plan.replay.withheld : [...harness.withheldAnywhere()].sort(),
       },
       { status: 'running' },
     );
@@ -3309,6 +3311,18 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         reason: 'the provider and model now selected do not speak the way the run began, so its conversation cannot be continued on them',
         options: ['switch back to the provider the run used, then resume', 'discard the log and send the request again'],
       });
+    }
+    // The logged conversation holds what the rules then allowed the agent to read. A rule since added over more than that is held to now, which
+    // the logged text cannot be: the run is not continued rather than sent to the provider again. Naming no title, since the part is withheld.
+    if (replay.card === undefined) {
+      const before = new Set(replay.withheld);
+      if ([...harness.withheldAnywhere()].some((id) => !before.has(id))) {
+        return refuse(intent, {
+          code: 'needs_input',
+          reason: 'a rule now keeps part of the project from the agent that it could read when the run began, and the run’s conversation still holds what it read',
+          options: ['discard the log and send the request again', 'remove the rule, then resume'],
+        });
+      }
     }
     return runTurn(intent, resumeOptions, (turn) => resumedTurn(turn, replay), { mode: 'resume', runId, replay, ...(verdict.rerun === undefined ? {} : { rerun: verdict.rerun }) });
   }

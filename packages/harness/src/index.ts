@@ -34,6 +34,7 @@ export {
   ruleRefusal,
   ruleWarnings,
   scopeNodes,
+  withheldAnywhere,
   withheldNodes,
   type CallFacts,
   type CallTargets,
