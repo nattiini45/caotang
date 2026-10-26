@@ -422,7 +422,7 @@ export class AgentController {
     };
   }
 
-  /** The permission mode in force: the writer's pick for this panel, else the setting's default. A locked `auto` reads as Ask. */
+  /** The permission mode in force. During a recurring-task turn this is the task's own effective mode (`runMode`); otherwise the writer's pick for this panel, or the setting's default. A locked `auto` reads as Ask. */
   mode(): PermissionMode {
     if (this.runMode !== null) return this.runMode;
     const settings = this.agentSettings();
