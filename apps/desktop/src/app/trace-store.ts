@@ -14,6 +14,13 @@
 import { createTraceStore, traceGateway, type TraceExportOptions, type TraceSink, type TraceStore } from '@caotang/harness';
 import type { Gateway } from '@caotang/gateway';
 
+/** A label for this tab's trace, stamped on every record: `tab-` and eight hex digits from the browser's random source. */
+function tabSessionId(): string {
+  const bytes = new Uint8Array(4);
+  globalThis.crypto.getRandomValues(bytes);
+  return `tab-${Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+}
+
 export class TabTrace {
   readonly store: TraceStore;
   private on = false;
@@ -21,7 +28,7 @@ export class TabTrace {
   private version = 0;
 
   constructor(private readonly gateway: Pick<Gateway, 'setObserver'>) {
-    this.store = createTraceStore({ sessionId: `tab-${Math.random().toString(36).slice(2, 10)}`, project: () => this.project });
+    this.store = createTraceStore({ sessionId: tabSessionId(), project: () => this.project });
     this.store.subscribe(() => {
       this.version += 1;
     });
