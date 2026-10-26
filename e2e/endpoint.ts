@@ -10,6 +10,8 @@
 
 import { expect, type Page, type Route } from '@playwright/test';
 
+import { writerText } from './support.js';
+
 export const FAKE_ENDPOINT = 'https://127.0.0.1:5999/v1';
 
 /** The chat request body as the app sends it, reduced to what the fake reads. */
@@ -196,7 +198,7 @@ export async function useFakeEndpoint(page: Page): Promise<void> {
   await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill(FAKE_ENDPOINT);
   await form.getByLabel('Model', { exact: true }).fill('test-model');
   await form.getByRole('button', { name: 'Save profile' }).click();
-  await expect(settings.getByText('Saved “Fake endpoint”.')).toBeVisible();
+  await expect(settings.getByText(new RegExp(`Saved “${writerText('Fake endpoint')}”\\.`))).toBeVisible();
   await settings.locator('[data-profile="Fake endpoint"]').getByRole('button', { name: 'Use this profile' }).click();
   await expect(settings.getByText('is now the active profile')).toBeVisible();
   await settings.getByRole('button', { name: 'Close' }).click();

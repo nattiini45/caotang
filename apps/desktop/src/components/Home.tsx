@@ -3,10 +3,15 @@
  * from the browser's store, brings a bundle or a folder in, and removes a project from
  * this browser. Nothing here is a project edit: each action is a lifecycle operation.
  */
+/* lingui-set comment="Interpolated values: action, documents, error, file, folder, name, project, title, words" */
 
+import { select, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
+import { isolate } from '@caotang/i18n';
 import type { RuntimeStore } from '@caotang/store';
+
+import { accessibleText } from '../i18n/accessible-text.js';
 
 import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, pickDirectory, type DirectoryHandleLike } from '../app/fs-access.js';
@@ -43,12 +48,60 @@ import {
   type RecoveryRefusal,
 } from '../app/lifecycle.js';
 import type { AppServices } from '../app/services.js';
-import { ChoiceDialog, ConfirmDialog, EmptyState, formatCount, useComposingEnter, wordsLabel } from './shared.js';
+import { ChoiceDialog, ConfirmDialog, EmptyState, documentsLabel, useComposingEnter, wordsLabel } from './shared.js';
 import { EncodingDialog } from './EncodingDialog.js';
 import { FirstRun } from './FirstRun.js';
 import { RecoveryDialog } from './RecoveryDialog.js';
 import { Settings, type SettingsSection } from './LazySettings.js';
 import './project-rename.css';
+
+/** One lifecycle action, as a token: its busy line and its failure sentence are each one catalogue message. */
+type HomeAction =
+  | 'creating'
+  | 'openingProject'
+  | 'makingBundle'
+  | 'renamingProject'
+  | 'openingFolder'
+  | 'importingBundle'
+  | 'recovering'
+  | 'removing';
+
+/** What the writer reads while an action runs. */
+function busyText(action: HomeAction): string {
+  switch (action) {
+    case 'creating':
+      return t`Creating the project`;
+    case 'openingProject':
+      return t`Opening the project`;
+    case 'makingBundle':
+      return t`Making the bundle`;
+    case 'renamingProject':
+      return t`Renaming the project`;
+    case 'openingFolder':
+      return t`Opening the folder`;
+    case 'importingBundle':
+      return t`Importing the bundle`;
+    case 'recovering':
+      return t`Recovering the project`;
+    case 'removing':
+      return t`Removing the project`;
+  }
+}
+
+/** What the writer reads when an action fails: the action's own name is inside the sentence, not glued to it. */
+function failedText(action: HomeAction, error: string): string {
+  return t`${select(action, {
+    creating: 'Creating the project',
+    openingProject: 'Opening the project',
+    makingBundle: 'Making the bundle',
+    renamingProject: 'Renaming the project',
+    openingFolder: 'Opening the folder',
+    importingBundle: 'Importing the bundle',
+    recovering: 'Recovering the project',
+    removing: 'Removing the project',
+    other: 'That action',
+  })} did not finish: ${{ error }}`;
+}
 
 export interface HomeProps {
   readonly store: RuntimeStore;
@@ -63,7 +116,7 @@ export interface HomeProps {
 export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProps): ReactNode {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [name, setName] = useState('');
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState<HomeAction | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [removing, setRemoving] = useState<ProjectSummary | null>(null);
@@ -116,7 +169,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
     try {
       setProjects(await listProjects(store));
     } catch (failure) {
-      setError(`Your projects could not be listed: ${errorText(failure)}`);
+      setError(t`Your projects could not be listed: ${{ error: errorText(failure) }}`);
       setProjects([]);
     }
   }, [store]);
@@ -131,7 +184,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
       },
       (failure: unknown) => {
         if (!alive) return;
-        setError(`Your projects could not be listed: ${errorText(failure)}`);
+        setError(t`Your projects could not be listed: ${{ error: errorText(failure) }}`);
         setProjects([]);
       },
     );
@@ -141,14 +194,14 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
   }, [store]);
 
   /** Run one lifecycle action with the busy and error state every button shares. */
-  const run = async (label: string, action: () => Promise<void>): Promise<void> => {
-    setBusy(label);
+  const run = async (action: HomeAction, work: () => Promise<void>): Promise<void> => {
+    setBusy(action);
     setError(null);
     setNotice(null);
     try {
-      await action();
+      await work();
     } catch (failure) {
-      setError(`${label} did not finish: ${errorText(failure)}`);
+      setError(failedText(action, errorText(failure)));
     } finally {
       setBusy(null);
     }
@@ -157,7 +210,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
   const create = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
     if (newProjectIme.takesSubmit()) return;
-    void run('Creating the project', async () => {
+    void run('creating', async () => {
       const session = await createProject(store, name);
       setName('');
       onOpened({ session, notices: [], droppedFields: [], copiedFrom: null });
@@ -165,17 +218,17 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
   };
 
   const open = (projectId: string): void => {
-    void run('Opening the project', async () => {
+    void run('openingProject', async () => {
       const session = await openProject(store, projectId);
       onOpened({ session, notices: imageDropNotice(session), droppedFields: [], copiedFrom: null });
     });
   };
 
   const exportOne = (projectId: string, title: string): void => {
-    void run('Making the bundle', async () => {
+    void run('makingBundle', async () => {
       const bundle = await exportStoredBundle(store, projectId);
       downloadBytes(bundle.bytes, bundle.filename);
-      setNotice([`Exported “${title}” as ${bundle.filename}.`, ...bundle.notices].join(' '));
+      setNotice([t`Exported “${{ title: isolate(title) }}” as ${{ file: bundle.filename }}.`, ...bundle.notices].join(' '));
     });
   };
 
@@ -185,7 +238,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
    * session's undo history goes with it, so the list offers no Undo; renaming again does the same job.
    */
   const renameProject = (projectId: string, title: string): void => {
-    void run('Renaming the project', async () => {
+    void run('renamingProject', async () => {
       const session = await openProject(store, projectId);
       try {
         const result = session.dispatch('project.rename', { title });
@@ -195,7 +248,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
         await session.close();
       }
       setRenaming(null);
-      setNotice(`Renamed the project to “${title.trim()}”.`);
+      setNotice(t`Renamed the project to “${{ title: isolate(title.trim()) }}”.`);
       await refresh();
     });
   };
@@ -216,7 +269,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
     if (encoding === null) return;
     const target = encoding;
     setEncoding(null);
-    void run('Opening the project', async () => {
+    void run('openingProject', async () => {
       settleOpen(await completeEncodingReview(store, target, decisions));
     });
   };
@@ -226,7 +279,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
     // An accepted recovery has already written by the time it pauses; its own note says so. Anything else changed nothing.
     const note = encoding.cancelNote;
     setEncoding(null);
-    setNotice(note === '' ? 'Nothing was opened or changed.' : note);
+    setNotice(note === '' ? t`Nothing was opened or changed.` : note);
   };
 
   /**
@@ -234,14 +287,14 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
    * the gesture it needs. When the writer says no, or the folder is gone, the folder picker opens instead, so the writer can find it.
    */
   const reopenFolder = (remembered: DirectoryHandleLike): void => {
-    void run('Opening the folder', async () => {
+    void run('openingFolder', async () => {
       let folder = await folderWithPermission(remembered);
       if (folder === null) {
         try {
           folder = await pickDirectory('readwrite');
         } catch {
           // The browser opens its picker only straight from a click, and the permission prompt may have used that click up.
-          setNotice('Caotang could not reach the folder it remembers. Choose Open a folder… to find it.');
+          setNotice(t`Caotang could not reach the folder it remembers. Choose Open a folder… to find it.`);
           return;
         }
       }
@@ -255,20 +308,20 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
     if (differs === null) return;
     const target = differs;
     setDiffers(null);
-    void run('Opening the folder', async () => {
+    void run('openingFolder', async () => {
       onOpened(await answerFolderDiffers(store, target, answer));
     });
   };
 
   const importFile = (file: File): void => {
-    void run('Importing the bundle', async () => {
+    void run('importingBundle', async () => {
       const bytes = new Uint8Array(await file.arrayBuffer());
       settleOpen(await importBundle(store, bytes, file.name));
     });
   };
 
   const openFolderAction = (): void => {
-    void run('Opening the folder', async () => {
+    void run('openingFolder', async () => {
       const folder = await pickDirectory('readwrite');
       if (folder === null) return;
       settleOpen(await openFolder(store, folder));
@@ -283,7 +336,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
     if (recovery === null) return;
     const target = recovery;
     const answers: RecoveryAnswers = recoveryRefusal?.reason === 'locked' ? { lockConfirmed: true } : {};
-    void run('Recovering the project', async () => {
+    void run('recovering', async () => {
       let outcome: RecoveryOutcome;
       try {
         outcome = await completeRecovery(store, target, answers);
@@ -310,7 +363,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
   const cancelRecovery = (): void => {
     setRecovery(null);
     setRecoveryRefusal(null);
-    setNotice('Nothing was opened or changed.');
+    setNotice(t`Nothing was opened or changed.`);
   };
 
   /**
@@ -320,7 +373,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
   const askRemove = (project: ProjectSummary): void => {
     void openElsewhere(project.id).then((elsewhere) => {
       if (elsewhere) {
-        setNotice(`“${project.name}” is open in another tab. Close it there, then remove it here.`);
+        setNotice(t`“${{ name: isolate(project.name) }}” is open in another tab. Close it there, then remove it here.`);
         return;
       }
       setRemoving(project);
@@ -331,13 +384,13 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
     if (removing === null) return;
     const target = removing;
     setRemoving(null);
-    void run('Removing the project', async () => {
+    void run('removing', async () => {
       await removeProject(store, target.id);
       // The words a stopped tab kept for this project go with it: nothing can open the project again to offer them back (unsent-copy.ts).
       clearUnsentCopy(browserStorage(), target.id);
       clearPending(browserStorage(), target.id);
       await dropHistoryOf(target.id, null);
-      setNotice(`Removed “${target.name}” from this browser. A bundle you exported still opens anywhere.`);
+      setNotice(t`Removed “${{ name: isolate(target.name) }}” from this browser. A bundle you exported still opens anywhere.`);
       await refresh();
     });
   };
@@ -346,12 +399,12 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
     <div className="home">
       <header className="home-head">
         <div className="home-title">
-          <h1>Caotang</h1>
+          <h1><Trans>Caotang</Trans></h1>
           <button type="button" className="button" onClick={() => setSettings('providers')} data-testid="open-settings">
             <Trans>Settings</Trans>
           </button>
         </div>
-        <p className="lede">A writing studio that keeps your work on this device.</p>
+        <p className="lede"><Trans>A writing studio that keeps your work on this device.</Trans></p>
       </header>
 
       {showFirstRun ? (
@@ -364,29 +417,27 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
       ) : null}
 
       <section className="home-section" aria-labelledby="home-new">
-        <h2 id="home-new">New project</h2>
+        <h2 id="home-new"><Trans>New project</Trans></h2>
         <form className="new-project" onKeyDown={newProjectIme.noteKey} onSubmit={create}>
           <label>
-            <span>Project name</span>
+            <span><Trans>Project name</Trans></span>
             <input
               type="text"
               value={name}
               maxLength={120}
-              placeholder="Untitled project"
+              placeholder={t`Untitled project`}
               onChange={(event) => setName(event.target.value)}
             />
           </label>
           <button type="submit" className="button is-primary" disabled={busy !== null}>
-            Create project
+            <Trans>Create project</Trans>
           </button>
         </form>
       </section>
 
       {suggestion !== null ? (
-        <aside className="storage-banner" role="status" aria-label="Changes that are not in a bundle yet" data-testid="leave-suggestion">
-          <p>
-            “{suggestion.name}” has changes that are not in a bundle yet. A bundle is the copy that does not depend on this browser.
-          </p>
+        <aside className="storage-banner" role="status" aria-label={t`Changes that are not in a bundle yet`} data-testid="leave-suggestion">
+          <p>{t`“${{ name: isolate(suggestion.name) }}” has changes that are not in a bundle yet. A bundle is the copy that does not depend on this browser.`}</p>
           <div className="storage-banner-actions">
             <button
               type="button"
@@ -398,22 +449,22 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
                 exportOne(target.projectId, target.name);
               }}
             >
-              Export a bundle
+              <Trans>Export a bundle</Trans>
             </button>
             <button type="button" className="button is-quiet" onClick={() => setSuggestion(null)}>
-              Dismiss
+              <Trans>Dismiss</Trans>
             </button>
           </div>
         </aside>
       ) : null}
 
       <section className="home-section" aria-labelledby="home-projects">
-        <h2 id="home-projects">Projects in this browser</h2>
+        <h2 id="home-projects"><Trans>Projects in this browser</Trans></h2>
         {projects === null ? (
-          <p className="muted">Looking for your projects…</p>
+          <p className="muted"><Trans>Looking for your projects…</Trans></p>
         ) : projects.length === 0 ? (
-          <EmptyState title="No projects here yet">
-            Create one above, or bring in a bundle you exported before. Projects stay in this browser until you remove them.
+          <EmptyState title={t`No projects here yet`}>
+            <Trans>Create one above, or bring in a bundle you exported before. Projects stay in this browser until you remove them.</Trans>
           </EmptyState>
         ) : (
           <ul className="project-list">
@@ -422,7 +473,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
                 <li key={project.id} className="project-row is-renaming">
                   <form
                     className="project-rename"
-                    aria-label={`New name for ${project.name}`}
+                    aria-label={t`New name for ${{ name: accessibleText(project.name) }}`}
                     onSubmit={(event) => {
                       event.preventDefault();
                       if (renameIme.takesSubmit()) return;
@@ -434,7 +485,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
                     }}
                   >
                     <label>
-                      <span>New name</span>
+                      <span><Trans>New name</Trans></span>
                       <input
                         type="text"
                         value={renaming.text}
@@ -445,10 +496,10 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
                     </label>
                     <div className="project-actions">
                       <button type="submit" className="button is-primary" disabled={busy !== null || renaming.text.trim() === ''}>
-                        Save the name
+                        <Trans>Save the name</Trans>
                       </button>
                       <button type="button" className="button is-quiet" onClick={() => setRenaming(null)}>
-                        Cancel
+                        <Trans>Cancel</Trans>
                       </button>
                     </div>
                   </form>
@@ -458,54 +509,53 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
                   <div className="project-meta">
                     <span className="project-name">{project.name}</span>
                     <span className="muted">
-                      {project.documents === 1 ? '1 document' : `${formatCount(project.documents)} documents`} ·{' '}
-                      {wordsLabel(project.words)}
+                      {t`${{ documents: documentsLabel(project.documents) }} · ${{ words: wordsLabel(project.words) }}`}
                     </span>
                   </div>
                   <div className="project-actions">
                     <button type="button" className="button is-primary" disabled={busy !== null} onClick={() => open(project.id)}>
-                      Open
+                      <Trans>Open</Trans>
                     </button>
                     {folders.get(project.id) !== undefined ? (
                       <button
                         type="button"
                         className="button"
                         disabled={busy !== null}
-                        aria-label={`Reopen folder of ${project.name}`}
+                        aria-label={t`Reopen folder of ${{ name: accessibleText(project.name) }}`}
                         onClick={() => {
                           const remembered = folders.get(project.id);
                           if (remembered !== undefined) reopenFolder(remembered);
                         }}
                       >
-                        Reopen folder
+                        <Trans>Reopen folder</Trans>
                       </button>
                     ) : null}
                     <button
                       type="button"
                       className="button"
                       disabled={busy !== null}
-                      aria-label={`Rename ${project.name}`}
+                      aria-label={t`Rename ${{ name: accessibleText(project.name) }}`}
                       onClick={() => setRenaming({ id: project.id, text: project.name })}
                     >
-                      Rename
+                      <Trans>Rename</Trans>
                     </button>
                     <button
                       type="button"
                       className="button"
                       disabled={busy !== null}
-                      aria-label={`Export ${project.name} as a bundle`}
+                      aria-label={t`Export ${{ name: accessibleText(project.name) }} as a bundle`}
                       onClick={() => exportOne(project.id, project.name)}
                     >
-                      Export
+                      <Trans>Export</Trans>
                     </button>
                     <button
                       type="button"
                       className="button is-quiet is-danger"
                       disabled={busy !== null}
-                      aria-label={`Remove ${project.name} from this browser`}
+                      aria-label={t`Remove ${{ name: accessibleText(project.name) }} from this browser`}
                       onClick={() => askRemove(project)}
                     >
-                      Remove
+                      <Trans>Remove</Trans>
                     </button>
                   </div>
                 </li>
@@ -516,7 +566,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
       </section>
 
       <section className="home-section" aria-labelledby="home-bring">
-        <h2 id="home-bring">Bring a project in</h2>
+        <h2 id="home-bring"><Trans>Bring a project in</Trans></h2>
         <div className="bring-row">
           <button
             type="button"
@@ -524,14 +574,14 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
             disabled={busy !== null}
             onClick={() => importInput.current?.click()}
           >
-            Import bundle (.caotang)
+            <Trans>Import bundle (.caotang)</Trans>
           </button>
           <input
             ref={importInput}
             type="file"
             accept=".caotang,.zip,application/zip"
             className="visually-hidden"
-            aria-label="Bundle file"
+            aria-label={t`Bundle file`}
             data-testid="bundle-input"
             onChange={(event) => {
               const file = event.target.files?.[0];
@@ -541,11 +591,11 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
           />
           {folderSupported ? (
             <button type="button" className="button" disabled={busy !== null} onClick={openFolderAction}>
-              Open a folder…
+              <Trans>Open a folder…</Trans>
             </button>
           ) : (
             <p className="muted">
-              Opening and saving a project folder needs a Chromium-based browser. Bundles work everywhere.
+              <Trans>Opening and saving a project folder needs a Chromium-based browser. Bundles work everywhere.</Trans>
             </p>
           )}
         </div>
@@ -553,7 +603,7 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
 
       {busy ? (
         <p className="status-line is-info" role="status">
-          {busy}…
+          {busyText(busy)}…
         </p>
       ) : null}
       {error ? (
@@ -599,38 +649,45 @@ export function Home({ store, services, onOpened, onRunDemo, notices }: HomeProp
 
       <ChoiceDialog
         open={differs !== null}
-        title={differs ? `The folder holds a different version of “${differs.projectName}”` : 'The folder holds a different version'}
+        title={
+          differs
+            ? t`The folder holds a different version of “${{ name: isolate(differs.projectName) }}”`
+            : t`The folder holds a different version`
+        }
         choices={[
-          { label: 'Use the folder’s version', onChoose: () => answerDiffers('use-folder'), danger: true },
-          { label: 'Keep this browser’s version and save it to the folder', onChoose: () => answerDiffers('keep-browser') },
-          { label: 'Open as a separate copy', onChoose: () => answerDiffers('separate-copy') },
+          { label: t`Use the folder’s version`, onChoose: () => answerDiffers('use-folder'), danger: true },
+          { label: t`Keep this browser’s version and save it to the folder`, onChoose: () => answerDiffers('keep-browser') },
+          { label: t`Open as a separate copy`, onChoose: () => answerDiffers('separate-copy') },
         ]}
         onCancel={() => {
           setDiffers(null);
-          setNotice('Nothing was opened or changed.');
+          setNotice(t`Nothing was opened or changed.`);
         }}
       >
         <p>
-          This browser keeps “{differs?.projectName}”, and the folder “{differs?.folderName}” holds a version of it that is not the same.
-          Another program may have changed the folder, or the project changed here after it was last saved there.
+          {t`This browser keeps “${{ project: isolate(differs?.projectName ?? '') }}”, and the folder “${{ folder: isolate(differs?.folderName ?? '') }}” holds a version of it that is not the same. Another program may have changed the folder, or the project changed here after it was last saved there.`}
         </p>
         <p>
-          Using the folder’s version replaces this browser’s copy with it. This browser’s copy is not kept, so export it first if you may want
-          it. Keeping this browser’s version saves it to the folder, and asks first about any document it would write over. A separate copy
-          leaves both as they are, and cannot be saved into that folder.
+          <Trans>
+            Using the folder’s version replaces this browser’s copy with it. This browser’s copy is not kept, so export it first if you may
+            want it. Keeping this browser’s version saves it to the folder, and asks first about any document it would write over. A
+            separate copy leaves both as they are, and cannot be saved into that folder.
+          </Trans>
         </p>
       </ChoiceDialog>
 
       <ConfirmDialog
         open={removing !== null}
-        title={removing ? `Remove “${removing.name}” from this browser?` : 'Remove?'}
-        confirmLabel="Remove"
+        title={removing ? t`Remove “${{ name: isolate(removing.name) }}” from this browser?` : t`Remove?`}
+        confirmLabel={t`Remove`}
         onCancel={() => setRemoving(null)}
         onConfirm={confirmRemove}
       >
         <p>
-          The project and its history are deleted from this browser. Export a bundle first if you may want it again. This
-          does not touch any folder you saved it to.
+          <Trans>
+            The project and its history are deleted from this browser. Export a bundle first if you may want it again. This does not touch
+            any folder you saved it to.
+          </Trans>
         </p>
       </ConfirmDialog>
     </div>

@@ -3,6 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { PRESETS, presetFor } from '../packages/gateway/src/index.js';
 import { adapterFor } from '../packages/gateway/src/adapters/index.js';
 import { startLocalStub, type LocalStub, type StubConfig } from './local-stub.js';
+import { savedMessage, writerText } from './support.js';
 
 /**
  * The CORS support sweep (provider-gateway §9, providers-browser-cors.md §2). For every shipped preset this asks the
@@ -133,7 +134,7 @@ for (const product of LOCAL_PRODUCTS) {
     try {
       const settings = await saveLocal(page, product, stub.baseUrl);
       // The profile is saved, the probe is not verified, and the message is the product's setting and nobody else's.
-      await expect(settings.getByText(/Saved “Stub”, but/)).toBeVisible();
+      await expect(settings.getByText(new RegExp(`Saved “${writerText('Stub')}”, but`))).toBeVisible();
       await expect(settings.locator('.form-message')).toContainText(fix);
       await expect(settings.locator('.form-message')).toContainText(product.name === 'llama.cpp (llama-server)' ? 'llama-server' : product.name);
       // The model list reached the server (a simple GET needs no preflight) and the browser withheld the answer; no key header was
@@ -144,7 +145,7 @@ for (const product of LOCAL_PRODUCTS) {
 
       stub = await startLocalStub(product.configured(new URL(page.url()).origin));
       const configured = await saveLocal(page, product, stub.baseUrl);
-      await expect(configured.getByText('Saved “Stub”.')).toBeVisible();
+      await expect(configured.getByText(savedMessage('Stub'))).toBeVisible();
       await expect(configured.getByRole('region', { name: 'Models listed by Stub' })).toContainText('stub-model');
       // The format probe's POST crossed the preflight too (a JSON body is not a simple request), and still carried no key.
       expect(stub.requests.some((request) => request.method === 'OPTIONS')).toBe(true);
@@ -161,7 +162,7 @@ test('a local server that is not running is named as not running, with its addre
   const address = stub.baseUrl;
   await stub.close();
   const settings = await saveLocal(page, LOCAL_PRODUCTS[0]!, address);
-  await expect(settings.getByText(/Saved “Stub”, but/)).toBeVisible();
+  await expect(settings.getByText(new RegExp(`Saved “${writerText('Stub')}”, but`))).toBeVisible();
   await expect(settings.locator('.form-message')).toContainText(`Nothing is listening on ${new URL(address).host}`);
   await expect(settings.locator('.form-message')).toContainText('Is Ollama running?');
 });

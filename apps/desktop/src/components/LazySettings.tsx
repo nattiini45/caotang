@@ -5,6 +5,7 @@
  */
 
 import type { ReactNode } from 'react';
+import { t } from '@lingui/core/macro';
 
 import { LazyBoundary, lazyView } from './lazy-view.js';
 import type { SettingsProps } from './Settings.js';
@@ -15,7 +16,7 @@ const SettingsDialog = lazyView(() => import('./Settings.js').then((module) => (
 
 export function Settings(props: SettingsProps): ReactNode {
   return (
-    <LazyBoundary label="Settings" variant="toast" onDismiss={props.onClose}>
+    <LazyBoundary label={t`Settings`} variant="toast" onDismiss={props.onClose}>
       <SettingsDialog {...props} />
     </LazyBoundary>
   );

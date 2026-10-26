@@ -3,8 +3,11 @@
  * with, and the cap on the findings one model review may add. The values are app-level (the writer's own choices), so the
  * section writes them through the settings store and never through the project.
  */
+/* lingui-set comment="Interpolated values: MAX_FINDINGS_CAP, max" */
 
 import { useState, type FormEvent, type ReactNode } from 'react';
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 import { DETERMINISTIC_CHECK_IDS, MAX_FINDINGS_CAP, type DeterministicCheckId } from '@caotang/coherence';
 
 import { SCOPE_CHOICES, checkLabelOf } from '../app/findings-model.js';
@@ -41,7 +44,7 @@ export function CoherenceSection({ services }: { services: AppServices }): React
     if (ime.takesSubmit()) return;
     const maxFindings = Number(cap);
     if (!Number.isInteger(maxFindings) || maxFindings < 1 || maxFindings > MAX_FINDINGS_CAP) {
-      setMessage({ text: `The most findings one review may add is a whole number from 1 to ${MAX_FINDINGS_CAP}.`, tone: 'error' });
+      setMessage({ text: t`The most findings one review may add is a whole number from 1 to ${{ max: MAX_FINDINGS_CAP }}.`, tone: 'error' });
       return;
     }
     void services.settings
@@ -49,7 +52,7 @@ export function CoherenceSection({ services }: { services: AppServices }): React
       .then((error) => {
         setMessage(
           error === null || error === undefined
-            ? { text: 'Saved. The Findings tab uses these from now on.', tone: 'info' }
+            ? { text: t`Saved. The Findings tab uses these from now on.`, tone: 'info' }
             : { text: error, tone: 'error' },
         );
       });
@@ -57,10 +60,10 @@ export function CoherenceSection({ services }: { services: AppServices }): React
 
   return (
     <section className="settings-section" aria-labelledby="settings-coherence">
-      <h3 id="settings-coherence">Coherence</h3>
+      <h3 id="settings-coherence"><Trans>Coherence</Trans></h3>
       <form className="settings-form" onKeyDown={ime.noteKey} onSubmit={save}>
         <fieldset className="settings-checks">
-          <legend>Quick checks the Findings tab’s scan runs</legend>
+          <legend><Trans>Quick checks the Findings tab’s scan runs</Trans></legend>
           {DETERMINISTIC_CHECK_IDS.map((id) => (
             <label key={id} className="settings-check">
               <input type="checkbox" checked={enabled.includes(id)} onChange={(event) => toggle(id, event.target.checked)} />
@@ -69,7 +72,7 @@ export function CoherenceSection({ services }: { services: AppServices }): React
           ))}
         </fieldset>
         <label>
-          <span>Scope the Findings tab starts with</span>
+          <span><Trans>Scope the Findings tab starts with</Trans></span>
           <select value={scope} onChange={(event) => setScope(event.target.value as ReviewScope)}>
             {REVIEW_SCOPES.map((choice) => (
               <option key={choice} value={choice}>
@@ -79,11 +82,11 @@ export function CoherenceSection({ services }: { services: AppServices }): React
           </select>
         </label>
         <label>
-          <span>Most findings one model review may add (1–{MAX_FINDINGS_CAP})</span>
+          <span><Trans>Most findings one model review may add (1–{MAX_FINDINGS_CAP})</Trans></span>
           <input type="number" min={1} max={MAX_FINDINGS_CAP} step={1} value={cap} onChange={(event) => setCap(event.target.value)} />
         </label>
         <button type="submit" className="button is-primary">
-          Save coherence settings
+          <Trans>Save coherence settings</Trans>
         </button>
       </form>
       <Message message={message} />

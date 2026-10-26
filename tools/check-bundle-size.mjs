@@ -41,10 +41,17 @@ export const BUDGET = {
    * 1,262.0 / 379.3 at I2), first load 769.2 kB gzip (from 765.7). The installed `en` catalogue is 25 bytes of compiled data; the rest
    * is the about 3.5 kB gzip of runtime. No non-English catalogue ships in I3, so there is **no locale chunk to measure** yet: each
    * later locale is its own lazy chunk and its size is recorded when it ships.
+   *
+   * **I5 (#196) raised `index` for the shell, home and Settings conversion.** The English source catalogue grew from the I3/I4 witness
+   * set to 625 messages; the converted surfaces' English text is in the entry catalogue because every screen renders from it before a
+   * paint. Measured on the L6 build: `index` 1,339.6 kB raw / 403.4 kB gzip. The cap is that measurement plus about 5%:
+   * 1,339,594 bytes × 1.05 = 1,406,573.7, rounded down to the thousand as I3 did, = 1,406,000. The first load (795.2 kB gzip) and all
+   * JS (5,397.1 kB raw) stayed under their existing caps, so neither moved. I6's catalogue growth carries the same measurement and
+   * margin obligation.
    */
   allow: {
     'fontkit.es': 750_000,
-    index: 1_334_000,
+    index: 1_406_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. I3 measured 769.2 kB gzip; +5% is 808,000. */
   initialGzip: 808_000,

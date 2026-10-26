@@ -7,6 +7,7 @@
  * the delete being confirmed, the export dialog, the theme, the status line). Project and view state live in the
  * session, and every change to them is a dispatch.
  */
+/* lingui-set comment="Interpolated values: backup, badge, change, descendants, documents, error, file, folder, folderName, label, storageSentence, title, words" */
 
 import {
   useCallback,
@@ -18,6 +19,9 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react';
+import { plural, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { isolate } from '@caotang/i18n';
 import type { ProjectState, RuntimeStore } from '@caotang/store';
 
 import { activityMarkdown } from '../app/activity-model.js';
@@ -66,7 +70,7 @@ import {
   liveSelection,
   selectNode,
 } from './actions.js';
-import { ChoiceDialog, ConfirmDialog, ReportContext, formatCount, useSession, wordsLabel, type StatusMessage } from './shared.js';
+import { ChoiceDialog, ConfirmDialog, ReportContext, useSession, wordsLabel, type StatusMessage } from './shared.js';
 
 type RailTab = 'binder' | 'codex' | 'activity' | 'findings';
 
@@ -198,6 +202,8 @@ export function Workspace({
   const hideRails = focusMode && settingsNow.editor.focusModeHideRails;
   const durability = session.durability();
   const showStorageBanner = durability.persisted === false && !bannerDismissed;
+  // A whole sentence used as a value in the banner's message; a name keeps it out of a positional `{0}`.
+  const storageSentence = durabilitySentence(durability);
   const sample = settingsNow.sampleProjectIds.includes(session.projectId);
 
   const report = useCallback((next: StatusMessage) => setMessage(next), []);
@@ -211,8 +217,8 @@ export function Workspace({
         report({
           text:
             failure === 'too-large'
-              ? 'The unsaved text is too large to keep a spare copy in this browser, so a reload in the next moment could lose it.'
-              : 'This browser would not keep a spare copy of the unsaved text, so a reload in the next moment could lose it.',
+              ? t`The unsaved text is too large to keep a spare copy in this browser, so a reload in the next moment could lose it.`
+              : t`This browser would not keep a spare copy of the unsaved text, so a reload in the next moment could lose it.`,
           tone: 'info',
         });
       }
@@ -231,9 +237,9 @@ export function Workspace({
     if (on && !settingsNow.editor.focusModeHideRails) {
       // The wording, with the setting's place a link that opens it.
       report({
-        text: 'Focus mode is on. The binder and inspector stay open, as set in ',
+        text: t`Focus mode is on. The binder and inspector stay open, as set in `,
         tone: 'info',
-        link: { label: 'Settings › Writing', after: '.', onClick: () => setSettingsSection('writing') },
+        link: { label: t`Settings › Writing`, after: '.', onClick: () => setSettingsSection('writing') },
       });
     }
   };
@@ -255,7 +261,7 @@ export function Workspace({
     const previous = metRecord.current;
     const crossed = crossedTarget(previous, { met: target.met, day });
     metRecord.current = { met: target.met, day: crossed ? day : previous.day };
-    if (crossed) report({ text: 'Today’s target is met.', tone: 'info' });
+    if (crossed) report({ text: t`Today’s target is met.`, tone: 'info' });
   }, [target.met, report]);
   const selected = liveSelection(state, view.selection);
   const selectedNode = selected === null ? undefined : nodeById(state, selected);
@@ -326,7 +332,7 @@ export function Workspace({
     void session.undoLast().then((done) => {
       if (done) return;
       const detail = session.undoErrorMessage();
-      report(detail ? { text: detail, tone: 'error' } : { text: 'There is nothing to undo.', tone: 'info' });
+      report(detail ? { text: detail, tone: 'error' } : { text: t`There is nothing to undo.`, tone: 'info' });
     });
   };
 
@@ -489,7 +495,7 @@ export function Workspace({
   const confirmDelete = (): void => {
     if (askingDelete === null) return;
     const id = askingDelete;
-    const title = doomed?.title ?? 'the item';
+    const title = doomed?.title ?? t`the item`;
     const place = deletePlace.current;
     deletePlace.current = null;
     const outcome = deleteNode(session, id);
@@ -502,7 +508,7 @@ export function Workspace({
     if (selected !== null && nodeById(session.state, selected) === undefined) clearSelection(session);
     setRenaming(null);
     if (place !== null) focusAfterDelete(place);
-    report({ text: `Deleted “${title}”. Ctrl+Z restores it right after.`, tone: 'info' });
+    report({ text: t`Deleted “${{ title: isolate(title) }}”. Ctrl+Z restores it right after.`, tone: 'info' });
   };
 
   const exportNow = (): void => {
@@ -510,9 +516,9 @@ export function Workspace({
       try {
         const bundle = await exportBundle(store, session);
         downloadBytes(bundle.bytes, bundle.filename);
-        report({ text: [`Exported ${bundle.filename}.`, ...bundle.notices].join(' '), tone: 'info' });
+        report({ text: [t`Exported ${{ file: bundle.filename }}.`, ...bundle.notices].join(' '), tone: 'info' });
       } catch (error) {
-        report({ text: `The bundle could not be made: ${errorText(error)}`, tone: 'error' });
+        report({ text: t`The bundle could not be made: ${{ error: errorText(error) }}`, tone: 'error' });
       }
     })();
   };
@@ -524,9 +530,10 @@ export function Workspace({
       entries: session.log.entries(),
       turns: agent.snapshot().turns,
     });
-    const name = `${state.manifest.project.name.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'project'}-activity.md`;
+    const stem = state.manifest.project.name.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
+    const name = `${stem === '' ? 'project' : stem}${'-activity' + '.md'}`;
     downloadBytes(new TextEncoder().encode(markdown), name, 'text/markdown');
-    report({ text: `Exported the activity log as ${name}.`, tone: 'info' });
+    report({ text: t`Exported the activity log as ${{ file: name }}.`, tone: 'info' });
   };
 
   /**
@@ -552,10 +559,15 @@ export function Workspace({
         setFolderOffer(null);
         // From here on the session's exports are written into this folder too (exports.ts).
         await session.attachFolder(folder);
-        const kept = outcome.backup === undefined ? '' : ` What it replaced is kept in ${outcome.backup}.`;
-        report({ text: `Saved the project to the folder “${folder.name}”.${kept} Exports go there from now on.`, tone: 'info' });
+        report({
+          text:
+            outcome.backup === undefined
+              ? t`Saved the project to the folder “${{ folder: isolate(folder.name) }}”. Exports go there from now on.`
+              : t`Saved the project to the folder “${{ folder: isolate(folder.name) }}”. What it replaced is kept in ${{ backup: outcome.backup }}. Exports go there from now on.`,
+          tone: 'info',
+        });
       } catch (error) {
-        report({ text: `The folder could not be saved: ${errorText(error)}`, tone: 'error' });
+        report({ text: t`The folder could not be saved: ${{ error: errorText(error) }}`, tone: 'error' });
       }
     })();
   };
@@ -580,7 +592,7 @@ export function Workspace({
         if (folder === null) return;
         writeFolder(folder, {});
       } catch (error) {
-        report({ text: `The folder could not be saved: ${errorText(error)}`, tone: 'error' });
+        report({ text: t`The folder could not be saved: ${{ error: errorText(error) }}`, tone: 'error' });
       }
     })();
   };
@@ -603,7 +615,7 @@ export function Workspace({
         }
         writeFolder(folder, {});
       } catch (error) {
-        report({ text: `The folder could not be saved: ${errorText(error)}`, tone: 'error' });
+        report({ text: t`The folder could not be saved: ${{ error: errorText(error) }}`, tone: 'error' });
       }
     })();
   };
@@ -628,14 +640,14 @@ export function Workspace({
       await session.settle();
       if (session.saveState() === 'conflict') {
         report({
-          text: 'This tab cannot save: another tab has newer text for this project. Export a backup to keep the words in this tab.',
+          text: t`This tab cannot save: another tab has newer text for this project. Export a backup to keep the words in this tab.`,
           tone: 'error',
         });
         return;
       }
       if (session.saveState() === 'failed') {
         report({
-          text: 'Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave.',
+          text: t`Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave.`,
           tone: 'error',
         });
         return;
@@ -654,14 +666,14 @@ export function Workspace({
         <header className="toolbar">
           <div className="toolbar-start">
             <button type="button" className="button is-quiet" onClick={leave}>
-              Projects
+              <Trans>Projects</Trans>
             </button>
             <h1 className="project-name">
               {/* The name opens the project panel, where the title, author, language, ISBN and cover are set. */}
               <button
                 type="button"
                 className="project-name-button"
-                title="Project details: title, author, language, ISBN and cover"
+                title={t`Project details: title, author, language, ISBN and cover`}
                 onClick={() => openDialog({ kind: 'project' })}
               >
                 {state.manifest.project.name}
@@ -673,60 +685,60 @@ export function Workspace({
               type="button"
               className="button"
               disabled={undoLabel === null}
-              title={undoLabel === null ? 'Nothing to undo' : `Undo: ${undoLabel}`}
+              title={undoLabel === null ? t`Nothing to undo` : t`Undo: ${{ label: undoLabel }}`}
               onClick={undoNow}
             >
-              Undo
+              <Trans>Undo</Trans>
             </button>
             <button
               type="button"
               className="button"
               aria-pressed={focusMode}
-              title="Focus mode (Ctrl+Shift+F)"
+              title={t`Focus mode (Ctrl+Shift+F)`}
               onClick={toggleFocus}
             >
-              Focus
+              <Trans>Focus</Trans>
             </button>
-            <button type="button" className="button" title="Reusable writing instructions for the agent" onClick={() => openDialog({ kind: 'skills' })}>
-              Skills
+            <button type="button" className="button" title={t`Reusable writing instructions for the agent`} onClick={() => openDialog({ kind: 'skills' })}>
+              <Trans>Skills</Trans>
             </button>
             <button type="button" className="button" onClick={() => setExporting(true)}>
-              Compile…
+              <Trans>Compile…</Trans>
             </button>
             <button type="button" className="button" onClick={exportNow}>
-              Export bundle
+              <Trans>Export bundle</Trans>
             </button>
             {folderAccessSupported() ? (
               <button type="button" className="button" onClick={saveToFolder}>
-                Save to folder
+                <Trans>Save to folder</Trans>
               </button>
             ) : null}
             <button type="button" className="button" onClick={() => setSettingsSection('providers')} data-testid="open-settings">
-              Settings
+              <Trans>Settings</Trans>
             </button>
             <button
               type="button"
               className="button"
-              aria-label={theme === 'dark' ? 'Light theme' : 'Dark theme'}
-              title={theme === 'dark' ? 'Use the light theme' : 'Use the dark theme'}
+              aria-label={theme === 'dark' ? t`Light theme` : t`Dark theme`}
+              title={theme === 'dark' ? t`Use the light theme` : t`Use the dark theme`}
               onClick={toggleTheme}
             >
-              {theme === 'dark' ? 'Light theme' : 'Dark theme'}
+              {theme === 'dark' ? <Trans>Light theme</Trans> : <Trans>Dark theme</Trans>}
             </button>
             <SaveIndicator state={saveState} onExport={exportNow} />
           </div>
         </header>
 
         {hideRails ? null : (
-          <nav className="rail" aria-label="Project panels">
-            <div role="tablist" aria-label="Panels" className="rail-tabs" onKeyDown={onRailTabKey}>
-              <RailTabButton tab="binder" current={rail} label="Binder" onSelect={setRail} />
-              <RailTabButton tab="codex" current={rail} label="Codex" onSelect={setRail} />
-              <RailTabButton tab="activity" current={rail} label="Activity" onSelect={setRail} />
+          <nav className="rail" aria-label={t`Project panels`}>
+            <div role="tablist" aria-label={t`Panels`} className="rail-tabs" onKeyDown={onRailTabKey}>
+              <RailTabButton tab="binder" current={rail} label={t`Binder`} onSelect={setRail} />
+              <RailTabButton tab="codex" current={rail} label={t`Codex`} onSelect={setRail} />
+              <RailTabButton tab="activity" current={rail} label={t`Activity`} onSelect={setRail} />
               <RailTabButton
                 tab="findings"
                 current={rail}
-                label="Findings"
+                label={t`Findings`}
                 badge={openFindingCount(session.coherenceFile())}
                 onSelect={setRail}
               />
@@ -767,7 +779,7 @@ export function Workspace({
         )}
 
         <main className="center">
-          <div role="radiogroup" aria-label="Centre view" className="center-switch" onKeyDown={onCenterKey}>
+          <div role="radiogroup" aria-label={t`Centre view`} className="center-switch" onKeyDown={onCenterKey}>
             <button
               type="button"
               id="center-editor"
@@ -777,7 +789,7 @@ export function Workspace({
               className="segmented-item"
               onClick={() => setCenter('editor')}
             >
-              Editor
+              <Trans>Editor</Trans>
             </button>
             <button
               type="button"
@@ -788,31 +800,34 @@ export function Workspace({
               className="segmented-item"
               onClick={() => setCenter('corkboard')}
             >
-              Corkboard
+              <Trans>Corkboard</Trans>
             </button>
           </div>
           {/* A status region is a div: ARIA does not allow the role on an aside. */}
           {showStorageBanner ? (
-            <div className="storage-banner" role="status" aria-label="Browser storage" data-testid="storage-banner">
+            <div className="storage-banner" role="status" aria-label={t`Browser storage`} data-testid="storage-banner">
               <div>
                 <p>
-                  Your words are kept in this browser, and the browser has not promised to keep them. Export a backup to keep a copy you
-                  can open anywhere.
+                  <Trans>
+                    Your words are kept in this browser, and the browser has not promised to keep them. Export a backup to keep a copy you
+                    can open anywhere.
+                  </Trans>
                 </p>
                 {explainStorage ? (
                   <p className="muted">
-                    Browsers may remove stored data when a device runs short of space. Asking the browser to keep it lowers that risk, and
-                    the browser has not granted it here. {durabilitySentence(durability)} A bundle is the copy that does not depend on the
-                    browser.
+                    <Trans>
+                      Browsers may remove stored data when a device runs short of space. Asking the browser to keep it lowers that risk, and
+                      the browser has not granted it here. {storageSentence} A bundle is the copy that does not depend on the browser.
+                    </Trans>
                   </p>
                 ) : null}
               </div>
               <div className="storage-banner-actions">
                 <button type="button" className="button" onClick={exportNow}>
-                  Export a backup
+                  <Trans>Export a backup</Trans>
                 </button>
                 <button type="button" className="button is-quiet" aria-expanded={explainStorage} onClick={() => setExplainStorage((on) => !on)}>
-                  Learn why
+                  <Trans>Learn why</Trans>
                 </button>
                 <button
                   type="button"
@@ -822,7 +837,7 @@ export function Workspace({
                     setBannerDismissed(true);
                   }}
                 >
-                  Dismiss
+                  <Trans>Dismiss</Trans>
                 </button>
               </div>
             </div>
@@ -885,15 +900,15 @@ export function Workspace({
               ) : null}
             </span>
             <button type="button" className="button is-quiet" onClick={() => setMessage(null)}>
-              Dismiss
+              <Trans>Dismiss</Trans>
             </button>
           </div>
         ) : null}
 
         <ConfirmDialog
           open={doomed !== undefined}
-          title={doomed ? `Delete “${doomed.title}”?` : 'Delete?'}
-          confirmLabel="Delete"
+          title={doomed ? t`Delete “${{ title: isolate(doomed.title) }}”?` : t`Delete?`}
+          confirmLabel={t`Delete`}
           onCancel={() => setAskingDelete(null)}
           onConfirm={confirmDelete}
         >
@@ -912,8 +927,8 @@ export function Workspace({
 
         <ConfirmDialog
           open={folderOffer !== null && !folderQuestion(folderOffer).newFolder}
-          title={folderOffer ? folderQuestion(folderOffer).title : 'Save to the folder?'}
-          confirmLabel={folderOffer ? folderQuestion(folderOffer).confirm : 'Save'}
+          title={folderOffer ? folderQuestion(folderOffer).title : t`Save to the folder?`}
+          confirmLabel={folderOffer ? folderQuestion(folderOffer).confirm : t`Save`}
           onCancel={() => setFolderOffer(null)}
           onConfirm={answerFolderQuestion}
         >
@@ -922,10 +937,10 @@ export function Workspace({
         {/* The questions that can be answered with a new folder: changed documents, another project, and an earlier save of this one. */}
         <ChoiceDialog
           open={folderOffer !== null && folderQuestion(folderOffer).newFolder}
-          title={folderOffer ? folderQuestion(folderOffer).title : 'Save to the folder?'}
+          title={folderOffer ? folderQuestion(folderOffer).title : t`Save to the folder?`}
           choices={[
-            { label: 'Save as a new folder…', onChoose: saveAsNewFolder },
-            { label: folderOffer ? folderQuestion(folderOffer).confirm : 'Save', onChoose: answerFolderQuestion, danger: true },
+            { label: t`Save as a new folder…`, onChoose: saveAsNewFolder },
+            { label: folderOffer ? folderQuestion(folderOffer).confirm : t`Save`, onChoose: answerFolderQuestion, danger: true },
           ]}
           onCancel={() => setFolderOffer(null)}
         >
@@ -934,7 +949,7 @@ export function Workspace({
         <ChoiceDialog
           open={notEmptyFolder !== null}
           title={notEmptyQuestion(notEmptyFolder ?? '').title}
-          choices={[{ label: 'Choose another folder…', onChoose: saveAsNewFolder }]}
+          choices={[{ label: t`Choose another folder…`, onChoose: saveAsNewFolder }]}
           onCancel={() => setNotEmptyFolder(null)}
         >
           {notEmptyQuestion(notEmptyFolder ?? '').body}
@@ -961,13 +976,18 @@ export function Workspace({
 
 function DeleteSummary({ descendants, documents, words }: { descendants: number; documents: number; words: number }): ReactNode {
   if (descendants === 0) {
-    return <p>This removes the item and its {wordsLabel(words)} from the project. You can undo it right after with Ctrl+Z.</p>;
+    return (
+      <p>
+        {/* `wordsLabel` is a whole count phrase, and a value here keeps the sentence in message order. */}
+        {t`This removes the item and its ${{ words: wordsLabel(words) }} from the project. You can undo it right after with Ctrl+Z.`}
+      </p>
+    );
   }
-  const docs = documents > 0 ? `, and ${wordsLabel(words)} across ${documents} ${documents === 1 ? 'document' : 'documents'}` : '';
   return (
     <p>
-      This removes the item, the {formatCount(descendants)} {descendants === 1 ? 'item' : 'items'} inside it{docs}. You can
-      undo it right after with Ctrl+Z.
+      {documents > 0
+        ? t`This removes the item, the ${plural(descendants, { one: '# item', other: '# items' })} inside it, and ${{ words: wordsLabel(words) }} across ${plural(documents, { one: '# document', other: '# documents' })}. You can undo it right after with Ctrl+Z.`
+        : t`This removes the item, the ${plural(descendants, { one: '# item', other: '# items' })} inside it. You can undo it right after with Ctrl+Z.`}
     </p>
   );
 }
@@ -1003,7 +1023,7 @@ function RailTabButton({
     >
       {label}
       {badge > 0 ? (
-        <span className="rail-badge" aria-label={`${badge} open`} data-testid={`${tab}-badge`}>
+        <span className="rail-badge" aria-label={t`${plural(badge, { one: '# open', other: '# open' })}`} data-testid={`${tab}-badge`}>
           {badge}
         </span>
       ) : null}
@@ -1024,7 +1044,7 @@ function SaveIndicator({ state, onExport }: { state: SaveState; onExport: () => 
         <>
           {' '}
           <button type="button" className="button is-quiet" onClick={onExport}>
-            Export a backup
+            <Trans>Export a backup</Trans>
           </button>
         </>
       ) : null}
@@ -1050,13 +1070,11 @@ interface FolderOffer {
 /** The changed files, one line each, for a question that names them. Nothing renders for a save with none. */
 function changedFilesList(files: readonly FolderFileChange[]): ReactNode {
   if (files.length === 0) return null;
-  const change = { changed: 'changed', removed: 'removed', added: 'added' } as const;
+  const change = { changed: t`changed`, removed: t`removed`, added: t`added` } as const;
   return (
     <ul>
       {files.map((file, index) => (
-        <li key={index}>
-          {file.label}: {change[file.change]}
-        </li>
+        <li key={index}>{t`${{ file: isolate(file.label) }}: ${{ change: change[file.change] }}`}</li>
       ))}
     </ul>
   );
@@ -1078,114 +1096,141 @@ function folderQuestion({
 } {
   if (reason === 'files') {
     return {
-      title: 'Some documents in this folder changed since Caotang last saved them',
+      title: t`Some documents in this folder changed since Caotang last saved them`,
       body: (
         <>
           {partial ? (
             <p>
-              Another program changed these files in the folder while Caotang was saving, so the save stopped part way. The files before
-              them were saved, and these were not:
+              <Trans>
+                Another program changed these files in the folder while Caotang was saving, so the save stopped part way. The files before
+                them were saved, and these were not:
+              </Trans>
             </p>
           ) : null}
           {after ? (
             <p>
-              Another program changed these files in the folder while Caotang was saving. The save was written, and the folder now holds
-              that program&rsquo;s version of them:
+              <Trans>
+                Another program changed these files in the folder while Caotang was saving. The save was written, and the folder now holds
+                that program’s version of them:
+              </Trans>
             </p>
           ) : null}
           {changedFilesList(files)}
           <p>
-            Saving writes this tab&rsquo;s version over them. The folder&rsquo;s version is kept first, in <code>.caotang-backup</code> in
-            the folder, so if you need anything from it, copy it from there.
+            <Trans>
+              Saving writes this tab’s version over them. The folder’s version is kept first, in <code>.caotang-backup</code> in the folder,
+              so if you need anything from it, copy it from there.
+            </Trans>
           </p>
         </>
       ),
-      confirm: 'Save over them',
+      confirm: t`Save over them`,
       newFolder: true,
     };
   }
   if (reason === 'locked') {
     return {
-      title: 'Another program may be using this folder',
+      title: t`Another program may be using this folder`,
       body: after ? (
         <p>
-          A lock file appeared in this folder while Caotang was saving, so another program, such as the Caotang MCP server, may have read
-          the folder part way through the save. The save was written. Saving again now can overwrite what that program writes. Save again
-          anyway?
+          <Trans>
+            A lock file appeared in this folder while Caotang was saving, so another program, such as the Caotang MCP server, may have read
+            the folder part way through the save. The save was written. Saving again now can overwrite what that program writes. Save again
+            anyway?
+          </Trans>
         </p>
       ) : (
         <p>
-          A lock file in this folder says that another program, such as the Caotang MCP server, may be using it. Saving now can overwrite
-          what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?
+          <Trans>
+            A lock file in this folder says that another program, such as the Caotang MCP server, may be using it. Saving now can overwrite
+            what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?
+          </Trans>
         </p>
       ),
-      confirm: 'Save anyway',
+      confirm: t`Save anyway`,
       newFolder: false,
     };
   }
   if (reason === 'changed' && removed) {
     return {
-      title: 'This folder’s caotang.json was removed',
+      title: t`This folder’s caotang.json was removed`,
       body: (
         <>
           <p>
-            Another program removed <code>caotang.json</code> from this folder after Caotang last loaded or saved it, so nothing was written.
+            <Trans>
+              Another program removed <code>caotang.json</code> from this folder after Caotang last loaded or saved it, so nothing was
+              written.
+            </Trans>
           </p>
           <p>
-            Saving here writes <code>caotang.json</code> back into the folder from this tab, with the project as this tab holds it.
+            <Trans>
+              Saving here writes <code>caotang.json</code> back into the folder from this tab, with the project as this tab holds it.
+            </Trans>
           </p>
           {changedFilesList(files)}
         </>
       ),
-      confirm: 'Write it back',
+      confirm: t`Write it back`,
       newFolder: false,
     };
   }
   if (reason === 'changed') {
     return {
-      title: 'This folder changed since Caotang last saved it',
+      title: t`This folder changed since Caotang last saved it`,
       body: (
         <>
           <p>
-            <code>caotang.json</code> in this folder was changed by another program{' '}
-            {after ? 'while Caotang was saving it, so the folder now holds that program’s version.' : 'after Caotang last loaded or saved it, so nothing was written.'}
+            {after ? (
+              <Trans>
+                <code>caotang.json</code> in this folder was changed by another program while Caotang was saving it, so the folder now holds
+                that program’s version.
+              </Trans>
+            ) : (
+              <Trans>
+                <code>caotang.json</code> in this folder was changed by another program after Caotang last loaded or saved it, so nothing
+                was written.
+              </Trans>
+            )}
           </p>
           <p>
-            To see the folder&rsquo;s newer copy, go to Projects and open the folder again: it opens as a separate project. Saving here
-            writes <code>caotang.json</code> from this tab, and an older one that is there is kept as a backup.
+            <Trans>
+              To see the folder’s newer copy, go to Projects and open the folder again: it opens as a separate project. Saving here writes <code>caotang.json</code> from this tab, and an older one that is there is kept as a backup.
+            </Trans>
           </p>
           {changedFilesList(files)}
         </>
       ),
-      confirm: 'Save over it',
+      confirm: t`Save over it`,
       newFolder: false,
     };
   }
   if (reason === 'earlier') {
     return {
-      title: 'This folder holds an earlier save of this project',
+      title: t`This folder holds an earlier save of this project`,
       body: (
         <p>
-          Caotang has no record of what this folder held when this project was last saved there, so it can&rsquo;t tell which documents
-          changed since. Saving writes this tab&rsquo;s version over the folder&rsquo;s documents. The folder&rsquo;s version of each
-          one it replaces is kept in <code>.caotang-backup</code> in the folder, and an older <code>caotang.json</code> is kept as a backup
-          of its own, so if you need anything from it, copy it from there.
+          <Trans>
+            Caotang has no record of what this folder held when this project was last saved there, so it can’t tell which documents changed
+            since. Saving writes this tab’s version over the folder’s documents. The folder’s version of each one it replaces is kept in <code>.caotang-backup</code> in the folder, and an older <code>caotang.json</code> is kept as a backup of its own, so if you need anything from it, copy it from there.
+          </Trans>
         </p>
       ),
-      confirm: 'Save over it',
+      confirm: t`Save over it`,
       newFolder: true,
     };
   }
   return {
-    title: 'This folder already holds another project',
+    title: t`This folder already holds another project`,
     body: (
       <p>
-        Saving here replaces that project&rsquo;s <code>caotang.json</code> and any of its documents that share an id with this one.
-        Caotang keeps a backup of that <code>caotang.json</code>, and copies each document it replaces to <code>.caotang-backup</code> in the
-        folder.
+        <Trans>
+          Saving here replaces that project’s <code>caotang.json</code> and any of its documents that share an id with this one. Caotang
+          keeps a backup of that <code>caotang.json</code>, and copies each document it replaces to <code>.caotang-backup</code> in the
+          folder.
+        </Trans>
       </p>
     ),
-    confirm: 'Save over it',
+    confirm: t`Save over it`,
     newFolder: true,
   };
 }
@@ -1195,12 +1240,16 @@ function folderQuestion({
  * nothing yet, so no file of another project or program is written over.
  */
 function notEmptyQuestion(name: string): { readonly title: string; readonly body: ReactNode } {
+  // Isolated once, and named, so the catalogue holds `{folderName}` rather than a positional `{0}`.
+  const folderName = isolate(name);
   return {
-    title: 'That folder is not empty',
+    title: t`That folder is not empty`,
     body: (
       <p>
-        The folder &ldquo;{name}&rdquo; already has files in it, so nothing was saved there. A new folder for this project must be empty.
-        Choose another folder, or make an empty one in the folder picker.
+        <Trans>
+          The folder “{folderName}” already has files in it, so nothing was saved there. A new folder for this project must be empty.
+          Choose another folder, or make an empty one in the folder picker.
+        </Trans>
       </p>
     ),
   };

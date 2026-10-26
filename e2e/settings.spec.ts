@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { fakeEndpoint, FAKE_ENDPOINT, planThenAnswer } from './endpoint.js';
-import { createProject } from './support.js';
+import { createProject, savedMessage } from './support.js';
 
 /**
  * Settings (ui-modules §5): saving a profile, the list-models probe at save time, activation with its response-format probe,
@@ -39,7 +39,7 @@ test('the demo profile can be renamed and saved, with no key', async ({ page }) 
   await form.getByLabel('Name').fill('Demo, renamed');
   await form.getByRole('button', { name: 'Save profile' }).click();
 
-  await expect(settings.getByText('Saved “Demo, renamed”.')).toBeVisible();
+  await expect(settings.getByText(savedMessage('Demo, renamed'))).toBeVisible();
   await expect(settings.locator('[data-profile="Demo, renamed"]')).toContainText('Active');
   await expect(settings.locator('[data-profile="Demo (no key)"]')).toHaveCount(0);
 });
@@ -53,7 +53,7 @@ test('saving an endpoint lists its models and probes its response format at save
 
   await addGenericProfile(settings, 'Local test');
   // The save-time probe: the models the endpoint lists are shown beside the profile.
-  await expect(settings.getByText('Saved “Local test”.')).toBeVisible();
+  await expect(settings.getByText(savedMessage('Local test'))).toBeVisible();
   await expect(settings.getByRole('region', { name: 'Models listed by Local test' })).toContainText('test-model');
   // The probe did not make the profile active: the demo profile still is.
   await expect(settings.locator('[data-profile="Demo (no key)"]')).toContainText('Active');
@@ -84,7 +84,7 @@ test('the endpoint profile and its activation survive a reload, and the restored
   await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill(FAKE_ENDPOINT);
   await form.getByLabel('Model', { exact: true }).fill('test-model');
   await form.getByRole('button', { name: 'Save profile' }).click();
-  await expect(settings.getByText('Saved “Survivor”.')).toBeVisible();
+  await expect(settings.getByText(savedMessage('Survivor'))).toBeVisible();
   await settings.locator('[data-profile="Survivor"]').getByRole('button', { name: 'Use this profile' }).click();
   await expect(settings.getByText('is now the active profile')).toBeVisible();
   await settings.getByRole('button', { name: 'Close' }).click();

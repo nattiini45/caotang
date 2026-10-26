@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { endpointRoute, FAKE_ENDPOINT, fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
-import { bodyOf, idOf } from './support.js';
+import { bodyOf, idOf, savedMessage } from './support.js';
 
 /**
  * The provider settings the preset registry drives (provider-gateway §2, §9; ui-modules §5.2): the preset picker and its
@@ -80,7 +80,7 @@ test('a workspace-templated preset saves against the endpoint its fields built, 
   await form.getByLabel('API key (required)').fill('test-key');
   await form.getByRole('button', { name: 'Save profile' }).click();
 
-  await expect(settings.getByText('Saved “Qwen studio”.')).toBeVisible();
+  await expect(settings.getByText(savedMessage('Qwen studio'))).toBeVisible();
   await expect(settings.getByRole('region', { name: 'Models listed by Qwen studio' })).toContainText('test-model');
   await expect(settings.locator('[data-profile="Qwen studio"]')).toContainText('Alibaba Cloud Model Studio (Qwen)');
   await expect(settings.locator('[data-profile="Qwen studio"]')).toContainText('maas.aliyuncs.com');
@@ -109,7 +109,7 @@ test('a generic endpoint keeps its custom headers sealed: sent on its calls, nev
   await form.getByLabel('Header 1 name').fill('x-org');
   await form.getByLabel('Header 1 value').fill('secret-value');
   await form.getByRole('button', { name: 'Save profile' }).click();
-  await expect(settings.getByText('Saved “Headers”.')).toBeVisible();
+  await expect(settings.getByText(savedMessage('Headers'))).toBeVisible();
 
   // The probes carried it — and no render, list or log line ever repeats it.
   expect(seen.some((headers) => headers['x-org'] === 'secret-value')).toBe(true);
@@ -137,7 +137,7 @@ test('task roles pin a profile, a model, and — only where the model documents 
   await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill(FAKE_ENDPOINT);
   await form.getByLabel('Model', { exact: true }).fill('test-model');
   await form.getByRole('button', { name: 'Save profile' }).click();
-  await expect(settings.getByText('Saved “Local”.')).toBeVisible();
+  await expect(settings.getByText(savedMessage('Local'))).toBeVisible();
 
   await settings.getByRole('button', { name: 'Add a provider' }).click();
   form = settings.getByRole('form', { name: 'New provider' });
@@ -145,7 +145,7 @@ test('task roles pin a profile, a model, and — only where the model documents 
   await form.getByLabel('Name').fill('Claude');
   await form.getByLabel('API key (required)').fill('test-key');
   await form.getByRole('button', { name: 'Save profile' }).click();
-  await expect(settings.getByText('Saved “Claude”.')).toBeVisible();
+  await expect(settings.getByText(savedMessage('Claude'))).toBeVisible();
 
   // Chat pinned to Claude: the model field is the profile's own; once it names a model with documented levels, the
   // thinking control appears with exactly those — 'Off' is not among Claude 5.5's.
@@ -263,7 +263,7 @@ test('the local model servers sit under "On this computer", save with no key, an
   // Back on loopback it saves with no key, lists the server's models, and the profile row carries the privacy line.
   await address.fill('http://127.0.0.1:11434/v1');
   await form.getByRole('button', { name: 'Save profile' }).click();
-  await expect(settings.getByText('Saved “Ollama here”.')).toBeVisible();
+  await expect(settings.getByText(savedMessage('Ollama here'))).toBeVisible();
   await expect(settings.getByRole('region', { name: 'Models listed by Ollama here' })).toContainText('qwen3');
   const row = settings.locator('[data-profile="Ollama here"]');
   await expect(row).toContainText('Ollama · http://127.0.0.1:11434/v1 · llama3.2');

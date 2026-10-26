@@ -9,7 +9,7 @@
 
 import { chromium, expect, test, type Page } from '@playwright/test';
 
-import { binderTitle, createProject, FOLDER_ACCESS_ONLY, waitForSaved } from './support.js';
+import { binderTitle, createProject, FOLDER_ACCESS_ONLY, waitForSaved, writerText } from './support.js';
 
 test.skip(({ browserName }) => browserName !== 'chromium', FOLDER_ACCESS_ONLY);
 
@@ -82,8 +82,11 @@ async function projectWithWords(page: Page, name: string, text: string): Promise
  * A status line's whole text, exactly: the line is matched from its start to its end, and only the status's own Dismiss button may follow
  * it. A notice joined without its capital or full stop, or one more notice than the test names, does not match.
  */
-function wholeLine(text: string): RegExp {
-  return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(Dismiss)?$`);
+function wholeLine(text: string, writer?: string): RegExp {
+  const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // A writer value in the sentence may carry the FSI/PDI pair (i18n.md §5.3); allow it where named.
+  const body = writer === undefined ? escaped : escaped.replace(writer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), writerText(writer));
+  return new RegExp(`^${body}(Dismiss)?$`);
 }
 
 /**
@@ -93,7 +96,9 @@ function wholeLine(text: string): RegExp {
  */
 async function saveToFolder(page: Page, folder?: string): Promise<void> {
   await page.getByRole('button', { name: 'Save to folder' }).click();
-  const saved = folder === undefined ? 'Saved the project to the folder' : `Saved the project to the folder “${folder}”`;
+  // The folder name is writer text and is isolated, so the named form is a matcher rather than a string.
+  const saved =
+    folder === undefined ? 'Saved the project to the folder' : new RegExp(`Saved the project to the folder “${writerText(folder)}`);
   await expect(page.getByRole('status').filter({ hasText: saved })).toBeVisible();
 }
 
@@ -158,6 +163,7 @@ test('a field a save drops is named, and the identity made at open is said besid
       'The project had no book identifier for EPUB, so Caotang made one, and the project keeps it from now on. ' +
       'The details Caotang made for this project as it opened were not saved to the folder, because another program, such as the Caotang MCP server, may be using it. The next open may make another set. ' +
       'The file has a field Caotang keeps but does not use: “colour”. It is dropped on the next save.',
+      'colour',
     ),
   );
 });
@@ -298,13 +304,13 @@ test('documents another program changed are asked about with Save as a new folde
   await question.getByRole('button', { name: 'Save as a new folder…' }).click();
   const notEmpty = page.getByRole('dialog').filter({ hasText: 'That folder is not empty' });
   await expect(notEmpty).toBeVisible();
-  await expect(notEmpty).toContainText('The folder “not-empty-folder” already has files in it, so nothing was saved there.');
+  await expect(notEmpty).toContainText(new RegExp(`The folder “${writerText('not-empty-folder')}” already has files in it, so nothing was saved there\\.`));
   expect(await readFolderFile(page, 'not-empty-folder', 'caotang.json')).toBeNull();
 
   // An empty folder takes the project, through the folder save, and becomes the project's folder.
   await pickFolder(page, 'new-empty-folder');
   await notEmpty.getByRole('button', { name: 'Choose another folder…' }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Saved the project to the folder “new-empty-folder”' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: new RegExp(`Saved the project to the folder “${writerText('new-empty-folder')}`) })).toBeVisible();
   await expect.poll(() => readFolderFile(page, 'new-empty-folder', 'caotang.json')).toContain('Changed Docs');
   expect(await folderDocuments(page, 'new-empty-folder')).toContain('Words from this tab.');
   // The first folder keeps the other program's text: nothing was written over it.
@@ -331,7 +337,7 @@ test('“Save over them” keeps the folder’s version in .caotang-backup, and 
   await page.getByRole('button', { name: 'Save to folder' }).click();
   const question = page.getByRole('dialog').filter({ hasText: 'Some documents in this folder changed since Caotang last saved them' });
   await question.getByRole('button', { name: 'Save over them' }).click();
-  const saved = page.getByRole('status').filter({ hasText: 'Saved the project to the folder “kept-docs-folder”' });
+  const saved = page.getByRole('status').filter({ hasText: new RegExp(`Saved the project to the folder “${writerText('kept-docs-folder')}`) });
   await expect(saved).toContainText(/What it replaced is kept in \.caotang-backup\/\d{4}-\d{2}-\d{2}T[\d-]+Z\./);
   await expect.poll(() => folderDocuments(page, 'kept-docs-folder')).toContain('Words from this tab, edited.');
   expect(await backupText(page, 'kept-docs-folder')).toContain('Words from another program.');
@@ -395,7 +401,7 @@ test('a folder holding another project asks with the owner’s words and three c
 
   // "Save over it" goes through the folder save: the folder holds the second project, and the first one's caotang.json is the backup.
   await question.getByRole('button', { name: 'Save over it' }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Saved the project to the folder “shared-folder”' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: new RegExp(`Saved the project to the folder “${writerText('shared-folder')}`) })).toBeVisible();
   expect(await readFolderFile(page, 'shared-folder', 'caotang.json')).toContain('Second Book');
   expect(await readFolderFile(page, 'shared-folder', 'caotang.json.bak.1')).toContain('First Book');
   expect(await folderDocuments(page, 'shared-folder')).toContain('Words of the second book.');
@@ -440,7 +446,7 @@ test('this project’s earlier save in a folder Caotang has no record of asks in
   );
   expect(await buttonLabels(question)).toEqual(['Save as a new folder…', 'Save over it', 'Cancel']);
   await question.getByRole('button', { name: 'Save over it' }).click();
-  await expect(page.getByRole('status').filter({ hasText: 'Saved the project to the folder “older-folder”' })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: new RegExp(`Saved the project to the folder “${writerText('older-folder')}`) })).toBeVisible();
 });
 
 /**
@@ -482,7 +488,7 @@ ordinaryProfile('a project remembers its folder: Reopen folder opens it in one c
   await page.getByRole('button', { name: 'Projects', exact: true }).click();
   await editFolderDocument(page, 'remembered-folder', 'Words in both places.', 'Words the folder holds.');
   await page.getByRole('button', { name: 'Reopen folder of Remembered' }).click();
-  const question = page.getByRole('dialog').filter({ hasText: 'The folder holds a different version of “Remembered”' });
+  const question = page.getByRole('dialog').filter({ hasText: new RegExp(`The folder holds a different version of “${writerText('Remembered')}”`) });
   await expect(question).toBeVisible();
   expect(await buttonLabels(question)).toEqual([
     'Use the folder’s version',
@@ -512,7 +518,7 @@ ordinaryProfile('a folder that differs can be taken as it is, or opened as a sep
 
   // "Open as a separate copy" is the open as it was before the question: a copy with its own id, and the notice that says so.
   await page.getByRole('button', { name: 'Reopen folder of Differs' }).click();
-  const question = page.getByRole('dialog').filter({ hasText: 'The folder holds a different version of “Differs”' });
+  const question = page.getByRole('dialog').filter({ hasText: new RegExp(`The folder holds a different version of “${writerText('Differs')}”`) });
   await question.getByRole('button', { name: 'Open as a separate copy' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'the folder opened as a separate copy' })).toBeVisible();
   await page.getByRole('button', { name: 'Projects', exact: true }).click();
@@ -522,7 +528,7 @@ ordinaryProfile('a folder that differs can be taken as it is, or opened as a sep
   await page.getByRole('button', { name: 'Reopen folder of Differs' }).first().click();
   await page
     .getByRole('dialog')
-    .filter({ hasText: 'The folder holds a different version of “Differs”' })
+    .filter({ hasText: new RegExp(`The folder holds a different version of “${writerText('Differs')}”`) })
     .getByRole('button', { name: 'Use the folder’s version' })
     .click();
   await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();

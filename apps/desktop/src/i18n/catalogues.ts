@@ -40,12 +40,13 @@ export function catalogueTags(dev: boolean): readonly string[] {
 }
 
 /**
- * True when two catalogue settings name the same tag. A stored setting is canonicalised by
- * `normalizeInterfaceLanguage`, and `'system'` is compared by the switcher itself, so this only
+ * True when two interface-language settings name the same choice. A stored setting is canonicalised
+ * by `normalizeInterfaceLanguage`, and `'system'` is compared by the switcher itself, so this only
  * absorbs a mixed-case caller or a hand-edited record; the comparison is case-insensitive so a tag's
- * case can never decide whether the picker shows a row as selected.
+ * case can never decide whether the picker shows a row as selected. A setting is a language tag or
+ * `'system'`, which is why this is not named for a tag.
  */
-export function sameTag(left: string, right: string): boolean {
+export function sameLanguageSetting(left: string, right: string): boolean {
   return left.toLowerCase() === right.toLowerCase();
 }
 

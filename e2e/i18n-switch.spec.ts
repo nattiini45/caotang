@@ -27,7 +27,8 @@ async function openAppearance(page: Page): Promise<ReturnType<Page['getByTestId'
   // A stable id, because the button's words follow the interface language (the Home one is the witness).
   await page.getByTestId('open-settings').click();
   const settings = page.getByTestId('settings');
-  await settings.getByRole('button', { name: 'Appearance' }).click();
+  // By section id: after a reload with a saved pseudo preference, the section's name is pseudo text.
+  await settings.locator('[data-section="appearance"]').click();
   return settings;
 }
 
@@ -215,7 +216,8 @@ test.describe('the switched document and accessibility', () => {
     const settings = await openAppearance(page);
     await languageRadio(settings, 'ar-XB').click();
     await expect.poll(() => documentLanguage(page)).toEqual({ lang: 'ar-XB', dir: 'rtl' });
-    await settings.getByRole('button', { name: 'Close' }).click();
+    // By structure: after the switch the button's words are pseudo text.
+    await settings.locator('.settings-head button').click();
 
     // Writer content keeps the project's language and automatic direction while the UI mirrors.
     const title = page.locator('.row-title').first();

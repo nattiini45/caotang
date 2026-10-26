@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { fakeEndpoint, useFakeEndpoint, type FakeReply } from './endpoint.js';
-import { binderTitle, bodyOf, countOf, createProject, firstChapter, idOf, waitForSaved } from './support.js';
+import { binderTitle, bodyOf, countOf, createProject, firstChapter, idOf, savedMessage, waitForSaved } from './support.js';
 
 /**
  * Composition-safe input (#188, ui-modules §2.5). With an input method, the Enter that commits a candidate reaches the app as a
@@ -206,12 +206,12 @@ test('a settings form saves on the ordinary Enter and never on the composing one
   await expect(form).toBeVisible();
   await expect(name).toHaveValue('Demo, candidate');
   await expect(name).toBeFocused();
-  await expect(settings.getByText('Saved “Demo, candidate”.')).toHaveCount(0);
+  await expect(settings.getByText(savedMessage('Demo, candidate'))).toHaveCount(0);
 
   await compositionEnd(name);
   await name.press('Enter');
   // The ordinary Enter saves the profile once: one message, one renamed card, and the form closes.
-  await expect(settings.getByText('Saved “Demo, candidate”.')).toHaveCount(1);
+  await expect(settings.getByText(savedMessage('Demo, candidate'))).toHaveCount(1);
   await expect(settings.locator('[data-profile="Demo, candidate"]')).toHaveCount(1);
   await expect(form).toHaveCount(0);
 });
@@ -232,11 +232,11 @@ test('a composing Enter that caused no submit leaves no mark behind to swallow a
   await page.waitForTimeout(50);
   // The keydown saved nothing: the form still holds the typed name.
   await expect(form).toBeVisible();
-  await expect(settings.getByText('Saved “Demo, clicked”.')).toHaveCount(0);
+  await expect(settings.getByText(savedMessage('Demo, clicked'))).toHaveCount(0);
 
   // An ordinary click on Save, not an Enter. The dropped mark must not swallow it: one save, one renamed card, form closed.
   await form.getByRole('button', { name: 'Save profile' }).click();
-  await expect(settings.getByText('Saved “Demo, clicked”.')).toHaveCount(1);
+  await expect(settings.getByText(savedMessage('Demo, clicked'))).toHaveCount(1);
   await expect(settings.locator('[data-profile="Demo, clicked"]')).toHaveCount(1);
   await expect(form).toHaveCount(0);
 

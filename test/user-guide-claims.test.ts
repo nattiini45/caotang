@@ -95,8 +95,9 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(guide).toContain('The status line says so when you turn focus on, and its **Settings › Writing** opens that setting.');
     // The wording, with "Settings › Writing" a link to the section.
     const workspace = read('apps/desktop/src/components/Workspace.tsx');
-    expect(workspace).toContain("text: 'Focus mode is on. The binder and inspector stay open, as set in '");
-    expect(workspace).toContain("link: { label: 'Settings › Writing', after: '.', onClick: () => setSettingsSection('writing') }");
+    // The words are still in the source, inside the message macro that extracts them.
+    expect(workspace).toContain('text: t`Focus mode is on. The binder and inspector stay open, as set in `');
+    expect(workspace).toContain("link: { label: t`Settings › Writing`, after: '.', onClick: () => setSettingsSection('writing') }");
   });
 
   it('says History’s Today includes the open sitting, as the status line does', () => {
@@ -381,7 +382,8 @@ describe('the user guide’s reviewed claims match the code', () => {
 
   it('names the Agent setting in the words the section shows, and says it is off by default', () => {
     const section = read('apps/desktop/src/components/Settings.tsx');
-    expect(section).toContain("{ id: 'agent', label: 'Agent' }");
+    // The English name is still in the source, as the message the section's button renders.
+    expect(section).toContain("{ id: 'agent', label: msg`Agent` }");
     expect(section).toContain('<span>Load every tool on every request</span>');
     expect(read('apps/desktop/src/app/settings.ts')).toContain("DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false, defaultMode: 'ask'");
     expect(guide).toContain('**Settings › Agent** has **Load every tool on every request** for a model that searches poorly. It is off by default, and it makes every request longer.');

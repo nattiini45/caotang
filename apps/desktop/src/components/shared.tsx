@@ -9,7 +9,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useId,
   useRef,
   useState,
   useSyncExternalStore,
@@ -19,6 +18,7 @@ import {
 
 import { isImeEnter, layoutLetter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
+import { accessibleText } from '../i18n/accessible-text.js';
 
 /** Re-renders the caller whenever the session commits, saves or undoes anything. */
 export function useSession(session: ProjectSession): number {
@@ -283,8 +283,6 @@ export function ConfirmDialog({
   children: ReactNode;
 }): ReactNode {
   const ref = useRef<HTMLDialogElement>(null);
-  // Each dialog names itself with its own id: two confirmations can be in the page at once (a delete, and a restore).
-  const titleId = useId();
 
   useEffect(() => {
     const dialog = ref.current;
@@ -297,14 +295,16 @@ export function ConfirmDialog({
     <dialog
       ref={ref}
       className="confirm"
-      aria-labelledby={titleId}
+      // The visible title may isolate writer text; the accessible name is the same words without the
+      // invisible marks, so a role-name lookup matches what the writer reads.
+      aria-label={accessibleText(title)}
       onCancel={(event) => {
         event.preventDefault();
         onCancel();
       }}
     >
       <form method="dialog" className="confirm-body">
-        <h2 id={titleId}>{title}</h2>
+        <h2>{title}</h2>
         <div className="confirm-text">{children}</div>
         <div className="confirm-actions">
           <button type="button" className="button" autoFocus onClick={onCancel}>
@@ -344,7 +344,6 @@ export function ChoiceDialog({
   children: ReactNode;
 }): ReactNode {
   const ref = useRef<HTMLDialogElement>(null);
-  const titleId = useId();
 
   useEffect(() => {
     const dialog = ref.current;
@@ -357,14 +356,14 @@ export function ChoiceDialog({
     <dialog
       ref={ref}
       className="confirm"
-      aria-labelledby={titleId}
+      aria-label={accessibleText(title)}
       onCancel={(event) => {
         event.preventDefault();
         onCancel();
       }}
     >
       <form method="dialog" className="confirm-body">
-        <h2 id={titleId}>{title}</h2>
+        <h2>{title}</h2>
         <div className="confirm-text">{children}</div>
         <div className="confirm-actions">
           {choices.map((choice) => (
@@ -530,4 +529,4 @@ export function EmptyState({
 }
 
 /** A count as a panel shows it, grouped by the formatter locale. Defined in the model layer so a test can pin it. */
-export { formatCount, wordsLabel } from '../app/counts.js';
+export { documentsLabel, formatCount, wordsLabel } from '../app/counts.js';

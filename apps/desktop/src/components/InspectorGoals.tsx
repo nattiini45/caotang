@@ -10,7 +10,6 @@ import { MONTHLY_RESET_MAX, goalProgress, localDayOf, localeFirstWeekday, type P
 import type { TreeNode } from '@caotang/store';
 
 import {
-  WEEKDAY_NAMES,
   formatDay,
   goalSentence,
   goalStateWords,
@@ -18,6 +17,7 @@ import {
   paceCountOf,
   resetSentence,
   unitOf,
+  weekdayName,
 } from '../app/footer-model.js';
 import { furnitureFor, goalProbeOf } from '../app/furniture-store.js';
 import type { ProjectSession } from '../app/session.js';
@@ -237,8 +237,8 @@ export function InspectorGoals({ session, node }: { session: ProjectSession; nod
             <select value={reset} onChange={(event) => setReset(event.target.value)}>
               {kind === 'weekly' ? (
                 <>
-                  <option value="">{WEEKDAY_NAMES[firstWeekday]}, your locale&apos;s first day</option>
-                  {WEEKDAY_NAMES.map((name, day) => (
+                  <option value="">{weekdayName(firstWeekday)}, your locale&apos;s first day</option>
+                  {Array.from({ length: 7 }, (_, day) => weekdayName(day)).map((name, day) => (
                     <option key={name} value={String(day)}>
                       {name}
                     </option>

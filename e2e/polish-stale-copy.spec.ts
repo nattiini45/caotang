@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { binderTitle, bodyOf, createProject, idOf, projectIdOf, treeOf, waitForSaved } from './support.js';
+import { binderTitle, bodyOf, createProject, idOf, projectIdOf, treeOf, waitForSaved, writerText } from './support.js';
 
 /**
  * A stopped tab keeps its words in this browser (unsent-copy.ts, persistence.ts), and the project offers them back once it opens
@@ -275,7 +275,7 @@ test('removing a project from this browser deletes the words its stopped tab kep
   await page.getByRole('button', { name: 'Remove Removed Words from this browser' }).click();
   const confirm = page.getByRole('dialog', { name: 'Remove “Removed Words” from this browser?' });
   await confirm.getByRole('button', { name: 'Remove', exact: true }).click();
-  await expect(page.getByText('Removed “Removed Words” from this browser')).toBeVisible();
+  await expect(page.getByText(new RegExp(`Removed “${writerText('Removed Words')}” from this browser`))).toBeVisible();
 
   // Nothing can open the project again to offer the words back, so the browser keeps none of them.
   expect(await keptCopy(page, projectId ?? '')).toBeNull();

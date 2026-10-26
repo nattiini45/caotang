@@ -11,7 +11,9 @@
  *   own section (ui-modules §5.2). **Context budgets** are here too (the `context` record), and the assembler honours the
  *   layers they name: the codex, the story so far and the continuity tail (context-assembly §3).
  */
+/* lingui-set comment="Interpolated values: caps, total" */
 
+import { t } from '@lingui/core/macro';
 import { DETERMINISTIC_CHECK_IDS, MAX_FINDINGS_CAP, MAX_FINDINGS_DEFAULT, type DeterministicCheckId } from '@caotang/coherence';
 import type { ThinkingLevel } from '@caotang/gateway';
 import { isPermissionMode, type ContextConfig, type PermissionMode } from '@caotang/harness';
@@ -430,7 +432,7 @@ export function contextWarningOf(context: ContextSettings, locale: string = form
   const caps = Object.values(context.layerBudgets).reduce<number>((sum, value) => sum + (value ?? 0), 0);
   if (caps === 0 || context.totalBudgetTokens >= caps) return undefined;
   const count = numberFormat(locale);
-  return `The total (${count.format(context.totalBudgetTokens)} tokens) is below the layer caps together (${count.format(caps)} tokens), so a layer can be cut before it reaches its own cap.`;
+  return t`The total (${{ total: count.format(context.totalBudgetTokens) }} tokens) is below the layer caps together (${{ caps: count.format(caps) }} tokens), so a layer can be cut before it reaches its own cap.`;
 }
 
 /** Applies a patch to settings and normalises the result, so a patch cannot leave the record outside its clamps. */

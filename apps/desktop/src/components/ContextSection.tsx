@@ -3,9 +3,15 @@
  * layers the spec names as config-exposed. An empty field keeps the spec's own default. A typed value is checked on save and
  * stored clamped into its range, the same way it loads, and the warn line names a total that is below the layer caps together.
  * The preview bar links to the prompt a scene draft would send under the typed budgets (context-assembly §5), when a project is open.
+ *
+ * Every sentence is a catalogue message (i18n.md §4.2, I5); the fixed layer names travel inside the sentence's own `select`, so no
+ * sentence is assembled from translated fragments.
  */
+/* lingui-set comment="Interpolated values: count, layerId, max, min" */
 
 import { useState, type FormEvent, type ReactNode } from 'react';
+import { select, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 
 import { contextPreviewOf, type ContextPreviewView } from '../app/context-preview.js';
 import type { AppServices } from '../app/services.js';
@@ -22,12 +28,24 @@ import {
 import { PromptPreview } from './PlanCard.js';
 import { formatCount, useComposingEnter } from './shared.js';
 
-/** Each layer's label and the default the spec gives it for a scene draft (context-assembly §2). */
-const LAYERS: readonly { readonly id: ContextLayerId; readonly label: string; readonly fallback: number }[] = [
-  { id: 'L2', label: 'Codex entries', fallback: 1_000 },
-  { id: 'L4', label: 'Story so far, from the synopses', fallback: 2_000 },
-  { id: 'L5', label: 'Focus document text', fallback: 2_000 },
+/** Each layer's id and the default the spec gives it for a scene draft (context-assembly §2). */
+const LAYERS: readonly { readonly id: ContextLayerId; readonly fallback: number }[] = [
+  { id: 'L2', fallback: 1_000 },
+  { id: 'L4', fallback: 2_000 },
+  { id: 'L5', fallback: 2_000 },
 ];
+
+/** A layer's name, as a field label. */
+function layerLabel(id: ContextLayerId): string {
+  switch (id) {
+    case 'L2':
+      return t`Codex entries`;
+    case 'L4':
+      return t`Story so far, from the synopses`;
+    case 'L5':
+      return t`Focus document text`;
+  }
+}
 
 const WORDS_OF = (value: number): string => formatCount(value);
 
@@ -60,14 +78,12 @@ function draftOf(total: string, layers: Readonly<Record<ContextLayerId, string>>
  * is the budget the writer typed, or the largest the layers add up to.
  */
 function BudgetPreview({ draft }: { draft: ContextSettings }): ReactNode {
-  const layers = LAYERS.map((layer) => ({ ...layer, tokens: draft.layerBudgets[layer.id] ?? layer.fallback }));
-  const layerTotal = layers.reduce((sum, layer) => sum + layer.tokens, 0);
+  const tokens = (id: ContextLayerId, fallback: number): number => draft.layerBudgets[id] ?? fallback;
+  const layerTotal = LAYERS.reduce((sum, layer) => sum + tokens(layer.id, layer.fallback), 0);
   const whole = Math.max(draft.totalBudgetTokens ?? 0, layerTotal);
-  const split = layers.map((layer) => `${WORDS_OF(layer.tokens)} tokens for ${layer.label.toLowerCase()}`).join(', ');
   return (
     <p className="muted" data-testid="context-preview">
-      A prompt of about {WORDS_OF(whole)} tokens: {split}, and the rest for the instruction and the reply. The plan card shows this split
-      for each request before you approve it.
+      {t`A prompt of about ${{ whole: WORDS_OF(whole) }} tokens: ${{ l2: WORDS_OF(tokens('L2', 1_000)) }} tokens for the codex entries, ${{ l4: WORDS_OF(tokens('L4', 2_000)) }} tokens for the story so far, ${{ l5: WORDS_OF(tokens('L5', 2_000)) }} tokens for the focus document, and the rest for the instruction and the reply. The plan card shows this split for each request before you approve it.`}
     </p>
   );
 }
@@ -104,14 +120,19 @@ export function ContextSection({ services, session = null }: { services: AppServ
     if (ime.takesSubmit()) return;
     const totalValue = readBudget(total, CONTEXT_TOTAL_MIN, CONTEXT_TOTAL_MAX);
     if (totalValue === undefined) {
-      setMessage(`The whole prompt is a whole number of tokens from ${WORDS_OF(CONTEXT_TOTAL_MIN)} to ${WORDS_OF(CONTEXT_TOTAL_MAX)}, or empty for the profile's default.`);
+      setMessage(
+        t`The whole prompt is a whole number of tokens from ${{ min: WORDS_OF(CONTEXT_TOTAL_MIN) }} to ${{ max: WORDS_OF(CONTEXT_TOTAL_MAX) }}, or empty for the profile’s default.`,
+      );
       return;
     }
     const layerBudgets: Partial<Record<ContextLayerId, number>> = {};
     for (const layer of LAYERS) {
       const value = readBudget(layers[layer.id], CONTEXT_LAYER_MIN, CONTEXT_LAYER_MAX);
       if (value === undefined) {
-        setMessage(`${layer.label} is a whole number of tokens from ${WORDS_OF(CONTEXT_LAYER_MIN)} to ${WORDS_OF(CONTEXT_LAYER_MAX)}, or empty for the default.`);
+        const layerId = layer.id;
+        setMessage(
+          t`${select(layerId, { L2: 'Codex entries', L4: 'Story so far, from the synopses', L5: 'Focus document text', other: 'The layer' })} is a whole number of tokens from ${{ min: WORDS_OF(CONTEXT_LAYER_MIN) }} to ${{ max: WORDS_OF(CONTEXT_LAYER_MAX) }}, or empty for the default.`,
+        );
         return;
       }
       if (value !== null) layerBudgets[layer.id] = value;
@@ -120,39 +141,41 @@ export function ContextSection({ services, session = null }: { services: AppServ
     // The agent reads the budgets at each turn (Workspace builds its controller with contextConfigOf), so a save applies to the
     // next request.
     void services.settings.update({ context: next }).then((error) => {
-      setMessage(error ?? 'Saved. The agent’s next request uses these budgets.');
+      setMessage(error ?? t`Saved. The agent’s next request uses these budgets.`);
     });
   };
 
   return (
     <section className="settings-section" aria-labelledby="settings-context">
-      <h3 id="settings-context">Context</h3>
+      <h3 id="settings-context"><Trans>Context</Trans></h3>
       <p className="muted">
-        What the agent may send the model in one request, in tokens. An empty field keeps the default of the profile and the spec. A
-        change applies from the agent’s next request.
+        <Trans>
+          What the agent may send the model in one request, in tokens. An empty field keeps the default of the profile and the spec. A
+          change applies from the agent’s next request.
+        </Trans>
       </p>
-      <form className="profile-form" onKeyDown={ime.noteKey} onSubmit={save} aria-label="Context budgets">
+      <form className="profile-form" onKeyDown={ime.noteKey} onSubmit={save} aria-label={t`Context budgets`}>
         <label>
-          <span>Whole prompt</span>
+          <span><Trans>Whole prompt</Trans></span>
           <input
             type="number"
             min={CONTEXT_TOTAL_MIN}
             max={CONTEXT_TOTAL_MAX}
             step={100}
-            placeholder="Profile default"
+            placeholder={t`Profile default`}
             value={total}
             onChange={(event) => setTotal(event.target.value)}
           />
         </label>
         {LAYERS.map((layer) => (
           <label key={layer.id}>
-            <span>{layer.label}</span>
+            <span>{layerLabel(layer.id)}</span>
             <input
               type="number"
               min={CONTEXT_LAYER_MIN}
               max={CONTEXT_LAYER_MAX}
               step={50}
-              placeholder={`${WORDS_OF(layer.fallback)} by default`}
+              placeholder={t`${{ count: WORDS_OF(layer.fallback) }} by default`}
               value={layers[layer.id]}
               onChange={(event) => setLayers({ ...layers, [layer.id]: event.target.value })}
             />
@@ -167,14 +190,14 @@ export function ContextSection({ services, session = null }: { services: AppServ
         {session === null ? null : (
           <div className="context-prompt">
             <button type="button" className="button is-quiet" aria-expanded={showPrompt} onClick={() => setShowPrompt((open) => !open)}>
-              {showPrompt ? 'Hide the prompt for a scene' : 'See the prompt for a scene'}
+              {showPrompt ? t`Hide the prompt for a scene` : t`See the prompt for a scene`}
             </button>
             {showPrompt ? <ContextPromptPreview view={contextPreviewOf(session.state, session.view.activeDocId, draftOf(total, layers))} /> : null}
           </div>
         )}
         <div className="profile-form-actions">
           <button type="submit" className="button is-primary">
-            Save budgets
+            <Trans>Save budgets</Trans>
           </button>
         </div>
       </form>

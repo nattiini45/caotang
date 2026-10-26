@@ -8,12 +8,6 @@
       "literal": 2,
       "template": 2
     },
-    "app/activity-model.ts": {
-      "jsxText": 0,
-      "attribute": 0,
-      "literal": 53,
-      "template": 8
-    },
     "app/agent-model.ts": {
       "jsxText": 0,
       "attribute": 0,
@@ -74,23 +68,11 @@
       "literal": 15,
       "template": 6
     },
-    "app/footer-model.ts": {
-      "jsxText": 0,
-      "attribute": 0,
-      "literal": 7,
-      "template": 7
-    },
     "app/furniture-store.ts": {
       "jsxText": 0,
       "attribute": 0,
       "literal": 3,
       "template": 4
-    },
-    "app/integrity-model.ts": {
-      "jsxText": 0,
-      "attribute": 0,
-      "literal": 6,
-      "template": 5
     },
     "app/keymap.ts": {
       "jsxText": 0,
@@ -176,23 +158,11 @@
       "literal": 1,
       "template": 3
     },
-    "app/session-progress.ts": {
-      "jsxText": 0,
-      "attribute": 0,
-      "literal": 0,
-      "template": 2
-    },
     "app/session.ts": {
       "jsxText": 0,
       "attribute": 0,
       "literal": 9,
       "template": 6
-    },
-    "app/settings.ts": {
-      "jsxText": 0,
-      "attribute": 0,
-      "literal": 0,
-      "template": 1
     },
     "app/skills-import.ts": {
       "jsxText": 0,
@@ -205,12 +175,6 @@
       "attribute": 0,
       "literal": 12,
       "template": 12
-    },
-    "app/storage.ts": {
-      "jsxText": 0,
-      "attribute": 0,
-      "literal": 3,
-      "template": 4
     },
     "app/target-draft.ts": {
       "jsxText": 0,
@@ -242,18 +206,6 @@
       "literal": 3,
       "template": 0
     },
-    "components/ActivityPanel.tsx": {
-      "jsxText": 4,
-      "attribute": 4,
-      "literal": 1,
-      "template": 1
-    },
-    "components/AgentModeSettings.tsx": {
-      "jsxText": 10,
-      "attribute": 1,
-      "literal": 10,
-      "template": 1
-    },
     "components/AgentPanel.tsx": {
       "jsxText": 33,
       "attribute": 14,
@@ -284,29 +236,11 @@
       "literal": 5,
       "template": 1
     },
-    "components/BinderFooter.tsx": {
-      "jsxText": 15,
-      "attribute": 10,
-      "literal": 5,
-      "template": 1
-    },
     "components/CodexPanel.tsx": {
       "jsxText": 21,
       "attribute": 28,
       "literal": 5,
       "template": 4
-    },
-    "components/CoherenceSettings.tsx": {
-      "jsxText": 5,
-      "attribute": 0,
-      "literal": 1,
-      "template": 1
-    },
-    "components/ContextSection.tsx": {
-      "jsxText": 7,
-      "attribute": 3,
-      "literal": 6,
-      "template": 3
     },
     "components/Corkboard.tsx": {
       "jsxText": 2,
@@ -344,12 +278,6 @@
       "literal": 0,
       "template": 0
     },
-    "components/Home.tsx": {
-      "jsxText": 28,
-      "attribute": 9,
-      "literal": 15,
-      "template": 8
-    },
     "components/InkGate.tsx": {
       "jsxText": 4,
       "attribute": 0,
@@ -385,12 +313,6 @@
       "attribute": 9,
       "literal": 1,
       "template": 3
-    },
-    "components/LazySettings.tsx": {
-      "jsxText": 0,
-      "attribute": 1,
-      "literal": 0,
-      "template": 0
     },
     "components/McpCatalog.tsx": {
       "jsxText": 11,
@@ -433,12 +355,6 @@
       "attribute": 4,
       "literal": 0,
       "template": 6
-    },
-    "components/Settings.tsx": {
-      "jsxText": 99,
-      "attribute": 13,
-      "literal": 25,
-      "template": 13
     },
     "components/SkillsPanel.tsx": {
       "jsxText": 38,
@@ -488,12 +404,6 @@
       "literal": 0,
       "template": 4
     },
-    "components/Workspace.tsx": {
-      "jsxText": 44,
-      "attribute": 12,
-      "literal": 26,
-      "template": 11
-    },
     "components/WritingHistory.tsx": {
       "jsxText": 10,
       "attribute": 2,
@@ -505,18 +415,6 @@
       "attribute": 0,
       "literal": 4,
       "template": 0
-    },
-    "components/activity-window.ts": {
-      "jsxText": 0,
-      "attribute": 0,
-      "literal": 0,
-      "template": 1
-    },
-    "components/lazy-view.tsx": {
-      "jsxText": 4,
-      "attribute": 0,
-      "literal": 2,
-      "template": 1
     },
     "components/shared.tsx": {
       "jsxText": 3,

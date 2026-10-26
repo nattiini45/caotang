@@ -13,7 +13,9 @@
  * window, even when a sitting's view events would otherwise push it out, so the panel never hides
  * the one command it dispatches.
  */
+/* lingui-set comment="Interpolated values: count" */
 
+import { t } from '@lingui/core/macro';
 import type { ActivityEntry, UndoGroup } from '@caotang/bus';
 
 import { activityRows, isViewEvent, titleOf, visibleActivityCount, type ActivityRow } from '../app/activity-model.js';
@@ -69,7 +71,7 @@ export function activityWindow(
   const pinned = pinNewestUndoable(entries, rows, options.groupOf, options.newestUndoGroupId, options.showViews);
   const shown = pinned === null ? rows : [...rows, pinned];
   const hidden = Math.max(0, visibleActivityCount(entries, options.showViews) - shown.length);
-  return { rows: shown, hidden, showOlder: hidden > 0 ? `Show older (${hidden} more)` : null };
+  return { rows: shown, hidden, showOlder: hidden > 0 ? t`Show older (${{ count: hidden }} more)` : null };
 }
 
 /** The window the "Show older" button opens: one more window of rows. */

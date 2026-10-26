@@ -25,7 +25,7 @@ import { i18n, type Messages } from '@lingui/core';
 import { t } from '@lingui/core/macro';
 import { directionOf, resolveUiLocale } from '@caotang/i18n';
 
-import { catalogueTags, sameTag } from './catalogues.js';
+import { catalogueTags, sameLanguageSetting } from './catalogues.js';
 import { setUiLocaleTag, systemLanguages } from './format-locale.js';
 import { loadMessages, UnknownCatalogueError } from './runtime.js';
 
@@ -146,7 +146,7 @@ export function createLanguageController(options: LanguageControllerOptions): La
 function resolveSetting(setting: string): string {
   const dev = import.meta.env.DEV;
   if (setting === 'system') return resolveUiLocale('system', systemLanguages(), catalogueTags(dev));
-  const match = catalogueTags(dev).find((tag) => sameTag(tag, setting));
+  const match = catalogueTags(dev).find((tag) => sameLanguageSetting(tag, setting));
   if (match === undefined) throw new UnknownCatalogueError(setting);
   return match;
 }

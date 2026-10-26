@@ -72,6 +72,20 @@ function exactly(text: string): RegExp {
   return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
 }
 
+/**
+ * A writer-typed value as a message renders it for a locator: optionally wrapped in the bidi
+ * isolates FSI/PDI (U+2068/U+2069) that visible writer text carries (i18n.md §5.3), and escaped for
+ * a RegExp. An exact string assertion no longer matches once the value is isolated.
+ */
+export function writerText(value: string): string {
+  return `\\u2068?${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\u2069?`;
+}
+
+/** A saved-profile line ("Saved “name”."), tolerating the isolates around the writer-typed profile name. */
+export function savedMessage(name: string): RegExp {
+  return new RegExp(`Saved “${writerText(name)}”\\.`);
+}
+
 /** Every activity row, in order. */
 export async function trace(page: Page): Promise<TraceRow[]> {
   return page.evaluate(() => {

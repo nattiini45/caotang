@@ -4,8 +4,11 @@
  * project. The goals and the saved filters are saved in the manifest, through the bus commands the furniture store makes
  * (furniture-store.ts). The footer also offers back the words a stopped tab kept in this browser (UnsentWords.tsx).
  */
+/* lingui-set comment="Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm" */
 
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { plural, select, t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 import {
   goalProgress,
   localDayOf,
@@ -13,18 +16,22 @@ import {
   sprintView,
   vocabularyIds,
   type GoalProbe,
+  type GoalState,
   type LocalDay,
   type ProjectGoal,
   type SavedFilter,
   type SprintView,
 } from '@caotang/furniture';
 
-import { SPRINT_CHOICES, formatRemaining, goalSentence, goalStateWords, unitOf } from '../app/footer-model.js';
+import { SPRINT_CHOICES, formatRemaining, goalSentence } from '../app/footer-model.js';
 import type { RuntimeStore, SessionRecord } from '@caotang/store';
 
 import { filterResultFor, furnitureFor, goalProbeOf, unknownTermsOf } from '../app/furniture-store.js';
 import { nextReadDelay, sessionsEverywhere, todayLine, type TargetProgress } from '../app/session-progress.js';
 import type { ProjectSession } from '../app/session.js';
+import { isolate } from '@caotang/i18n';
+
+import { accessibleText } from '../i18n/accessible-text.js';
 import { selectNode } from './actions.js';
 import { formatCount, useSession } from './shared.js';
 import { UnsentWords } from './UnsentWords.js';
@@ -92,14 +99,14 @@ export function BinderFooter({
   }, [hasWindowGoal, runtime, session, store]);
 
   return (
-    <footer className="binder-footer" aria-label="Binder footer" data-testid="binder-footer">
+    <footer className="binder-footer" aria-label={t`Binder footer`} data-testid="binder-footer">
       <UnsentWords session={session} />
       <SavedFilterList session={session} filters={furniture.filters} appliedId={furniture.applied?.savedId ?? null} />
       <GoalList session={session} goals={furniture.goals} sessions={furniture.sessions} />
       <SprintTimer session={session} />
       <WritingHistory store={runtime} target={target} />
       <p className="binder-totals" data-testid="binder-totals">
-        <span>{formatCount(totalWords)} words in the project</span>
+        <span>{t`${plural(totalWords, { one: '# word', other: '# words' })} in the project`}</span>
         <span>{todayLine(target)}</span>
       </p>
       {furniture.notices.map((notice) => (
@@ -128,10 +135,10 @@ function SavedFilterList({
   const store = furnitureFor(session);
   const vocabulary = vocabularyIds(session.state.manifest.vocabulary);
   return (
-    <section className="footer-section" aria-label="Saved filters">
-      <h3 className="footer-title">Saved filters</h3>
+    <section className="footer-section" aria-label={t`Saved filters`}>
+      <h3 className="footer-title"><Trans>Saved filters</Trans></h3>
       {filters.length === 0 ? (
-        <p className="field-note">None yet. Set the filter bar, then choose Save current.</p>
+        <p className="field-note"><Trans>None yet. Set the filter bar, then choose Save current.</Trans></p>
       ) : (
         <ul className="saved-filters">
           {filters.map((filter) => {
@@ -144,20 +151,39 @@ function SavedFilterList({
                   aria-pressed={applied}
                   onClick={() => store.applySaved(filter)}
                 >
-                  {filter.name}
-                  {applied ? <span className="rail-badge" aria-label="Scenes matching">{filterResultFor(session.state, filter.criteria, new Date()).matchCount}</span> : null}
+                  {isolate(filter.name)}
+                  {applied ? (
+                    <span className="rail-badge" aria-label={t`Scenes matching`}>
+                      {filterResultFor(session.state, filter.criteria, new Date()).matchCount}
+                    </span>
+                  ) : null}
                 </button>
                 {/* A term the project no longer holds matches nothing, so the row says so (binder-filters §2). */}
                 {unknownTermsOf(filter.criteria, vocabulary).map((word) => (
-                  <span key={word} className="filter-chip" data-kind="unknown" title="The project no longer has this term, so this filter matches nothing.">
-                    {word}
+                  <span
+                    key={word}
+                    className="filter-chip"
+                    data-kind="unknown"
+                    title={t`The project no longer has this term, so this filter matches nothing.`}
+                  >
+                    {isolate(word)}
                   </span>
                 ))}
-                <button type="button" className="button is-quiet" aria-label={`Edit ${filter.name}`} onClick={() => store.applySaved(filter)}>
-                  Edit
+                <button
+                  type="button"
+                  className="button is-quiet"
+                  aria-label={t`Edit ${{ name: accessibleText(filter.name) }}`}
+                  onClick={() => store.applySaved(filter)}
+                >
+                  <Trans>Edit</Trans>
                 </button>
-                <button type="button" className="button is-quiet" aria-label={`Delete ${filter.name}`} onClick={() => store.deleteFilter(filter.id)}>
-                  Delete
+                <button
+                  type="button"
+                  className="button is-quiet"
+                  aria-label={t`Delete ${{ name: accessibleText(filter.name) }}`}
+                  onClick={() => store.deleteFilter(filter.id)}
+                >
+                  <Trans>Delete</Trans>
                 </button>
               </li>
             );
@@ -183,15 +209,25 @@ function GoalList({
   // windows, and the inspector shows them beside the manuscript. Adding, changing and removing goals is the inspector's.
   const [nearest] = orderGoalsForFooter(goals.filter((goal) => (goal.kind ?? 'project') === 'project'));
   return (
-    <section className="footer-section" aria-label="Project goals">
-      <h3 className="footer-title">Goals</h3>
+    <section className="footer-section" aria-label={t`Project goals`}>
+      <h3 className="footer-title"><Trans>Goals</Trans></h3>
       {nearest === undefined ? (
-        <p className="field-note">No project goals yet. Select the manuscript or a folder, then add one in the inspector.</p>
+        <p className="field-note"><Trans>No project goals yet. Select the manuscript or a folder, then add one in the inspector.</Trans></p>
       ) : (
         <GoalSummary session={session} goal={nearest} probe={probe} today={today} />
       )}
     </section>
   );
+}
+
+/** A goal's progress as one ICU sentence: the count's unit plural, then the state, both inside the sentence a translator sees. */
+function progressLine(goal: ProjectGoal, current: number, state: GoalState): string {
+  // Both choices take a bare name, so the catalogue holds `{target, plural, …}` and `{stateKey, select, …}`.
+  const target = goal.target;
+  const stateKey = state === 'target-missing' ? 'missing' : state;
+  return goal.metric === 'chars'
+    ? t`${{ current: formatCount(current) }} of ${plural(target, { one: '# character', other: '# characters' })} · ${select(stateKey, { open: 'in progress', met: 'met', exceeded: 'over the limit', overdue: 'past the deadline', missing: 'its folder is gone', other: 'in progress' })}`
+    : t`${{ current: formatCount(current) }} of ${plural(target, { one: '# word', other: '# words' })} · ${select(stateKey, { open: 'in progress', met: 'met', exceeded: 'over the limit', overdue: 'past the deadline', missing: 'its folder is gone', other: 'in progress' })}`;
 }
 
 /**
@@ -210,7 +246,7 @@ function GoalSummary({
   today: LocalDay;
 }): ReactNode {
   const node = session.state.manifest.tree.find((candidate) => candidate.id === goal.nodeId);
-  const title = node === undefined ? 'a folder that is gone' : node.title;
+  const title = node === undefined ? t`a folder that is gone` : node.title;
   const progress = goalProgress(goal, probe, today);
   return (
     <button
@@ -218,12 +254,12 @@ function GoalSummary({
       className={`goal-summary is-${progress.state}`}
       data-goal={goal.id}
       data-goal-state={progress.state}
-      title="Open its goals in the inspector"
+      title={t`Open its goals in the inspector`}
       onClick={() => selectNode(session, goal.nodeId)}
     >
       <span className="goal-sentence">{goalSentence(goal, title)}</span>{' '}
       <span className="goal-line" data-testid="goal-progress">
-        {formatCount(progress.current)} of {formatCount(goal.target)} {unitOf(goal)} · {goalStateWords(progress.state)}
+        {progressLine(goal, progress.current, progress.state)}
       </span>
     </button>
   );
@@ -250,17 +286,18 @@ export function SprintTimer({ session }: { session: ProjectSession }): ReactNode
 
   const reading: SprintView = sprintView(furniture.sprint, now);
   const minutes = Math.round(furniture.sprint.durationMs / 60_000);
+  const wordsGained = reading.wordsGained;
   return (
-    <section className="footer-section sprint" aria-label="Sprint timer" data-testid="sprint">
-      <h3 className="footer-title">Sprint</h3>
+    <section className="footer-section sprint" aria-label={t`Sprint timer`} data-testid="sprint">
+      <h3 className="footer-title"><Trans>Sprint</Trans></h3>
       <p className="sprint-reading" data-testid="sprint-reading">
-        {reading.status === 'finished' ? (reading.endReason === 'time-up' ? 'Time is up.' : 'Stopped.') : formatRemaining(reading.remainingMs)}
-        {reading.wordsGained > 0 ? ` · ${formatCount(reading.wordsGained)} ${reading.wordsGained === 1 ? 'word' : 'words'}` : ''}
-        {reading.wpm !== null ? ` · ${Math.round(reading.wpm)} wpm` : ''}
+        {reading.status === 'finished' ? (reading.endReason === 'time-up' ? t`Time is up.` : t`Stopped.`) : formatRemaining(reading.remainingMs)}
+        {reading.wordsGained > 0 ? ` · ${t`${plural(wordsGained, { one: '# word', other: '# words' })}`}` : ''}
+        {reading.wpm !== null ? ` · ${t`${{ wpm: Math.round(reading.wpm) }} wpm`}` : ''}
       </p>
       {/* The sprint's end is said once, here: the reading above moves every second, and a live region on it would talk all the time. */}
       <p className="visually-hidden" role="status">
-        {reading.status === 'finished' ? (reading.endReason === 'time-up' ? 'Time is up.' : 'Stopped.') : ''}
+        {reading.status === 'finished' ? (reading.endReason === 'time-up' ? t`Time is up.` : t`Stopped.`) : ''}
       </p>
       <div className="sprint-actions">
         {furniture.sprint.status === 'idle' || furniture.sprint.status === 'finished' ? (
@@ -273,33 +310,33 @@ export function SprintTimer({ session }: { session: ProjectSession }): ReactNode
               store.sprintEvent({ type: 'start', at: Date.now(), words: store.sittingWords() });
             }}
           >
-            Start sprint
+            <Trans>Start sprint</Trans>
           </button>
         ) : null}
         {furniture.sprint.status === 'running' ? (
           <button type="button" className="button" onClick={() => store.sprintEvent({ type: 'pause', at: Date.now(), words: store.sittingWords() })}>
-            Pause
+            <Trans>Pause</Trans>
           </button>
         ) : null}
         {furniture.sprint.status === 'paused' ? (
           <button type="button" className="button is-primary" onClick={() => store.sprintEvent({ type: 'resume', at: Date.now(), words: store.sittingWords() })}>
-            Resume
+            <Trans>Resume</Trans>
           </button>
         ) : null}
         {furniture.sprint.status === 'running' || furniture.sprint.status === 'paused' ? (
           <button type="button" className="button is-quiet" onClick={() => store.sprintEvent({ type: 'stop', at: Date.now(), words: store.sittingWords() })}>
-            Stop
+            <Trans>Stop</Trans>
           </button>
         ) : null}
         {furniture.sprint.status !== 'idle' ? (
           <button type="button" className="button is-quiet" onClick={() => store.sprintEvent({ type: 'reset' })}>
-            Reset
+            <Trans>Reset</Trans>
           </button>
         ) : null}
         <label className="sprint-length">
-          <span>Minutes</span>
+          <span><Trans>Minutes</Trans></span>
           <select
-            aria-label="Sprint length in minutes"
+            aria-label={t`Sprint length in minutes`}
             value={String(minutes)}
             disabled={furniture.sprint.status !== 'idle' && furniture.sprint.status !== 'finished'}
             onChange={(event) => {
