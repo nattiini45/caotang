@@ -58,6 +58,10 @@ const ARABIC = { name: 'NotoSansArabic-Regular', embedded: true, toUnicode: true
 const TYPE3 = { name: 'Type3', embedded: true, toUnicode: true } as const;
 const HEBREW = { name: 'NotoSansHebrew-Regular', embedded: true, toUnicode: true } as const;
 const DEVANAGARI = { name: 'NotoSansDevanagari-Regular', embedded: true, toUnicode: true } as const;
+/** Cousine, the screenplay's second embedded font: a WinAnsi TrueType font like Courier Prime. */
+const COUSINE = { name: 'Cousine-Regular', embedded: true, toUnicode: false } as const;
+/** The screenplay's base-14 Courier: every viewer has it, so it is not embedded. */
+const COURIER_BASE14 = { name: 'Courier', embedded: false, toUnicode: false } as const;
 /** The contact sheet's built-in font: base-14, so it is not embedded. */
 const HELVETICA = { name: 'Helvetica', embedded: false, toUnicode: false } as const;
 
@@ -162,6 +166,33 @@ const CORPUS: readonly Case[] = [
     pages: [['The Lighthouse Keeper', 'Ada Lovelace'], ['INT. KITCHEN - DAY', 'MARA', 'Where were you?', 'ELI', 'Out on the water.']],
     size: LETTER,
     fonts: [COURIER],
+  },
+  {
+    file: 'screenplay-a4.pdf',
+    format: 'pdf',
+    build: () => ({ state: makeMediaProject() }),
+    options: { pageSize: 'A4' },
+    pages: [['The Lighthouse Keeper', 'Ada Lovelace'], ['INT. KITCHEN - DAY', 'MARA', 'Where were you?', 'ELI', 'Out on the water.']],
+    size: A4,
+    fonts: [COURIER],
+  },
+  {
+    file: 'screenplay-cousine-a4.pdf',
+    format: 'pdf',
+    build: () => ({ state: sceneWith(LONG_SPEECH) }),
+    options: { titlePage: false, sceneNumbers: 'both', pageSize: 'A4', scriptFont: 'cousine' },
+    pages: [['INT. KITCHEN - DAY', 'Filler 9.', '(MORE)'], ["MARA (CONT'D)", 'We will talk at dawn.', 'ELI', 'Out on the water.', 'INT. HARBOUR - NIGHT', 'The lamp turns.']],
+    size: A4,
+    fonts: [COUSINE],
+  },
+  {
+    file: 'screenplay-courier-base14.pdf',
+    format: 'pdf',
+    build: () => ({ state: makeMediaProject() }),
+    options: { scriptFont: 'courier' },
+    pages: [['The Lighthouse Keeper', 'Ada Lovelace'], ['INT. KITCHEN - DAY', 'MARA', 'Where were you?', 'ELI', 'Out on the water.']],
+    size: LETTER,
+    fonts: [COURIER_BASE14],
   },
   {
     file: 'screenplay-scene-numbers-continued.pdf',
