@@ -813,7 +813,18 @@ describe('the registry seam', () => {
         roClient = await connectClient(readOnly.url, readOnly.token);
         const rwClient = await connectClient(writable.url, writable.token);
         try {
-          expect(await listedNames(roClient)).toEqual(['binder.read_tree', 'codex.read', 'coherence.scan', 'dialogue.table', 'doc.read', 'memory.read', 'notes.read', 'project.overview']);
+          expect(await listedNames(roClient)).toEqual([
+            'binder.read_tree',
+            'codex.read',
+            'coherence.scan',
+            'dialogue.brief',
+            'dialogue.table',
+            'doc.read',
+            'memory.read',
+            'notes.read',
+            'project.overview',
+            'scene.brief',
+          ]);
           expect(await listedNames(rwClient)).toEqual([
             'binder.read_tree',
             'binder.restructure',
@@ -822,6 +833,8 @@ describe('the registry seam', () => {
             'codex.write',
             'coherence.scan',
             'coherence.setFindingStatus',
+            'dialogue.apply',
+            'dialogue.brief',
             'dialogue.table',
             'doc.import',
             'doc.read',
@@ -834,6 +847,8 @@ describe('the registry seam', () => {
             'notes.read',
             'notes.replace',
             'project.overview',
+            'scene.apply',
+            'scene.brief',
             'shots.annotate',
             'synopsis.set',
             'vocabulary.upsert',
