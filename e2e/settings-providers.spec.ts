@@ -27,12 +27,12 @@ test('the preset picker lists the registry, enables every preset the sweep found
   const form = settings.getByRole('form', { name: 'New provider' });
 
   const picker = form.getByRole('combobox', { name: 'Provider' });
-  // The picker's own names. Every registered preset currently answers the browser's preflight (the sweep), so
-  // nothing is disabled — a preset flagged 'blocked' would list here greyed with "Desktop app or hosted only".
+  // The picker's own names. A preset whose chat route the sweep found a browser cannot reach is flagged 'blocked' and lists here
+  // greyed with "Desktop app or hosted only" (Z.ai and OpenCode answer the model list's preflight but refuse chat's); the rest are enabled.
   await expect(picker.getByRole('option', { name: 'OpenAI-compatible endpoint' })).toBeAttached();
-  await expect(picker.getByRole('option', { name: 'Anthropic (Claude)' })).toBeAttached();
-  await expect(picker.getByRole('option', { name: 'Z.ai (GLM)' })).toBeEnabled();
-  await expect(picker.getByRole('option', { name: 'OpenCode' })).toBeEnabled();
+  await expect(picker.getByRole('option', { name: 'Anthropic (Claude)' })).toBeEnabled();
+  await expect(picker.getByRole('option', { name: 'Z.ai (GLM) — Desktop app or hosted only' })).toHaveAttribute('disabled', '');
+  await expect(picker.getByRole('option', { name: 'OpenCode — Desktop app or hosted only' })).toHaveAttribute('disabled', '');
 
   // The generic pick: the endpoint is typed, the key is optional, the CORS answer is the endpoint's own, and sealed
   // custom headers are offered.
