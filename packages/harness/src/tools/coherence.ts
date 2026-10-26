@@ -175,7 +175,7 @@ function overGuard(name: PortToolName): CommandError {
  * keep the order the engine gave them. The cut is found by bisection, because a longer prefix of the
  * groups never fits where a shorter one does not.
  */
-function fitGroups(data: ScanData, cap: number): { readonly data: Record<string, unknown>; readonly omitted: number } {
+function fitGroups<T extends { readonly groups: ScanData['groups'] }>(data: T, cap: number): { readonly data: Record<string, unknown>; readonly omitted: number } {
   const fits = (count: number): boolean => fitsCap({ ...data, groups: data.groups.slice(0, count) }, cap);
   let low = 0;
   let high = data.groups.length;
