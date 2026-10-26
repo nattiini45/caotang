@@ -117,9 +117,10 @@ function isRefusal(value: RunnableChecks | ToolFailure): value is ToolFailure {
 
 /**
  * What a read rule keeps out of a scan or a review (agent-harness §4): the withheld documents are left out like archived ones, so
- * no finding quotes them. Undefined when nothing is withheld, which leaves the engine's own rule.
+ * no finding quotes them. Undefined when nothing is withheld, which leaves the engine's own rule. A goal's coherence check
+ * (`agent/checks.ts`) reuses it, so the check and the scan leave out the same documents.
  */
-function excludedBy(withheld: ReadonlySet<string> | undefined): ((node: TreeNode) => boolean) | undefined {
+export function excludedBy(withheld: ReadonlySet<string> | undefined): ((node: TreeNode) => boolean) | undefined {
   return withheld === undefined || withheld.size === 0 ? undefined : (node) => node.status === 'archived' || withheld.has(node.id);
 }
 

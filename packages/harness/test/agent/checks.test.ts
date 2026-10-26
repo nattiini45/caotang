@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { emptyCoherenceFile, runDeterministic, type CoherenceFile } from '@caotang/coherence';
-import { setBody } from '@caotang/store';
+import { getRevision, setBody } from '@caotang/store';
 
 import { checkKey, checkSpecProblem, coherenceScopeSize, evaluateCheck, evaluateChecks, largeScopes, type CheckOptions, type CheckSpec } from '../../src/index.js';
 import { countIn } from '../../src/tools/coherence.js';
@@ -97,6 +97,27 @@ describe('coherence.clean', () => {
     }
   });
 
+  it('cannot be met by any turn when the scan drops its checks for the scope, but can when the dropped one is only for want of a count', () => {
+    const state = makeState();
+    // Over documents, or a changed scan, the dialogue branch checks and speaker parity never run, whatever the manuscript says.
+    for (const scope of [{ mode: 'doc', docIds: [LANDING] } as const, { mode: 'changed' } as const]) {
+      for (const checks of [['branch.dead-end'], ['medium.speaker-parity'], ['branch.loose-end', 'medium.speaker-parity']] as const) {
+        const result = evaluateCheck({ kind: 'coherence.clean', scope, checks: [...checks] }, state, options);
+        expect(result.unmeetable, `${scope.mode} ${checks.join()}`).toBe(true);
+        expect(result.failures[0]?.detail).toContain('full scan');
+      }
+    }
+    // A full scan without the app's dialogue facts runs none of them either.
+    expect(evaluateCheck({ kind: 'coherence.clean', scope: FULL, checks: ['branch.dead-end'] }, state, options).unmeetable).toBe(true);
+    // Never-mentioned is dropped when no document is scanned, which a write can change, so it stays meetable.
+    const empty = makeState();
+    for (const node of empty.manifest.tree) if (node.type === 'document') node.status = 'archived';
+    const mixed = evaluateCheck({ kind: 'coherence.clean', scope: FULL, checks: ['codex.never-mentioned', 'branch.dead-end'] }, empty, options);
+    expect(mixed.pass).toBe(false);
+    expect(mixed.unmeetable).toBeUndefined();
+    expect(evaluateCheck({ kind: 'coherence.clean', scope: FULL, checks: ['codex.never-mentioned'] }, empty, options).unmeetable).toBeUndefined();
+  });
+
   it('lists a named check the scan dropped in skipped when another one ran', () => {
     const state = makeState();
     setBody(state, LANDING, 'Elena met Kestrel on the quay.');
@@ -134,10 +155,38 @@ describe('an archived document', () => {
 
   it('is not read when named directly, and the result says it was left out', () => {
     const result = evaluateCheck({ ...tooShort, scope: { mode: 'doc', docIds: [STORM] } } as CheckSpec, archivedStorm(), options);
-    expect(result.failures).toEqual([]);
+    // Nothing else was named, so the check measured nothing and is not met.
+    expect(result.pass).toBe(false);
+    expect(result.failures).toEqual([{ title: 'This check', detail: 'its scope holds no document the agent may read', weight: 1 }]);
     expect(result.notes).toContain('"The Storm" is archived, so a goal does not read it.');
-    // Nothing else was named, so the check is visibly vacuous.
     expect(result.notes).toContain('no documents in scope');
+  });
+
+  it('is not met by a full scope whose every document is archived, and a `changed` scope with nothing changed stays vacuous', () => {
+    const state = makeState();
+    for (const node of state.manifest.tree) if (node.type === 'document') node.status = 'archived';
+    for (const spec of [{ kind: 'words.between', scope: FULL, min: 1 }, { kind: 'status.all', scope: FULL, status: 'draft' }, { kind: 'synopsis.filled', scope: FULL }] as CheckSpec[]) {
+      const result = evaluateCheck(spec, state, options);
+      expect(result.pass, spec.kind).toBe(false);
+      expect(result.distance).toBe(1);
+    }
+    const file = emptyCoherenceFile();
+    for (const node of state.manifest.tree) {
+      if (node.type === 'document') file.reviewState[node.id] = { lastReviewedRevision: getRevision(state, node.id), lastReviewedAt: options.now.toISOString() };
+    }
+    state.coherence = file;
+    const quiet = evaluateCheck({ kind: 'status.all', scope: { mode: 'changed' }, status: 'final' }, state, options);
+    expect(quiet.pass).toBe(true);
+    expect(quiet.notes).toContain('no documents in scope');
+  });
+
+  it('notes only the archived document a `doc` scope names directly, not one reached through a folder or the whole manuscript', () => {
+    const state = archivedStorm();
+    const friend = state.manifest.tree.find((node) => node.id === FRIEND);
+    if (friend !== undefined) friend.status = 'archived';
+    const notes = (scope: CheckSpec['scope']): readonly string[] => evaluateCheck({ ...tooShort, scope } as CheckSpec, state, options).notes.filter((note) => note.includes('archived'));
+    expect(notes({ mode: 'doc', docIds: [STORM, CHAPTER_TWO] })).toEqual(['"The Storm" is archived, so a goal does not read it.']);
+    expect(notes(FULL)).toEqual([]);
   });
 
   it('is read on no route: not named, not through its folder, not in the whole manuscript', () => {
@@ -291,9 +340,52 @@ describe('a read rule (agent-harness §4)', () => {
   it('does not report a withheld reference as unknown, and does not read it', () => {
     const state = makeState();
     const result = evaluateCheck({ kind: 'status.all', scope: { mode: 'doc', docIds: [STORM] }, status: 'final' }, state, withheld);
-    expect(result.failures).toEqual([]);
+    // The scope holds nothing the agent may read, so the check is not met; it says so without naming the document.
+    expect(result.pass).toBe(false);
+    expect(result.failures).toEqual([{ title: 'This check', detail: 'its scope holds no document the agent may read', weight: 1 }]);
     expect(JSON.stringify([result.failures, result.notes])).not.toContain(STORM);
+    expect(JSON.stringify([result.failures, result.notes])).not.toContain('The Storm');
     expect(result.notes).toContain('1 document is withheld from the agent by a rule and not checked.');
+  });
+
+  it('counts a withheld document once: named directly and through a folder, or named twice', () => {
+    const state = makeState();
+    const one = '1 document is withheld from the agent by a rule and not checked.';
+    const status = (docIds: readonly string[]) =>
+      evaluateCheck({ kind: 'status.all', scope: { mode: 'doc', docIds: [...docIds] }, status: 'draft' }, state, withheld);
+    expect(status([STORM, CHAPTER_ONE]).notes).toContain(one);
+    expect(status([STORM, STORM]).notes).toContain(one);
+    // A withheld folder stands for the live documents under it, not for itself.
+    const folder = evaluateCheck({ kind: 'status.all', scope: { mode: 'doc', docIds: [CHAPTER_ONE] }, status: 'draft' }, state, { ...options, withheld: new Set([CHAPTER_ONE, LANDING, STORM]) });
+    expect(folder.notes).toContain('2 documents are withheld from the agent by a rule and not checked.');
+  });
+
+  it('counts, under `changed`, only the withheld documents the scope would have read', () => {
+    const state = makeState();
+    const file = emptyCoherenceFile();
+    // The Storm is withheld and unchanged since its review; The Landing is withheld and changed; The Friend is not withheld and unchanged.
+    for (const id of [STORM, FRIEND]) file.reviewState[id] = { lastReviewedRevision: getRevision(state, id), lastReviewedAt: options.now.toISOString() };
+    state.coherence = file;
+    const both: CheckOptions = { ...options, withheld: new Set([STORM, LANDING]) };
+    const spec: CheckSpec = { kind: 'status.all', scope: { mode: 'changed' }, status: 'final' };
+    expect(evaluateCheck(spec, state, both).notes).toContain('1 document is withheld from the agent by a rule and not checked.');
+    // With only the unchanged one withheld there is nothing to say.
+    const quiet = evaluateCheck(spec, state, { ...options, withheld: new Set([STORM]) });
+    expect(quiet.notes.some((note) => note.includes('withheld'))).toBe(false);
+    // The coherence note reuses the count.
+    // (The Friend is made a changed document the scan can read, so the coherence check runs.)
+    setBody(state, FRIEND, 'The friend waited.');
+    const clean: CheckSpec = { kind: 'coherence.clean', scope: { mode: 'changed' }, checks: ['codex.never-mentioned'] };
+    expect(evaluateCheck(clean, state, both).notes).toContain('1 document is withheld from the agent by a rule and not checked.');
+    expect(evaluateCheck(clean, state, { ...options, withheld: new Set([STORM]) }).notes.some((note) => note.includes('withheld'))).toBe(false);
+  });
+
+  it('does not count a withheld archived document, which no goal scope would have read', () => {
+    const state = makeState();
+    const storm = state.manifest.tree.find((node) => node.id === STORM);
+    if (storm !== undefined) storm.status = 'archived';
+    const result = evaluateCheck({ kind: 'status.all', scope: FULL, status: 'draft' }, state, withheld);
+    expect(result.notes.some((note) => note.includes('withheld'))).toBe(false);
   });
 
   it('leaves the documents under a withheld folder out too', () => {

@@ -11,6 +11,7 @@
  */
 
 import {
+  BRANCH_CHECK_IDS,
   DETERMINISTIC_CHECK_IDS,
   SCAN_DOC_GUARD,
   resolveScope,
@@ -25,7 +26,10 @@ import { withheldState } from '@caotang/context';
 import { countBody, getRevision, type ProjectState, type TreeNode } from '@caotang/store';
 
 import { descendantsOf } from '../resolve.js';
-import { countIn, heldFile } from '../tools/coherence.js';
+import { countIn, excludedBy, heldFile } from '../tools/coherence.js';
+
+// The scan's own exclusion (archived or withheld), so a goal's coherence.clean check and the agent's scan leave out the same documents.
+export { excludedBy };
 import { wordsOfDocument } from '../tools/common.js';
 import { canonicalJson } from '../util.js';
 
@@ -58,9 +62,15 @@ export interface CheckResult {
   /** Lower is better: open findings, documents out of range, unfilled synopses. Zero exactly when the check passes. */
   readonly distance: number;
   readonly failures: readonly CheckFailure[];
-  /** Checks the writer turned off in Settings › Coherence, left out of this evaluation. */
+  /**
+   * Checks left out of this evaluation: those the writer turned off in Settings › Coherence, and those the scan itself dropped (the dialogue
+   * branch checks and speaker parity need a full scan with the app's dialogue facts; never-mentioned needs every count), which did not look at the project.
+   */
   readonly skipped: readonly DeterministicCheckId[];
-  /** Set when no work can make this check pass because of a setting, not the manuscript: every check it names is turned off in Settings › Coherence. */
+  /**
+   * Set when no work can make this check pass because of a setting or its scope, not the manuscript: every check it names is turned off in
+   * Settings › Coherence, or is one the scan runs only on a full scan (the dialogue branch checks, speaker parity) over a scope that is not full.
+   */
   readonly unmeetable?: true;
   readonly notes: readonly string[];
 }
@@ -80,10 +90,7 @@ export interface CheckOptions {
   readonly withheld?: ReadonlySet<string>;
 }
 
-/** The scan's exclusion when a read rule withholds nodes: archived or withheld, as `coherencePorts.scan` excludes them. Undefined when nothing is withheld. */
-export function excludedBy(withheld: ReadonlySet<string> | undefined): ((node: TreeNode) => boolean) | undefined {
-  return withheld === undefined || withheld.size === 0 ? undefined : (node) => node.status === 'archived' || withheld.has(node.id);
-}
+const SPEAKER_PARITY = 'medium.speaker-parity';
 
 const SEVERITY_RANK: Readonly<Record<FindingSeverity, number>> = { error: 3, warning: 2, info: 1 };
 
@@ -164,7 +171,11 @@ function binderOrder(state: ProjectState): ReadonlyMap<string, number> {
   return order;
 }
 
-/** The documents a words, status or synopsis check reads, in binder order, and the references that name nothing a goal can read. */
+/**
+ * The live documents a scope reads, in binder order (words, status and synopsis checks read these; coherence.clean uses only the count).
+ * Also returned: the references that name nothing a goal can read (`missing`), the titles of named archived documents (`archived`), and
+ * how many distinct documents of the scope a read rule withholds from the agent (`withheld`, a count, never a title or id).
+ */
 export function documentsInScope(
   state: ProjectState,
   scope: ScopeSpec,
@@ -172,7 +183,7 @@ export function documentsInScope(
 ): { readonly nodes: readonly TreeNode[]; readonly missing: readonly string[]; readonly archived: readonly string[]; readonly withheld: number } {
   const file = heldFile(state);
   const hidden = withheld ?? new Set<string>();
-  let held = 0;
+  const dropped = new Set<string>();
   const byId = new Map(state.manifest.tree.map((node) => [node.id, node]));
   const order = binderOrder(state);
   const live = (node: TreeNode): boolean => node.type === 'document' && node.status !== 'archived';
@@ -183,28 +194,34 @@ export function documentsInScope(
     const picked = new Set<string>();
     for (const ref of scope.docIds) {
       const node = byId.get(ref);
-      // A withheld reference is neither read nor reported as unknown (a failure naming it would name it): it is only counted.
-      if (hidden.has(ref)) held += 1;
-      else if (node === undefined || (node.type !== 'document' && node.type !== 'folder')) missing.push(ref);
+      // A withheld reference is neither read nor reported as unknown (a failure naming it would name it): it is only counted, once per
+      // document, so a folder stands for the documents under it and a document named twice is one.
+      if (hidden.has(ref)) {
+        if (node?.type === 'folder') for (const below of descendantsOf(state, node.id)) if (live(below)) dropped.add(below.id);
+        if (node !== undefined && live(node)) dropped.add(node.id);
+      } else if (node === undefined || (node.type !== 'document' && node.type !== 'folder')) missing.push(ref);
       else if (live(node)) picked.add(node.id);
       else if (node.type === 'document') archived.push(node.title);
       else for (const below of descendantsOf(state, node.id)) if (live(below)) picked.add(below.id);
     }
+    // A document reached through a folder may be withheld too: it is the same document as one named directly.
+    for (const id of picked) if (hidden.has(id)) dropped.add(id);
     ids = [...picked];
   } else {
     const excluded = excludedBy(hidden);
     const snapshot = snapshotManuscript(state, file, excluded === undefined ? {} : { isExcluded: excluded });
     ids = [...snapshot.scanned.map((scene) => scene.docId), ...snapshot.emptyDocIds];
-    if (scope.mode === 'changed') ids = ids.filter((id) => file.reviewState[id]?.lastReviewedRevision !== getRevision(state, id));
-    held += snapshot.excludedDocIds.filter((id) => hidden.has(id)).length;
+    const inScope = (id: string): boolean => scope.mode !== 'changed' || file.reviewState[id]?.lastReviewedRevision !== getRevision(state, id);
+    ids = ids.filter(inScope);
+    // Only a withheld document the scope would have read: not an archived one, and under `changed` not one reviewed at its current revision.
+    for (const id of snapshot.excludedDocIds) if (hidden.has(id) && byId.get(id)?.status !== 'archived' && inScope(id)) dropped.add(id);
   }
   const nodes = ids
     .map((id) => byId.get(id))
     .filter((node): node is TreeNode => node !== undefined && !hidden.has(node.id))
     .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
   // Counted, never named: how many documents of the scope a rule keeps from the agent.
-  held += ids.filter((id) => hidden.has(id)).length;
-  return { nodes, missing, archived, withheld: held };
+  return { nodes, missing, archived, withheld: dropped.size };
 }
 
 /** How many documents a coherence scope reads: what the large-scope guard counts. Zero for a scope that names nothing it can read. */
@@ -233,6 +250,11 @@ function perDocument(
   for (const node of nodes) {
     const verdict = judge(node);
     if (verdict !== undefined) failures.push({ docId: node.id, title: node.title, ...verdict });
+  }
+  // A scope that holds nothing the agent may read measures nothing, so the check is not met (the writer or the agent can restore a
+  // document). It names no title or id: a withheld document must not leak through it. The `changed` scope is empty when nothing has changed.
+  if (spec.scope.mode !== 'changed' && nodes.length === 0 && missing.length === 0) {
+    failures.push({ title: 'This check', detail: 'its scope holds no document the agent may read', weight: 1 });
   }
   return {
     spec,
@@ -283,7 +305,18 @@ function coherenceClean(spec: Extract<CheckSpec, { kind: 'coherence.clean' }>, s
   const notRun = checks.filter((id) => !ran.has(id));
   if (notRun.length === checks.length) {
     const why = (run.notes ?? []).filter((note) => /not run|unavailable|no documents/.test(note));
-    return unmet(spec, `nothing was checked: ${notRun.join(', ')} did not run${why.length === 0 ? '' : ` (${why.join('; ')})`}`, [...skipped, ...notRun]);
+    // The dialogue branch checks and speaker parity read a full scan with the app's dialogue facts: over any other scope no turn can make them run.
+    // Never-mentioned is dropped for want of a count, which a write can change, so it stays meetable.
+    const isBranch = (id: DeterministicCheckId): boolean => (BRANCH_CHECK_IDS as readonly string[]).includes(id);
+    const structural =
+      notRun.every((id) => isBranch(id) || id === SPEAKER_PARITY) &&
+      (spec.scope.mode !== 'full' || notRun.every((id) => (id === SPEAKER_PARITY ? dialogue?.speakersByContainer === undefined : dialogue === undefined)));
+    return unmet(
+      spec,
+      `nothing was checked: ${notRun.join(', ')} did not run${why.length === 0 ? '' : ` (${why.join('; ')})`}${structural && spec.scope.mode !== 'full' ? '; they run on a full scan' : ''}`,
+      [...skipped, ...notRun],
+      structural,
+    );
   }
   const scope = new Set(run.scope.docIds);
   const titles = new Map(state.manifest.tree.map((node) => [node.id, node.title]));
