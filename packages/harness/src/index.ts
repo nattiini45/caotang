@@ -85,6 +85,28 @@ export {
   type SubmitOptions,
   type TurnOptions,
 } from './agent/loop.js';
+// Slash commands (agent-harness §2): the composer's line, read and resolved without a model.
+export {
+  BUILTIN_COMMAND_NAMES,
+  expandTemplate,
+  isCommandName,
+  matchCommands,
+  menuQuery,
+  parseSlash,
+  resolveSlash,
+  usageOf,
+  type BuiltinCommand,
+  type BuiltinCommandName,
+  type DocLookup,
+  type DocResolver,
+  type ParsedSlash,
+  type SlashArgument,
+  type SlashContext,
+  type SlashResolution,
+  type TemplatePlaceholders,
+} from './commands/slash.js';
+export { BUILTIN_COMMANDS } from './commands/builtins.js';
+export { docResolverFor } from './commands/resolver.js';
 // Permission modes (agent-harness §4): the four modes, the policy a mode is, and the budgets a turn is held to while a mode decides its cards.
 export {
   ACCEPT_EDITS_TOOLS,
