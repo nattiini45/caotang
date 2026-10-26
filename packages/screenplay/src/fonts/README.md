@@ -3,8 +3,11 @@
 | File | Font | Source | SHA-256 | License |
 | --- | --- | --- | --- | --- |
 | `courier-prime-regular.ts` | Courier Prime Regular 3.018, as base64 | google/fonts, `ofl/courierprime/CourierPrime-Regular.ttf` (71188 bytes) | `72f793376f8e2841656bf21d77a5de010f2929bd6956a22ee848ad0c7eb978af` (the TTF) | OFL 1.1, `OFL.txt` |
+| `cousine-regular.ts` | Cousine Regular 1.241, as base64 | google/fonts, `ofl/cousine/Cousine-Regular.ttf` (296856 bytes) | `1da22250675fc4c42fcf3a9736c44bc0570516105331443b663fd5cfbd1412fe` (the TTF) | OFL 1.1, `OFL-Cousine.txt` |
 
-Courier Prime is the screenplay font. `test/pdf-font.test.ts` checks the file.
+Courier Prime is the screenplay font. Cousine, metric-compatible with Courier New, is the recipe's other embedded choice (`scriptFont`); the third, `courier`, embeds nothing and names the base-14 Courier. `test/pdf-font.test.ts` checks both files and `cousine-metrics.ts` against their tables.
+
+A font offered here must be monospaced at 600 units to the em (the layout's 7.2 points a character, so no line breaks differently) and have TrueType (`glyf`) outlines, because it is embedded whole and `@pdf-lib/fontkit` writes broken CFF subsets. `test/pdf-paper.test.ts` checks that every character the writer accepts has a glyph in it.
 
 Every character WinAnsi cannot encode prints in a fallback font, and neither fallback ships in this package. Both PDFs (this one and the storyboard contact sheet) share one CJK font and one emoji font:
 

@@ -48,6 +48,8 @@ import { breakPieces, splitColumns, textColumns } from './width.js';
  * 1.0in elsewhere, single-spaced. All horizontal values are in characters from the left
  * margin, all vertical values in points. Courier Prime (A3) is metrically the same as
  * Courier, so the layout does not change when the embedded font lands with the PDF library.
+ * The page values (`pageWidth`, `pageHeight`, `marginRight`, `marginBottom`) are US Letter's; {@link PAGE_GEOMETRY}
+ * holds A4's. The grid and the text block are the same on both papers.
  */
 export const LAYOUT = Object.freeze({
   pageWidth: 612,
@@ -64,8 +66,11 @@ export const LAYOUT = Object.freeze({
   columns: 60,
   /** Baseline of the page number, half an inch from the top edge. */
   pageNumberY: 46,
+  /** The right edge of the text block: marginLeft + columns * charWidth. The page number and the right scene number are placed from it, on every paper. */
+  textRight: 540,
   sceneNumberLeftX: 54,
-  sceneNumberRightInset: 54,
+  /** A right-margin scene number ends this far right of the text block (a quarter inch). */
+  sceneNumberRightGap: 18,
   indent: {
     scene: 0,
     action: 0,
@@ -96,6 +101,31 @@ export const LAYOUT = Object.freeze({
     right: { character: 37, parenthetical: 33, dialogue: 30 },
     width: { character: 23, parenthetical: 21, dialogue: 27 },
   },
+});
+
+/** The papers the screenplay PDF is set on (screenplay.md §5.3). The bus holds the same list for the recipe option. */
+export const PAGE_SIZES = ['Letter', 'A4'] as const;
+
+export type PageSize = (typeof PAGE_SIZES)[number];
+
+/** What a paper changes: the page, and the margins that fall out of the text block sitting at the same place on it. */
+export interface PageGeometry {
+  readonly pageWidth: number;
+  readonly pageHeight: number;
+  /** `pageWidth - textRight`. */
+  readonly marginRight: number;
+  /** `pageHeight - marginTop - linesPerPage * lineHeight`: A4's extra height falls here, as white space at the foot of the page. */
+  readonly marginBottom: number;
+}
+
+/**
+ * The papers' geometry. Letter is {@link LAYOUT}'s own. A4 is 210 × 297 mm (595.28 × 841.89 points) with the same 1.5in left
+ * margin, top margin, 60-column text block and 54 lines, so a script breaks at the same lines on both papers and its page count
+ * and minute estimate agree.
+ */
+export const PAGE_GEOMETRY: Readonly<Record<PageSize, PageGeometry>> = Object.freeze({
+  Letter: Object.freeze({ pageWidth: 612, pageHeight: 792, marginRight: 72, marginBottom: 72 }),
+  A4: Object.freeze({ pageWidth: 595.28, pageHeight: 841.89, marginRight: 55.28, marginBottom: 121.89 }),
 });
 
 export type LineKind =
@@ -679,7 +709,7 @@ class Pager {
         this.current.push({ kind: 'sceneNumber', text: sceneNumber, x: LAYOUT.sceneNumberLeftX, y, row: null, scene, source: null });
       }
       if (this.sceneNumbers === 'right' || this.sceneNumbers === 'both') {
-        const x = LAYOUT.pageWidth - LAYOUT.sceneNumberRightInset - width;
+        const x = LAYOUT.textRight + LAYOUT.sceneNumberRightGap - width;
         this.current.push({ kind: 'sceneNumber', text: sceneNumber, x, y, row: null, scene, source: null });
       }
     }
@@ -909,7 +939,7 @@ function pageNumberLine(number: number): LayoutLine {
   return {
     kind: 'pageNumber',
     text,
-    x: LAYOUT.pageWidth - LAYOUT.marginRight - text.length * LAYOUT.charWidth,
+    x: LAYOUT.textRight - text.length * LAYOUT.charWidth,
     y: LAYOUT.pageNumberY,
     row: null,
     scene: null,
