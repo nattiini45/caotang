@@ -289,10 +289,11 @@ export interface AgentSessionOptions {
   /**
    * Where the turn's records go (agent-harness §5.2): the turn, its context, its tools and their results, its cards and its report.
    * The model calls themselves are the gateway observer's (`traceGateway`), joined to these by turn id and call index, and each
-   * request carries its `callIndex` only when a sink is given. Absent, nothing is recorded and no request changes. A sink that
-   * throws is ignored: the trace is a view of the turn, never part of it.
+   * request carries its `callIndex` only when a sink is given. Absent, nothing is recorded and no request changes. A function is
+   * asked at each record, so the app can stop recording between two turns by answering `undefined`. A sink that throws is
+   * ignored: the trace is a view of the turn, never part of it.
    */
-  readonly trace?: TraceSink;
+  readonly trace?: TraceSink | (() => TraceSink | undefined);
 }
 
 /** The plan a writer is asked about before it is staged. */
@@ -909,10 +910,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     });
   const emit = (event: AgentEvent): void => options.emit?.(event);
   const now = options.clock ?? Date.now;
-  const sink = options.trace;
+  const sinkNow = (): TraceSink | undefined => (typeof options.trace === 'function' ? options.trace() : options.trace);
   const trace = (record: TraceInput): void => {
     try {
-      sink?.write(record);
+      sinkNow()?.write(record);
     } catch {
       // the trace is a view of the turn, never part of it
     }
@@ -1091,7 +1092,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    */
   const pushRow = (turn: Turn, row: TraceEntry, body?: unknown): void => {
     turn.trace.push(row);
-    if (sink === undefined) return;
+    if (sinkNow() === undefined) return;
     const finishedAt = now();
     const startedAt = turn.statusCards.find((card) => card.id === row.callId)?.startedAt;
     trace({ kind: 'tool.call', at: startedAt ?? finishedAt, turnId: turn.id, callId: row.callId, tool: row.tool, risk: riskOf(row.tool), ...(row.agentPath === undefined ? {} : { agentPath: row.agentPath }), params: row.params });
@@ -1214,7 +1215,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         const reservation = reserveCall(turn, asked);
         turn.modelCalls += 1;
         turn.calls += 1;
-        const sent = sink === undefined ? asked : { ...asked, callIndex: turn.calls };
+        const sent = sinkNow() === undefined ? asked : { ...asked, callIndex: turn.calls };
         emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
         return settling(turn, reservation, gateway.complete(sent, signal));
       },
@@ -1248,7 +1249,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           const reservation = reserveCall(turn, asked);
           used += 1;
           turn.calls += 1;
-          const sent = sink === undefined ? asked : { ...asked, callIndex: turn.calls };
+          const sent = sinkNow() === undefined ? asked : { ...asked, callIndex: turn.calls };
           return settling(turn, reservation, gateway.complete(sent, signal));
         },
       },

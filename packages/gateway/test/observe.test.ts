@@ -191,3 +191,21 @@ describe('an observer that throws', () => {
     expect(deltasOf(chunks)).toBe('hello');
   });
 });
+
+describe('attaching and detaching the observer', () => {
+  it('takes effect from the next call, and a detached gateway gathers nothing', async () => {
+    const h = harness();
+    await h.profiles.create({ name: 'Demo', kind: 'mock' });
+    const events: GatewayTraceEvent[] = [];
+    await collect(h.gateway.complete(userMessage('before')));
+    h.gateway.setObserver((event) => events.push(event));
+    await collect(h.gateway.complete(userMessage('during')));
+    const told = events.length;
+    h.gateway.setObserver(undefined);
+    await collect(h.gateway.complete(userMessage('after')));
+    expect(told).toBeGreaterThan(0);
+    expect(events).toHaveLength(told);
+    expect(JSON.stringify(events)).toContain('during');
+    expect(JSON.stringify(events)).not.toContain('before');
+  });
+});

@@ -92,6 +92,11 @@ export interface Gateway extends ProviderGateway {
    * not it is the active one (§4).
    */
   probeResponseFormat(profileId?: string): Promise<boolean>;
+  /**
+   * Attaches the trace observer (`GatewayOptions.observe`) from the next call on, or detaches it with `undefined`. A call with no
+   * observer gathers nothing: the app detaches it when the writer turns traces off.
+   */
+  setObserver(observe: ((event: GatewayTraceEvent) => void) | undefined): void;
 }
 
 /**
@@ -166,6 +171,7 @@ export function createGateway(options: GatewayOptions): Gateway {
   const mock = options.mock ?? createMockProvider();
   const fetchImpl: FetchLike = options.fetch ?? ((url, init) => globalThis.fetch(url, init));
   let calls = 0;
+  let observer = options.observe;
 
   const deps: TransportDeps = {
     fetch: fetchImpl,
@@ -410,7 +416,7 @@ export function createGateway(options: GatewayOptions): Gateway {
       req.thinking === undefined && routed?.thinking !== undefined ? { ...req, thinking: routed.thinking } : req;
     const startedAt = clock.now();
     const stats: StreamStats = { attempts: 0, usage: undefined };
-    const trace = options.observe === undefined ? undefined : startTrace(options.observe, sent, profile, model);
+    const trace = observer === undefined ? undefined : startTrace(observer, sent, profile, model);
 
     try {
       if (profile.kind === 'mock') {
@@ -627,5 +633,8 @@ export function createGateway(options: GatewayOptions): Gateway {
     modelCaps,
     accountTokens,
     probeResponseFormat,
+    setObserver: (observe) => {
+      observer = observe;
+    },
   };
 }
