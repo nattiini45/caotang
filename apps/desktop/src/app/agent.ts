@@ -62,7 +62,7 @@
  */
 
 import type { GhostPreview } from '@caotang/editor/tiptap';
-import type { ProfileView } from '@caotang/gateway';
+import type { ProfileView, TaskRole } from '@caotang/gateway';
 import {
   createAgentSession,
   createBudgetMeter,
@@ -82,6 +82,7 @@ import {
   type OfferAnswer,
   type PendingCard,
   type PermissionMode,
+  type PlanStep,
   type PlanCardView,
   type PlanOffer,
   type RunLimits,
@@ -107,6 +108,15 @@ export interface SubmitOptions {
   readonly demo?: boolean;
   /** The spend an interrupted run had when it stopped: a resumed turn's meter starts from it, so the run's limits count what it already used. */
   readonly restoredSpend?: BudgetSpend;
+  /** The task role the turn's model calls run under (provider-gateway §6). Default `chat`; a recurring task's turn runs under `background`. */
+  readonly role?: TaskRole;
+  /**
+   * The permission mode this turn runs under in place of the panel's, for the cards it shows. The caller has already taken the lowest
+   * of the modes in play (`effectiveMode`), so this only ever lowers a turn; the panel's pick is not changed.
+   */
+  readonly mode?: PermissionMode;
+  /** The most model calls this turn may make, over the setting's. A recurring task's `maxModelCalls`. */
+  readonly maxModelCalls?: number;
 }
 
 /** A run the project was left with, as the panel's interrupted-run card shows it (agent-harness §5.1). */
@@ -248,17 +258,22 @@ export class AgentController {
   private providerForNextTurn: string | null = null;
   private priceForNextTurn: { readonly prompt: number; readonly completion: number } | null = null;
   /**
-   * The agent session one open panel keeps across turns (context-assembly §2, L6): the loop's
+   * The agent session one open panel keeps across turns (context-assembly §2, L6), one for each task role a turn has run under
+   * (`SubmitOptions.role`; the chat conversation is the `chat` one): the loop's
    * `started` RecentTurn array lives in this session's closure, so two turns through one controller
    * share the prior turns and the next turn's assembled prompt carries them as L6. It is created on the
-   * first turn and never rebuilt: the profile, model and thinking level are the turn's own
+   * first turn of its role and never rebuilt: the profile, model and thinking level are the turn's own
    * (`TurnOptions`), so a provider switch keeps the conversation. The conversation ends with the
    * controller itself, a project switch or a reload, and the app has no other affordance that clears it
    * within a visit. Per-turn state is cleared by `harness.endTurn` on every settlement, so a
    * cancelled/refused/failed turn never leaves its per-turn state behind. The conversation is in memory
    * only: a reload starts it over.
    */
-  private session_: AgentSession | null = null;
+  private readonly sessions = new Map<TaskRole, AgentSession>();
+  /** The mode a running turn was given in place of the panel's (`SubmitOptions.mode`). */
+  private runMode: PermissionMode | null = null;
+  /** The model-call cap a running turn was given (`SubmitOptions.maxModelCalls`). */
+  private runCalls: number | null = null;
   /** Names the session's turns `<id>.turn-<n>`; fixed for the controller's life, and unique among the controllers of one harness. */
   private readonly sessionId = newId('cmd').slice('cmd_'.length);
   /** The mode the writer picked for this panel over the setting's default. Not saved: a reload starts from the setting again. */
@@ -383,6 +398,14 @@ export class AgentController {
   }
 
   /**
+   * A recurring task's plan as the plan of a turn of its own (agent-harness §12): checked and drafted as a planner's is, and its card
+   * is the writer's. `options` carries the task's role, mode and call cap.
+   */
+  async submitPlan(intent: string, plan: { readonly steps: readonly PlanStep[] }, options: SubmitOptions = {}): Promise<TurnReport | null> {
+    return this.turnWith(intent, options, (agent, turn) => agent.submitPlan(intent, plan, turn));
+  }
+
+  /**
    * The run limits a turn is held to, from Settings › Agent (agent-harness §7.1): the limits the writer set on tokens, cost and steps,
    * and the time a turn may work (ten minutes unless the writer chose another). A limit left empty is not a run limit.
    */
@@ -398,6 +421,7 @@ export class AgentController {
 
   /** The permission mode in force: the writer's pick for this panel, else the setting's default. A locked `auto` reads as Ask. */
   mode(): PermissionMode {
+    if (this.runMode !== null) return this.runMode;
     const settings = this.agentSettings();
     const mode = this.modeOverride ?? settings.defaultMode;
     return mode === 'auto' && settings.lockAuto ? 'ask' : mode;
@@ -506,10 +530,11 @@ export class AgentController {
     let report: TurnReport | null = null;
     try {
       // The demo intents run on the built-in demo profile, whichever profile is active (context-assembly §6).
-      // Every other turn runs under the 'chat' role (provider-gateway §6). The role's profile, model and thinking
-      // resolve once here and pin the session: a turn cannot change provider mid-flight, and the pinned id is what
+      // Every other turn runs under the 'chat' role unless the caller names one (provider-gateway §6). The role's profile, model and
+      // thinking resolve once here and pin the session: a turn cannot change provider mid-flight, and the pinned id is what
       // the loop's capability reads (modelCaps/modelLimits) must see.
-      const resolved = options.demo === true ? undefined : this.providers.resolveForRole?.('chat');
+      const role = options.role ?? 'chat';
+      const resolved = options.demo === true ? undefined : this.providers.resolveForRole?.(role);
       const profile: ProfileView | undefined =
         options.demo === true ? await this.providers.demoProfile() : (resolved?.profile ?? this.providers.active());
       if (profile === undefined) {
@@ -528,16 +553,17 @@ export class AgentController {
       // settlement, so a cancelled/refused/failed turn cannot leave its state behind in the shared session.
       const model = resolved?.model;
       const thinking = resolved?.thinking;
-      const agent: AgentSession =
-        this.session_ ??
-        (this.session_ = createAgentSession({
+      // A session is kept for each role, so a turn under another role never carries the chat conversation or stamps its requests as chat.
+      let agent = this.sessions.get(role);
+      if (agent === undefined) {
+        agent = createAgentSession({
           harness: this.session.harness,
           gateway: this.providers.gateway,
           context: createContextPort({ state: this.session.state, config: this.contextConfig, withheld: (tool) => this.session.harness.withheld(tool) }),
           decide: (pending) => this.decide(pending),
           emit: (event) => this.onEvent(event),
-          role: 'chat',
-          sessionId: this.sessionId,
+          role,
+          sessionId: role === 'chat' ? this.sessionId : `${this.sessionId}.${role}`,
           loadEveryTool: this.loadEveryTool,
           beforeStage: (offer) => this.askOffer(offer),
           mode: () => this.mode(),
@@ -545,7 +571,7 @@ export class AgentController {
           budget: () => {
             // The model-call bound is read at each turn; the time limit is the meter's, not a turn budget.
             const { maxActiveMinutes: _minutes, ...budget } = this.agentSettings().budget;
-            return budget;
+            return this.runCalls === null ? budget : { ...budget, maxModelCalls: this.runCalls };
           },
           meter: () => this.meter ?? undefined,
           price: () => this.priceForNextTurn ?? undefined,
@@ -560,8 +586,12 @@ export class AgentController {
               this.bump();
             },
           },
-        }));
+        });
+        this.sessions.set(role, agent);
+      }
       this.runningAgent = agent;
+      this.runMode = options.mode ?? null;
+      this.runCalls = options.maxModelCalls ?? null;
       this.meter = createBudgetMeter(this.runLimits(), options.restoredSpend === undefined ? {} : { restored: options.restoredSpend });
       report = await start(agent, {
         signal: abort.signal,
@@ -581,6 +611,8 @@ export class AgentController {
       this.meter?.dispose();
       this.meter = null;
       this.runningAgent = null;
+      this.runMode = null;
+      this.runCalls = null;
       this.runningTurnId = null;
       if (this.turnOwner === owner) {
         this.turnOwner = 0;
