@@ -120,6 +120,17 @@ describe('caotang scan, read-only', () => {
     expect(folderBytes(root)).toEqual(before);
   });
 
+  it('exits 8 and says so when a document is not UTF-8, instead of reporting a clean scan', async () => {
+    writeFileSync(join(root, 'docs', 'n_7K2QX9M4A1.md'), Buffer.from([0xff, 0xfe, 0xfa, 0x20, 0x62, 0x61, 0x64]));
+    const ran = await scan(['--format', 'json', '--fail-on', 'warning']);
+    const result = JSON.parse(ran.out) as { status: string; unread: string[]; exitCode: number; notices: string[] };
+    expect(result.status).toBe('partial');
+    expect(result.unread).toEqual(['docs/n_7K2QX9M4A1.md']);
+    expect(result.notices.join(' ')).toContain('not UTF-8');
+    expect(ran.code).toBe(result.exitCode);
+    expect(ran.err).toContain('were not checked');
+  });
+
   it('is not stopped by a lock another writer holds, because it writes nothing', async () => {
     const lock = await acquireProjectLock(root);
     try {

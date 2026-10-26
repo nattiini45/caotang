@@ -90,6 +90,7 @@ export async function runScanCommand(argv: readonly string[], io: ScanIo): Promi
       const shared = stepSummary !== undefined && stepSummary !== '' && resolve(io.cwd, stepSummary) === target;
       await (shared ? appendFile : writeFile)(target, formatMarkdown(result), 'utf8');
     }
+    if (result.unread.length > 0) io.stderr(note(`${result.unread.length} file(s) are not UTF-8 text and were not checked: ${result.unread.join(', ')}`));
     if (result.status === 'partial') io.stderr(note('this was a partial scan; the notes say which checks did not run'));
     if (args.write) io.stderr(note('coherence.json was saved'));
     return result.exitCode;

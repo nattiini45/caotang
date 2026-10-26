@@ -35,7 +35,7 @@ export const SCAN_USAGE = `usage: caotang scan [--project <dir>] [flags]
 
 The scan calls no model and reads no key. A finding dismissed or marked fixed in coherence.json neither prints nor fails the run.
 Exit codes: 0 clean (or --fail-on never); 1 internal error; 2 usage error or no project; 3 the folder is held by another writer
-(--write only); 7 an open finding at or above --fail-on.
+(--write only); 7 an open finding at or above --fail-on; 8 no such finding, but a document was not UTF-8 text and went unchecked.
 `;
 
 /** The scan flags, checked. `argv` is what follows `scan`. */

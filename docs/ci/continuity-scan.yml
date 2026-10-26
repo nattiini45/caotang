@@ -7,7 +7,8 @@
 #     A finding you dismissed or marked fixed in the app, and committed in coherence.json, neither prints nor fails the run.
 #   - It always scans the whole project (--scope full). The `changed` scope depends on review state that only --write advances.
 #   - It exits 7 when an open finding is at or above --fail-on (error by default), which fails the job and turns each finding into
-#     an annotation on its file and line. Annotations and the job log carry short quotes from your manuscript; on a public
+#     an annotation on its file and line. It exits 8 when no finding fails the run but a document was not UTF-8 text and so was not
+#     checked, so a green job never means a manuscript file was skipped. Annotations and the job log carry short quotes from your manuscript; on a public
 #     repository, anyone can read them.
 #
 # Details that are load-bearing rather than tidy:
