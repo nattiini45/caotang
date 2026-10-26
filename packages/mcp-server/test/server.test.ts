@@ -1252,7 +1252,7 @@ describe('the confirmation round trip on the wire', () => {
     }
   }, 30_000);
 
-  it('export.compile draws a contact sheet with emoji in the Noto Emoji fallback font, read from its package', async () => {
+  it('export.compile draws a contact sheet with emoji in colour by default, as Type 3 pictures read from the colour emoji package', async () => {
     const fixture = await startFixture({ label: 'export-emoji', allowWrites: true, seed: true, shot: true, shotAction: 'Harbour 🌊 at dawn 👨‍👩‍👧 🇩🇪 1️⃣' });
     const client = await connectClient(fixture.url, fixture.token, () => ({ action: 'accept', content: { confirmed: true } }));
     try {
@@ -1265,9 +1265,11 @@ describe('the confirmation round trip on the wire', () => {
       const pdf = readdirSync(join(fixture.root, 'exports')).filter((name) => name.endsWith('.pdf'));
       expect(pdf).toHaveLength(1);
       const bytes = readFileSync(join(fixture.root, 'exports', pdf[0] ?? '')).toString('latin1');
-      // The emoji subset is embedded as a TrueType program under its own name; the CJK font is not read for emoji.
-      expect(bytes).toContain('/BaseFont /CAOTEM+NotoEmoji-Regular');
-      expect(bytes.match(/\/FontFile2/g)).toHaveLength(1);
+      // The contact sheet's emoji are Type 3 pictures in their own colours, so no TrueType program is embedded: neither the monochrome
+      // emoji font nor the CJK font is read for them.
+      expect(bytes).toContain('/Subtype /Type3');
+      expect(bytes).not.toContain('NotoEmoji-Regular');
+      expect(bytes.match(/\/FontFile2/g)).toBeNull();
     } finally {
       await client.close();
       await fixture.close();

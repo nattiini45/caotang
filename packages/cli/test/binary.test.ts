@@ -21,6 +21,7 @@ const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
 const DIST = join(PACKAGE, 'dist');
 
 const FONTS = [
+  'NotoColorEmoji.bin',
   'NotoEmoji-Regular-common.woff',
   'NotoEmoji-Regular.woff',
   'NotoSansArabic-Regular.ttf',
@@ -137,7 +138,8 @@ describe('the built caotang binary', () => {
 
   it.each([
     ['Chinese', '港口空无一人。', '/FontFile2'],
-    ['emoji', 'Harbour 🌊 at dawn 👨‍👩‍👧 🇩🇪 1️⃣', '/BaseFont /CAOTEM+NotoEmoji-Regular'],
+    // The contact sheet's emoji are in colour by default: the Type 3 fonts come from fonts/NotoColorEmoji.bin beside the bundle.
+    ['emoji', 'Harbour 🌊 at dawn 👨‍👩‍👧 🇩🇪 1️⃣', '/Subtype /Type3'],
   ])('compiles a storyboard contact sheet with %s text, in the fallback font from fonts/ beside the bundle', async (_name, action, embedded) => {
     const folder = join(root, `sheet-${embedded.length}`);
     await seedProject(folder, action);

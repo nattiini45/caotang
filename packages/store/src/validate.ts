@@ -160,7 +160,8 @@ function isRecipeOptions(v: unknown): boolean {
     (o['sceneNumbers'] === undefined || isSceneNumbers(o['sceneNumbers'])) &&
     (o['continued'] === undefined || typeof o['continued'] === 'boolean') &&
     (o['pageSize'] === undefined || o['pageSize'] === 'A4' || o['pageSize'] === 'Letter') &&
-    (o['paperFrames'] === undefined || typeof o['paperFrames'] === 'boolean')
+    (o['paperFrames'] === undefined || typeof o['paperFrames'] === 'boolean') &&
+    (o['colourEmoji'] === undefined || typeof o['colourEmoji'] === 'boolean')
   );
 }
 
@@ -394,7 +395,7 @@ function validateFields(
           // a saved selection the writer chose, and the options it cannot read fall back to the template's defaults.
           const options = (recipe as Record<string, unknown>)['options'];
           if (options !== undefined && !isRecipeOptions(options)) {
-            warn(`recipes[${i}].options`, 'not a set of recipe options (titlePage, toc, author, charLimit, sceneNumbers, continued, pageSize, paperFrames); dropped, and the recipe uses the template defaults');
+            warn(`recipes[${i}].options`, 'not a set of recipe options (titlePage, toc, author, charLimit, sceneNumbers, continued, pageSize, paperFrames, colourEmoji); dropped, and the recipe uses the template defaults');
             delete (recipe as Record<string, unknown>)['options'];
           }
           return true;

@@ -949,6 +949,8 @@ export type RecipeOptionsParams = {
   pageSize?: RecipePageSize;
   /** The contact sheet prints blank numbered frames to draw on (storyboard.md §6). */
   paperFrames?: boolean;
+  /** Emoji print in colour in the screenplay PDF and the contact sheet (screenplay.md §5.3, storyboard.md §6). Absent: the format's default. */
+  colourEmoji?: boolean;
 };
 
 /**

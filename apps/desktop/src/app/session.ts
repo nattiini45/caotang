@@ -105,7 +105,7 @@ import { createProductHarness, dialogueFactsOf, type Harness } from '@caotang/ha
 import type { McpClient } from '@caotang/mcp-client';
 import type { SkillFile } from '@caotang/skills';
 
-import { loadArabicFontOverHttp, loadCjkFontOverHttp, loadDevanagariFontOverHttp, loadEmojiFontOverHttp, loadHebrewFontOverHttp } from './fallback-fonts.js';
+import { loadArabicFontOverHttp, loadCjkFontOverHttp, loadColourEmojiOverHttp, loadDevanagariFontOverHttp, loadEmojiFontOverHttp, loadHebrewFontOverHttp } from './fallback-fonts.js';
 import { transcodePictureInBrowser } from './picture-transcoder.js';
 import { CodexMentions } from './codex-model.js';
 import { ExportStore } from './exports.js';
@@ -1447,6 +1447,8 @@ function exporterFor(
     loadFallbackFont: loadCjkFontOverHttp,
     // Its emoji font (Noto Emoji, monochrome), fetched from this origin only when a sheet holds an emoji.
     loadEmojiFont: loadEmojiFontOverHttp,
+    // Noto Color Emoji's vector pictures, fetched from this origin only when an export has Colour emoji on and an emoji the file has.
+    loadColourEmoji: loadColourEmojiOverHttp,
     // Noto Sans Arabic, Noto Sans Hebrew and Noto Sans Devanagari, fetched from this origin only when a file holds their script.
     loadArabicFont: loadArabicFontOverHttp,
     loadHebrewFont: loadHebrewFontOverHttp,

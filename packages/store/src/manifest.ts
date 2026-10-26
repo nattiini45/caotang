@@ -57,6 +57,8 @@ export interface ExportRecipeOptions {
   pageSize?: 'A4' | 'Letter';
   /** The contact sheet prints blank numbered frames to draw on (storyboard.md §6). Absent = off. */
   paperFrames?: boolean;
+  /** Emoji print in colour in the screenplay PDF and the contact sheet (screenplay.md §5.3). Absent = the format's default: off for the screenplay PDF, on for the contact sheet. */
+  colourEmoji?: boolean;
 }
 
 /**

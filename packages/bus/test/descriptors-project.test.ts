@@ -304,6 +304,23 @@ describe('recipe.save', () => {
       expect(save({ paperFrames: bad }), String(bad)).toMatchObject({ ok: false, target: 'options.paperFrames' });
     }
   });
+
+  // screenplay.md §5.3, storyboard.md §6: Colour emoji is a boolean recipe option for both PDFs. An explicit false is kept, because the
+  // contact sheet's default is on.
+  it('keeps the Colour emoji switch, true or false, and refuses a value that is not a boolean', () => {
+    const save = (format: string, options: Record<string, unknown>) => check(projectCommands.recipeSave.validate, { name: 'Colour', includeRootIds: [MANUSCRIPT], format, options });
+    for (const format of ['pdf', 'contact-sheet-pdf']) {
+      for (const colourEmoji of [true, false]) {
+        expect(save(format, { colourEmoji }), `${format} ${colourEmoji}`).toEqual({
+          ok: true,
+          value: { name: 'Colour', includeRootIds: [MANUSCRIPT], format, options: { colourEmoji } },
+        });
+      }
+    }
+    for (const bad of ['yes', 1, null]) {
+      expect(save('pdf', { colourEmoji: bad }), String(bad)).toMatchObject({ ok: false, target: 'options.colourEmoji' });
+    }
+  });
 });
 
 describe('recipe.delete', () => {

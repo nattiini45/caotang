@@ -38,10 +38,13 @@ export const BUDGET = {
    */
   allow: {
     'fontkit.es': 750_000,
-    index: 1_270_000,
+    // 1,272.8 kB measured with Colour emoji (+2.8 kB: the option's words in the Export dialog, the Type 3 branch of the screenplay writer and the
+    // contact sheet's colour piece), with a small margin; the colour set itself (its key table and reader) is the lazy `colour-emoji` chunk.
+    index: 1_276_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
-  initialGzip: 770_000,
+  // 772.4 kB measured with Colour emoji, against 769.1 kB before it.
+  initialGzip: 775_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%.
