@@ -91,7 +91,7 @@ interface RunnableChecks {
  * The codex's own detector, run over one body with the spellings the body adds (a screenplay's cue names). The scan counts
  * mentions with it, as the Findings tab's scan does (session.ts countInEntries), so the two scans agree.
  */
-const countIn: MentionDetector = (body, entries, terms) => countMentions(body, compileCodex(entries), terms);
+export const countIn: MentionDetector = (body, entries, terms) => countMentions(body, compileCodex(entries), terms);
 
 /** The checks a scan runs, or the refusal when the writer has turned every one of them off. */
 function runnableChecks(requested: unknown, enabled: readonly DeterministicCheckId[] | undefined): RunnableChecks | ToolFailure {
@@ -117,9 +117,10 @@ function isRefusal(value: RunnableChecks | ToolFailure): value is ToolFailure {
 
 /**
  * What a read rule keeps out of a scan or a review (agent-harness §4): the withheld documents are left out like archived ones, so
- * no finding quotes them. Undefined when nothing is withheld, which leaves the engine's own rule.
+ * no finding quotes them. Undefined when nothing is withheld, which leaves the engine's own rule. A goal's coherence check
+ * (`agent/checks.ts`) reuses it, so the check and the scan leave out the same documents.
  */
-function excludedBy(withheld: ReadonlySet<string> | undefined): ((node: TreeNode) => boolean) | undefined {
+export function excludedBy(withheld: ReadonlySet<string> | undefined): ((node: TreeNode) => boolean) | undefined {
   return withheld === undefined || withheld.size === 0 ? undefined : (node) => node.status === 'archived' || withheld.has(node.id);
 }
 
@@ -128,7 +129,7 @@ function excludedBy(withheld: ReadonlySet<string> | undefined): ((node: TreeNode
  * takes a `CoherenceFile`, and the state holds the store's structural copy of it (coherence-state.ts):
  * the coherence module's file is assignable to that copy, so the downcast below is the only one.
  */
-function heldFile(state: ProjectState): CoherenceFile {
+export function heldFile(state: ProjectState): CoherenceFile {
   return (state.coherence as CoherenceFile | undefined) ?? emptyCoherenceFile();
 }
 

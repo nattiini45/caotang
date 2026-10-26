@@ -230,6 +230,23 @@ describe('screenplay.import', () => {
     expect(getBody(h.state, house.id)).toContain('INT. HOUSE - DAY');
   });
 
+  it('keeps the scene number of an FDX heading in the scene, and reads its title page', () => {
+    const h = harness();
+    const xml = [
+      '<FinalDraft DocumentType="Script">',
+      '  <TitlePage><Content><Paragraph><Text>Title: The Lighthouse</Text></Paragraph></Content></TitlePage>',
+      '  <Content>',
+      '    <Paragraph Type="Scene Heading" Number="2A"><Text>INT. HOUSE - DAY</Text></Paragraph>',
+      '    <Paragraph Type="Action"><Text>Alice waves.</Text></Paragraph>',
+      '  </Content>',
+      '</FinalDraft>',
+    ].join('\n');
+    const outcome = succeed(h, 'screenplay.import', { format: 'fdx', text: xml, parentId: CHAPTER });
+    const house = byTitle(h.state, 'INT. HOUSE - DAY');
+    expect(getBody(h.state, house.id).startsWith('INT. HOUSE - DAY #2A#')).toBe(true);
+    expect(JSON.stringify(outcome)).toContain('The title page was read but not stored');
+  });
+
   it('refuses a file with nothing to import, and leaves the state untouched', () => {
     const h = harness();
     const before = snapshotOf(h.state);

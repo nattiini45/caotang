@@ -363,6 +363,7 @@ Per run, per produced finding, match against existing findings by `checkId` (or 
 - **This document** (`scope.mode: 'doc'`, docIds = [focus]) — the cheap "check this chapter".
 - **Changed since last pass** (`scope.mode: 'changed'`) — docs where `doc.revision ≠ reviewState[docId].lastReviewedRevision`; a project with no prior run state means everything. After a run completes, `reviewState` updates to current revisions for scope docs (side effect of run completion).
 - **Full manuscript** (`scope.mode: 'full'`) — with a size guard: > 20 docs → the plan card says so and requires explicit approval (same rule as `continuity.scan`, agent-harness §3).
+- **Goal runs** (agent-harness §7.2) evaluate `coherence.clean` through `runDeterministic` on a copy of the held file and discard it: an evaluation appends no run and leaves `reviewState` as it was, so `changed` still means what the writer last reviewed. The goal records one run when it ends. The over-20 guard is satisfied once, when the goal is set.
 
 ### 6.3 Dismissal (UI-only) and fixes (agent-proposed)
 

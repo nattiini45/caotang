@@ -546,8 +546,10 @@ test('an approved compile whose image listing fails after Stop is cancelled, not
   await until(() => listing, 'the image listing');
   controller.stop();
   fail(new Error('the listing failed'));
-  await running;
+  const report = await running;
 
+  expect(report?.status).toBe('cancelled');
+  expect(controller.snapshot().message).toContain('images could not be listed again (the listing failed)');
   expect(controller.snapshot().pending).toBeNull();
   expect(controller.snapshot().busy).toBe(false);
   expect(session.harness.log.entries().some((entry) => entry.command.startsWith('export.'))).toBe(false);

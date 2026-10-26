@@ -124,6 +124,47 @@ export {
   type Reservation,
   type RunLimits,
 } from './agent/budget.js';
+// Goal runs (agent-harness §7.2): the acceptance checks, the runner that works until they pass, and the write scope it keeps to.
+export {
+  checkKey,
+  checkLabel,
+  checkSpecProblem,
+  coherenceScopeSize,
+  documentsInScope,
+  evaluateCheck,
+  evaluateChecks,
+  largeScopes,
+  type CheckFailure,
+  type CheckKind,
+  type CheckOptions,
+  type CheckResult,
+  type CheckSpec,
+} from './agent/checks.js';
+export {
+  DEFAULT_DOCS_PER_ITERATION,
+  DEFAULT_MAX_ITERATIONS,
+  DEFAULT_STALL_AFTER,
+  HARD_MAX_ITERATIONS,
+  REGRESSION_OPTIONS,
+  createGoalRunner,
+  goalProblem,
+  goalRules,
+  iterationIntent,
+  restoreGoal,
+  scopeBreaches,
+  writableNodes,
+  writeScopeRules,
+  type Goal,
+  type GoalOptions,
+  type GoalRun,
+  type GoalRunner,
+  type GoalStatus,
+  type IterationRecord,
+  type Regression,
+  type RegressionChoice,
+  type RestoredTurn,
+  type WriteScope,
+} from './agent/goal.js';
 // Background runs (agent-harness §2): the offer's threshold, what a plan costs in model calls, and which staged steps have gone stale.
 export {
   BACKGROUND_OFFER_MIN_CALLS,

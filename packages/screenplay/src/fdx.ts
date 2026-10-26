@@ -11,7 +11,8 @@
  *
  * The scene-number attribute and the header element are the two encodings D11 calls
  * implementation-time residue. Their source read (Screenplain's FDX writer, rsdoiel/fdx) is not
- * complete, so both are unverified against a Final Draft file (a known gap).
+ * complete, so both are unverified against a Final Draft file (a known gap). Import reads `Number` and
+ * `<TitlePage>`, and is tested on XML written in this repo only: what Final Draft shows of either is not confirmed.
  *
  * FDX is a flat, machine-written format with no entities beyond the five predefined ones
  * and numeric references, so it is read here with a small reader rather than a parser
@@ -42,6 +43,8 @@ export interface FdxParagraph {
   readonly lengthEighths: number | null;
   /** The index of the `DualDialogue` container this paragraph sits in, or null. */
   readonly container: number | null;
+  /** From the `Number` attribute, trimmed. Null when absent or blank. */
+  readonly number: string | null;
 }
 
 const NAMED_ENTITIES: Readonly<Record<string, string>> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
@@ -182,15 +185,28 @@ function stripSelfClosing(source: string, name: string): string {
   return out + source.slice(last);
 }
 
-/** Reads the paragraphs of an FDX document in order, with their container and scene length. */
-export function parseFdxParagraphs(xml: string): FdxParagraph[] {
-  // Self-closing paragraphs carry no text and would otherwise swallow the next paragraph's body.
-  const source = stripSelfClosing(xml, '<Paragraph');
+/**
+ * XML folds a line end to a line feed (XML 1.0 §2.11), and a byte order mark is not content. A file Final Draft or
+ * a Windows editor saved can carry either, so the reader sees the folded text.
+ */
+function normaliseXml(xml: string): string {
+  const text = xml.charCodeAt(0) === 0xfeff ? xml.slice(1) : xml;
+  return text.includes('\r') ? text.replace(/\r\n?/g, '\n') : text;
+}
+
+/** A paragraph and where its opening tag starts in the text it was read from. */
+interface LocatedParagraph {
+  readonly start: number;
+  readonly paragraph: FdxParagraph;
+}
+
+/** Reads the paragraphs of `source`, which has its self-closing paragraphs removed already. */
+function readParagraphs(source: string): LocatedParagraph[] {
   const containers: [number, number][] = [];
   for (const match of scanTags(source, '<DualDialogue', '</DualDialogue>')) {
     containers.push([match.start, match.end]);
   }
-  const paragraphs: FdxParagraph[] = [];
+  const paragraphs: LocatedParagraph[] = [];
   let containerAt = 0;
   for (const match of scanTags(source, '<Paragraph', '</Paragraph>')) {
     const start = match.start;
@@ -201,18 +217,102 @@ export function parseFdxParagraphs(xml: string): FdxParagraph[] {
       .join('');
     const scene = /<SceneProperties\b([^>]*)>/.exec(body);
     const length = scene !== null ? Number.parseInt(attributes(scene[1] ?? '').Length ?? '', 10) : Number.NaN;
+    const number = (attrs.Number ?? '').trim();
     // The containers are in order and do not overlap, so one pointer finds the container of each paragraph.
     while (containerAt < containers.length && (containers[containerAt]?.[1] ?? 0) <= start) containerAt += 1;
     const container = containers[containerAt];
     paragraphs.push({
-      type: attrs.Type ?? 'Action',
-      text,
-      alignment: attrs.Alignment ?? null,
-      lengthEighths: Number.isFinite(length) ? length : null,
-      container: container !== undefined && container[0] <= start ? containerAt : null,
+      start,
+      paragraph: {
+        type: attrs.Type ?? 'Action',
+        text,
+        alignment: attrs.Alignment ?? null,
+        lengthEighths: Number.isFinite(length) ? length : null,
+        container: container !== undefined && container[0] <= start ? containerAt : null,
+        number: number === '' ? null : number,
+      },
     });
   }
   return paragraphs;
+}
+
+/**
+ * Reads the paragraphs of an FDX document in order, with their container and scene length. The paragraphs of the
+ * title page and of the page header are not script paragraphs and are left out; `parseFdxTitlePage` reads the first.
+ */
+export function parseFdxParagraphs(xml: string): FdxParagraph[] {
+  // Self-closing paragraphs carry no text and would otherwise swallow the next paragraph's body.
+  const source = stripSelfClosing(normaliseXml(xml), '<Paragraph');
+  const apart = [
+    ...scanTags(source, '<TitlePage', '</TitlePage>'),
+    ...scanTags(source, '<HeaderAndFooter', '</HeaderAndFooter>'),
+  ].sort((a, b) => a.start - b.start);
+  let apartAt = 0;
+  const kept: FdxParagraph[] = [];
+  for (const { start, paragraph } of readParagraphs(source)) {
+    while (apartAt < apart.length && (apart[apartAt]?.end ?? 0) <= start) apartAt += 1;
+    const region = apart[apartAt];
+    if (region === undefined || region.start > start) kept.push(paragraph);
+  }
+  return kept;
+}
+
+/** The credit lines a title page opens its author with. */
+const CREDIT_LINES: ReadonlySet<string> = new Set(['written by', 'by', 'screenplay by', 'story by', 'teleplay by', 'a screenplay by']);
+
+/** `Key: value` as the exporter writes a title-page entry, or null when the text does not open with a key. */
+function labelled(text: string): { key: string; value: string } | null {
+  const colon = text.indexOf(':');
+  if (colon <= 0 || colon > 40) return null;
+  const key = text.slice(0, colon).trim();
+  if (!/^[A-Za-z][A-Za-z ]*$/.test(key)) return null;
+  return { key, value: text.slice(colon + 1).trim() };
+}
+
+/**
+ * Reads the `<TitlePage>` of an FDX document into title-page entries, best effort: Final Draft's title page is free
+ * layout, so only what can be named is. In the order the lines are tried: a credit line (`Written by`, `By`, ...), bare or
+ * as the key of a `Key: value` paragraph, gives the Credit, and its value or the next line gives the Author; any other
+ * `Key: value` paragraph, which is how `renderFdx` writes an entry, keeps its key; a line holding the whole word `draft`,
+ * of at most 60 characters, is the Draft date; the first other line is the Title, but only while no credit line has been
+ * seen; every remaining line goes to Notes. Null when there is no title page or it holds no text.
+ */
+export function parseFdxTitlePage(xml: string): Record<string, string> | null {
+  const source = stripSelfClosing(normaliseXml(xml), '<Paragraph');
+  const page = scanTags(source, '<TitlePage', '</TitlePage>')[0];
+  if (page === undefined) return null;
+  const entries: Record<string, string> = {};
+  const add = (key: string, value: string): void => {
+    entries[key] = key in entries ? `${entries[key]}\n${value}` : value;
+  };
+  const notes: string[] = [];
+  let credited = false;
+  let authorNext = false;
+  for (const { paragraph } of readParagraphs(source.slice(page.tagEnd + 1, page.close))) {
+    const text = paragraph.text.trim();
+    if (text === '') continue;
+    const entry = labelled(text);
+    const phrase = entry?.key ?? text.replace(/:$/, '');
+    if (CREDIT_LINES.has(phrase.toLowerCase())) {
+      credited = true;
+      add('Credit', phrase);
+      if (entry !== null && entry.value !== '') add('Author', entry.value);
+      else authorNext = true;
+    } else if (entry !== null) {
+      add(entry.key, entry.value);
+    } else if (authorNext) {
+      add('Author', text);
+      authorNext = false;
+    } else if (/\bdraft\b/i.test(text) && text.length <= 60) {
+      add('Draft date', text);
+    } else if (!credited && !('Title' in entries)) {
+      add('Title', text);
+    } else {
+      notes.push(text);
+    }
+  }
+  if (notes.length > 0) add('Notes', notes.join('\n'));
+  return Object.keys(entries).length > 0 ? entries : null;
 }
 
 /** FDX paragraph types to elements. The second cue of a dual-dialogue pair takes the dual marker. */
@@ -223,9 +323,16 @@ function fdxElements(paragraphs: readonly FdxParagraph[], notices: string[]): Sc
     const text = p.text.trim();
     if (text === '') continue;
     switch (p.type) {
-      case 'Scene Heading':
-        elements.push({ type: 'scene_heading', text, forced: false });
+      case 'Scene Heading': {
+        // The number goes where Fountain keeps it, unless the heading carries one already or this one could not be read back.
+        const carriable = p.number !== null && !p.number.includes('#') && !p.number.includes('\n');
+        if (p.number !== null && !carriable) {
+          notices.push(`"${text}": its Final Draft number "${p.number.replace(/\n/g, ' ')}" cannot be carried into a Fountain heading; it was left out.`);
+        }
+        const numbered = carriable && sceneNumberOf(text) === null;
+        elements.push({ type: 'scene_heading', text: numbered ? `${text} #${p.number}#` : text, forced: false });
         break;
+      }
       case 'Action':
       case 'Shot':
         elements.push({ type: 'action', text });
@@ -277,7 +384,7 @@ export function importFdx(xml: string): ImportedScript {
     next += 1;
     return { ...node, lengthEighths };
   });
-  return { titlePage: script.titlePage, nodes, notices: [...notices, ...script.notices] };
+  return { titlePage: parseFdxTitlePage(xml) ?? script.titlePage, nodes, notices: [...notices, ...script.notices] };
 }
 
 export interface FdxRenderResult {

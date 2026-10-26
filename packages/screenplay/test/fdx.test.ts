@@ -5,6 +5,7 @@ import {
   importFdx,
   importFountainScript,
   parseFdxParagraphs,
+  parseFdxTitlePage,
   renderFdx,
 } from '../src/index.js';
 import { FDX_SAMPLE, SCRIPT_ONE_ACT, text } from './fixtures/corpus.js';
@@ -215,5 +216,175 @@ describe('renderFdx — emit to the D11 set', () => {
     const blob = await createFdxRenderer().emit(blocksOf(text('INT. A - DAY', '', 'Action.')), { title: 'T' });
     expect(blob.type).toBe('application/xml');
     expect(await blob.text()).toContain('<FinalDraft');
+  });
+});
+
+// Hand-written XML in the shape the community readers describe: it shows what Caotang reads, not what Final Draft writes.
+const NUMBERED = [
+  '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>',
+  '<FinalDraft DocumentType="Script" Template="No" Version="3">',
+  '  <Content>',
+  '    <Paragraph Type="Scene Heading" Number="2A"><SceneProperties Length="8" Page="1"/><Text>INT. HALL - DAY</Text></Paragraph>',
+  '    <Paragraph Type="Action"><Text>Rain.</Text></Paragraph>',
+  '    <Paragraph Type="Scene Heading"><Text>EXT. YARD - NIGHT</Text></Paragraph>',
+  '    <Paragraph Type="Scene Heading" Number=" "><Text>INT. CELLAR - NIGHT</Text></Paragraph>',
+  '    <Paragraph Type="Scene Heading" Number="7"><Text>INT. ATTIC - DAY #7B#</Text></Paragraph>',
+  '  </Content>',
+  '</FinalDraft>',
+  '',
+].join('\n');
+
+const TITLED = [
+  '<FinalDraft DocumentType="Script">',
+  '  <TitlePage>',
+  '    <Content>',
+  '      <Paragraph Alignment="Center"><Text>THE LIGHTHOUSE KEEPER</Text></Paragraph>',
+  '      <Paragraph Alignment="Center"/>',
+  '      <Paragraph Alignment="Center"><Text>Written by</Text></Paragraph>',
+  '      <Paragraph Alignment="Center"><Text>N. Attini</Text></Paragraph>',
+  '      <Paragraph Alignment="Center"><Text>Second draft</Text></Paragraph>',
+  '      <Paragraph Alignment="Center"><Text>Contact: n@example.org</Text></Paragraph>',
+  '      <Paragraph Alignment="Center"><Text>Based on a short story</Text></Paragraph>',
+  '    </Content>',
+  '  </TitlePage>',
+  '  <Content>',
+  '    <Paragraph Type="Scene Heading"><Text>INT. A - DAY</Text></Paragraph>',
+  '  </Content>',
+  '  <HeaderAndFooter HeaderVisible="Yes"><Header><Paragraph Alignment="Right"><DynamicLabel Type="Page #"/><Text>.</Text></Paragraph></Header></HeaderAndFooter>',
+  '</FinalDraft>',
+].join('\n');
+
+/** The same file as a Windows editor saves it: a byte order mark and CRLF line ends. */
+function windowsCopy(xml: string): string {
+  return `\uFEFF${xml.replace(/\n/g, '\r\n')}`;
+}
+
+function scenesOf(xml: string) {
+  return importFdx(xml).nodes.flatMap((node) => (node.kind === 'scene' ? [node] : []));
+}
+
+describe('importFdx — scene numbers', () => {
+  it('reads Number into the heading, and leaves an unnumbered heading unnumbered', () => {
+    expect(parseFdxParagraphs(NUMBERED).map((p) => p.number)).toEqual(['2A', null, null, null, '7']);
+    const scenes = scenesOf(NUMBERED);
+    expect(scenes.map((s) => [s.title, s.sceneNumber])).toEqual([
+      ['INT. HALL - DAY', '2A'],
+      ['EXT. YARD - NIGHT', null],
+      ['INT. CELLAR - NIGHT', null],
+      ['INT. ATTIC - DAY', '7B'],
+    ]);
+    expect(scenes[0]?.heading).toBe('INT. HALL - DAY #2A#');
+    expect(scenes[0]?.body.startsWith('INT. HALL - DAY #2A#')).toBe(true);
+    expect(scenes[0]?.lengthEighths).toBe(8);
+  });
+
+  it('does not write a Number that holds a hash, which Fountain could not carry, and says it left it out', () => {
+    const xml = '<Paragraph Type="Scene Heading" Number="1#2"><Text>INT. A - DAY</Text></Paragraph>';
+    expect(scenesOf(xml).map((s) => s.heading)).toEqual(['INT. A - DAY']);
+    expect(importFdx(xml).notices).toContain('"INT. A - DAY": its Final Draft number "1#2" cannot be carried into a Fountain heading; it was left out.');
+  });
+
+  it('says so for a Number that holds a line feed too, on one line', () => {
+    const xml = '<Paragraph Type="Scene Heading" Number="1&#10;2"><Text>INT. A - DAY</Text></Paragraph>';
+    expect(scenesOf(xml).map((s) => s.heading)).toEqual(['INT. A - DAY']);
+    expect(importFdx(xml).notices).toContain('"INT. A - DAY": its Final Draft number "1 2" cannot be carried into a Fountain heading; it was left out.');
+  });
+
+  it('says nothing for a Number it carries, or one the heading already carries', () => {
+    const plain = '<Paragraph Type="Scene Heading" Number="2A"><Text>INT. A - DAY</Text></Paragraph>';
+    expect(importFdx(plain).notices).toEqual([]);
+    const same = '<Paragraph Type="Scene Heading" Number="2A"><Text>INT. A - DAY #2A#</Text></Paragraph>';
+    expect(importFdx(same).notices).toEqual([]);
+  });
+});
+
+describe('importFdx — the title page', () => {
+  it('leaves the title page and the page header out of the script paragraphs', () => {
+    expect(parseFdxParagraphs(TITLED).map((p) => p.text)).toEqual(['INT. A - DAY']);
+  });
+
+  it('names the lines it can and keeps the rest as Notes', () => {
+    expect(parseFdxTitlePage(TITLED)).toEqual({
+      Title: 'THE LIGHTHOUSE KEEPER',
+      Credit: 'Written by',
+      Author: 'N. Attini',
+      'Draft date': 'Second draft',
+      Contact: 'n@example.org',
+      Notes: 'Based on a short story',
+    });
+    expect(importFdx(TITLED).titlePage).toEqual(parseFdxTitlePage(TITLED));
+  });
+
+  it('is null for a file with no title page or an empty one', () => {
+    expect(parseFdxTitlePage(FDX_SAMPLE)).toBeNull();
+    expect(importFdx(FDX_SAMPLE).titlePage).toBeNull();
+    expect(parseFdxTitlePage('<TitlePage><Content><Paragraph/></Content></TitlePage>')).toBeNull();
+  });
+
+  it('takes a line after the credit for Notes, not Title, and a long line with draft in it for Notes, not Draft date', () => {
+    const page = (lines: readonly string[]): string =>
+      `<TitlePage><Content>${lines.map((line) => `<Paragraph><Text>${line}</Text></Paragraph>`).join('')}</Content></TitlePage>`;
+    expect(parseFdxTitlePage(page(['Written by', 'A. Writer', 'Based on a short story']))).toEqual({
+      Credit: 'Written by',
+      Author: 'A. Writer',
+      Notes: 'Based on a short story',
+    });
+    const long = 'A draft of the world as it was before the long winter set in and the roads closed';
+    expect(long.length).toBeGreaterThan(60);
+    expect(parseFdxTitlePage(page(['THE KEEPER', long]))).toEqual({ Title: 'THE KEEPER', Notes: long });
+  });
+
+  it('reads a Written by: line as the credit and the author', () => {
+    const xml = '<TitlePage><Content><Paragraph><Text>Written by: A. Writer</Text></Paragraph></Content></TitlePage>';
+    expect(parseFdxTitlePage(xml)).toEqual({ Credit: 'Written by', Author: 'A. Writer' });
+  });
+});
+
+describe('importFdx — a byte order mark and Windows line ends', () => {
+  it('imports a BOM-prefixed CRLF file as the plain one', () => {
+    for (const xml of [NUMBERED, TITLED, FDX_SAMPLE]) {
+      expect(importFdx(windowsCopy(xml))).toEqual(importFdx(xml));
+      expect(parseFdxParagraphs(windowsCopy(xml))).toEqual(parseFdxParagraphs(xml));
+    }
+    expect(importFdx(windowsCopy(TITLED)).titlePage?.Author).toBe('N. Attini');
+    expect(scenesOf(windowsCopy(NUMBERED))).toHaveLength(4);
+  });
+
+  it('folds a line end inside a text run to a line feed', () => {
+    const xml = '<Paragraph Type="Action"><Text>one\r\ntwo\rthree</Text></Paragraph>';
+    expect(parseFdxParagraphs(xml)[0]?.text).toBe('one\ntwo\nthree');
+  });
+});
+
+describe('renderFdx then importFdx — what Caotang writes, it reads back', () => {
+  const blocks: FlatBlock[] = [
+    { kind: 'frontmatter', fmKind: 'titlepage' },
+    { kind: 'scene', docId: 'a', body: 'INT. HALL - DAY #2A#\n\nRain falls.\n\nELENA\nHome.', title: 'INT. HALL - DAY', number: 1 },
+    { kind: 'scene', docId: 'b', body: 'EXT. YARD - NIGHT\n\nWind.', title: 'EXT. YARD - NIGHT', number: 2 },
+    { kind: 'scene', docId: 'c', body: 'INT. CELLAR - DAY #3#\n\nDamp.', title: 'INT. CELLAR - DAY', number: 3 },
+  ];
+  const { xml } = renderFdx(blocks, { title: 'Keeper', author: 'N. Attini' });
+
+  it('keeps the scene numbers, 2A among them, and the scene text', () => {
+    const scenes = scenesOf(xml);
+    expect(scenes.map((s) => [s.title, s.sceneNumber])).toEqual([
+      ['INT. HALL - DAY', '2A'],
+      ['EXT. YARD - NIGHT', null],
+      ['INT. CELLAR - DAY', '3'],
+    ]);
+    expect(scenes[0]?.body).toBe('INT. HALL - DAY #2A#\n\nRain falls.\n\nELENA\nHome.');
+    expect(scenes[1]?.body).toBe('EXT. YARD - NIGHT\n\nWind.');
+  });
+
+  it('keeps the title page, and does not turn its lines into script text', () => {
+    const script = importFdx(xml);
+    expect(script.titlePage).toMatchObject({ Title: 'Keeper', Author: 'N. Attini' });
+    expect(script.titlePage).toEqual(parseFdxTitlePage(xml));
+    expect(script.nodes.map((n) => n.kind)).toEqual(['scene', 'scene', 'scene']);
+    expect(parseFdxParagraphs(xml).map((p) => p.text)).not.toContain('Title: Keeper');
+  });
+
+  it('reads the file the same with a byte order mark and Windows line ends', () => {
+    expect(importFdx(windowsCopy(xml))).toEqual(importFdx(xml));
   });
 });
