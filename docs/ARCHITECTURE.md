@@ -46,7 +46,7 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 - **Surfaces:** agent tools `codex.read` / `codex.write`; codex panel and inspector chips; pure detection function. Spec: [architecture/codex.md](architecture/codex.md).
 
 ### 2.3b `context-assembly` 📐
-- **Responsibility:** the read half of every model call — fixed eight-layer prompt stack, token budgets, deterministic truncation, prompt preview, cost estimates. Keyed context (synopses + mention-keyed codex), no embeddings.
+- **Responsibility:** the read half of every model call — fixed nine-layer prompt stack (the writer's instructions among them), token budgets, deterministic truncation, prompt preview, cost estimates. Keyed context (synopses + mention-keyed codex), no embeddings.
 - **Owns:** assembled `messages[]`, layer budgets, drop reasons.
 - **Spec:** [architecture/context-assembly.md](architecture/context-assembly.md).
 
