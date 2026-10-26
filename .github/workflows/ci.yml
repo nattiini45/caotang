@@ -133,7 +133,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Chromium for Playwright
-        run: pnpm exec playwright install --with-deps chromium
+        # --with-deps installs Chromium's system packages through apt: write the retry setting first (tools/ci/apt-install.sh).
+        run: |
+          bash tools/ci/apt-install.sh
+          pnpm exec playwright install --with-deps chromium
 
       - name: End-to-end (dev suite, and the production-preview smoke test)
         run: pnpm test:e2e
@@ -170,13 +173,9 @@ jobs:
         run: corepack enable
 
       - name: Install LibreOffice and openpyxl (CI only; neither ships)
-        # man-db rebuilds its index after every package by default, which alone can outlast the job; it is not needed here.
+        # tools/ci/apt-install.sh retries a slow mirror within a time limit instead of letting it run out the job's time.
         run: |
-          sudo rm -f /var/lib/man-db/auto-update
-          # A stalled mirror fails a fetch after 30 s and the fetch is retried, rather than hanging until the job's timeout.
-          echo 'Acquire::Retries "5"; Acquire::http::Timeout "30"; Acquire::https::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/80-ci-retries > /dev/null
-          sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libreoffice-calc
+          bash tools/ci/apt-install.sh libreoffice-calc
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install openpyxl==3.1.5
 
@@ -213,11 +212,8 @@ jobs:
         run: corepack enable
 
       - name: Install the PDF tools (CI only; none of them ships)
-        run: |
-          # A stalled mirror fails a fetch after 30 s and the fetch is retried, rather than hanging until the job's timeout.
-          echo 'Acquire::Retries "5"; Acquire::http::Timeout "30"; Acquire::https::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/80-ci-retries > /dev/null
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends qpdf poppler-utils ghostscript mupdf-tools
+        # tools/ci/apt-install.sh retries a slow mirror within a time limit instead of letting it run out the job's time.
+        run: APT_DOWNLOAD_SECONDS=180 bash tools/ci/apt-install.sh qpdf poppler-utils ghostscript mupdf-tools
 
       - name: Install
         run: pnpm install --frozen-lockfile
