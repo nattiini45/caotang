@@ -1287,13 +1287,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   /** The spend as the log keeps it: every figure finite and not below zero, whatever a clock or a provider reported, so the log reads back. */
   const loggable = (spend: BudgetSpend): BudgetSpend => {
     const amount = (value: number): number => (Number.isFinite(value) && value >= 0 ? value : 0);
+    const whole = (value: number): number => Math.floor(amount(value));
     return {
-      modelCalls: amount(spend.modelCalls),
+      modelCalls: whole(spend.modelCalls),
       promptTokens: amount(spend.promptTokens),
       completionTokens: amount(spend.completionTokens),
       estimatedTokens: amount(spend.estimatedTokens),
       ...(spend.costUsd === undefined ? {} : { costUsd: amount(spend.costUsd) }),
-      steps: amount(spend.steps),
+      steps: whole(spend.steps),
       activeMs: amount(spend.activeMs),
     };
   };
