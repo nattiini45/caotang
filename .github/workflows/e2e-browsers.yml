@@ -1,4 +1,4 @@
-# The end-to-end suite in Firefox and WebKit. It gates pull requests, also runs nightly, and can be dispatched on demand.
+# Firefox and WebKit E2E, called by ci.yml as part of the required PR gate; also runs nightly and on demand.
 #
 # What runs:
 #   - The `firefox` and `webkit` projects of playwright.config.ts (they exist only with CAOTANG_E2E_BROWSERS=all), each in two
@@ -13,7 +13,7 @@
 name: e2e-browsers
 
 on:
-  pull_request:
+  workflow_call:
   schedule:
     - cron: '30 3 * * *'
   workflow_dispatch:
@@ -22,7 +22,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: e2e-browsers-${{ github.ref }}
+  group: e2e-browsers-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

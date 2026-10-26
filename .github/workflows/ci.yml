@@ -2,9 +2,10 @@
 #
 # What runs, and on which Node:
 #   - `verify_matrix` runs the frozen engine-strict install, verification, build, bundle-size check, MCP pack and CLI build
-#     on Node 22.12.0 and 24 for every PR and main push. `verify` preserves the stable required check and passes only if both legs pass.
-#   - `e2e (chromium)` runs on Node 24 in parallel with the matrix. `e2e-browsers.yml` gates pull requests with Firefox and
-#     WebKit in four parallel shards, also runs nightly/on demand, and uploads their merged HTML report when a shard fails.
+#     on Node 22.12.0 and 24 for every PR and main push. Stable required `verify` waits for both matrix legs, Chromium E2E,
+#     and the called Firefox/WebKit workflow; it passes only when all three gates succeed.
+#   - `e2e (chromium)` runs on Node 24 in parallel with the matrix and Firefox/WebKit's four shards. The cross-browser
+#     workflow merges the sharded reports and also runs nightly/on demand.
 #   - `office-interop` and `pdf-validate` remain separate Node 24 jobs and run alongside the PR gate.
 #   - `pnpm verify` runs lint, typecheck and the vitest suites (packages/ and test/). The desktop's pure model specs live in
 #     e2e/unit as Playwright specs, so they run under `pnpm test:e2e`, not under `pnpm verify`.
@@ -101,13 +102,18 @@ jobs:
     name: verify
     runs-on: ubuntu-latest
     timeout-minutes: 1
-    needs: verify_matrix
+    needs: [verify_matrix, e2e, e2e_browsers]
     if: always()
     steps:
-      - name: Require both Node matrix runs
+      - name: Require Node matrix and all browser runs
         env:
           MATRIX_RESULT: ${{ needs.verify_matrix.result }}
-        run: test "$MATRIX_RESULT" = success
+          CHROMIUM_RESULT: ${{ needs.e2e.result }}
+          CROSS_BROWSER_RESULT: ${{ needs.e2e_browsers.result }}
+        run: |
+          test "$MATRIX_RESULT" = success
+          test "$CHROMIUM_RESULT" = success
+          test "$CROSS_BROWSER_RESULT" = success
 
   e2e:
     name: e2e (chromium)
@@ -141,6 +147,12 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+  e2e_browsers:
+    name: Firefox and WebKit E2E
+    uses: ./.github/workflows/e2e-browsers.yml
+    permissions:
+      contents: read
 
   office-interop:
     runs-on: ubuntu-latest
