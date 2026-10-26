@@ -33,11 +33,14 @@ async function sendIntent(page: Page, intent: string): Promise<void> {
   await page.getByRole('button', { name: 'Send', exact: true }).click();
 }
 
-/** Both turns, finished: each wrote one status and left a checkpoint. */
-async function twoTurns(page: Page): Promise<void> {
+test.beforeEach(async ({ page }) => {
   await fakeEndpoint(page, reply);
   await useFakeEndpoint(page);
   await openSample(page);
+});
+
+/** Both turns, finished: each wrote one status and left a checkpoint. */
+async function twoTurns(page: Page): Promise<void> {
   await sendIntent(page, FIRST);
   await expect(page.getByTestId('checkpoint')).toHaveCount(1);
   await sendIntent(page, SECOND);
