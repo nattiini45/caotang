@@ -35,6 +35,7 @@
 - **Focus mode and the Writing setting.** With Settings › Writing's "hide the binder and the inspector" off, focus mode keeps both, and the status line says so when focus mode turns on: "Focus mode is on. The binder and inspector stay open, as set in Settings › Writing." "Settings › Writing" is a button inside the sentence, drawn as a link, whose visible words are its name; it opens Settings at the Writing section.
 - The **agent panel** is a bottom drawer in the editor pane (harness §8): plan cards, checkpoint rows, ghost controls live there; it never overlaps the editor's ghost region.
 - The agent panel's header carries the **Mode** control (agent-harness §4): a radio group named by its visible label, **Mode**, with **Plan only**, **Ask**, **Accept edits** and **Auto** (Auto is absent while Settings › Agent has it off). Every turn row and checkpoint row prints its mode. A card the mode approved is collapsed behind an **Auto-approved** badge, and a Plan only turn that refused writes ends with a **Plan, not run** section and **Switch to Ask and run this plan**; neither has an Approve control.
+- The agent panel's **Intent** box is a combobox (harness §8, "The command list"): a leading `/` opens the list of the nine built-in slash commands, `//` sends a literal leading slash, and a command's answer is a status note under the box. A command never skips a card.
 - The agent panel also carries a **Background tasks** section and, while a big plan waits for its answer, a plan offer card with **Run now**, **Run in background** and **Cancel** (harness §8). The tasks are view state read from the app database, never project state.
 
 ## 2. Binder (module 2.2)
@@ -70,7 +71,7 @@
 - Empty research: guidance card pointing at notes-first workflow.
 
 ### 2.5 Keyboard map (v0.1 minimum)
-`Ctrl+N` new doc in selection's parent · `F2` rename · `Delete` delete w/ confirm · arrow keys move selection · `Ctrl+Enter` open in editor (`view.setActiveDoc`) · `Escape` closes inline editors. (Full chord sheet = polish backlog; these are the Playwright-scripted set.)
+`Ctrl+N` new doc in selection's parent · `F2` rename · `Delete` delete w/ confirm · arrow keys move selection · `Ctrl+Enter` open in editor (`view.setActiveDoc`) · `Escape` closes inline editors. (Full chord sheet = polish backlog; these are the Playwright-scripted set.) The agent's Intent box has its own keys for the command list, in §5.6.
 
 ## 3. Corkboard (module 2.4)
 
@@ -176,6 +177,7 @@ The Project panel is a dialog that opens from the project's name in the toolbar 
 ### 5.6 Keyboard chords added since v0.1
 
 - **`Ctrl+Alt+F`** focuses the binder's filter field (binder-filters §5). **`Ctrl+Shift+F`** stays focus mode, which shipped first and is in the user guide. The filter takes the Alt chord, as docs/decisions.md records. The filter chord is supplementary, not part of the §2.5 set (binder-filters §5).
+- **The agent's Intent box** (a combobox, harness §8): **`/`** at the start opens the list of slash commands; **Down**, **Up**, **Home** and **End** move through it; **Tab** completes the command; **Enter** completes it and runs it when it needs no argument; **Escape** closes the list and keeps the text; **`//`** sends a literal leading slash. The list does not open while an input method is composing, nor for a full-width `／`. The panel's Escape (stop the turn, with the box empty) is not taken while the list is open.
 
 ### 5.7 The Skills panel
 
