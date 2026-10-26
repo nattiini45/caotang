@@ -7,6 +7,7 @@ Prompt: 1617 tokens against a total budget of 33000; over budget: no.
 | layer | included | base | budget | tokens | kept | dropped |
 |---|---|---|---|---|---|---|
 | L0 | yes | - | - | 197 | 0 | 0 |
+| LI | no | 1500 | - | 0 | 0 | 0 |
 | L1 | yes | 1500 | 1500 | 79 | 0 | 0 |
 | L2 | yes | 2500 | 2500 | 109 | 5 | 3 |
 | L3 | no | - | - | 0 | 0 | 0 |
