@@ -29,6 +29,9 @@ jobs:
   e2e:
     name: e2e (${{ matrix.browser }} ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
+    # Keep the preinstalled browser binaries and Linux dependencies aligned with the locked Playwright 1.63.0 package.
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -47,9 +50,6 @@ jobs:
 
       - name: Install
         run: pnpm install --frozen-lockfile
-
-      - name: Install ${{ matrix.browser }} for Playwright
-        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
 
       - name: End-to-end (${{ matrix.browser }}, shard ${{ matrix.shard }} of 2)
         run: pnpm exec playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/2 --reporter=blob
