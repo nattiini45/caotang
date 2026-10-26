@@ -1,0 +1,65 @@
+# A nightly continuity scan for a Caotang project kept in a Git repository.
+# Copy this file to .github/workflows/continuity-scan.yml in your project repository. README.md (Continuity checks in CI) says what it does.
+#
+# What this job is:
+#   - It runs the deterministic checks only. It calls no model, reads no key and uses no secret, so the job has none to leak.
+#   - It reads the committed folder and writes nothing: coherence.json is saved only by `caotang scan --write`, which is not used here.
+#     A finding you dismissed or marked fixed in the app, and committed in coherence.json, neither prints nor fails the run.
+#   - It always scans the whole project (--scope full). The `changed` scope depends on review state that only --write advances.
+#   - It exits 7 when an open finding is at or above --fail-on (error by default), which fails the job and turns each finding into
+#     an annotation on its file and line. Annotations and the job log carry short quotes from your manuscript; on a public
+#     repository, anyone can read them.
+#
+# Details that are load-bearing rather than tidy:
+#   - The trigger is never `pull_request_target`: that event runs with the base repository's token on a pull request's content.
+#     `pull_request` from a fork gets a read-only token and no secrets, which is all this job needs.
+#   - permissions is `contents: read`, and checkout does not keep the token in the folder (persist-credentials: false).
+#   - The command comes from a release of Caotang, downloaded as one file and checked against the SHA-256 written below before it
+#     runs. A mismatch, or a value still left as the placeholder, stops the job. There is no `npx` line: a floating package name
+#     would run whatever it names tomorrow.
+#   - Before this template is usable, set CAOTANG_VERSION to a release tag and CAOTANG_SHA256 to the hash of caotang.mjs that the
+#     release lists in its SHA256SUMS file. Both are placeholders now, so the job fails closed until you do.
+name: continuity scan
+
+on:
+  schedule:
+    - cron: '17 3 * * *' # nightly, off the hour
+  workflow_dispatch:
+  pull_request:
+    paths: ['docs/**', 'codex/**', 'caotang.json', 'coherence.json']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: continuity-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # PLACEHOLDERS: replace both from the release you choose (https://github.com/nattiini45/caotang/releases).
+      CAOTANG_VERSION: 'REPLACE-WITH-A-RELEASE-TAG-LIKE-v0.1.0'
+      CAOTANG_SHA256: 'REPLACE-WITH-THE-SHA-256-OF-caotang.mjs-FROM-THAT-RELEASE'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Fetch caotang.mjs and check its SHA-256 (stops on a mismatch or a placeholder)
+        run: |
+          set -euo pipefail
+          [[ "$CAOTANG_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::CAOTANG_VERSION must be a release tag like v0.1.0"; exit 1; }
+          [[ "$CAOTANG_SHA256" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::CAOTANG_SHA256 must be the 64-digit SHA-256 from the release's SHA256SUMS"; exit 1; }
+          curl --fail --silent --show-error --location --output "$RUNNER_TEMP/caotang.mjs" \
+            "https://github.com/nattiini45/caotang/releases/download/${CAOTANG_VERSION}/caotang.mjs"
+          echo "${CAOTANG_SHA256}  ${RUNNER_TEMP}/caotang.mjs" | sha256sum --check --strict -
+
+      - name: Continuity scan (deterministic checks, no model, no key)
+        run: node "$RUNNER_TEMP/caotang.mjs" scan --scope full --format github --fail-on error --summary "$GITHUB_STEP_SUMMARY"
