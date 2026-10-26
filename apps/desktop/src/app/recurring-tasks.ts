@@ -307,6 +307,8 @@ export class RecurringTasks {
       const timeZone = (this.options.timeZone ?? (() => Intl.DateTimeFormat().resolvedOptions().timeZone))();
       const live = new Set(file.tasks.filter((task) => task.enabled && task.problem === undefined).map((task) => task.id));
       for (const id of [...this.offered]) if (!live.has(id)) this.offered.delete(id);
+      // An offer that has gone (run, skipped, removed or switched off) is announced again when its task comes due again.
+      for (const id of [...this.announced]) if (!this.offered.has(id)) this.announced.delete(id);
       const starting: AgentTask[] = [];
       for (const task of dueTasks(file, this.runs.lastRuns(), now, timeZone, opening)) {
         if (task.id === this.running) continue;
@@ -481,6 +483,11 @@ export class RecurringTasks {
     const home = this.options.session.tasksHome();
     const file = this.file();
     if (home === null || !file.tasks.some((task) => task.id === id)) return 'That task is gone.';
+    if (this.running === id) {
+      this.message = 'That task is running. Delete it when it has finished.';
+      this.bump();
+      return this.message;
+    }
     this.offered.delete(id);
     const failure = await home.save({ ...file, tasks: file.tasks.filter((task) => task.id !== id) });
     await this.runs?.forget(id);

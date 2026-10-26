@@ -138,6 +138,55 @@ test.describe('what is due is offered', () => {
     await r.session.close();
   });
 
+  test('a task that comes due again after it was skipped is announced again', async () => {
+    const task = seedTask(1, { name: 'Read the new scenes', body: { kind: 'intent', text: DEMO_INTENTS.fillSynopses } });
+    const r = await rig([task]);
+    await r.recurring.attach();
+    expect(r.recurring.snapshot().announcement).toBe('Task due: Read the new scenes. Run now or Skip.');
+
+    await r.recurring.skip(task.id);
+    expect(r.recurring.snapshot().announcement).toBe('Skipped Read the new scenes.');
+    r.clock.now = new Date('2026-06-11T08:30:00Z');
+    await r.recurring.evaluate();
+    expect(r.recurring.snapshot().offers.map((offer) => offer.id)).toEqual([task.id]);
+    expect(r.recurring.snapshot().announcement).toBe('Task due: Read the new scenes. Run now or Skip.');
+    await r.session.close();
+  });
+
+  test('a task that comes due again after it was run is announced again', async () => {
+    const task = seedTask(1, { name: 'Read the new scenes', permission: 'read-only', body: { kind: 'intent', text: DEMO_INTENTS.fillSynopses } });
+    const r = await rig([task]);
+    await r.recurring.attach();
+    expect(r.recurring.snapshot().announcement).toBe('Task due: Read the new scenes. Run now or Skip.');
+
+    await r.recurring.runNow(task.id);
+    expect(r.recurring.snapshot().announcement).toContain('Read the new scenes:');
+    r.clock.now = new Date('2026-06-11T08:30:00Z');
+    await r.recurring.evaluate();
+    expect(r.recurring.snapshot().announcement).toBe('Task due: Read the new scenes. Run now or Skip.');
+    await r.session.close();
+  });
+
+  test('a task removed and made again with the same id is announced again', async () => {
+    const task = seedTask(1, { name: 'Read the new scenes' });
+    const other = seedTask(2, { name: 'Check the days', schedule: { kind: 'manual' } });
+    const r = await rig([task, other]);
+    await r.recurring.attach();
+    expect(r.recurring.snapshot().announcement).toBe('Task due: Read the new scenes. Run now or Skip.');
+
+    expect(await r.recurring.remove(task.id)).toBeNull();
+    await r.recurring.evaluate();
+    expect(r.recurring.snapshot().offers).toEqual([]);
+    // Another task's run takes the announcement, so the one that follows is the task's own, made again.
+    await r.recurring.runNow(other.id);
+    expect(r.recurring.snapshot().announcement).toContain('Check the days:');
+    expect(await r.session.tasksHome()?.save({ formatVersion: 1, tasks: [other, task] })).toBeNull();
+    await r.recurring.evaluate();
+    expect(r.recurring.snapshot().offers.map((offer) => offer.id)).toEqual([task.id]);
+    expect(r.recurring.snapshot().announcement).toBe('Task due: Read the new scenes. Run now or Skip.');
+    await r.session.close();
+  });
+
   test('a task missed for several days is offered once', async () => {
     const task = seedTask(1);
     const runs = TaskRuns.none('p_x');
@@ -365,6 +414,73 @@ test.describe('Run now', () => {
     await r.recurring.runNow(broken.id);
     expect(r.recurring.snapshot().message).toContain('cannot run');
     expect(r.runs.history(broken.id)).toEqual([]);
+    await r.session.close();
+  });
+
+  test('a task is refused while another task is running, and runs when that one has finished', async () => {
+    const first = seedTask(1, { schedule: { kind: 'manual' }, permission: 'ask', body: { kind: 'intent', text: DEMO_INTENTS.fillSynopses } });
+    const second = seedTask(2, { schedule: { kind: 'manual' }, body: { kind: 'scan', scope: 'full' } });
+    const r = await rig([first, second]);
+    r.agent.setMode('accept-edits');
+    const running = r.recurring.runNow(first.id);
+    const deadline = Date.now() + 4000;
+    while (r.agent.snapshot().pending === null && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(r.agent.snapshot().pending).not.toBeNull();
+    expect(r.recurring.snapshot().running).toBe(first.id);
+
+    // A scan skips the agent-busy check, so only the running guard stops this one.
+    await r.recurring.runNow(second.id);
+    expect(r.recurring.snapshot().message).toContain('Another task is running');
+    expect(r.runs.history(second.id)).toEqual([]);
+
+    r.agent.answer({ action: 'cancel' });
+    await running;
+    expect(r.recurring.snapshot().running).toBeNull();
+    await r.recurring.runNow(second.id);
+    expect(r.runs.history(second.id)).toHaveLength(1);
+    await r.session.close();
+  });
+
+  test('a task cannot be removed while it is running, so its run is not recorded for a task that is gone', async () => {
+    const task = seedTask(1, { schedule: { kind: 'manual' }, permission: 'ask', body: { kind: 'intent', text: DEMO_INTENTS.fillSynopses } });
+    const r = await rig([task]);
+    r.agent.setMode('accept-edits');
+    const running = r.recurring.runNow(task.id);
+    const deadline = Date.now() + 4000;
+    while (r.agent.snapshot().pending === null && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 5));
+    expect(r.recurring.snapshot().running).toBe(task.id);
+
+    const refusal = await r.recurring.remove(task.id);
+    expect(refusal).toBe('That task is running. Delete it when it has finished.');
+    expect(r.recurring.snapshot().message).toBe(refusal);
+    expect(r.recurring.snapshot().tasks.map((row) => row.id)).toEqual([task.id]);
+
+    r.agent.answer({ action: 'cancel' });
+    await running;
+    expect(r.runs.history(task.id)).toHaveLength(1);
+    expect(await r.recurring.remove(task.id)).toBeNull();
+    expect(r.recurring.snapshot().tasks).toEqual([]);
+    expect(r.runs.history(task.id)).toEqual([]);
+    await r.session.close();
+  });
+
+  test('a task whose body is a plan runs the plan as a turn under the task’s permission and records the run', async () => {
+    const task = seedTask(1, {
+      schedule: { kind: 'manual' },
+      permission: 'read-only',
+      body: { kind: 'plan', steps: [{ tool: 'coherence.scan', params: { scope: { mode: 'full' } }, expect: 'A scan is recorded' }] },
+    });
+    const r = await rig([task]);
+    await r.recurring.attach();
+    await r.recurring.runNow(task.id);
+
+    const run = r.runs.history(task.id)[0];
+    expect(run).toMatchObject({ status: 'done', trigger: 'manual' });
+    expect(run?.turnId).toBeDefined();
+    // The plan is the turn, held to the task's read-only permission, and the scan step calls no model.
+    expect(r.agent.snapshot().turns[0]?.mode).toBe('plan-only');
+    expect(requestsMade(r)).toBe(0);
+    expect(r.recurring.snapshot().running).toBeNull();
     await r.session.close();
   });
 });
