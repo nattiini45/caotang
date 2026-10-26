@@ -1116,7 +1116,7 @@ export class ProjectSession {
 
   /**
    * Whether the checkpoint `id` (from the step `fromCallId` on, when given) can be taken back without the changes made after it.
-   * Pending typing is saved first, so it is one of those changes. The answer is `restorePlan`'s: `exact` only on a proof that the
+   * Pending typing is saved first, so it is one of those changes; typing that could not be saved leaves nothing proved. The answer is `restorePlan`'s: `exact` only on a proof that the
    * target and every later group touch different nodes, and `with-later` for everything else, including anything it cannot read.
    */
   async restorePlanFor(id: string, fromCallId?: string): Promise<RestorePlan> {
@@ -1130,7 +1130,15 @@ export class ProjectSession {
       for (let at = nodeById(this.state, nodeId); at !== undefined && at.parentId !== null; at = nodeById(this.state, at.parentId)) chain.push(at.parentId);
       return chain;
     };
-    return restorePlan(this.undo.groups(), this.log.entries(), { groupId: id, ...(fromCallId === undefined ? {} : { fromCallId }) }, ancestorsOf);
+    const groups = this.undo.groups();
+    const target = { groupId: id, ...(fromCallId === undefined ? {} : { fromCallId }) };
+    // The planner proves independence against the undo stack and the activity log only. Typing a flush could not store (a revision
+    // conflict, a failed write) is in neither, so while any document is still dirty the stack is not the whole truth and nothing is proved.
+    if (this.autosave.dirtyDocIds().length > 0) {
+      const at = groups.findIndex((group) => group.id === id);
+      return { kind: 'with-later', undo: target, later: at === -1 ? [] : groups.slice(at + 1).map((group) => group.id).reverse(), blockedBy: [], overlap: [], reason: 'unknown' };
+    }
+    return restorePlan(groups, this.log.entries(), target, ancestorsOf);
   }
 
   /**
@@ -1143,9 +1151,12 @@ export class ProjectSession {
     await this.autosave.flush();
     this.lastUndoMessage = null;
     if (this.planNow(id, fromCallId).kind !== 'exact') {
+      const unsaved = this.autosave.dirtyDocIds().length > 0;
       return {
         ok: false,
-        message: 'Your edits since the dialog opened now overlap this change, so nothing was restored. The full restore takes them back too; your edits are as they were.',
+        message: unsaved
+          ? 'Some of your typing could not be saved yet, so nothing was restored and your edits are as they were. Try again once it is saved.'
+          : 'Your edits since the dialog opened now overlap this change, so nothing was restored. The full restore takes them back too; your edits are as they were.',
         undone: [],
       };
     }

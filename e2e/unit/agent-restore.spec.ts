@@ -382,3 +382,25 @@ test('a turn that wrote a global thing is never offered to be restored alone', a
   expect((await f.controller.restorePlan(first!.turnId))?.kind).toBe('with-later');
   await f.close();
 });
+
+test('typing the store refused to take is unproven: the plan is with-later and restoring only leaves every body alone', async () => {
+  const f = await fixture();
+  const [first] = await f.run(2);
+  const ferry = idOf(f, 'The Ferry');
+  const gale = f.bodyOf('The Gale');
+  const stored = f.bodyOf('The Ferry');
+  // The editor slot for the Ferry is behind the store (revision 0), so the flush cannot store what was typed into it.
+  f.session.autosave.open(ferry, { body: '', revision: 0 });
+  f.session.autosave.noteEdit(ferry, 'Typed words that never reached the store.');
+
+  const plan = await f.controller.restorePlan(first!.turnId);
+  expect(f.session.autosave.dirtyDocIds()).toContain(ferry);
+  expect(plan).toMatchObject({ kind: 'with-later', reason: 'unknown' });
+
+  const outcome = await f.controller.restoreOnly(first!.turnId);
+  expect(outcome.ok).toBe(false);
+  expect(f.bodyOf('The Ferry')).toBe(stored);
+  expect(f.bodyOf('The Gale')).toBe(gale);
+  expect(f.controller.snapshot().turns[0]!.restoredAt).toBeNull();
+  await f.close();
+});
