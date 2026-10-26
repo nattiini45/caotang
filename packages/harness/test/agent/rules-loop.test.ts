@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ChatRequest } from '@caotang/gateway';
+import { subagentScript } from '@caotang/gateway/mock';
 import type { MockScript } from '@caotang/gateway/mock';
 import type { ProjectState } from '@caotang/store';
 
@@ -153,6 +154,35 @@ describe('an ask', () => {
     );
     expect(run.asked).toHaveLength(1);
     expect(record(run.report)).toEqual([['confirm', ['scene.draft'], 'approved']]);
+  });
+
+  describe('on agent.delegate', () => {
+    const intent = 'Who knows about the lamp?';
+    const delegate = steps({
+      tool: 'agent.delegate',
+      params: { agent: 'reader', brief: 'Note who knows the lamp failed.', scope: ['The Storm'] },
+      expect: 'notes on who knows the lamp failed',
+    });
+    const reader = subagentScript((req) => (req.messages.some((message) => message.role === 'assistant') ? answer('Only the keeper knows.') : steps({ tool: 'doc.read', params: { doc: 'The Storm' }, expect: 'read' })));
+    const scripts = [transcript(intent, [delegate, answer('Only the keeper knows.')]), reader];
+
+    for (const [name, tool] of [['the tool', 'agent.delegate'], ['every tool', '*']] as const) {
+      it(`starts the agent once the writer approves a card from an ask rule on ${name}`, async () => {
+        const run = await turn(intent, scripts, [rule('ask', { tool })], { mode: 'auto' });
+        expect(run.asked).toHaveLength(1);
+        expect(run.asked[0]?.card.kind).toBe('confirm');
+        expect(run.report.trace.map((row) => [row.tool, row.outcome])).toContainEqual(['agent.delegate', 'ok']);
+        expect(run.report.trace.some((row) => row.agentPath !== undefined && row.tool === 'doc.read')).toBe(true);
+        expect(failedCards(run)).toEqual([]);
+        expect(run.state.documents.get(LANDING)?.revision).toBe(0);
+      });
+    }
+
+    it('starts no agent when the writer cancels the card', async () => {
+      const run = await turn(intent, scripts, [rule('ask', { tool: 'agent.delegate' })], { mode: 'auto', decisions: [{ action: 'cancel' }] });
+      expect(run.report.status).toBe('cancelled');
+      expect(run.report.trace).toEqual([]);
+    });
   });
 
   it('gives a read the writer’s card first, and runs it once approved', async () => {

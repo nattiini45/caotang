@@ -1678,7 +1678,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           turn.cards.push({ kind: 'confirm', tools: [step.tool], decision: 'approved', edits: decided.edits, retries: decided.retries });
           phase(turn, 'running');
           moveCard(turn, callId, 'running');
-          outcome = await invokeRead(turn, { name: approved.tool, callId, params: approved.params, ...(proposal === undefined ? {} : { proposal }) }, { confirmed: true });
+          // agent.delegate is answered by the loop, not by the harness, so an approved one starts its agent the way an unasked one does.
+          outcome =
+            approved.tool === 'agent.delegate'
+              ? await runDelegate(turn, approved, callId)
+              : await invokeRead(turn, { name: approved.tool, callId, params: approved.params, ...(proposal === undefined ? {} : { proposal }) }, { confirmed: true });
+          if (!outcome.ok && turn.signal?.aborted === true) throw new TurnStopped();
         }
       } else {
         cardFor(turn, id, step.tool, step.params, 'running');
