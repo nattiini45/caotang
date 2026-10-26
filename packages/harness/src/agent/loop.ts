@@ -73,6 +73,7 @@ import type { Harness, RuleCheck, ToolListing } from '../runtime.js';
 import type { ToolName } from '../metadata.js';
 import type { CallParams, ToolCall, ToolOutcome } from '../types.js';
 import { canonicalJson, isRecord } from '../util.js';
+import { isCommandName } from '../commands/slash.js';
 import { CONTINUITY_MAX_DOCS, SYNOPSIS_MAX_DOCS } from '../tools/ports.js';
 import type { DelegateParams } from '../tools/delegate.js';
 import { fitsCap } from '../tokens.js';
@@ -328,13 +329,35 @@ export interface TurnOptions {
   readonly profileId?: string;
   readonly model?: string;
   readonly thinking?: ThinkingLevel;
+  /**
+   * The slash command that started the turn (`/draft`), by name. It is what the report, the activity panel and an eval tell a command's
+   * turn by, and it is logged with the turn. A name that is not a command name (`isCommandName`) is ignored.
+   */
+  readonly command?: string;
 }
 
 /** What a UI action can tell a planner turn before it starts. */
 export interface SubmitOptions extends TurnOptions {
+  /**
+   * Shows a card even when the planner proposes a single reversible step, which otherwise runs at once (`/plan`). It only adds a card: the
+   * mode, the rules and the gate decide it as they decide any card, so it never lets a mode approve what the mode would not.
+   */
+  readonly forcePlan?: boolean;
   /** Deferred native rows the turn is about, loaded before the first request as if the planner had searched for them. */
   readonly preload?: readonly ToolName[];
 }
+
+/** What `AgentSession.contextPreview` reports: the layers of the planner's next request, their tokens and drops. */
+export interface ContextPreview {
+  readonly layers: readonly { readonly id: string; readonly name: string; readonly tokens: number; readonly included: boolean; readonly budget?: number }[];
+  /** The prompt as a whole, in tokens. */
+  readonly promptTokens: number;
+  /** What the assembly left out, and why (context-assembly §5). */
+  readonly dropped: readonly string[];
+}
+
+/** The request a preview assembles with: the writer's next message is not known yet. */
+const CONTEXT_PREVIEW_REQUEST = '(your next message)';
 
 /** Where a steering note will land (agent-harness §2). */
 export interface SteerReceipt {
@@ -387,6 +410,11 @@ export interface AgentSession {
   resume(runId: string, options?: TurnOptions): Promise<TurnReport>;
   /** Reverses a turn's undo group: "restore to before this turn" (command-bus §5). */
   restore(turnId: string): Result<UndoOutcome, CommandError>;
+  /**
+   * What the next planner request would send now: its layers with their tokens, and what was left out. It assembles the request the way a
+   * turn does and sends nothing, so no model call is made and the gateway sees no request (`/context`).
+   */
+  contextPreview(options?: TurnOptions): ContextPreview;
   /** Every turn this session has finished, oldest first. */
   reports(): readonly TurnReport[];
 }
@@ -531,6 +559,10 @@ interface Turn {
   restored: boolean;
   /** Steps a resumed turn's run had applied before the reload: its undo group does not reach them. */
   carried: number;
+  /** The slash command that started the turn. */
+  readonly command: string | undefined;
+  /** A single reversible step shows a card instead of running at once. */
+  readonly forcePlan: boolean;
 }
 
 /** How the turn ended, before the report is built from it. */
@@ -2615,8 +2647,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // A rule that asks gives a single write-auto call the one-step card a write-confirm call has (agent-harness §4, "Rules").
     const asked = single !== undefined && asksWriter(single);
     const kind: 'plan' | 'confirm' = restore?.kind ?? (single !== undefined && (riskOf(single.tool) === 'write-confirm' || asked) ? 'confirm' : 'plan');
-    // A single write-auto call runs at once: a reversible op skips the plan (agent-harness §2). A card restored from a log is shown, not run.
-    const auto = restore === undefined && single !== undefined && !asked && riskOf(single.tool) !== 'write-confirm' && staged.stale?.some(Boolean) !== true;
+    // A single write-auto call runs at once: a reversible op skips the plan (agent-harness §2), unless the writer asked for a plan card (`/plan`).
+    // A card restored from a log is shown, not run.
+    const auto = restore === undefined && single !== undefined && !asked && !turn.forcePlan && riskOf(single.tool) !== 'write-confirm' && staged.stale?.some(Boolean) !== true;
     if (plan.steps.some((step) => step.params['selection'] !== undefined)) await preloadAnchorLibraries();
 
     let editable: EditableSteps = {
@@ -2942,7 +2975,29 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       mode: turn.mode,
       budgetUse: usageOf(turn),
       ...(turn.held.length === 0 ? {} : { heldSteps: turn.held }),
+      ...(turn.command === undefined ? {} : { command: turn.command }),
     };
+  }
+
+  /**
+   * What the planner's first request is made of. It is a `meta` call (context-assembly §3): the protocol and tool list as L0, the project
+   * summary as L1, and the request as L7. The skills list (context-assembly §2) is a second planner addendum beside the loaded-tools line,
+   * in a user message after the system prompt and so never part of L0; a project with no skill on offer has none.
+   */
+  function plannerAssembly(native: boolean, intent: string, priorTurns: readonly RecentTurn[]) {
+    const planner = context.assemble({
+      task: { tool: 'meta', instruction: `Request: ${intent}` },
+      // L0 is the core rows and nothing the turn loads, so it is the same bytes before and after a load (context-assembly §2).
+      role: native ? plannerSystemNative(harness.tools(), loadEvery()) : plannerSystem(harness.tools(), loadEvery()),
+      turns: priorTurns,
+      activity: harness.log.entries(),
+    });
+    const skills = harness.skillCatalog();
+    const dropped = [
+      ...dropLinesOf(planner.prompt),
+      ...(skills?.dropped ?? []).map((name) => `Skills: “${name}” is left out of the skills list (over its ${SKILL_CATALOG_TOKENS}-token budget)`),
+    ];
+    return { planner, skills, dropped };
   }
 
   /** The planner's turn: the request goes to the model, which answers or proposes steps (agent-harness §2). */
@@ -2952,22 +3007,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // speaks (protocol.ts `plannerSystem`/`plannerSystemNative` — same rules, different wording).
     turn.native = nativeTools(turn) !== undefined;
     turn.converses = true;
-    // The planner's call is a `meta` call (context-assembly §3): the protocol and tool list as L0, the project
-    // summary as L1, and the request as L7.
-    const planner = context.assemble({
-      task: { tool: 'meta', instruction: `Request: ${intent}` },
-      // L0 is the core rows and nothing the turn loads, so it is the same bytes before and after a load (context-assembly §2).
-      role: turn.native ? plannerSystemNative(harness.tools(), loadEvery()) : plannerSystem(harness.tools(), loadEvery()),
-      turns: turn.priorTurns,
-      activity: harness.log.entries(),
-    });
-    // The skills list (context-assembly §2): a second planner addendum beside the loaded-tools line, in a user message after the
-    // system prompt and so never part of L0. A project with no skill on offer has none, and its requests are as they were.
-    const skills = harness.skillCatalog();
-    const dropped = [
-      ...dropLinesOf(planner.prompt),
-      ...(skills?.dropped ?? []).map((name) => `Skills: “${name}” is left out of the skills list (over its ${SKILL_CATALOG_TOKENS}-token budget)`),
-    ];
+    const { planner, skills, dropped } = plannerAssembly(turn.native, intent, turn.priorTurns);
     turn.dropped.push(...dropped);
     emit({ type: 'context', turnId: turn.id, layers: planner.prompt.layers.map((layer) => ({ id: layer.id, tokens: layer.tokens })), dropped });
     turn.messages.push(...planner.messages);
@@ -3086,7 +3126,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * One turn, from its record to its report. `first` runs the turn's steps. A failure it cannot recover from is reported in words
    * the user can act on: the turn is never left half-finished, and whatever it applied stays in its undo group.
    */
-  function newTurn(turnOptions: TurnOptions, priorTurns: readonly RecentTurn[]): Turn {
+  function newTurn(turnOptions: SubmitOptions, priorTurns: readonly RecentTurn[]): Turn {
     turnCounter += 1;
     const pins: Pins = {
       profileId: turnOptions.profileId ?? options.profileId,
@@ -3129,6 +3169,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       reads: new Map(),
       restored: false,
       carried: 0,
+      command: isCommandName(turnOptions.command) ? turnOptions.command : undefined,
+      forcePlan: turnOptions.forcePlan === true,
     };
   }
 
@@ -3169,6 +3211,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         wire: plan.mode === 'new' ? plan.wire : plan.replay.wire,
         native: plan.mode === 'new' ? nativeTools(turn) !== undefined : plan.replay.native,
         ...(plan.mode === 'resume' ? { resumedFrom: plan.replay.turnId } : {}),
+        ...(turn.command === undefined ? {} : { command: turn.command }),
         // A restored card builds no new prompt, so the conversation behind it keeps the filter it was built with.
         withheld: plan.mode === 'resume' && plan.replay.card !== undefined ? plan.replay.withheld : [...harness.withheldAnywhere()].sort(),
       },
@@ -3190,7 +3233,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
   async function runTurn(
     intent: string,
-    turnOptions: TurnOptions,
+    turnOptions: SubmitOptions,
     first: (turn: Turn) => Promise<Settled>,
     logPlan: LogPlan = { mode: 'new', wire: 'planner' },
   ): Promise<TurnReport> {
@@ -3353,7 +3396,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         });
       }
     }
-    return runTurn(intent, resumeOptions, (turn) => resumedTurn(turn, replay), { mode: 'resume', runId, replay, ...(verdict.rerun === undefined ? {} : { rerun: verdict.rerun }) });
+    return runTurn(intent, replay.command === undefined ? resumeOptions : { ...resumeOptions, command: replay.command }, (turn) => resumedTurn(turn, replay), { mode: 'resume', runId, replay, ...(verdict.rerun === undefined ? {} : { rerun: verdict.rerun }) });
   }
 
   return {
@@ -3412,5 +3455,17 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     },
 
     reports: () => [...finished],
+
+    contextPreview(pinned: TurnOptions = {}): ContextPreview {
+      const pins: Pins = { profileId: pinned.profileId ?? options.profileId, model: pinned.model ?? options.model, thinking: pinned.thinking ?? options.thinking };
+      // The port reads the limits of the pins of the turn that started last; a running turn keeps its own.
+      if (running.size === 0) latestPins = pins;
+      const { planner, dropped } = plannerAssembly(nativeToolsFor(pins) !== undefined, CONTEXT_PREVIEW_REQUEST, [...started]);
+      return {
+        promptTokens: planner.preview.promptTokens,
+        layers: planner.prompt.layers.map((layer) => ({ id: layer.id, name: layer.name, tokens: layer.tokens, included: layer.included, ...(layer.budget === undefined ? {} : { budget: layer.budget }) })),
+        dropped,
+      };
+    },
   };
 }

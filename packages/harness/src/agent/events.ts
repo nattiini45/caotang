@@ -102,6 +102,8 @@ export interface TurnReport {
   readonly budgetUse: BudgetUse;
   /** The write steps plan-only refused, in order, for the writer to run later: `submitPlan` takes them as they are. Absent when none was refused. */
   readonly heldSteps?: readonly PlanStep[];
+  /** The slash command that started the turn (`draft`, without the slash), so the panel and an eval can tell `/draft` from a request typed in words. Absent for any other turn. */
+  readonly command?: string;
 }
 
 /**
