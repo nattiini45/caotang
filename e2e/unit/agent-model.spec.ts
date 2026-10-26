@@ -16,6 +16,7 @@ import {
   proposedByWords,
   reduceTurn,
   spendLine,
+  stepMenuOf,
   type GhostView,
 } from '../../apps/desktop/src/app/agent-model.js';
 import { activityMarkdown } from '../../apps/desktop/src/app/activity-model.js';
@@ -426,4 +427,16 @@ test('a budget event is the turn’s run, and its spend line reads against the l
   expect(spendLine({ spend: priced, limits: { maxCostUsd: 0.5, maxSteps: 4 } })).toBe('3,120 tokens · $0.0123 of $0.5000 · 1 of 4 steps · 1:23 worked');
   // Another turn's spend is not this turn's.
   expect(reduceTurn(turn, { type: 'budget', turnId: 'other.turn-9', spend, limits: {} })).toBe(turn);
+});
+
+test('a step of a finished turn gets a rewind menu when its restore would take something back, and an outside tool’s step says its effects stay', () => {
+  expect(stepMenuOf({ tool: 'meta.set', status: 'done' }, true)).toEqual({ show: true });
+  expect(stepMenuOf({ tool: 'doc.read', status: 'done' }, false)).toEqual({ show: false });
+  const external = stepMenuOf({ tool: 'mcp__s_STORYB0002__write_note', status: 'done' }, false);
+  expect(external.show).toBe(true);
+  expect(external.note).toContain('External side effects are not reversible');
+  // A call that did not finish made no external change to speak of.
+  expect(stepMenuOf({ tool: 'mcp__s_STORYB0002__write_note', status: 'failed' }, false)).toEqual({ show: false });
+  // The note rides with the restorable menu of an outside step that also registered a Caotang change.
+  expect(stepMenuOf({ tool: 'mcp__s_STORYB0002__write_note', status: 'done' }, true).show).toBe(true);
 });

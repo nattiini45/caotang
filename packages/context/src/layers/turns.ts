@@ -6,6 +6,9 @@
  * the intent is clipped. Older turns are not sent. The model reads them back through the
  * tools when it needs them (§2: "not context").
  *
+ * A turn the writer rewound is not sent, and a turn whose project changes the writer restored says so in its outcome line, so the planner
+ * does not assume that work is there. The restore time comes from `config.formatTime`.
+ *
  * Rank is newest first. Display is oldest first, the order the turns happened in.
  */
 
@@ -25,7 +28,20 @@ export interface TurnsPlan {
   readonly notes: readonly string[];
 }
 
-function turnBody(turn: RecentTurn, activity: readonly ActivityEntry[]): string {
+function utcClock(epochMs: number): string {
+  return new Date(epochMs).toISOString().slice(11, 16);
+}
+
+/** The note a restored turn's outcome carries: a fixed template and the clock time, never text from a model, a tool or a server. */
+function restoredNote(turn: RecentTurn, formatTime: (epochMs: number) => string): string {
+  if (turn.restoredAt === undefined) return '';
+  const at = formatTime(turn.restoredAt);
+  return turn.restoredFromStep === undefined
+    ? ` - restored by the writer at ${at}; these changes are no longer in the project`
+    : ` - steps ${turn.restoredFromStep} onward restored by the writer at ${at}; those changes are no longer in the project`;
+}
+
+function turnBody(turn: RecentTurn, activity: readonly ActivityEntry[], formatTime: (epochMs: number) => string): string {
   const rows = activity.filter((entry) => entry.turnId === turn.turnId);
   // The activity rows are the record. A turn with none (a reply writes none, and a reload empties the log) reads the turn's own fields.
   const fromRows = unique(rows.map((row) => row.summary.trim()).filter((text) => text !== '')).join('; ');
@@ -35,19 +51,25 @@ function turnBody(turn: RecentTurn, activity: readonly ActivityEntry[]): string 
   return [
     `- Turn ${turn.turnId}`,
     `  Intent: ${clip(turn.intent, INTENT_CHARS)}`,
-    `  Outcome: ${outcome === '' ? 'no recorded changes' : clip(outcome, OUTCOME_CHARS)}`,
+    `  Outcome: ${outcome === '' ? 'no recorded changes' : clip(outcome, OUTCOME_CHARS)}${restoredNote(turn, formatTime)}`,
     `  Undo group: ${groups.length === 0 ? 'none' : groups.join(', ')}`,
   ].join('\n');
 }
 
-export function turnsBlock(turns: readonly RecentTurn[], activity: readonly ActivityEntry[]): TurnsPlan {
-  const recent = turns.slice(-TURN_LIMIT);
-  const older = turns.length - recent.length;
+export function turnsBlock(
+  turns: readonly RecentTurn[],
+  activity: readonly ActivityEntry[],
+  formatTime: (epochMs: number) => string = utcClock,
+): TurnsPlan {
+  // A rewound turn leaves before the limit applies, so rewinding never shrinks the two-turn window.
+  const kept = turns.filter((turn) => turn.rewound !== true);
+  const recent = kept.slice(-TURN_LIMIT);
+  const older = kept.length - recent.length;
 
   const items: BlockItem[] = [...recent].reverse().map((turn) => ({
     label: `turn ${turn.turnId}`,
     reason: 'one of the last two agent turns',
-    body: turnBody(turn, activity),
+    body: turnBody(turn, activity, formatTime),
     protected: false,
     group: 'turn',
   }));

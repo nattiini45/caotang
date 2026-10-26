@@ -124,7 +124,7 @@ test('restoring to before a change takes back every later change, newest first, 
 
     // The turn is the middle change: the typing after it is a change made later, and it goes back with the turn.
     expect(session.laterChangesAfter(turn!)).toHaveLength(1);
-    expect(await session.restoreBefore(turn!)).toEqual({ ok: true, later: 1 });
+    expect(await session.restoreBefore(turn!)).toEqual({ ok: true, later: 1, undone: [later, turn] });
     expect(getBody(session.state, IDS.sceneA)).toBe('one');
     expect(session.undo.group(later!)).toBeUndefined();
     expect(session.undo.group(older!)).toBeDefined();
@@ -138,6 +138,7 @@ test('restoring to before a change takes back every later change, newest first, 
     expect(await session.restoreBefore(turn!)).toEqual({
       ok: false,
       message: 'That change has already been undone, so there is nothing to take back.',
+      undone: [],
     });
   } finally {
     session.close();

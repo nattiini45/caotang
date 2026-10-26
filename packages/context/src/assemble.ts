@@ -267,7 +267,7 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
 
   let turns: Block | undefined;
   if (active.has('L6')) {
-    const plan = turnsBlock(app.turns ?? [], app.activity ?? []);
+    const plan = turnsBlock(app.turns ?? [], app.activity ?? [], config.formatTime);
     turns = plan.block;
     notes.L6.push(...plan.notes);
     const budget = baseOf('L6');

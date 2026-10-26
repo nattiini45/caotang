@@ -6,6 +6,7 @@
 
 import {
   CHECKPOINT_LABEL,
+  EXTERNAL_CHECKPOINT_NOTE,
   emptyTaskList,
   phraseFor,
   reduceTaskList,
@@ -94,6 +95,12 @@ export interface TurnView {
   readonly steering: readonly SteeringNote[];
   /** The run's spend and its limits after the last model call, for the live spend line (agent-harness §7.1). `null` before the first call. */
   readonly run: { readonly spend: BudgetSpend; readonly limits: RunLimits } | null;
+  /** The writer rewound the conversation past this turn: the model is not sent it (context-assembly §2, L6). It stays in the panel, collapsed. */
+  readonly rewound: boolean;
+  /** When the writer took this turn's project changes back while keeping the conversation (epoch ms), or `null`. L6 says so too. */
+  readonly restoredAt: number | null;
+  /** With `restoredAt`: the 1-based step the restore began at, when it took back that step and the later ones only. */
+  readonly restoredFromStep: number | null;
 }
 
 /** A turn that has been submitted and has not yet reported its id. */
@@ -127,6 +134,9 @@ export function newTurnView(
     tasks: emptyTaskList(turnId),
     steering: [],
     run: null,
+    rewound: false,
+    restoredAt: null,
+    restoredFromStep: null,
   };
 }
 
@@ -187,6 +197,15 @@ function reduceView(turn: TurnView, event: AgentEvent): TurnView {
     default:
       return turn;
   }
+}
+
+/**
+ * The rewind menu of one step of a finished turn: shown for a step whose restore would take something back, and for a step that called
+ * an outside tool, which carries the scope note on its own menu (extensibility §6): restoring puts back Caotang's own changes only.
+ */
+export function stepMenuOf(card: Pick<StatusCard, 'tool' | 'status'>, restorable: boolean): { readonly show: boolean; readonly note?: string } {
+  const external = card.status === 'done' && card.tool.startsWith('mcp__');
+  return { show: restorable || external, ...(external ? { note: EXTERNAL_CHECKPOINT_NOTE } : {}) };
 }
 
 /** The line that names a phase, for the panel's status. The turn is in one of these at any moment. */

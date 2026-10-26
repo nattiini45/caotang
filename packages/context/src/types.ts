@@ -83,6 +83,12 @@ export interface RecentTurn {
   readonly outcome?: string;
   /** The turn's undo group, for the same cases. */
   readonly undoGroupId?: string;
+  /** Epoch ms of the writer's restore of the turn's project changes, with the conversation kept. L6 says so in the outcome line. */
+  readonly restoredAt?: number;
+  /** With `restoredAt`: the 1-based step the restore began at, when the restore took back that step and the later ones only. */
+  readonly restoredFromStep?: number;
+  /** The writer rewound the conversation past this turn: L6 leaves it out before the turn limit applies. */
+  readonly rewound?: boolean;
 }
 
 /** The app state assembly reads. Assembly never writes any of it. */
@@ -140,6 +146,8 @@ export interface ContextConfig {
   /** When an object, L0 carries the JSON protocol line (provider-gateway §5). */
   readonly responseFormat?: 'text' | { readonly jsonSchemaHint: object };
   readonly model?: ModelLimits;
+  /** How a restore time is written in L6 (`HH:MM`). Default: UTC, so a golden does not depend on the machine's zone. */
+  readonly formatTime?: (epochMs: number) => string;
 }
 
 /**
