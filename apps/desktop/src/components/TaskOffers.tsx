@@ -11,7 +11,7 @@ import type { RecurringTasks } from '../app/recurring-tasks.js';
 export function TaskOffers({ recurring }: { recurring: RecurringTasks }): ReactNode {
   const snapshot = useSyncExternalStore(recurring.subscribe, recurring.snapshot);
   return (
-    <section className="recurring-offers" aria-label="Tasks due" data-testid="task-offers">
+    <section className={`recurring-offers${snapshot.offers.length > 0 ? ' has-offers' : ''}`} aria-label="Tasks due" data-testid="task-offers">
       {snapshot.offers.map((offer) => (
         <div key={offer.id} className="recurring-offer" role="group" aria-label={`Task due: ${offer.name}`} data-task={offer.id}>
           <p className="recurring-offer-title">
