@@ -618,7 +618,7 @@ describe('run-context checks', () => {
       const relabelled = makeState();
       const node = relabelled.manifest.tree.find((candidate) => candidate.id === FRIEND);
       if (node !== undefined) node.label = 'act-2';
-      expect(run(checks.projectUnchanged(), { ...idle, after: relabelled }).detail).toBe('the manifest changed');
+      expect(run(checks.projectUnchanged(), { ...idle, after: relabelled }).detail).toBe('the manifest changed: tree');
     });
   });
 
