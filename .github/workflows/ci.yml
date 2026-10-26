@@ -172,10 +172,21 @@ jobs:
       - name: Enable corepack (pnpm from packageManager)
         run: corepack enable
 
+      - name: Week stamp for the kept apt packages
+        id: week
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the kept LibreOffice packages
+        uses: actions/cache@v6
+        with:
+          path: ${{ github.workspace }}/.apt-archives/*.deb
+          key: apt-libreoffice-${{ steps.week.outputs.week }}
+          restore-keys: apt-libreoffice-
+
       - name: Install LibreOffice and openpyxl (CI only; neither ships)
         # tools/ci/apt-install.sh retries a slow mirror within a time limit instead of letting it run out the job's time.
         run: |
-          bash tools/ci/apt-install.sh libreoffice-calc
+          APT_ARCHIVES="$GITHUB_WORKSPACE/.apt-archives" bash tools/ci/apt-install.sh libreoffice-calc
           python3 -m venv "$RUNNER_TEMP/venv"
           "$RUNNER_TEMP/venv/bin/pip" install openpyxl==3.1.5
 
@@ -211,9 +222,20 @@ jobs:
       - name: Enable corepack (pnpm from packageManager)
         run: corepack enable
 
+      - name: Week stamp for the kept apt packages
+        id: week
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore the kept PDF tool packages
+        uses: actions/cache@v6
+        with:
+          path: ${{ github.workspace }}/.apt-archives/*.deb
+          key: apt-pdf-tools-${{ steps.week.outputs.week }}
+          restore-keys: apt-pdf-tools-
+
       - name: Install the PDF tools (CI only; none of them ships)
         # tools/ci/apt-install.sh retries a slow mirror within a time limit instead of letting it run out the job's time.
-        run: APT_DOWNLOAD_SECONDS=180 bash tools/ci/apt-install.sh qpdf poppler-utils ghostscript mupdf-tools
+        run: APT_ARCHIVES="$GITHUB_WORKSPACE/.apt-archives" APT_DOWNLOAD_SECONDS=180 bash tools/ci/apt-install.sh qpdf poppler-utils ghostscript mupdf-tools
 
       - name: Install
         run: pnpm install --frozen-lockfile
