@@ -37,14 +37,14 @@ async function openSkills(page: Page) {
 
 /** The agent drawer, open, with the Intent box ready. */
 async function agentReady(page: Page): Promise<void> {
-  const field = page.getByRole('textbox', { name: 'Intent' });
+  const field = page.getByRole('combobox', { name: 'Intent' });
   if (!(await field.isVisible())) await page.getByRole('button', { name: 'Agent', exact: true }).click();
   await expect(field).toBeEnabled();
 }
 
 async function sendIntent(page: Page, intent: string): Promise<void> {
   await agentReady(page);
-  await page.getByRole('textbox', { name: 'Intent' }).fill(intent);
+  await page.getByRole('combobox', { name: 'Intent' }).fill(intent);
   await page.getByRole('button', { name: 'Send', exact: true }).click();
 }
 

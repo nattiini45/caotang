@@ -30,12 +30,14 @@ import { formatUsd, turnCostOf } from '../app/plan-preview.js';
 import { resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
 import type { AgentController, AgentSnapshot } from '../app/agent.js';
+import type { CommandNote } from '../app/slash-model.js';
 import type { RecurringTasks } from '../app/recurring-tasks.js';
 import type { StartIntent } from '../App.js';
 import type { ProjectSession } from '../app/session.js';
 import { useAssetRecords } from '../media/hooks.js';
 import { ConfirmDialog, EmptyState, useReport, useSession } from './shared.js';
 import { AgentQueue, type HeldNote } from './AgentQueue.js';
+import { CommandComposer } from './CommandComposer.js';
 import { openDialog } from './dialog-requests.js';
 import { PlanCard, planHeading } from './PlanCard.js';
 import { PlanOfferCard } from './PlanOfferCard.js';
@@ -96,14 +98,20 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
   const cardKey = snapshot.pending === null ? null : `${snapshot.pending.turnId}:${snapshot.pending.card.id}:${snapshot.pending.card.revision}`;
   const heldNow = held !== null && held.cardKey === cardKey ? held : null;
 
-  // Enter: send when no turn runs, queue as the next turn when one does.
+  // Enter: send when no turn runs, queue as the next turn when one does. A line that starts with a slash is read as a command first
+  // (agent-harness §2): it may start a turn of its own, answer under the box, or ask to restore. A line the command could not use stays in
+  // the box for the writer to correct.
+  const send = (line: string): void => {
+    const text = line.trim();
+    if (text === '') return;
+    const outcome = agent.sendLine(text);
+    if (outcome.kind === 'kept') return;
+    setIntent('');
+    if (outcome.kind === 'restore') setRestoring({ turnId: outcome.turnId, summary: outcome.summary, later: agent.laterChanges(outcome.turnId) });
+  };
   const submit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
-    const text = intent.trim();
-    if (text === '') return;
-    setIntent('');
-    if (snapshot.busy) agent.enqueue(text);
-    else void agent.submit(text);
+    send(intent);
   };
 
   // Ctrl+Enter: send the text to the running turn as a note. While a card waits, the writer chooses what happens to the card first.
@@ -219,22 +227,18 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
       {open ? (
         <div id="agent-body" className="agent-body">
           <form className="agent-intent" onSubmit={submit}>
-            <label>
-              <span className="visually-hidden">Intent</span>
-              <input
-                ref={intentRef}
-                type="text"
-                aria-label="Intent"
-                placeholder={
-                  snapshot.busy
-                    ? `${shortcutLabel('agent-send')} queues it for the next turn, ${shortcutLabel('agent-steer')} sends it to this one`
-                    : 'Ask the agent to draft, fill, or check something'
-                }
-                value={intent}
-                disabled={snapshot.providerName === null}
-                onChange={(event) => setIntent(event.target.value)}
-              />
-            </label>
+            <CommandComposer
+              inputRef={intentRef}
+              value={intent}
+              onChange={setIntent}
+              onRun={send}
+              disabled={snapshot.providerName === null}
+              placeholder={
+                snapshot.busy
+                  ? `${shortcutLabel('agent-send')} queues it for the next turn, ${shortcutLabel('agent-steer')} sends it to this one`
+                  : 'Ask the agent to draft, fill, or check something, or type / for commands'
+              }
+            />
             <button type="submit" className="button is-primary" disabled={intent.trim() === '' || snapshot.providerName === null}>
               {snapshot.busy ? 'Queue' : 'Send'}
             </button>
@@ -244,6 +248,8 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
               </button>
             ) : null}
           </form>
+
+          {snapshot.command !== null ? <CommandNoteView note={snapshot.command} onDismiss={() => agent.dismissCommandNote()} /> : null}
 
           {/* Skills the writer has not read and approved are not offered to the agent (extensibility.md §10). The panel says how many wait. */}
           {waitingSkills > 0 ? (
@@ -324,6 +330,25 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
   );
 }
 
+/** What the last slash command said: help, a missing or ambiguous argument, the context, or why a line was kept. It is the panel's, not a turn's. */
+function CommandNoteView({ note, onDismiss }: { note: CommandNote; onDismiss: () => void }): ReactNode {
+  return (
+    <section className={`agent-command-note is-${note.kind}`} role="status" aria-label="Command result" data-testid="agent-command-note">
+      <p className="agent-command-title">{note.title}</p>
+      {note.lines.length === 0 ? null : (
+        <ul>
+          {note.lines.map((line, index) => (
+            <li key={`${index}:${line}`}>{line}</li>
+          ))}
+        </ul>
+      )}
+      <button type="button" className="button is-quiet" onClick={onDismiss}>
+        Dismiss
+      </button>
+    </section>
+  );
+}
+
 /** What a finished restore says: how many later changes went back with the turn, if any. */
 function restoredLine(later: number): string {
   if (later === 0) return 'Restored to before that turn.';
@@ -358,6 +383,11 @@ function TurnBlock({
   return (
     <li className={`agent-turn is-${turn.phase}`} data-turn={turn.turnId}>
       <header className="agent-turn-head">
+        {turn.command === null ? null : (
+          <span className="agent-turn-command muted" data-testid="turn-command">
+            /{turn.command}
+          </span>
+        )}
         <q className="agent-intent-text">{turn.intent}</q>
         {turn.mode === null ? null : (
           <span className="agent-turn-mode muted" data-testid="turn-mode">

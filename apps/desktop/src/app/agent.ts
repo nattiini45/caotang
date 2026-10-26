@@ -67,7 +67,9 @@ import {
   createAgentSession,
   createBudgetMeter,
   createContextPort,
+  docResolverFor,
   preloadFor,
+  resolveSlash,
   RUN_LOG_VERSION,
   structureDigest,
   summarizeRun,
@@ -103,6 +105,7 @@ import type { ProjectSession, RestoreResult } from './session.js';
 import { TaskQueue, type TaskAgent } from './task-queue.js';
 import { announcementFor, viewOf, type TaskView } from './task-model.js';
 import { TaskStore, type TaskRecord } from './task-store.js';
+import { contextNote, helpNote, restoreTarget, type CommandNote, type LineOutcome } from './slash-model.js';
 
 /** Where a turn runs. The demo intents run on the built-in demo profile, whatever is active (context-assembly §6). */
 export interface SubmitOptions {
@@ -120,6 +123,10 @@ export interface SubmitOptions {
   readonly mode?: PermissionMode;
   /** The most model calls this turn may make. A recurring task's `maxModelCalls`; it can only lower the setting's limit, never raise it. */
   readonly maxModelCalls?: number;
+  /** Shows a card even for a single reversible step (`/plan`). It adds a card and nothing else: the mode and the rules decide it as they decide any card. */
+  readonly forcePlan?: boolean;
+  /** The slash command that started the turn (`draft`), which the report and the run log name. */
+  readonly command?: string;
 }
 
 /** A run the project was left with, as the panel's interrupted-run card shows it (agent-harness §5.1). */
@@ -217,6 +224,8 @@ export interface AgentSnapshot {
   readonly offer: OfferView | null;
   /** The project's background tasks, oldest first, as the project stood when the snapshot was made (`taskViews` reads it now). */
   readonly tasks: readonly TaskView[];
+  /** What the last slash command said under the Intent box (help, a missing argument, the context), or `null`. */
+  readonly command: CommandNote | null;
 }
 
 /** What the panel says when the queue waits after a turn that stopped on a question. */
@@ -258,6 +267,7 @@ export class AgentController {
   private interrupted: InterruptedRunView[] = [];
   private readonly runLog: RunLogPort;
   private intentForNextTurn: string | null = null;
+  private commandForNextTurn: string | null = null;
   private providerForNextTurn: string | null = null;
   private priceForNextTurn: { readonly prompt: number; readonly completion: number } | null = null;
   /**
@@ -292,6 +302,8 @@ export class AgentController {
   /** The text a scene's draft has streamed so far, by document, while the model writes it (agent-harness §8). */
   private readonly streams = new Map<string, string>();
   private message: string | null = null;
+  /** What the last slash command said under the Intent box. View state: never saved, never sent to a model. */
+  private commandNote: CommandNote | null = null;
   private readonly listeners = new Set<() => void>();
   private snapshotValue: AgentSnapshot;
   /** Whether the panel that shows this controller has gone. A detached controller refuses to park a decision. */
@@ -380,6 +392,7 @@ export class AgentController {
       message: this.message,
       offer: this.offer?.view ?? null,
       tasks: this.tasks.snapshot().map((task) => viewOf(task, this.session.state)),
+      command: this.commandNote,
     };
   }
 
@@ -397,7 +410,99 @@ export class AgentController {
     // A turn about a dialogue container or a storyboard starts with that module's tools loaded (PRELOAD_BY_CONTEXT), so it
     // costs no search. The node is the one the writer has selected, which is the document the centre pane shows.
     const preload = [...new Set([...preloadFor(this.activeNode()), ...(options.preload ?? [])])];
-    return this.turnWith(trimmed, options, (agent, turn) => agent.submit(trimmed, { preload, ...turn }));
+    return this.turnWith(trimmed, options, (agent, turn) => agent.submit(trimmed, { preload, ...turn, ...(options.forcePlan === true ? { forcePlan: true } : {}) }));
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Slash commands
+   * ------------------------------------------------------------------ */
+
+  /**
+   * Runs a line the Intent box sent (agent-harness §2, "Slash commands"). A line that is not a command is a request, queued while a turn
+   * runs. A command is resolved here, before any model call: it becomes the plan it names (a turn of its own, whose card is decided like
+   * any other), a request the panel forced to a card (`/plan`), an answer shown under the box (help, a missing or ambiguous argument,
+   * the context), or the restore the panel confirms. While a turn runs, the commands that would start a turn or restore one wait for it
+   * to end, and the text is kept; help and the context are answered at once.
+   */
+  sendLine(text: string): LineOutcome {
+    const line = text.trim();
+    if (line === '') return { kind: 'shown' };
+    this.commandNote = null;
+    const resolved = resolveSlash(line, this.slashContext());
+    const starts = resolved.kind === 'plan' || (resolved.kind === 'intent' && resolved.command !== undefined) || (resolved.kind === 'session' && resolved.action === 'restore');
+    if (this.busy && starts) {
+      this.commandNote = { kind: 'info', title: 'A turn is running', lines: ['Commands that start or restore a turn run between turns. Wait for this one to end or stop it, then send the line again.'] };
+      this.bump();
+      return { kind: 'kept' };
+    }
+    switch (resolved.kind) {
+      case 'intent': {
+        if (resolved.note !== undefined) this.commandNote = { kind: 'info', title: 'Sent as a request', lines: [resolved.note] };
+        const options: SubmitOptions = { ...(resolved.command === undefined ? {} : { command: resolved.command }), ...(resolved.forcePlan === true ? { forcePlan: true } : {}) };
+        if (this.busy) this.enqueue(resolved.intent, options);
+        else void this.submit(resolved.intent, options);
+        this.bump();
+        return { kind: 'sent' };
+      }
+      case 'plan':
+        void this.submitPlan(resolved.intent, resolved.plan, { command: resolved.command });
+        return { kind: 'sent' };
+      case 'ask':
+        this.commandNote = { kind: 'ask', title: resolved.message, lines: resolved.candidates ?? [] };
+        this.bump();
+        return { kind: 'kept' };
+      case 'session': {
+        if (resolved.action === 'help') {
+          this.commandNote = helpNote(resolved.arg);
+          this.bump();
+          return { kind: 'shown' };
+        }
+        if (resolved.action === 'context') {
+          const pinned = this.providers.resolveForRole?.('chat');
+          const profile = pinned?.profile ?? this.providers.active();
+          const preview = this.sessionFor('chat').contextPreview({
+            ...(profile === undefined ? {} : { profileId: profile.id }),
+            ...(pinned?.model === undefined ? {} : { model: pinned.model }),
+            ...(pinned?.thinking === undefined ? {} : { thinking: pinned.thinking }),
+          });
+          this.commandNote = contextNote(preview);
+          this.bump();
+          return { kind: 'shown' };
+        }
+        const target = restoreTarget(
+          this.turns.map((turn) => ({
+            turnId: turn.turnId,
+            report: turn.report,
+            checkpoint: turn.checkpoint !== null,
+            stands: turn.checkpoint !== null && this.session.undo.group(turn.checkpoint.undoGroupId) !== undefined,
+          })),
+          resolved.arg,
+        );
+        if ('says' in target) {
+          this.commandNote = { kind: 'info', title: target.says, lines: [] };
+          this.bump();
+          return { kind: 'kept' };
+        }
+        this.bump();
+        return { kind: 'restore', turnId: target.turn.turnId, summary: target.turn.report?.summary ?? '' };
+      }
+    }
+  }
+
+  /** Clears what the last slash command said under the Intent box. */
+  dismissCommandNote(): void {
+    if (this.commandNote === null) return;
+    this.commandNote = null;
+    this.bump();
+  }
+
+  /** What a slash command reads of the project: the documents the agent may see, by title, and the saved export recipes. */
+  private slashContext() {
+    const state = this.session.state;
+    return {
+      resolve: docResolverFor(state, this.session.harness.withheldAnywhere()),
+      recipes: (state.manifest.recipes ?? []).map((recipe) => ({ name: recipe.name, format: recipe.format })),
+    };
   }
 
   /**
@@ -554,6 +659,7 @@ export class AgentController {
       await requestInkCompilerFor(this.session.state);
       this.turnOwner = owner;
       this.intentForNextTurn = intent;
+      this.commandForNextTurn = options.command ?? null;
       this.providerForNextTurn = profile.name;
       this.priceForNextTurn = profile.pricePer1k ?? null;
       // One agent session per controller keeps `started` RecentTurn list across turns (context-assembly §2, L6).
@@ -563,42 +669,7 @@ export class AgentController {
       const model = resolved?.model;
       const thinking = resolved?.thinking;
       // A session is kept for each role, so a turn under another role never carries the chat conversation or stamps its requests as chat.
-      let agent = this.sessions.get(role);
-      if (agent === undefined) {
-        agent = createAgentSession({
-          harness: this.session.harness,
-          gateway: this.providers.gateway,
-          context: createContextPort({ state: this.session.state, config: this.contextConfig, withheld: (tool) => this.session.harness.withheld(tool) }),
-          decide: (pending) => this.decide(pending),
-          emit: (event) => this.onEvent(event),
-          role,
-          sessionId: role === 'chat' ? this.sessionId : `${this.sessionId}.${role}`,
-          loadEveryTool: this.loadEveryTool,
-          beforeStage: (offer) => this.askOffer(offer),
-          mode: () => this.mode(),
-          lockAuto: () => this.agentSettings().lockAuto,
-          budget: () => {
-            // The model-call bound is read at each turn; the time limit is the meter's, not a turn budget.
-            const { maxActiveMinutes: _minutes, ...budget } = this.agentSettings().budget;
-            // A task's cap can only lower the writer's limit, never raise it.
-            return this.runCalls === null ? budget : { ...budget, maxModelCalls: Math.min(budget.maxModelCalls ?? Infinity, this.runCalls) };
-          },
-          meter: () => this.meter ?? undefined,
-          price: () => this.priceForNextTurn ?? undefined,
-          beforeAutoApply: (card) => this.beforeAutoApply(card),
-          runLog: {
-            port: this.runLog,
-            projectId: this.session.projectId,
-            // A step's record is written only once the project holds the step, so "applied" in the log means saved.
-            flush: () => this.session.saved(),
-            onNotice: (message) => {
-              this.message = message;
-              this.bump();
-            },
-          },
-        });
-        this.sessions.set(role, agent);
-      }
+      const agent = this.sessionFor(role);
       this.runningAgent = agent;
       this.runMode = options.mode ?? null;
       this.runCalls = options.maxModelCalls ?? null;
@@ -608,6 +679,7 @@ export class AgentController {
         profileId: profile.id,
         ...(model === undefined ? {} : { model }),
         ...(thinking === undefined ? {} : { thinking }),
+        ...(options.command === undefined ? {} : { command: options.command }),
       });
       return report;
     } catch (error) {
@@ -627,6 +699,7 @@ export class AgentController {
       if (this.turnOwner === owner) {
         this.turnOwner = 0;
         this.intentForNextTurn = null;
+        this.commandForNextTurn = null;
         this.providerForNextTurn = null;
         this.priceForNextTurn = null;
       }
@@ -898,7 +971,6 @@ export class AgentController {
     if (next === undefined) return;
     this.queue = this.queue.slice(1);
     this.bump();
-    // The entry is submitted as the writer typed it, so anything the intent box parses (a slash command) is read now, when it runs.
     await this.submit(next.intent, next.options);
   }
 
@@ -1025,7 +1097,7 @@ export class AgentController {
   private onEvent(event: AgentEvent): void {
     if (event.type === 'turn' && event.phase === 'started' && this.intentForNextTurn !== null) {
       this.runningTurnId = event.turnId;
-      this.turns = [...this.turns, newTurnView(event.turnId, this.intentForNextTurn, this.providerForNextTurn, this.priceForNextTurn)];
+      this.turns = [...this.turns, newTurnView(event.turnId, this.intentForNextTurn, this.providerForNextTurn, this.priceForNextTurn, this.commandForNextTurn)];
     }
     // A note has reached the model: it is no longer waiting.
     if (event.type === 'steer') this.pendingNotes = this.pendingNotes.filter((note) => note.noteId !== event.note.noteId);
@@ -1256,6 +1328,46 @@ export class AgentController {
   /** Resolves when the queue has nothing left to run. A test waits on it. */
   tasksIdle(): Promise<void> {
     return this.tasks.idle();
+  }
+
+  /** The session of a task role, made on its first use (see `sessions`). */
+  private sessionFor(role: TaskRole): AgentSession {
+    const kept = this.sessions.get(role);
+    if (kept !== undefined) return kept;
+    const agent = createAgentSession({
+      harness: this.session.harness,
+      gateway: this.providers.gateway,
+      context: createContextPort({ state: this.session.state, config: this.contextConfig, withheld: (tool) => this.session.harness.withheld(tool) }),
+      decide: (pending) => this.decide(pending),
+      emit: (event) => this.onEvent(event),
+      role,
+      sessionId: role === 'chat' ? this.sessionId : `${this.sessionId}.${role}`,
+      loadEveryTool: this.loadEveryTool,
+      beforeStage: (offer) => this.askOffer(offer),
+      mode: () => this.mode(),
+      lockAuto: () => this.agentSettings().lockAuto,
+      budget: () => {
+        // The model-call bound is read at each turn; the time limit is the meter's, not a turn budget.
+        const { maxActiveMinutes: _minutes, ...budget } = this.agentSettings().budget;
+        // A task's cap can only lower the writer's limit, never raise it.
+        return this.runCalls === null ? budget : { ...budget, maxModelCalls: Math.min(budget.maxModelCalls ?? Infinity, this.runCalls) };
+      },
+      meter: () => this.meter ?? undefined,
+      price: () => this.priceForNextTurn ?? undefined,
+      beforeAutoApply: (card) => this.beforeAutoApply(card),
+      runLog: {
+        port: this.runLog,
+        projectId: this.session.projectId,
+        // A step's record is written only once the project holds the step, so "applied" in the log means saved.
+        flush: () => this.session.saved(),
+        onNotice: (message) => {
+          this.message = message;
+          this.bump();
+        },
+      },
+    });
+    this.sessions.set(role, agent);
+    return agent;
   }
 
   /** The session a task is staged with: the Background role's profile, the task's id as its name, and no way to decide a card. */

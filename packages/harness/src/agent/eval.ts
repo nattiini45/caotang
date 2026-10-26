@@ -34,6 +34,8 @@ import { canonicalJson } from '../util.js';
 import { createAgentSession, type AgentSession, type AgentSessionOptions } from './loop.js';
 import { createAgentPorts } from './ports.js';
 import { createContextPort, type ContextPortOptions } from './context.js';
+import { docResolverFor } from '../commands/resolver.js';
+import { resolveSlash } from '../commands/slash.js';
 import { emptyTaskList, reduceTaskList, type TaskState } from './progress.js';
 import { createProjectCommandRegistry } from '@caotang/store';
 
@@ -110,6 +112,8 @@ export type WriterAction = { readonly at: WriterMoment; readonly do: 'stop' } | 
 
 export interface Expectation {
   readonly status: TurnStatus;
+  /** The slash command the report names (`TurnReport.command`); `null` means it names none. Absent, the report is not read for one. */
+  readonly command?: string | null;
   /** The turn was stopped by the writer, in this phase. Absent, the report is not read for a stop. */
   readonly stop?: { readonly during: TurnPhase };
   /** The notes the report carries, in order, with the model call each reached (absent: undelivered). */
@@ -171,6 +175,12 @@ export interface Scenario {
    * Off by default: a wired review adds its schema to every planner call, which other scenarios' token ceilings do not count.
    */
   readonly coherence?: boolean;
+  /**
+   * A line typed in the composer, run in place of `intent` the way the app runs it: `resolveSlash` reads it, and the plan it builds goes to
+   * `submitPlan`, or the request it names to `submit`. A line that resolves to anything else is a scenario error. `intent` then only names
+   * the scenario's request for the reader.
+   */
+  readonly slash?: string;
   /** Deferred rows loaded before the planner's first request, as `submit(intent, { preload })` does. */
   readonly preload?: readonly ToolName[];
   /**
@@ -324,10 +334,21 @@ export async function runScenario(scenario: Scenario): Promise<ScenarioRun> {
     ...(scenario.modeOptions ?? {}),
   });
   held.session = session;
-  const report = await session.submit(scenario.intent, {
-    ...(scenario.preload === undefined ? {} : { preload: scenario.preload }),
-    ...(writer.length === 0 ? {} : { signal: stop.signal }),
-  });
+  const signal = writer.length === 0 ? {} : { signal: stop.signal };
+  const resolved =
+    scenario.slash === undefined
+      ? undefined
+      : resolveSlash(scenario.slash, { resolve: docResolverFor(state, harness.withheldAnywhere()), recipes: (state.manifest.recipes ?? []).map((recipe) => ({ name: recipe.name, format: recipe.format })) });
+  if (resolved !== undefined && resolved.kind !== 'plan' && resolved.kind !== 'intent') throw new Error(`scenario "${scenario.name}": ${scenario.slash} is not a request or a plan (${resolved.kind})`);
+  const report =
+    resolved?.kind === 'plan'
+      ? await session.submitPlan(resolved.intent, resolved.plan, { command: resolved.command, ...signal })
+      : await session.submit(resolved?.intent ?? scenario.intent, {
+          ...(scenario.preload === undefined ? {} : { preload: scenario.preload }),
+          ...(resolved?.command === undefined ? {} : { command: resolved.command }),
+          ...(resolved?.forcePlan === true ? { forcePlan: true } : {}),
+          ...signal,
+        });
   if (scenario.expect.restores !== true) return { report, events, requests, pending, state, before };
   const outcome = session.restore(report.turnId);
   const restored = {
@@ -491,6 +512,9 @@ export function checkRun(scenario: Scenario, run: ScenarioRun): string[] {
   if (expect.candidates !== undefined) {
     const found = report.askBack?.candidates?.length ?? 0;
     if (found !== expect.candidates) failures.push(`ask-back: expected ${expect.candidates} candidates, got ${found}`);
+  }
+  if (expect.command !== undefined && (report.command ?? null) !== expect.command) {
+    failures.push(`command: expected ${JSON.stringify(expect.command)}, got ${JSON.stringify(report.command ?? null)}`);
   }
   if (expect.revisionDrift !== undefined && report.askBack?.revisionDrift !== expect.revisionDrift) {
     failures.push(`ask-back: expected revision drift ${expect.revisionDrift}, got ${report.askBack?.revisionDrift ?? 'none'}`);

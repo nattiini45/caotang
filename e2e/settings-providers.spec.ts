@@ -197,7 +197,7 @@ test('the agent panel shows the model’s streamed thinking collapsed, apart fro
   await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
   const friend = await idOf(page, 'The Friend');
 
-  const field = page.getByRole('textbox', { name: 'Intent' });
+  const field = page.getByRole('combobox', { name: 'Intent' });
   await field.fill('Draft the opening of The Friend.');
   await page.getByRole('button', { name: 'Send', exact: true }).click();
   const card = page.getByTestId('plan-card');

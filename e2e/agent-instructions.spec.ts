@@ -20,7 +20,7 @@ async function openInstructions(page: Page) {
 }
 
 async function sendIntent(page: Page, intent: string): Promise<void> {
-  const field = page.getByRole('textbox', { name: 'Intent' });
+  const field = page.getByRole('combobox', { name: 'Intent' });
   if (!(await field.isVisible())) await page.getByRole('button', { name: 'Agent', exact: true }).click();
   await expect(field).toBeEnabled();
   await field.fill(intent);

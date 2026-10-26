@@ -19,6 +19,7 @@
 import type { ChatMessage } from '@caotang/gateway';
 import type { RunPatch, RunRow, RunStatus } from '@caotang/store';
 
+import { isCommandName } from '../commands/slash.js';
 import type { PlanStep } from '../plan.js';
 import { canonicalJson } from '../util.js';
 import type { BudgetSpend } from './budget.js';
@@ -50,6 +51,8 @@ export type RunEvent =
       readonly resumedFrom?: string;
       /** The nodes a read-deny kept from every tool when the turn began: what the conversation it holds was filtered by (absent: not recorded, read as none). */
       readonly withheld?: readonly string[];
+      /** The slash command that started the turn, by name (`TurnReport.command`). Absent for any other turn. */
+      readonly command?: string;
     })
   | (Stamp & { readonly t: 'messages'; readonly turnId: string; readonly appended: readonly ChatMessage[] })
   | (Stamp & {
@@ -303,7 +306,7 @@ function spendOk(value: unknown): value is BudgetSpend {
 }
 
 const SHAPES: Readonly<Record<RunEvent['t'], (event: Record<string, unknown>) => boolean>> = {
-  'turn.start': (e) => e['v'] === RUN_LOG_VERSION && isString(e['turnId']) && isString(e['intent']) && (e['wire'] === 'planner' || e['wire'] === 'plan') && typeof e['native'] === 'boolean' && (e['withheld'] === undefined || (Array.isArray(e['withheld']) && e['withheld'].every(isString))),
+  'turn.start': (e) => e['v'] === RUN_LOG_VERSION && isString(e['turnId']) && isString(e['intent']) && (e['wire'] === 'planner' || e['wire'] === 'plan') && typeof e['native'] === 'boolean' && (e['withheld'] === undefined || (Array.isArray(e['withheld']) && e['withheld'].every(isString))) && (e['command'] === undefined || isCommandName(e['command'])),
   messages: (e) => isString(e['turnId']) && messagesOk(e['appended']),
   'card.pending': (e) =>
     isString(e['turnId']) &&
@@ -367,6 +370,8 @@ export interface RunReplay {
   readonly native: boolean;
   /** The nodes a read-deny kept from the agent when the conversation was last built on: what the messages below were filtered by. */
   readonly withheld: readonly string[];
+  /** The slash command that started the run, when one did. */
+  readonly command?: string;
   /** The conversation as it was last written down, every message verbatim. */
   readonly messages: readonly ChatMessage[];
   /** The card still open: shown and not answered, or answered and not yet fully run. Absent when the run was between cards. */
@@ -404,6 +409,7 @@ function replayOf(events: readonly RunEvent[]): Replayed {
   let wire: 'planner' | 'plan' = 'planner';
   let native = false;
   let withheld: readonly string[] = [];
+  let command: string | undefined;
   const messages: ChatMessage[] = [];
   let card: { -readonly [K in keyof ReplayCard]: ReplayCard[K] } | undefined;
   let cardSeq = -1;
@@ -425,6 +431,7 @@ function replayOf(events: readonly RunEvent[]): Replayed {
         withheld = event.withheld ?? [];
         if (!started) {
           intent = event.intent;
+          command = event.command;
           wire = event.wire;
           started = true;
         }
@@ -480,6 +487,7 @@ function replayOf(events: readonly RunEvent[]): Replayed {
     wire,
     native,
     withheld,
+    ...(command === undefined ? {} : { command }),
     messages,
     ...(open && card !== undefined ? { card } : {}),
     applied,
