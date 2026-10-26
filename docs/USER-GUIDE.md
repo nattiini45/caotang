@@ -244,6 +244,8 @@ A scan also checks the threads you declared. If the scene a thread is **Paid off
 
 A scan also notes two scenes whose day offsets are a week or more apart, one after the other in day order. If the jump is meant, set the later or earlier scene's **Timeline mode** to **Time skip** (a **Dream** or **Mythic** scene also silences it), or dismiss the note.
 
+If your project lives in a Git repository, the same quick checks can run every night or on every pull request, without opening the app: `caotang scan` and a workflow template for GitHub Actions, described in the README under [Continuity checks in CI](../README.md#continuity-checks-in-ci). It calls no model and needs no key. A finding you dismissed or marked fixed here does not fail that run once the project folder, with its `coherence.json`, is committed.
+
 Findings are grouped as **Errors**, **Warnings** and **Notes**. **Show** filters them to **Open**, **Dismissed**, **Marked fixed** or **All**. Each finding quotes the passages it is about. Choose a quote to see that passage in its scene. On an open finding:
 
 - **Fix with agent** starts a turn in the agent to rewrite one passage. The passage is the first quote in the binder: the one in the document that sits higher in the binder, and in that document the earlier one. A finding whose first quote is in a dialogue container has no Fix, so edit that passage in the Ink text. The agent drafts prose and screenplay scenes, not dialogue. On the demo provider, Fix with agent rewrites only the demo's own sample passages, and it refuses any other.

@@ -253,7 +253,35 @@ CAOTANG_API_KEY=... node dist/caotang.mjs agent -p "Fill in the synopses for Cha
 | `--output-format` | `text` (default), `json` (one object when the turn ends) or `stream-json` (one line per event, a `decision` line for each card, then the result). |
 | `--max-model-calls <n>` | The most model calls a turn may make (default 8). |
 
-Standard output carries only the chosen format; progress and notes go to standard error. The exit code is **0** when the turn is done, **1** for an internal error, **2** for a wrong command line or a folder that holds no project, **3** when another writer (the app, or `caotang-mcp serve`) holds the folder, **4** when the turn needs input (a card was cancelled by the permission mode, a bound was reached, or the provider failed), **5** for a conflict, **6** when verification failed, and **130** and **143** after SIGINT and SIGTERM. The undo history of a `--write` run ends with the command, so keep the folder in git. `caotang mcp serve` starts the MCP server with the same flags as `caotang-mcp serve`.
+Standard output carries only the chosen format; progress and notes go to standard error. The exit code is **0** when the turn is done, **1** for an internal error, **2** for a wrong command line or a folder that holds no project, **3** when another writer (the app, or `caotang-mcp serve`) holds the folder, **4** when the turn needs input (a card was cancelled by the permission mode, a bound was reached, or the provider failed), **5** for a conflict, **6** when verification failed, and **130** and **143** after SIGINT and SIGTERM. The undo history of a `--write` run ends with the command, so keep the folder in git. `caotang mcp serve` starts the MCP server with the same flags as `caotang-mcp serve`. `caotang scan` runs the continuity checks without a model; see [Continuity checks in CI](#continuity-checks-in-ci).
+
+## Continuity checks in CI
+
+`caotang scan` runs the deterministic checks of the Findings tab on a project folder, with no browser, no model and no key, so a project kept in a Git repository can be checked every night or on every pull request that touches the manuscript.
+
+```sh
+node dist/caotang.mjs scan --project ~/Writing/my-novel                          # a report in the terminal; exit 7 if an error is open
+node dist/caotang.mjs scan --format github --fail-on warning --summary ../report.md  # annotations on the files, the Markdown report in a file outside the folder
+```
+
+| Flag | Meaning |
+|---|---|
+| `--project <dir>` | The project folder (default: the working directory). |
+| `--scope <scope>` | `full` (default) or `changed`. `full` reads every document; `changed` only those edited since the last saved run. Without `--write` that run never advances, so CI uses `full`. |
+| `--checks <id,...>` | Run only these checks, such as `presence.expected,timeline.overlap` (default: all of them). |
+| `--format` | `text` (default), `markdown` (the coherence report), `json`, or `github` (one workflow command per finding, so each shows on its file and line). |
+| `--fail-on <level>` | `error` (default), `warning`, `info` or `never`: the severity at which an open finding fails the run. |
+| `--write` | Save `coherence.json` with this run in it. Without it the folder is only read, and every file in it is byte-identical afterwards. |
+| `--summary <file>` | Also write the Markdown report to this file. It is appended to only when the path resolves to the same path as `$GITHUB_STEP_SUMMARY`, so it can follow other steps; any other file is written whole. Without `--write`, `--summary` must name a file outside the project folder. |
+| `--help`, `-h` | Print the usage and exit 0. |
+
+The exit code is **0** when the scan is clean or `--fail-on never` is set, **7** when an open finding is at or above `--fail-on`, **8** when none is, `--fail-on` is not `never`, and a document or codex file is not UTF-8 text and so was not checked (the output names it and the scan is partial), **1** for an internal error, **2** for a wrong command line or a folder that holds no project, and **3** when another writer holds the folder (only with `--write`, which takes the folder's lock). A finding you dismissed or marked fixed in the app, and committed in `coherence.json`, neither prints nor fails the run; a `coherence.json` that cannot be read is not repaired, the findings are computed again, and the output says its dismissals are lost. The scan runs the dialogue checks too. It reads a document in the file where the project keeps it, so a finding in a screenplay lands on its `.fountain` file and one in a dialogue container on its `.ink` file.
+
+**The workflow.** [docs/ci/continuity-scan.yml](docs/ci/continuity-scan.yml) is a GitHub Actions workflow to copy to `.github/workflows/` in your project repository. It runs nightly, by hand and on pull requests that change `docs/`, `codex/`, `caotang.json` or `coherence.json`. The project folder must be the root of the repository: the scan step passes no `--project`, and the paths filter assumes the root, so for a project in a subfolder add `--project <dir>` to that step and the folder to the filter; it asks for `contents: read`, holds no secret, and never uses `pull_request_target`. It does not run `npx`: it downloads `caotang.mjs` from a Caotang release and checks it against a SHA-256 you write into the file, which the release lists in `SHA256SUMS`. The version and the hash in the template are placeholders, so the job stops until you set them; it is not turnkey, and there is no release to point it at until the maintainer cuts one (`pnpm --filter @caotang/cli build` writes the same file).
+
+**What it prints.** Annotations and the job log carry short quotes from your manuscript, because a finding quotes the passage it is about. On a public repository anyone can read them. If that matters, keep the repository private or run the scan with `--format text` in a step whose output you do not publish.
+
+**No model review in CI.** CI runs the deterministic checks only. A model review there is not offered: it would need a key in the repository's secrets, which is the one place a key would leave your device, and a spend on a schedule. If it is ever added it will sit behind the per-task opt-in and call cap that recurring tasks have, with a separately scoped key and a read-only tool allowlist.
 
 ## Scripting Caotang
 

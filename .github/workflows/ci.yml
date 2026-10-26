@@ -98,6 +98,16 @@ jobs:
       - name: Build the caotang command-line bundle (one file, with its fonts/)
         run: pnpm --filter @caotang/cli run build
 
+      - name: Scan the fixture project with the built command (exit 7, one error annotation, nothing written)
+        run: |
+          code=0
+          node packages/cli/dist/caotang.mjs scan --project packages/cli/test/fixtures/continuity-project --format github > "$RUNNER_TEMP/scan.out" || code=$?
+          cat "$RUNNER_TEMP/scan.out"
+          test "$code" = 7
+          test "$(grep -c '^::error ' "$RUNNER_TEMP/scan.out")" = 1
+          grep -q '^::error file=docs/n_7K2QX9M4A1.md,line=10,endLine=11,title=presence.expected::' "$RUNNER_TEMP/scan.out"
+          test -z "$(git status --porcelain --ignored=matching -- packages/cli/test/fixtures/continuity-project)"
+
   verify:
     name: verify
     runs-on: ubuntu-latest

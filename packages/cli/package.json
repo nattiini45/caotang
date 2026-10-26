@@ -4,7 +4,7 @@
   "license": "MIT",
   "private": true,
   "type": "module",
-  "description": "The caotang command line: run the agent on a project folder from a terminal, a script or CI (`caotang agent -p`), and the MCP server (`caotang mcp serve`)",
+  "description": "The caotang command line: run the agent on a project folder from a terminal, a script or CI (`caotang agent -p`), the continuity scan (`caotang scan`), and the MCP server (`caotang mcp serve`)",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
@@ -14,6 +14,7 @@
     "caotang": "./dist/caotang.mjs"
   },
   "dependencies": {
+    "@caotang/coherence": "workspace:*",
     "@caotang/font-noto-arabic": "workspace:*",
     "@caotang/font-noto-cjk": "workspace:*",
     "@caotang/font-noto-color-emoji": "workspace:*",
@@ -23,6 +24,7 @@
     "@caotang/gateway": "workspace:*",
     "@caotang/mcp-server": "workspace:*",
     "@caotang/pdf-fonts": "workspace:*",
+    "@caotang/scan": "workspace:*",
     "@caotang/sdk": "workspace:*",
     "@jsquash/webp": "1.5.0"
   },

@@ -127,10 +127,20 @@ describe('the release workflow', () => {
   });
 
   it('checks the tag, verifies, packs, hashes and uploads, in that order', () => {
-    const steps = ['tools/release.mjs check', 'pnpm verify', 'run pack', 'sha256sum', 'gh release create'].map((step) => workflow.indexOf(step));
+    const steps = ['tools/release.mjs check', 'pnpm verify', 'run pack', 'pnpm --filter @caotang/cli run build', 'sha256sum', 'gh release create'].map((step) => workflow.indexOf(step));
     expect(steps.every((at) => at >= 0)).toBe(true);
     expect([...steps].sort((a, b) => a - b)).toEqual(steps);
     expect(workflow).toContain('SHA256SUMS');
+  });
+
+  it('builds the command-line bundle, lists it in SHA256SUMS and attaches it under the name the scan template downloads', () => {
+    const template = read('docs/ci/continuity-scan.yml');
+    const asset = /releases\/download\/\$\{CAOTANG_VERSION\}\/([^"\s]+)/.exec(template)?.[1] ?? '';
+    expect(asset).toBe('caotang.mjs');
+    const create = workflow.slice(workflow.indexOf('gh release create'));
+    expect(create.split('\n')[0]).toContain(`packages/cli/dist/${asset}`);
+    expect(workflow).toContain(`sha256sum ${asset}`);
+    expect(workflow).toMatch(/\(cd packages\/cli\/dist && sha256sum caotang\.mjs\) >> /);
   });
 
   it('takes the notes from the changelog and uses no third-party action', () => {
