@@ -15,6 +15,8 @@ export function describeDrop(reason: DropReason): string {
       return 'empty description';
     case 'manual-unattached':
       return 'manual policy, not attached to the focus';
+    case 'withheld':
+      return 'withheld by a read rule, so the agent never sees it';
     case 'forward-outline':
       return 'forward outline withheld (includeForwardOutline is off)';
     case 'scope-limit':

@@ -8,6 +8,8 @@
 
 import type { SceneNumbersOption } from '@caotang/bus';
 
+import type { PermissionRule } from './agent-rules.js';
+
 export const APP_ID = 'caotang';
 export const FORMAT_VERSION = 1;
 
@@ -57,6 +59,8 @@ export interface ExportRecipeOptions {
   pageSize?: 'A4' | 'Letter';
   /** The contact sheet prints blank numbered frames to draw on (storyboard.md §6). Absent = off. */
   paperFrames?: boolean;
+  /** Emoji print in colour in the screenplay PDF and the contact sheet (screenplay.md §5.3). Absent = the format's default: off for the screenplay PDF, on for the contact sheet. */
+  colourEmoji?: boolean;
 }
 
 /**
@@ -238,4 +242,9 @@ export interface Manifest {
    * that is on is still not offered to the agent until the writer has reviewed it, and the review is not kept here.
    */
   disabledSkills?: string[];
+  /**
+   * additive in v1 (agent-harness.md §4, Rules): the writer's rules for the agent that travel with the folder. Only `deny` and `ask` rules are
+   * read, so a project file can restrict the agent and never grant it power. Absent = no rules.
+   */
+  agent?: { rules?: PermissionRule[] };
 }

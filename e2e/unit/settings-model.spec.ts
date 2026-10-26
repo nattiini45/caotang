@@ -16,7 +16,7 @@ import {
 
 test.describe('settings (ui-modules §5.1)', () => {
   test('the Agent slice loads off, reads only a true as on, and a patch changes it alone', () => {
-    const off = { loadEveryTool: false, defaultMode: 'ask', lockAuto: false, budget: {} };
+    const off = { loadEveryTool: false, defaultMode: 'ask', lockAuto: false, budget: {}, rules: [] };
     expect(DEFAULT_SETTINGS.agent).toEqual(off);
     // A record written before the slice existed has none, which reads as off.
     expect(normalizeSettings({ editor: {} }).agent).toEqual(off);

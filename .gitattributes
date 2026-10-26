@@ -23,6 +23,7 @@ pnpm-lock.yaml binary
 *.woff2     binary
 *.otf       binary
 *.ttf       binary
+*.bin       binary
 
 # Byte-exact test fixtures: read (and one hashed) as bytes by the tests, so a
 # per-platform EOL conversion would turn the suite red on Windows and change the

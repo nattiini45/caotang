@@ -89,6 +89,7 @@ import {
   type AssetStaging,
   type CodexEntry,
   type ExportCommandPort,
+  type PermissionRule,
   type ProjectState,
   type RetentionConfig,
   type RuntimeStore,
@@ -101,12 +102,13 @@ import { newId } from '@caotang/ids';
 import { assetRecordsOf, createExporter, exportMetadataOf, type EmitFailure, type ExporterService } from '@caotang/exporter';
 import { dropDanglingImages, shotCommandPort } from '@caotang/storyboard';
 import { InkCompilerNotLoaded } from '@caotang/dialogue';
-import { createProductHarness, dialogueFactsOf, type Harness } from '@caotang/harness';
+import { createProductHarness, dialogueFactsOf, type Harness, type SourcedRule } from '@caotang/harness';
 import type { McpClient } from '@caotang/mcp-client';
 import type { SkillFile } from '@caotang/skills';
 
-import { loadArabicFontOverHttp, loadCjkFontOverHttp, loadDevanagariFontOverHttp, loadEmojiFontOverHttp, loadHebrewFontOverHttp } from './fallback-fonts.js';
+import { loadArabicFontOverHttp, loadCjkFontOverHttp, loadColourEmojiOverHttp, loadDevanagariFontOverHttp, loadEmojiFontOverHttp, loadHebrewFontOverHttp } from './fallback-fonts.js';
 import { transcodePictureInBrowser } from './picture-transcoder.js';
+import { withAccess, type AgentAccess } from './agent-rules-model.js';
 import { CodexMentions } from './codex-model.js';
 import { ExportStore } from './exports.js';
 import { inkCompilerStatus, requestInkCompiler, requestInkCompilerFor } from './ink-compiler.js';
@@ -229,6 +231,8 @@ export interface SessionOptions {
   readonly coherence?: SessionCoherence;
   /** The writer's reviews of this project's skills (skill-reviews.ts). Absent, no skill is reviewed, so the agent is told of none. */
   readonly skillReviews?: SkillReviews;
+  /** The writer's own agent rules, read at each call (Settings › Agent). Absent, the app has none. The project's rules are the project's own. */
+  readonly appRules?: () => readonly PermissionRule[];
 }
 
 /**
@@ -361,7 +365,10 @@ export class ProjectSession {
   /** The project this one is a separate copy of, when an import or folder open made it with a fresh id (`setCopiedFrom`). */
   private copiedFromId: string | null = null;
 
+  private readonly appRules: () => readonly PermissionRule[];
+
   constructor(options: SessionOptions) {
+    this.appRules = options.appRules ?? (() => []);
     this.projectId = options.projectId;
     this.state = options.state;
     this.runtime = options.store;
@@ -406,6 +413,8 @@ export class ProjectSession {
       // The agent is told only of the skills the writer has read and approved, and the harness checks that on every call.
       skills: { reviewedPin: (name) => this.skillReviews.pinOf(name) },
       notify: () => this.afterCommand(),
+      // The agent's rules: the project file's, then the writer's own in the app's settings (agent-harness §4). Read at each call.
+      rules: () => ({ rules: this.rulesNow() }),
       ...(options.mcp === undefined ? {} : { mcp: options.mcp }),
       ...(options.presentAssets === undefined ? {} : { presentAssets: options.presentAssets }),
       // The agent's coherence scans read the writer's Coherence settings, and its review runs through the app's model
@@ -1063,6 +1072,44 @@ export class ProjectSession {
     return at === -1 ? [] : groups.slice(at + 1).map((group) => this.summaryOf(group));
   }
 
+  /* ------------------------------------------------------------------ *
+   * Agent rules (agent-harness §4, Rules)
+   * ------------------------------------------------------------------ */
+
+  /** The rules this project's file carries. */
+  agentRules(): readonly PermissionRule[] {
+    return this.state.manifest.agent?.rules ?? [];
+  }
+
+  /** Every rule the agent is held to now, each with where it came from: the project's file, then the app's settings. */
+  rulesNow(): readonly SourcedRule[] {
+    return [
+      ...this.agentRules().map((rule): SourcedRule => ({ ...rule, source: 'project' })),
+      ...this.appRules().map((rule): SourcedRule => ({ ...rule, source: 'app' })),
+    ];
+  }
+
+  /**
+   * Replaces the project's rules. Not a bus command: nothing the agent can reach writes a rule, and the writer undoes a rule by
+   * changing it back. The change is saved with the manifest, and the next agent call reads it.
+   */
+  setAgentRules(rules: readonly PermissionRule[]): void {
+    if (rules.length === 0) delete this.state.manifest.agent;
+    else this.state.manifest.agent = { rules: rules.map((rule) => ({ ...rule })) };
+    this.persistence.schedule();
+    this.bump();
+  }
+
+  /** Sets how far the agent may go in one folder or document (binder menu): its menu rule is replaced and the rest are kept. */
+  setAgentAccess(nodeId: string, access: AgentAccess): void {
+    this.setAgentRules(withAccess(this.agentRules(), nodeId, access));
+  }
+
+  /** Removes one of the project's rules by its place in the list (Settings › Agent). */
+  removeAgentRule(index: number): void {
+    this.setAgentRules(this.agentRules().filter((_, at) => at !== index));
+  }
+
   private undoNow(id: string): boolean {
     const outcome = this.undo.undo(id);
     // An undo moves stored text without going through `writeDocument`, so no write this session made describes the
@@ -1447,6 +1494,8 @@ function exporterFor(
     loadFallbackFont: loadCjkFontOverHttp,
     // Its emoji font (Noto Emoji, monochrome), fetched from this origin only when a sheet holds an emoji.
     loadEmojiFont: loadEmojiFontOverHttp,
+    // Noto Color Emoji's vector pictures, fetched from this origin only when an export has Colour emoji on and an emoji the file has.
+    loadColourEmoji: loadColourEmojiOverHttp,
     // Noto Sans Arabic, Noto Sans Hebrew and Noto Sans Devanagari, fetched from this origin only when a file holds their script.
     loadArabicFont: loadArabicFontOverHttp,
     loadHebrewFont: loadHebrewFontOverHttp,

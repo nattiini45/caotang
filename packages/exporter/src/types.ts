@@ -125,6 +125,11 @@ export interface ExportRecipeOptions {
    * trip). Absent is off. Only `contact-sheet-pdf` reads it.
    */
   readonly paperFrames?: boolean;
+  /**
+   * Emoji print in colour (screenplay.md §5.3, storyboard.md §6): Noto Color Emoji's pictures, as vectors, instead of the black-and-white
+   * Noto Emoji. Absent is the format's default: off for `pdf`, on for `contact-sheet-pdf`; an explicit value always wins. Only those two read it.
+   */
+  readonly colourEmoji?: boolean;
 }
 
 /**

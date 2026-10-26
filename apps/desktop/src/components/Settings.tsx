@@ -38,6 +38,7 @@ import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme
 import { DEMO_PROFILE_NAME, priceClearedBy, priceFromInputs } from '../app/providers.js';
 import { CoherenceSection } from './CoherenceSettings.js';
 import { AgentModeSettings } from './AgentModeSettings.js';
+import { AgentRulesSettings } from './AgentRulesSettings.js';
 import { ContextSection } from './ContextSection.js';
 import { McpSection } from './McpSection.js';
 
@@ -148,7 +149,7 @@ export function Settings({
           <div className="settings-body">
             {section === 'providers' ? <ProvidersSection services={services} onChanged={onProvidersChanged} /> : null}
             {section === 'context' ? <ContextSection services={services} session={session} /> : null}
-            {section === 'agent' ? <AgentSection services={services} /> : null}
+            {section === 'agent' ? <AgentSection services={services} session={session} /> : null}
             {section === 'writing' ? <WritingSection services={services} /> : null}
             {section === 'coherence' ? <CoherenceSection services={services} /> : null}
             {section === 'mcp' ? <McpSection mcp={services.mcp} /> : null}
@@ -1002,7 +1003,7 @@ function RequestLogPanel({ services }: { services: AppServices }): ReactNode {
  * Agent
  * ------------------------------------------------------------------ */
 
-function AgentSection({ services }: { services: AppServices }): ReactNode {
+function AgentSection({ services, session }: { services: AppServices; session: ProjectSession | null }): ReactNode {
   const [loadEvery, setLoadEvery] = useState(services.settings.current().agent.loadEveryTool);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -1026,6 +1027,7 @@ function AgentSection({ services }: { services: AppServices }): ReactNode {
       </label>
       <FormMessage message={message === null ? null : { text: message, tone: 'info' }} />
       <AgentModeSettings services={services} />
+      <AgentRulesSettings services={services} session={session} />
     </section>
   );
 }

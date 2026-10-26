@@ -26,7 +26,28 @@ export {
   type ToolName,
   type ToolRisk,
 } from './metadata.js';
-export { createHarness, type ExternalHarness, type Harness, type HarnessOptions, type ToolListing } from './runtime.js';
+export { createHarness, type ExternalHarness, type Harness, type HarnessOptions, type RuleCheck, type ToolListing } from './runtime.js';
+export {
+  NO_RULES,
+  evaluateRules,
+  globMatches,
+  ruleRefusal,
+  ruleWarnings,
+  scopeNodes,
+  withheldNodes,
+  type CallFacts,
+  type CallTargets,
+  type PermissionRule,
+  type RuleAccess,
+  type RuleEffect,
+  type RuleScope,
+  type RuleSet,
+  type RuleSource,
+  type RuleVerdict,
+  type RulesProvider,
+  type SourcedRule,
+} from './rules.js';
+export { TOOL_TARGETS, type ToolTargets, type TargetsFn } from './targets.js';
 export { createProductHarness, type ProductHarnessOptions } from './product.js';
 // The coherence module's two ports the agent's scan and review read through, and the gateway as the review's model.
 export { DIALOGUE_CONTAINER_TYPE, containersOf, dialogueFactsOf } from './coherence-facts.js';

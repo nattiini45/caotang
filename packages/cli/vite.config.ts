@@ -11,7 +11,7 @@ import { defineConfig, type Plugin } from 'vite';
  *
  * The PDFs' fallback fonts are not code, so they sit beside the bundle in `fonts/`, where `@caotang/pdf-fonts/node-loader` looks first
  * (packages/pdf-fonts/src/node-loader.ts). Without them a screenplay PDF with Chinese, Japanese, Korean, emoji, Arabic, Hebrew or
- * Devanagari text fails to compile from this command. The WebP decoder's `webp_dec.wasm` sits beside the bundle too, where
+ * Devanagari text fails to compile from this command, and a PDF with Colour emoji prints its emoji in black and white. The WebP decoder's `webp_dec.wasm` sits beside the bundle too, where
  * `@caotang/exporter/picture-transcoder-node` looks first; without it a contact sheet shows a WebP picture as its caption.
  */
 const FONT_FILES = [
@@ -19,6 +19,7 @@ const FONT_FILES = [
   '@caotang/font-noto-cjk/NotoSansMonoCJKsc-Regular-common.woff',
   '@caotang/font-noto-emoji/NotoEmoji-Regular.woff',
   '@caotang/font-noto-emoji/NotoEmoji-Regular-common.woff',
+  '@caotang/font-noto-color-emoji/NotoColorEmoji.bin',
   '@caotang/font-noto-arabic/NotoSansArabic-Regular.ttf',
   '@caotang/font-noto-hebrew/NotoSansHebrew-Regular.ttf',
   '@caotang/font-noto-devanagari/NotoSansDevanagari-Regular.ttf',

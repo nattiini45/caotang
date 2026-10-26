@@ -454,7 +454,10 @@ export function registerCaotangTools(server: McpServer, runtime: ToolRuntime, ro
       },
       async (args: Structured, ctx: ServerContext): Promise<CallToolResult | InputRequiredResult> => {
         const params: Structured = args ?? {};
-        if (listing.risk === 'write-confirm') return runConfirmed(server, listing, params, ctx, runtime, waitSeconds);
+        // A rule that asks makes the host's question the call's confirmation, as a write-confirm tool's is (agent-harness §4, Rules). A read
+        // is not asked about here: it is refused, since a read saves nothing and the confirmed path saves the folder.
+        const asked = listing.risk === 'write-auto' && runtime.session.harness.ruleCheck(listing.name, params).ask !== undefined;
+        if (listing.risk === 'write-confirm' || asked) return runConfirmed(server, listing, params, ctx, runtime, waitSeconds);
         const key = listing.risk === 'write-auto' ? idempotencyKeyOf(ctx.mcpReq._meta) : undefined;
         if (key !== undefined) return runKeyed(runtime, key, listing.name, params);
         return (await runDirect(runtime, listing.name, params)).result;

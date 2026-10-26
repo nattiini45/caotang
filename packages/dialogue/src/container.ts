@@ -79,7 +79,16 @@ export function resolveContainer(state: ProjectState, ref: string): ContainerRes
   }
   if (matches.length > 1) {
     const titles = matches.map((node) => `"${node.title}" (${node.id})`).join(', ');
-    return fail('invalid-params', `"${wanted}" matches ${matches.length} nodes: ${titles}`, 'name one by its id.');
+    // The candidates travel as data too, so a caller that must not name some of them can leave those out (the harness, under a read rule).
+    const candidates = matches.map((node) => ({ id: node.id, title: node.title, type: node.type }));
+    return {
+      ok: false,
+      error: refusal('invalid-params', `"${wanted}" matches ${matches.length} nodes: ${titles}`, {
+        correctiveHint: 'name one by its id.',
+        target: 'params.doc',
+        details: { ref: wanted, noun: 'node', candidates },
+      }),
+    };
   }
   const node = matches[0];
   if (node === undefined) return fail('not-found', `no node is called "${wanted}"`, 'binder.read_tree lists the ids and titles.');

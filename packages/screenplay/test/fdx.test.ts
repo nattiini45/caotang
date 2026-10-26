@@ -51,12 +51,13 @@ describe('parseFdxParagraphs — the typed paragraphs of an FDX file', () => {
 
   it('reads a file whose closing tags are missing in linear time', () => {
     const truncated = (count: number): string => '<Paragraph Type="Action">'.repeat(count);
-    // Best of three runs per size. Doubling the input roughly doubles a linear scan's time and quadruples a quadratic
-    // one's, so a ratio bound of 3 separates them.
+    // Best of five runs per size. Four times the input takes a linear scan about four times as long and a quadratic one
+    // sixteen times, so a ratio bound of 8 separates them with room for a slow runner; at a few milliseconds a doubling
+    // was within a pause's noise of its bound.
     const timed = (count: number): number => {
       const source = truncated(count);
       let best = Number.POSITIVE_INFINITY;
-      for (let attempt = 0; attempt < 3; attempt += 1) {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
         const started = performance.now();
         expect(parseFdxParagraphs(source)).toEqual([]);
         best = Math.min(best, performance.now() - started);
@@ -64,11 +65,11 @@ describe('parseFdxParagraphs — the typed paragraphs of an FDX file', () => {
       return best;
     };
     parseFdxParagraphs(truncated(1000));
-    const small = timed(20_000);
-    const large = timed(40_000);
+    const small = timed(50_000);
+    const large = timed(200_000);
     const ratio = large / small;
-    expect(ratio, `${Math.round(large)} ms for 40 000 paragraphs against ${Math.round(small)} ms for 20 000`).toBeLessThan(3);
-    expect(large, `40 000 paragraphs took ${Math.round(large)} ms`).toBeLessThan(1000);
+    expect(ratio, `${Math.round(large)} ms for 200 000 paragraphs against ${Math.round(small)} ms for 50 000`).toBeLessThan(8);
+    expect(large, `200 000 paragraphs took ${Math.round(large)} ms`).toBeLessThan(2000);
   }, 30_000);
 });
 

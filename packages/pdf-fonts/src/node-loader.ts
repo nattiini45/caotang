@@ -3,7 +3,7 @@
  * (apps/desktop/src/app/fallback-fonts.ts), so this file is a subpath of its own (`@caotang/pdf-fonts/node-loader`) and the
  * package's index never imports it: the browser bundle never sees `node:fs`.
  *
- * Five fonts, each a {@link FontLoader}: Noto Sans Mono CJK SC (`@caotang/font-noto-cjk`), Noto Emoji
+ * Five fonts and the colour emoji file, each a {@link FontLoader}: Noto Sans Mono CJK SC (`@caotang/font-noto-cjk`), Noto Emoji
  * (`@caotang/font-noto-emoji`), Noto Sans Arabic (`@caotang/font-noto-arabic`), Noto Sans Hebrew (`@caotang/font-noto-hebrew`) and
  * Noto Sans Devanagari (`@caotang/font-noto-devanagari`).
  * The CJK and emoji loaders are for the full font and carry the loader of the font's common file as `common` ({@link withCommon});
@@ -25,6 +25,7 @@ import {
   ARABIC_FONT_FILE,
   CJK_COMMON_FONT_FILE,
   CJK_FONT_FILE,
+  COLOUR_EMOJI_FILE,
   DEVANAGARI_FONT_FILE,
   EMOJI_COMMON_FONT_FILE,
   EMOJI_FONT_FILE,
@@ -33,6 +34,7 @@ import {
 
 const CJK_PACKAGE = '@caotang/font-noto-cjk';
 const EMOJI_PACKAGE = '@caotang/font-noto-emoji';
+const COLOUR_EMOJI_PACKAGE = '@caotang/font-noto-color-emoji';
 const ARABIC_PACKAGE = '@caotang/font-noto-arabic';
 const HEBREW_PACKAGE = '@caotang/font-noto-hebrew';
 const DEVANAGARI_PACKAGE = '@caotang/font-noto-devanagari';
@@ -91,6 +93,14 @@ export const loadEmojiFontInNode: CommonFontLoader = withCommon(
   async () => readFirst(EMOJI_FONT_FILE, emojiFontCandidates()),
   async () => readFirst(EMOJI_COMMON_FONT_FILE, emojiCommonFontCandidates()),
 );
+
+/** The places {@link loadColourEmojiInNode} reads, in the order it tries them. */
+export function colourEmojiCandidates(moduleUrl: string = import.meta.url): string[] {
+  return fontCandidates(COLOUR_EMOJI_FILE, COLOUR_EMOJI_PACKAGE, moduleUrl);
+}
+
+/** Reads the colour emoji file (`@caotang/pdf-fonts/colour` opens and checks it). */
+export const loadColourEmojiInNode: FontLoader = async () => readFirst(COLOUR_EMOJI_FILE, colourEmojiCandidates());
 
 /** The places {@link loadArabicFontInNode} reads, in the order it tries them. */
 export function arabicFontCandidates(moduleUrl: string = import.meta.url): string[] {

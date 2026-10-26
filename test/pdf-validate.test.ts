@@ -107,6 +107,17 @@ describe('fonts', () => {
       { name: 'NotoSansMonoCJKsc-Regular', embedded: true, toUnicode: true },
     ]);
   });
+
+  it('names a Type 3 font Type3, as the file’s own reading does, and does not take its embedding from the table', () => {
+    const table = [
+      'name                                 type              encoding         emb sub uni object ID',
+      '------------------------------------ ----------------- ---------------- --- --- --- ---------',
+      '[none]                               Type 3            Custom           yes no  yes     12  0',
+      '',
+    ].join('\n');
+    expect(parsePdffonts(table)).toEqual([{ name: 'Type3', embedded: true, toUnicode: true, type3: true }]);
+    expect(compareFonts([{ name: 'Type3', embedded: true, toUnicode: true }], [{ name: 'Type3', embedded: false, toUnicode: true, type3: true }])).toEqual([]);
+  });
 });
 
 describe('withoutNoText', () => {

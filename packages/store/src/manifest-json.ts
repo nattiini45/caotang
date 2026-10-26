@@ -28,6 +28,7 @@
  */
 
 import { CHAR_LIMIT_MAX, SCENE_NUMBER_OPTIONS } from '@caotang/bus';
+import type { PermissionRule } from './agent-rules.js';
 import { jsonValueProblem } from './json-value.js';
 import type {
   CodexEntry,
@@ -307,6 +308,24 @@ function projectGoal(g: ProjectGoal): string {
   return oneLine(pairs);
 }
 
+/**
+ * agent-harness §4, Rules. One rule per line under `agent.rules`, keys in a fixed order; `scope`, `access` and `note` are written only
+ * when present, so a rule round-trips with no new key. A project with no rules writes no `agent` key at all.
+ */
+function agentRule(r: PermissionRule): string {
+  const pairs: [string, string][] = [['effect', str(r.effect, 'rule.effect')], ['tool', str(r.tool, 'rule.tool')]];
+  if (r.scope !== undefined) {
+    pairs.push(['scope', 'subtree' in r.scope ? oneLine([['subtree', str(r.scope.subtree, 'rule.scope')]]) : oneLine([['path', str(r.scope.path, 'rule.scope')]])]);
+  }
+  if (r.access !== undefined) pairs.push(['access', str(r.access, 'rule.access')]);
+  if (r.note !== undefined) pairs.push(['note', str(r.note, 'rule.note')]);
+  return oneLine(pairs);
+}
+
+function agentBlock(rules: readonly PermissionRule[]): string {
+  return [`${INDENT}"agent": {`, `${INDENT.repeat(2)}"rules": ${objectArray(rules.map(agentRule), 2)}`, `${INDENT}},`].join('\n');
+}
+
 /** Best-effort inline rendering for a free-form map (saved-filter criteria). */
 function inlineObject(value: Record<string, unknown>): string {
   const parts = Object.entries(value).map(([k, v]) => `${key(k)}: ${criterion(v, `filter.criteria.${k}`)}`);
@@ -389,6 +408,7 @@ function recipeOptions(o: NonNullable<ExportRecipe['options']>): string {
     pairs.push(['pageSize', str(o.pageSize, 'recipe.options.pageSize')]);
   }
   if (typeof o.paperFrames === 'boolean') pairs.push(['paperFrames', String(o.paperFrames)]);
+  if (typeof o.colourEmoji === 'boolean') pairs.push(['colourEmoji', String(o.colourEmoji)]);
   return pairs.length === 0 ? '{}' : oneLine(pairs);
 }
 
@@ -487,6 +507,9 @@ export function serializeManifest(
   }
   if (manifest.disabledSkills !== undefined) {
     parts.push(`${INDENT}"disabledSkills": ${inlineArray(manifest.disabledSkills, 'disabledSkills')},`);
+  }
+  if (manifest.agent?.rules !== undefined && manifest.agent.rules.length > 0) {
+    parts.push(agentBlock(manifest.agent.rules));
   }
 
   // Drop the trailing comma of the last member, then close.

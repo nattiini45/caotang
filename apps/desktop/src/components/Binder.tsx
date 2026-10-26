@@ -45,6 +45,7 @@ import { filterResultFor, furnitureFor } from '../app/furniture-store.js';
 import { resolveKey } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
 import { BinderFilterBar } from './BinderFilters.js';
+import { ACCESS_LABELS, ACCESS_MARKERS, accessOf, effectiveAccess } from '../app/agent-rules-model.js';
 import { mediaCreateItems, type MediaCreateSpec } from '../media/create-menu.js';
 import { openDialog } from './dialog-requests.js';
 import { EmptyState, InlineText, Menu, useReport, useSession, wordsLabel, type MenuAnchor, type MenuItem } from './shared.js';
@@ -424,6 +425,28 @@ export function Binder(props: BinderProps): ReactNode {
       });
       items.push({ key: 'rename', label: 'Rename', onSelect: () => onRename(node.id) });
     }
+    // How far the agent may go here (agent-harness §4, Rules): one project rule, kept in the project's file. A section is not a place the
+    // writer restricts as a whole, but its folders are, so the manuscript and research roots offer it too.
+    const held = effectiveAccess(session.agentRules(), state, node.id);
+    if (held.inheritedFrom !== undefined) {
+      items.push({
+        key: 'agent-inherited',
+        label: `${ACCESS_LABELS[held.access]} (set on ${held.inheritedFrom.title})`,
+        onSelect: () => undefined,
+        disabled: true,
+        separatorBefore: true,
+      });
+    } else {
+      for (const [index, access] of (['full', 'read-only', 'none'] as const).entries()) {
+        items.push({
+          key: `agent-${access}`,
+          label: ACCESS_LABELS[access],
+          checked: held.access === access,
+          ...(index === 0 ? { separatorBefore: true } : {}),
+          onSelect: () => session.setAgentAccess(node.id, access),
+        });
+      }
+    }
     if (isMovable(node)) {
       // The keyboard's moves, as menu entries, so a writer who does not use Alt+arrow still reorders (ui-modules §0.4).
       items.push(
@@ -460,6 +483,11 @@ export function Binder(props: BinderProps): ReactNode {
    * Rendering
    * ------------------------------------------------------------------ */
 
+  const agentRules = session.agentRules();
+  const agentAccessOf = (nodeId: string): 'read-only' | 'none' | null => {
+    const access = accessOf(agentRules, nodeId);
+    return access === 'full' ? null : access;
+  };
   const parentForNew = newItemParent(state, selected);
   const sectionForNewFolder = newFolderParent(state, selected);
   // Roving focus (ui-modules §2.5): one row is in the tab order, the selected one when it is showing, and
@@ -527,6 +555,7 @@ export function Binder(props: BinderProps): ReactNode {
               onStatusPicker={(event) => openPicker(event, 'status', row.node.id)}
               onLabelPicker={(event) => openPicker(event, 'label', row.node.id)}
               onContextMenu={(event) => contextMenuAt(event, row.node.id)}
+              agentAccess={agentAccessOf(row.node.id)}
               onDragStart={(event) => {
                 event.dataTransfer.effectAllowed = 'move';
                 event.dataTransfer.setData('text/plain', row.node.id);
@@ -617,6 +646,8 @@ interface RowViewProps {
   readonly onStatusPicker: (event: ReactMouseEvent<HTMLElement>) => void;
   readonly onLabelPicker: (event: ReactMouseEvent<HTMLElement>) => void;
   readonly onContextMenu: (event: ReactMouseEvent<HTMLElement>) => void;
+  /** How far the agent may go here, when a rule limits it. */
+  readonly agentAccess: 'read-only' | 'none' | null;
   readonly onDragStart: (event: DragEvent<HTMLElement>) => void;
   readonly onDragEnd: () => void;
   readonly onDragOver: (event: DragEvent<HTMLElement>) => void;
@@ -652,7 +683,14 @@ function BinderRowView(props: RowViewProps): ReactNode {
         onDrop={props.onDrop}
       >
         <span className="row-title">{node.title}</span>
-        <span className="row-meta">{itemsLabel(childrenOf(state, node.id).length)}</span>
+        <span className="row-meta">
+          {props.agentAccess === null ? null : (
+            <span className="row-agent" data-agent-access={props.agentAccess}>
+              <span aria-hidden="true">{props.agentAccess === 'none' ? '◌' : '▭'}</span> {ACCESS_MARKERS[props.agentAccess]}
+            </span>
+          )}
+          {itemsLabel(childrenOf(state, node.id).length)}
+        </span>
       </div>
     );
   }
@@ -743,6 +781,11 @@ function BinderRowView(props: RowViewProps): ReactNode {
             {vocabLabel?.name ?? 'Unknown label'}
           </button>
         ) : null}
+        {props.agentAccess === null ? null : (
+          <span className="row-agent" data-agent-access={props.agentAccess}>
+            <span aria-hidden="true">{props.agentAccess === 'none' ? '◌' : '▭'}</span> {ACCESS_MARKERS[props.agentAccess]}
+          </span>
+        )}
         {node.type === 'document' ? <span className="row-count">{wordsLabel(wordCountOf(state, node.id))}</span> : null}
         {container ? <span className="row-count">{itemsLabel(count)}</span> : null}
       </span>

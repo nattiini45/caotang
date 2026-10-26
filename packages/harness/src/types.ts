@@ -103,6 +103,11 @@ export interface PrepareContext {
    * caller is the agent in the app, which may.
    */
   readonly writes?: boolean;
+  /**
+   * The binder nodes a read-deny keeps from this tool (agent-harness §4, "Rules"). A tool that lists or summarises the project leaves
+   * them out and says how many; absent, nothing is withheld.
+   */
+  readonly withheld?: ReadonlySet<string>;
 }
 
 export type PrepareFn =(params: CallParams, context: PrepareContext) => Result<PreparedCall, CommandError>;
@@ -134,6 +139,8 @@ export interface PortContext {
   readonly permission?: PermissionContext;
   /** The turn's stop (`TurnContext.signal`). An async port that awaits a model or a server ends its wait when it fires. */
   readonly signal?: AbortSignal;
+  /** The binder nodes a read-deny keeps from this tool, as `PrepareContext.withheld`. */
+  readonly withheld?: ReadonlySet<string>;
   /**
    * Records that the port changed held state outside the bus (an appender side-effect, coherence.md §7). A
    * port that did so reports it, and the runtime then caches its answer by callId, so a replay of the same

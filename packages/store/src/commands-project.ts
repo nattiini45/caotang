@@ -168,6 +168,7 @@ function optionsParamsOf(options: NonNullable<ExportRecipe['options']>): RecipeO
     ...(options.continued === undefined ? {} : { continued: options.continued }),
     ...(options.pageSize === undefined ? {} : { pageSize: options.pageSize }),
     ...(options.paperFrames === undefined ? {} : { paperFrames: options.paperFrames }),
+    ...(options.colourEmoji === undefined ? {} : { colourEmoji: options.colourEmoji }),
   };
 }
 
