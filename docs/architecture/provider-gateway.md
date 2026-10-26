@@ -53,12 +53,12 @@ The shipped presets (the registry is the source of truth; this table is generate
 | tencent-hunyuan | openai-chat | unknown | region field builds the URL |
 | byteplus-ark | openai-chat | unknown | — |
 | moonshot | openai-chat | unknown | — |
-| zhipu-zai | openai-chat | ok | — |
+| zhipu-zai | openai-chat | blocked | the chat route refuses the browser preflight; only `/models` answers it |
 | minimax | openai-chat | unknown | — |
 | xiaomi-mimo | openai-chat | unknown | — |
 | nanogpt | openai-chat | unknown | keyless `/models` listing |
 | openrouter | openai-chat | unknown | keyless `/models` listing |
-| opencode | openai-chat | ok | key optional (free models); `claude-*` + two Qwen ids on Messages |
+| opencode | openai-chat | blocked | key optional (free models); `claude-*` + two Qwen ids on Messages; the chat routes refuse the browser preflight |
 | perplexity | openai-chat | unknown | — |
 | together | openai-chat | unknown | — |
 | fireworks | openai-chat | unknown | — |
@@ -157,6 +157,8 @@ interface MockScript {
 ## 9. CORS and the browser
 
 The app calls providers straight from the page, so a preset's usefulness in the browser depends on its CORS answer. The registry records what the sweep found (`cors: 'ok'|'blocked'|'preflight-fails'|'unknown'|'local'` + a note); presets that cannot answer a browser request are shown disabled with the honest label *"Desktop app or hosted only"*. The sweep itself is `e2e/providers-cors.spec.ts` — a real Playwright page running a real preflight per preset — run on demand; see [providers-browser-cors.md](providers-browser-cors.md).
+
+The flag speaks for the **chat route**, the POST the agent sends (the route the default model takes, so OpenCode's Claude ids are asked on `/messages`): a preset a page cannot chat with is `blocked` however readable its model list is, and a preset flagged `ok` whose chat route the browser cannot read fails the sweep. The **models route** (the GET Settings makes when a profile is saved) is asked too, and judged apart: a provider can answer both preflights and still leave its 401 for one route without `Access-Control-Allow-Origin`, which the page then cannot read. A preset whose chat route reads but whose model list does not stays `ok` and is reported, not failed (the sweep's `cors-models-route` annotation). When the app meets that case it says what is true: *the browser did not let this page read the model list from the host (a mistyped key can look the same), chat may still work* (`providerMessages.modelListUnreadable`), not "could not reach the host, check your connection and base URL". Today that is Anthropic: its `GET /v1/models` rejection of a bad key carries no allow-origin header, while `POST /v1/messages` rejects with one.
 
 A local model server (`cors: 'local'`) is not swept: whether the browser may call it is a setting on that server, which the preset names (`local.corsFix`). The Settings picker lists them in their own group, **On this computer**, with a setup note and the vendor's documentation link per product, and shows "Your text stays on this computer" only while the profile's address is a loopback literal. Chrome and Edge ship Local Network Access: a public https page that fetches `http://127.0.0.1` asks permission once. The transport passes `targetAddressSpace: 'loopback'` to `fetch` where the browser takes it (feature-detected; elsewhere it is left out), and the form explains the prompt before the first request. Firefox and Safari are unverified, and the UI promises nothing for Safari. All of this is verified against stub servers that imitate each product's CORS default (`e2e/providers-cors.spec.ts`), not against the real products; see [providers-browser-cors.md §4](providers-browser-cors.md). A self-hosted build with a stricter `connect-src` must admit `http://127.0.0.1:*`; the built app's `connect-src *` needs no change.
 
