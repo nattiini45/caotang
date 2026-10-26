@@ -105,6 +105,12 @@ export interface ExporterOptions {
    */
   readonly loadEmojiFont?: FontLoader;
   /**
+   * Reads the colour emoji file (`@caotang/font-noto-color-emoji`), the same way. It is called only when Colour emoji is on (the recipe's
+   * `colourEmoji`, or the format's default) and a file holds an emoji. Without it, or when it cannot be read, emoji print in the black-and-white
+   * font, and the compile log says so.
+   */
+  readonly loadColourEmoji?: FontLoader;
+  /**
    * Reads Noto Sans Arabic (`@caotang/font-noto-arabic`), Noto Sans Hebrew (`@caotang/font-noto-hebrew`) and Noto Sans Devanagari
    * (`@caotang/font-noto-devanagari`) for both PDFs' Arabic, Persian, Urdu, Hebrew, Hindi, Marathi, Nepali and Sanskrit text, the
    * same way. Each is called only when a file holds its script. Without one, that script is drawn as `?`, and the compile log says so.
@@ -370,8 +376,11 @@ export function createExporter(options: ExporterOptions): ExporterService {
       readAsset,
       ...(request.options.pageSize === undefined ? {} : { pageSize: request.options.pageSize }),
       ...(request.options.paperFrames === undefined ? {} : { paperFrames: request.options.paperFrames }),
+      // Colour emoji (screenplay.md §5.3, storyboard.md §6). Absent is each format's own default, which media.ts applies.
+      ...(request.options.colourEmoji === undefined ? {} : { colourEmoji: request.options.colourEmoji }),
       ...(options.loadFallbackFont === undefined ? {} : { loadFallbackFont: options.loadFallbackFont }),
       ...(options.loadEmojiFont === undefined ? {} : { loadEmojiFont: options.loadEmojiFont }),
+      ...(options.loadColourEmoji === undefined ? {} : { loadColourEmoji: options.loadColourEmoji }),
       ...(options.loadArabicFont === undefined ? {} : { loadArabicFont: options.loadArabicFont }),
       ...(options.loadHebrewFont === undefined ? {} : { loadHebrewFont: options.loadHebrewFont }),
       ...(options.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: options.loadDevanagariFont }),

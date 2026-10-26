@@ -15,6 +15,8 @@ export {
   CJK_COMMON_FONT_FILE,
   CJK_FONT_FILE,
   CJK_FONT_NAME,
+  COLOUR_EMOJI_FILE,
+  COLOUR_EMOJI_NAME,
   DEVANAGARI_FONT_FILE,
   DEVANAGARI_FONT_NAME,
   EMOJI_COMMON_FONT_FILE,
@@ -23,6 +25,7 @@ export {
   HEBREW_FONT_FILE,
   HEBREW_FONT_NAME,
 } from './font-files.js';
+export { TYPE3_CODES, type3Objects, type3Place, type Type3Font, type Type3Fonts, type Type3Glyph, type Type3Pool } from './type3.js';
 export { hanGlyph, hanLocaleTag, type HanLanguageTag } from './han-locale.js';
 export { encodeSubset, loadFont, loadFontWithBytes, loadFontkit, openFont, padGlyphs, subsetTag, type FontkitSubset } from './fontkit.js';
 export {

@@ -65,6 +65,7 @@ import {
   type VideoShotRef,
 } from '@caotang/video-prompt-pack';
 
+import { colourEmojiDefault } from './colour-emoji-option.js';
 import { MediaRefusedError } from './errors.js';
 import {
   COHERENCE_JSON_MIME,
@@ -124,12 +125,19 @@ export interface MediaRequest {
   readonly pageSize?: PageSize;
   /** The contact sheet prints blank numbered frames to draw on, not the shots' pictures (storyboard.md §6). Absent is off. Only `contact-sheet-pdf` reads it. */
   readonly paperFrames?: boolean;
+  /**
+   * Colour emoji (screenplay.md §5.3, storyboard.md §6): emoji print as Noto Color Emoji's vector pictures. Absent is each format's default:
+   * off for the screenplay PDF (`pdf`), on for the contact sheet (`contact-sheet-pdf`); an explicit value always wins. Only those two read it.
+   */
+  readonly colourEmoji?: boolean;
   /** The moment the compile ran, in ms. The contact sheet's PDF dates are set from it. Absent is now. */
   readonly at?: number;
   /** Reads the fallback font for text outside Latin script (`@caotang/font-noto-cjk`). The screenplay PDF and the contact sheet read it, and only when the file holds such text. */
   readonly loadFallbackFont?: FontLoader;
   /** Reads the emoji font (`@caotang/font-noto-emoji`). The screenplay PDF and the contact sheet read it, and only when the file holds an emoji. */
   readonly loadEmojiFont?: FontLoader;
+  /** Reads the colour emoji file (`@caotang/font-noto-color-emoji`). The screenplay PDF and the contact sheet read it, and only with Colour emoji on and an emoji the file has in the document. */
+  readonly loadColourEmoji?: FontLoader;
   /** Reads Noto Sans Arabic (`@caotang/font-noto-arabic`). The screenplay PDF and the contact sheet read it, and only when the file holds Arabic-script text. */
   readonly loadArabicFont?: FontLoader;
   /** Reads Noto Sans Hebrew (`@caotang/font-noto-hebrew`). The screenplay PDF and the contact sheet read it, and only when the file holds Hebrew text. */
@@ -338,6 +346,8 @@ function pdfOutput(request: MediaRequest): MediaOutput {
     sceneNumbers: request.sceneNumbers ?? 'off',
     continued: request.continued ?? true,
     ...(request.language === undefined ? {} : { language: request.language }),
+    // The screenplay PDF is black and white unless Colour emoji is on: scripts are usually printed and photocopied that way.
+    ...((request.colourEmoji ?? colourEmojiDefault('pdf')) ? { colourEmoji: true } : {}),
   };
   const layout = layoutPdf(flat.blocks, options);
   // A scene that survives the gate can still print nothing: a body of only notes, boneyard or blank scenes yields no
@@ -361,17 +371,18 @@ function pdfOutput(request: MediaRequest): MediaOutput {
           const prepared = await preparePdf(flat.blocks, options, {
             ...(request.loadFallbackFont === undefined ? {} : { cjk: request.loadFallbackFont }),
             ...(request.loadEmojiFont === undefined ? {} : { emoji: request.loadEmojiFont }),
+            ...(request.loadColourEmoji === undefined ? {} : { colourEmoji: request.loadColourEmoji }),
             ...(request.loadArabicFont === undefined ? {} : { arabic: request.loadArabicFont }),
             ...(request.loadHebrewFont === undefined ? {} : { hebrew: request.loadHebrewFont }),
             ...(request.loadDevanagariFont === undefined ? {} : { devanagari: request.loadDevanagariFont }),
           });
-          const bytes = drawPdf(prepared.layout, prepared.font, prepared.cjk, prepared.emoji, prepared.rtl);
+          const bytes = drawPdf(prepared.layout, prepared.font, prepared.cjk, prepared.emoji, prepared.rtl, prepared.colour);
           const counted = prepared.layout.scriptPageCount;
-          if (counted === pages) return bytes;
-          return {
-            contents: bytes,
-            notes: [`pdf: with the words of Arabic, Hebrew and Devanagari measured in their fonts the script is ${counted} ${counted === 1 ? 'page' : 'pages'}, not ${pages}`],
-          };
+          const notes = [
+            ...prepared.colourNotes,
+            ...(counted === pages ? [] : [`pdf: with the words of Arabic, Hebrew and Devanagari measured in their fonts the script is ${counted} ${counted === 1 ? 'page' : 'pages'}, not ${pages}`]),
+          ];
+          return notes.length === 0 ? bytes : { contents: bytes, notes };
         },
       },
     ],
@@ -399,6 +410,9 @@ function unloadedFontNotes(layout: PdfLayout, request: MediaRequest): string[] {
   return [
     ...(request.loadFallbackFont === undefined ? missing(layout.fallbackCharacters, 'CJK fallback font') : []),
     ...(request.loadEmojiFont === undefined ? missing(layout.emojiCharacters, 'emoji font') : []),
+    ...(request.colourEmoji === true && request.loadColourEmoji === undefined && layout.emojiCharacters.length > 0
+      ? ['pdf: this compile has no colour emoji file, so the emoji are printed in black and white']
+      : []),
     ...(request.loadArabicFont === undefined && layout.shapedScripts.includes('arabic') ? ['pdf: this compile has no Arabic font, so the Arabic text is printed as "?"'] : []),
     ...(request.loadHebrewFont === undefined && layout.shapedScripts.includes('hebrew') ? ['pdf: this compile has no Hebrew font, so the Hebrew text is printed as "?"'] : []),
     ...(request.loadDevanagariFont === undefined && layout.shapedScripts.includes('devanagari') ? ['pdf: this compile has no Devanagari font, so the Devanagari text is printed as "?"'] : []),
@@ -788,6 +802,9 @@ function contactSheetOutput(request: MediaRequest): MediaOutput {
     ...(paper ? { paperFrames: true } : {}),
   });
   const readAsset = request.readAsset;
+  // The contact sheet is a visual document, so its emoji are in colour unless the recipe says otherwise. A host with no colour file
+  // keeps the black-and-white sheet it always wrote, and says so only when the recipe asked for colour.
+  const colour = (request.colourEmoji ?? colourEmojiDefault('contact-sheet-pdf')) && (request.loadColourEmoji !== undefined || request.colourEmoji === true);
   const notes = [...planned.notes];
   if (readAsset === undefined && planned.pictures.size > 0) {
     notes.push('contact sheet: this compile cannot read the pictures, so every card shows its caption');
@@ -815,6 +832,8 @@ function contactSheetOutput(request: MediaRequest): MediaOutput {
             ...(request.author.trim() === '' ? {} : { author: request.author }),
             ...(request.loadFallbackFont === undefined ? {} : { loadFallbackFont: request.loadFallbackFont }),
             ...(request.loadEmojiFont === undefined ? {} : { loadEmojiFont: request.loadEmojiFont }),
+            ...(colour ? { colourEmoji: true } : {}),
+            ...(colour && request.loadColourEmoji !== undefined ? { loadColourEmoji: request.loadColourEmoji } : {}),
             ...(request.loadArabicFont === undefined ? {} : { loadArabicFont: request.loadArabicFont }),
             ...(request.loadHebrewFont === undefined ? {} : { loadHebrewFont: request.loadHebrewFont }),
             ...(request.loadDevanagariFont === undefined ? {} : { loadDevanagariFont: request.loadDevanagariFont }),
