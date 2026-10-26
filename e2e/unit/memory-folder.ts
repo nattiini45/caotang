@@ -47,7 +47,7 @@ function directoryHandle(name: string, node: Directory): DirectoryHandleLike {
         next = { kind: 'directory', children: new Map() };
         node.children.set(child, next);
       }
-      if (next.kind !== 'directory') throw new Error(`${child} is a file`);
+      if (next.kind !== 'directory') throw Object.assign(new Error(`${child} is a file`), { name: 'TypeMismatchError' });
       return directoryHandle(child, next);
     },
     async getFileHandle(child, options) {
@@ -57,7 +57,7 @@ function directoryHandle(name: string, node: Directory): DirectoryHandleLike {
         next = { kind: 'file', bytes: new Uint8Array() };
         node.children.set(child, next);
       }
-      if (next.kind !== 'file') throw new Error(`${child} is a folder`);
+      if (next.kind !== 'file') throw Object.assign(new Error(`${child} is a folder`), { name: 'TypeMismatchError' });
       return fileHandle(child, next);
     },
     async removeEntry(child) {
