@@ -94,6 +94,10 @@ export interface TurnView {
   readonly steering: readonly SteeringNote[];
   /** The run's spend and its limits after the last model call, for the live spend line (agent-harness §7.1). `null` before the first call. */
   readonly run: { readonly spend: BudgetSpend; readonly limits: RunLimits } | null;
+  /** The writer rewound the conversation past this turn: the model is not sent it (context-assembly §2, L6). It stays in the panel, collapsed. */
+  readonly rewound: boolean;
+  /** When the writer took this turn's project changes back while keeping the conversation (epoch ms), or `null`. L6 says so too. */
+  readonly restoredAt: number | null;
 }
 
 /** A turn that has been submitted and has not yet reported its id. */
@@ -127,6 +131,8 @@ export function newTurnView(
     tasks: emptyTaskList(turnId),
     steering: [],
     run: null,
+    rewound: false,
+    restoredAt: null,
   };
 }
 

@@ -3403,6 +3403,63 @@ dialog.confirm:has(.folder-file-preview) {
   white-space: nowrap;
 }
 
+/* The rewind menu of a turn: a disclosure of plain buttons that opens under its toggle. */
+.turn-menu {
+  position: relative;
+}
+
+.turn-menu-panel {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  top: 100%;
+  display: grid;
+  gap: 2px;
+  min-width: 260px;
+  max-width: min(360px, 90vw);
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--raised);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.18);
+}
+
+.turn-menu-item {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  text-align: left;
+  height: auto;
+  padding: 6px 8px;
+}
+
+.turn-menu-hint,
+.turn-menu-note {
+  font-size: 12px;
+}
+
+.turn-menu-note {
+  margin: 4px 8px 2px;
+}
+
+/* Turns the writer rewound: kept in the panel, collapsed, and not sent to the model. */
+.agent-rewound {
+  padding: 6px 12px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.agent-rewound > details > .agent-turns {
+  margin-top: 10px;
+}
+
+.agent-old-instruction {
+  margin: 6px 0;
+  font-size: 12.5px;
+}
+
 .plan-auto {
   margin: 10px 0;
   font-size: 12.5px;

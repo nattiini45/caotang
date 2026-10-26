@@ -46,6 +46,7 @@ import { RecurringTasksPanel } from './RecurringTasks.js';
 import { TaskOffers } from './TaskOffers.js';
 import { InterruptedRuns } from './InterruptedRuns.js';
 import { TaskChecklist } from './TaskChecklist.js';
+import { TurnMenu } from './TurnMenu.js';
 
 export interface AgentPanelProps {
   readonly session: ProjectSession;
@@ -59,11 +60,16 @@ export interface AgentPanelProps {
   readonly sample: boolean;
 }
 
-/** A restore the writer is asked to confirm: the turn, what it did, and the later changes the restore would also take back. */
+/**
+ * A restore the writer is asked to confirm: the turn, what it did, and the later changes the restore would also take back.
+ * `both` also rewinds the conversation once the project is back. `note` is the scope note of a turn that called an external tool.
+ */
 interface PendingRestore {
   readonly turnId: string;
   readonly summary: string;
   readonly later: readonly string[];
+  readonly both: boolean;
+  readonly note?: string;
 }
 
 export function AgentPanel({ session, agent, recurring, startIntent, open, onToggle, sample }: AgentPanelProps): ReactNode {
@@ -77,6 +83,8 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
   const waitingSkills = session.skills().waiting;
   const [intent, setIntent] = useState('');
   const [restoring, setRestoring] = useState<PendingRestore | null>(null);
+  // The instruction of a turn the writer rewound, offered when the Intent box already holds a draft: that draft is never replaced unasked.
+  const [oldInstruction, setOldInstruction] = useState<string | null>(null);
   // A note the writer wrote while a card waits, until they choose what happens to it and the card.
   const [held, setHeld] = useState<HeldNote | null>(null);
   const handled = useRef(0);
@@ -107,7 +115,8 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
     const outcome = agent.sendLine(text);
     if (outcome.kind === 'kept') return;
     setIntent('');
-    if (outcome.kind === 'restore') setRestoring({ turnId: outcome.turnId, summary: outcome.summary, later: agent.laterChanges(outcome.turnId) });
+    setOldInstruction(null);
+    if (outcome.kind === 'restore') setRestoring(restoreOf(agent, outcome.turnId, outcome.summary, false));
   };
   const submit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -152,13 +161,40 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
     }
   };
 
+  // The old instruction goes back into the Intent box when the box is empty, and is offered as a button when it is not.
+  const refill = (text: string): void => {
+    if (text === '') return;
+    if (intent.trim() === '') {
+      setIntent(text);
+      setOldInstruction(null);
+      intentRef.current?.focus();
+    } else setOldInstruction(text);
+  };
+
+  const rewind = (turnId: string): void => {
+    const result = agent.rewindConversation(turnId);
+    if (result === null) return;
+    report({ text: 'Rewound the conversation to before that turn. The project was not changed.', tone: 'info' });
+    refill(result.intent);
+  };
+
   const confirmRestore = (): void => {
     if (restoring === null) return;
-    const target = restoring.turnId;
+    const { turnId, both } = restoring;
     setRestoring(null);
-    void agent.restore(target).then((outcome) => {
-      if (!outcome.ok) report({ text: outcome.message, tone: 'error' });
-      else report({ text: restoredLine(outcome.later), tone: 'info' });
+    if (!both) {
+      void agent.restore(turnId).then((outcome) => {
+        if (!outcome.ok) report({ text: outcome.message, tone: 'error' });
+        else report({ text: restoredLine(outcome.later), tone: 'info' });
+      });
+      return;
+    }
+    void agent.restoreBoth(turnId).then((outcome) => {
+      if (!outcome.ok) report({ text: `${outcome.message} The conversation was not rewound.`, tone: 'error' });
+      else {
+        report({ text: `${restoredLine(outcome.later)} The conversation was rewound too.`, tone: 'info' });
+        refill(outcome.intent);
+      }
     });
   };
 
@@ -249,6 +285,26 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
             ) : null}
           </form>
 
+          {oldInstruction !== null ? (
+            <p className="agent-old-instruction" data-testid="agent-old-instruction">
+              <span className="muted">The Intent box holds your draft. The rewound instruction was:</span> <q>{oldInstruction}</q>{' '}
+              <button
+                type="button"
+                className="button is-quiet"
+                onClick={() => {
+                  setIntent(oldInstruction);
+                  setOldInstruction(null);
+                  intentRef.current?.focus();
+                }}
+              >
+                Use the old instruction
+              </button>
+              <button type="button" className="button is-quiet" onClick={() => setOldInstruction(null)}>
+                Dismiss
+              </button>
+            </p>
+          ) : null}
+
           {snapshot.command !== null ? <CommandNoteView note={snapshot.command} onDismiss={() => agent.dismissCommandNote()} /> : null}
 
           {/* Skills the writer has not read and approved are not offered to the agent (extensibility.md §10). The panel says how many wait. */}
@@ -286,19 +342,36 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
             </EmptyState>
           ) : (
             <ol className="agent-turns" aria-label="Turns">
-              {snapshot.turns.map((turn) => (
-                <TurnBlock
-                  key={turn.turnId}
-                  turn={turn}
-                  snapshot={snapshot}
-                  project={session.state}
-                  pictureNames={pictureNames}
-                  stands={turn.checkpoint !== null && session.undo.group(turn.checkpoint.undoGroupId) !== undefined}
-                  onDecide={(decision) => agent.answer(decision)}
-                  onRestore={(turnId, summary) => setRestoring({ turnId, summary, later: agent.laterChanges(turnId) })}
-                  onRunHeld={(turnId) => void agent.runHeldPlan(turnId)}
-                />
-              ))}
+              {runsOf(snapshot.turns).map((run) => {
+                const blocks = run.turns.map((turn) => (
+                  <TurnBlock
+                    key={turn.turnId}
+                    turn={turn}
+                    snapshot={snapshot}
+                    project={session.state}
+                    pictureNames={pictureNames}
+                    stands={turn.checkpoint !== null && session.undo.group(turn.checkpoint.undoGroupId) !== undefined}
+                    canRewind={agent.canRewind(turn.turnId)}
+                    onDecide={(decision) => agent.answer(decision)}
+                    onRestore={(turnId, summary, both) => setRestoring(restoreOf(agent, turnId, summary, both))}
+                    onRewind={rewind}
+                    onRunHeld={(turnId) => void agent.runHeldPlan(turnId)}
+                  />
+                ));
+                return run.rewound ? (
+                  // Rewound turns are kept, not deleted: the writer can read them and take their project changes back.
+                  <li key={run.turns[0]!.turnId} className="agent-rewound">
+                    <details data-testid="agent-rewound">
+                      <summary>Rewound - not sent to the model ({run.turns.length === 1 ? '1 turn' : `${run.turns.length} turns`})</summary>
+                      <ol className="agent-turns" aria-label="Rewound turns">
+                        {blocks}
+                      </ol>
+                    </details>
+                  </li>
+                ) : (
+                  blocks
+                );
+              })}
             </ol>
           )}
         </div>
@@ -306,15 +379,17 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
 
       <ConfirmDialog
         open={restoring !== null}
-        title="Restore to before this turn?"
-        confirmLabel="Restore"
+        title={restoring?.both === true ? 'Restore the project and rewind the conversation?' : 'Restore to before this turn?'}
+        confirmLabel={restoring?.both === true ? 'Restore both' : 'Restore'}
         onCancel={() => setRestoring(null)}
         onConfirm={confirmRestore}
       >
         <p>
           This restores the project to its state before this turn{restoring?.summary ? `: ${restoring.summary}` : ''}. Your edits since then
           are included in the restore.
+          {restoring?.both === true ? ' The agent then forgets this turn and the ones after it.' : ''}
         </p>
+        {restoring?.note === undefined ? null : <p className="muted">{restoring.note}</p>}
         {restoring !== null && restoring.later.length > 0 ? (
           <>
             <p>It also takes back these later changes, oldest first:</p>
@@ -349,10 +424,35 @@ function CommandNoteView({ note, onDismiss }: { note: CommandNote; onDismiss: ()
   );
 }
 
+/** The restore dialog's state for a turn: the later changes it would also take back are read now, from the undo stack. */
+function restoreOf(agent: AgentController, turnId: string, summary: string, both: boolean): PendingRestore {
+  const note = agent.snapshot().turns.find((turn) => turn.turnId === turnId)?.checkpoint?.note;
+  return { turnId, summary, later: agent.laterChanges(turnId), both, ...(note === undefined ? {} : { note }) };
+}
+
+/**
+ * The turns in panel order, as runs: consecutive rewound turns share one collapsed block, and the others stand alone. The order is
+ * the order the turns happened in, so a turn the writer sent after a rewind comes after the rewound block.
+ */
+function runsOf(turns: readonly TurnView[]): readonly { readonly rewound: boolean; readonly turns: readonly TurnView[] }[] {
+  const runs: { rewound: boolean; turns: TurnView[] }[] = [];
+  for (const turn of turns) {
+    const last = runs[runs.length - 1];
+    if (turn.rewound && last?.rewound === true) last.turns.push(turn);
+    else runs.push({ rewound: turn.rewound, turns: [turn] });
+  }
+  return runs;
+}
+
 /** What a finished restore says: how many later changes went back with the turn, if any. */
 function restoredLine(later: number): string {
   if (later === 0) return 'Restored to before that turn.';
   return `Restored to before that turn. ${later} later ${later === 1 ? 'change was' : 'changes were'} taken back with it.`;
+}
+
+/** An intent short enough to name a button for a screen reader. */
+function clipIntent(intent: string): string {
+  return intent.length <= 60 ? intent : `${intent.slice(0, 59)}…`;
 }
 
 function TurnBlock({
@@ -361,8 +461,10 @@ function TurnBlock({
   project,
   pictureNames,
   stands,
+  canRewind,
   onDecide,
   onRestore,
+  onRewind,
   onRunHeld,
 }: {
   turn: TurnView;
@@ -373,8 +475,11 @@ function TurnBlock({
   pictureNames: ReadonlyMap<string, string>;
   /** The turn's checkpoint is still on the undo stack, so it can be restored. */
   stands: boolean;
+  /** The conversation can be rewound to before this turn: nothing runs and the turn is still sent to the model. */
+  canRewind: boolean;
   onDecide: (decision: Decision) => void;
-  onRestore: (turnId: string, summary: string) => void;
+  onRestore: (turnId: string, summary: string, both: boolean) => void;
+  onRewind: (turnId: string) => void;
   /** Switches to Ask and runs the writes Plan only refused in the turn. */
   onRunHeld: (turnId: string) => void;
 }): ReactNode {
@@ -394,6 +499,33 @@ function TurnBlock({
             {MODE_LABELS[turn.mode]}
           </span>
         )}
+        {settled ? (
+          <TurnMenu
+            label={`Rewind options for “${clipIntent(turn.intent)}”`}
+            testId="turn-menu"
+            note={turn.checkpoint?.note}
+            items={[
+              {
+                label: 'Restore project to before this turn',
+                hint: 'Keeps the conversation; the agent is told the changes are gone.',
+                disabled: snapshot.busy || !stands,
+                onSelect: () => onRestore(turn.turnId, turn.report?.summary ?? '', false),
+              },
+              {
+                label: 'Rewind conversation to before this turn',
+                hint: 'The agent forgets this turn and the ones after it. The project is not changed.',
+                disabled: !canRewind,
+                onSelect: () => onRewind(turn.turnId),
+              },
+              {
+                label: 'Restore both',
+                hint: 'Project first; the conversation is rewound only if that works.',
+                disabled: snapshot.busy || !stands || !canRewind,
+                onSelect: () => onRestore(turn.turnId, turn.report?.summary ?? '', true),
+              },
+            ]}
+          />
+        ) : null}
         <span className="agent-phase" aria-live="polite">
           {settled
             ? turn.report?.stop !== undefined
@@ -474,7 +606,7 @@ function TurnBlock({
           mode={turn.checkpoint.mode}
           note={turn.checkpoint.note}
           taken={!stands}
-          onRestore={() => onRestore(turn.turnId, turn.report?.summary ?? '')}
+          onRestore={() => onRestore(turn.turnId, turn.report?.summary ?? '', false)}
           disabled={snapshot.busy}
         />
       ) : null}

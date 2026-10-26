@@ -271,9 +271,12 @@ const ASSET_LISTING_LATCH_MS = 100;
 
 /**
  * What "restore to before this turn" reports: how many later changes went back with it, or why it stopped part way.
- * The session does not decide the words of the second case; the panel shows them as they are.
+ * The session does not decide the words of the second case; the panel shows them as they are. `undone` is the groups that
+ * were taken back whole, newest first, even when the restore stopped: the controller marks the turns they belong to.
  */
-export type RestoreResult = { readonly ok: true; readonly later: number } | { readonly ok: false; readonly message: string };
+export type RestoreResult =
+  | { readonly ok: true; readonly later: number; readonly undone: readonly string[] }
+  | { readonly ok: false; readonly message: string; readonly undone: readonly string[] };
 
 export class ProjectSession {
   readonly projectId: string;
@@ -1083,17 +1086,20 @@ export class ProjectSession {
     this.lastUndoMessage = null;
     const groups = this.undo.groups();
     const at = groups.findIndex((group) => group.id === id);
-    if (at === -1) return { ok: false, message: ALREADY_UNDONE };
+    if (at === -1) return { ok: false, message: ALREADY_UNDONE, undone: [] };
+    const undone: string[] = [];
     for (const group of groups.slice(at).reverse()) {
       if (!this.undoNow(group.id)) {
         const reason = this.lastUndoMessage ?? 'a change could not be taken back';
         return {
           ok: false,
           message: `The restore stopped part way, because a later change could not be taken back: ${reason}. Changes made before that one were not touched.`,
+          undone,
         };
       }
+      undone.push(group.id);
     }
-    return { ok: true, later: groups.length - 1 - at };
+    return { ok: true, later: groups.length - 1 - at, undone };
   }
 
   /** The changes a restore to before `id` would also take back: each later group, oldest first, in the words the log gives it. */

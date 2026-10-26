@@ -59,6 +59,11 @@
  *
  * "Restore to before this turn" is the session's `restoreBefore`. It takes back every change made after the turn as well, so
  * the document ends where it was before the turn, and the confirmation says so.
+ *
+ * A turn has two axes. The project is restored as above, and every turn whose changes went with it is marked restored in the
+ * agent's conversation, so the next prompt does not assume that work is there. The conversation is rewound apart from the project:
+ * the turn and the ones after it stay in the panel, collapsed, and are no longer sent to the model. Both are the writer's action;
+ * the agent has no tool for either, and nothing here is saved: a reload starts both again.
  */
 
 import type { GhostPreview } from '@caotang/editor/tiptap';
@@ -107,6 +112,12 @@ import { TaskQueue, type TaskAgent } from './task-queue.js';
 import { announcementFor, viewOf, type TaskView } from './task-model.js';
 import { TaskStore, type TaskRecord } from './task-store.js';
 import { contextNote, helpNote, restoreTarget, type CommandNote, type LineOutcome } from './slash-model.js';
+
+/** How L6 words the time of a restore: the writer's own clock, as `HH:MM`. */
+function localClockTime(epochMs: number): string {
+  const at = new Date(epochMs);
+  return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+}
 
 /** Where a turn runs. The demo intents run on the built-in demo profile, whatever is active (context-assembly §6). */
 export interface SubmitOptions {
@@ -1069,10 +1080,63 @@ export class AgentController {
    */
   async restore(turnId: string): Promise<RestoreResult> {
     const group = this.checkpointOf(turnId);
-    if (group === undefined) return { ok: false, message: 'That turn wrote nothing, so there is nothing to restore.' };
+    if (group === undefined) return { ok: false, message: 'That turn wrote nothing, so there is nothing to restore.', undone: [] };
     const outcome = await this.session.restoreBefore(group);
+    // The restore takes every later group back too, so every turn whose group went is told to the planner as restored, not only this one.
+    this.noteRestored(outcome.undone);
     this.bump();
     return outcome;
+  }
+
+  /**
+   * "Restore both": the project first, then the conversation. If the project restore stops part way the conversation is left as it is,
+   * the turns that were taken back are still marked restored, and the reason is returned.
+   */
+  async restoreBoth(turnId: string): Promise<{ readonly ok: true; readonly later: number; readonly intent: string } | { readonly ok: false; readonly message: string }> {
+    const outcome = await this.restore(turnId);
+    if (!outcome.ok) return { ok: false, message: outcome.message };
+    return { ok: true, later: outcome.later, intent: this.rewindConversation(turnId)?.intent ?? '' };
+  }
+
+  /**
+   * Rewinds the conversation to before this turn: the turn and every later one of its session leave what the model is sent (L6) and show
+   * collapsed in the panel. The project is not touched. Returns the turn's instruction, for the Intent box; `null` when the turn is not
+   * held here or a turn is running.
+   */
+  rewindConversation(turnId: string): { readonly intent: string; readonly rewound: readonly string[] } | null {
+    if (this.busy) return null;
+    const agent = this.sessionOf(turnId);
+    if (agent === undefined) return null;
+    const result = agent.rewindConversation(turnId);
+    if (result.rewound.length === 0) return null;
+    this.turns = this.turns.map((turn) => (result.rewound.includes(turn.turnId) ? { ...turn, rewound: true } : turn));
+    this.announcement = 'Conversation rewound. The agent no longer sees that turn or the ones after it.';
+    this.bump();
+    return result;
+  }
+
+  /** Whether the conversation can be rewound to before this turn: nothing is running and the turn is still sent to the model. */
+  canRewind(turnId: string): boolean {
+    const turn = this.turns.find((entry) => entry.turnId === turnId);
+    return !this.busy && turn !== undefined && !turn.rewound && this.sessionOf(turnId) !== undefined;
+  }
+
+  /** The session that ran this turn: a turn belongs to the session of the role it ran under. */
+  private sessionOf(turnId: string): AgentSession | undefined {
+    return [...this.sessions.values()].find((agent) => agent.reports().some((report) => report.turnId === turnId));
+  }
+
+  /** Tells each session which of its turns the writer took back, so the next prompt says so. `groups` are undo group ids. */
+  private noteRestored(groups: readonly string[], fromStep?: number): void {
+    const taken = this.turns.filter((turn) => groups.includes(turn.checkpoint?.undoGroupId ?? turn.report?.undoGroupId ?? ''));
+    if (taken.length === 0) return;
+    const at = this.clock();
+    for (const agent of this.sessions.values()) {
+      const ids = taken.filter((turn) => this.sessionOf(turn.turnId) === agent).map((turn) => turn.turnId);
+      if (ids.length > 0) agent.markRestored(ids, at, fromStep);
+    }
+    const ids = new Set(taken.map((turn) => turn.turnId));
+    this.turns = this.turns.map((turn) => (ids.has(turn.turnId) && !turn.rewound ? { ...turn, restoredAt: at } : turn));
   }
 
   /** Whether a restore to before this turn can be offered: the turn is still held here and wrote something. */
@@ -1342,7 +1406,7 @@ export class AgentController {
     const agent = createAgentSession({
       harness: this.session.harness,
       gateway: this.providers.gateway,
-      context: createContextPort({ state: this.session.state, config: this.contextConfig, withheld: (tool) => this.session.harness.withheld(tool) }),
+      context: createContextPort({ state: this.session.state, config: () => ({ formatTime: localClockTime, ...this.contextConfig() }), withheld: (tool) => this.session.harness.withheld(tool) }),
       decide: (pending) => this.decide(pending),
       emit: (event) => this.onEvent(event),
       role,
@@ -1385,7 +1449,7 @@ export class AgentController {
     return createAgentSession({
       harness: this.session.harness,
       gateway: this.providers.gateway,
-      context: createContextPort({ state: this.session.state, config: this.contextConfig, withheld: (tool) => this.session.harness.withheld(tool) }),
+      context: createContextPort({ state: this.session.state, config: () => ({ formatTime: localClockTime, ...this.contextConfig() }), withheld: (tool) => this.session.harness.withheld(tool) }),
       // Staging shows no card. A card that did arrive would be cancelled, so nothing here waits on a writer who is not looking.
       decide: async () => ({ action: 'cancel' }),
       role: 'background',
