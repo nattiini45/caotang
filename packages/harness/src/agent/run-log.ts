@@ -518,10 +518,15 @@ export interface ResumeView {
   readonly structure?: () => string;
 }
 
-/** A digest of a project's manifest apart from its modified stamp, which every save moves: equal digests mean no node, label or setting changed. */
+/**
+ * A digest of a project's manifest apart from what a save moves without the structure changing: `project.modifiedAt`, each node's
+ * `updatedAt` (a text write stamps it) and `derived` (the word-count cache, rebuilt on a text write or on open). Equal digests mean no node,
+ * label, setting or codex entry changed; a title, a parent, an order, a status, a synopsis or the vocabulary moves it.
+ */
 export function structureDigest(manifest: unknown): string {
-  const { project, ...rest } = manifest as { project?: Record<string, unknown> } & Record<string, unknown>;
-  return digestOf(canonicalJson({ ...rest, project: { ...project, modifiedAt: '' } }));
+  const { project, derived: _derived, tree, ...rest } = manifest as { project?: Record<string, unknown>; derived?: unknown; tree?: unknown } & Record<string, unknown>;
+  const nodes = Array.isArray(tree) ? tree.map((node: unknown) => (typeof node === 'object' && node !== null ? { ...(node as Record<string, unknown>), updatedAt: '' } : node)) : tree;
+  return digestOf(canonicalJson({ ...rest, tree: nodes, project: { ...project, modifiedAt: '' } }));
 }
 
 /** A 53-bit string hash (cyrb53), enough to tell two manifests apart; it guards nothing against an adversary. */

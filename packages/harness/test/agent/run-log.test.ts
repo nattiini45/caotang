@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { ChatMessage } from '@caotang/gateway';
+import { rebuildDerived, setBody, type Manifest } from '@caotang/store';
 
 import {
   createMemoryRunLog,
@@ -17,6 +18,7 @@ import {
   type RunEvent,
   type RunEventDraft,
 } from '../../src/index.js';
+import { CHAPTER_TWO, LANDING, STORM, makeState } from '../fixtures.js';
 
 const A = 'n_AAAAAAAAAA';
 const B = 'n_BBBBBBBBBB';
@@ -199,39 +201,72 @@ describe('planResume', () => {
 });
 
 describe('structureDigest', () => {
-  /** A manifest of the real shape: a project stamp and a tree whose order is the order of its nodes. */
-  const manifest = (stamp: string, tree: readonly Record<string, unknown>[]) => ({
-    project: { title: 'The Book', modifiedAt: stamp },
-    tree,
-  });
-  const nodes = [
-    { id: 'n_PARENT0000', parent: null, title: 'Chapter 1', kind: 'folder' },
-    { id: 'n_FIRST00000', parent: 'n_PARENT0000', title: 'Opening', kind: 'doc' },
-    { id: 'n_SECOND0000', parent: 'n_PARENT0000', title: 'Landing', kind: 'doc' },
-  ];
+  /** The manifest the store produces: a fixture project (one, because a new project draws its own id), not a shape written for the test. */
+  const base = makeState().manifest;
+  const real = (): Manifest => structuredClone(base);
 
-  it('ignores the modified stamp every save moves, so a save does not look like a change to the project', () => {
-    expect(structureDigest(manifest('2026-01-01T00:00:00Z', nodes))).toBe(structureDigest(manifest('2026-02-02T09:30:00Z', nodes)));
+  it('ignores what a save moves without the structure changing: the project stamp, a node’s stamp and the word-count cache', () => {
+    const before = structureDigest(real());
+    const saved = real();
+    saved.project.modifiedAt = '2031-02-02T09:30:00.000Z';
+    saved.derived.computedAt = '2031-02-02T09:30:00.000Z';
+    saved.derived.wordCounts[LANDING] = 9999;
+    for (const node of saved.tree) node.updatedAt = '2031-02-02T09:30:00.000Z';
+    expect(structureDigest(saved)).toBe(before);
   });
 
-  it('changes when a node is renamed, when siblings swap places and when a node moves to another parent', () => {
-    const before = structureDigest(manifest('t', nodes));
-    const renamed = nodes.map((node) => (node.id === 'n_FIRST00000' ? { ...node, title: 'Prologue' } : node));
-    const reordered = [nodes[0]!, nodes[2]!, nodes[1]!];
-    const moved = nodes.map((node) => (node.id === 'n_SECOND0000' ? { ...node, parent: null } : node));
-    for (const changed of [renamed, reordered, moved]) expect(structureDigest(manifest('t', changed))).not.toBe(before);
+  it('is unmoved by a real text write, though that write moves the node stamp and the word-count cache', () => {
+    const state = makeState();
+    const before = structureDigest(state.manifest);
+    const was = structuredClone(state.manifest);
+    setBody(state, LANDING, 'The ferry came in early today, to everyone’s surprise.', { now: new Date('2031-02-02T09:30:00.000Z') });
+    // The `doc.write` command stamps the node as well, which `setBody` alone does not.
+    state.manifest.tree.find((node) => node.id === LANDING)!.updatedAt = '2031-02-02T09:30:00.000Z';
+    expect(state.manifest.derived.computedAt).not.toBe(was.derived.computedAt);
+    expect(state.manifest.derived.wordCounts[LANDING]).not.toBe(was.derived.wordCounts[LANDING]);
+    expect(state.manifest.tree.find((node) => node.id === LANDING)!.updatedAt).not.toBe(was.tree.find((node) => node.id === LANDING)!.updatedAt);
+    expect(structureDigest(state.manifest)).toBe(before);
+  });
+
+  it('is unmoved when opening a project rebuilds an empty word-count cache and stamps it', () => {
+    const state = makeState();
+    state.manifest.derived.wordCounts = {};
+    const before = structureDigest(state.manifest);
+    rebuildDerived(state, { now: new Date('2031-02-02T09:30:00.000Z') });
+    expect(Object.keys(state.manifest.derived.wordCounts).length).toBeGreaterThan(0);
+    expect(structureDigest(state.manifest)).toBe(before);
+  });
+
+  it('changes when a node is renamed, when siblings swap places, when a node moves, and when its synopsis or the vocabulary changes', () => {
+    const before = structureDigest(real());
+    const renamed = real();
+    renamed.tree.find((node) => node.id === LANDING)!.title = 'The Arrival';
+    const reordered = real();
+    reordered.tree.find((node) => node.id === STORM)!.order = 5;
+    const moved = real();
+    moved.tree.find((node) => node.id === STORM)!.parentId = CHAPTER_TWO;
+    const synopsis = real();
+    synopsis.tree.find((node) => node.id === STORM)!.synopsis = 'A gale.';
+    const relabelled = real();
+    relabelled.vocabulary.labels.push({ id: 'act-3', name: 'Act 3', color: '#000000' });
+    for (const changed of [renamed, reordered, moved, synopsis, relabelled]) expect(structureDigest(changed)).not.toBe(before);
   });
 
   it('does not depend on the order keys were written in', () => {
-    const shuffled = nodes.map((node) => Object.fromEntries(Object.entries(node).reverse()));
-    const other = { tree: shuffled, project: { modifiedAt: 't', title: 'The Book' } };
-    expect(structureDigest(other)).toBe(structureDigest(manifest('t', nodes)));
+    const manifest = real();
+    const shuffled = Object.fromEntries(Object.entries(manifest).reverse());
+    expect(structureDigest(shuffled)).toBe(structureDigest(manifest));
   });
 
   it('lets a step that began before a save be re-run, and refuses it when the structure moved', () => {
-    const recorded = log(start, user, card, approved, { ...intent(0, { [A]: 1 }), structure: structureDigest(manifest('old', nodes)) } as RunEventDraft);
-    expect(planResume(recorded, project({ [A]: 1 }), { structure: () => structureDigest(manifest('new', nodes)) })).toMatchObject({ ok: true, kind: 're-run' });
-    expect(planResume(recorded, project({ [A]: 1 }), { structure: () => structureDigest(manifest('new', nodes.slice(1))) })).toMatchObject({ ok: false, reason: 'revision-drift' });
+    const recorded = log(start, user, card, approved, { ...intent(0, { [A]: 1 }), structure: structureDigest(real()) } as RunEventDraft);
+    const saved = real();
+    saved.project.modifiedAt = '2031-02-02T09:30:00.000Z';
+    saved.derived.wordCounts[LANDING] = 9999;
+    expect(planResume(recorded, project({ [A]: 1 }), { structure: () => structureDigest(saved) })).toMatchObject({ ok: true, kind: 're-run' });
+    const renamed = real();
+    renamed.tree.find((node) => node.id === LANDING)!.title = 'The Arrival';
+    expect(planResume(recorded, project({ [A]: 1 }), { structure: () => structureDigest(renamed) })).toMatchObject({ ok: false, reason: 'revision-drift' });
   });
 });
 
