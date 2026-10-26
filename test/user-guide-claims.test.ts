@@ -391,6 +391,15 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(changelog).toContain('**Stop** (or **Esc**, with the Intent box empty) ends a running turn');
   });
 
+  it('says in the guide what the panel says when an interrupted run’s log cannot be read', () => {
+    const controller = read('apps/desktop/src/app/agent.ts');
+    expect(controller).toContain('Interrupted agent runs could not be checked: ');
+    expect(controller).toContain('The run was not resumed. Try again, or discard the log.');
+    expect(controller).toContain('so the run was not resumed. You can discard the log.');
+    expect(guide).toContain('the panel says once that interrupted runs could not be checked and shows no card');
+    expect(guide).toContain('the run is not resumed and the panel says so: try again, or choose **Discard log**');
+  });
+
   it('names the Agent setting in the words the section shows, and says it is off by default', () => {
     const section = read('apps/desktop/src/components/Settings.tsx');
     expect(section).toContain("{ id: 'agent', label: 'Agent' }");

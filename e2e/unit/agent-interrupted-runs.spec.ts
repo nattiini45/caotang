@@ -139,7 +139,7 @@ test('a run that is running or finished, one whose log failed to write, or one o
   await session.close();
 });
 
-test('a run whose log cannot be summarized is skipped, and the runs after it are still listed', async () => {
+test('a run whose log cannot be read just now stays listed, discard-only, and the runs after it are still listed', async () => {
   const { state, port, projectId, controller, session, landing, revision } = await open();
   const broken = 'n_BROKEN0000';
   const documents = state.documents;
@@ -155,7 +155,16 @@ test('a run whose log cannot be summarized is skipped, and the runs after it are
 
   await controller.loadInterrupted();
 
-  expect(controller.snapshot().interrupted.map((view) => view.runId)).toEqual(['run_AFTER']);
+  const views = controller.snapshot().interrupted;
+  expect(views.map((view) => view.runId)).toEqual(['run_THROWS', 'run_AFTER']);
+  expect(views[0]).toMatchObject({ runId: 'run_THROWS', intent: 'Unreadable.', applied: 0, total: 0, spend: null, resumable: false });
+  expect(views[0]?.note).toBe('This run’s log could not be read just now. It has not been changed; reopen the project to try again, or discard it.');
+  expect(views[0]?.note).not.toContain('damaged');
+  expect(views[1]).toMatchObject({ runId: 'run_AFTER', resumable: true });
+  // Nothing was discarded, and Resume refuses the run that could not be read.
+  expect((await port.open(projectId)).map((run) => run.runId)).toEqual(['run_THROWS', 'run_AFTER']);
+  expect(await controller.resumeRun('run_THROWS')).toBeNull();
+  expect(controller.snapshot().message).toBe('That run can no longer be resumed.');
   await session.close();
 });
 
@@ -285,15 +294,20 @@ test('Resume does not start when the run log cannot be read a second time: it sa
     failed = true;
     throw new Error('the store could not be read');
   };
-  const resumed = controller.resumeRun('run_GOOD');
-  const report = await Promise.race([resumed, sleep(300).then(() => 'started' as const)]);
-  // A run that started would be waiting on its plan card: settle it so the test ends.
-  if (controller.snapshot().pending !== null) controller.answer({ action: 'cancel' });
-  await resumed;
+  // A run that wrongly started would be waiting on its plan card; one that is refused settles with nothing. No clock decides which.
+  let settled = false;
+  const resumed = controller.resumeRun('run_GOOD').finally(() => {
+    settled = true;
+  });
+  await until(() => settled || controller.snapshot().pending !== null, 'the resume to settle or to reach its plan card');
+  const started = !settled;
+  if (started) controller.answer({ action: 'cancel' });
+  const report = await resumed;
 
+  expect(started).toBe(false);
   expect(report).toBeNull();
   const snapshot = controller.snapshot();
-  expect(snapshot.message).toBe('The run log could not be read, so the run was not resumed. Try again, or discard the log.');
+  expect(snapshot.message).toBe('The run log could not be read: the store could not be read. The run was not resumed. Try again, or discard the log.');
   expect(snapshot.busy).toBe(false);
   expect(snapshot.pending).toBeNull();
   expect(snapshot.turns).toHaveLength(0);
@@ -318,5 +332,188 @@ test('Resume starts the run’s meter from the spend its log holds, with the mod
   expect(report?.status).toBe('cancelled');
   expect(report?.modelCalls).toBe(4);
   expect(calls.count).toBe(0);
+  await session.close();
+});
+
+test('Resume does not start when the log was read but is damaged: it says the log is damaged, not to try again, and keeps the log', async () => {
+  const calls = { count: 0 };
+  const { port, projectId, controller, session, landing } = await open([countingModel(calls)]);
+  const spend = { modelCalls: 3, promptTokens: 100, completionTokens: 40, estimatedTokens: 0, steps: 0, activeMs: 500 };
+  await seed(port, { runId: 'run_GOOD', projectId, intent: 'Label the landing.', events: waitingOnCard('Label the landing.', landing, spend) });
+  await controller.loadInterrupted();
+  expect(controller.snapshot().interrupted.map((view) => [view.runId, view.resumable])).toEqual([['run_GOOD', true]]);
+
+  // The log reads, but a row of it is not an event this build knows: the read Resume makes cannot be summarized.
+  const log = (controller as unknown as { runLog: { events: (runId: string) => Promise<readonly unknown[]> } }).runLog;
+  log.events = async () => [{ t: 'nonsense', seq: 0, at: 1 }];
+  expect(await controller.resumeRun('run_GOOD')).toBeNull();
+
+  const snapshot = controller.snapshot();
+  expect(snapshot.message).toBe('This run’s log is damaged or was written by another version of Caotang, so the run was not resumed. You can discard the log.');
+  expect(snapshot.message).not.toContain('Try again');
+  expect(snapshot.busy).toBe(false);
+  expect(snapshot.turns).toHaveLength(0);
+  expect(calls.count).toBe(0);
+  expect((await port.open(projectId)).map((run) => run.runId)).toEqual(['run_GOOD']);
+  await session.close();
+});
+
+/** A model that holds a turn open on `intent` until `release` is called, and says when it has been asked. */
+function holdingModel(intent: string): { readonly script: MockScript; readonly reached: { open: boolean }; readonly release: () => void } {
+  const reached = { open: false };
+  let release = (): void => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const script: MockScript = {
+    match: planner(intent),
+    respond: () =>
+      (async function* (): AsyncGenerator<ChatChunk> {
+        reached.open = true;
+        await held;
+        yield { delta: JSON.stringify({ reply: 'Done thinking.' }) };
+        yield { finishReason: 'stop' };
+      })(),
+  };
+  return { script, reached, release: () => release() };
+}
+
+test('Resume is refused while another turn is running: no second turn starts and the run’s log is kept', async () => {
+  const hold = holdingModel('Think about it.');
+  const { state, port, projectId, controller, session, landing, revision } = await open([hold.script]);
+  await seed(port, { runId: 'run_GOOD', projectId, intent: 'Label the scenes.', events: appliedFirstStep('Label the scenes.', structureDigest(state.manifest), { [landing]: revision }) });
+  await controller.loadInterrupted();
+  expect(controller.snapshot().interrupted.map((view) => [view.runId, view.resumable])).toEqual([['run_GOOD', true]]);
+
+  const running = controller.submit('Think about it.');
+  await until(() => controller.snapshot().busy && hold.reached.open, 'the turn to ask the model');
+  const turnsBefore = controller.snapshot().turns.length;
+
+  expect(await controller.resumeRun('run_GOOD')).toBeNull();
+  expect(controller.snapshot().message).toBe('The agent is working on another turn. Resume the run when it has finished.');
+  expect(controller.snapshot().turns).toHaveLength(turnsBefore);
+  expect(controller.snapshot().pending).toBeNull();
+
+  hold.release();
+  await running;
+  const rows = await port.open(projectId);
+  expect(rows.find((run) => run.runId === 'run_GOOD')?.status).toBe('interrupted');
+  await until(() => controller.snapshot().interrupted.length === 1, 'the interrupted run to be listed again');
+  await session.close();
+});
+
+test('Resume is refused for a run that is not listed and for one that is listed as discard-only: no turn starts, no model call is made, nothing is discarded', async () => {
+  const calls = { count: 0 };
+  const { state, port, projectId, controller, session, landing, revision } = await open([countingModel(calls)]);
+  const events = appliedFirstStep('Label the scenes.', structureDigest(state.manifest), { [landing]: revision });
+  await seed(port, { runId: 'run_OLD', projectId, intent: 'From another version.', schema: RUN_LOG_VERSION + 1, events });
+  await seed(port, { runId: 'run_GOOD', projectId, intent: 'Label the scenes.', events });
+  await controller.loadInterrupted();
+  expect(controller.snapshot().interrupted.map((view) => [view.runId, view.resumable])).toEqual([['run_OLD', false], ['run_GOOD', true]]);
+
+  for (const runId of ['run_MISSING', 'run_OLD']) {
+    (controller as unknown as { message: string | null }).message = null;
+    controller.refresh();
+    expect(await controller.resumeRun(runId), runId).toBeNull();
+    const snapshot = controller.snapshot();
+    expect(snapshot.message, runId).toBe('That run can no longer be resumed.');
+    expect(snapshot.busy).toBe(false);
+    expect(snapshot.pending).toBeNull();
+    expect(snapshot.turns).toHaveLength(0);
+    expect(calls.count).toBe(0);
+  }
+  expect((await port.open(projectId)).map((run) => run.runId).sort()).toEqual(['run_GOOD', 'run_OLD']);
+  await session.close();
+});
+
+type OpenLog = { open: (projectId: string) => Promise<readonly RunRow[]> };
+
+test('a check of the interrupted runs that fails after a turn has begun says nothing over that turn', async () => {
+  const hold = holdingModel('Think about it.');
+  const { controller, session } = await open([hold.script]);
+  const log = (controller as unknown as { runLog: OpenLog }).runLog;
+  const real = log.open.bind(log);
+  let openGate = (): void => {};
+  const opening = new Promise<void>((resolve) => {
+    openGate = resolve;
+  });
+  let first = true;
+  log.open = async (projectId) => {
+    if (!first) return real(projectId);
+    first = false;
+    await opening;
+    throw new Error('the store is not available');
+  };
+
+  // The check has begun and waits on the store when the next turn starts; the store then fails.
+  const loading = controller.loadInterrupted();
+  const running = controller.submit('Think about it.');
+  await until(() => controller.snapshot().busy && hold.reached.open, 'the turn to ask the model');
+  openGate();
+  await loading;
+  expect(controller.snapshot().message).toBeNull();
+
+  hold.release();
+  await running;
+  expect(controller.snapshot().message).toBeNull();
+  await session.close();
+});
+
+test('the writer is told again when the run log stops being readable after it was read, and not before', async () => {
+  const { controller, session } = await open();
+  const log = (controller as unknown as { runLog: OpenLog }).runLog;
+  const real = log.open.bind(log);
+  let failing = true;
+  log.open = async (projectId) => {
+    if (failing) throw new Error('the store is not available');
+    return real(projectId);
+  };
+  const told = 'Interrupted agent runs could not be checked: the store is not available';
+  const clear = (): void => {
+    (controller as unknown as { message: string | null }).message = null;
+    controller.refresh();
+  };
+
+  await controller.loadInterrupted();
+  expect(controller.snapshot().message).toBe(told);
+  clear();
+  await controller.loadInterrupted();
+  expect(controller.snapshot().message).toBeNull();
+
+  failing = false;
+  await controller.loadInterrupted();
+  expect(controller.snapshot().message).toBeNull();
+
+  failing = true;
+  await controller.loadInterrupted();
+  expect(controller.snapshot().message).toBe(told);
+  await session.close();
+});
+
+test('two checks that finish out of order leave the list the later check found', async () => {
+  const { state, port, projectId, controller, session, landing, revision } = await open();
+  await seed(port, { runId: 'run_GOOD', projectId, intent: 'Label the scenes.', events: appliedFirstStep('Label the scenes.', structureDigest(state.manifest), { [landing]: revision }) });
+  const log = (controller as unknown as { runLog: OpenLog }).runLog;
+  const real = log.open.bind(log);
+  let openGate = (): void => {};
+  const opening = new Promise<void>((resolve) => {
+    openGate = resolve;
+  });
+  let calls = 0;
+  log.open = async (id) => {
+    calls += 1;
+    if (calls > 1) return [];
+    // The earlier check reads the store first and is slow to answer; the later one finds the run gone.
+    const rows = await real(id);
+    await opening;
+    return rows;
+  };
+
+  const earlier = controller.loadInterrupted();
+  await controller.loadInterrupted();
+  expect(controller.snapshot().interrupted).toEqual([]);
+  openGate();
+  await earlier;
+  expect(controller.snapshot().interrupted).toEqual([]);
   await session.close();
 });

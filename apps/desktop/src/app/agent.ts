@@ -278,8 +278,13 @@ export class AgentController {
   private snapshotValue: AgentSnapshot;
   /** Whether the panel that shows this controller has gone. A detached controller refuses to park a decision. */
   private detached = false;
-  /** Whether the writer was told that the interrupted runs could not be checked; the check runs after every turn, so once is enough. */
+  /**
+   * Whether the writer was told that the interrupted runs could not be checked; the check runs after every turn, so once is enough
+   * until a check works again, which tells again if the log later stops being readable.
+   */
   private runLogUnreadableTold = false;
+  /** The number of the latest check of the interrupted runs, so a check that finishes after a newer one has started is dropped. */
+  private loadSeq = 0;
   /** The offer the loop is waiting on, with the way to answer it. */
   private offer: { view: OfferView; resolve: (answer: OfferAnswer) => void } | null = null;
   private readonly tasks: TaskQueue;
@@ -629,30 +634,33 @@ export class AgentController {
    */
   async loadInterrupted(): Promise<void> {
     if (this.busy) return;
+    const turns = this.turnsStarted;
+    const seq = (this.loadSeq += 1);
+    // A turn that has started since, a newer check, or a panel that has gone: what this check found is no longer the list to show.
+    const superseded = (): boolean => this.busy || this.turnsStarted !== turns || this.loadSeq !== seq || this.detached;
     let rows: Awaited<ReturnType<RunLogPort['open']>>;
     try {
       rows = await this.runLog.open(this.session.projectId);
     } catch (error) {
-      // Said once, and never over a message the writer has not read yet, such as a turn's own result.
-      if (!this.runLogUnreadableTold && this.message === null && !this.detached) {
+      // Said once, and never over a message the writer has not read yet, such as a turn's own result, nor over a turn that has begun.
+      if (!superseded() && !this.runLogUnreadableTold && this.message === null) {
         this.runLogUnreadableTold = true;
         this.message = `Interrupted agent runs could not be checked: ${error instanceof Error ? error.message : String(error)}`;
         this.bump();
       }
       return;
     }
+    // The log can be read again: a later failure is worth saying again.
+    this.runLogUnreadableTold = false;
     const views: InterruptedRunView[] = [];
-    const tree = this.session.state.manifest.tree;
     for (const run of rows) {
       if (run.status !== 'interrupted' || run.cannotResume === true) continue;
       let summary: ReturnType<typeof summarizeRun>;
       try {
-        summary = summarizeRun(
-          await this.runLog.events(run.runId),
-          (id) => this.session.state.documents.get(id)?.revision,
-          { nameOf: (id) => tree.find((node) => node.id === id)?.title ?? id, structure: () => structureDigest(this.session.state.manifest) },
-        );
+        summary = await this.summarizeLogged(run.runId);
       } catch {
+        // A read that failed, or a document the project could not give: the run stays listed, and only the writer discards it.
+        views.push({ runId: run.runId, intent: run.intent, applied: 0, total: 0, spend: null, resumable: false, note: 'This run’s log could not be read just now. It has not been changed; reopen the project to try again, or discard it.' });
         continue;
       }
       if (run.schema !== RUN_LOG_VERSION || summary === undefined) {
@@ -669,10 +677,19 @@ export class AgentController {
         note: summary.note ?? null,
       });
     }
-    if (this.detached) return;
+    if (superseded()) return;
     const same = JSON.stringify(views) === JSON.stringify(this.interrupted);
     this.interrupted = views;
     if (!same) this.bump();
+  }
+
+  /** A run's log read and checked against the project as it stands. Rejects when the log cannot be read. */
+  private async summarizeLogged(runId: string): Promise<ReturnType<typeof summarizeRun>> {
+    const tree = this.session.state.manifest.tree;
+    return summarizeRun(await this.runLog.events(runId), (id) => this.session.state.documents.get(id)?.revision, {
+      nameOf: (id) => tree.find((node) => node.id === id)?.title ?? id,
+      structure: () => structureDigest(this.session.state.manifest),
+    });
   }
 
   /**
@@ -693,16 +710,18 @@ export class AgentController {
     }
     // The resumed meter starts from the logged spend. A log that cannot be read gives no spend to start from, so the run is not resumed.
     let restoredSpend: BudgetSpend | undefined;
+    let readError: string | undefined;
     try {
-      const tree = this.session.state.manifest.tree;
-      restoredSpend = summarizeRun(await this.runLog.events(runId), (id) => this.session.state.documents.get(id)?.revision, {
-        nameOf: (id) => tree.find((node) => node.id === id)?.title ?? id,
-      })?.restoredSpend;
-    } catch {
-      restoredSpend = undefined;
+      restoredSpend = (await this.summarizeLogged(runId))?.restoredSpend;
+    } catch (error) {
+      readError = error instanceof Error ? error.message : String(error);
     }
     if (restoredSpend === undefined) {
-      this.message = 'The run log could not be read, so the run was not resumed. Try again, or discard the log.';
+      // A read that failed may work next time; a log that was read and cannot be summarized will not.
+      this.message =
+        readError !== undefined
+          ? `The run log could not be read: ${readError}. The run was not resumed. Try again, or discard the log.`
+          : 'This run’s log is damaged or was written by another version of Caotang, so the run was not resumed. You can discard the log.';
       this.bump();
       return null;
     }
