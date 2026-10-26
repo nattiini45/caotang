@@ -129,6 +129,23 @@ describe('LI renders between L0 and L1', () => {
     expect(userOf(assemble(META, override))).not.toContain('Secret plan');
   });
 
+  it('reads a very long index line in one pass, and finds the first link target on a line that has odd brackets before it', () => {
+    const parsed = parseAgentFiles({ 'memory/MEMORY.md': '', 'memory/secret-plan.md': 'The killer is the butler' }, []);
+    expect(parsed.files.declined.has('memory/secret-plan.md')).toBe(true);
+    const hostile = '](' .repeat(200_000);
+    const app = buildApp();
+    app.state.agentFiles = {
+      ...parsed.files,
+      index: `- [Kept](ok.md): shown\n- [Secret plan]( ](secret-plan.md) (reference): hidden\n${hostile}`,
+    };
+    const started = Date.now();
+    const user = userOf(assemble(META, app));
+    expect(Date.now() - started).toBeLessThan(2000);
+    // A target with white space is not a target, so the first real link on the second line names the declined note.
+    expect(user).not.toContain('hidden');
+    expect(user).toContain('Kept');
+  });
+
   it('names AGENTS.md when that is the file read', () => {
     const user = userOf(assemble(META, withInstructions(buildApp(), { path: 'AGENTS.md' })));
     expect(user).toContain('## AGENTS.md');

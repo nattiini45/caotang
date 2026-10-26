@@ -42,6 +42,24 @@ function linesOf(text: string): string[] {
 }
 
 /**
+ * The target of the first `](target)` in a line, where the target is one or more characters that are neither `)` nor white space.
+ * Found in one pass: the stop after a target is looked for only past the last one found, so a long line of `](` costs its length once.
+ */
+function firstLinkTarget(line: string): string | undefined {
+  let stop = -1;
+  for (let at = line.indexOf(']('); at !== -1; at = line.indexOf('](', at + 1)) {
+    const start = at + 2;
+    if (stop < start) {
+      stop = start;
+      while (stop < line.length && line[stop] !== ')' && !/\s/.test(line[stop] as string)) stop += 1;
+    }
+    if (stop === line.length) return undefined;
+    if (stop > start && line[stop] === ')') return line.slice(start, stop);
+  }
+  return undefined;
+}
+
+/**
  * The index lines that do not point at a note the load kept as declined or could not read. The index is rebuilt only when a note is written
  * or forgotten, so a note whose front matter was broken by hand still has its line there; the agent does not see that note, so it does not see
  * its title or first line either. A line is kept when its first link names no such note, so the writer's own lines stay.
@@ -50,7 +68,7 @@ function withoutUnseenNotes(lines: readonly string[], app: AppSnapshot): string[
   const { declined, unreadable } = app.state.agentFiles;
   if (declined.size === 0 && unreadable.length === 0) return [...lines];
   return lines.filter((line) => {
-    const target = /\]\(([^)\s]+)\)/.exec(line)?.[1];
+    const target = firstLinkTarget(line);
     if (target === undefined) return true;
     const path = `memory/${target}`;
     return !declined.has(path) && !unreadable.includes(path);
