@@ -21,7 +21,7 @@ import type {
   DialogueSetMetaParams,
   ScreenplayImportParams,
 } from './descriptors-script.js';
-import type { SceneNumbersOption } from './descriptors-project.js';
+import type { RecipeScriptFont, SceneNumbersOption } from './descriptors-project.js';
 
 /**
  * §9's closed v0.1 registry, in the order the spec tabulates it.
@@ -945,8 +945,10 @@ export type RecipeOptionsParams = {
   sceneNumbers?: SceneNumbersOption;
   /** `(MORE)` and `(CONT'D)` across a page break in the screenplay PDF (screenplay.md §5.3). */
   continued?: boolean;
-  /** The contact sheet's paper (storyboard.md §6). */
+  /** The paper of the screenplay PDF (screenplay.md §5.3) and the contact sheet (storyboard.md §6). Absent: Letter for the first, A4 for the second. */
   pageSize?: RecipePageSize;
+  /** The screenplay PDF's Latin face (screenplay.md §5.3). Absent: courier-prime. */
+  scriptFont?: RecipeScriptFont;
   /** The contact sheet prints blank numbered frames to draw on (storyboard.md §6). */
   paperFrames?: boolean;
   /** Emoji print in colour in the screenplay PDF and the contact sheet (screenplay.md §5.3, storyboard.md §6). Absent: the format's default. */
@@ -958,9 +960,9 @@ export type RecipeOptionsParams = {
  * Declared beside the runtime list in `descriptors-project.ts` and re-exported here,
  * where the recipe options (and their consumers) already read the bus's types.
  */
-export type { SceneNumbersOption };
+export type { RecipeScriptFont, SceneNumbersOption };
 
-/** The contact sheet's paper (storyboard.md §6), a recipe option. */
+/** The paper of a PDF (screenplay.md §5.3, storyboard.md §6), a recipe option. */
 export type RecipePageSize = 'A4' | 'Letter';
 
 /** `recipe.save`: a named export configuration. Saving a name that exists replaces it. */

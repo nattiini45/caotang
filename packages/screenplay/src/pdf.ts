@@ -7,10 +7,10 @@
  * frozen-format output. The one library the writer leans on, @pdf-lib/fontkit, cuts the fallback
  * subset, and is loaded only when a script needs it.
  *
- * The font is Courier Prime (A3), embedded whole as a TrueType font program (`FontFile2`),
- * when the caller passes its bytes. The exporter always does. Without them the page names the
- * base-14 Courier, which every viewer has; Courier Prime has Courier's metrics, so the layout
- * is the same either way.
+ * The font is Courier Prime (A3) or Cousine, embedded whole as a TrueType font program (`FontFile2`),
+ * when the caller passes its bytes. The exporter does unless the recipe asks for Courier. Without them the page names the
+ * base-14 Courier, which every viewer has; both fonts have Courier's 600-unit advance, so the layout
+ * is the same either way. The page is US Letter or A4 (`PdfInfo.pageSize`); the text sits at the same place on both.
  *
  * Characters WinAnsi cannot encode are printed in a second font when the caller passes one: the CJK fallback, a
  * subset of Noto Sans Mono CJK SC cut for the document (cjk-font.ts), embedded as a Type 0 font with a CIDFontType2
@@ -56,7 +56,7 @@
 import { cidFontObjects, isBidiControl, isEmojiCluster, type CidSubset, type PdfObject, type PdfValue, type Type3Fonts } from '@caotang/pdf-fonts';
 
 import { COURIER_PRIME_METRICS } from './fonts/courier-prime-metrics.js';
-import { LAYOUT } from './paginate.js';
+import { LAYOUT, PAGE_GEOMETRY, type PageSize } from './paginate.js';
 import { WIN_ANSI_EXTRA, isPrintable } from './winansi.js';
 import { textUnits, unitColumns } from './width.js';
 
@@ -79,11 +79,30 @@ export interface PdfInfo {
   readonly title?: string;
   readonly author?: string;
   readonly producer?: string;
+  /** The page's paper (default Letter). It is not in the info dictionary: it sets each page's `MediaBox` and the flip of the y axis. */
+  readonly pageSize?: PageSize;
 }
 
-/** A TrueType font program to embed: Courier Prime (A3). Its metrics are the ones `COURIER_PRIME_METRICS` states. */
+/** What a font descriptor states (PDF 1.7 §9.8), in glyph space of 1000 units to the em. `COURIER_PRIME_METRICS` is one. */
+export interface PdfFontMetrics {
+  readonly postScriptName: string;
+  /** The advance of every glyph, which the font program has and the PDF states. */
+  readonly width: number;
+  readonly bbox: readonly number[];
+  readonly ascent: number;
+  readonly descent: number;
+  readonly capHeight: number;
+  readonly xHeight: number;
+  readonly italicAngle: number;
+  readonly stemV: number;
+  readonly flags: number;
+}
+
+/** A TrueType font program to embed: Courier Prime (A3) unless `metrics` says it is another monospaced font. */
 export interface PdfFont {
   readonly bytes: Uint8Array;
+  /** The figures of the font's descriptor. Absent: `COURIER_PRIME_METRICS`. */
+  readonly metrics?: PdfFontMetrics;
 }
 
 /** One glyph of the fallback subset. */
@@ -219,7 +238,7 @@ function num(value: number): string {
 /** Text that is all WinAnsi in the Latin-1 range: one unit a character, each one column in Courier Prime. */
 const LATIN = /^[\x20-\x7e\xa0-\xff]*$/;
 
-function contentStream(lines: readonly PdfText[], fallback?: PdfCidFont, emoji?: PdfEmojiFont, rtl?: PdfRtlFonts, colour?: PdfColourEmojiFont): string {
+function contentStream(lines: readonly PdfText[], pageHeight: number, fallback?: PdfCidFont, emoji?: PdfEmojiFont, rtl?: PdfRtlFonts, colour?: PdfColourEmojiFont): string {
   const parts = ['BT', '/F1 12 Tf'];
   let current = 'F1';
   const setFont = (name: string, size = 12): void => {
@@ -256,10 +275,10 @@ function contentStream(lines: readonly PdfText[], fallback?: PdfCidFont, emoji?:
     }
   };
   for (const line of lines) {
-    const y = num(LAYOUT.pageHeight - line.y);
+    const y = num(pageHeight - line.y);
     const plan = rtl?.lines.get(rtlLineKey(line.text, line.rtl === true));
     if (plan !== undefined) {
-      writePlan(plan, line, y, setFont, writeUnits, parts);
+      writePlan(plan, line, y, pageHeight, setFont, writeUnits, parts);
       continue;
     }
     // A line whose every unit is one Courier Prime column is one string, as the writer always wrote it.
@@ -293,6 +312,7 @@ function writePlan(
   plan: readonly PdfRtlItem[],
   line: PdfText,
   y: string,
+  pageHeight: number,
   setFont: (name: string, size?: number) => void,
   writeUnits: (units: readonly string[], x: number, y: string) => void,
   parts: string[],
@@ -307,7 +327,7 @@ function writePlan(
       if (marked) parts.push(actualText(item.source));
       setFont(SHAPED_FONT[item.font]);
       const show = (glyph: PdfShapedGlyph): void => {
-        parts.push(`1 0 0 1 ${num(x + glyph.x)} ${num(LAYOUT.pageHeight - line.y + glyph.y)} Tm`, `${cidString([glyph])} Tj`);
+        parts.push(`1 0 0 1 ${num(x + glyph.x)} ${num(pageHeight - line.y + glyph.y)} Tm`, `${cidString([glyph])} Tj`);
       };
       item.glyphs.filter((glyph) => glyph.final !== true).forEach(show);
       if (marked) parts.push('EMC');
@@ -404,9 +424,9 @@ function hex(bytes: Uint8Array): string {
   return `${out}>`;
 }
 
-/** The font dictionary for Courier Prime as an embedded TrueType font, with WinAnsi codes 32 to 255. */
+/** The font dictionary for an embedded TrueType font, Courier Prime unless the font brings its own metrics, with WinAnsi codes 32 to 255. */
 function embeddedFontObjects(font: PdfFont, descriptorId: number, fileId: number): { font: string; descriptor: string; file: string } {
-  const m = COURIER_PRIME_METRICS;
+  const m = font.metrics ?? COURIER_PRIME_METRICS;
   const widths = Array.from({ length: 224 }, () => String(m.width)).join(' ');
   const program = hex(font.bytes);
   return {
@@ -497,6 +517,7 @@ export function writePdf(
   // A page tree with no page in it is a file a reader refuses, so a script that prints nothing still writes one page.
   const written: readonly (readonly PdfText[])[] = pages.length === 0 ? [[]] : pages;
   const pageId = (i: number): number => 5 + 2 * i;
+  const geometry = PAGE_GEOMETRY[info.pageSize ?? 'Letter'];
   const bodies: string[] = [];
   bodies[0] = '<< /Type /Catalog /Pages 2 0 R >>';
   bodies[1] = `<< /Type /Pages /Kids [${written.map((_, i) => `${pageId(i)} 0 R`).join(' ')}] /Count ${written.length} >>`;
@@ -560,9 +581,9 @@ export function writePdf(
   const author = info.author === undefined || info.author.trim() === '' ? '' : ` /Author ${infoString(info.author)}`;
   bodies[3] = `<< /Title ${infoString(info.title ?? 'Screenplay')}${author} /Producer ${infoString(info.producer ?? 'Caotang')} >>`;
   written.forEach((lines, i) => {
-    const stream = contentStream(lines, fallback, emoji, planned, colour);
+    const stream = contentStream(lines, geometry.pageHeight, fallback, emoji, planned, colour);
     bodies[pageId(i) - 1] =
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${LAYOUT.pageWidth} ${LAYOUT.pageHeight}] ` +
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${geometry.pageWidth} ${geometry.pageHeight}] ` +
       `/Resources << /Font << ${fonts} >> >> /Contents ${pageId(i) + 1} 0 R >>`;
     bodies[pageId(i)] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
   });

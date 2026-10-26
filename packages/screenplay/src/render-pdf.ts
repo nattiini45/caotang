@@ -8,9 +8,10 @@
  * The work is split in two. {@link layoutPdf} is synchronous and pure: it paginates, so the page
  * count and every page-break rule are known before anything is drawn, and the exporter can refuse
  * or log a compile without loading the font. {@link drawPdf} writes the file with Courier Prime
- * embedded (A3). The font is about 70 KB, so it is loaded by a dynamic import ({@link loadCourierPrime}),
+ * embedded (A3), or with Cousine (about 300 KB) or the base-14 Courier when the recipe asks for them ({@link ScriptFont}).
+ * A font is loaded by a dynamic import ({@link loadScriptFont}),
  * the lazy-import pattern the DOCX and EPUB renderers use: the editor bundle never carries it, and
- * nothing is fetched from outside the app.
+ * nothing is fetched from outside the app. The page is US Letter or A4 ({@link PdfRenderOptions.pageSize}).
  *
  * A character WinAnsi cannot encode is printed in the CJK fallback, Noto Sans Mono CJK SC, when the font has it
  * (cjk-font.ts). The layout knows which characters those are without loading the font (the coverage table in
@@ -55,7 +56,8 @@ import {
 import { languageDirection } from '@caotang/pdf-fonts/bidi';
 
 import type { FlatBlock } from './flat-block.js';
-import { paginate, type LayoutPage, type PaginateOptions } from './paginate.js';
+import { COUSINE_METRICS } from './fonts/cousine-metrics.js';
+import { paginate, type LayoutPage, type PageSize, type PaginateOptions } from './paginate.js';
 import { parseFountain } from './parse.js';
 import { isPrintable, writePdf, type PdfCidFont, type PdfColourEmojiFont, type PdfEmojiFont, type PdfFont, type PdfRtlFonts } from './pdf.js';
 import { renderFountain, type FountainRenderOptions } from './render-fountain.js';
@@ -63,6 +65,15 @@ import type { RtlFontLoaders, RtlSupport } from './rtl-font.js';
 import { textUnits, withMeasure, type MeasureRun } from './width.js';
 
 export const PDF_MIME = 'application/pdf';
+
+/**
+ * The Latin faces of the screenplay PDF, one list for the type and the runtime guard. All three advance 600 units, so the text
+ * breaks at the same places in each. The bus holds the same list for the recipe option (`packages/bus/src/descriptors-project.ts`).
+ * `courier` embeds nothing: the file names the base-14 Courier, which every viewer draws with its own face.
+ */
+export const SCRIPT_FONTS = ['courier-prime', 'courier', 'cousine'] as const;
+
+export type ScriptFont = (typeof SCRIPT_FONTS)[number];
 
 export type PdfRenderOptions = FountainRenderOptions &
   Pick<PaginateOptions, 'titlePage' | 'sceneNumbers' | 'continued'> & {
@@ -77,11 +88,16 @@ export type PdfRenderOptions = FountainRenderOptions &
      * printed in black and white. Only {@link preparePdf} reads it, because the pictures are a file the host loads.
      */
     readonly colourEmoji?: boolean;
+    /** The paper (default Letter). It changes the page, not the text: the lines break where they do on Letter. */
+    readonly pageSize?: PageSize;
+    /** The Latin face (default Courier Prime). Only {@link preparePdf} reads it, because it loads the font. */
+    readonly scriptFont?: ScriptFont;
   };
 
 /** A paginated screenplay, ready to draw. */
 export interface PdfLayout {
   readonly pages: readonly LayoutPage[];
+  readonly pageSize: PageSize;
   /** The script pages, the title page left out. */
   readonly scriptPageCount: number;
   readonly title: string;
@@ -241,6 +257,7 @@ export function layoutPdf(blocks: readonly FlatBlock[], opts: PdfRenderOptions, 
   }
   return {
     pages,
+    pageSize: opts.pageSize ?? 'Letter',
     scriptPageCount: pages.filter((page) => page.kind === 'script').length,
     title: opts.title,
     ...(opts.author === undefined ? {} : { author: opts.author }),
@@ -262,7 +279,7 @@ export function layoutPdf(blocks: readonly FlatBlock[], opts: PdfRenderOptions, 
 export function drawPdf(layout: PdfLayout, font?: PdfFont, fallback?: PdfCidFont, emoji?: PdfEmojiFont, rtl?: PdfRtlFonts, colour?: PdfColourEmojiFont): Uint8Array<ArrayBuffer> {
   return writePdf(
     layout.pages.map((page) => page.lines.map((line) => ({ text: line.text, x: line.x, y: line.y, ...(line.rtl === true ? { rtl: true as const } : {}) }))),
-    { title: layout.title, ...(layout.author === undefined ? {} : { author: layout.author }) },
+    { title: layout.title, ...(layout.author === undefined ? {} : { author: layout.author }), ...(layout.pageSize === 'Letter' ? {} : { pageSize: layout.pageSize }) },
     font,
     fallback,
     emoji,
@@ -319,6 +336,18 @@ export async function loadRtlFallback(layout: PdfLayout, support: RtlSupport | u
 export async function loadCourierPrime(): Promise<PdfFont> {
   const { COURIER_PRIME_REGULAR_BASE64 } = await import('./fonts/courier-prime-regular.js');
   return { bytes: decodeBase64(COURIER_PRIME_REGULAR_BASE64) };
+}
+
+/** Cousine Regular's bytes, with its metrics. */
+export async function loadCousine(): Promise<PdfFont> {
+  const { COUSINE_REGULAR_BASE64 } = await import('./fonts/cousine-regular.js');
+  return { bytes: decodeBase64(COUSINE_REGULAR_BASE64), metrics: COUSINE_METRICS };
+}
+
+/** The font a recipe's `scriptFont` names: Courier Prime when absent, and undefined for `courier`, which the file names without embedding. */
+export async function loadScriptFont(name: ScriptFont = 'courier-prime'): Promise<PdfFont | undefined> {
+  if (name === 'courier') return undefined;
+  return name === 'cousine' ? loadCousine() : loadCourierPrime();
 }
 
 function decodeBase64(text: string): Uint8Array {
@@ -380,7 +409,8 @@ export interface PdfFontLoaders extends RtlFontLoaders {
 /** Everything {@link drawPdf} needs, loaded: the layout (measured with the Arabic, Hebrew and Devanagari fonts when it needs them) and the fonts. */
 export interface PreparedPdf {
   readonly layout: PdfLayout;
-  readonly font: PdfFont;
+  /** Absent for the base-14 Courier. */
+  readonly font?: PdfFont;
   readonly cjk?: PdfCidFont;
   readonly emoji?: PdfEmojiFont;
   readonly rtl?: PdfRtlFonts;
@@ -417,15 +447,15 @@ export async function preparePdf(blocks: readonly FlatBlock[], opts: PdfRenderOp
     }
   }
   const [font, cjk, emoji, rtl] = await Promise.all([
-    loadCourierPrime(),
+    loadScriptFont(opts.scriptFont),
     loadCjkFallback(layout, loaders.cjk, opts.language),
     loadEmojiFallback(layout, loaders.emoji),
     loadRtlFallback(layout, support),
   ]);
-  return { layout, font, ...(cjk === undefined ? {} : { cjk }), ...(emoji === undefined ? {} : { emoji }), ...(rtl === undefined ? {} : { rtl }), ...(colour === undefined ? {} : { colour }), colourNotes };
+  return { layout, ...(font === undefined ? {} : { font }), ...(cjk === undefined ? {} : { cjk }), ...(emoji === undefined ? {} : { emoji }), ...(rtl === undefined ? {} : { rtl }), ...(colour === undefined ? {} : { colour }), colourNotes };
 }
 
-/** The renderer seam of screenplay.md §5.3. Its files always embed Courier Prime, and the CJK, emoji, Arabic, Hebrew and Devanagari fonts when the script needs them and the host gave a loader. */
+/** The renderer seam of screenplay.md §5.3. Its files embed Courier Prime unless the options name another face (`scriptFont`), and the CJK, emoji, Arabic, Hebrew and Devanagari fonts when the script needs them and the host gave a loader. */
 export function createPdfRenderer(loaders: PdfFontLoaders = {}): PdfRenderer {
   return {
     async emit(blocks, opts) {

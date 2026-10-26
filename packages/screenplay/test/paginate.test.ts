@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   LAYOUT,
+  PAGE_GEOMETRY,
   estimatePageCount,
   estimateRuntimeMinutes,
   paginate,
@@ -528,6 +529,37 @@ describe('paginate — scene numbers, lengths and estimates', () => {
     expect(numbers.map((line) => line.text)).toEqual(['24A', '24A', '2', '2']);
     const headings = pages.flatMap((page) => page.lines.filter((line) => line.kind === 'scene'));
     expect(headings.map((line) => line.text)).toEqual(['INT. HALL - DAY', 'EXT. YARD - NIGHT']);
+  });
+
+  it.each(['Letter', 'A4'] as const)('ends a page number at the text block and a right-margin scene number a quarter inch past it, inside the %s page', (paper) => {
+    const { pageWidth } = PAGE_GEOMETRY[paper];
+    const heading = (number: string): string => text(`INT. HALL - DAY #${number}#`, '', 'Action.');
+    for (const number of ['7', '24A', '124A', '1234']) {
+      const pages = paginate(parseFountain(heading(number)).elements, { sceneNumbers: 'right' });
+      const [line] = pages.flatMap((page) => page.lines.filter((l) => l.kind === 'sceneNumber'));
+      expect(line?.text).toBe(number);
+      const end = (line?.x ?? 0) + number.length * LAYOUT.charWidth;
+      expect(end).toBeCloseTo(558, 5);
+      // Inside the page on both papers. The edge is 558 for every length, so only a number of one or two characters starts right of the block's 540.
+      if (number.length <= 2) expect(line?.x ?? 0).toBeGreaterThan(540);
+      expect(end).toBeLessThanOrEqual(pageWidth);
+    }
+    const left = paginate(parseFountain(heading('24A')).elements, { sceneNumbers: 'left' });
+    expect(left.flatMap((page) => page.lines).find((l) => l.kind === 'sceneNumber')?.x).toBe(54);
+    const pages = paginate(parseFountain(generated(5, 30).text).elements);
+    const numbered = pages.flatMap((page) => page.lines.filter((l) => l.kind === 'pageNumber'));
+    expect(numbered.length).toBeGreaterThan(0);
+    for (const line of numbered) expect(line.x + line.text.length * LAYOUT.charWidth).toBeCloseTo(540, 5);
+  });
+
+  it('puts the text block at the same place on both papers, and the extra height of A4 below it', () => {
+    expect(LAYOUT.textRight).toBe(LAYOUT.marginLeft + LAYOUT.columns * LAYOUT.charWidth);
+    for (const geometry of Object.values(PAGE_GEOMETRY)) {
+      expect(geometry.pageWidth - geometry.marginRight).toBeCloseTo(LAYOUT.textRight, 5);
+      expect(geometry.pageHeight - geometry.marginBottom - LAYOUT.marginTop).toBeCloseTo(LAYOUT.linesPerPage * LAYOUT.lineHeight, 5);
+    }
+    expect(PAGE_GEOMETRY.Letter).toMatchObject({ pageWidth: LAYOUT.pageWidth, pageHeight: LAYOUT.pageHeight, marginRight: LAYOUT.marginRight, marginBottom: LAYOUT.marginBottom });
+    expect(PAGE_GEOMETRY.A4).toMatchObject({ pageWidth: 595.28, pageHeight: 841.89 });
   });
 
   it('prints no scene numbers unless asked', () => {

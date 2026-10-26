@@ -118,8 +118,10 @@ export interface ExportRecipeOptions {
   readonly sceneNumbers?: SceneNumberPlacement;
   /** `(MORE)` and `NAME (CONT'D)` where the screenplay PDF splits a speech across a page (screenplay.md §5.3). Default on. Only `pdf` reads it. */
   readonly continued?: boolean;
-  /** The contact sheet's paper (storyboard.md §6): `A4` or `Letter`. Absent is A4. Only `contact-sheet-pdf` reads it. */
+  /** The paper (screenplay.md §5.3, storyboard.md §6): `A4` or `Letter`. Absent is Letter for `pdf` and A4 for `contact-sheet-pdf`. Only those two read it. */
   readonly pageSize?: 'A4' | 'Letter';
+  /** The screenplay PDF's Latin face (screenplay.md §5.3): Courier Prime, the base-14 Courier, or Cousine. Absent is Courier Prime. Only `pdf` reads it. */
+  readonly scriptFont?: 'courier-prime' | 'courier' | 'cousine';
   /**
    * The contact sheet prints blank numbered frames to draw on instead of the shots' pictures (storyboard.md §6, the paper-photo round
    * trip). Absent is off. Only `contact-sheet-pdf` reads it.

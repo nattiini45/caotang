@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { FlatBlock } from '../src/index.js';
-import { COURIER_PRIME_METRICS, LAYOUT, importFountainScript, loadCourierPrime, renderPdf } from '../src/index.js';
+import { COURIER_PRIME_METRICS, COUSINE_METRICS, LAYOUT, importFountainScript, loadCourierPrime, loadCousine, renderPdf } from '../src/index.js';
 import { SCRIPT_ONE_ACT } from './fixtures/corpus.js';
 
 function blocksOf(source: string): FlatBlock[] {
@@ -130,5 +130,65 @@ describe('the font is loaded lazily', () => {
     expect(renderer).toContain("await import('./fonts/courier-prime-regular.js')");
     expect(renderer).not.toMatch(/^import[^\n]*courier-prime-regular/m);
     for (const file of ['index.ts', 'pdf.ts', 'paginate.ts']) expect(src(file)).not.toContain('courier-prime-regular');
+  });
+});
+
+describe('Cousine — the metrics the PDF states are the font’s own', () => {
+  it('scales head, hhea and OS/2 to the 1000-unit glyph space', async () => {
+    const { bytes } = await loadCousine();
+    const m = COUSINE_METRICS;
+    const head = table(bytes, 'head');
+    const upem = head.getUint16(18);
+    expect(upem).toBe(m.unitsPerEm);
+    const scale = (units: number): number => Math.round((units * 1000) / upem);
+    expect([head.getInt16(36), head.getInt16(38), head.getInt16(40), head.getInt16(42)].map(scale)).toEqual([...m.bbox]);
+    const hhea = table(bytes, 'hhea');
+    expect(scale(hhea.getInt16(4))).toBe(m.ascent);
+    expect(scale(hhea.getInt16(6))).toBe(m.descent);
+    const os2 = table(bytes, 'OS/2');
+    expect(scale(os2.getInt16(88))).toBe(m.capHeight);
+    expect(scale(os2.getInt16(86))).toBe(m.xHeight);
+    // fsType 0: the font may be embedded and installed (OFL), so a PDF may carry it whole.
+    expect(os2.getUint16(8)).toBe(0);
+  });
+
+  it('is monospaced at Courier’s 600 units, with TrueType outlines (fontkit’s CFF subsets are broken, and the font is embedded whole)', async () => {
+    const { bytes } = await loadCousine();
+    const hhea = table(bytes, 'hhea');
+    const hmtx = table(bytes, 'hmtx');
+    const advances = new Set<number>();
+    for (let i = 0; i < hhea.getUint16(34); i++) {
+      const advance = hmtx.getUint16(4 * i);
+      if (advance !== 0) advances.add(advance);
+    }
+    expect([...advances]).toEqual([COUSINE_METRICS.advanceUnits]);
+    expect(Math.round((COUSINE_METRICS.advanceUnits * 1000) / COUSINE_METRICS.unitsPerEm)).toBe(COUSINE_METRICS.width);
+    expect((COUSINE_METRICS.width * 12) / 1000).toBe(LAYOUT.charWidth);
+    expect(() => table(bytes, 'glyf')).not.toThrow();
+    expect(() => table(bytes, 'CFF ')).toThrow();
+  });
+
+  it('names itself Cousine-Regular, the PostScript name the PDF gives it', async () => {
+    const { bytes } = await loadCousine();
+    expect(decode(bytes).replace(/\0/g, '')).toContain(COUSINE_METRICS.postScriptName);
+  });
+
+  it('decodes to the published file, byte for byte, as the carrier’s comment and fonts/README.md state', async () => {
+    const SIZE = 296856;
+    const SHA256 = '1da22250675fc4c42fcf3a9736c44bc0570516105331443b663fd5cfbd1412fe';
+    const { bytes } = await loadCousine();
+    expect(bytes.length).toBe(SIZE);
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(SHA256);
+    const src = (file: string): string => readFileSync(resolve(__dirname, '../src/fonts', file), 'utf8');
+    expect(src('cousine-regular.ts')).toContain(`${SIZE} bytes, SHA-256 ${SHA256}`);
+    expect(src('README.md')).toContain(`(${SIZE} bytes) | \`${SHA256}\` (the TTF)`);
+  });
+});
+
+describe('the script font carriers load lazily', () => {
+  it('imports the base64 modules dynamically and nowhere else', () => {
+    const src = (file: string): string => readFileSync(resolve(__dirname, '../src', file), 'utf8');
+    expect(src('render-pdf.ts')).toContain("await import('./fonts/cousine-regular.js')");
+    for (const file of ['render-pdf.ts', 'pdf.ts', 'index.ts', 'paginate.ts']) expect(src(file)).not.toMatch(/^import .*fonts\/cousine-regular/m);
   });
 });

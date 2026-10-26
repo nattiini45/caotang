@@ -135,10 +135,11 @@ Compile a screenplay from **Compile…**, in the Media group, as Fountain, as Fi
 
 ### The screenplay PDF
 
-**Screenplay PDF (`.pdf`)** sets the script on US Letter pages in the standard screenplay layout:
+**Screenplay PDF (`.pdf`)** sets the script on US Letter or A4 pages in the standard screenplay layout:
 
-- The font is Courier Prime at 12 point. It is inside the file, so the pages look the same on every computer and printer.
-- The margins are 1.5 inches on the left and 1 inch on the other three sides.
+- **Paper size** is US Letter unless you choose A4 in the recipe. The text is laid out the same on both, six inches wide and 54 lines tall, so a script breaks at the same lines and has the same page count on A4 as on Letter. A4 is taller, and the extra height is white space at the foot of the page. The Pages view stays on Letter, and its page breaks are the ones the A4 file has.
+- **Font** is Courier Prime at 12 point unless you choose another in the recipe: **Cousine (like Courier New)**, or **Courier (the reader’s own)**. Courier Prime and Cousine are inside the file, so the pages look the same on every computer and printer. Courier is not: the file only names it, and each PDF reader draws its own Courier, so the look varies and the file is smaller. All three have the same width, so the font never changes where a line breaks.
+- The margins are 1.5 inches on the left and 1 inch on the other three sides on Letter. On A4 the left and top margins are the same, and the right and bottom margins are wider.
 - Scene headings and action run the full width. Character names, parentheticals and dialogue sit at their usual indents. Transitions are set flush right.
 - The title page comes first when **Title page** is on. It shows the project's title, the author and the date. It has no page number.
 - Script pages count from 1. The number is printed at the top right from page 2.
@@ -149,7 +150,7 @@ Compile a screenplay from **Compile…**, in the Media group, as Fountain, as Fi
 - **Scene numbers** can be printed in the left margin, the right margin or both. They are off unless you choose them. A heading's own number, such as `#24A#`, is used when it has one.
 - Notes (`[[…]]`), boneyard text (`/* … */`), sections and synopses are not printed.
 
-Courier Prime covers Western European letters and the usual punctuation. Other characters, such as Chinese, Japanese and Korean, print in Noto Sans Mono CJK SC. Only the characters the script uses go into the file. A script with no such character does not load this font. A Han character takes the form of the project's language, as the reader of that language writes it: Japanese for `ja`, Korean for `ko`, Traditional Chinese for `zh-Hant`, `zh-TW` and `zh-MO`, Hong Kong for `zh-HK`, and Simplified Chinese for `zh`, `zh-CN` and any other language or none. Set the language in **Project details**. The first export of a script whose Chinese, Japanese and Korean characters are all common ones downloads 2.0 MB; a script with a rarer character downloads the whole font, 10.7 MB, and prints that character like any other. The language does not change the download.
+Courier Prime and Cousine cover Western European letters and the usual punctuation. Other characters, such as Chinese, Japanese and Korean, print in Noto Sans Mono CJK SC. Only the characters the script uses go into the file. A script with no such character does not load this font. A Han character takes the form of the project's language, as the reader of that language writes it: Japanese for `ja`, Korean for `ko`, Traditional Chinese for `zh-Hant`, `zh-TW` and `zh-MO`, Hong Kong for `zh-HK`, and Simplified Chinese for `zh`, `zh-CN` and any other language or none. Set the language in **Project details**. The first export of a script whose Chinese, Japanese and Korean characters are all common ones downloads 2.0 MB; a script with a rarer character downloads the whole font, 10.7 MB, and prints that character like any other. The language does not change the download.
 
 A Chinese, Japanese or Korean character takes the width of two Courier letters. A line can break between Chinese or Japanese characters without a space, but not before a closing mark such as `。` or `」`. Korean breaks at spaces.
 
@@ -325,7 +326,7 @@ Skills are kept in the project, in the folder `.agents/skills/`, so a project fo
 
 Choose **Compile…** in the toolbar. Then choose a recipe, a format and what to export.
 
-- **Recipe** picks a saved set of export settings. The settings are **Title page**, **Contents list** and **Author on the title page**; for the dialogue table, **Character limit for each line**; for the screenplay PDF, **Scene numbers** and **(MORE) and (CONT’D) where a speech crosses a page**; and for the contact sheet, **Paper size** and **Paper frames**. They apply to the whole manuscript, or to the one item you choose. To keep a set of settings, name it under **Save these settings as a new recipe** and choose **Save as recipe**.
+- **Recipe** picks a saved set of export settings. The settings are **Title page**, **Contents list** and **Author on the title page**; for the dialogue table, **Character limit for each line**; for the screenplay PDF, **Scene numbers**, **Paper size**, **Font** and **(MORE) and (CONT’D) where a speech crosses a page**; and for the contact sheet, **Paper size** and **Paper frames**. They apply to the whole manuscript, or to the one item you choose. To keep a set of settings, name it under **Save these settings as a new recipe** and choose **Save as recipe**.
 - **What to export** is **The whole manuscript**, or **Only “…”** for the item you selected in the binder.
 - Choose **Compile**. Undo removes the file the compile wrote. A compile that Caotang refuses is said inside the dialog, beside **Compile**, and no file is saved. The message clears when you choose another recipe or format.
 - Empty documents are left out, and the status line says how many were skipped.
@@ -342,7 +343,7 @@ The formats come in three groups:
 | Prose | EPUB (`.epub`) | A reading-system book, one file per chapter. |
 | Media | Fountain (`.fountain`) | The screenplay as plain Fountain text, for Beat or Highland. |
 | Media | Final Draft (`.fdx`) | The screenplay in Final Draft's XML. Not yet checked in Final Draft itself. |
-| Media | Screenplay PDF (`.pdf`) | The screenplay on US Letter pages in Courier Prime, ready to print. See [The screenplay PDF](#the-screenplay-pdf). |
+| Media | Screenplay PDF (`.pdf`) | The screenplay on US Letter or A4 pages in Courier Prime, Courier or Cousine, ready to print. See [The screenplay PDF](#the-screenplay-pdf). |
 | Media | Ink story (`.ink.json`) | The dialogue compiled for a game engine that reads Ink. |
 | Media | Dialogue table (`.csv`) | Each spoken line with its id, speaker, text and locale. A Yarn container gets a Yarn strings file. |
 | Media | Shot list (`.csv`) | Each shot in order, with its size, angle, movement and duration. |
@@ -480,7 +481,6 @@ A developer can run the agent against a project folder from a Node script, a com
 ## What is not in this build yet
 
 - **Seeing what changed in a folder.** When another program has changed a readable document or codex entry in your project folder, the question shows a compact line comparison before you choose: lines marked − are in the folder, and lines marked + are in this tab. Long changed sections are shortened; inputs too large for a safe preview show a brief notice, and `.caotang-backup` keeps the full folder file. There is no merge.
-- **Exports.** The screenplay PDF is US Letter only; there is no A4 page and no choice of font.
 - **Contact sheet characters.** Characters that none of its fonts has, such as Tamil, print as `?`. The compile log names them. Emoji print in colour unless you clear **Colour emoji**, and then in black and white, with a skin tone as the plain figure. Chinese, Japanese and Korean text has no bold.
 - **Final Draft files.** Import and export of `.fdx` files have not been checked against files that Final Draft wrote or opened. The scene numbers and page headers that Caotang writes are not yet confirmed to show in Final Draft.
 - **Word contents.** How Word and LibreOffice handle the contents field in a `.docx` file has not been tested. A file without a contents list does not ask Word to update fields.

@@ -11,10 +11,10 @@
  * The exporter depends on both packages, which is why the contract lives here.
  */
 import { describe, expect, it } from 'vitest';
-import { SCENE_NUMBER_OPTIONS as BUS_OPTIONS } from '@caotang/bus';
-import type { SceneNumbersOption } from '@caotang/bus';
-import { SCENE_NUMBER_PLACEMENTS as SCREENPLAY_PLACEMENTS } from '@caotang/screenplay';
-import type { SceneNumberPlacement } from '@caotang/screenplay';
+import { RECIPE_PAGE_SIZES, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS as BUS_OPTIONS } from '@caotang/bus';
+import type { RecipePageSize, RecipeScriptFont, SceneNumbersOption } from '@caotang/bus';
+import { PAGE_SIZES, SCENE_NUMBER_PLACEMENTS as SCREENPLAY_PLACEMENTS, SCRIPT_FONTS } from '@caotang/screenplay';
+import type { PageSize, SceneNumberPlacement, ScriptFont } from '@caotang/screenplay';
 
 import type { ExportRecipeOptions, MediaRequest } from '../src/index.js';
 
@@ -64,5 +64,24 @@ describe('the scene-number placements', () => {
   it('are the four screenplay.md §5.3 names the recipe option offers', () => {
     // Pinned by name so a rename is caught here rather than in a PDF nobody diffs.
     expect([...BUS_OPTIONS]).toEqual(['off', 'left', 'right', 'both']);
+  });
+});
+
+/**
+ * The paper and the Latin face of the screenplay PDF have the same two homes. The bus owns the recipe option's lists; the
+ * screenplay package owns the renderer's, and the edge cannot run screenplay → bus. The exporter depends on both.
+ */
+describe('the screenplay PDF’s paper and faces: one list in the bus, one in the renderer', () => {
+  it('agree on the papers, the faces and their order', () => {
+    expect([...RECIPE_PAGE_SIZES].sort()).toEqual([...PAGE_SIZES].sort());
+    expect([...RECIPE_SCRIPT_FONTS]).toEqual([...SCRIPT_FONTS]);
+  });
+
+  it('agree as types, and the exporter’s recipe and request fields take them', () => {
+    const _faces: Equal<ScriptFont, RecipeScriptFont> = true;
+    const _papers: Equal<PageSize, RecipePageSize> = true;
+    const _recipe: Equal<NonNullable<ExportRecipeOptions['scriptFont']>, ScriptFont> = true;
+    const _request: Equal<NonNullable<MediaRequest['scriptFont']>, ScriptFont> = true;
+    expect([_faces, _papers, _recipe, _request]).toEqual([true, true, true, true]);
   });
 });

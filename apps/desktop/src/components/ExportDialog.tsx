@@ -24,7 +24,7 @@ import {
   type ExportRecipe,
 } from '@caotang/exporter';
 import { loadZipEngine } from '@caotang/store';
-import { CHAR_LIMIT_MAX, SCENE_NUMBER_OPTIONS, type SceneNumbersOption } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type RecipeScriptFont, type SceneNumbersOption } from '@caotang/bus';
 
 import { downloadBytes } from '../app/download.js';
 import { PACK_TEMPLATES } from '../media/prompt-pack-model.js';
@@ -61,7 +61,7 @@ const FORMAT_GROUPS: readonly { readonly name: string; readonly formats: readonl
     formats: [
       { format: 'fountain', label: 'Fountain (.fountain)', help: 'The screenplay as plain Fountain text, for Beat or Highland.' },
       { format: 'fdx', label: 'Final Draft (.fdx)', help: 'The screenplay in Final Draft’s XML.' },
-      { format: 'pdf', label: 'Screenplay PDF (.pdf)', help: 'The screenplay on US Letter pages in Courier Prime, ready to print.' },
+      { format: 'pdf', label: 'Screenplay PDF (.pdf)', help: 'The screenplay on US Letter or A4 pages in Courier Prime, Courier or Cousine, ready to print.' },
       { format: 'ink-json', label: 'Ink story (.ink.json)', help: 'The dialogue compiled for a game engine that reads Ink. One file per story.' },
       { format: 'dialogue-csv', label: 'Dialogue table (.csv)', help: 'Each spoken line with its id, speaker, text and locale, for translation or recording. A Yarn container gets a Yarn strings file.' },
       { format: 'shot-list-csv', label: 'Shot list (.csv)', help: 'Each shot in order, with its size, angle, movement and duration.' },
@@ -100,8 +100,10 @@ interface ShownOptions {
   readonly sceneNumbers: SceneNumbersOption;
   /** `(MORE)` and `(CONT'D)` where the screenplay PDF splits a speech. On unless the recipe turns it off. */
   readonly continued: boolean;
-  /** The contact sheet's paper; `undefined` is A4 (storyboard.md §6). */
+  /** The paper; `undefined` is each format's own: Letter for the screenplay PDF, A4 for the contact sheet (screenplay.md §5.3, storyboard.md §6). */
   readonly pageSize: PageSize | undefined;
+  /** The screenplay PDF's Latin face; `undefined` is Courier Prime (screenplay.md §5.3). */
+  readonly scriptFont: RecipeScriptFont | undefined;
   /** The contact sheet prints blank frames to draw on, not the pictures; off unless the recipe sets it (storyboard.md §6). */
   readonly paperFrames: boolean;
   /**
@@ -119,11 +121,19 @@ const SCENE_NUMBER_LABELS: Readonly<Record<SceneNumbersOption, string>> = {
   both: 'Both margins',
 };
 
-/** The screenplay PDF's options as recipe options. The defaults (off, on) are left out, so a recipe saved without them stays as it was. */
-function pdfOptionsOf(shown: ShownOptions): { sceneNumbers?: SceneNumbersOption; continued?: boolean } {
+/** The Latin faces, in the words the dialog shows. */
+const SCRIPT_FONT_LABELS: Readonly<Record<RecipeScriptFont, string>> = {
+  'courier-prime': 'Courier Prime',
+  courier: 'Courier (the reader’s own)',
+  cousine: 'Cousine (like Courier New)',
+};
+
+/** The screenplay PDF's options as recipe options. The defaults (off, on, Courier Prime) are left out, so a recipe saved without them stays as it was. */
+function pdfOptionsOf(shown: ShownOptions): { sceneNumbers?: SceneNumbersOption; continued?: boolean; scriptFont?: RecipeScriptFont } {
   return {
     ...(shown.sceneNumbers === 'off' ? {} : { sceneNumbers: shown.sceneNumbers }),
     ...(shown.continued ? {} : { continued: false }),
+    ...(shown.scriptFont === undefined || shown.scriptFont === 'courier-prime' ? {} : { scriptFont: shown.scriptFont }),
   };
 }
 
@@ -157,7 +167,7 @@ function ColourEmojiControl({
   );
 }
 
-/** The papers a contact sheet is drawn on. */
+/** The papers the PDFs are drawn on. */
 type PageSize = 'A4' | 'Letter';
 
 /**
@@ -176,6 +186,7 @@ function shownOptionsOf(recipe: ExportRecipe | undefined): ShownOptions {
     author: recipe?.options?.author ?? '',
     charLimit: recipe?.options?.charLimit,
     pageSize: recipe?.options?.pageSize,
+    scriptFont: recipe?.options?.scriptFont,
     paperFrames: recipe?.options?.paperFrames ?? false,
     colourEmoji: recipe?.options?.colourEmoji,
     sceneNumbers: recipe?.options?.sceneNumbers ?? 'off',
@@ -494,6 +505,30 @@ export function ExportDialog({
                   {SCENE_NUMBER_OPTIONS.map((option) => (
                     <option key={option} value={option}>
                       {SCENE_NUMBER_LABELS[option]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="export-field">
+                <span className="export-option-label">Paper size</span>
+                {/* Letter is the screenplay PDF's own paper, so choosing it leaves the option out of the recipe. */}
+                <select
+                  value={shown.pageSize ?? 'Letter'}
+                  onChange={(event) => saveOptions({ ...shown, pageSize: event.target.value === 'A4' ? 'A4' : undefined })}
+                >
+                  <option value="Letter">US Letter</option>
+                  <option value="A4">A4</option>
+                </select>
+              </label>
+              <label className="export-field">
+                <span className="export-option-label">Font</span>
+                <select
+                  value={shown.scriptFont ?? 'courier-prime'}
+                  onChange={(event) => saveOptions({ ...shown, scriptFont: event.target.value as RecipeScriptFont })}
+                >
+                  {RECIPE_SCRIPT_FONTS.map((option) => (
+                    <option key={option} value={option}>
+                      {SCRIPT_FONT_LABELS[option]}
                     </option>
                   ))}
                 </select>

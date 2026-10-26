@@ -167,6 +167,7 @@ function optionsParamsOf(options: NonNullable<ExportRecipe['options']>): RecipeO
     ...(options.sceneNumbers === undefined ? {} : { sceneNumbers: options.sceneNumbers }),
     ...(options.continued === undefined ? {} : { continued: options.continued }),
     ...(options.pageSize === undefined ? {} : { pageSize: options.pageSize }),
+    ...(options.scriptFont === undefined ? {} : { scriptFont: options.scriptFont }),
     ...(options.paperFrames === undefined ? {} : { paperFrames: options.paperFrames }),
     ...(options.colourEmoji === undefined ? {} : { colourEmoji: options.colourEmoji }),
   };
