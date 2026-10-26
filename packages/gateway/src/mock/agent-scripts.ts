@@ -38,13 +38,15 @@ export const VERIFIER_PREFIX = 'You judge whether two passages from one manuscri
 /**
  * The three zero-key demo intents of context-assembly §6. The first-run wizard sends these exact strings. `review` is the typed
  * request that runs the model review (coherence.md §5.3) on the demo provider: the first-run card does not offer it, because the review
- * asks for approval and a turn that waits for approval holds the agent.
+ * asks for approval and a turn that waits for approval holds the agent. `instructions` is the Agent instructions panel's "Initialise from
+ * this project": the demo answers it with one canned CAOTANG.md, proposed on a confirm card, since it cannot read the manuscript.
  */
 export const DEMO_INTENTS = {
   draftScene: 'Draft the opening scene of The Friend.',
   fillSynopses: 'Fill in the synopses for Chapter 1.',
   continuity: 'Check the manuscript for continuity problems.',
   review: 'Review the manuscript for contradictions.',
+  instructions: 'Read my manuscript and propose a first CAOTANG.md for it: its spelling, its tense and its point of view.',
 } as const;
 
 function systemOf(req: ChatRequest): string {
@@ -192,6 +194,25 @@ function reportOfFindings(req: ChatRequest): string {
   const count = findingsCountIn(req);
   return JSON.stringify({ reply: count === 0 ? 'No continuity problems found.' : `Found ${count} continuity ${count === 1 ? 'finding' : 'findings'}, listed in the Findings inbox.` });
 }
+
+/** The CAOTANG.md the demo proposes: rules any manuscript can start from, since the demo reads none of it. */
+export const DEMO_INSTRUCTIONS = [
+  'Keep the spelling the manuscript already uses.',
+  'Keep its tense and its point of view from scene to scene.',
+  'End a scene on a line of dialogue where it can.',
+  '',
+].join('\n');
+
+/**
+ * Intent 4 — a first CAOTANG.md: one write-confirm call, so one confirm card that shows the file as a difference. The demo cannot read the
+ * manuscript, so its draft is fixed.
+ */
+const instructionsReply = (req: ChatRequest): string | undefined => {
+  if (!userTextOf(req).includes(`Request: ${DEMO_INTENTS.instructions}`)) return undefined;
+  if (repliesSoFar(req) > 0 && heldByPlanOnly(req)) return JSON.stringify({ reply: 'Plan: propose a first CAOTANG.md for the project. Nothing was written.' });
+  if (repliesSoFar(req) > 0) return JSON.stringify({ reply: 'CAOTANG.md was not changed. The proposal was refused or not approved, so the file is as it was.' });
+  return oneStep('instructions.propose', { text: DEMO_INSTRUCTIONS }, 'CAOTANG.md holds the first rules');
+};
 
 /**
  * The words of a text, one chunk each, with a turn of the event loop between them: how a provider streams a draft, so the text shows in
@@ -382,6 +403,7 @@ export const demoScripts: readonly MockScript[] = [
   plannerScript(fillSynopsesReply),
   plannerScript(continuityReply),
   plannerScript(reviewReply),
+  plannerScript(instructionsReply),
   draftSceneDraft,
   rewriteDraft,
   fillSynopsesDraft,

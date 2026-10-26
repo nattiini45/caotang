@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { DRAFT_PREFIX } from '@caotang/gateway/mock';
+import { DEMO_INSTRUCTIONS, DEMO_INTENTS, DRAFT_PREFIX, demoScripts } from '@caotang/gateway/mock';
 import { agentFileTexts, type ProjectState } from '@caotang/store';
 
 import { evaluate, type Scenario } from '../../src/agent/eval.js';
@@ -183,6 +183,50 @@ describe('the writer’s instructions and the agent’s memory in a turn', () =>
     const after = withFiles();
     after.agentFiles = { ...after.agentFiles, memory: [] };
     expect(agentFileTexts(after.agentFiles)).not.toEqual(before);
+  });
+});
+
+describe('Initialise from this project, on the built-in demo provider', () => {
+  const scenario = (decisions: Scenario['decisions']): Scenario => ({
+    name: 'demo: a first CAOTANG.md',
+    category: 'demo',
+    intent: DEMO_INTENTS.instructions,
+    // The panel's button loads the row for the turn, so the planner needs no search.
+    preload: ['instructions.propose'],
+    project: makeState,
+    gateway: () => mockGateway(demoScripts),
+    ...(decisions === undefined ? {} : { decisions }),
+    expect: { status: 'applied' },
+  });
+
+  it('proposes one canned CAOTANG.md behind one confirm card, writes it once approved, and a restore removes it', async () => {
+    const result = await evaluate({
+      ...scenario(undefined),
+      expect: {
+        status: 'applied',
+        cards: { matcher: 'strict', items: [{ kind: 'confirm', tools: ['instructions.propose'], decision: 'approved' }] },
+        trace: { matcher: 'strict', calls: [{ tool: 'instructions.propose', outcome: 'ok' }] },
+        reached: { 'instructions.propose': 'preload' },
+        maxModelCalls: 1,
+        restores: true,
+        state: (state) => (state.agentFiles.instructions === undefined ? [] : ['CAOTANG.md survived the restore']),
+      },
+    });
+    expect(result.failures).toEqual([]);
+    expect(result.run.before).not.toContain('CAOTANG.md');
+  });
+
+  it('holds the canned text it writes', async () => {
+    const result = await evaluate({ ...scenario(undefined), expect: { status: 'applied', reached: { 'instructions.propose': 'preload' }, state: (state) => (state.agentFiles.instructions?.text === DEMO_INSTRUCTIONS ? [] : [`CAOTANG.md reads ${JSON.stringify(state.agentFiles.instructions?.text)}`]) } });
+    expect(result.failures).toEqual([]);
+  });
+
+  it('writes nothing when the writer cancels the card', async () => {
+    const result = await evaluate({
+      ...scenario([{ action: 'cancel' }]),
+      expect: { status: 'cancelled', state: (state) => (state.agentFiles.instructions === undefined ? [] : ['CAOTANG.md was written although the card was cancelled']) },
+    });
+    expect(result.failures).toEqual([]);
   });
 });
 

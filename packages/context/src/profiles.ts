@@ -10,6 +10,8 @@
 
 import { LAYER_IDS, type AssemblyTool, type ContextConfig, type LayerId } from './types.js';
 
+/** §2 LI: the cap on the writer's instructions and the memory index together, in tokens. */
+export const DEFAULT_INSTRUCTIONS_BUDGET = 1_500;
 /** §3: the total default prompt budget. */
 export const DEFAULT_CONTEXT_BUDGET = 12_000;
 /** §2 L5 and D3: the focus tail, in characters (about 750 tokens). */
@@ -56,21 +58,21 @@ export interface ToolProfile {
 const PROFILES: Readonly<Record<AssemblyTool, ToolProfile>> = {
   'scene.draft': {
     layers: ALL_LAYERS,
-    budgets: { LI: 1_500, L1: 1_500, L2: 1_000, L3: 1_200, L4: 2_000, L5: 2_000, L6: 1_500 },
+    budgets: { LI: DEFAULT_INSTRUCTIONS_BUDGET, L1: 1_500, L2: 1_000, L3: 1_200, L4: 2_000, L5: 2_000, L6: 1_500 },
     totalBudget: DEFAULT_CONTEXT_BUDGET,
   },
   'dialogue.draft': {
     // The standard stack (dialogue-narrative §7): the container's Ink is the focus, its prior beats are L4 and the codex of its
     // speakers is L2. The budgets are the scene draft's, since the container is what a scene would be.
     layers: ALL_LAYERS,
-    budgets: { LI: 1_500, L1: 1_500, L2: 1_000, L3: 1_200, L4: 2_000, L5: 2_000, L6: 1_500 },
+    budgets: { LI: DEFAULT_INSTRUCTIONS_BUDGET, L1: 1_500, L2: 1_000, L3: 1_200, L4: 2_000, L5: 2_000, L6: 1_500 },
     totalBudget: DEFAULT_CONTEXT_BUDGET,
   },
   'continuity.scan': {
     // L2 expanded, L4 expanded to the synopses the tails leave out (scopeStoryBlock), and the
     // scope tails (1k tokens each, at most 20 documents).
     layers: ['L0', 'LI', 'L1', 'L2', 'L4', 'L5', 'L7'],
-    budgets: { LI: 1_500, L1: 1_500, L2: 2_500, L4: 6_000, L5: SCOPE_DOCUMENT_LIMIT * 1_000 + SCOPE_OVERHEAD_TOKENS },
+    budgets: { LI: DEFAULT_INSTRUCTIONS_BUDGET, L1: 1_500, L2: 2_500, L4: 6_000, L5: SCOPE_DOCUMENT_LIMIT * 1_000 + SCOPE_OVERHEAD_TOKENS },
     totalBudget: 'sum-of-caps',
   },
   delegate: {
@@ -78,19 +80,19 @@ const PROFILES: Readonly<Record<AssemblyTool, ToolProfile>> = {
     // policies, and the structure, story and scope tails of the documents it was given. No L6: nothing of the parent's
     // conversation reaches it, and the brief is its L7.
     layers: ['L0', 'LI', 'L1', 'L2', 'L3', 'L4', 'L5', 'L7'],
-    budgets: { LI: 1_500, L1: 1_500, L2: 1_000, L3: 1_200, L4: 2_000, L5: SCOPE_DOCUMENT_LIMIT * 1_000 + SCOPE_OVERHEAD_TOKENS },
+    budgets: { LI: DEFAULT_INSTRUCTIONS_BUDGET, L1: 1_500, L2: 1_000, L3: 1_200, L4: 2_000, L5: SCOPE_DOCUMENT_LIMIT * 1_000 + SCOPE_OVERHEAD_TOKENS },
     totalBudget: 'sum-of-caps',
   },
   'synopsis.fill': {
     // The full document (cap 25k) and the structure; no codex, no story so far, no turns.
     layers: ['L0', 'LI', 'L1', 'L3', 'L5', 'L7'],
-    budgets: { LI: 1_500, L1: 1_500, L3: 1_200, L5: 25_000 },
+    budgets: { LI: DEFAULT_INSTRUCTIONS_BUDGET, L1: 1_500, L3: 1_200, L5: 25_000 },
     totalBudget: 'sum-of-caps',
   },
   meta: {
     // The metadata tools: system, project summary and task only.
     layers: ['L0', 'LI', 'L1', 'L7'],
-    budgets: { LI: 1_500, L1: 1_500 },
+    budgets: { LI: DEFAULT_INSTRUCTIONS_BUDGET, L1: 1_500 },
     totalBudget: DEFAULT_CONTEXT_BUDGET,
   },
 };
