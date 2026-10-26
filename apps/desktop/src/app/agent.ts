@@ -427,6 +427,12 @@ export class AgentController {
     return mode === 'auto' && settings.lockAuto ? 'ask' : mode;
   }
 
+  /** The mode the app setting names, a locked `auto` read as Ask: the most a run that is not the writer's own pick may be given. */
+  settingMode(): PermissionMode {
+    const settings = this.agentSettings();
+    return settings.defaultMode === 'auto' && settings.lockAuto ? 'ask' : settings.defaultMode;
+  }
+
   /** Picks the mode for this panel. It applies from the next card, also in a turn that is running. Auto is refused while Settings has it off. */
   setMode(mode: PermissionMode): void {
     if (mode === 'auto' && this.agentSettings().lockAuto) {
@@ -990,6 +996,11 @@ export class AgentController {
     const outcome = await this.session.restoreBefore(group);
     this.bump();
     return outcome;
+  }
+
+  /** Whether a restore to before this turn can be offered: the turn is still held here and wrote something. */
+  canRestore(turnId: string): boolean {
+    return this.checkpointOf(turnId) !== undefined;
   }
 
   /** The changes a restore to before this turn would also take back, oldest first, as the activity log words them. */

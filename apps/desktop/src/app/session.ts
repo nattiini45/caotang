@@ -103,7 +103,7 @@ import { newId } from '@caotang/ids';
 import { assetRecordsOf, createExporter, exportMetadataOf, type EmitFailure, type ExporterService } from '@caotang/exporter';
 import { dropDanglingImages, shotCommandPort } from '@caotang/storyboard';
 import { InkCompilerNotLoaded } from '@caotang/dialogue';
-import { createProductHarness, dialogueFactsOf, type Harness, type SourcedRule } from '@caotang/harness';
+import { createProductHarness, dialogueFactsOf, excludedBy, withheldState, type Harness, type SourcedRule } from '@caotang/harness';
 import type { McpClient } from '@caotang/mcp-client';
 import type { SkillFile } from '@caotang/skills';
 
@@ -200,6 +200,11 @@ export interface ScanOptions {
   readonly scope?: ScopeSpec;
   /** Absent means every deterministic check. An empty list runs none, and the tab says so before it asks. */
   readonly checks?: readonly DeterministicCheckId[];
+  /**
+   * The documents a read rule keeps from the agent (`harness.withheld`), for a scan the agent's rules govern: they are left out like archived
+   * ones and their dialogue is not read, so no finding quotes them. The writer's own scan on the Findings tab passes none.
+   */
+  readonly withheld?: ReadonlySet<string>;
 }
 
 /** What the findings tab says about the coherence file: whether it is attached and writable, what the load noticed, and
@@ -1260,7 +1265,8 @@ export class ProjectSession {
     // reporting a project with no branch findings.
     let dialogue: ReturnType<typeof dialogueFactsOf>;
     try {
-      dialogue = dialogueFactsOf(this.state);
+      const hidden = options.withheld;
+      dialogue = dialogueFactsOf(hidden === undefined ? this.state : withheldState(this.state, hidden));
     } catch (error) {
       if (!(error instanceof InkCompilerNotLoaded)) throw error;
       void requestInkCompiler();
@@ -1273,6 +1279,7 @@ export class ProjectSession {
       detector: countInEntries,
       approvedLargeScope: options.approvedLargeScope,
       dialogue,
+      ...(excludedBy(options.withheld) === undefined ? {} : { isExcluded: excludedBy(options.withheld) }),
     });
     if (result.ok && result.file !== undefined) {
       this.state.coherence = result.file;

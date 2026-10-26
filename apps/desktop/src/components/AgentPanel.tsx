@@ -30,6 +30,7 @@ import { formatUsd, turnCostOf } from '../app/plan-preview.js';
 import { resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
 import type { AgentController, AgentSnapshot } from '../app/agent.js';
+import type { RecurringTasks } from '../app/recurring-tasks.js';
 import type { StartIntent } from '../App.js';
 import type { ProjectSession } from '../app/session.js';
 import { useAssetRecords } from '../media/hooks.js';
@@ -39,12 +40,16 @@ import { openDialog } from './dialog-requests.js';
 import { PlanCard, planHeading } from './PlanCard.js';
 import { PlanOfferCard } from './PlanOfferCard.js';
 import { BackgroundTasks } from './BackgroundTasks.js';
+import { RecurringTasksPanel } from './RecurringTasks.js';
+import { TaskOffers } from './TaskOffers.js';
 import { InterruptedRuns } from './InterruptedRuns.js';
 import { TaskChecklist } from './TaskChecklist.js';
 
 export interface AgentPanelProps {
   readonly session: ProjectSession;
   readonly agent: AgentController;
+  /** The project's recurring tasks (agent-harness.md §12). */
+  readonly recurring: RecurringTasks;
   readonly startIntent: StartIntent | null;
   readonly open: boolean;
   readonly onToggle: () => void;
@@ -59,7 +64,7 @@ interface PendingRestore {
   readonly later: readonly string[];
 }
 
-export function AgentPanel({ session, agent, startIntent, open, onToggle, sample }: AgentPanelProps): ReactNode {
+export function AgentPanel({ session, agent, recurring, startIntent, open, onToggle, sample }: AgentPanelProps): ReactNode {
   useSession(session);
   const snapshot = useSyncExternalStore(agent.subscribe, agent.snapshot);
   const report = useReport();
@@ -208,6 +213,9 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
       {/* An unfinished run is shown with the drawer closed too: it is the first thing the writer has to decide after a reload. */}
       <InterruptedRuns agent={agent} runs={snapshot.interrupted} busy={snapshot.busy} onResume={() => (open ? undefined : onToggle())} />
 
+      {/* A task that is due waits for the writer's answer, so its offer is shown with the drawer closed too. */}
+      <TaskOffers recurring={recurring} />
+
       {open ? (
         <div id="agent-body" className="agent-body">
           <form className="agent-intent" onSubmit={submit}>
@@ -250,6 +258,8 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
           <AgentQueue agent={agent} snapshot={snapshot} held={heldNow} cardKey={cardKey} onHold={setHeld} onRelease={() => setHeld(null)} />
 
           <BackgroundTasks agent={agent} tasks={agent.taskViews()} />
+
+          <RecurringTasksPanel recurring={recurring} />
 
           {snapshot.offer !== null ? <PlanOfferCard agent={agent} view={snapshot.offer} /> : null}
 

@@ -97,8 +97,8 @@ export interface TaskRunRecord {
   readonly requests: number;
   readonly promptTokens: number;
   readonly completionTokens: number;
-  /** The run's undo group, while a Restore to before the run is meant to be offered. */
-  readonly undoGroupId?: string;
+  /** The agent turn the run was, so a Restore to before the run is offered while the app still holds that turn (it does not survive a reload). */
+  readonly turnId?: string;
 }
 
 /** The most records kept for one task. */

@@ -56,14 +56,16 @@ export interface TaskConsent {
 }
 
 /**
- * `run` when the task starts without a click, `offer` when the writer is asked. A scan starts by itself when it says so. A model task
- * does only with a consent whose hash is the task's hash now and a call cap; without one it is offered, whatever the file says. The
- * app does not keep consents in this build, so it never passes one and a model task is always offered.
+ * `run` when the task starts without a click, `offer` when the writer is asked. A scan starts by itself when it says so: it reads the
+ * project and calls no model. Anything else can call a model or change the project, so it does only with a consent whose hash is the
+ * task's hash now, and a task that uses a model also needs its call cap. Without that it is offered, whatever the file says. The app
+ * does not keep consents in this build, so it never passes one and only a scan starts by itself.
  */
 export function effectiveWhenDue(task: AgentTask, consent?: TaskConsent): WhenDue {
   if (task.whenDue !== 'run' || task.problem !== undefined) return 'offer';
-  if (!usesModel(task)) return 'run';
-  return consent !== undefined && consent.hash === bodyHash(task) && task.maxModelCalls !== undefined ? 'run' : 'offer';
+  if (task.body.kind === 'scan') return 'run';
+  if (consent === undefined || consent.hash !== bodyHash(task)) return 'offer';
+  return usesModel(task) && task.maxModelCalls === undefined ? 'offer' : 'run';
 }
 
 /**

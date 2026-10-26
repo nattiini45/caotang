@@ -56,6 +56,20 @@ describe('effectiveWhenDue', () => {
     expect(effectiveWhenDue(uncapped, { hash: bodyHash(uncapped) })).toBe('offer');
   });
 
+  it('a plan is offered even when it calls no model: it can change the project, so it needs a consent too', () => {
+    const plan = task(5, { whenDue: 'run', body: { kind: 'plan', steps: [{ tool: 'meta.set', params: {}, expect: 'x' }] } });
+    expect(usesModel(plan)).toBe(false);
+    expect(effectiveWhenDue(plan)).toBe('offer');
+    expect(effectiveWhenDue(plan, { hash: bodyHash(plan) })).toBe('run');
+  });
+
+  it('editing a task voids its consent', () => {
+    const model = intent({ whenDue: 'run', maxModelCalls: 4 });
+    const consent = { hash: bodyHash(model) };
+    expect(effectiveWhenDue({ ...model, maxModelCalls: 9 }, consent)).toBe('offer');
+    expect(effectiveWhenDue({ ...model, schedule: { kind: 'daily', at: '03:00' } }, consent)).toBe('offer');
+  });
+
   it('a task with a problem is offered nothing by itself', () => {
     expect(effectiveWhenDue(task(1, { whenDue: 'run', problem: 'broken' }))).toBe('offer');
   });
