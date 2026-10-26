@@ -124,6 +124,7 @@ import { sampleProjectState } from './demo.js';
 import { dropHistoryOf } from './history-store.js';
 import { SkillReviews, dropReviewsOf } from './skill-reviews.js';
 import { dropTasksOf } from './task-store.js';
+import { dropTaskRunsOf } from './task-runs.js';
 import { recoverPending, recoveryNotice } from './pending-journal.js';
 import { copyState, shadowOf, type Shadow } from './persistence-plan.js';
 import { acquireProjectLease, ProjectOpenElsewhereError, type ProjectLease } from './project-lease.js';
@@ -488,6 +489,8 @@ export async function removeProject(store: RuntimeStore, projectId: string): Pro
     await dropReviewsOf(projectId);
     // So do its background tasks, which hold text drawn from it (task-store.ts).
     await dropTasksOf(projectId);
+    // And the run history of its recurring tasks (task-runs.ts).
+    await dropTaskRunsOf(projectId);
   } finally {
     lease.release();
   }

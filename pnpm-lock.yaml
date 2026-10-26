@@ -275,6 +275,9 @@ importers:
       '@caotang/storyboard':
         specifier: workspace:*
         version: link:../../packages/storyboard
+      '@caotang/tasks':
+        specifier: workspace:*
+        version: link:../../packages/tasks
       '@caotang/video-prompt-pack':
         specifier: workspace:*
         version: link:../../packages/video-prompt-pack
