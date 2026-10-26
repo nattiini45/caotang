@@ -27,11 +27,8 @@ export async function main(argv: readonly string[], io: MainIo): Promise<number>
     io.stdout(USAGE);
     return ExitCode.Ok;
   }
-  if (command === 'scan') {
-    // The dialogue checks compile Ink synchronously, so the compiler loads before the project is opened.
-    await loadInkCompiler();
-    return runScanCommand(rest, io);
-  }
+  // `scan` loads the Ink compiler itself, so it can also be called as a function.
+  if (command === 'scan') return runScanCommand(rest, io);
   if (command === 'agent' || command === 'mcp') {
     // The dialogue checks compile Ink synchronously, so the compiler loads before either command opens a project.
     await loadInkCompiler();

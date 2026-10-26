@@ -18,7 +18,7 @@ node dist/caotang.mjs mcp serve --project ~/Writing/my-novel      # the MCP serv
 - **Read-only by default.** `--permission` defaults to `read-only`; nothing is written without `--write`, and the diff is printed instead.
 - **The key is not a flag.** It is read once from the environment variable `--key-env` names (default `CAOTANG_API_KEY`) and handed to the SDK's in-memory key store. A flag named `--key`, `--api-key` and the like is refused by name, and the value is never echoed. A line that carries the key anyway is replaced before it is written.
 - **Stdout carries the chosen format and nothing else.** Every write to it goes through `io.stdout` in `src/run-agent.ts`; progress and diagnostics go to stderr.
-- **The scan reads unless told to write.** `caotang scan` opens the folder through a port whose writes all fail, so without `--write` the folder is byte-identical afterwards; with `--write` it holds the folder's lock. It takes no provider, no key and no network.
+- **The scan reads unless told to write.** `caotang scan` opens the folder through a port whose writes all fail, so without `--write` the folder is byte-identical afterwards; with `--write` it holds the folder's lock. Without `--write`, `--summary` must name a file outside the folder. It takes no provider, no key and no network.
 - **One table for the mode names.** `src/policy.ts` maps `read-only`, `auto` and `approve-all` to the SDK's policies. When the interactive permission modes land, renaming them is a change to that table.
 
 ## Files

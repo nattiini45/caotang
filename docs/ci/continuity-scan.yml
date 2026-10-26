@@ -7,11 +7,14 @@
 #     A finding you dismissed or marked fixed in the app, and committed in coherence.json, neither prints nor fails the run.
 #   - It always scans the whole project (--scope full). The `changed` scope depends on review state that only --write advances.
 #   - It exits 7 when an open finding is at or above --fail-on (error by default), which fails the job and turns each finding into
-#     an annotation on its file and line. It exits 8 when no finding fails the run but a document was not UTF-8 text and so was not
+#     an annotation on its file and line. It exits 8 when no finding fails the run, --fail-on is not never, and a document was not UTF-8 text and so was not
 #     checked, so a green job never means a manuscript file was skipped. Annotations and the job log carry short quotes from your manuscript; on a public
 #     repository, anyone can read them.
 #
 # Details that are load-bearing rather than tidy:
+#   - The project folder must be the root of the repository: the scan step passes no --project, so it scans the checkout root, and
+#     the paths filter below assumes the root. For a project in a subfolder, add --project <dir> to the scan step and put the folder
+#     in front of each path in the filter.
 #   - The trigger is never `pull_request_target`: that event runs with the base repository's token on a pull request's content.
 #     `pull_request` from a fork gets a read-only token and no secrets, which is all this job needs.
 #   - permissions is `contents: read`, and checkout does not keep the token in the folder (persist-credentials: false).

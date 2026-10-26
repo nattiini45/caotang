@@ -3,8 +3,8 @@
  * Ink file with one note). The built bundle is run as a process in binary.test.ts.
  */
 
-import { cpSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { dismissFinding, loadCoherence, saveCoherence } from '@caotang/coherence';
@@ -20,6 +20,8 @@ const FIXTURE = fileURLToPath(new URL('./fixtures/continuity-project', import.me
 const ERROR_LINE = '::error file=docs/n_7K2QX9M4A1.md,line=10,endLine=11,title=presence.expected::"Elena" is expected in "The Harbour" but is never named there';
 const NOTE_LINE = '::notice file=docs/n_AQ5T03R7D4.ink,line=1,endLine=1,title=branch.dead-end::"start" is never diverted to, so no path in the story reaches it.';
 
+const BAD_BYTES = [0xff, 0xfe, 0xfa, 0x20, 0x62, 0x61, 0x64];
+
 let root = '';
 beforeAll(async () => {
   // The dialogue checks compile Ink synchronously; `main` loads the compiler before it opens a project.
@@ -34,8 +36,8 @@ afterEach(() => {
   removeDir(root);
 });
 
-async function scan(args: readonly string[], env: NodeJS.ProcessEnv = {}) {
-  const io = capture({ env });
+async function scan(args: readonly string[], env: NodeJS.ProcessEnv = {}, cwd?: string) {
+  const io = capture({ env, ...(cwd === undefined ? {} : { cwd }) });
   const code = await runScanCommand(['--project', root, ...args], io);
   return { code, out: io.out.join(''), err: io.err.join('') };
 }
@@ -94,6 +96,47 @@ describe('caotang scan, read-only', () => {
     }
   });
 
+  it('refuses a --summary inside the folder without --write, before it scans, and changes nothing', async () => {
+    const before = folderBytes(root);
+    for (const target of ['report.md', 'caotang.json', 'docs/new.md', '.', './report.md']) {
+      const ran = await scan(['--summary', target], {}, root);
+      expect(ran.code).toBe(2);
+      expect(ran.out).toBe('');
+      expect(ran.err).toContain('--summary must not write inside the project folder without --write');
+    }
+    expect(folderBytes(root)).toEqual(before);
+    expect(existsSync(join(root, 'report.md'))).toBe(false);
+  });
+
+  it('writes a --summary beside the folder, named relative to the working directory, without --write', async () => {
+    const before = folderBytes(root);
+    const beside = `${root}-beside.md`;
+    try {
+      const ran = await scan(['--summary', `../${basename(beside)}`], {}, root);
+      expect(ran.code).toBe(7);
+      expect(readFileSync(beside, 'utf8')).toContain('# Coherence report');
+    } finally {
+      removeDir(beside);
+    }
+    expect(folderBytes(root)).toEqual(before);
+  });
+
+  it('keeps the exit code and the notes when the --summary file cannot be written, and says so', async () => {
+    writeFileSync(join(root, 'docs', 'n_7K2QX9M4A1.md'), Buffer.from(BAD_BYTES));
+    const missing = join(`${root}-nowhere`, 'report.md');
+    const ran = await scan(['--format', 'json', '--summary', missing]);
+    expect(ran.code).toBe(8);
+    expect(ran.err).toContain('were not checked');
+    expect(ran.err).toContain('could not write the summary to');
+    expect(() => JSON.parse(ran.out)).not.toThrow();
+  });
+
+  it('exits 1 when the --summary of an otherwise clean scan cannot be written', async () => {
+    const ran = await scan(['--fail-on', 'never', '--summary', join(`${root}-nowhere`, 'report.md')]);
+    expect(ran.code).toBe(1);
+    expect(ran.err).toContain('could not write the summary to');
+  });
+
   it('neither prints nor fails on a finding the writer dismissed in the committed coherence.json', async () => {
     expect((await scan(['--write'])).code).toBe(7);
     const fs = new NodeArtifactFs(root);
@@ -127,8 +170,37 @@ describe('caotang scan, read-only', () => {
     expect(result.status).toBe('partial');
     expect(result.unread).toEqual(['docs/n_7K2QX9M4A1.md']);
     expect(result.notices.join(' ')).toContain('not UTF-8');
+    expect(ran.code).toBe(8);
     expect(ran.code).toBe(result.exitCode);
     expect(ran.err).toContain('were not checked');
+  });
+
+  it('names the unread file without blaming a check when every check ran', async () => {
+    writeFileSync(join(root, 'docs', 'n_7K2QX9M4A1.md'), Buffer.from(BAD_BYTES));
+    const ran = await scan(['--format', 'json']);
+    expect(ran.code).toBe(8);
+    expect(ran.err).toContain('1 file(s) are not UTF-8 text and were not checked: docs/n_7K2QX9M4A1.md');
+    expect(ran.err).toContain('this was a partial scan');
+    expect(ran.err).not.toContain('did not run');
+  });
+
+  it('exits 8 for a codex file that is not UTF-8 and is not in the manifest, and names it', async () => {
+    writeFileSync(join(root, 'codex', 'c_ZZZZZZZZZZ.md'), Buffer.from(BAD_BYTES));
+    const ran = await scan(['--format', 'json', '--checks', 'codex.alias-collisions']);
+    const result = JSON.parse(ran.out) as { status: string; unread: string[] };
+    expect(result.unread).toEqual(['codex/c_ZZZZZZZZZZ.md']);
+    expect(result.status).toBe('partial');
+    expect(ran.code).toBe(8);
+    expect(ran.err).toContain('were not checked');
+  });
+
+  it('does not count an agent file that is not UTF-8 as unread', async () => {
+    writeFileSync(join(root, 'CAOTANG.md'), Buffer.from(BAD_BYTES));
+    const ran = await scan(['--format', 'json', '--checks', 'codex.alias-collisions']);
+    const result = JSON.parse(ran.out) as { status: string; unread: string[] };
+    expect(result.unread).toEqual([]);
+    expect(result.status).toBe('complete');
+    expect(ran.code).toBe(0);
   });
 
   it('is not stopped by a lock another writer holds, because it writes nothing', async () => {
@@ -150,6 +222,12 @@ describe('caotang scan --write', () => {
     const saved = JSON.parse(readFileSync(join(root, 'coherence.json'), 'utf8')) as { runs: unknown[]; findings: unknown[] };
     expect(saved.runs).toHaveLength(1);
     expect(saved.findings.length).toBeGreaterThan(0);
+  });
+
+  it('writes a --summary inside the folder when --write is given', async () => {
+    const ran = await scan(['--write', '--summary', 'report.md'], {}, root);
+    expect(ran.code).toBe(7);
+    expect(readFileSync(join(root, 'report.md'), 'utf8')).toContain('# Coherence report');
   });
 
   it('exits 3 and changes nothing when another writer holds the folder', async () => {
@@ -190,10 +268,50 @@ describe('caotang scan, refusals', () => {
     }
   });
 
+  it('says the folder could not be opened, with the cause, for one that does not exist', async () => {
+    const io = capture();
+    expect(await runScanCommand(['--project', join(root, 'missing')], io)).toBe(2);
+    expect(io.err.join('')).toMatch(/the folder could not be opened \(.*ENOENT/);
+  });
+
+  it('says there is no caotang.json in an existing folder that holds none', async () => {
+    const empty = tempDir('scan-empty');
+    try {
+      const io = capture();
+      expect(await runScanCommand(['--project', empty], io)).toBe(2);
+      expect(io.err.join('')).toContain('there is no caotang.json in it');
+    } finally {
+      removeDir(empty);
+    }
+  });
+
+  it('names the cause when caotang.json is there but cannot be read, and does not say it is missing', async () => {
+    rmSync(join(root, 'caotang.json'));
+    mkdirSync(join(root, 'caotang.json'));
+    const io = capture();
+    expect(await runScanCommand(['--project', root], io)).toBe(2);
+    expect(io.out).toEqual([]);
+    expect(io.err.join('')).toContain('no Caotang project at');
+    expect(io.err.join('')).toContain('caotang.json could not be read (');
+    expect(io.err.join('')).not.toContain('there is no caotang.json');
+  });
+
   it('prints the usage for --help and exits 0', async () => {
     const io = capture();
     expect(await runScanCommand(['--help'], io)).toBe(0);
     expect(io.out.join('')).toContain('usage: caotang scan');
+  });
+});
+
+describe('caotang scan as a function', () => {
+  it('loads the Ink compiler itself, so a host that calls it directly gets the dialogue checks', async () => {
+    vi.resetModules();
+    const fresh = await import('../src/run-scan.js');
+    const io = capture({ env: {} });
+    const code = await fresh.runScanCommand(['--project', root, '--format', 'json'], io);
+    expect(io.err.join('')).not.toContain('Ink compiler is not loaded');
+    expect(code).toBe(7);
+    expect((JSON.parse(io.out.join('')) as { checks: string[] }).checks).toContain('branch.dead-end');
   });
 });
 

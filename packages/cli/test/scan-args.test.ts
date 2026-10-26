@@ -25,6 +25,7 @@ describe('parseScanArgs', () => {
   it('answers --help', () => {
     expect(parseScanArgs(['--help'])).toBe('help');
     expect(SCAN_USAGE).toContain('--fail-on');
+    expect(SCAN_USAGE).toContain('--help');
   });
 
   it.each([

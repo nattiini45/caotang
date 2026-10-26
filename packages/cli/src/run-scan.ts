@@ -5,16 +5,18 @@
  * SDK's `NodeArtifactFs`, which refuses a link that leaves the folder, wrapped so that without `--write` any write is an error:
  * the folder is byte-identical afterwards. With `--write` the folder's single-writer lock is taken first, as `caotang agent` does.
  *
- * Stdout carries the chosen format and nothing else; the notes go to stderr. The exit code is 0, or 7 when an open finding is at or
- * above `--fail-on`; 1, 2 and 3 are this command's own failures, as for `caotang agent`.
+ * Stdout carries the chosen format and nothing else; the notes go to stderr. The exit code is 0, 7 when an open finding is at or
+ * above `--fail-on`, or 8 when there is no such finding but a file was not UTF-8 text and went unchecked; 1, 2 and 3 are this
+ * command's own failures, as for `caotang agent`. Without `--write`, `--summary` must name a file outside the project folder.
  */
 
 import { appendFile, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 
+import { loadInkCompiler } from '@caotang/mcp-server';
 import { formatMarkdown, formatScan, runScan } from '@caotang/scan';
 import { LOCK_FILE, NodeArtifactFs, ProjectLockedError, acquireProjectLock, dialogueFactsOf, manifestOnDisk, type ProjectLock } from '@caotang/sdk/folder';
-import type { ArtifactFs } from '@caotang/store';
+import { ArtifactNotFoundError, type ArtifactFs } from '@caotang/store';
 
 import { UsageError } from './agent-args.js';
 import { ExitCode } from './output.js';
@@ -29,6 +31,14 @@ export interface ScanIo {
 }
 
 const note = (text: string): string => `caotang scan: ${text}\n`;
+
+const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
+/** Whether `target` is the folder or a path inside it. `relative` copes with a trailing separator and, on Windows, with case and drive letters. */
+function isInside(root: string, target: string): boolean {
+  const rel = relative(root, target);
+  return rel === '' || (!isAbsolute(rel) && rel !== '..' && !rel.startsWith(`..${sep}`));
+}
 
 /** The folder's port with every write refused: a read-only scan cannot change a byte, whatever the code under it does. */
 function readOnly(fs: NodeArtifactFs): ArtifactFs {
@@ -46,8 +56,10 @@ function readOnly(fs: NodeArtifactFs): ArtifactFs {
   };
 }
 
-/** Runs the command line to completion and returns the exit code. */
+/** Runs the command line to completion and returns the exit code. It loads the Ink compiler itself (idempotent), so a host need not. */
 export async function runScanCommand(argv: readonly string[], io: ScanIo): Promise<number> {
+  // The dialogue checks compile Ink synchronously, so the compiler loads before the project is opened.
+  await loadInkCompiler();
   let args;
   try {
     args = parseScanArgs(argv);
@@ -65,12 +77,33 @@ export async function runScanCommand(argv: readonly string[], io: ScanIo): Promi
   let fs: NodeArtifactFs;
   try {
     fs = new NodeArtifactFs(root);
-  } catch {
-    io.stderr(note(`no Caotang project at ${root}: the folder cannot be opened`));
+  } catch (error) {
+    io.stderr(note(`no Caotang project at ${root}: the folder could not be opened (${messageOf(error)})`));
     return ExitCode.Usage;
   }
   if ((await manifestOnDisk(fs)) === undefined) {
-    io.stderr(note(`no Caotang project at ${root}: there is no caotang.json in it. Use --project <dir> to name the folder`));
+    // `manifestOnDisk` keeps its retry for a file another program has open, but does not say why it gave up.
+    let cause: unknown;
+    try {
+      await fs.read('caotang.json');
+    } catch (error) {
+      cause = error;
+    }
+    if (cause !== undefined) {
+      io.stderr(
+        note(
+          cause instanceof ArtifactNotFoundError
+            ? `no Caotang project at ${root}: there is no caotang.json in it. Use --project <dir> to name the folder`
+            : `no Caotang project at ${root}: caotang.json could not be read (${messageOf(cause)})`,
+        ),
+      );
+      return ExitCode.Usage;
+    }
+  }
+
+  const summaryTarget = args.summary === undefined ? undefined : resolve(io.cwd, args.summary);
+  if (!args.write && summaryTarget !== undefined && isInside(root, summaryTarget)) {
+    io.stderr(note('--summary must not write inside the project folder without --write. Name a file outside it, or pass --write'));
     return ExitCode.Usage;
   }
 
@@ -83,23 +116,29 @@ export async function runScanCommand(argv: readonly string[], io: ScanIo): Promi
       { dialogueFacts: dialogueFactsOf },
     );
     io.stdout(formatScan(result, args.format));
-    if (args.summary !== undefined) {
-      const target = resolve(io.cwd, args.summary);
+    if (result.unread.length > 0) io.stderr(note(`${result.unread.length} file(s) are not UTF-8 text and were not checked: ${result.unread.join(', ')}`));
+    if (result.skipped.length > 0) io.stderr(note('this was a partial scan; the notes say which checks did not run'));
+    else if (result.status === 'partial') io.stderr(note('this was a partial scan'));
+    if (args.write) io.stderr(note('coherence.json was saved'));
+    if (summaryTarget !== undefined) {
       // The step summary is shared by the steps of a job, so it is appended to; any other file is replaced.
       const stepSummary = io.env['GITHUB_STEP_SUMMARY'];
-      const shared = stepSummary !== undefined && stepSummary !== '' && resolve(io.cwd, stepSummary) === target;
-      await (shared ? appendFile : writeFile)(target, formatMarkdown(result), 'utf8');
+      const shared = stepSummary !== undefined && stepSummary !== '' && resolve(io.cwd, stepSummary) === summaryTarget;
+      try {
+        await (shared ? appendFile : writeFile)(summaryTarget, formatMarkdown(result), 'utf8');
+      } catch (error) {
+        // The scan finished, so its exit 7 or 8 stays; a clean scan with no report is still a failure.
+        io.stderr(note(`could not write the summary to ${summaryTarget}: ${messageOf(error)}`));
+        return result.exitCode !== 0 ? result.exitCode : ExitCode.Internal;
+      }
     }
-    if (result.unread.length > 0) io.stderr(note(`${result.unread.length} file(s) are not UTF-8 text and were not checked: ${result.unread.join(', ')}`));
-    if (result.status === 'partial') io.stderr(note('this was a partial scan; the notes say which checks did not run'));
-    if (args.write) io.stderr(note('coherence.json was saved'));
     return result.exitCode;
   } catch (error) {
     if (error instanceof ProjectLockedError) {
       io.stderr(note(`${error.message}. The lock is ${LOCK_FILE} in that folder.`));
       return ExitCode.Locked;
     }
-    io.stderr(note(error instanceof Error ? error.message : String(error)));
+    io.stderr(note(messageOf(error)));
     return ExitCode.Internal;
   } finally {
     await lock?.release();
