@@ -154,15 +154,17 @@ describe('planResume', () => {
     }
   });
 
-  it('refuses a spend that is negative, not a number or not finite, and keeps a fractional one', () => {
+  it('refuses a spend that is negative, not a number, not finite, or a fractional call or step count, and keeps a fractional amount', () => {
     const spend = { modelCalls: 2, promptTokens: 100, completionTokens: 30, estimatedTokens: 0, steps: 0, activeMs: 5 };
     const logged = (changed: Record<string, unknown>) => planResume(log(start, user, { t: 'spend', turnId: 't1', spend: { ...spend, ...changed }, reservedCalls: 0 }), project({}));
-    for (const changed of [{ modelCalls: -1 }, { promptTokens: Number.NaN }, { steps: Number.POSITIVE_INFINITY }, { activeMs: -0.5 }, { costUsd: -0.5 }, { costUsd: Number.NaN }]) {
+    for (const changed of [{ modelCalls: -1 }, { promptTokens: Number.NaN }, { steps: Number.POSITIVE_INFINITY }, { activeMs: -0.5 }, { costUsd: -0.5 }, { costUsd: Number.NaN }, { modelCalls: 2.5 }, { steps: 1.7 }]) {
       const verdict = logged(changed);
       expect(verdict, JSON.stringify(changed)).toMatchObject({ ok: false, reason: 'schema' });
       if (!verdict.ok) expect(verdict.detail).toContain('damaged or from another version');
     }
     expect(logged({ activeMs: 1234.5, costUsd: 0.0125 })).toMatchObject({ ok: true });
+    // Token counts are the provider's, and a proxy may report a fractional one: that is not a damaged log.
+    expect(logged({ promptTokens: 100.5 })).toMatchObject({ ok: true });
   });
 
   it('asks back when a plan the app built stopped before its card, since there is no conversation to continue', () => {

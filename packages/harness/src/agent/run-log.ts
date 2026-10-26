@@ -293,12 +293,13 @@ function messagesOk(value: unknown): value is readonly ChatMessage[] {
   );
 }
 
-/** A spend figure: finite and not below zero. It may be fractional (milliseconds, dollars). */
+/** A spend figure: finite and not below zero. It may be fractional: milliseconds and dollars are, and token counts are the provider's, so they are not held to whole numbers. */
 const isAmount = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 
 function spendOk(value: unknown): value is BudgetSpend {
   if (!isRecord(value)) return false;
-  return ['modelCalls', 'promptTokens', 'completionTokens', 'estimatedTokens', 'steps', 'activeMs'].every((key) => isAmount(value[key])) && (value['costUsd'] === undefined || isAmount(value['costUsd']));
+  // The meter counts calls and steps one at a time, so those two are whole numbers.
+  return isCount(value['modelCalls']) && isCount(value['steps']) && ['promptTokens', 'completionTokens', 'estimatedTokens', 'activeMs'].every((key) => isAmount(value[key])) && (value['costUsd'] === undefined || isAmount(value['costUsd']));
 }
 
 const SHAPES: Readonly<Record<RunEvent['t'], (event: Record<string, unknown>) => boolean>> = {
