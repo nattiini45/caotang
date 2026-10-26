@@ -267,6 +267,9 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(pdfSection).toContain('An emoji takes the width of two Courier letters, however it is built');
     expect(pdfSection).toContain('it is never split across lines');
     expect(pdfSection).toContain('so 👍🏽 prints as 👍, but text you copy out of the PDF keeps the emoji you typed');
+    expect(pdfSection).toContain('turn on **Colour emoji** in the recipe');
+    expect(pdfSection).toContain('It is off unless you turn it on, because scripts are usually printed and photocopied in black and white, and colour is the only way to get a skin tone.');
+    expect(pdfSection).not.toContain('The font has no colours and no skin tones');
     expect(pdfSection).toContain('A script with no emoji does not load this font.');
     expect(pdfSection).toContain('A character no font has prints as a question mark, and the compile log names it.');
     expect(pdfSection).not.toMatch(/such as an emoji, prints as a question mark/);
