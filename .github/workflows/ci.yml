@@ -173,6 +173,8 @@ jobs:
         # man-db rebuilds its index after every package by default, which alone can outlast the job; it is not needed here.
         run: |
           sudo rm -f /var/lib/man-db/auto-update
+          # A stalled mirror fails a fetch after 30 s and the fetch is retried, rather than hanging until the job's timeout.
+          echo 'Acquire::Retries "5"; Acquire::http::Timeout "30"; Acquire::https::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/80-ci-retries > /dev/null
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libreoffice-calc
           python3 -m venv "$RUNNER_TEMP/venv"
@@ -212,6 +214,8 @@ jobs:
 
       - name: Install the PDF tools (CI only; none of them ships)
         run: |
+          # A stalled mirror fails a fetch after 30 s and the fetch is retried, rather than hanging until the job's timeout.
+          echo 'Acquire::Retries "5"; Acquire::http::Timeout "30"; Acquire::https::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/80-ci-retries > /dev/null
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends qpdf poppler-utils ghostscript mupdf-tools
 
