@@ -12,7 +12,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { RECIPE_PAGE_SIZES, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS as BUS_OPTIONS } from '@caotang/bus';
-import type { RecipePageSize, RecipeScriptFont, SceneNumbersOption } from '@caotang/bus';
+import type { RecipeOptionsParams, RecipePageSize, RecipeScriptFont, SceneNumbersOption } from '@caotang/bus';
 import { PAGE_SIZES, SCENE_NUMBER_PLACEMENTS as SCREENPLAY_PLACEMENTS, SCRIPT_FONTS } from '@caotang/screenplay';
 import type { PageSize, SceneNumberPlacement, ScriptFont } from '@caotang/screenplay';
 
@@ -83,5 +83,17 @@ describe('the screenplay PDF’s paper and faces: one list in the bus, one in th
     const _recipe: Equal<NonNullable<ExportRecipeOptions['scriptFont']>, ScriptFont> = true;
     const _request: Equal<NonNullable<MediaRequest['scriptFont']>, ScriptFont> = true;
     expect([_faces, _papers, _recipe, _request]).toEqual([true, true, true, true]);
+  });
+});
+
+/**
+ * The recipe's options are written twice by necessity: the store owns the type the manifest holds (the exporter reads it, read-only), and
+ * the bus carries its own copy as the command's params, because the edge cannot run bus → store. A key added to one and not the other is
+ * a type error here.
+ */
+describe('the recipe options: one set of keys in the bus and in the store', () => {
+  it('agree on the keys the command carries and the manifest holds', () => {
+    const _keys: Equal<keyof RecipeOptionsParams, keyof ExportRecipeOptions> = true;
+    expect(_keys).toBe(true);
   });
 });
