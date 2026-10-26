@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { APP_KEYS, type AppDb } from '../../apps/desktop/src/app/app-db.js';
 import { DEMO_PROFILE_NAME, ProviderService } from '../../apps/desktop/src/app/providers.js';
+import { createManualClock } from '../../packages/gateway/src/index.js';
 
 /**
  * The provider services (provider-gateway §2, §5–§7; ui-modules §5.2), run without a browser: an in-memory app database
@@ -83,6 +84,36 @@ test('a probe that fails keeps the profile, names the failure, and changes nothi
   expect(saved.models).toBeUndefined();
   expect(saved.probeError).toContain('the profile was saved but is not verified');
   expect(service.get(saved.view.id)).toBeDefined();
+  expect(service.active()?.id).toBe(demo?.id);
+});
+
+test('a model list the browser will not let the page read is reported as that, not as a connection or base URL problem', async () => {
+  // The browser rejects the model-list GET and answers nothing else (chat is a different request, which this test never makes).
+  const clock = createManualClock();
+  const rejecting = async (): Promise<Response> => {
+    throw new TypeError('Failed to fetch');
+  };
+  const { service } = await ProviderService.open({ db: memoryDb(), vault: null, fetch: rejecting, clock });
+  const demo = service.active();
+
+  let outcome: Awaited<ReturnType<typeof service.addProfile>> | undefined;
+  const saving = service.addProfile({ name: 'Claude', kind: 'endpoint', preset: 'anthropic', apiKey: 'sk-ant-placeholder-0000000000', defaultModel: 'claude-sonnet-5-5' }).then((result) => {
+    outcome = result;
+  });
+  for (let turn = 0; turn < 20 && outcome === undefined; turn++) {
+    await new Promise((resolve) => setImmediate(resolve));
+    clock.advance(5_000);
+  }
+  await saving;
+
+  // The profile is saved and unverified, and the sentence is true of what happened: the list was not read, chat is untested.
+  expect(outcome?.models).toBeUndefined();
+  expect(outcome?.view.preset).toBe('anthropic');
+  expect(outcome?.probeError).toContain('the profile was saved but is not verified');
+  expect(outcome?.probeError).toContain('did not let this page read the model list from api.anthropic.com');
+  expect(outcome?.probeError).toContain('Chat may still work');
+  expect(outcome?.probeError).not.toContain('Could not reach');
+  expect(outcome?.probeError).not.toContain('base URL');
   expect(service.active()?.id).toBe(demo?.id);
 });
 

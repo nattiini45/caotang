@@ -355,6 +355,16 @@ export function createGateway(options: GatewayOptions): Gateway {
       secrets: revealed.redact,
       promptTokens: 0,
       ...localCall(profile),
+    }).catch((error: unknown) => {
+      // A preset the sweep found reachable from a browser can still have one route the page may not read (provider-gateway §9).
+      // "Could not reach the host, check your connection" would be false for that route and send the writer to the wrong setting.
+      if (error instanceof ProviderError && error.rejected && preset?.cors === 'ok') {
+        throw new ProviderError('network', providerMessages.modelListUnreadable(hostOf(profile.baseUrl)), {
+          ...(error.detail === undefined ? {} : { detail: error.detail }),
+          rejected: true,
+        });
+      }
+      throw error;
     });
     const models = adapter.parseModels(json);
     if (models === undefined) {
