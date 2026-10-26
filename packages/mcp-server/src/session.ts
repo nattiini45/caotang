@@ -109,7 +109,8 @@ export interface ProjectSession {
   /**
    * The project as a host may read it outside a tool call: a resource or a prompt (agent-harness §4, Rules). The nodes a read rule
    * withholds from the agent are not in it, so a resource does not list or serve them and a prompt does not assemble them. `mirrors`
-   * names the read tools the resource stands for: a read-deny aimed at `doc.read` alone keeps its nodes from `caotang://doc` too.
+   * names the read tools the resource or prompt stands for: a read-deny aimed at `doc.read` alone keeps its nodes from `caotang://doc`
+   * and from every prompt too.
    */
   readable(use: 'resource' | 'prompt', mirrors?: readonly string[]): ProjectState;
   readonly exporter: ExporterService;

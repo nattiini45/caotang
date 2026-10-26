@@ -143,6 +143,25 @@ describe('the project’s rules at the server', () => {
     }
   });
 
+  it('holds a read-deny aimed at one read tool to every prompt', async () => {
+    for (const tool of ['doc.read', 'notes.read', 'codex.read']) {
+      const root = await project([{ effect: 'deny', tool, scope: { subtree: ACT_TWO }, access: 'read' }]);
+      const server = await startOver(root, false);
+      const client = await connectClient(server.url, server.token);
+      try {
+        await expect(client.getPrompt({ name: 'fill-synopsis', arguments: { doc: SECRET } }), tool).rejects.toBeDefined();
+        const open = await client.getPrompt({ name: 'fill-synopsis', arguments: { doc: OPEN } });
+        expect(JSON.stringify(open), tool).toContain('Fog.');
+        expect(JSON.stringify(open), tool).not.toContain(SECRET_BODY);
+        expect(JSON.stringify(open), tool).not.toContain('Secret');
+      } finally {
+        await client.close();
+        await server.close();
+        removeDir(root);
+      }
+    }
+  });
+
   it('fails closed when a rule in the file could not be read: every write is refused, a read is not', async () => {
     const root = await project([LOCK, { effect: 'deny' }]);
     const notes: string[] = [];
