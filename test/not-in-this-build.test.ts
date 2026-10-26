@@ -58,6 +58,7 @@ const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp
   // A limitation sentence about skills names what it is about (scripts, the other files, allowed tools, sharing, running by name), before or
   // after the word. Any other sentence in these lists that names skills says the feature is missing, and it is built.
   { name: 'skills', pattern: /(?:^|[.!?]\s+|\n)(?:(?!scripts?|other files|allowed tools|shared across|by name)[^.\n])*?\bskills?\b(?![^.\n]*(?:scripts?|other files|allowed tools|shared across|by name))/i },
+  { name: 'resuming an agent run after a reload', pattern: /agent (?:runs?|turns?) (?:does|do|can)(?: not|n't) (?:survive|resume)|(?:cannot|can't|not) resum(?:e|ing) an agent (?:run|turn)/i },
   { name: 'the storyboard contact sheet PDF', pattern: /storyboard PDF|PDF (?:exports? |output )?(?:of|for) (?:a )?storyboards?|PDF of a storyboard/i },
 ];
 
