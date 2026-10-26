@@ -128,6 +128,11 @@ describe('planResume', () => {
     expect(planResume([{ t: 'turn.end', seq: 0 }, 7], project({}))).toMatchObject({ ok: false, reason: 'schema' });
   });
 
+  it.each(['cancelled', 'refused'] as const)('keeps a %s decision on the card, so a resume knows the writer closed it', (decision) => {
+    const verdict = planResume(log(start, user, card, { t: 'card.decided', turnId: 't1', decision }), project({}));
+    expect(verdict.ok && verdict.replay.card?.decision).toBe(decision);
+  });
+
   it('refuses an event that carries no turn id, whichever kind it is', () => {
     const base = log(start, user, card, approved);
     const spend = { modelCalls: 1, promptTokens: 1, completionTokens: 1, estimatedTokens: 0, steps: 0, activeMs: 1 };

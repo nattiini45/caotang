@@ -205,6 +205,33 @@ describe('resuming a run dropped after step 2 of 4', () => {
     expect(report.status).not.toBe('applied');
     expect(tree(state, STORM)?.keywords).not.toContain('storm');
   });
+  it.each(['cancelled', 'refused'] as const)('ends without a step or a model call when the log records the card as %s before the run stopped', async (decision) => {
+    const state = makeState();
+    const log = createMemoryRunLog();
+    const dropping = dropsAtIntent(log, 2);
+    const first = await build(state, dropping.port, 'first');
+    void first.session.submit(INTENT);
+    await dropping.dropped;
+    const [run] = await log.open(PROJECT);
+    const runId = run?.runId ?? '';
+    // The writer decided the card, and the tab went before the turn closed: the log's last word on the card is the decision.
+    const rows = (await log.events(runId)) as RunEvent[];
+    await log.append(runId, [{ t: 'card.decided', turnId: 'x', decision, seq: (rows.at(-1)?.seq ?? 0) + 1, at: 9_999 } as unknown as RunEvent]);
+    const before = outcomeOf(state);
+
+    const second = await build(state, log, 'second', { action: 'approve' }, false);
+    const report = await second.session.resume(runId);
+
+    expect(report.status).toBe('cancelled');
+    // The card is not shown again, no model is asked, and the two steps applied before the stop are all the project holds.
+    expect(second.cards).toHaveLength(0);
+    expect(second.requests()).toBe(0);
+    expect(report.tokens.requests).toBe(0);
+    expect(outcomeOf(state)).toEqual(before);
+    expect(tree(state, FRIEND)?.label).toBe('act-2');
+    expect(tree(state, STORM)?.keywords).not.toContain('storm');
+    expect(second.harness.log.entries().filter((entry) => entry.issuedBy === 'agent')).toHaveLength(0);
+  });
 });
 
 describe('resuming refuses what it cannot make safe', () => {
