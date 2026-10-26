@@ -923,8 +923,23 @@ export class AgentController {
         }
         this.clearGhosts();
         // An approved compile lists the project's images again, as the export dialog's compile does (session.exportsReady): the
-        // compile reads the listing it last made, and an image added since would be missing from the shot list.
-        if (compiles) await this.session.exportsReady().catch(() => undefined);
+        // compile reads the listing it last made, and an image added since would be missing from the shot list. When the listing
+        // fails the dialog does not compile, and neither does the card: it waits for the writer again, as for unsaved typing.
+        if (compiles) {
+          try {
+            await this.session.exportsReady();
+          } catch (error) {
+            this.message = `The project’s images could not be listed again (${error instanceof Error ? error.message : String(error)}), so the export was not applied. Approve it again to try once more.`;
+            if (parked !== null && !this.stopping && !this.detached && this.resolveDecision === null) {
+              this.pending = parked;
+              this.resolveDecision = resolve;
+            } else {
+              resolve({ action: 'cancel' });
+            }
+            this.bump();
+            return;
+          }
+        }
         resolve(decision);
         this.bump();
       })();

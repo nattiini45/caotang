@@ -488,6 +488,41 @@ test('approving a compile lists the project’s images again before it compiles,
   await session.close();
 });
 
+test('an approved compile waits for the writer again when the project’s images could not be listed again, as the export dialog does not compile then', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const session = await sessionOver(state, store);
+  const compile = planOf({ tool: 'export.compile', params: { selection: { root: 'manuscript' }, format: 'md' }, expect: 'the manuscript is compiled' });
+  const controller = new AgentController(
+    session,
+    await scriptedProviders([{ match: (req) => isPlannerCall(req) && userTextOf(req).includes('Request: Compile the manuscript.'), respond: () => ({ content: compile }) }]),
+  );
+  const exported = (): boolean => session.harness.log.entries().some((entry) => entry.command.startsWith('export.'));
+  const listing = session.exportsReady.bind(session);
+  let fail = true;
+  session.exportsReady = async () => {
+    if (fail) throw new Error('the listing failed');
+    await listing();
+  };
+
+  const running = controller.submit('Compile the manuscript.');
+  await until(() => controller.snapshot().approvable, 'the compile card');
+  controller.answer({ action: 'approve' });
+  await until(() => controller.snapshot().message !== null, 'the listing refusal');
+  const held = controller.snapshot();
+  expect(held.message).toContain('images could not be listed again (the listing failed)');
+  expect(held.message).toContain('the export was not applied');
+  expect(held.pending).not.toBeNull();
+  expect(exported()).toBe(false);
+
+  // Once the listing works, approving again compiles.
+  fail = false;
+  controller.answer({ action: 'approve' });
+  await running;
+  expect(exported()).toBe(true);
+  await session.close();
+});
+
 test('a compile the mode approves is held for the writer when the project’s images could not be listed again, and nothing is exported', async () => {
   const state = sampleProjectState();
   const store = await openRuntimeStore(new MemoryIndexedDb());
