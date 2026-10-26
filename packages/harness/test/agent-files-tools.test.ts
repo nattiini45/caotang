@@ -10,7 +10,7 @@ import { textDigest } from '@caotang/bus';
 import type { MemoryFile } from '@caotang/store';
 
 import { TOOL_NAMES } from '../src/index.js';
-import { makeHarness, makeState, refusalOf, run, valueOf } from './fixtures.js';
+import { CHAPTER_ONE, LANDING, makeHarness, makeState, refusalOf, run, valueOf } from './fixtures.js';
 
 const confirmed = { permission: { confirmed: true } } as const;
 
@@ -108,6 +108,23 @@ describe('memory.write', () => {
     const error = refusalOf(run(harness, 'memory.write', { title: 'Elena', type: 'reference', body: 'Elena is left-handed.' }, confirmed));
     expect(error.code).toBe('invalid-params');
     expect(`${error.message} ${error.correctiveHint ?? ''}`).toContain('codex.write');
+    expect(state.agentFiles.memory).toHaveLength(1);
+  });
+
+  it('does not name a codex entry that a read rule withholds when a guessed alias matches it, in a call or in a plan preflight', () => {
+    const state = project();
+    const entry = state.manifest.codex?.find((candidate) => candidate.name === 'Elena');
+    if (entry === undefined) throw new Error('the fixture holds Elena');
+    entry.aliases = ['Secret Alias'];
+    entry.attachments = [LANDING];
+    const harness = makeHarness({ rules: () => ({ rules: [{ effect: 'deny', tool: '*', source: 'project', scope: { subtree: CHAPTER_ONE }, access: 'read' }] }) }, state);
+    const params = { title: 'Secret Alias', type: 'reference', body: 'Elena is left-handed.' };
+
+    const error = refusalOf(run(harness, 'memory.write', params, confirmed));
+    expect(error.code).toBe('invalid-params');
+    expect(JSON.stringify(error)).not.toContain('Elena');
+    const preview = harness.previewPlan({ steps: [{ tool: 'memory.write', params, expect: 'the note is saved' }] });
+    expect(JSON.stringify(preview)).not.toContain('Elena');
     expect(state.agentFiles.memory).toHaveLength(1);
   });
 

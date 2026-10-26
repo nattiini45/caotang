@@ -130,6 +130,16 @@ describe('memory.write', () => {
     expect(validate('memory.write', { ...note, title: 'Elena’s dialogue habits' }, snapshot).ok).toBe(true);
   });
 
+  it('does not print the entry’s name when the title matched only an alias', () => {
+    const snapshot = makeSnapshot({
+      codex: [{ id: 'c_ELENA00001', name: 'Elena Voss', aliases: ['The Cartographer'] }],
+      agentFiles: files(),
+    });
+    const result = validate('memory.write', { ...note, title: 'The Cartographer' }, snapshot);
+    if (result.ok) throw new Error('expected a refusal');
+    expect(`${result.error.message} ${result.error.correctiveHint ?? ''}`).not.toContain('Elena');
+  });
+
   it('refuses a second note with a title another note has, naming that note', () => {
     expect(validate('memory.write', { ...note, title: 'dialogue TAGS' }, held)).toMatchObject({ ok: false, error: { target: 'title', message: expect.stringContaining('style-dialogue') } });
   });

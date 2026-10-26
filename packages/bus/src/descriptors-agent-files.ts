@@ -124,7 +124,7 @@ export const memoryWrite: CommandDescriptor<MemoryWriteParams> = {
     );
     if (clash !== undefined) {
       return invalid(
-        `“${name}” is the name of the codex entry “${clash.name}”, and a story fact belongs in the codex, not in memory`,
+        `“${name}” is the name of a codex entry, and a story fact belongs in the codex, not in memory`,
         'use codex.write to add to that entry, or name the note for the habit it records, such as “Dialogue tags”',
         'title',
       );
