@@ -27,7 +27,9 @@ async function openAgent(page: Page): Promise<void> {
   await expect(page.getByTestId('recurring-tasks')).toBeVisible();
 }
 
+/** Reloads and opens the project again. A reload begun while the indicator reads saving could take the task a writer has just made. */
 async function reopen(page: Page, name: string): Promise<void> {
+  await waitForSaved(page);
   await page.reload();
   const row = page.getByRole('listitem').filter({ hasText: name });
   await expect(row).toBeVisible({ timeout: 20_000 });
@@ -173,7 +175,9 @@ test('a model task saved to start by itself is offered instead, and says so', as
   await expect(form.getByRole('alert')).toContainText('limit on its model calls');
   await form.getByLabel('Most model calls in a run').fill('2');
   await form.getByRole('button', { name: 'Save task' }).click();
-  await expect(page.getByTestId('recurring-tasks')).toContainText('Starting by itself is not built for tasks that use the model yet');
+  // The task is a row of its own once it is saved. The note alone proves nothing: the form shows the same sentence before the save.
+  const saved = page.getByTestId('recurring-tasks').locator('[data-task]', { hasText: 'Self-start read' });
+  await expect(saved).toContainText('Starting by itself is not built for tasks that use the model yet');
 
   await reopen(page, 'Consent Book');
   await expect(page.getByTestId('task-offers').getByRole('group', { name: 'Task due: Self-start read' })).toBeVisible({ timeout: LOADED });

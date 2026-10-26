@@ -275,4 +275,6 @@ A recurring task is an intent, a plan or a scan that the project remembers and o
 
 **The writer's, not the agent's.** Tasks are made, changed, switched off and deleted in the panel. The registry has no tool for them (the tests assert it), `tasks.json` is not a bus target, and the MCP server neither reads nor writes the file. Because the agent cannot make a task, it cannot make itself run on a schedule.
 
+**A task is saved when the indicator says so.** A save of `tasks.json` is several writes (the snapshots, then the file) and none of it is in the browser store until it lands. The save indicator reads *saving* from the moment a save is asked for until it has landed, as it does for a findings write, so the tab's leave-warning and a writer's reload see the task as unsaved while it is.
+
 **Not built.** A model task that starts by itself (the consent record and its screen, and the staging of an unattended run's results for review); `caotang tasks` on the command line and in CI (after `caotang agent`); a task made by the agent; tray runs with the window closed; cron syntax.
