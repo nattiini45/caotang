@@ -63,13 +63,14 @@ export const ELECTED_LICENSES = Object.freeze({
 /**
  * Workspace packages that vendor third-party work: they are linked like Caotang's own packages, but carry their own license,
  * so they are listed with it. `@caotang/font-noto-cjk` is Noto Sans Mono CJK SC (OFL-1.1), in vendor/noto-sans-cjk,
- * `@caotang/font-noto-emoji` is Noto Emoji (OFL-1.1), in vendor/noto-emoji, `@caotang/font-noto-arabic` is Noto Sans Arabic (OFL-1.1), in
+ * `@caotang/font-noto-emoji` is Noto Emoji (OFL-1.1), in vendor/noto-emoji, `@caotang/font-noto-color-emoji` is Noto Color Emoji compiled to PDF operators (OFL-1.1), in vendor/noto-color-emoji, `@caotang/font-noto-arabic` is Noto Sans Arabic (OFL-1.1), in
  * vendor/noto-sans-arabic, `@caotang/font-noto-hebrew` is Noto Sans Hebrew (OFL-1.1), in vendor/noto-sans-hebrew, and
  * `@caotang/font-noto-devanagari` is Noto Sans Devanagari (OFL-1.1), in vendor/noto-sans-devanagari.
  */
 export const VENDORED_WORKSPACE_PACKAGES = Object.freeze([
   '@caotang/font-noto-cjk',
   '@caotang/font-noto-emoji',
+  '@caotang/font-noto-color-emoji',
   '@caotang/font-noto-arabic',
   '@caotang/font-noto-hebrew',
   '@caotang/font-noto-devanagari',

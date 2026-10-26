@@ -13,11 +13,13 @@ import {
   ARABIC_FONT_FILE,
   CJK_COMMON_FONT_FILE,
   CJK_FONT_FILE,
+  COLOUR_EMOJI_FILE,
   DEVANAGARI_FONT_FILE,
   EMOJI_COMMON_FONT_FILE,
   EMOJI_FONT_FILE,
   HEBREW_FONT_FILE,
 } from '@caotang/pdf-fonts';
+import { NOTO_COLOUR_EMOJI_BYTES } from '../../pdf-fonts/src/coverage/noto-colour-emoji-coverage.js';
 import { cjkFontCandidates, emojiFontCandidates } from '@caotang/pdf-fonts/node-loader';
 import { WEBP_DECODER_FILE, webpDecoderCandidates } from '@caotang/exporter/picture-transcoder-node';
 
@@ -253,6 +255,12 @@ describe('staging and packing', () => {
     expect(sizes).toEqual([10692940, 1956568, 579236, 298992, 142140, 16836, 184228]);
     // Against 25,065,212 bytes of four font files before the two PDFs shared one of each.
     expect(sizes.reduce((sum, size) => sum + size, 0)).toBeLessThan(14_000_000);
+  });
+
+  it('has the colour emoji file to stage, from its package: the 8 MB budget and the pinned size', () => {
+    const file = createRequire(import.meta.url).resolve(`@caotang/font-noto-color-emoji/${COLOUR_EMOJI_FILE}`);
+    expect(statSync(file).size).toBe(NOTO_COLOUR_EMOJI_BYTES);
+    expect(statSync(file).size).toBeLessThanOrEqual(8 * 1024 * 1024);
   });
 
   it('stages the fonts where the Node loader looks first, from the server bundle it stages', () => {

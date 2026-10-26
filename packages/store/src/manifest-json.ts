@@ -408,6 +408,7 @@ function recipeOptions(o: NonNullable<ExportRecipe['options']>): string {
     pairs.push(['pageSize', str(o.pageSize, 'recipe.options.pageSize')]);
   }
   if (typeof o.paperFrames === 'boolean') pairs.push(['paperFrames', String(o.paperFrames)]);
+  if (typeof o.colourEmoji === 'boolean') pairs.push(['colourEmoji', String(o.colourEmoji)]);
   return pairs.length === 0 ? '{}' : oneLine(pairs);
 }
 

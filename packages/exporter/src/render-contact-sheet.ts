@@ -28,6 +28,11 @@
  * unit, and the ToUnicode map gives the exact sequence back when it is copied. The emoji font is read only when a sheet holds
  * an emoji, through the input's `loadEmojiFont`; it too has a common file, which a sheet whose emoji are all in it reads alone.
  *
+ * With `colourEmoji` on, an emoji that Noto Color Emoji has is drawn in colour instead (`./colour-emoji-font.ts`): a Type 3 glyph of the vector
+ * picture in `@caotang/font-noto-color-emoji`, read through `loadColourEmoji` only when the sheet holds such an emoji. It ignores the ink the
+ * text is set in, and on the dark number chip it has a light backing. An emoji the colour set lacks is set in the emoji font in the same
+ * space, and named in the log; when the colour file cannot be read, the whole sheet falls back to the emoji font, and the log says so.
+ *
  * Arabic, Persian, Urdu and Hebrew are set in Noto Sans Arabic and Noto Sans Hebrew (`./rtl-font.ts`), after Helvetica and before
  * the CJK font. A text line holding either script is resolved by the bidirectional algorithm of UAX #9 (`@caotang/pdf-fonts/bidi`)
  * after it is cut to its box, so the cut falls between whole grapheme clusters in logical order; a word is shaped and drawn glyph
@@ -60,6 +65,7 @@
 import {
   ARABIC_FONT_NAME,
   CJK_FONT_NAME,
+  COLOUR_EMOJI_NAME,
   DEVANAGARI_FONT_NAME,
   EMOJI_FONT_NAME,
   HEBREW_FONT_NAME,
@@ -78,6 +84,7 @@ import {
   type RtlScript,
 } from '@caotang/pdf-fonts';
 import type * as Bidi from '@caotang/pdf-fonts/bidi';
+import type * as ColourModule from '@caotang/pdf-fonts/colour';
 import type { Shape } from '@caotang/pdf-fonts/shaper';
 import type * as PdfLib from 'pdf-lib';
 import { sniffImage, type PlacedCard, type PlacedText, type SheetPlan } from '@caotang/storyboard';
@@ -85,6 +92,7 @@ import { sniffImage, type PlacedCard, type PlacedText, type SheetPlan } from '@c
 import type { FontkitFont } from './cid-embedding.js';
 import { CjkEmbedding, CjkFace } from './cjk-font.js';
 import { DevanagariEmbedding, DevanagariFace } from './devanagari-font.js';
+import { ColourEmbedding } from './colour-emoji-font.js';
 import { EmojiEmbedding, EmojiFace, type EmojiGlyph } from './emoji-font.js';
 import { isAnimatedWebp } from './image-size.js';
 import { RtlEmbedding, RtlFace, type PlacedGlyph } from './rtl-font.js';
@@ -125,6 +133,17 @@ export interface ContactSheetPdfInput {
    * file is read when all its emoji are in it. Without it, emoji are drawn as `?` and the log says so.
    */
   readonly loadEmojiFont?: FontLoader;
+  /**
+   * Colour emoji (storyboard.md §6): an emoji that Noto Color Emoji has is drawn as its vector picture, in its own colours, whatever ink the
+   * text is set in; the rest keep the emoji font. Absent is off, and the sheet is the one it was before colour emoji existed.
+   */
+  readonly colourEmoji?: boolean;
+  /**
+   * Reads the colour emoji file (`@caotang/font-noto-color-emoji`; `./colour-emoji-font.ts`). Called at most once, and only with
+   * {@link colourEmoji} on and an emoji the file has on the sheet. When it is missing or cannot be read, the sheet is set in the emoji font
+   * and the log says so.
+   */
+  readonly loadColourEmoji?: FontLoader;
   /** Reads Noto Sans Arabic (`./rtl-font.ts`). Called at most once, and only when the sheet holds Arabic-script text. Without it, that text is drawn as `?` and the log says so. */
   readonly loadArabicFont?: FontLoader;
   /** Reads Noto Sans Hebrew (`./rtl-font.ts`). Called at most once, and only when the sheet holds Hebrew. Without it, Hebrew is drawn as `?` and the log says so. */
@@ -158,8 +177,8 @@ const FRAME_RULE: Shade = { r: 0.3, g: 0.3, b: 0.3 };
 const CHIP_FILL: Shade = { r: 0.15, g: 0.15, b: 0.15 };
 const PAPER: Shade = { r: 1, g: 1, b: 1 };
 
-/** The fonts a piece of text can be set in: Helvetica (or Helvetica-Bold), Noto Sans Mono CJK, Noto Emoji, Noto Sans Arabic, Noto Sans Hebrew, Noto Sans Devanagari. */
-type Face = 'base' | 'cjk' | 'emoji' | 'devanagari' | RtlScript;
+/** The fonts a piece of text can be set in: Helvetica (or Helvetica-Bold), Noto Sans Mono CJK, Noto Emoji, Noto Color Emoji, Noto Sans Arabic, Noto Sans Hebrew, Noto Sans Devanagari. */
+type Face = 'base' | 'cjk' | 'emoji' | 'colour' | 'devanagari' | RtlScript;
 
 /**
  * One grapheme cluster of a line, resolved to the font that draws it. An emoji carries the glyphs its layout gave. A letter of
@@ -315,6 +334,32 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
     }
     return emoji;
   };
+  // The colour emoji, opened the first time an emoji the colour set has is met (./colour-emoji-font.ts). `null` once they are known to be
+  // unavailable, with the reason; the sheet is then set in the emoji font. The emoji the set lacks are named once.
+  let colourModule: typeof ColourModule | undefined;
+  let colour: ColourEmbedding | null | undefined;
+  let colourError = '';
+  const colourLeftOut = new Set<string>();
+  const colourFont = async (cluster: string): Promise<ColourEmbedding | null> => {
+    if (input.colourEmoji !== true || colour === null) return null;
+    colourModule ??= await import('@caotang/pdf-fonts/colour');
+    if (!colourModule.colourEmojiCovers(cluster)) {
+      colourLeftOut.add(cluster);
+      return null;
+    }
+    if (colour !== undefined) return colour;
+    colour = null;
+    if (input.loadColourEmoji === undefined) {
+      colourError = 'this compile has no colour emoji file';
+      return colour;
+    }
+    try {
+      colour = new ColourEmbedding(lib, pdf, await colourModule.openColourEmoji(input.loadColourEmoji));
+    } catch (error) {
+      colourError = `the colour emoji could not be read (${error instanceof Error ? error.message : String(error)})`;
+    }
+    return colour;
+  };
   /** The glyphs that draw a cluster in the emoji font, or `null` when it cannot. */
   const emojiGlyphs = async (cluster: string): Promise<readonly EmojiGlyph[] | null> => {
     const loaded = await emojiFont();
@@ -394,6 +439,10 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
       if (isBidiControl(cluster)) continue;
       const style = emojiStyleOf(cluster);
       if (style === 'emoji') {
+        if ((await colourFont(cluster))?.has(cluster) === true) {
+          pieces.push({ text: cluster, face: 'colour' });
+          continue;
+        }
         const glyphs = await emojiGlyphs(cluster);
         if (glyphs !== null) pieces.push({ text: cluster, face: 'emoji', glyphs });
         else {
@@ -553,6 +602,10 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
     const face = run[0]?.face ?? 'base';
     const glyphs = run.flatMap((piece) => piece.glyphs ?? []);
     if (face === 'emoji') return emoji ? emoji.face.widthOf(glyphs, size) : 0;
+    if (face === 'colour') {
+      const drawn = colour;
+      return drawn ? run.reduce((sum, piece) => sum + drawn.widthOf(piece.text, size), 0) : 0;
+    }
     if (face === 'cjk') return fallback ? fallback.face.widthOf(glyphs, size) : 0;
     if (face === 'arabic' || face === 'hebrew') return rtlWidth(face, run, size);
     if (face === 'devanagari') return devanagariWidth(run, base, size);
@@ -609,7 +662,16 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
         continue;
       }
       const glyphs = run.flatMap((piece) => piece.glyphs ?? []);
-      if (face === 'emoji' && emoji) emoji.draw(page, glyphs, at, y, size, ink);
+      if (face === 'colour' && colour) {
+        // A colour emoji draws its own colours. On the dark number chip it gets a light backing, so it stays legible.
+        let pen = at;
+        for (const piece of run) {
+          const width = colour.widthOf(piece.text, size);
+          if (ink === PAPER) page.drawRectangle({ x: pen - 0.5, y: y - 0.25 * size, width: width + 1, height: 1.2 * size, color: color(PAPER) });
+          colour.draw(page, piece.text, pen, y, size);
+          pen += width;
+        }
+      } else if (face === 'emoji' && emoji) emoji.draw(page, glyphs, at, y, size, ink);
       else if (face === 'cjk' && fallback) fallback.draw(page, glyphs, at, y, size, ink);
       else page.drawText(run.map((piece) => piece.text).join(''), { x: at, y, size, font: base, color: color(ink) });
       at += runWidth(run, base, size);
@@ -735,12 +797,19 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
 
   // A sheet whose only emoji the font lacks loaded the font and drew nothing in it: no font is written then.
   if (emoji?.used === true) await emoji.finish();
+  if (colour?.used === true) await colour.finish();
   if (fallback?.used === true) await fallback.finish();
   for (const embedding of rtl.values()) if (embedding?.used === true) await embedding.finish();
   if (devanagari?.used === true) await devanagari.finish();
 
   if (fallback) notes.push(`contact sheet: text outside Latin script is set in ${CJK_FONT_NAME}, embedded with only the glyphs it uses`);
   if (emoji?.used === true) notes.push(`contact sheet: emoji are set in ${EMOJI_FONT_NAME}, in monochrome, embedded with only the glyphs they use`);
+  if (colour?.used === true) notes.push(`contact sheet: emoji are set in ${COLOUR_EMOJI_NAME}, in colour, as vector pictures with only the emoji they use`);
+  if (colourLeftOut.size > 0) {
+    const left = [...colourLeftOut];
+    notes.push(`contact sheet: ${COLOUR_EMOJI_NAME} has no picture for ${left.length === 1 ? 'this emoji' : `these ${left.length} emoji`}, so ${left.length === 1 ? 'it is' : 'they are'} set in black and white: ${left.slice(0, 10).join(' ')}${left.length > 10 ? ' …' : ''}`);
+  }
+  if (colourError !== '') notes.push(`contact sheet: ${colourError}, so the emoji are set in black and white`);
   if (rtl.get('arabic')?.used === true) notes.push(`contact sheet: Arabic, Persian and Urdu text is set in ${ARABIC_FONT_NAME}, embedded with only the glyphs it uses`);
   if (rtl.get('hebrew')?.used === true) notes.push(`contact sheet: Hebrew text is set in ${HEBREW_FONT_NAME}, embedded with only the glyphs it uses`);
   if (devanagari?.used === true) notes.push(`contact sheet: Devanagari text is set in ${DEVANAGARI_FONT_NAME}, embedded with only the glyphs it uses`);

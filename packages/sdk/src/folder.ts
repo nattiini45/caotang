@@ -34,7 +34,7 @@ import { assetRecordsOf, createExporter, exportMetadataOf, type ExporterService 
 import { transcodePictureInNode } from '@caotang/exporter/picture-transcoder-node';
 import { loadInkCompiler } from '@caotang/harness';
 import { isIdWithPrefix } from '@caotang/ids';
-import { loadArabicFontInNode, loadCjkFontInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
+import { loadArabicFontInNode, loadCjkFontInNode, loadColourEmojiInNode, loadDevanagariFontInNode, loadEmojiFontInNode, loadHebrewFontInNode } from '@caotang/pdf-fonts/node-loader';
 import {
   ArtifactNotFoundError,
   bodyStemOf,
@@ -355,6 +355,8 @@ export async function openFolder(options: OpenFolderOptions): Promise<OpenFolder
       loadFallbackFont: loadCjkFontInNode,
       // Their emoji font (Noto Emoji, monochrome): from fonts/ beside the bundle, or from @caotang/font-noto-emoji.
       loadEmojiFont: loadEmojiFontInNode,
+      // Their colour emoji (Noto Color Emoji as vector pictures): from fonts/ beside the bundle, or from @caotang/font-noto-color-emoji.
+      loadColourEmoji: loadColourEmojiInNode,
       // Their Arabic, Hebrew and Devanagari fonts: from fonts/ beside the bundle, or from @caotang/font-noto-arabic, @caotang/font-noto-hebrew and @caotang/font-noto-devanagari.
       loadArabicFont: loadArabicFontInNode,
       loadHebrewFont: loadHebrewFontInNode,

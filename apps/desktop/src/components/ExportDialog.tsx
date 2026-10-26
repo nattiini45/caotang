@@ -13,8 +13,11 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
+  COLOUR_EMOJI_HINT,
+  COLOUR_EMOJI_LABEL,
   DEFAULT_TEMPLATE,
   EXPORT_MIME,
+  colourEmojiDefault,
   recipesOf,
   type ExportCommandDigest,
   type ExportFormat,
@@ -101,6 +104,11 @@ interface ShownOptions {
   readonly pageSize: PageSize | undefined;
   /** The contact sheet prints blank frames to draw on, not the pictures; off unless the recipe sets it (storyboard.md §6). */
   readonly paperFrames: boolean;
+  /**
+   * Colour emoji, as the recipe holds it: `undefined` is the format's default (off for the screenplay PDF, on for the contact sheet), and an
+   * explicit value always wins (screenplay.md §5.3, storyboard.md §6).
+   */
+  readonly colourEmoji: boolean | undefined;
 }
 
 /** The scene-number choices, in the words the dialog shows. */
@@ -117,6 +125,36 @@ function pdfOptionsOf(shown: ShownOptions): { sceneNumbers?: SceneNumbersOption;
     ...(shown.sceneNumbers === 'off' ? {} : { sceneNumbers: shown.sceneNumbers }),
     ...(shown.continued ? {} : { continued: false }),
   };
+}
+
+/**
+ * The Colour emoji checkbox, for the two formats that have it. It shows the recipe's value, or the format's default when the recipe
+ * says nothing, and keeps an explicit value only when it differs from that default, so a recipe saved without it stays as it was (an
+ * explicit "off" is kept for the contact sheet, whose default is on).
+ */
+function ColourEmojiControl({
+  format,
+  shown,
+  onChange,
+}: {
+  format: 'pdf' | 'contact-sheet-pdf';
+  shown: ShownOptions;
+  onChange: (colourEmoji: boolean | undefined) => void;
+}): ReactNode {
+  const fallback = colourEmojiDefault(format);
+  return (
+    <>
+      <label className="export-option">
+        <input
+          type="checkbox"
+          checked={shown.colourEmoji ?? fallback}
+          onChange={(event) => onChange(event.target.checked === fallback ? undefined : event.target.checked)}
+        />
+        <span className="export-option-label">{COLOUR_EMOJI_LABEL}</span>
+      </label>
+      <p className="export-note">{COLOUR_EMOJI_HINT[format]}</p>
+    </>
+  );
 }
 
 /** The papers a contact sheet is drawn on. */
@@ -139,6 +177,7 @@ function shownOptionsOf(recipe: ExportRecipe | undefined): ShownOptions {
     charLimit: recipe?.options?.charLimit,
     pageSize: recipe?.options?.pageSize,
     paperFrames: recipe?.options?.paperFrames ?? false,
+    colourEmoji: recipe?.options?.colourEmoji,
     sceneNumbers: recipe?.options?.sceneNumbers ?? 'off',
     continued: recipe?.options?.continued ?? true,
   };
@@ -199,6 +238,7 @@ export function ExportDialog({
         ...pdfOptionsOf(next),
         ...(next.pageSize === undefined ? {} : { pageSize: next.pageSize }),
         ...(next.paperFrames ? { paperFrames: true } : {}),
+        ...(next.colourEmoji === undefined ? {} : { colourEmoji: next.colourEmoji }),
       },
     });
     if (outcome.ok) setNotice(null);
@@ -230,6 +270,7 @@ export function ExportDialog({
         ...pdfOptionsOf(shown),
         ...(shown.pageSize === undefined ? {} : { pageSize: shown.pageSize }),
         ...(shown.paperFrames ? { paperFrames: true } : {}),
+        ...(shown.colourEmoji === undefined ? {} : { colourEmoji: shown.colourEmoji }),
       },
     });
     if (outcome.ok) {
@@ -465,6 +506,7 @@ export function ExportDialog({
                 />
                 <span className="export-option-label">(MORE) and (CONT’D) where a speech crosses a page</span>
               </label>
+              <ColourEmojiControl format="pdf" shown={shown} onChange={(colourEmoji) => saveOptions({ ...shown, colourEmoji })} />
             </>
           ) : null}
           {format === 'contact-sheet-pdf' ? (
@@ -487,6 +529,7 @@ export function ExportDialog({
                 />
                 <span className="export-option-label">Paper frames: blank numbered frames to draw in, without the pictures</span>
               </label>
+              <ColourEmojiControl format="contact-sheet-pdf" shown={shown} onChange={(colourEmoji) => saveOptions({ ...shown, colourEmoji })} />
             </>
           ) : null}
         </fieldset>

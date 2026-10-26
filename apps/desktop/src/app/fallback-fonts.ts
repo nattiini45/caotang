@@ -1,9 +1,11 @@
 /// <reference types="vite/client" />
 // The `?url` imports below are typed by Vite's client types; the root typecheck (e2e/) reaches this file through the session.
 /**
- * The PDFs' fallback fonts, read in the browser (the contact sheet and the screenplay PDF load the same five): Noto Sans Mono
+ * The PDFs' fallback fonts, read in the browser (the contact sheet and the screenplay PDF load the same five, and the colour emoji file): Noto Sans Mono
  * CJK SC for text outside Latin script, Noto Emoji (monochrome) for emoji, and Noto Sans Arabic, Noto Sans Hebrew and Noto Sans
- * Devanagari for those scripts.
+ * Devanagari for those scripts. The colour emoji (`@caotang/font-noto-color-emoji`, Noto Color Emoji as vector pictures, 5 MB) is one more file
+ * the same way, fetched only for an export with Colour emoji on and an emoji the file has; it is checked by length and SHA-256 when it is opened
+ * (`@caotang/pdf-fonts/colour`), so it is not a font file and is not given the font signature check.
  *
  * The font files come from `@caotang/font-noto-cjk`, `@caotang/font-noto-emoji`, `@caotang/font-noto-arabic`,
  * `@caotang/font-noto-hebrew` and `@caotang/font-noto-devanagari`. The `?url` imports make Vite emit each
@@ -50,6 +52,18 @@ export const loadEmojiFontOverHttp: CommonFontLoader = withCommon(
     return fetchBytes(url);
   },
 );
+
+/** The colour emoji file at a URL, whole. `ColourEmoji.open` checks its length and SHA-256, so a page served in its place is refused there. */
+async function fetchAsset(url: string): Promise<Uint8Array> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${url} answered ${response.status}`);
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+export const loadColourEmojiOverHttp: FontLoader = async () => {
+  const { default: url } = await import('@caotang/font-noto-color-emoji/NotoColorEmoji.bin?url');
+  return fetchAsset(url);
+};
 
 export const loadArabicFontOverHttp: FontLoader = async () => {
   const { default: url } = await import('@caotang/font-noto-arabic/NotoSansArabic-Regular.ttf?url');

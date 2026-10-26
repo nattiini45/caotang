@@ -4,7 +4,7 @@
   "license": "MIT",
   "private": true,
   "type": "module",
-  "description": "What both PDFs share for their fallback fonts — byte checks, loaders, fontkit helpers, the CID-font writer, the emoji classifier, the bidi and shaping modules for Arabic and Hebrew, the Brahmic units and the Indic shaper for Devanagari, and the coverage tables, and the common fonts' tables (`@caotang/pdf-fonts/common`)",
+  "description": "What both PDFs share for their fallback fonts — byte checks, loaders, fontkit helpers, the CID-font writer, the emoji classifier, the Type 3 writer for the colour emoji (the asset and its keys are the subpath `@caotang/pdf-fonts/colour`), the bidi and shaping modules for Arabic and Hebrew, the Brahmic units and the Indic shaper for Devanagari, and the coverage tables, and the common fonts' tables (`@caotang/pdf-fonts/common`)",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
@@ -13,11 +13,13 @@
     "./common": "./src/common.ts",
     "./shaper": "./src/shaper.ts",
     "./node-loader": "./src/node-loader.ts",
-    "./indic-shaper": "./src/indic-shaper.ts"
+    "./indic-shaper": "./src/indic-shaper.ts",
+    "./colour": "./src/colour-emoji.ts"
   },
   "dependencies": {
     "@caotang/font-noto-arabic": "workspace:*",
     "@caotang/font-noto-cjk": "workspace:*",
+    "@caotang/font-noto-color-emoji": "workspace:*",
     "@caotang/font-noto-devanagari": "workspace:*",
     "@caotang/font-noto-emoji": "workspace:*",
     "@caotang/font-noto-hebrew": "workspace:*",
