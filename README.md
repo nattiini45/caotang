@@ -32,7 +32,7 @@ Not in this build yet: the desktop wrapper. [docs/USER-GUIDE.md](docs/USER-GUIDE
 ## Requirements
 
 - **Node.js.** The `engines` field of [package.json](package.json) allows Node 22.12 or later in the 22 line, 24.x, and 26 or later. Continuous integration tests the 22.12.0 floor and Node 24; Node 26 is allowed but not covered.
-- **pnpm** 12.9.1, the version the `packageManager` field pins. Run `corepack enable`, and the right pnpm is used.
+- **pnpm** 12.9.1, pinned in `packageManager`. With Node 22.12.0, update Corepack first with `npm install --global corepack@0.34.3`; the bundled Corepack 0.29.4 cannot verify pnpm's current signing key. Then run `corepack enable`.
 - **A browser.** The app is written for current browsers. End-to-end tests gate every pull request in Chromium, Firefox and WebKit; the Firefox and WebKit suite also runs nightly and on demand. Opening and saving a project folder needs Chrome or Edge, or another Chromium-based browser. Bundles work in any browser.
 - **A window at least 960 px wide.** The layout is made for that width, and a narrower window scrolls rather than overlapping. Under 1100 px the toolbar wraps onto a second row and the side panels narrow.
 

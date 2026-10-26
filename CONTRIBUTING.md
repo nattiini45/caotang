@@ -7,7 +7,7 @@ Thank you for helping. This page covers setting up, the checks a change must pas
 You need:
 
 - **Node.js** in a version the `engines` field of [package.json](package.json) allows: 22.12 or later in the 22 line, 24, or 26 and later. CI tests the 22.12.0 floor and Node 24; Node 26 is allowed but not covered.
-- **pnpm** in the version the `packageManager` field pins. Run `corepack enable` once and the right pnpm is used automatically.
+- **pnpm** in the version the `packageManager` field pins. Run `corepack enable` once and the right pnpm is used automatically. With Node 22.12.0, first update Corepack to 0.34.3 (`npm install --global corepack@0.34.3`); the bundled Corepack 0.29.4 cannot verify pnpm's current signing key.
 - **A Chromium-based browser** to run the end-to-end tests locally and to try folder saves. Firefox and WebKit are optional locally; CI gates pull requests in all three engines and also runs Firefox/WebKit nightly.
 
 Then:

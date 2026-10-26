@@ -20,6 +20,8 @@ Workspace globs (`pnpm-workspace.yaml`): `apps/*`, `packages/*`, `vendor/*`.
 
 ## Setup
 
+With Node 22.12.0, first run `npm install --global corepack@0.34.3`; the bundled Corepack 0.29.4 cannot verify pnpm 12.9.1's current signing key.
+
 ```sh
 corepack enable          # uses the pnpm version pinned in package.json
 pnpm install

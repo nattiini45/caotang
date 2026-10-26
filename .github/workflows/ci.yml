@@ -26,8 +26,9 @@
 # Details that are load-bearing rather than tidy:
 #   - permissions stay `contents: read`: the workflow needs no write token, so a pull request from a fork cannot use it to
 #     change the repository. First-time contributors' runs wait for a maintainer's approval (a repository setting).
-#   - pnpm comes from the packageManager field (corepack), so CI and every contributor run the same pnpm major. The lockfile
-#     format depends on it.
+#   - pnpm comes from the packageManager field (corepack), so CI and every contributor run the same pnpm major. Node 22.12.0's
+#     bundled Corepack 0.29.4 cannot verify the pinned pnpm 12.9.1 signature, so that matrix leg installs Corepack 0.34.3
+#     in RUNNER_TEMP before enabling the shims. The lockfile format depends on the pnpm major.
 name: ci
 
 on:
@@ -57,6 +58,11 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
+      - name: Install Corepack 0.34.3 for Node 22.12.0
+        if: matrix.node == '22.12.0'
+        run: |
+          npm install --prefix "$RUNNER_TEMP/corepack-0.34.3" corepack@0.34.3
+          echo "$RUNNER_TEMP/corepack-0.34.3/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: Enable corepack (pnpm from packageManager)
         run: corepack enable
