@@ -59,14 +59,14 @@ const lines = (rows: readonly unknown[]): string => rows.map((row) => JSON.strin
 /** A fixed input for the review prompts, so their text is the template and nothing else. */
 const BLOCK = {
   pairId: 'p1',
-  category: 'physical' as const,
+  category: 'characterization' as const,
   a: { docId: 'd1', from: 0, to: 4, quote: 'blue', before: 'Her eyes were ', after: '.' },
   b: { docId: 'd2', from: 0, to: 5, quote: 'green', before: 'Her eyes were ', after: '.' },
 };
 
 function sources(): readonly Source[] {
   const tools = productTools();
-  const extraction = extractionPrompt({ docId: 'd1', title: 'Title', body: 'Body.', categories: ['physical'], codex: '', storySoFar: '' });
+  const extraction = extractionPrompt({ docId: 'd1', title: 'Title', body: 'Body.', categories: ['characterization'], codex: '', storySoFar: '' });
   const verification = verificationPrompt([BLOCK]);
   const out: Source[] = [
     { id: 'planner.system.json', text: plannerSystem(tools) },

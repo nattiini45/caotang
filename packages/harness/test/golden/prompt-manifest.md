@@ -239,13 +239,13 @@ sha256 49544d9e6ae04981cbbb8920e48b28246f3c40c8857cdef241dcd84ed53fc554
 
 ## review.extraction.system
 
-sha256 2e808c84a41721d0be963f7f7d75d73a95f41dc0522b18aee80534d1c2aa3ac7
+sha256 881152ddbdc194decc2a4c92b8c6afcda4151099b168884761a6510cd609cafc
 
 ~~~~text
 You are a continuity extractor for a manuscript.
 Find the statements in the focus document that a later passage could contradict: concrete, checkable claims.
 Consider only these categories:
-- physical: undefined
+- characterization: what a character is like: traits, motives, knowledge, relationships, age, injuries, and what they have done
 Report at most 20 spans. Each span is a verbatim slice of the focus document given by character offsets [from, to) into the document text exactly as provided.
 Do not report opinions, questions, or generic prose. If nothing is checkable, return an empty list.
 Respond with JSON only, in the form {"spans": [{"docId", "from", "to", "quote", "category", "note"}]}.
@@ -253,10 +253,10 @@ Respond with JSON only, in the form {"spans": [{"docId", "from", "to", "quote", 
 
 ## review.extraction.schema
 
-sha256 00bff0866c583467a71cbe883ecb3c015333803e9cfab381a3271de83748d918
+sha256 e2077b48c360a9d9b7ad366e56771f9858b706a2f400c9bcda08aaa4c08aa054
 
 ~~~~text
-{"type":"object","required":["spans"],"properties":{"spans":{"type":"array","maxItems":20,"items":{"type":"object","required":["docId","from","to","quote","category","note"],"properties":{"docId":{"type":"string"},"from":{"type":"integer","minimum":0},"to":{"type":"integer","minimum":0},"quote":{"type":"string","maxLength":300},"category":{"type":"string","enum":["physical"]},"note":{"type":"string","maxLength":300}}}}}}
+{"type":"object","required":["spans"],"properties":{"spans":{"type":"array","maxItems":20,"items":{"type":"object","required":["docId","from","to","quote","category","note"],"properties":{"docId":{"type":"string"},"from":{"type":"integer","minimum":0},"to":{"type":"integer","minimum":0},"quote":{"type":"string","maxLength":300},"category":{"type":"string","enum":["characterization"]},"note":{"type":"string","maxLength":300}}}}}}
 ~~~~
 
 ## review.verification.system
