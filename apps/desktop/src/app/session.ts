@@ -341,6 +341,7 @@ export class ProjectSession {
   private coherencePort: CoherencePort | null = null;
   /** The project's recurring tasks and where they are saved (tasks-io.ts). Null until the lifecycle has loaded them. */
   private tasksHome_: TasksHome | null = null;
+  private detachTasks: (() => void) | null = null;
   private coherenceWritable = false;
   private coherenceNotices: readonly string[] = [];
   /** Why the last findings save to this browser failed. The save indicator reads failed while it is set. */
@@ -1189,7 +1190,10 @@ export class ProjectSession {
 
   /** Gives the session its recurring tasks, as the lifecycle loaded them (agent-harness.md §12). They are not project state: no command changes them. */
   attachTasks(home: TasksHome): void {
+    this.detachTasks?.();
     this.tasksHome_ = home;
+    // A tasks save is in the store only once it lands, so the save indicator follows it as it follows a findings write.
+    this.detachTasks = home.subscribe(() => this.bump());
     this.bump();
   }
 
@@ -1358,6 +1362,7 @@ export class ProjectSession {
     if (this.persistence.getStatus() === 'writing') return 'saving';
     if (this.autosave.dirtyDocIds().length > 0) return 'saving';
     if (this.coherenceInFlight > 0) return 'saving';
+    if (this.tasksHome_?.pending() === true) return 'saving';
     return 'saved';
   }
 
@@ -1511,6 +1516,8 @@ export class ProjectSession {
         await this.persistence.settle();
         await this.coherenceQueue;
         await this.tasksHome_?.settled();
+        this.detachTasks?.();
+        this.detachTasks = null;
         this.pending.prune();
         this.autosave.dispose();
         if (this.sitting.isOpen() && (this.sitting.pending()?.docIds.length ?? 0) > 0) {

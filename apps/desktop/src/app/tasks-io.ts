@@ -86,6 +86,9 @@ async function saveToFolder(copy: FolderCopy, file: TasksFile): Promise<void> {
 export class TasksHome {
   private file: TasksFile;
   private chain: Promise<void> = Promise.resolve();
+  /** The saves that were asked for and have not settled: the save indicator reads saving while there is one (`pending`). */
+  private inFlight = 0;
+  private readonly listeners = new Set<() => void>();
   private failure: string | null = null;
   private folderFailure: string | null = null;
 
@@ -106,6 +109,22 @@ export class TasksHome {
 
   status(): TasksStatus {
     return { writable: this.writable && this.mirror.readable, notices: this.notices, saveFailure: this.failure ?? this.folderFailure };
+  }
+
+  /**
+   * Whether a save is queued or running. A save is several writes (the snapshots, then the file) and none of it is in the store until it
+   * lands, so the session's save indicator reads saving meanwhile, and a reload begun when it read saved cannot lose the writer's task.
+   */
+  pending(): boolean {
+    return this.inFlight > 0;
+  }
+
+  /** Calls `listener` when a save is asked for and when every save so far has settled. */
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   /** The file as it is written, for a bundle; `undefined` when the project has no task, so a bundle carries none. */
@@ -167,13 +186,22 @@ export class TasksHome {
     }).then(() => undefined);
   }
 
+  private announce(): void {
+    for (const listener of this.listeners) listener();
+  }
+
   /** Resolves when every save made so far has settled. */
   settled(): Promise<void> {
     return this.chain.then(() => undefined);
   }
 
   private enqueue(work: () => Promise<string | null>): Promise<string | null> {
-    const run = this.chain.then(work);
+    this.inFlight += 1;
+    this.announce();
+    const run = this.chain.then(work).finally(() => {
+      this.inFlight -= 1;
+      this.announce();
+    });
     this.chain = run.then(
       () => undefined,
       () => undefined,
