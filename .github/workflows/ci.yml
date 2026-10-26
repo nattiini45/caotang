@@ -106,7 +106,7 @@ jobs:
           test "$code" = 7
           test "$(grep -c '^::error ' "$RUNNER_TEMP/scan.out")" = 1
           grep -q '^::error file=docs/n_7K2QX9M4A1.md,line=10,endLine=11,title=presence.expected::' "$RUNNER_TEMP/scan.out"
-          test -z "$(git status --porcelain -- packages/cli/test/fixtures/continuity-project)"
+          test -z "$(git status --porcelain --ignored=matching -- packages/cli/test/fixtures/continuity-project)"
 
   verify:
     name: verify

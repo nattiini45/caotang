@@ -74,6 +74,25 @@ describe('docs/ci/continuity-scan.yml', () => {
     expect(template).toContain('PLACEHOLDERS');
   });
 
+  it('evaluates each guard: a placeholder fails it, a tag and a 64-digit hash pass it, and a failed guard exits 1', () => {
+    const guards = [
+      { name: 'CAOTANG_VERSION', good: 'v0.1.0', bad: ['v0.1', '0.1.0', 'v0.1.0 ', 'latest'] },
+      { name: 'CAOTANG_SHA256', good: 'a'.repeat(64), bad: ['a'.repeat(63), 'A'.repeat(64), `${'a'.repeat(64)}0`] },
+    ];
+    for (const { name, good, bad } of guards) {
+      const line = code.split('\n').find((candidate) => candidate.includes(`"$${name}" =~`)) ?? '';
+      expect(line, `the guard for ${name}`).not.toBe('');
+      const pattern = new RegExp(/=~ (\S+) \]\]/.exec(line)?.[1] ?? '(?!)');
+      const placeholder = new RegExp(`${name}: '([^']*)'`).exec(code)?.[1] ?? '';
+      expect(pattern.test(placeholder), `the placeholder of ${name} passes its guard`).toBe(false);
+      expect(pattern.test(good)).toBe(true);
+      for (const value of bad) expect(pattern.test(value), value).toBe(false);
+      // The guard fails closed: a mismatch prints an error annotation and ends the step with exit 1, never `|| true`.
+      expect(line).toMatch(/\|\| \{ echo "::error::[^"]+"; exit 1; \}\s*$/);
+    }
+    expect(code).toContain('set -euo pipefail');
+  });
+
   it('scans the whole project and reads the folder: full scope, GitHub annotations, the step summary, no --write', () => {
     const scan = code.split('\n').find((line) => line.includes('caotang.mjs" scan')) ?? '';
     expect(scan).toContain('--scope full');
@@ -98,6 +117,6 @@ describe('ci.yml scans the fixture project', () => {
     expect(block).toContain('test "$code" = 7');
     expect(block).toContain("grep -c '^::error '");
     expect(block).toContain('line=10,endLine=11,title=presence');
-    expect(block).toContain('git status --porcelain -- packages/cli/test/fixtures/continuity-project');
+    expect(block).toContain('git status --porcelain --ignored=matching -- packages/cli/test/fixtures/continuity-project');
   });
 });
