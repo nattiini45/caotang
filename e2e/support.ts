@@ -72,16 +72,16 @@ function exactly(text: string): RegExp {
   return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
 }
 
-/**
- * A writer-typed value as a message renders it for a locator: optionally wrapped in the bidi
- * isolates FSI/PDI (U+2068/U+2069) that visible writer text carries (i18n.md §5.3), and escaped for
- * a RegExp. An exact string assertion no longer matches once the value is isolated.
- */
 /** A region's text with the visible writer-text isolates removed, for a sentence that names several titles. */
 export function withoutIsolates(value: string | null): string {
   return (value ?? '').replace(/[\u2066-\u2069]/g, '');
 }
 
+/**
+ * A writer-typed value as a message renders it for a locator: optionally wrapped in the bidi
+ * isolates FSI/PDI (U+2068/U+2069) that visible writer text carries (i18n.md §5.3), and escaped for
+ * a RegExp. An exact string assertion no longer matches once the value is isolated.
+ */
 export function writerText(value: string): string {
   return `\\u2068?${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\u2069?`;
 }

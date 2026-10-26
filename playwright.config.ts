@@ -4,7 +4,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 // Playwright's Babel pipeline does not run the Lingui macro transform, and the pure-model specs import app
 // modules that use `t`/`msg`. Run the same macro through babel-plugin-macros for those files, and import the
-// English fallback before they evaluate; browser specs never import app source, so the scope stays narrow.
+// English fallback before they evaluate. The scope names the app source as well as e2e/unit because three
+// browser specs import macro-free app modules; the transform leaves those modules unchanged.
 process.env['PW_TEST_SOURCE_TRANSFORM'] = resolve('e2e/playwright-lingui-plugin.cjs');
 process.env['PW_TEST_SOURCE_TRANSFORM_SCOPE'] = [resolve('e2e/unit'), resolve('apps/desktop/src')].join(delimiter);
 
