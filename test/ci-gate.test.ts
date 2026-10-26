@@ -44,4 +44,10 @@ describe('the required pull-request CI gate', () => {
     expect(browsers).toContain('schedule:');
     expect(browsers).toContain('group: e2e-browsers-${{ github.event_name }}-${{ github.ref }}');
   });
+
+  it('gives Firefox a HOME owned by root in the Playwright container', () => {
+    const e2e = jobBlock(browsers, 'e2e');
+    expect(e2e).toContain('image: mcr.microsoft.com/playwright:v1.63.0-noble');
+    expect(e2e).toContain('HOME: /root');
+  });
 });

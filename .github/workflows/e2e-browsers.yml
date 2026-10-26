@@ -54,6 +54,8 @@ jobs:
       - name: End-to-end (${{ matrix.browser }}, shard ${{ matrix.shard }} of 2)
         run: pnpm exec playwright test --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/2 --reporter=blob
         env:
+          # GitHub's /github/home is owned by pwuser, but this container runs as root and Firefox checks HOME ownership.
+          HOME: /root
           CI: 'true'
           CAOTANG_E2E_BROWSERS: all
 
