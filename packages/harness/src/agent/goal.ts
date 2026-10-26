@@ -515,13 +515,15 @@ export interface RestoredTurn {
 /**
  * Restores the whole run at once: every iteration's undo group, newest first, which is "restore to before this goal". It stops after the
  * first iteration it could not take back completely, so an older iteration is not undone under newer writes that are still in the
- * project. The failed entries stay in that group, so the restore can be tried again; the iterations after the last entry are untouched.
+ * project. The failed entries stay in that group, so the restore can be tried again. An iteration that was taken back completely has no
+ * group left, so a second call skips it (`not-found`) and carries on with the older iterations; the result lists only those it tried.
  */
 export function restoreGoal(session: AgentSession, run: GoalRun): readonly RestoredTurn[] {
   const out: RestoredTurn[] = [];
   for (const record of [...run.iterations].reverse()) {
     if (record.report.undoGroupId === undefined) continue;
     const result = session.restore(record.turnId);
+    if (!result.ok && result.error.code === 'not-found') continue;
     const complete = result.ok && result.value.failures.length === 0;
     out.push({ turnId: record.turnId, result, complete });
     if (!complete) break;

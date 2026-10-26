@@ -48,6 +48,7 @@ function scripted(state: ProjectState, edits: readonly Edit[]): Scripted {
   const intents: string[] = [];
   const restored: string[] = [];
   const partial = new Set<string>();
+  const gone = new Set<string>();
   const session = {
     submit: async (intent: string): Promise<TurnReport> => {
       intents.push(intent);
@@ -57,7 +58,11 @@ function scripted(state: ProjectState, edits: readonly Edit[]): Scripted {
     },
     restore: (turnId: string) => {
       restored.push(turnId);
-      return restored.length > 0 && turnId !== 'unrestorable' ? ok({ groupId: turnId, undone: [], failures: partial.has(turnId) ? [{ target: 'doc.write', code: 'conflict', message: 'edited since', correctiveHint: 'read it again' }] : [] } as never) : err({ code: 'not-found', message: 'no such turn' } as never);
+      // A bus undo deletes the group once nothing is left in it, so a second restore of it finds nothing.
+      if (gone.has(turnId)) return err({ code: 'not-found', message: 'no such undo group' } as never);
+      const left = partial.has(turnId) ? [{ target: 'doc.write', code: 'conflict', message: 'edited since', correctiveHint: 'read it again' }] : [];
+      if (left.length === 0) gone.add(turnId);
+      return ok({ groupId: turnId, undone: [], failures: left } as never);
     },
   } as unknown as AgentSession;
   return { session, intents, restored, partial, state };
@@ -606,6 +611,18 @@ describe('restoreGoal, when an iteration cannot be taken back completely', () =>
     const restored = restoreGoal(scripts.session, finished);
     expect(restored.map((entry) => [entry.turnId, entry.complete])).toEqual([['t2', false]]);
     expect(scripts.restored).toEqual(['t2']);
+  });
+
+  it('carries on with the older iterations on a second call, skipping the one that was already taken back', async () => {
+    const scripts = scripted(makeState(), [() => undefined]);
+    const finished = await run(scripts, goalOf([SYNOPSES]));
+    expect(finished.iterations).toHaveLength(2);
+    scripts.partial.add('t1');
+    expect(restoreGoal(scripts.session, finished).map((entry) => [entry.turnId, entry.complete])).toEqual([['t2', true], ['t1', false]]);
+    scripts.partial.delete('t1');
+    scripts.restored.length = 0;
+    expect(restoreGoal(scripts.session, finished).map((entry) => [entry.turnId, entry.complete])).toEqual([['t1', true]]);
+    expect(scripts.restored).toEqual(['t2', 't1']);
   });
 
   it('marks every iteration complete when nothing was left in place', async () => {
