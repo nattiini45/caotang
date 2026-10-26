@@ -18,7 +18,7 @@ describe('the office-interop job in ci.yml', () => {
 
   it('exists, and installs LibreOffice and the openpyxl version the checker documents', () => {
     expect(job).not.toBe('');
-    const install = job.split('\n').filter((line) => line.includes(' install'));
+    const install = job.split('\n').filter((line) => line.includes(' install') || line.includes('tools/ci/apt-install.sh'));
     expect(install.join('\n')).toContain('libreoffice-calc');
     const pin = /openpyxl==[\d.]+/.exec(job)?.[0];
     expect(pin).toBeDefined();
