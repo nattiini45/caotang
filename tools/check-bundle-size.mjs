@@ -45,8 +45,8 @@ export const BUDGET = {
   initialGzip: 790_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
-  // about 280 kB of it; the ceiling is that plus about 5%.
-  totalJs: 5_430_000,
+  // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
+  totalJs: 5_900_000,
 };
 
 const KB = 1000;
