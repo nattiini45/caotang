@@ -34,6 +34,16 @@
  *    result §3 and §7 spend their whole length refusing. Logged in
  *    docs/decisions.md.
  *
+ * ## Step restore: `callId` on entries and `undoFrom`
+ *
+ * An entry carries the `callId` of the command that registered it (an agent's tool call; a user gesture has none). `undoFrom(group,
+ * callId)` is a restore to before one step of a turn: it compensates the first entry of that step and every later entry of the
+ * group, newest first, and leaves the earlier steps applied and the group in place. A step's commands are not all named `callId`:
+ * a compound tool's sub-commands are `callId:idx`, and a retry through a port is `callId:port:N`, so the first entry matches when
+ * its id is `callId` or starts with `callId:`. The `.` separator is not used on purpose, because `p.1` is a prefix of `p.10`.
+ * It goes through the same replay flag and the same failure rule as `undo`: an entry that fails stays, in order, and so does the
+ * group.
+ *
  * ## Why `isReplaying` is not a detail
  *
  * Redo is v0.2, so undoing a group dispatches each `inverse` back through
@@ -68,6 +78,8 @@ export type UndoEntry =
       readonly name: CommandName;
       readonly label: string;
       readonly inverse: Command;
+      /** The tool call that registered it, when an agent did: what `undoFrom` selects a step by. */
+      readonly callId?: string;
     }
   | {
       readonly kind: 'compensable';
@@ -75,6 +87,8 @@ export type UndoEntry =
       readonly name: CommandName;
       readonly label: string;
       readonly restore: () => void;
+      /** The tool call that registered it, when an agent did: what `undoFrom` selects a step by. */
+      readonly callId?: string;
     };
 
 export interface UndoGroup {
@@ -122,6 +136,12 @@ export interface UndoStore {
   endTurn(turnId: string): void;
   /** §5: compensate every entry in reverse order. */
   undo(id: string): Result<UndoOutcome, CommandError>;
+  /**
+   * Compensates the entries of the step `callId` (the first entry whose `callId` is that id or starts with `${callId}:`) and every
+   * entry registered after it in the group, newest first. The earlier entries stay applied and the group stays. Failed entries stay
+   * as in `undo`. An id no entry carries is `not-found`, and nothing changes.
+   */
+  undoFrom(id: string, callId: string): Result<UndoOutcome, CommandError>;
   /**
    * Drops a group WITHOUT compensating it: its changes stay in the project, and no undo can take them back. For a change the
    * writer did not make and must not lose to Ctrl+Z, such as the one-time move of stored furniture into the manifest
@@ -261,18 +281,47 @@ export function createUndoStore(options: UndoStoreOptions = {}): UndoStore {
     }
   }
 
+  function missingGroup(id: string): CommandError {
+    return {
+      code: 'not-found',
+      message: `there is no undo group "${id}" to undo. Nothing was changed.`,
+      target: id,
+      correctiveHint: 'list the groups with undoStore.groups() and undo one of those ids',
+    };
+  }
+
   function undo(id: string): Result<UndoOutcome, CommandError> {
     const record = records.get(id);
-    if (record === undefined) {
+    if (record === undefined) return err(missingGroup(id));
+    return ok(compensateFrom(record, 0));
+  }
+
+  /** The first entry of the step `callId`: its id, or an id that extends it with `:` (a compound's `:idx`, a port's `:port:N`). */
+  function stepStart(record: GroupRecord, callId: string): number {
+    return record.entries.findIndex((entry) => entry.callId !== undefined && (entry.callId === callId || entry.callId.startsWith(`${callId}:`)));
+  }
+
+  function undoFrom(id: string, callId: string): Result<UndoOutcome, CommandError> {
+    const record = records.get(id);
+    if (record === undefined) return err(missingGroup(id));
+    const from = stepStart(record, callId);
+    if (from === -1) {
       return err({
         code: 'not-found',
-        message: `there is no undo group "${id}" to undo. Nothing was changed.`,
-        target: id,
-        correctiveHint: 'list the groups with undoStore.groups() and undo one of those ids',
+        message: `undo group "${id}" has no step "${callId}", or it was already taken back. Nothing was changed.`,
+        target: callId,
+        correctiveHint: 'restore a step of a turn that is still on the undo stack, by the call id the turn recorded for it',
       });
     }
+    return ok(compensateFrom(record, from));
+  }
+
+  /** Compensates `record.entries[from..]` newest first. What fails stays; the group goes only when nothing is left of it. */
+  function compensateFrom(record: GroupRecord, from: number): UndoOutcome {
+    const id = record.id;
+    const kept = record.entries.slice(0, from);
     // A copy, because a successful compensation mutates `record.entries` at the end.
-    const ordered = [...record.entries].reverse();
+    const ordered = record.entries.slice(from).reverse();
     const undone: UndoEntry[] = [];
     const failures: PerOpFailure[] = [];
     /** Positions in `ordered`, not names: two commands of one turn can share a name. */
@@ -296,16 +345,15 @@ export function createUndoStore(options: UndoStoreOptions = {}): UndoStore {
         });
       }
     });
-    if (failures.length === 0) {
+    // Keep what is still applied: the steps before `from`, and what failed, back in registration order.
+    record.entries = [...kept, ...failedAt.map((position) => ordered[position]!).reverse()];
+    if (record.entries.length === 0) {
       records.delete(id);
       const at = order.indexOf(id);
       if (at !== -1) order.splice(at, 1);
       if (record.turnId !== undefined) turnGroups.delete(record.turnId);
-    } else {
-      // Keep only what is still undone, back in registration order.
-      record.entries = failedAt.map((position) => ordered[position]!).reverse();
     }
-    return ok({ groupId: id, undone, failures });
+    return { groupId: id, undone, failures };
   }
 
   return {
@@ -320,6 +368,7 @@ export function createUndoStore(options: UndoStoreOptions = {}): UndoStore {
       turnGroups.delete(turnId);
     },
     undo,
+    undoFrom,
     forget: (id) => {
       const record = records.get(id);
       if (record === undefined) return false;
