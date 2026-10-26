@@ -132,7 +132,8 @@ export interface GoalOptions {
   readonly approvedLargeScope?: boolean;
   /** Asked once when an iteration broke a check that passed. Absent, the run stops and says what it offers. */
   readonly onRegression?: (regression: Regression) => Promise<RegressionChoice> | RegressionChoice;
-  readonly onIteration?: (record: IterationRecord) => void;
+  /** Told after each iteration. The run waits for it; a throw or a rejection becomes a note and does not lose the run. */
+  readonly onIteration?: (record: IterationRecord) => void | Promise<void>;
   /** Where the one coherence run goes. Default: the project's held coherence file. */
   readonly recordCoherence?: (file: NonNullable<ProjectState['coherence']>) => void;
 }
@@ -254,8 +255,10 @@ export function scopeBreaches(report: TurnReport, state: ProjectState, before: r
   const view: ProjectState = { ...state, manifest: { ...state.manifest, tree: [...before] } };
   const out: string[] = [];
   // An external tool is not in the registry, so no document of it can be worked out. One that ran under a card was not a trusted read
-  // (extensibility §4 rule 2: only a read the writer trusts runs without asking), so it is taken for a write.
-  const carded = new Set(report.cards.flatMap((card) => card.tools));
+  // (extensibility §4 rule 2: only a read the writer trusts runs without asking), so it is taken for a write. A plan card lists every
+  // step, reads included, so only the cards that carry the call itself count (a one-step confirm card, which an external write always
+  // gets, even inside a plan); a declined card means the call did not run under it.
+  const carded = new Set(report.cards.filter((card) => card.kind !== 'plan' && card.decision !== 'cancelled').flatMap((card) => card.tools));
   for (const entry of report.trace) {
     if (entry.outcome !== 'ok') continue;
     const meta = metadataFor(entry.tool);
@@ -320,12 +323,16 @@ function scanPlan(
   return picked.length === 0 ? undefined : { scope, checks: picked };
 }
 
-const SETTINGS_BLOCK = 'a check cannot run: every check it names is turned off in Settings › Coherence, and no turn could change that';
-
-/** True when every check still failing is one a setting, not the manuscript, keeps from passing. */
-const onlySettingsBlock = (results: readonly CheckResult[]): boolean => {
+/** True when every check still failing is one a setting or its scope, not the manuscript, keeps from passing. */
+const onlyUnmeetable = (results: readonly CheckResult[]): boolean => {
   const failing = results.filter((result) => !result.pass);
   return failing.length > 0 && failing.every((result) => result.unmeetable === true);
+};
+
+/** Why the run ends without another turn: what each check that cannot be met says, in its own words. */
+const unmeetableReason = (results: readonly CheckResult[]): string => {
+  const said = results.filter((result) => !result.pass).map((result) => result.failures[0]?.detail ?? result.label);
+  return `a check cannot be met: ${[...new Set(said)].join('; ')}; no turn could change that`;
 };
 
 export function createGoalRunner(): GoalRunner {
@@ -357,7 +364,16 @@ export function createGoalRunner(): GoalRunner {
         if (spec.kind === 'coherence.clean' || spec.scope.mode === 'changed') continue;
         const read = documentsInScope(state, spec.scope, options.withheld());
         if (read.nodes.length === 0 && read.missing.length === 0) {
-          return refuse(`check "${checkLabel(spec)}" reads no document: its scope holds nothing a goal can read; name a scope with documents, or add them first`);
+          // Say what keeps the scope empty, by count: the documents exist, and a rule or the archive is the cause. Never a title or an id.
+          const causes = [
+            ...(read.withheld > 0 ? [`${plural(read.withheld, 'document')} of its scope ${read.withheld === 1 ? 'is' : 'are'} withheld from the agent by a rule`] : []),
+            ...(read.archived.length > 0 ? [`${plural(read.archived.length, 'document')} of its scope ${read.archived.length === 1 ? 'is' : 'are'} archived, which a goal does not read`] : []),
+          ];
+          const why =
+            causes.length === 0
+              ? 'its scope holds nothing a goal can read; name a scope with documents, or add them first'
+              : `${causes.join(' and ')}; name a scope with documents the agent may read`;
+          return refuse(`check "${checkLabel(spec)}" reads no document: ${why}`);
         }
       }
 
@@ -368,6 +384,10 @@ export function createGoalRunner(): GoalRunner {
 
       const iterations: IterationRecord[] = [];
       const notes: string[] = [];
+      // Said once: a failure that recurs on every iteration is one clause in `notes` and in `reason`, not one per iteration.
+      const note = (text: string): void => {
+        if (!notes.includes(text)) notes.push(text);
+      };
       let results = evaluate();
       const passedBefore = new Set(results.filter((result) => result.pass).map((result) => result.key));
       let best = sum(results);
@@ -391,7 +411,7 @@ export function createGoalRunner(): GoalRunner {
               ...(excluded === undefined ? {} : { isExcluded: excluded }),
             });
           } catch (error) {
-            notes.push(`the closing coherence scan did not run: ${error instanceof Error ? error.message : 'the scope could not be read'}`);
+            note(`the closing coherence scan did not run: ${error instanceof Error ? error.message : 'the scope could not be read'}`);
           }
           // Recording is a second step with its own failure: the scan ran, but it is not the last scan in Findings.
           if (scanned !== undefined) {
@@ -401,7 +421,7 @@ export function createGoalRunner(): GoalRunner {
               else options.recordCoherence(file);
               scanRunId = scanned.run.id;
             } catch (error) {
-              notes.push(
+              note(
                 `the closing coherence scan ran but could not be recorded, so it is not the last scan in Findings: ${error instanceof Error ? error.message : 'it could not be saved'}`,
               );
             }
@@ -412,7 +432,7 @@ export function createGoalRunner(): GoalRunner {
       };
 
       if (results.every((result) => result.pass)) return finish('passed', 'every check already passes, so no turn was needed');
-      if (onlySettingsBlock(results)) return finish('failed', SETTINGS_BLOCK);
+      if (onlyUnmeetable(results)) return finish('failed', unmeetableReason(results));
 
       for (;;) {
         if (options.signal?.aborted === true) return finish('cancelled', 'the writer stopped the run');
@@ -434,9 +454,9 @@ export function createGoalRunner(): GoalRunner {
         const record: IterationRecord = { n, turnId: report.turnId, intent, before, after: results, report, distance: { before: sum(before), after: sum(results) }, outOfScope: breaches };
         iterations.push(record);
         try {
-          options.onIteration?.(record);
+          await options.onIteration?.(record);
         } catch (error) {
-          notes.push(`the iteration observer failed: ${error instanceof Error ? error.message : 'it threw'}`);
+          note(`the iteration observer failed: ${error instanceof Error ? error.message : 'it threw'}`);
         }
 
         if (breaches.length > 0) {
@@ -453,7 +473,7 @@ export function createGoalRunner(): GoalRunner {
         }
         if (report.status === 'failed') return finish('failed', `iteration ${n} failed: ${report.summary}`);
         // What is left cannot be done by writing: another turn would be paid for and could not help.
-        if (onlySettingsBlock(results)) return finish('failed', SETTINGS_BLOCK);
+        if (onlyUnmeetable(results)) return finish('failed', unmeetableReason(results));
 
         const broken = results.filter((result) => !result.pass && passedBefore.has(result.key));
         for (const result of results) if (result.pass) passedBefore.add(result.key);
@@ -517,6 +537,10 @@ export interface RestoredTurn {
  * first iteration it could not take back completely, so an older iteration is not undone under newer writes that are still in the
  * project. The failed entries stay in that group, so the restore can be tried again. An iteration that was taken back completely has no
  * group left, so a second call skips it (`not-found`) and carries on with the older iterations; the result lists only those it tried.
+ *
+ * A `not-found` is read as "already taken back", the only way a group leaves the undo store during a goal run. The same skip happens if
+ * the session handed in does not own these turns, or if the group was forgotten by other means: the list is then shorter than the run,
+ * or empty, and nothing in it says why. Pass the session that ran the goal, and compare the entries with `run.iterations` to be sure.
  */
 export function restoreGoal(session: AgentSession, run: GoalRun): readonly RestoredTurn[] {
   const out: RestoredTurn[] = [];
