@@ -14,6 +14,8 @@ export interface TraceMessageView {
   readonly chars: number;
   /** The tool calls the message carries, as `name(arguments)`. */
   readonly calls: readonly string[];
+  /** Characters cut from the message to keep the record within its cap. `chars` counts them, so it is what was sent. */
+  readonly cut?: number;
 }
 
 export interface TraceCallRow {
@@ -44,6 +46,8 @@ export interface TraceCallRow {
   readonly error?: string;
   /** Characters cut from the response to keep the record within its cap. */
   readonly cut?: number;
+  /** Said when the row had to be made from the reply alone. */
+  readonly note?: string;
 }
 
 export interface TraceToolRow {
@@ -60,6 +64,8 @@ export interface TraceToolRow {
   readonly startMs: number;
   readonly durationMs?: number;
   readonly cut?: number;
+  /** Characters cut from the parameters to keep the record within its cap. `cut` is the result's. */
+  readonly paramsCut?: number;
 }
 
 export interface TraceNoteRow {
@@ -94,15 +100,16 @@ const jsonOf = (value: unknown): string => {
   }
 };
 
-function viewOf(id: string, message: TraceMessage | undefined): TraceMessageView {
+function viewOf(id: string, message: TraceMessage | undefined, cut: number): TraceMessageView {
   if (message === undefined) return { id, role: 'unknown', text: '', chars: 0, calls: [] };
   const text = textOf(message.content);
   return {
     id,
     role: message.role,
     text,
-    chars: text.length,
+    chars: text.length + cut,
     calls: (message.toolCalls ?? []).map((call) => `${call.name}(${textOf(call.argumentsJson)})`),
+    ...(cut > 0 ? { cut } : {}),
   };
 }
 
@@ -144,7 +151,7 @@ export function turnTimeline(store: TraceStore, turnId: string): TraceTimeline {
           profileId: record.profileId,
           startMs: record.at - t0,
           tries: [],
-          messages: record.messages.map((id) => viewOf(id, store.message(id))),
+          messages: record.messages.map((id) => viewOf(id, store.message(id), store.messageCut(id))),
           tools: (record.tools ?? []).map((tool) => tool.name),
           replyCalls: [],
         });
@@ -152,6 +159,25 @@ export function turnTimeline(store: TraceStore, turnId: string): TraceTimeline {
       case 'model.response': {
         promptTokens += record['gen_ai.usage.input_tokens'];
         completionTokens += record['gen_ai.usage.output_tokens'];
+        // A reply whose request was never recorded (recording was turned off and on during the call) still gets a row, so the rows and the totals agree.
+        if (!calls.has(record.callId)) {
+          calls.set(record.callId, rows.length);
+          rows.push({
+            kind: 'call',
+            key: `call-${record.callId}`,
+            callId: record.callId,
+            ...(record.callIndex === undefined ? {} : { callIndex: record.callIndex }),
+            ...(record.agentPath === undefined ? {} : { agentPath: record.agentPath }),
+            model: 'unknown model',
+            profileId: 'unknown',
+            startMs: record.at - t0,
+            tries: [],
+            messages: [],
+            tools: [],
+            replyCalls: [],
+            note: 'The reply was recorded without its request, because recording was turned off and on again during the call.',
+          });
+        }
         patch<TraceCallRow>(calls.get(record.callId), (row) => ({
           ...row,
           durationMs: record.finishedAt - t0 - row.startMs,
@@ -181,6 +207,7 @@ export function turnTimeline(store: TraceStore, turnId: string): TraceTimeline {
           ...(record.agentPath === undefined ? {} : { agentPath: record.agentPath }),
           params: jsonOf(record.params),
           startMs: record.at - t0,
+          ...(record.truncated === undefined ? {} : { paramsCut: record.truncated.chars }),
         });
         break;
       case 'tool.result':

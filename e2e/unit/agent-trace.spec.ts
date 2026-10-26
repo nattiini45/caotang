@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 import { MemoryIndexedDb, openRuntimeStore } from '../../packages/store/src/index.js';
 import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore } from '../../packages/gateway/src/index.js';
 import { DEMO_INTENTS } from '../../packages/gateway/src/mock/index.js';
-import { TRACE_REVIEWS, parseTrace, type TraceRecord } from '../../packages/harness/src/index.js';
+import { TRACE_REVIEWS, createTraceStore, parseTrace, type TraceRecord } from '../../packages/harness/src/index.js';
 
 import { AgentController } from '../../apps/desktop/src/app/agent.js';
 import { APP_KEYS, openAppDb } from '../../apps/desktop/src/app/app-db.js';
@@ -179,4 +179,86 @@ test('nothing about the trace reaches the app database or a project bundle', asy
 test('an export is named for the project and the turn', () => {
   expect(traceFileName('The Lighthouse Keeper', 'abc.turn-3')).toBe('The-Lighthouse-Keeper-trace-abc.turn-3.jsonl');
   expect(traceFileName('', undefined)).toBe('project-trace-all.jsonl');
+});
+
+test('the tab names its trace with eight random hex digits, a new one per tab, and never asks Math.random', () => {
+  const random = Math.random;
+  let asked = 0;
+  Math.random = () => {
+    asked += 1;
+    return random();
+  };
+  try {
+    const sessionOf = (trace: TabTrace): string => {
+      const header = JSON.parse(trace.export().split('\n')[0] ?? '{}') as { sessionId: string };
+      return header.sessionId;
+    };
+    const first = sessionOf(new TabTrace({ setObserver: () => undefined }));
+    const second = sessionOf(new TabTrace({ setObserver: () => undefined }));
+    expect(first).toMatch(/^tab-[0-9a-f]{8}$/);
+    expect(second).toMatch(/^tab-[0-9a-f]{8}$/);
+    expect(second).not.toBe(first);
+    expect(asked).toBe(0);
+  } finally {
+    Math.random = random;
+  }
+});
+
+test('a prompt or a tool parameter cut to keep its record small says so in the timeline, and the prompt still counts what was sent', () => {
+  const store = createTraceStore({ sessionId: 'test' });
+  const long = 'x'.repeat(100_000);
+  store.write({ kind: 'turn.start', at: 0, turnId: 't.turn-1', intent: 'cut things' });
+  store.write({
+    kind: 'model.request',
+    at: 1,
+    callId: 1,
+    turnId: 't.turn-1',
+    callIndex: 1,
+    profileId: 'prv_1',
+    'gen_ai.request.model': 'model-x',
+    messages: [{ role: 'user', content: long }, { role: 'assistant', content: 'short' }],
+  });
+  store.write({ kind: 'tool.call', at: 2, turnId: 't.turn-1', callId: 'c1', tool: 'doc.write', risk: 'write', params: { text: long } });
+  store.write({ kind: 'tool.call', at: 3, turnId: 't.turn-1', callId: 'c2', tool: 'doc.read', risk: 'read', params: { doc: 'Landing' } });
+
+  expect(store.messageCut('m1')).toBeGreaterThan(0);
+  expect(store.messageCut('m2')).toBe(0);
+  expect(store.messageCut('m9')).toBe(0);
+
+  const { rows } = turnTimeline(store, 't.turn-1');
+  const call = rows.find((row) => row.kind === 'call');
+  const [sent, short] = call?.kind === 'call' ? call.messages : [];
+  expect(sent?.cut).toBe(store.messageCut('m1'));
+  expect(sent?.chars).toBe(long.length);
+  expect(short?.cut).toBeUndefined();
+  expect(short?.chars).toBe(5);
+  const tools = rows.filter((row) => row.kind === 'tool');
+  expect(tools[0]?.kind === 'tool' ? tools[0].paramsCut : undefined).toBeGreaterThan(0);
+  expect(tools[1]?.kind === 'tool' ? tools[1].paramsCut : 0).toBeUndefined();
+});
+
+test('a reply whose request was never recorded still gets a row, so the rows and the header agree', () => {
+  const store = createTraceStore({ sessionId: 'test' });
+  store.write({
+    kind: 'model.response',
+    at: 5,
+    callId: 7,
+    turnId: 't.turn-1',
+    callIndex: 2,
+    finishedAt: 6,
+    attempts: 1,
+    tries: [{ attempt: 0, outcome: 'ok', status: 200, at: 6 }],
+    'gen_ai.response.finish_reasons': ['stop'],
+    content: 'a late reply',
+    'gen_ai.usage.input_tokens': 30,
+    'gen_ai.usage.output_tokens': 12,
+    usageSource: 'provider',
+  });
+
+  const timeline = turnTimeline(store, 't.turn-1');
+  expect(timeline.calls).toBe(1);
+  expect(timeline.rows).toHaveLength(1);
+  expect(timeline.promptTokens).toBe(30);
+  expect(timeline.completionTokens).toBe(12);
+  expect(timeline.rows[0]).toMatchObject({ kind: 'call', callId: 7, callIndex: 2, reply: 'a late reply', promptTokens: 30, completionTokens: 12, note: expect.stringContaining('without its request') });
 });

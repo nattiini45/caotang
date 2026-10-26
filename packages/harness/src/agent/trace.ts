@@ -236,6 +236,8 @@ export interface TraceStore extends TraceSink {
   records(turnId?: string): readonly TraceRecord[];
   /** A message a request lists. Absent when its turn was dropped. */
   message(id: string): TraceMessage | undefined;
+  /** The characters cut from a message to keep its record within the cap, or 0 when none were (or the message is gone). */
+  messageCut(id: string): number;
   toJsonl(options?: TraceExportOptions): string;
   clear(): void;
   /** Serialised bytes held now. */
@@ -632,6 +634,7 @@ export function createTraceStore(options: TraceStoreOptions): TraceStore {
       bucketsInOrder().map((bucket) => ({ turnId: bucket.turnId, intent: bucket.intent, bytes: bucket.bytes, records: bucket.records.length, startedAt: bucket.startedAt })),
     records,
     message: (id) => messages.get(id)?.record.message,
+    messageCut: (id) => messages.get(id)?.record.truncated?.chars ?? 0,
     toJsonl,
     clear: () => {
       buckets.clear();

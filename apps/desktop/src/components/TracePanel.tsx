@@ -68,6 +68,7 @@ function MessageView({ message }: { message: TraceMessageView }): ReactNode {
           {call}
         </pre>
       ))}
+      {message.cut === undefined ? null : <p className="trace-faint">{formatCount(message.cut)} characters of this message were cut to keep the record small.</p>}
     </Disclosure>
   );
 }
@@ -97,6 +98,7 @@ function CallRow({ row, spanMs }: { row: TraceCallRow; spanMs: number }): ReactN
         }
       >
         <div className="trace-detail">
+          {row.note === undefined ? null : <p className="trace-faint">{row.note}</p>}
           <h4>Sent: {row.messages.length} messages{row.tools.length === 0 ? '' : `, ${row.tools.length} tools declared`}</h4>
           {row.messages.map((message) => (
             <MessageView key={message.id} message={message} />
@@ -145,6 +147,7 @@ function ToolRowView({ row, spanMs }: { row: TraceToolRow; spanMs: number }): Re
         <div className="trace-detail">
           <h4>Parameters</h4>
           <pre className="trace-text">{row.params}</pre>
+          {row.paramsCut === undefined ? null : <p className="trace-faint">{formatCount(row.paramsCut)} characters of these parameters were cut to keep the record small.</p>}
           <h4>Result handed back to the model</h4>
           {row.result === undefined ? <p className="trace-faint">None recorded.</p> : <pre className="trace-text">{row.result}</pre>}
           {row.cut === undefined ? null : <p className="trace-faint">{formatCount(row.cut)} characters of this result were cut to keep the record small.</p>}
