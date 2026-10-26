@@ -262,8 +262,8 @@ test('a multi-step turn shows its step in the header with the drawer open or clo
   const list = page.getByRole('list', { name: 'Task list' });
   await expect(list.getByRole('listitem')).toHaveCount(3);
   await expect(list.locator('[data-state="waiting"]')).toHaveCount(2);
-  await expect(list).toContainText('Add to the notes of “The Landing”');
-  await expect(list).toContainText('Fill the synopsis of “The Storm”');
+  await expect(list).toContainText('Add to the notes of “\u2068The Landing\u2069”');
+  await expect(list).toContainText('Fill the synopsis of “\u2068The Storm\u2069”');
 
   await page.getByTestId('plan-card').getByRole('button', { name: 'Approve plan', exact: true }).click();
   await expect(page.getByTestId('checkpoint')).toBeVisible();

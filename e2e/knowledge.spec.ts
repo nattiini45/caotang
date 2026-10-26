@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { binderRow, binderTitle, countOf, createProject, traceNames, waitForSaved } from './support.js';
+import { binderRow, binderTitle, countOf, createProject, traceNames, waitForSaved, withoutIsolates } from './support.js';
 
 /**
  * Knowledge (coherence.md §4.4): a writer states a fact in the Findings tab, declares in the Inspector that a character knows
@@ -88,7 +88,9 @@ test('a character who knows a fact before the scene that teaches it is reported,
   // The scan names the order the writer declared.
   await page.getByRole('button', { name: 'Scan the manuscript' }).click();
   const errors = page.getByTestId('findings-panel').getByRole('region', { name: 'Errors' });
-  await expect(errors).toContainText('Anna knows that "Mara is the heir" in "Scene A", but learns it only in "Scene B"');
+  await expect
+    .poll(async () => withoutIsolates(await errors.textContent()))
+    .toContain('"Anna" knows that "Mara is the heir" in "Scene A", but learns it only in "Scene B"');
   await expect(page.getByTestId('findings-open')).toHaveText('1 open');
 
   // Fixing the order: she learns it in Scene A and is shown knowing it in Scene B.

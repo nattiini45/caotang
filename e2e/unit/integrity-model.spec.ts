@@ -2355,12 +2355,14 @@ test.describe('an open’s notices are whole sentences in the writer’s words',
 
   test('a dropped field the file carries on several items is named once, with how many times it occurs', () => {
     expect(droppedFieldsSentence(['x', 'x', 'x'])).toBe(
-      'The file has 3 fields Caotang keeps but does not use: “x” 3 times. They are dropped on the next save.',
+      'The file has 3 fields Caotang keeps but does not use: “\u2068x\u2069” 3 times. They are dropped on the next save.',
     );
     expect(droppedFieldsSentence(['x', 'colour', 'x'])).toBe(
-      'The file has 3 fields Caotang keeps but does not use: “x” 2 times and “colour”. They are dropped on the next save.',
+      'The file has 3 fields Caotang keeps but does not use: “\u2068x\u2069” 2 times and “\u2068colour\u2069”. They are dropped on the next save.',
     );
-    expect(droppedFieldsSentence(['colour'])).toBe('The file has a field Caotang keeps but does not use: “colour”. It is dropped on the next save.');
+    expect(droppedFieldsSentence(['colour'])).toBe(
+      'The file has a field Caotang keeps but does not use: “\u2068colour\u2069”. It is dropped on the next save.',
+    );
     expect(droppedFieldsSentence([])).toBeNull();
   });
 });

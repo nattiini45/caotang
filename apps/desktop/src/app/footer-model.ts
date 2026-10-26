@@ -6,7 +6,7 @@
  * Every sentence is one catalogue message (i18n.md §4.2, I5): a plural is ICU `plural`, never a "1 vs not 1" choice, and a
  * writer's node title is isolated once (§5.3). The formatter locale is the interface language's (§4.1).
  */
-/* lingui-set comment="Interpolated values: about, by, clock, day, degree, perDay, target, title" */
+/* lingui-set comment="Interpolated values: about, by, clock, count, day, degree, perDay, target, title" */
 
 import type { ProjectGoal } from '@caotang/furniture';
 import { SPRINT_MAX_MINUTES, SPRINT_MIN_MINUTES } from '@caotang/furniture';
@@ -43,10 +43,12 @@ export function unitOf(goal: { readonly metric?: string }): string {
 
 /** A pace line's count and noun, in the goal's own unit: "1 word", "850 characters" (goals-progress §2.2, §9.2). */
 export function paceCountOf(goal: { readonly metric?: string }, perDay: number, locale: string = formatterLocale()): string {
-  void locale;
+  // The count is formatted for the formatter locale, which can differ from the active UI catalogue;
+  // the ICU plural still chooses the noun's form, so a translator sees both inside one message.
+  const count = countText(perDay, locale);
   return goal.metric === 'chars'
-    ? t`${plural(perDay, { one: '# character', other: '# characters' })}`
-    : t`${plural(perDay, { one: '# word', other: '# words' })}`;
+    ? t`${{ count }} ${plural(perDay, { one: 'character', other: 'characters' })}`
+    : t`${{ count }} ${plural(perDay, { one: 'word', other: 'words' })}`;
 }
 
 /**
@@ -64,25 +66,27 @@ export function goalSentence(
   // A plural count must be a bare name to reach the catalogue as `{target, plural, …}` rather than a positional `{0}`.
   const target = goal.target;
   const title = isolate(nodeTitle);
+  // The count is grouped for the formatter locale, which can differ from the active UI catalogue.
+  const count = countText(target, locale);
   if (goal.kind === 'weekly') {
     return goal.metric === 'chars'
-      ? t`${select(degree, { least: 'at least', most: 'at most', other: 'about' })} ${plural(target, { one: '# character', other: '# characters' })} this week`
-      : t`${select(degree, { least: 'at least', most: 'at most', other: 'about' })} ${plural(target, { one: '# word', other: '# words' })} this week`;
+      ? t`${select(degree, { least: 'at least', most: 'at most', other: 'about' })} ${{ count }} ${plural(target, { one: 'character', other: 'characters' })} this week`
+      : t`${select(degree, { least: 'at least', most: 'at most', other: 'about' })} ${{ count }} ${plural(target, { one: 'word', other: 'words' })} this week`;
   }
   if (goal.kind === 'monthly') {
     return goal.metric === 'chars'
-      ? t`${select(degree, { least: 'at least', most: 'at most', other: 'about' })} ${plural(target, { one: '# character', other: '# characters' })} this month`
-      : t`${select(degree, { least: 'at least', most: 'at most', other: 'about' })} ${plural(target, { one: '# word', other: '# words' })} this month`;
+      ? t`${select(degree, { least: 'at least', most: 'at most', other: 'about' })} ${{ count }} ${plural(target, { one: 'character', other: 'characters' })} this month`
+      : t`${select(degree, { least: 'at least', most: 'at most', other: 'about' })} ${{ count }} ${plural(target, { one: 'word', other: 'words' })} this month`;
   }
   if (goal.deadline === undefined) {
     return goal.metric === 'chars'
-      ? t`${select(degree, { least: 'at least', most: 'at most', other: 'about' })} ${plural(target, { one: '# character', other: '# characters' })} on ${{ title }}`
-      : t`${select(degree, { least: 'at least', most: 'at most', other: 'about' })} ${plural(target, { one: '# word', other: '# words' })} on ${{ title }}`;
+      ? t`${select(degree, { least: 'at least', most: 'at most', other: 'about' })} ${{ count }} ${plural(target, { one: 'character', other: 'characters' })} on ${{ title }}`
+      : t`${select(degree, { least: 'at least', most: 'at most', other: 'about' })} ${{ count }} ${plural(target, { one: 'word', other: 'words' })} on ${{ title }}`;
   }
   const by = formatDay(goal.deadline, locale);
   return goal.metric === 'chars'
-    ? t`${select(degree, { least: 'at least', most: 'at most', other: 'about' })} ${plural(target, { one: '# character', other: '# characters' })} on ${{ title }} by ${{ by }}`
-    : t`${select(degree, { least: 'at least', most: 'at most', other: 'about' })} ${plural(target, { one: '# word', other: '# words' })} on ${{ title }} by ${{ by }}`;
+    ? t`${select(degree, { least: 'at least', most: 'at most', other: 'about' })} ${{ count }} ${plural(target, { one: 'character', other: 'characters' })} on ${{ title }} by ${{ by }}`
+    : t`${select(degree, { least: 'at least', most: 'at most', other: 'about' })} ${{ count }} ${plural(target, { one: 'word', other: 'words' })} on ${{ title }} by ${{ by }}`;
 }
 
 /** The ICU select key for a weekday, 0 (Sunday) to 6 (Saturday), as `Date.getDay` counts them. */

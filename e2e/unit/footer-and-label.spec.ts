@@ -20,20 +20,24 @@ test.describe('the binder footer words (goals-progress §2.2, sprint timer)', ()
   test('a goal reads as a sentence with its comparator, its place and its deadline', () => {
     // The formatter locale is passed in; the locale decision itself is the app's accessor (i18n.md §4.1, D3).
     expect(goalSentence({ comparator: 'at-least', target: 12_000, deadline: '2026-10-31' }, 'The Manuscript', 'en-GB')).toBe(
-      'at least 12,000 words on The Manuscript by 31 Oct 2026',
+      'at least 12,000 words on \u2068The Manuscript\u2069 by 31 Oct 2026',
     );
-    expect(goalSentence({ comparator: 'at-most', target: 2_000 }, 'Prologue', 'en-GB')).toBe('at most 2,000 words on Prologue');
-    expect(goalSentence({ comparator: 'about', target: 900 }, 'Chapter 1', 'en-GB')).toBe('about 900 words on Chapter 1');
+    expect(goalSentence({ comparator: 'at-most', target: 2_000 }, 'Prologue', 'en-GB')).toBe(
+      'at most 2,000 words on \u2068Prologue\u2069',
+    );
+    expect(goalSentence({ comparator: 'about', target: 900 }, 'Chapter 1', 'en-GB')).toBe(
+      'about 900 words on \u2068Chapter 1\u2069',
+    );
   });
 
   test('the same sentence under the formatter locale’s own grouping and date order', () => {
     // This is the deliberate change: a US-English system now reads its own date order and grouping (D3), where
     // the footer used to pin en-GB dates and en-US numbers whatever the system said.
     expect(goalSentence({ comparator: 'at-least', target: 12_000, deadline: '2026-10-31' }, 'The Manuscript', 'en-US')).toBe(
-      'at least 12,000 words on The Manuscript by Oct 31, 2026',
+      'at least 12,000 words on \u2068The Manuscript\u2069 by Oct 31, 2026',
     );
     expect(goalSentence({ comparator: 'at-least', target: 12_000, deadline: '2026-10-31' }, 'The Manuscript', 'de-DE')).toBe(
-      'at least 12.000 words on The Manuscript by 31. Okt. 2026',
+      'at least 12.000 words on \u2068The Manuscript\u2069 by 31. Okt. 2026',
     );
   });
 

@@ -5,7 +5,7 @@
  * without a React render; `shared.tsx` re-exports them, which is where the panels import them from. The number is
  * grouped by the formatter locale (the app's accessor, `i18n/format-locale.ts`), and the noun is an ICU plural (I5).
  */
-/* lingui-set comment="Interpolated values: n" */
+/* lingui-set comment="Interpolated values: count, n" */
 
 import { plural, t } from '@lingui/core/macro';
 import { numberFormat } from '@caotang/i18n';
@@ -18,8 +18,9 @@ export function formatCount(n: number, locale: string = formatterLocale()): stri
 }
 
 export function wordsLabel(n: number, locale: string = formatterLocale()): string {
-  void locale;
-  return t`${plural(n, { one: '# word', other: '# words' })}`;
+  // The count is grouped for the formatter locale, which can differ from the active UI catalogue.
+  const count = formatCount(n, locale);
+  return t`${{ count }} ${plural(n, { one: 'word', other: 'words' })}`;
 }
 
 /** A document count as a value in a sentence: "1 document", "3 documents". */

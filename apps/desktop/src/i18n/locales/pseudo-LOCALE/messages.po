@@ -278,9 +278,29 @@ msgstr ""
 msgid "{checkpointCap, plural, one {# checkpoint} other {# checkpoints}}, kept {checkpointDays, plural, one {# day} other {# days}}"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "{clock} left"
+msgstr ""
+
+#. Interpolated values: count, n
+#: apps/desktop/src/app/counts.ts
+msgid "{count} {n, plural, one {word} other {words}}"
+msgstr ""
+
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
+#: apps/desktop/src/app/footer-model.ts
+msgid "{count} {perDay, plural, one {character} other {characters}}"
+msgstr ""
+
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
+#: apps/desktop/src/app/footer-model.ts
+msgid "{count} {perDay, plural, one {word} other {words}}"
+msgstr ""
+
+#. Interpolated values: count, target, words
+#: apps/desktop/src/app/session-progress.ts
+msgid "{count} {words, plural, one {word} other {words}} today"
 msgstr ""
 
 #. Interpolated values: count, layerId, max, min
@@ -298,49 +318,49 @@ msgstr ""
 msgid "{current} of {target, plural, one {# word} other {# words}} · {stateKey, select, open {in progress} met {met} exceeded {over the limit} overdue {past the deadline} missing {its folder is gone} other {in progress}}"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "{day, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
-msgid "{degree, select, least {at least} most {at most} other {about}} {target, plural, one {# character} other {# characters}} on {title}"
+msgid "{degree, select, least {at least} most {at most} other {about}} {count} {target, plural, one {character} other {characters}} on {title}"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
-msgid "{degree, select, least {at least} most {at most} other {about}} {target, plural, one {# character} other {# characters}} on {title} by {by}"
+msgid "{degree, select, least {at least} most {at most} other {about}} {count} {target, plural, one {character} other {characters}} on {title} by {by}"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
-msgid "{degree, select, least {at least} most {at most} other {about}} {target, plural, one {# character} other {# characters}} this month"
+msgid "{degree, select, least {at least} most {at most} other {about}} {count} {target, plural, one {character} other {characters}} this month"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
-msgid "{degree, select, least {at least} most {at most} other {about}} {target, plural, one {# character} other {# characters}} this week"
+msgid "{degree, select, least {at least} most {at most} other {about}} {count} {target, plural, one {character} other {characters}} this week"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
-msgid "{degree, select, least {at least} most {at most} other {about}} {target, plural, one {# word} other {# words}} on {title}"
+msgid "{degree, select, least {at least} most {at most} other {about}} {count} {target, plural, one {word} other {words}} on {title}"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
-msgid "{degree, select, least {at least} most {at most} other {about}} {target, plural, one {# word} other {# words}} on {title} by {by}"
+msgid "{degree, select, least {at least} most {at most} other {about}} {count} {target, plural, one {word} other {words}} on {title} by {by}"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
-msgid "{degree, select, least {at least} most {at most} other {about}} {target, plural, one {# word} other {# words}} this month"
+msgid "{degree, select, least {at least} most {at most} other {about}} {count} {target, plural, one {word} other {words}} this month"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
-msgid "{degree, select, least {at least} most {at most} other {about}} {target, plural, one {# word} other {# words}} this week"
+msgid "{degree, select, least {at least} most {at most} other {about}} {count} {target, plural, one {word} other {words}} this week"
 msgstr ""
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
@@ -373,24 +393,9 @@ msgstr ""
 msgid "{layerId, select, L2 {Codex entries} L4 {Story so far, from the synopses} L5 {Focus document text} other {The layer}} is a whole number of tokens from {min} to {max}, or empty for the default."
 msgstr ""
 
-#. Interpolated values: n
+#. Interpolated values: count, n
 #: apps/desktop/src/app/counts.ts
 msgid "{n, plural, one {# document} other {# documents}}"
-msgstr ""
-
-#. Interpolated values: n
-#: apps/desktop/src/app/counts.ts
-msgid "{n, plural, one {# word} other {# words}}"
-msgstr ""
-
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
-#: apps/desktop/src/app/footer-model.ts
-msgid "{perDay, plural, one {# character} other {# characters}}"
-msgstr ""
-
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
-#: apps/desktop/src/app/footer-model.ts
-msgid "{perDay, plural, one {# word} other {# words}}"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -459,12 +464,7 @@ msgstr ""
 msgid "{totalWords, plural, one {# word} other {# words}} in the project"
 msgstr ""
 
-#. Interpolated values: target, words
-#: apps/desktop/src/app/session-progress.ts
-msgid "{words, plural, one {# word} other {# words}} today"
-msgstr ""
-
-#. Interpolated values: target, words
+#. Interpolated values: count, target, words
 #: apps/desktop/src/app/session-progress.ts
 msgid "{words} / {target} words today"
 msgstr ""
@@ -786,7 +786,7 @@ msgstr ""
 
 #. Interpolated values: fieldCount, fields, name, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts
-msgid "Caotang also noted {unsaid, plural, one {# smaller thing} other {# smaller things}} in the project’s files as it opened them."
+msgid "Caotang also noted {unsaid, plural, one {one smaller thing} other {# smaller things}} in the project’s files as it opened them."
 msgstr ""
 
 #. Interpolated values: title
@@ -846,7 +846,7 @@ msgstr ""
 msgid "Changing the interface language…"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "characters"
 msgstr ""
@@ -1352,7 +1352,7 @@ msgstr ""
 msgid "Follow the system"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "Friday"
 msgstr ""
@@ -1461,7 +1461,7 @@ msgstr ""
 msgid "In focus mode, hide the binder and the inspector"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "in progress"
 msgstr ""
@@ -1476,7 +1476,7 @@ msgstr ""
 msgid "Interface language"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "its folder is gone"
 msgstr ""
@@ -1589,7 +1589,7 @@ msgstr ""
 msgid "Medium"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "met"
 msgstr ""
@@ -1627,8 +1627,8 @@ msgstr ""
 msgid "Models listed by {profile}"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "Monday"
 msgstr ""
@@ -1826,7 +1826,7 @@ msgstr ""
 msgid "Outcome"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "over the limit"
 msgstr ""
@@ -1841,7 +1841,7 @@ msgstr ""
 msgid "Part of the manuscript exported"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "past the deadline"
 msgstr ""
@@ -2209,7 +2209,7 @@ msgstr ""
 msgid "Run limits"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "Saturday"
 msgstr ""
@@ -2651,7 +2651,7 @@ msgstr ""
 msgid "Structured output not accepted"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "Sunday"
 msgstr ""
@@ -2848,12 +2848,12 @@ msgstr ""
 msgid "The mode decides who answers the agent’s cards. Ask is the default: every card waits for you. The agent panel can pick another mode for the project you have open; this is the one a panel starts in. Nothing about it is saved in a project."
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "The month starts on its last day."
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "The month starts on the {day, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}."
 msgstr ""
@@ -2915,7 +2915,7 @@ msgstr ""
 msgid "The unsaved text is too large to keep a spare copy in this browser, so a reload in the next moment could lose it."
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "The week starts on {weekday, select, sun {Sunday} mon {Monday} tue {Tuesday} wed {Wednesday} thu {Thursday} fri {Friday} sat {Saturday} other {Monday}}."
 msgstr ""
@@ -3000,7 +3000,7 @@ msgstr ""
 msgid "This tab cannot save: another tab has newer text for this project. Export a backup to keep the words in this tab."
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "Thursday"
 msgstr ""
@@ -3063,7 +3063,7 @@ msgstr ""
 msgid "harness.progress.plan.retrying"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "Tuesday"
 msgstr ""
@@ -3181,7 +3181,7 @@ msgstr ""
 msgid "harness.progress.header.waitingPlan"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "Wednesday"
 msgstr ""
@@ -3196,7 +3196,7 @@ msgstr ""
 msgid "Whole prompt"
 msgstr ""
 
-#. Interpolated values: about, by, clock, day, degree, perDay, target, title
+#. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "words"
 msgstr ""

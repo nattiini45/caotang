@@ -1,4 +1,12 @@
+import { delimiter, resolve } from 'node:path';
+
 import { defineConfig, devices } from '@playwright/test';
+
+// Playwright's Babel pipeline does not run the Lingui macro transform, and the pure-model specs import app
+// modules that use `t`/`msg`. Run the same macro through babel-plugin-macros for those files, and import the
+// English fallback before they evaluate; browser specs never import app source, so the scope stays narrow.
+process.env['PW_TEST_SOURCE_TRANSFORM'] = resolve('e2e/playwright-lingui-plugin.cjs');
+process.env['PW_TEST_SOURCE_TRANSFORM_SCOPE'] = [resolve('e2e/unit'), resolve('apps/desktop/src')].join(delimiter);
 
 // One port for the dev server and the suite. CAOTANG_E2E_PORT gives a parallel checkout its
 // own server; with it set, an existing server is never reused, because on a shared machine

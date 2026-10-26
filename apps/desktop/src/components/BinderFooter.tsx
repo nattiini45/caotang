@@ -149,6 +149,7 @@ function SavedFilterList({
                   type="button"
                   className={`saved-filter-apply${applied ? ' is-applied' : ''}`}
                   aria-pressed={applied}
+                  aria-label={accessibleText(filter.name)}
                   onClick={() => store.applySaved(filter)}
                 >
                   {isolate(filter.name)}

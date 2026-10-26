@@ -64,7 +64,7 @@ function sessionOver(state: ProjectState, sittingWords = 0): ProjectSession {
 test.describe('the sentence and the unit a goal reads in (goals-progress §2.2, §9.2, §9.3)', () => {
   test('a characters goal reads in characters, on the node it attaches to, and keeps its date', () => {
     expect(goalSentence({ comparator: 'at-least', target: 12_000, metric: 'chars', deadline: '2026-10-31' }, 'The Manuscript', 'en-GB')).toBe(
-      'at least 12,000 characters on The Manuscript by 31 Oct 2026',
+      'at least 12,000 characters on \u2068The Manuscript\u2069 by 31 Oct 2026',
     );
   });
 
@@ -78,7 +78,9 @@ test.describe('the sentence and the unit a goal reads in (goals-progress §2.2, 
   });
 
   test('a words project goal reads as it did before the metric existed', () => {
-    expect(goalSentence({ comparator: 'at-most', target: 2_000, deadline: undefined }, 'Act 1', 'en-GB')).toBe('at most 2,000 words on Act 1');
+    expect(goalSentence({ comparator: 'at-most', target: 2_000, deadline: undefined }, 'Act 1', 'en-GB')).toBe(
+      'at most 2,000 words on \u2068Act 1\u2069',
+    );
   });
 
   test('the unit and the pace count follow the metric, singular for one', () => {

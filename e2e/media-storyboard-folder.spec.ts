@@ -119,7 +119,7 @@ test('a bundle made from the projects list after a reload carries the project’
     page.waitForEvent('download'),
     page.getByRole('button', { name: `Export ${PROJECT} as a bundle` }).click(),
   ]);
-  await expect(page.getByRole('status').filter({ hasText: `Exported “${PROJECT}”` })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: `Exported “\u2068${PROJECT}\u2069”` })).toBeVisible();
   await expect(page.getByText('is not available in this browser')).toHaveCount(0);
 
   const path = await download.path();

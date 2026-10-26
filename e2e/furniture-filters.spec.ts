@@ -163,7 +163,7 @@ test('the footer keeps one line for the nearest goal, and a click on it opens th
   await expect(page.getByTestId('inspector-goals')).toHaveCount(0);
   const line = page.getByTestId('binder-footer').locator('.goal-summary');
   await expect(line).toHaveCount(1);
-  await expect(line.locator('.goal-sentence')).toContainText('at least 500 words on Chapter 1');
+  await expect(line.locator('.goal-sentence')).toContainText('at least 500 words on \u2068Chapter 1\u2069');
   await expect(line.getByTestId('goal-progress')).toContainText('of 500 words · in progress');
 
   await line.click();

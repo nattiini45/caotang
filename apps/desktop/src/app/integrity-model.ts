@@ -238,7 +238,7 @@ export function openNoticeLines(notices: readonly OpenNotice[]): string[] {
   }
   if (unsaid > 0) {
     lines.push(
-      t`Caotang also noted ${plural(unsaid, { one: '# smaller thing', other: '# smaller things' })} in the project’s files as it opened them.`,
+      t`Caotang also noted ${plural(unsaid, { one: 'one smaller thing', other: '# smaller things' })} in the project’s files as it opened them.`,
     );
   }
   return lines;

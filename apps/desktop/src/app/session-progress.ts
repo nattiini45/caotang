@@ -3,7 +3,7 @@
  * (goals-progress A3), and progress is the words of every session that ended today, across the writer's projects, plus
  * the sitting that is open now. Nothing here is stored: the sessions log is the history, and this is a read of it.
  */
-/* lingui-set comment="Interpolated values: target, words" */
+/* lingui-set comment="Interpolated values: count, target, words" */
 
 import { plural, t } from '@lingui/core/macro';
 import { localDayKey } from '@caotang/gateway';
@@ -101,7 +101,11 @@ export function targetProgress(words: number, target: number | undefined): Targe
 export function todayLine(progress: TargetProgress, locale: string = formatterLocale()): string {
   const count = numberFormat(locale);
   const words = progress.words;
-  if (progress.target === undefined) return t`${plural(words, { one: '# word', other: '# words' })} today`;
+  if (progress.target === undefined) {
+    // The count is grouped for the formatter locale, which can differ from the active UI catalogue.
+    const wordsText = count.format(words);
+    return t`${{ count: wordsText }} ${plural(words, { one: 'word', other: 'words' })} today`;
+  }
   return t`${{ words: count.format(progress.words) }} / ${{ target: count.format(progress.target) }} words today`;
 }
 
