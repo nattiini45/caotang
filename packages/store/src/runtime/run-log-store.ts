@@ -205,3 +205,26 @@ export async function pruneRuns(store: RuntimeStore, projectId: string, now: num
 function byCreated(a: RunRow, b: RunRow): number {
   return a.createdAt - b.createdAt;
 }
+
+/** The run log as the harness's `RunLogPort` takes it: the functions above over one runtime store, with retention's clock. */
+export interface RunLogStorePort {
+  create(run: RunRow): Promise<void>;
+  append(runId: string, events: readonly RunEventInput[], patch?: RunPatch): Promise<void>;
+  update(runId: string, patch: RunPatch): Promise<void>;
+  open(projectId: string): Promise<readonly RunRow[]>;
+  events(runId: string): Promise<readonly RunEventRow[]>;
+  discard(runId: string): Promise<void>;
+  prune(projectId: string, keep: RunRetention): Promise<number>;
+}
+
+export function createRunLogPort(store: RuntimeStore): RunLogStorePort {
+  return {
+    create: (run) => createRun(store, run),
+    append: (runId, events, patch) => appendRunEvents(store, runId, events, patch),
+    update: (runId, patch) => updateRun(store, runId, patch),
+    open: (projectId) => readOpenRuns(store, projectId),
+    events: (runId) => readRunEvents(store, runId),
+    discard: (runId) => deleteRun(store, runId),
+    prune: (projectId, keep) => pruneRuns(store, projectId, Date.now(), keep),
+  };
+}

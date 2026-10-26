@@ -2426,6 +2426,20 @@ dialog.confirm:has(.folder-file-preview) {
   max-height: 30%;
 }
 
+/* Runs a reload left unfinished: shown above the drawer's body, open or closed, and scrolled inside themselves when there are several. */
+.agent-interrupted {
+  display: grid;
+  gap: 8px;
+  max-height: 40vh;
+  overflow-y: auto;
+  padding: 0 16px 8px;
+}
+
+.interrupted-run-lost {
+  margin: 4px 0;
+  font-size: 12.5px;
+}
+
 .agent-head {
   display: flex;
   align-items: center;

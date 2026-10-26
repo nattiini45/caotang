@@ -613,12 +613,16 @@ export function planResume(rows: readonly unknown[], revisions: (docId: string) 
 // What a card about an interrupted run shows
 // ---------------------------------------------------------------------------
 
+const NO_SPEND: BudgetSpend = { modelCalls: 0, promptTokens: 0, completionTokens: 0, estimatedTokens: 0, steps: 0, activeMs: 0 };
+
 export interface RunSummary {
   readonly intent: string;
   /** Steps applied so far, and the steps of the card the run was on (the applied count when it had none). */
   readonly applied: number;
   readonly total: number;
   readonly spend?: BudgetSpend;
+  /** The spend a resumed turn's meter starts from: what was spent, and the model calls the stop lost counted as spent. */
+  readonly restoredSpend: BudgetSpend;
   /** Whether Resume is offered. */
   readonly resumable: boolean;
   /** Why not, or what to know first, in a sentence. */
@@ -635,6 +639,7 @@ export function summarizeRun(rows: readonly unknown[], revisions: (docId: string
     applied: replay.applied.length,
     total: Math.max(replay.card?.steps.length ?? 0, replay.applied.length),
     ...(replay.spend === undefined ? {} : { spend: replay.spend }),
+    restoredSpend: { ...(replay.spend ?? NO_SPEND), modelCalls: (replay.spend?.modelCalls ?? 0) + replay.reservedCalls },
   };
   if (!verdict.ok) return { ...base, resumable: false, note: `${verdict.detail}.` };
   const stale = replay.card === undefined ? 0 : replay.card.revisions.filter((read, index) => read !== undefined && !(replay.card?.completed ?? []).includes(index) && Object.entries(read).some(([id, revision]) => revisions(id) !== revision)).length;
