@@ -8,6 +8,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import { BUILTIN_COMMAND_NAMES } from '../packages/harness/src/commands/slash.js';
+
 const repoRoot = resolve(__dirname, '..');
 
 function read(path: string): string {
@@ -443,5 +445,26 @@ describe('the user guide’s reviewed claims match the code', () => {
     for (const tag of ["'JAN '", "'KOR '", "'ZHT '", "'ZHH '"]) expect(tags).toContain(tag);
     expect(read('packages/screenplay/src/render-pdf.ts')).toContain('hanLocaleTag(language)');
     expect(read('packages/exporter/src/cjk-font.ts')).toContain('hanLocaleTag(language)');
+  });
+
+  it('lists exactly the slash commands the harness has, in its order, in the guide’s Commands table, the spec and the changelog', () => {
+    // The names come from the closed set the composer resolves (commands/slash.ts), so a renamed or added command fails here until the guide says so.
+    const agentSection = guide.slice(guide.indexOf('## The agent'), guide.indexOf('## Skills'));
+    const rows = agentSection.split('\n').filter((line) => line.startsWith('| `/'));
+    const named = rows.map((line) => (/^\| `\/([a-z]+)/.exec(line) ?? [])[1]);
+    expect(named).toEqual([...BUILTIN_COMMAND_NAMES]);
+    expect(agentSection).toContain('**Commands.** Type `/` at the start of the Intent box');
+    expect(agentSection).toContain('**no command skips a card, a rule or the mode.**');
+    const spec = read('docs/architecture/agent-harness.md');
+    const quoted = BUILTIN_COMMAND_NAMES.map((name) => `\`/${name}\``);
+    expect(spec).toContain(`${quoted.slice(0, -1).join(', ')} and ${quoted.at(-1)} (\`BUILTIN_COMMAND_NAMES\`)`);
+    for (const name of BUILTIN_COMMAND_NAMES) {
+      expect(spec).toContain(`\`/${name}\``);
+      expect(changelog.slice(changelog.indexOf('**Slash commands in the agent panel.**'), changelog.indexOf('**Agent instructions and memory.**'))).toContain(`\`/${name}\``);
+    }
+    // The words the guide names are the words the panel shows.
+    expect(read('apps/desktop/src/components/CommandComposer.tsx')).toContain('aria-label="Commands"');
+    expect(read('apps/desktop/src/components/AgentPanel.tsx')).toContain('Dismiss');
+    expect(read('docs/decisions.md')).toContain('Slash commands in the agent panel are a closed set of built-ins');
   });
 });

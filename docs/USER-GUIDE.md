@@ -290,6 +290,22 @@ Queued messages show under the box as **Queued messages**. Each can be edited, r
 
 The agent remembers your last two requests in this tab: what you asked and what came of it, a changed passage or the answer it gave. The drafts it writes are given them as background, and changing the provider, the model or the thinking level in between does not clear them. Closing or reloading the tab does.
 
+**Commands.** Type `/` at the start of the Intent box and a list of commands opens under it. Type more to narrow it, use the Up and Down arrow keys to move through it, press **Tab** to complete the command, **Enter** to complete it (and run it, when it needs nothing more), or **Esc** to close the list and keep what you typed. A command is a precise way to ask for a common job. It builds the step you mean from what you typed, so the agent does not have to guess, and it shows the same card the agent would have shown: **no command skips a card, a rule or the mode.** A title with spaces goes in quotes. If a title matches more than one document, or none, the box says so under it, lists the candidates, and keeps your text so you can correct it; nothing is sent. To send a request that begins with a slash, start it with `//`. A line that begins with a slash but is not one of these commands is sent as a request, with a note.
+
+| Command | What it does |
+| --- | --- |
+| `/help [command]` | Lists the commands, or shows one. |
+| `/plan <request>` | Sends the request and shows a plan card even when the agent proposes only one small change. |
+| `/draft <doc> [draft\|continue] [words] [-- brief]` | Drafts or continues a scene, with an optional length and a brief after `--`. The draft preview and its card still ask you first. |
+| `/synopses <docs…> [text\|notes\|both]` | Fills the synopses of the documents you name, from their text, their notes or both. |
+| `/scan [doc\|changed\|full]` | Runs the quick consistency scan on one document, the changed ones or the whole manuscript. It uses no model. |
+| `/review [doc\|changed\|full]` | Plans the model review of one document, the changed ones (the default) or the whole manuscript. Its card shows the cost, and nothing is read until you approve. |
+| `/compile <recipe\|format> [root]` | Compiles the manuscript, or one part, with a saved recipe or in a format. The card asks first. |
+| `/restore [last\|n]` | Asks to restore to before the last turn that changed something, or turn n of the panel. It asks for the same confirmation as the checkpoint row. |
+| `/context` | Shows what the next request would send, layer by layer, with the tokens each takes and what was left out. It sends nothing. |
+
+A command that would start a turn, or restore one, waits while a turn is running: the box keeps your text, and you send it when the turn ends. `/help` and `/context` answer at once. A document you have marked **Agent: may not read** cannot be named by a command.
+
 Reading the agent's work:
 
 - **Progress.** While the agent works, the header of the agent panel says where it is: "Step 3 of 5 · Drafting “The Landing”", or "Waiting for you · Plan, 3 steps" when a card needs you. It shows with the panel open or closed. At the top of the turn, a checklist lists the steps with one in progress, each marked in words as Queued, Waiting for you, In progress, Done, Skipped or Failed (a failed step gives its reason). A step you drop from the card is Skipped, and so is a step that did not run after a failure or a cancel. The checklist folds when the turn ends and stays in the turn. Under it, **Model calls: 3 of 8** counts the requests the turn has made to the model; at 7 and 8 it turns to a warning, and at 8 the turn stops and asks you how to go on. The list is built from the agent's plan and its calls, not by asking the model, so it never shows a step as done that did not run.
@@ -420,6 +436,7 @@ On a Mac, Cmd takes the place of Ctrl. The element chords are the one exception:
 | Esc | Close a menu or a dialog. A menu returns focus to the control that opened it. In the agent panel, with the Intent box empty, stop the running turn. |
 | Enter, in the agent's Intent box | Send the message, or queue it as the next turn while the agent works. |
 | Ctrl+Enter, in the agent's Intent box | Send the message to the running turn as a note. |
+| Tab, Enter, Up, Down, Esc, in the agent's command list | Complete the command (Enter also runs one that needs nothing more), move through the list, or close it and keep the text. |
 
 The tabs on the left (**Binder**, **Codex**, **Activity** and **Findings**) and the **Editor** and **Corkboard** buttons take the arrow keys, Home and End. In a menu, the arrow keys move between items, and Enter or Space chooses one.
 
@@ -513,6 +530,7 @@ A developer can run the agent against a project folder from a Node script, a com
 - **What a local server reports.** Caotang does not yet ask a local server about the model it runs, so it assumes a small context window and no native tools or images.
 - **The MCP bundle.** The `.mcpb` bundle is not signed, so a host asks you to confirm the install, and it has not been tested in a real host.
 - **Skill scripts and files.** Skills that include scripts: Caotang uses their instructions and does not run the scripts. The agent cannot read the other files kept with a skill, a skill's list of allowed tools does not limit the agent, and there are no skills shared across projects and no way to run a skill by name. Only the project's `.agents/skills` folder is read.
+- **Commands.** The agent panel's commands are the nine listed in the agent section. `/draft` cannot rewrite a selection, because a command line cannot carry the editor's selection: ask for a rewrite in words. You cannot save a prompt as a command of your own, and there are no commands for macros or for connected servers' prompts yet.
 - **Helper agents.** Only the Reader and General agents exist; you cannot write your own. A helper cannot start another helper, and helpers run one at a time.
 - **Background tasks.** A task is drafted only while the project is open in this tab: close the tab and it stops, and **Resume** finishes it when you open the project again. A coherence review cannot be queued yet; it runs now. A background call waits for the agent to be free, but one already sent still counts against a rate-limited key.
 - **Recurring tasks.** Only a scan starts by itself. A task that asks the agent is always offered, never started without you, and there is no setting to let it start by itself yet. Tasks do not run while the project is closed or the tab is hidden, there is no command line for them, and the agent cannot make one. A task's plan can be read from `tasks.json` but not written in the panel.

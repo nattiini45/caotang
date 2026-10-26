@@ -688,6 +688,9 @@ importers:
       '@caotang/mcp-client':
         specifier: workspace:*
         version: link:../mcp-client
+      '@caotang/screenplay':
+        specifier: workspace:*
+        version: link:../screenplay
       '@caotang/skills':
         specifier: workspace:*
         version: link:../skills

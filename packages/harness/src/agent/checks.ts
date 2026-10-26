@@ -6,6 +6,9 @@
  * evaluation and the writer's `changed` scope and run history stay as they were. Words are counted by the counter the inspector and
  * the goals use (`derived.wordCounts`, else `countBody`), so a goal run and the panel agree.
  *
+ * The run-context checks at the end of the module are the other kind: functions of a finished turn (the text it wrote, the requests it
+ * sent, its model calls), shared by the golden tasks and a later model benchmark.
+ *
  * `distance` is how far a check is from passing (open findings, documents out of range, unfilled synopses): lower is better, and a run
  * that stops lowering it has stalled.
  */
@@ -23,10 +26,14 @@ import {
   type ScopeSpec,
 } from '@caotang/coherence';
 import { withheldState } from '@caotang/context';
+import { compileInk } from '@caotang/dialogue';
+import type { ChatRequest } from '@caotang/gateway';
+import { parseFountain } from '@caotang/screenplay';
 import { countBody, getRevision, type ProjectState, type TreeNode } from '@caotang/store';
 
 import { descendantsOf } from '../resolve.js';
 import { countIn, excludedBy, heldFile } from '../tools/coherence.js';
+import type { TurnReport } from './events.js';
 
 // The scan's own exclusion (archived or withheld), so a goal's coherence.clean check and the agent's scan leave out the same documents.
 export { excludedBy };
@@ -396,4 +403,393 @@ export function largeScopes(
     const documents = coherenceScopeSize(state, spec.scope, withheld);
     return documents > SCAN_DOC_GUARD ? [{ spec, documents }] : [];
   });
+}
+
+/* ------------------------------------------------------------------ *
+ * Run-context checks (agent-harness §9, golden tasks).
+ *
+ * The goal checks above are functions of the project alone. These read a finished turn: what it produced, what the model was
+ * sent, and how many calls it took, beside the project before and after. They are deterministic and conservative on purpose: a
+ * pass says the model did the job without breaking anything, and leaves taste to a reader. The golden tasks and a later model
+ * benchmark share them.
+ * ------------------------------------------------------------------ */
+
+export interface CheckContext {
+  /** The project before the turn. */
+  readonly before: ProjectState;
+  /** The project after the turn. */
+  readonly after: ProjectState;
+  readonly report: TurnReport;
+  /** Every model request of the turn, in order. */
+  readonly requests: readonly ChatRequest[];
+  /** The text the turn wrote into each document, as `producedOutputs` reads it. */
+  readonly outputs: readonly { readonly docTitle: string; readonly text: string }[];
+}
+
+export interface CheckVerdict {
+  readonly id: string;
+  readonly pass: boolean;
+  /** What was found, in a sentence: the reason for a failure, the measure for a pass. */
+  readonly detail: string;
+}
+
+/** A named, deterministic question about a finished turn. */
+export interface Check {
+  readonly id: string;
+  readonly run: (context: CheckContext) => CheckVerdict;
+}
+
+/** One row of a binder: a node's title and its parent's title. */
+export interface TreeRow {
+  readonly title: string;
+  readonly parent: string;
+}
+
+const verdict = (id: string, pass: boolean, detail: string): CheckVerdict => ({ id, pass, detail });
+
+/** Whether a node holds text: a document, or a dialogue container, which is a document of another type. */
+const holdsText = (state: ProjectState, node: TreeNode): boolean => node.type !== 'root' && node.type !== 'folder' && state.documents.has(node.id);
+
+/** A document by id or title: the first title match, in binder order. */
+function docNode(state: ProjectState, ref: string): TreeNode | undefined {
+  return state.manifest.tree.find((node) => holdsText(state, node) && node.id === ref) ?? state.manifest.tree.find((node) => holdsText(state, node) && node.title === ref);
+}
+
+const bodyOf = (state: ProjectState, ref: string): string | undefined => {
+  const node = docNode(state, ref);
+  return node === undefined ? undefined : (state.documents.get(node.id)?.body ?? '');
+};
+
+/**
+ * The text a turn wrote into each document it changed. A `scene.draft` step names the range it replaced, so the text is read back
+ * from the document at that range (a continuation without its paragraph break). Any other write is read as what lies between the
+ * text the two bodies share at the start and at the end, which is the whole addition for an append.
+ */
+export function producedOutputs(before: ProjectState, after: ProjectState, report: TurnReport): CheckContext['outputs'] {
+  const out: { docTitle: string; text: string }[] = [];
+  for (const node of after.manifest.tree) {
+    if (!holdsText(after, node)) continue;
+    const was = before.documents.get(node.id)?.body ?? '';
+    const now = after.documents.get(node.id)?.body ?? '';
+    if (was === now) continue;
+    const step = [...report.steps].reverse().find((candidate) => {
+      const doc = (candidate.data as { doc?: { title?: unknown } } | undefined)?.doc;
+      return candidate.tool === 'scene.draft' && candidate.status === 'done' && doc?.title === node.title;
+    });
+    const range = (step?.data as { range?: { from?: unknown; to?: unknown } } | undefined)?.range;
+    if (typeof range?.from === 'number' && typeof range.to === 'number') {
+      out.push({ docTitle: node.title, text: now.slice(range.from, range.from + now.length - was.length + (range.to - range.from)).trim() });
+      continue;
+    }
+    let head = 0;
+    while (head < was.length && head < now.length && was[head] === now[head]) head += 1;
+    let tail = 0;
+    while (tail < was.length - head && tail < now.length - head && was[was.length - 1 - tail] === now[now.length - 1 - tail]) tail += 1;
+    out.push({ docTitle: node.title, text: now.slice(head, now.length - tail).trim() });
+  }
+  return out;
+}
+
+const outputFor = (context: CheckContext, doc: string): string | undefined => {
+  const node = docNode(context.after, doc) ?? docNode(context.before, doc);
+  return context.outputs.find((output) => output.docTitle === (node?.title ?? doc))?.text;
+};
+
+/** The openings of a chat model's answer to the writer, where the writing should begin. */
+const PREAMBLE_OPENINGS = ['here is', "here's", 'here are', 'sure', 'certainly', 'of course', 'okay', 'ok,', "i'll", 'i will', 'below is', 'as requested'];
+
+/** Every text a model was sent, one string per request: its messages, and the declaration of each tool. */
+const requestTexts = (requests: readonly ChatRequest[]): readonly string[] =>
+  requests.map((request) => [...request.messages.map((message) => message.content), ...(request.tools ?? []).map((tool) => JSON.stringify(tool))].join('\n'));
+
+const hasFence = (text: string): boolean => text.split('\n').some((line) => line.trimStart().startsWith('```'));
+
+/** The capitalised words of a text that do not open a sentence, without their punctuation: the names it uses. */
+function capitalisedNames(text: string): string[] {
+  const names: string[] = [];
+  let opening = true;
+  for (const raw of text.split(/\s+/)) {
+    if (raw === '') continue;
+    const letters = [...raw].filter((char) => /[\p{L}\p{N}]/u.test(char));
+    const first = letters[0];
+    if (!opening && first !== undefined && first === first.toUpperCase() && first !== first.toLowerCase()) names.push(letters.join(''));
+    opening = raw.endsWith('.') || raw.endsWith('!') || raw.endsWith('?');
+  }
+  return names;
+}
+
+export const checks = {
+  /** The text written into `doc` is within `tolerance` (a fraction) of `target` words. */
+  wordCountWithin(doc: string, target: number, tolerance: number): Check {
+    const id = `wordCountWithin(${doc}, ${target}, ${tolerance})`;
+    return {
+      id,
+      run: (context) => {
+        const text = outputFor(context, doc);
+        if (text === undefined) return verdict(id, false, `nothing was written into "${doc}"`);
+        const words = countBody(text).words;
+        const low = Math.floor(target * (1 - tolerance));
+        const high = Math.ceil(target * (1 + tolerance));
+        return verdict(id, words >= low && words <= high, `${words} words written, the range is ${low} to ${high}`);
+      },
+    };
+  },
+
+  /** The body of `doc` still starts with what it held before the turn. */
+  prefixUnchanged(doc: string): Check {
+    const id = `prefixUnchanged(${doc})`;
+    return {
+      id,
+      run: (context) => {
+        const was = bodyOf(context.before, doc);
+        const now = bodyOf(context.after, doc);
+        if (was === undefined || now === undefined) return verdict(id, false, `"${doc}" is not a document of the project`);
+        if (!now.startsWith(was)) return verdict(id, false, `the body no longer starts with its ${was.length} earlier characters`);
+        return verdict(id, true, `the first ${was.length} characters are as they were`);
+      },
+    };
+  },
+
+  /** Everything of `doc` outside `anchor` (a range of the body before the turn) is byte-identical, and something inside it changed. */
+  outsideAnchorUnchanged(doc: string, anchor: { readonly from: number; readonly to: number }): Check {
+    const id = `outsideAnchorUnchanged(${doc}, ${anchor.from}-${anchor.to})`;
+    return {
+      id,
+      run: (context) => {
+        const was = bodyOf(context.before, doc);
+        const now = bodyOf(context.after, doc);
+        if (was === undefined || now === undefined) return verdict(id, false, `"${doc}" is not a document of the project`);
+        const head = was.slice(0, anchor.from);
+        const tail = was.slice(anchor.to);
+        if (!now.startsWith(head)) return verdict(id, false, `text before the anchor changed (within the first ${anchor.from} characters)`);
+        if (now.length < head.length + tail.length || !now.endsWith(tail)) return verdict(id, false, 'text after the anchor changed');
+        if (now === was) return verdict(id, false, 'nothing inside the anchor changed');
+        return verdict(id, true, `${head.length} characters before and ${tail.length} after the anchor are as they were`);
+      },
+    };
+  },
+
+  /** What was written into `doc` is the writing alone: no opening remark, no Markdown heading, no "Chapter" line, no code fence. */
+  noPreamble(doc: string): Check {
+    const id = `noPreamble(${doc})`;
+    return {
+      id,
+      run: (context) => {
+        const text = outputFor(context, doc);
+        if (text === undefined) return verdict(id, false, `nothing was written into "${doc}"`);
+        const opening = text.trimStart().toLowerCase();
+        const remark = PREAMBLE_OPENINGS.find((start) => opening.startsWith(start));
+        if (remark !== undefined) return verdict(id, false, `it opens with "${remark}"`);
+        if (text.split('\n').some((line) => line.startsWith('#'))) return verdict(id, false, 'it holds a Markdown heading');
+        if (hasFence(text)) return verdict(id, false, 'it holds a code fence');
+        if (opening.startsWith('chapter ')) return verdict(id, false, 'it opens with a chapter title');
+        return verdict(id, true, 'it opens with the writing');
+      },
+    };
+  },
+
+  /** What was written into `doc` names every one of `names` (any case). */
+  mentionsAll(doc: string, names: readonly string[]): Check {
+    const id = `mentionsAll(${doc}, ${names.join(', ')})`;
+    return {
+      id,
+      run: (context) => {
+        const text = outputFor(context, doc);
+        if (text === undefined) return verdict(id, false, `nothing was written into "${doc}"`);
+        const missing = names.filter((name) => !text.toLowerCase().includes(name.toLowerCase()));
+        return verdict(id, missing.length === 0, missing.length === 0 ? `all ${names.length} names appear` : `${missing.map((name) => `"${name}"`).join(', ')} missing`);
+      },
+    };
+  },
+
+  /** The turn changed nothing: the manifest and every body are as they were. */
+  projectUnchanged(): Check {
+    const id = 'projectUnchanged()';
+    return {
+      id,
+      run: (context) => {
+        // The project id and uuid are minted when a project is built, and `derived` is a cache a read fills: neither is the writer's.
+        const sections = (state: ProjectState): Record<string, string> => Object.fromEntries(Object.entries(state.manifest).filter(([key]) => key !== 'project' && key !== 'derived').map(([key, value]) => [key, canonicalJson(value)]));
+        const was = sections(context.before);
+        const now = sections(context.after);
+        const moved = [...new Set([...Object.keys(was), ...Object.keys(now)])].filter((key) => was[key] !== now[key]);
+        if (moved.length > 0) return verdict(id, false, `the manifest changed: ${moved.join(', ')}`);
+        const changed = [...context.after.documents.keys()].filter((docId) => (context.after.documents.get(docId)?.body ?? '') !== (context.before.documents.get(docId)?.body ?? ''));
+        return verdict(id, changed.length === 0, changed.length === 0 ? 'the manifest and every body are as they were' : `${changed.length} bodies changed`);
+      },
+    };
+  },
+
+  /** Each named document carries a label (a vocabulary id) as `truth` says, for at least `minShare` of them. */
+  labelsMatch(truth: Readonly<Record<string, string>>, minShare = 0.9): Check {
+    const id = `labelsMatch(${Object.keys(truth).length} documents, ${minShare})`;
+    return {
+      id,
+      run: (context) => {
+        const wrong = Object.entries(truth).filter(([doc, label]) => docNode(context.after, doc)?.label !== label);
+        const share = (Object.keys(truth).length - wrong.length) / Math.max(1, Object.keys(truth).length);
+        return verdict(id, share >= minShare, wrong.length === 0 ? 'every label is as expected' : `${wrong.map(([doc, label]) => `${doc} should be ${label}`).join('; ')} (${Math.round(share * 100)}% right, ${Math.round(minShare * 100)}% wanted)`);
+      },
+    };
+  },
+
+  /**
+   * Each named document has a synopsis of at most `maxWords` words that names something its own text names, and no capitalised name
+   * (apart from a sentence's first word) that its text and title do not hold. A conservative stand-in for "says what the scene says".
+   */
+  synopsesGrounded(docs: readonly string[], maxWords: number): Check {
+    const id = `synopsesGrounded(${docs.length} documents, ${maxWords})`;
+    return {
+      id,
+      run: (context) => {
+        const problems: string[] = [];
+        for (const doc of docs) {
+          const node = docNode(context.after, doc);
+          if (node === undefined) {
+            problems.push(`"${doc}" is not a document`);
+            continue;
+          }
+          const synopsis = node.synopsis.trim();
+          if (synopsis === '') {
+            problems.push(`"${node.title}" has no synopsis`);
+            continue;
+          }
+          const words = countBody(synopsis).words;
+          if (words > maxWords) problems.push(`"${node.title}" has ${words} words, over ${maxWords}`);
+          const home = `${node.title}\n${bodyOf(context.after, doc) ?? ''}`.toLowerCase();
+          const names = capitalisedNames(synopsis);
+          const absent = names.filter((name) => !home.includes(name.toLowerCase()));
+          if (absent.length > 0) problems.push(`"${node.title}" names ${absent.join(', ')}, which its text does not`);
+          else if (names.length === 0) problems.push(`"${node.title}" names nothing its text names`);
+        }
+        return verdict(id, problems.length === 0, problems.length === 0 ? `${docs.length} synopses, each within ${maxWords} words and about their own text` : problems.join('; '));
+      },
+    };
+  },
+
+  /** None of `names` (any case) appears in `where`: the text written, and the requests the model was sent. Both by default. */
+  absentEverywhere(names: readonly string[], where: readonly ('outputs' | 'requests')[] = ['outputs', 'requests']): Check {
+    const id = `absentEverywhere(${names.join(', ')}${where.length === 2 ? '' : `; ${where.join(', ')}`})`;
+    return {
+      id,
+      run: (context) => {
+        const found: string[] = [];
+        const scan = (label: string, texts: readonly string[]): void => {
+          for (const name of names) {
+            if (name !== '' && texts.some((text) => text.toLowerCase().includes(name.toLowerCase()))) found.push(`"${name}" is in ${label}`);
+          }
+        };
+        if (where.includes('outputs')) scan('the text written', context.outputs.map((output) => output.text));
+        if (where.includes('requests')) scan('a model request', requestTexts(context.requests));
+        return verdict(id, found.length === 0, found.length === 0 ? `none of ${names.length} names appears` : found.join('; '));
+      },
+    };
+  },
+
+  /**
+   * What was written into `doc` reads as Fountain with at least `minCues` character cues that have dialogue under them, and the
+   * parser noted nothing it could not close. `heading` says whether it may, must or must not open a scene (a continuation must not).
+   */
+  parsesAsFountain(doc: string, options: { readonly heading?: 'required' | 'forbidden' | 'any'; readonly minCues?: number } = {}): Check {
+    const id = `parsesAsFountain(${doc})`;
+    const heading = options.heading ?? 'any';
+    const minCues = options.minCues ?? 1;
+    return {
+      id,
+      run: (context) => {
+        const text = outputFor(context, doc);
+        if (text === undefined) return verdict(id, false, `nothing was written into "${doc}"`);
+        const parsed = parseFountain(text);
+        if (parsed.notices.length > 0) return verdict(id, false, `the parser noted: ${parsed.notices.join('; ')}`);
+        const headings = parsed.elements.filter((element) => element.type === 'scene_heading').length;
+        if (heading === 'forbidden' && headings > 0) return verdict(id, false, 'it holds a scene heading, and the scene already has one');
+        if (heading === 'required' && headings === 0) return verdict(id, false, 'it holds no scene heading');
+        const cues = parsed.elements.filter((element, index) => {
+          const next = parsed.elements[index + 1]?.type;
+          return element.type === 'character' && (next === 'dialogue' || next === 'parenthetical');
+        }).length;
+        return verdict(id, cues >= minCues, `${cues} character cues with dialogue, at least ${minCues} wanted`);
+      },
+    };
+  },
+
+  /** What was written into `doc` compiles as Ink, with at least `minChoices` choices and no code fence. Needs the Ink compiler loaded. */
+  compilesAsInk(doc: string, options: { readonly minChoices?: number } = {}): Check {
+    const id = `compilesAsInk(${doc})`;
+    const minChoices = options.minChoices ?? 0;
+    return {
+      id,
+      run: (context) => {
+        const text = outputFor(context, doc);
+        if (text === undefined) return verdict(id, false, `nothing was written into "${doc}"`);
+        if (hasFence(text)) return verdict(id, false, 'it holds a code fence');
+        const choices = text.split('\n').filter((line) => line.startsWith('*') || line.startsWith('+')).length;
+        let compiled: ReturnType<typeof compileInk>;
+        try {
+          compiled = compileInk(text);
+        } catch (error) {
+          return verdict(id, false, error instanceof Error ? error.message : 'the Ink compiler is not loaded');
+        }
+        if (!compiled.ok) return verdict(id, false, `it does not compile: ${compiled.errors.map((error) => error.text).join('; ')}`);
+        return verdict(id, choices >= minChoices, `it compiles, with ${choices} choices, at least ${minChoices} wanted`);
+      },
+    };
+  },
+
+  /**
+   * A `continuity.scan` of the turn found the contradiction planted across `docs`: one finding names both documents and quotes `span`,
+   * and there are at most `maxFindings` findings in all, so a scan that flags everything does not pass.
+   */
+  findsContradiction(docs: readonly [string, string], span: string, maxFindings: number): Check {
+    const id = `findsContradiction(${docs.join(', ')}; ${span})`;
+    return {
+      id,
+      run: (context) => {
+        const found = context.report.steps
+          .filter((step) => step.tool === 'continuity.scan' && step.status === 'done')
+          .flatMap((step) => ((step.data as { findings?: unknown } | undefined)?.findings ?? []) as readonly { docs?: unknown; quote?: unknown }[]);
+        if (found.length > maxFindings) return verdict(id, false, `${found.length} findings, at most ${maxFindings} wanted`);
+        const titles = docs.map((doc) => (docNode(context.before, doc)?.title ?? doc).toLowerCase());
+        const hit = found.some((finding) => {
+          const named = (Array.isArray(finding.docs) ? finding.docs : []).map((title) => String(title).toLowerCase());
+          return titles.every((title) => named.includes(title)) && typeof finding.quote === 'string' && finding.quote.toLowerCase().includes(span.toLowerCase());
+        });
+        return verdict(id, hit, hit ? `${found.length} findings, one names both documents and quotes the span` : `no finding of ${found.length} names both documents and quotes "${span}"`);
+      },
+    };
+  },
+
+  /** The binder under `under` (default the manuscript) holds exactly these rows, in this order unless `ordered` is false. */
+  treeEquals(expected: readonly TreeRow[], options: { readonly under?: string; readonly ordered?: boolean } = {}): Check {
+    const id = `treeEquals(${options.under ?? 'manuscript'})`;
+    return {
+      id,
+      run: (context) => {
+        const key = (row: TreeRow): string => `${row.parent} > ${row.title}`;
+        const want = expected.map(key);
+        const got = treeRows(context.after, options.under ?? 'manuscript').map(key);
+        const same = options.ordered === false ? [...want].sort().join('\n') === [...got].sort().join('\n') : want.join('\n') === got.join('\n');
+        return verdict(id, same, same ? `${got.length} rows as expected` : `expected [${want.join('; ')}], got [${got.join('; ')}]`);
+      },
+    };
+  },
+
+  /** The turn made at most `n` model requests. */
+  modelCallsAtMost(n: number): Check {
+    const id = `modelCallsAtMost(${n})`;
+    return { id, run: (context) => verdict(id, context.report.modelCalls <= n, `${context.report.modelCalls} model calls, at most ${n} wanted`) };
+  },
+};
+
+/** The nodes under `under` (a title or id), depth first in binder order, each with its parent's title. */
+function treeRows(state: ProjectState, under: string): readonly TreeRow[] {
+  const top = state.manifest.tree.find((node) => node.id === under) ?? state.manifest.tree.find((node) => node.title === under);
+  if (top === undefined) return [];
+  const titles = new Map(state.manifest.tree.map((node) => [node.id, node.title]));
+  return descendantsOf(state, top.id).map((node) => ({ title: node.title, parent: titles.get(node.parentId ?? '') ?? '' }));
+}
+
+/** Runs each check over a finished turn. Every check runs, so one failure does not hide another. */
+export function runChecks(list: readonly Check[], context: CheckContext): readonly CheckVerdict[] {
+  return list.map((check) => check.run(context));
 }

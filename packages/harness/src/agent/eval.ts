@@ -31,9 +31,12 @@ import { createHarness } from '../runtime.js';
 import type { SkillsOption } from '../tools/skills.js';
 import type { AskBackCode } from '../plan.js';
 import { canonicalJson } from '../util.js';
+import { producedOutputs, runChecks, type Check, type CheckVerdict } from './checks.js';
 import { createAgentSession, type AgentSession, type AgentSessionOptions } from './loop.js';
 import { createAgentPorts } from './ports.js';
 import { createContextPort, type ContextPortOptions } from './context.js';
+import { docResolverFor } from '../commands/resolver.js';
+import { resolveSlash } from '../commands/slash.js';
 import { emptyTaskList, reduceTaskList, type TaskState } from './progress.js';
 import { createProjectCommandRegistry } from '@caotang/store';
 
@@ -110,6 +113,8 @@ export type WriterAction = { readonly at: WriterMoment; readonly do: 'stop' } | 
 
 export interface Expectation {
   readonly status: TurnStatus;
+  /** The slash command the report names (`TurnReport.command`); `null` means it names none. Absent, the report is not read for one. */
+  readonly command?: string | null;
   /** The turn was stopped by the writer, in this phase. Absent, the report is not read for a stop. */
   readonly stop?: { readonly during: TurnPhase };
   /** The notes the report carries, in order, with the model call each reached (absent: undelivered). */
@@ -171,6 +176,12 @@ export interface Scenario {
    * Off by default: a wired review adds its schema to every planner call, which other scenarios' token ceilings do not count.
    */
   readonly coherence?: boolean;
+  /**
+   * A line typed in the composer, run in place of `intent` the way the app runs it: `resolveSlash` reads it, and the plan it builds goes to
+   * `submitPlan`, or the request it names to `submit`. A line that resolves to anything else is a scenario error. `intent` then only names
+   * the scenario's request for the reader.
+   */
+  readonly slash?: string;
   /** Deferred rows loaded before the planner's first request, as `submit(intent, { preload })` does. */
   readonly preload?: readonly ToolName[];
   /**
@@ -180,6 +191,10 @@ export interface Scenario {
   readonly skills?: SkillsOption;
   /** What the writer does during the turn, at fixed moments: the turn's signal is aborted, or a note is sent to it. */
   readonly writer?: readonly WriterAction[];
+  /** Run-context checks (agent-harness §9), read over the finished turn beside the expectation. A failed check is a failure of the run. */
+  readonly checks?: readonly Check[];
+  /** The cassette the scenario's gateway replays (cassette.ts), when it replays one: named in a failure so the reader knows what to re-record. */
+  readonly cassette?: string;
   readonly expect: Expectation;
 }
 
@@ -212,6 +227,8 @@ export interface ScenarioRun {
   readonly state: ProjectState;
   /** The project's bytes before the turn, for the undo-replay check. */
   readonly before: string;
+  /** What the scenario's run-context checks found, read over the project as the turn left it (before any restore). Present only when the scenario has checks. */
+  readonly verdicts?: readonly CheckVerdict[];
   /** Present when the scenario asked for a restore: whether it ran, and the project's bytes after it. */
   readonly restored?: { readonly ok: boolean; readonly message: string; readonly after: string };
 }
@@ -243,6 +260,11 @@ export function projectBytes(state: ProjectState): string {
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([id, record]) => [id, { id: record.id, body: record.body }] as const);
   return canonicalJson({ manifest: state.manifest, documents, declinedCodexFiles: [...state.declinedCodexFiles].sort(), agentFiles: agentFileTexts(state.agentFiles) });
+}
+
+/** The run-context checks over a finished turn. `initial` is a second build of the scenario's project, which no turn has touched. */
+function verdictsOf(list: readonly Check[], initial: ProjectState, state: ProjectState, report: TurnReport, requests: readonly ChatRequest[]): readonly CheckVerdict[] {
+  return runChecks(list, { before: initial, after: state, report, requests, outputs: producedOutputs(initial, state, report) });
 }
 
 /** Runs a scenario once, end to end, and returns what it did. Nothing is asserted here. */
@@ -324,18 +346,32 @@ export async function runScenario(scenario: Scenario): Promise<ScenarioRun> {
     ...(scenario.modeOptions ?? {}),
   });
   held.session = session;
-  const report = await session.submit(scenario.intent, {
-    ...(scenario.preload === undefined ? {} : { preload: scenario.preload }),
-    ...(writer.length === 0 ? {} : { signal: stop.signal }),
-  });
-  if (scenario.expect.restores !== true) return { report, events, requests, pending, state, before };
+  const signal = writer.length === 0 ? {} : { signal: stop.signal };
+  const resolved =
+    scenario.slash === undefined
+      ? undefined
+      : resolveSlash(scenario.slash, { resolve: docResolverFor(state, harness.withheldAnywhere()), recipes: (state.manifest.recipes ?? []).map((recipe) => ({ name: recipe.name, format: recipe.format })) });
+  if (resolved !== undefined && resolved.kind !== 'plan' && resolved.kind !== 'intent') throw new Error(`scenario "${scenario.name}": ${scenario.slash} is not a request or a plan (${resolved.kind})`);
+  const report =
+    resolved?.kind === 'plan'
+      ? await session.submitPlan(resolved.intent, resolved.plan, { command: resolved.command, ...signal })
+      : await session.submit(resolved?.intent ?? scenario.intent, {
+          ...(scenario.preload === undefined ? {} : { preload: scenario.preload }),
+          ...(resolved?.command === undefined ? {} : { command: resolved.command }),
+          ...(resolved?.forcePlan === true ? { forcePlan: true } : {}),
+          ...signal,
+        });
+  // The checks read the project the turn left, so they run before a restore puts the old one back.
+  const verdicts = scenario.checks === undefined ? undefined : verdictsOf(scenario.checks, scenario.project(), state, report, requests);
+  const kept = verdicts === undefined ? {} : { verdicts };
+  if (scenario.expect.restores !== true) return { report, events, requests, pending, state, before, ...kept };
   const outcome = session.restore(report.turnId);
   const restored = {
     ok: outcome.ok,
     message: outcome.ok ? '' : outcome.error.message,
     after: projectBytes(state),
   };
-  return { report, events, requests, pending, state, before, restored };
+  return { report, events, requests, pending, state, before, restored, ...kept };
 }
 
 /** A card item matches when its kind, decision and tools agree. Tools are compared as a multiset when unordered. */
@@ -492,6 +528,9 @@ export function checkRun(scenario: Scenario, run: ScenarioRun): string[] {
     const found = report.askBack?.candidates?.length ?? 0;
     if (found !== expect.candidates) failures.push(`ask-back: expected ${expect.candidates} candidates, got ${found}`);
   }
+  if (expect.command !== undefined && (report.command ?? null) !== expect.command) {
+    failures.push(`command: expected ${JSON.stringify(expect.command)}, got ${JSON.stringify(report.command ?? null)}`);
+  }
   if (expect.revisionDrift !== undefined && report.askBack?.revisionDrift !== expect.revisionDrift) {
     failures.push(`ask-back: expected revision drift ${expect.revisionDrift}, got ${report.askBack?.revisionDrift ?? 'none'}`);
   }
@@ -525,6 +564,7 @@ export function checkRun(scenario: Scenario, run: ScenarioRun): string[] {
   }
   failures.push(...reachedFailures(scenario, run));
   if (expect.state !== undefined) failures.push(...expect.state(run.state, report));
+  for (const result of run.verdicts ?? []) if (!result.pass) failures.push(`check ${result.id}: ${result.detail}`);
   return failures;
 }
 

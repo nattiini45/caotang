@@ -77,7 +77,7 @@ test('the demo: a three-chapter story, an agent draft approved in the agent pane
   // 2. The agent, on the built-in demo provider. The panel is closed until the writer opens it.
   await page.getByRole('button', { name: 'Agent', exact: true }).click();
   await expect(page.getByTestId('agent-provider')).toHaveText('Provider: Demo (no key)');
-  await page.getByRole('textbox', { name: 'Intent' }).fill(DEMO_INTENTS.draftScene);
+  await page.getByRole('combobox', { name: 'Intent' }).fill(DEMO_INTENTS.draftScene);
   await page.getByRole('button', { name: 'Send', exact: true }).click();
 
   // The agent proposes one write, so it shows a one-step confirm card, and the draft waits in its scene's ghost preview.
