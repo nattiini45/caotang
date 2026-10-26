@@ -24,9 +24,9 @@ fallback.setMessagesCompiler(compileMessage);
 fallback.load('en-refs', {});
 fallback.activate('en-refs');
 /**
- * Ids whose English template has been loaded into `fallback`. Extraction gives each id one template:
- * a second template under the same id fails the catalog drift guard (§8.2), so the first template
- * seen for an id is the only one this process can meet.
+ * Ids whose English template has been loaded into `fallback`. The first template compiled for an id
+ * wins for the life of the process. Extraction should give each id one template, but no guard
+ * catches a duplicate id: drift compares whole catalogues, and regenerating would silently keep one.
  */
 const compiled = new Set<string>();
 
