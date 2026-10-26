@@ -38,7 +38,7 @@ async function openAgent(page: Page): Promise<void> {
 
 async function sendIntent(page: Page, intent: string): Promise<void> {
   await openAgent(page);
-  const field = page.getByRole('textbox', { name: 'Intent' });
+  const field = page.getByRole('combobox', { name: 'Intent' });
   await expect(field).toBeEnabled();
   await field.fill(intent);
   await page.getByRole('button', { name: 'Send', exact: true }).click();

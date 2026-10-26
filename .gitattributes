@@ -33,3 +33,6 @@ packages/pdf-fonts/test/fixtures/bidi-character-test-13.0.0-slice.txt text eol=l
 
 # Golden prompts: compared byte for byte with what the server builds.
 packages/mcp-server/test/golden/*.txt text eol=lf
+
+# Recorded model responses (golden tasks): one JSON record per line, parsed by the replay gateway, so a CRLF checkout must not reach it.
+packages/harness/test/golden-tasks/**/*.jsonl text eol=lf
