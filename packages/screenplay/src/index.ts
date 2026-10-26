@@ -132,6 +132,7 @@ export {
   createFdxRenderer,
   importFdx,
   parseFdxParagraphs,
+  parseFdxTitlePage,
   renderFdx,
   type FdxParagraph,
   type FdxRenderResult,
