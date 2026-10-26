@@ -134,7 +134,6 @@ export {
   evaluateCheck,
   evaluateChecks,
   largeScopes,
-  wordsOf,
   type CheckFailure,
   type CheckKind,
   type CheckOptions,

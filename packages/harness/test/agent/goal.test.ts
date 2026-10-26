@@ -7,7 +7,8 @@ import { describe, expect, it } from 'vitest';
 
 import { err, ok } from '@caotang/bus';
 import { createManualClock } from '@caotang/gateway';
-import { addDocument, setBody, type ProjectState } from '@caotang/store';
+import { emptyCoherenceFile } from '@caotang/coherence';
+import { addDocument, addFolder, getRevision, setBody, type ProjectState } from '@caotang/store';
 
 import {
   REGRESSION_OPTIONS,
@@ -37,6 +38,8 @@ interface Scripted {
   readonly session: AgentSession;
   readonly intents: string[];
   readonly restored: string[];
+  /** Turns whose restore leaves a write in place, as a bus undo does when a compensation fails. */
+  readonly partial: Set<string>;
   readonly state: ProjectState;
 }
 
@@ -44,6 +47,7 @@ interface Scripted {
 function scripted(state: ProjectState, edits: readonly Edit[]): Scripted {
   const intents: string[] = [];
   const restored: string[] = [];
+  const partial = new Set<string>();
   const session = {
     submit: async (intent: string): Promise<TurnReport> => {
       intents.push(intent);
@@ -53,10 +57,10 @@ function scripted(state: ProjectState, edits: readonly Edit[]): Scripted {
     },
     restore: (turnId: string) => {
       restored.push(turnId);
-      return restored.length > 0 && turnId !== 'unrestorable' ? ok({ groupId: turnId, undone: [], failures: [] }) : err({ code: 'not-found', message: 'no such turn' } as never);
+      return restored.length > 0 && turnId !== 'unrestorable' ? ok({ groupId: turnId, undone: [], failures: partial.has(turnId) ? [{ target: 'doc.write', code: 'conflict', message: 'edited since', correctiveHint: 'read it again' }] : [] } as never) : err({ code: 'not-found', message: 'no such turn' } as never);
     },
   } as unknown as AgentSession;
-  return { session, intents, restored, state };
+  return { session, intents, restored, partial, state };
 }
 
 function report(turnId: string, extra: Partial<TurnReport>): TurnReport {
@@ -104,6 +108,7 @@ async function run(
     state: scripts.state,
     meter: options.meter ?? createBudgetMeter(goal.limits),
     now: () => NOW,
+    withheld: () => new Set<string>(),
     ...options,
   });
 }
@@ -221,6 +226,36 @@ describe('a run that regresses', () => {
     expect(scripts.restored).toEqual(['t1']);
   });
 
+  it('says so when the restore left writes in place, instead of calling the iteration restored', async () => {
+    const scripts = scripted(makeState(), breaks);
+    scripts.partial.add('t1');
+    const finished = await run(scripts, goalOf([SYNOPSES, LANDING_DRAFT]), { onRegression: () => 'restore' });
+    expect(finished.status).toBe('regressed');
+    expect(finished.reason).toContain('restoring iteration 1 left 1 write in place: doc.write');
+    expect(finished.reason).not.toContain('was restored');
+  });
+
+  it('keeps the run when the ask-back cannot be answered: it stops, and restores nothing', async () => {
+    const answers: GoalOptions['onRegression'][] = [
+      async () => {
+        throw new Error('the panel closed');
+      },
+      () => {
+        throw new Error('the panel closed');
+      },
+    ];
+    for (const onRegression of answers) {
+      const scripts = scripted(makeState(), breaks);
+      const finished = await run(scripts, goalOf([SYNOPSES, LANDING_DRAFT]), { onRegression });
+      expect(finished.status).toBe('regressed');
+      expect(finished.iterations).toHaveLength(1);
+      expect(finished.askBack?.options).toEqual([...REGRESSION_OPTIONS]);
+      expect(finished.reason).toContain('the question could not be answered (the panel closed)');
+      expect(finished.reason).toContain('nothing was restored');
+      expect(scripts.restored).toEqual([]);
+    }
+  });
+
   it('carries on when the writer chooses to continue, and does not ask again for the same break', async () => {
     const asked: number[] = [];
     const scripts = scripted(makeState(), breaks);
@@ -268,6 +303,73 @@ describe('a run that reaches a limit', () => {
   });
 });
 
+describe('the order the stops are checked in (agent-harness §7.2)', () => {
+  const stop = { dimension: 'tokens', limit: 1000, spent: 900, needed: 400 } as const;
+  const outside: TurnReport['trace'] = [{ tool: 'meta.set', callId: 'c1', outcome: 'ok', params: { targets: [FRIEND], status: 'final' } }];
+  const fillBoth: Edit = (s) => {
+    synopsisOf(s, STORM, 'One.');
+    synopsisOf(s, FRIEND, 'Two.');
+  };
+
+  it('out-of-scope comes before passed', async () => {
+    const finished = await run(scripted(makeState(), [(s) => ({ ...fillBoth(s, 1), trace: outside })]), goalOf([SYNOPSES], { writeScope: { mode: 'doc', docIds: [STORM] } }));
+    expect(finished.status).toBe('out-of-scope');
+  });
+
+  it('passed comes before budget, cancelled and failed', async () => {
+    for (const extra of [{ budgetStop: stop }, { status: 'cancelled' }, { status: 'failed' }] as const) {
+      const finished = await run(scripted(makeState(), [(s) => ({ ...fillBoth(s, 1), ...extra })]), goalOf([SYNOPSES]));
+      expect(finished.status).toBe('passed');
+    }
+  });
+
+  it('budget comes before cancelled and failed', async () => {
+    for (const status of ['cancelled', 'failed'] as const) {
+      const finished = await run(scripted(makeState(), [() => ({ status, budgetStop: stop })]), goalOf([SYNOPSES]));
+      expect(finished.status).toBe('budget');
+    }
+  });
+
+  it('budget includes the meter’s time limit passing during the iteration, and comes before a stall', async () => {
+    const clock = createManualClock(1_000);
+    const limits = { maxActiveMs: 5_000 };
+    const meter = createBudgetMeter(limits, { clock });
+    const scripts = scripted(makeState(), [() => undefined, () => void clock.advance(6_000)]);
+    const finished = await run(scripts, goalOf([SYNOPSES], { limits }), { meter });
+    expect(finished.status).toBe('budget');
+    expect(finished.iterations).toHaveLength(2);
+    meter.dispose();
+  });
+
+  it('cancelled comes before failed and regressed', async () => {
+    const regress: Edit = (s) => statusOf(s, LANDING, 'final');
+    const finished = await run(scripted(makeState(), [(s) => ({ ...regress(s, 1), status: 'cancelled' })]), goalOf([SYNOPSES, LANDING_DRAFT]));
+    expect(finished.status).toBe('cancelled');
+  });
+
+  it('failed comes before regressed and stalled', async () => {
+    const regress: Edit = (s) => statusOf(s, LANDING, 'final');
+    const finished = await run(scripted(makeState(), [(s) => ({ ...regress(s, 1), status: 'failed' })]), goalOf([SYNOPSES, LANDING_DRAFT]));
+    expect(finished.status).toBe('failed');
+    const second = await run(scripted(makeState(), [() => undefined, () => ({ status: 'failed' })]), goalOf([SYNOPSES]));
+    expect(second.status).toBe('failed');
+    expect(second.iterations).toHaveLength(2);
+  });
+
+  it('regressed comes before stalled and max-iterations', async () => {
+    const edits: Edit[] = [() => undefined, (s) => statusOf(s, LANDING, 'final')];
+    const finished = await run(scripted(makeState(), edits), goalOf([SYNOPSES, LANDING_DRAFT], { maxIterations: 2 }));
+    // The landing is already "draft"; iteration 2 breaks it as the run would also stall and reach its limit.
+    expect(finished.status).toBe('regressed');
+    expect(finished.iterations).toHaveLength(2);
+  });
+
+  it('stalled comes before max-iterations', async () => {
+    const finished = await run(scripted(makeState(), [() => undefined]), goalOf([SYNOPSES], { maxIterations: 2 }));
+    expect(finished.status).toBe('stalled');
+  });
+});
+
 describe('a run the writer ends', () => {
   it('ends cancelled on the writer’s Stop, and on a declined card', async () => {
     const stopped = await run(scripted(makeState(), [() => ({ status: 'cancelled', stop: { by: 'user', during: 'planning' } })]), goalOf([SYNOPSES]));
@@ -285,6 +387,25 @@ describe('a run the writer ends', () => {
     const finished = await run(scripts, goalOf([SYNOPSES]), { signal: controller.signal });
     expect(finished.status).toBe('cancelled');
     expect(scripts.intents).toEqual([]);
+  });
+
+  it('ends failed without a turn when every check it still has to meet is turned off in Settings', async () => {
+    const coherence: CheckSpec = { kind: 'coherence.clean', scope: FULL, checks: ['codex.never-mentioned'] };
+    const scripts = scripted(makeState(), [() => undefined]);
+    const finished = await run(scripts, goalOf([coherence]), { checks: { enabled: ['pov.coverage'] } });
+    expect(finished.status).toBe('failed');
+    expect(finished.reason).toContain('turned off in Settings');
+    expect(scripts.intents, 'no model turn was paid for').toEqual([]);
+  });
+
+  it('works the checks it can, then ends failed when only a turned-off one is left', async () => {
+    const coherence: CheckSpec = { kind: 'coherence.clean', scope: FULL, checks: ['codex.never-mentioned'] };
+    const state = makeState();
+    const scripts = scripted(state, [(s) => { for (const node of s.manifest.tree) node.synopsis = 'Filled.'; }, () => undefined]);
+    const finished = await run(scripts, goalOf([SYNOPSES, coherence]), { checks: { enabled: ['pov.coverage'] } });
+    expect(finished.status).toBe('failed');
+    expect(finished.reason).toContain('turned off in Settings');
+    expect(scripts.intents).toHaveLength(1);
   });
 
   it('ends failed on a turn that failed without a limit', async () => {
@@ -318,6 +439,40 @@ describe('a goal that is refused', () => {
   it('has no checks, or a check that cannot run', async () => {
     expect(await refused(goalOf([]))).toContain('no checks');
     expect(await refused(goalOf([{ kind: 'words.between', scope: FULL }]))).toContain('neither a minimum nor a maximum');
+    expect(await refused(goalOf([{ kind: 'coherence.clean', scope: FULL, checks: [] }]))).toContain('names no checks');
+  });
+
+  it('reads no document: a words, status or synopsis check over a scope that holds nothing a goal can read', async () => {
+    const state = makeState();
+    addFolder(state, { parentId: 'manuscript', title: 'Chapter 3', now: OPENED, id: 'n_CHAPTR0003' });
+    addFolder(state, { parentId: 'manuscript', title: 'Chapter 4', now: OPENED, id: 'n_CHAPTR0004' });
+    addDocument(state, { parentId: 'n_CHAPTR0004', title: 'Old draft', now: OPENED, id: 'n_OLDDRAFT01', status: 'archived' });
+    for (const folder of ['n_CHAPTR0003', 'n_CHAPTR0004']) {
+      const reason = await refused(goalOf([{ kind: 'status.all', scope: { mode: 'doc', docIds: [folder] }, status: 'draft' }]), {}, state);
+      expect(reason).toContain('reads no document');
+    }
+    // A project with no live document at all.
+    const bare = makeState();
+    for (const node of bare.manifest.tree) if (node.type === 'document') node.status = 'archived';
+    expect(await refused(goalOf([{ kind: 'words.between', scope: FULL, min: 1 }]), {}, bare)).toContain('reads no document');
+  });
+
+  it('starts when the scope holds a live document, and ends a `changed` scope with nothing changed as passed without a turn', async () => {
+    const live = scripted(makeState(), [() => undefined]);
+    const started = await run(live, goalOf([{ kind: 'status.all', scope: { mode: 'doc', docIds: [LANDING] }, status: 'draft' }]));
+    expect(started.status).toBe('passed');
+
+    // Every document reviewed at its current revision: nothing has changed since the last review, and the empty scope is not a mistake.
+    const quiet = makeState();
+    const file = emptyCoherenceFile();
+    for (const node of quiet.manifest.tree) {
+      if (node.type === 'document') file.reviewState[node.id] = { lastReviewedRevision: getRevision(quiet, node.id), lastReviewedAt: NOW.toISOString() };
+    }
+    quiet.coherence = file;
+    const unchanged = scripted(quiet, [() => undefined]);
+    const finished = await run(unchanged, goalOf([{ kind: 'status.all', scope: { mode: 'changed' }, status: 'final' }]));
+    expect(finished.status).toBe('passed');
+    expect(unchanged.intents, 'no turn was needed').toEqual([]);
   });
 
   it('names a write scope with no document', async () => {
@@ -346,6 +501,20 @@ describe('the write scope', () => {
     expect(finished.iterations[0]?.outOfScope).toEqual(['meta.set: The Friend']);
   });
 
+  it('keeps the run when the iteration observer throws, and still judges the write scope', async () => {
+    const trace: TurnReport['trace'] = [{ tool: 'meta.set', callId: 'c1', outcome: 'ok', params: { targets: [FRIEND], status: 'final' } }];
+    const scripts = scripted(makeState(), [() => ({ trace })]);
+    const finished = await run(scripts, goalOf([SYNOPSES], { writeScope: { mode: 'doc', docIds: [STORM] } }), {
+      onIteration: () => {
+        throw new Error('the panel closed');
+      },
+    });
+    expect(finished.status).toBe('out-of-scope');
+    expect(finished.iterations).toHaveLength(1);
+    expect(finished.notes).toContain('the iteration observer failed: the panel closed');
+    expect(finished.reason).toContain('the iteration observer failed');
+  });
+
   it('lets a write inside the scope through, a folder scope covering the documents under it, and ignores reads and refused calls', async () => {
     const trace: TurnReport['trace'] = [
       { tool: 'meta.set', callId: 'c1', outcome: 'ok', params: { targets: [STORM], status: 'final' } },
@@ -356,6 +525,19 @@ describe('the write scope', () => {
     const finished = await run(scripts, goalOf([SYNOPSES], { writeScope: { mode: 'doc', docIds: [CHAPTER_ONE] }, maxIterations: 1 }));
     expect(finished.status).toBe('max-iterations');
     expect(finished.iterations[0]?.outOfScope).toEqual([]);
+  });
+
+  it('fails closed on an external call that ran under a card, whose documents cannot be worked out, and lets a trusted external read through', async () => {
+    const write: TurnReport['trace'] = [{ tool: 'mcp__notes__append', callId: 'c1', outcome: 'ok', params: { text: 'x' } }];
+    const cards: TurnReport['cards'] = [{ kind: 'confirm', tools: ['mcp__notes__append'], decision: 'approved', edits: 0, retries: 0 }];
+    const scripts = scripted(makeState(), [() => ({ trace: write, cards })]);
+    const finished = await run(scripts, goalOf([SYNOPSES], { writeScope: { mode: 'doc', docIds: [STORM] } }));
+    expect(finished.status).toBe('out-of-scope');
+    expect(finished.iterations[0]?.outOfScope).toEqual(['mcp__notes__append: its documents could not be worked out']);
+
+    const read: TurnReport['trace'] = [{ tool: 'mcp__notes__search', callId: 'c2', outcome: 'ok', params: { q: 'x' } }];
+    const trusted = await run(scripted(makeState(), [() => ({ trace: read })]), goalOf([SYNOPSES], { writeScope: { mode: 'doc', docIds: [STORM] }, maxIterations: 1 }));
+    expect(trusted.iterations[0]?.outOfScope).toEqual([]);
   });
 
   it('is judged against the tree as it was before the turn, so a rename does not hide the target', async () => {
@@ -412,5 +594,118 @@ describe('restoreGoal', () => {
     expect(restored.map((entry) => entry.turnId)).toEqual(['t2', 't1']);
     expect(restored.every((entry) => entry.result.ok)).toBe(true);
     expect(scripts.restored).toEqual(['t2', 't1']);
+  });
+});
+
+describe('restoreGoal, when an iteration cannot be taken back completely', () => {
+  it('stops at the first partial iteration, so an older one is not undone under newer writes', async () => {
+    const scripts = scripted(makeState(), [() => undefined]);
+    const finished = await run(scripts, goalOf([SYNOPSES]));
+    expect(finished.iterations).toHaveLength(2);
+    scripts.partial.add('t2');
+    const restored = restoreGoal(scripts.session, finished);
+    expect(restored.map((entry) => [entry.turnId, entry.complete])).toEqual([['t2', false]]);
+    expect(scripts.restored).toEqual(['t2']);
+  });
+
+  it('marks every iteration complete when nothing was left in place', async () => {
+    const scripts = scripted(makeState(), [() => undefined]);
+    const finished = await run(scripts, goalOf([SYNOPSES]));
+    expect(restoreGoal(scripts.session, finished).map((entry) => entry.complete)).toEqual([true, true]);
+  });
+});
+
+describe('a closing coherence run that goes wrong', () => {
+  const coherence: CheckSpec = { kind: 'coherence.clean', scope: FULL, checks: ['codex.never-mentioned'] };
+  const named = (): ProjectState => {
+    const state = makeState();
+    setBody(state, LANDING, 'Elena met Kestrel.');
+    return state;
+  };
+
+  it('says the scan ran but could not be recorded, in notes and in the reason, and keeps the status', async () => {
+    const scripts = scripted(named(), [() => undefined]);
+    const finished = await run(scripts, goalOf([coherence]), {
+      recordCoherence: () => {
+        throw new Error('disk full');
+      },
+    });
+    expect(finished.status).toBe('passed');
+    expect(finished.scanRunId).toBeUndefined();
+    expect(finished.notes).toHaveLength(1);
+    expect(finished.notes[0]).toMatch(/could not be recorded/);
+    expect(finished.notes[0]).not.toMatch(/did not run/);
+    expect(finished.reason).toContain(finished.notes[0]);
+  });
+
+  it('says the scan did not run when it could not be made, in notes and in the reason', async () => {
+    let calls = 0;
+    const scripts = scripted(named(), [() => undefined]);
+    // The first call is the evaluation at the start, the second the closing scan.
+    const finished = await run(scripts, goalOf([coherence]), {
+      checks: {
+        dialogue: () => {
+          calls += 1;
+          if (calls > 1) throw new Error('the dialogue facts are unavailable');
+          return undefined;
+        },
+      },
+    });
+    expect(finished.status).toBe('passed');
+    expect(finished.scanRunId).toBeUndefined();
+    expect(finished.notes).toEqual(['the closing coherence scan did not run: the dialogue facts are unavailable']);
+    expect(finished.reason).toContain('the closing coherence scan did not run');
+  });
+});
+
+describe('a read rule', () => {
+  const synopses: CheckSpec = { kind: 'synopsis.filled', scope: FULL };
+
+  it('keeps a withheld document out of every request: not named, not counted, not measured', async () => {
+    const state = makeState();
+    const scripts = scripted(state, [(s) => synopsisOf(s, FRIEND, 'The friend arrives.')]);
+    const finished = await run(scripts, goalOf([synopses, { kind: 'words.between', scope: FULL, max: 1 }]), { withheld: () => new Set([STORM]) });
+
+    expect(scripts.intents.length).toBeGreaterThan(0);
+    for (const intent of scripts.intents) {
+      expect(intent).not.toContain('The Storm');
+      expect(intent).not.toContain(STORM);
+    }
+    const results = finished.iterations.flatMap((record) => [...record.before, ...record.after]).concat([...finished.results]);
+    expect(JSON.stringify(results)).not.toContain('The Storm');
+    expect(JSON.stringify(results)).not.toContain(STORM);
+    // The count of what is left out is a note, never a name.
+    expect(finished.results.flatMap((result) => result.notes)).toContain('1 document is withheld from the agent by a rule and not checked.');
+  });
+
+  it('does not let a withheld document stand in the way of the goal: the checks pass over what the agent may read', async () => {
+    const state = makeState();
+    synopsisOf(state, LANDING, 'Elena returns.');
+    const scripts = scripted(state, [(s) => synopsisOf(s, FRIEND, 'The friend arrives.')]);
+    const finished = await run(scripts, goalOf([synopses]), { withheld: () => new Set([STORM]) });
+    expect(finished.status).toBe('passed');
+    expect(scripts.intents.join(' ')).not.toContain('The Storm');
+  });
+
+  it('reads the rule afresh: a document withheld mid-run leaves the next request', async () => {
+    const state = makeState();
+    const hidden = new Set<string>();
+    const scripts = scripted(state, [() => void hidden.add(STORM), () => undefined]);
+    await run(scripts, goalOf([synopses]), { withheld: () => hidden });
+    expect(scripts.intents[0]).toContain('"The Storm"');
+    expect(scripts.intents[1]).not.toContain('"The Storm"');
+  });
+
+  it('ends with a coherence run that leaves the withheld document out, as the scan port would', async () => {
+    const state = makeState();
+    setBody(state, STORM, 'Rain. Elena and Kestrel at the lamp.');
+    const coherence: CheckSpec = { kind: 'coherence.clean', scope: FULL, checks: ['codex.never-mentioned'] };
+    const scripts = scripted(state, [() => undefined]);
+    const finished = await run(scripts, goalOf([coherence]), { withheld: () => new Set([STORM]) });
+    const held = state.coherence;
+    expect(finished.scanRunId).toBe(held?.runs[0]?.id);
+    // Elena and Kestrel are named only in the withheld document, so with it left out they are still never mentioned.
+    expect(finished.results[0]?.pass).toBe(false);
+    expect(JSON.stringify(held)).not.toContain(STORM);
   });
 });

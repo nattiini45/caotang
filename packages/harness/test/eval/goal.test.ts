@@ -143,7 +143,7 @@ async function rig(wire: Wire, plan: (iteration: number) => readonly Call[], lim
     cards,
     requests,
     session,
-    start: (goal, extra = {}) => createGoalRunner().start(goal, { session, state, meter, now: () => NOW, ...extra }),
+    start: (goal, extra = {}) => createGoalRunner().start(goal, { session, state, meter, now: () => NOW, withheld: () => harness.withheldAnywhere(), ...extra }),
   };
 }
 
@@ -295,6 +295,25 @@ describe.each<Wire>(['json', 'native'])('goal runs on the %s wire', (wire) => {
     expect([LANDING, FRIEND].map((id) => statusOf(f.state, id))).toEqual(['final', 'final']);
     expect(run.status).toBe('stalled');
     expect(run.results[0]?.failures.map((failure) => failure.title)).toEqual(['The Storm']);
+  });
+
+  it('keeps a document a read rule withholds out of the goal’s requests and out of the provider’s, and does not make it a reason to fail', async () => {
+    const limits = { maxModelCalls: 20 };
+    const rules: RulesProvider = () => ({
+      rules: [{ effect: 'deny', tool: '*', access: 'read', scope: { subtree: STORM }, note: 'the writer withheld The Storm', source: 'app' }],
+    });
+    const f = await rig(wire, () => [final(FRIEND), final(LANDING)], limits, undefined, undefined, { rules });
+    const run = await f.start(goalOf([ALL_FINAL], limits));
+    expect(run.status).toBe('passed');
+    expect(statusOf(f.state, STORM)).toBeNull();
+    for (const intent of run.iterations.map((record) => record.intent)) {
+      expect(intent).not.toContain('The Storm');
+      expect(intent).not.toContain(STORM);
+    }
+    const sent = JSON.stringify(f.requests);
+    expect(sent).not.toContain('The Storm');
+    expect(sent).not.toContain('The lamp failed');
+    expect(JSON.stringify(run.results)).not.toContain('The Storm');
   });
 
   it('is refused before the first turn when it has no limit', async () => {

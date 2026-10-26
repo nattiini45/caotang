@@ -21,10 +21,12 @@ import {
   type FindingSeverity,
   type ScopeSpec,
 } from '@caotang/coherence';
-import { countBody, getBody, getRevision, type ProjectState, type TreeNode } from '@caotang/store';
+import { withheldState } from '@caotang/context';
+import { countBody, getRevision, type ProjectState, type TreeNode } from '@caotang/store';
 
 import { descendantsOf } from '../resolve.js';
 import { countIn, heldFile } from '../tools/coherence.js';
+import { wordsOfDocument } from '../tools/common.js';
 import { canonicalJson } from '../util.js';
 
 export type CheckSpec =
@@ -58,6 +60,8 @@ export interface CheckResult {
   readonly failures: readonly CheckFailure[];
   /** Checks the writer turned off in Settings › Coherence, left out of this evaluation. */
   readonly skipped: readonly DeterministicCheckId[];
+  /** Set when no work can make this check pass because of a setting, not the manuscript: every check it names is turned off in Settings › Coherence. */
+  readonly unmeetable?: true;
   readonly notes: readonly string[];
 }
 
@@ -68,20 +72,33 @@ export interface CheckOptions {
   readonly enabled?: readonly DeterministicCheckId[];
   /** The dialogue module's findings, as `CoherenceSource.dialogue` gives them. */
   readonly dialogue?: (state: ProjectState) => DialogueFacts | undefined;
+  /**
+   * The nodes a read rule keeps from the agent (agent-harness §4). They are not measured, scanned or named: they are left out like
+   * archived documents, so no failure carries their title, id or text, and the dialogue facts are read from the project as the agent
+   * may read it. Absent, nothing is withheld.
+   */
+  readonly withheld?: ReadonlySet<string>;
+}
+
+/** The scan's exclusion when a read rule withholds nodes: archived or withheld, as `coherencePorts.scan` excludes them. Undefined when nothing is withheld. */
+export function excludedBy(withheld: ReadonlySet<string> | undefined): ((node: TreeNode) => boolean) | undefined {
+  return withheld === undefined || withheld.size === 0 ? undefined : (node) => node.status === 'archived' || withheld.has(node.id);
 }
 
 const SEVERITY_RANK: Readonly<Record<FindingSeverity, number>> = { error: 3, warning: 2, info: 1 };
 
 /** The words a writer reads a scope in. */
-function scopeWords(scope: ScopeSpec): string {
-  if (scope.mode === 'full') return 'the whole manuscript';
-  if (scope.mode === 'changed') return 'the documents changed since the last review';
-  return scope.docIds.length === 1 ? 'one named document' : `${scope.docIds.length} named documents`;
+function scopeWords(scope: ScopeSpec | undefined): string {
+  if (scope?.mode === 'full') return 'the whole manuscript';
+  if (scope?.mode === 'changed') return 'the documents changed since the last review';
+  if (scope?.mode === 'doc' && Array.isArray(scope.docIds)) return scope.docIds.length === 1 ? 'one named document' : `${scope.docIds.length} named documents`;
+  return 'a scope it cannot name';
 }
 
+/** Defensive: a spec arrives from a model or a saved file, so a malformed one still gets a label (an unmet result must be buildable for it). */
 export function checkLabel(spec: CheckSpec): string {
-  const where = scopeWords(spec.scope);
-  switch (spec.kind) {
+  const where = scopeWords((spec as Partial<CheckSpec> | null | undefined)?.scope);
+  switch (spec?.kind) {
     case 'coherence.clean':
       return `no open continuity findings in ${where}`;
     case 'words.between':
@@ -94,6 +111,8 @@ export function checkLabel(spec: CheckSpec): string {
       return `every document in ${where} has status "${spec.status}"`;
     case 'synopsis.filled':
       return `every document in ${where} has a synopsis${spec.maxWords === undefined ? '' : ` of at most ${spec.maxWords} words`}`;
+    default:
+      return 'a check it cannot name';
   }
 }
 
@@ -104,11 +123,13 @@ const isCount = (value: unknown): value is number => typeof value === 'number' &
 
 /** Why a spec cannot be evaluated, or undefined when it can. Checked before a goal starts and again by `evaluateCheck`. */
 export function checkSpecProblem(spec: CheckSpec): string | undefined {
+  if (typeof spec !== 'object' || spec === null) return 'it is not a check';
   const scope = spec.scope as ScopeSpec | undefined;
   if (scope === undefined || (scope.mode !== 'full' && scope.mode !== 'changed' && scope.mode !== 'doc')) return 'it names no scope';
   if (scope.mode === 'doc' && (!Array.isArray(scope.docIds) || scope.docIds.length === 0)) return 'its document scope names no document';
   if (spec.kind === 'coherence.clean') {
     if (scope.mode === 'doc' && scope.docIds.length !== 1) return 'a coherence scope over documents names exactly one document';
+    if (spec.checks !== undefined && spec.checks.length === 0) return 'it names no checks';
     if (spec.checks !== undefined && spec.checks.some((id) => !(DETERMINISTIC_CHECK_IDS as readonly string[]).includes(id))) return 'it names a check that does not exist';
     if (spec.minSeverity !== undefined && SEVERITY_RANK[spec.minSeverity] === undefined) return 'its minimum severity is not error, warning or info';
     return undefined;
@@ -124,7 +145,7 @@ export function checkSpecProblem(spec: CheckSpec): string | undefined {
   return 'its kind is not one of coherence.clean, words.between, status.all and synopsis.filled';
 }
 
-const unmet = (spec: CheckSpec, detail: string, skipped: readonly DeterministicCheckId[] = []): CheckResult => ({
+const unmet = (spec: CheckSpec, detail: string, skipped: readonly DeterministicCheckId[] = [], unmeetable = false): CheckResult => ({
   spec,
   key: checkKey(spec),
   label: checkLabel(spec),
@@ -132,6 +153,7 @@ const unmet = (spec: CheckSpec, detail: string, skipped: readonly DeterministicC
   distance: 1,
   failures: [{ title: 'This check', detail, weight: 1 }],
   skipped,
+  ...(unmeetable ? { unmeetable: true as const } : {}),
   notes: [],
 });
 
@@ -143,51 +165,70 @@ function binderOrder(state: ProjectState): ReadonlyMap<string, number> {
 }
 
 /** The documents a words, status or synopsis check reads, in binder order, and the references that name nothing a goal can read. */
-export function documentsInScope(state: ProjectState, scope: ScopeSpec): { readonly nodes: readonly TreeNode[]; readonly missing: readonly string[] } {
+export function documentsInScope(
+  state: ProjectState,
+  scope: ScopeSpec,
+  withheld?: ReadonlySet<string>,
+): { readonly nodes: readonly TreeNode[]; readonly missing: readonly string[]; readonly archived: readonly string[]; readonly withheld: number } {
   const file = heldFile(state);
+  const hidden = withheld ?? new Set<string>();
+  let held = 0;
   const byId = new Map(state.manifest.tree.map((node) => [node.id, node]));
   const order = binderOrder(state);
   const live = (node: TreeNode): boolean => node.type === 'document' && node.status !== 'archived';
   let ids: string[];
   const missing: string[] = [];
+  const archived: string[] = [];
   if (scope.mode === 'doc') {
     const picked = new Set<string>();
     for (const ref of scope.docIds) {
       const node = byId.get(ref);
-      if (node === undefined || (node.type !== 'document' && node.type !== 'folder')) missing.push(ref);
-      else if (node.type === 'document') picked.add(node.id);
+      // A withheld reference is neither read nor reported as unknown (a failure naming it would name it): it is only counted.
+      if (hidden.has(ref)) held += 1;
+      else if (node === undefined || (node.type !== 'document' && node.type !== 'folder')) missing.push(ref);
+      else if (live(node)) picked.add(node.id);
+      else if (node.type === 'document') archived.push(node.title);
       else for (const below of descendantsOf(state, node.id)) if (live(below)) picked.add(below.id);
     }
     ids = [...picked];
   } else {
-    const snapshot = snapshotManuscript(state, file);
+    const excluded = excludedBy(hidden);
+    const snapshot = snapshotManuscript(state, file, excluded === undefined ? {} : { isExcluded: excluded });
     ids = [...snapshot.scanned.map((scene) => scene.docId), ...snapshot.emptyDocIds];
     if (scope.mode === 'changed') ids = ids.filter((id) => file.reviewState[id]?.lastReviewedRevision !== getRevision(state, id));
+    held += snapshot.excludedDocIds.filter((id) => hidden.has(id)).length;
   }
   const nodes = ids
     .map((id) => byId.get(id))
-    .filter((node): node is TreeNode => node !== undefined)
+    .filter((node): node is TreeNode => node !== undefined && !hidden.has(node.id))
     .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
-  return { nodes, missing };
-}
-
-/** A document's words by the counter the inspector and the goals use. */
-export function wordsOf(state: ProjectState, docId: string): number {
-  return state.manifest.derived.wordCounts[docId] ?? countBody(getBody(state, docId)).words;
+  // Counted, never named: how many documents of the scope a rule keeps from the agent.
+  held += ids.filter((id) => hidden.has(id)).length;
+  return { nodes, missing, archived, withheld: held };
 }
 
 /** How many documents a coherence scope reads: what the large-scope guard counts. Zero for a scope that names nothing it can read. */
-export function coherenceScopeSize(state: ProjectState, scope: ScopeSpec): number {
+export function coherenceScopeSize(state: ProjectState, scope: ScopeSpec, withheld?: ReadonlySet<string>): number {
   const file = heldFile(state);
+  const excluded = excludedBy(withheld);
   try {
-    return resolveScope(snapshotManuscript(state, file), file, scope).length;
+    return resolveScope(snapshotManuscript(state, file, excluded === undefined ? {} : { isExcluded: excluded }), file, scope).length;
   } catch {
     return 0;
   }
 }
 
-function perDocument(spec: CheckSpec, state: ProjectState, judge: (node: TreeNode) => { readonly detail: string; readonly weight: number } | undefined): CheckResult {
-  const { nodes, missing } = documentsInScope(state, spec.scope);
+/** The note a result carries when a rule left documents out: their number, never a title or an id. */
+const withheldNote = (count: number): readonly string[] =>
+  count === 0 ? [] : [`${count} ${count === 1 ? 'document is' : 'documents are'} withheld from the agent by a rule and not checked.`];
+
+function perDocument(
+  spec: CheckSpec,
+  state: ProjectState,
+  withheld: ReadonlySet<string> | undefined,
+  judge: (node: TreeNode) => { readonly detail: string; readonly weight: number } | undefined,
+): CheckResult {
+  const { nodes, missing, archived, withheld: held } = documentsInScope(state, spec.scope, withheld);
   const failures: CheckFailure[] = missing.map((ref) => ({ title: ref, detail: 'is not a document or folder in this project', weight: 1 }));
   for (const node of nodes) {
     const verdict = judge(node);
@@ -201,7 +242,11 @@ function perDocument(spec: CheckSpec, state: ProjectState, judge: (node: TreeNod
     distance: failures.length,
     failures,
     skipped: [],
-    notes: nodes.length === 0 && missing.length === 0 ? ['no documents in scope'] : [],
+    notes: [
+      ...(nodes.length === 0 && missing.length === 0 ? ['no documents in scope'] : []),
+      ...archived.map((title) => `"${title}" is archived, so a goal does not read it.`),
+      ...withheldNote(held),
+    ],
   };
 }
 
@@ -210,18 +255,36 @@ function coherenceClean(spec: Extract<CheckSpec, { kind: 'coherence.clean' }>, s
   const enabled = options.enabled;
   const checks = enabled === undefined ? requested : requested.filter((id) => enabled.includes(id));
   const skipped = requested.filter((id) => !checks.includes(id));
-  if (checks.length === 0) return unmet(spec, 'every check it would run is turned off in Settings › Coherence, so nothing was checked', skipped);
-  const dialogue = options.dialogue?.(state);
+  if (checks.length === 0) return unmet(spec, 'every check it would run is turned off in Settings › Coherence, so nothing was checked', skipped, true);
+  // As the scan port reads the project (tools/coherence.ts): the dialogue facts from the project as the agent may read it, and the
+  // withheld documents excluded like archived ones, so no finding quotes them.
+  const hidden = options.withheld;
+  const dialogue = options.dialogue?.(hidden === undefined ? state : withheldState(state, hidden));
+  const excluded = excludedBy(hidden);
   let outcome: ReturnType<typeof runDeterministic>;
   try {
     // The copy is discarded: nothing joins the held file, and the review state of the documents stays as the writer left it.
-    outcome = runDeterministic(state, heldFile(state), { scope: spec.scope, checks, now: options.now, detector: countIn, ...(dialogue === undefined ? {} : { dialogue }) });
+    outcome = runDeterministic(state, heldFile(state), {
+      scope: spec.scope,
+      checks,
+      now: options.now,
+      detector: countIn,
+      ...(dialogue === undefined ? {} : { dialogue }),
+      ...(excluded === undefined ? {} : { isExcluded: excluded }),
+    });
   } catch (error) {
     return unmet(spec, error instanceof Error ? error.message : 'the scope could not be read', skipped);
   }
   const { file, run } = outcome;
   const floor = SEVERITY_RANK[spec.minSeverity ?? 'info'];
   const ran = new Set<string>(run.checkIds);
+  // A check the scan dropped (the dialogue branch checks and speaker parity read a full scan with the app's dialogue facts; never-mentioned needs every count)
+  // did not look at the project. When none of them ran, "no open finding" is no fact about it, so the check is not met (agent-harness §7.2).
+  const notRun = checks.filter((id) => !ran.has(id));
+  if (notRun.length === checks.length) {
+    const why = (run.notes ?? []).filter((note) => /not run|unavailable|no documents/.test(note));
+    return unmet(spec, `nothing was checked: ${notRun.join(', ')} did not run${why.length === 0 ? '' : ` (${why.join('; ')})`}`, [...skipped, ...notRun]);
+  }
   const scope = new Set(run.scope.docIds);
   const titles = new Map(state.manifest.tree.map((node) => [node.id, node.title]));
   // A finding of a check that ran, quoting the scope or quoting nothing (a codex-level one), and still open: dismissed and fixed are clean.
@@ -233,7 +296,11 @@ function coherenceClean(spec: Extract<CheckSpec, { kind: 'coherence.clean' }>, s
         SEVERITY_RANK[finding.severity] >= floor &&
         (finding.evidence.length === 0 || finding.evidence.some((passage) => scope.has(passage.docId))),
     )
-    .map((finding) => {
+    .map((finding): CheckFailure => {
+      // A held finding from before a rule withheld a document it quotes still counts, but says nothing of it: no title, id or text.
+      if (hidden !== undefined && finding.evidence.some((passage) => hidden.has(passage.docId))) {
+        return { title: 'A withheld part of the project', detail: 'a finding that involves a part of the project a rule withholds from the agent', weight: SEVERITY_RANK[finding.severity] };
+      }
       const docId = finding.evidence[0]?.docId;
       return {
         ...(docId === undefined ? {} : { docId }),
@@ -249,8 +316,8 @@ function coherenceClean(spec: Extract<CheckSpec, { kind: 'coherence.clean' }>, s
     pass: failures.length === 0,
     distance: failures.length,
     failures,
-    skipped,
-    notes: run.notes ?? [],
+    skipped: [...skipped, ...notRun],
+    notes: [...(run.notes ?? []), ...withheldNote(hidden === undefined ? 0 : documentsInScope(state, spec.scope, hidden).withheld)],
   };
 }
 
@@ -262,18 +329,18 @@ export function evaluateCheck(spec: CheckSpec, state: ProjectState, options: Che
     case 'coherence.clean':
       return coherenceClean(spec, state, options);
     case 'words.between':
-      return perDocument(spec, state, (node) => {
-        const words = wordsOf(state, node.id);
+      return perDocument(spec, state, options.withheld, (node) => {
+        const words = wordsOfDocument(state, node.id);
         if (spec.min !== undefined && words < spec.min) return { detail: `has ${words} words, ${spec.min - words} short of ${spec.min}`, weight: spec.min - words };
         if (spec.max !== undefined && words > spec.max) return { detail: `has ${words} words, ${words - spec.max} over ${spec.max}`, weight: words - spec.max };
         return undefined;
       });
     case 'status.all':
-      return perDocument(spec, state, (node) =>
+      return perDocument(spec, state, options.withheld, (node) =>
         node.status === spec.status ? undefined : { detail: node.status === null ? `has no status, not "${spec.status}"` : `has status "${node.status}", not "${spec.status}"`, weight: 1 },
       );
     case 'synopsis.filled':
-      return perDocument(spec, state, (node) => {
+      return perDocument(spec, state, options.withheld, (node) => {
         if (node.synopsis.trim() === '') return { detail: 'has no synopsis', weight: 1 };
         const words = countBody(node.synopsis).words;
         return spec.maxWords !== undefined && words > spec.maxWords ? { detail: `has a synopsis of ${words} words, over ${spec.maxWords}`, weight: words - spec.maxWords } : undefined;
@@ -286,10 +353,14 @@ export function evaluateChecks(specs: readonly CheckSpec[], state: ProjectState,
 }
 
 /** The large-scope guard a goal satisfies once, at its start: the coherence scopes over `SCAN_DOC_GUARD` documents. */
-export function largeScopes(specs: readonly CheckSpec[], state: ProjectState): readonly { readonly spec: CheckSpec; readonly documents: number }[] {
+export function largeScopes(
+  specs: readonly CheckSpec[],
+  state: ProjectState,
+  withheld?: ReadonlySet<string>,
+): readonly { readonly spec: CheckSpec; readonly documents: number }[] {
   return specs.flatMap((spec) => {
     if (spec.kind !== 'coherence.clean') return [];
-    const documents = coherenceScopeSize(state, spec.scope);
+    const documents = coherenceScopeSize(state, spec.scope, withheld);
     return documents > SCAN_DOC_GUARD ? [{ spec, documents }] : [];
   });
 }

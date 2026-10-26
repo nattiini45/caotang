@@ -11,6 +11,7 @@
 
 import type { CommandError, Result, UndoOutcome } from '@caotang/bus';
 import { DETERMINISTIC_CHECK_IDS, runDeterministic, type DeterministicCheckId, type ScopeSpec } from '@caotang/coherence';
+import { withheldState } from '@caotang/context';
 import type { ProjectState, TreeNode } from '@caotang/store';
 
 import { metadataFor } from '../metadata.js';
@@ -20,7 +21,7 @@ import { TOOL_TARGETS } from '../targets.js';
 import { countIn, heldFile } from '../tools/coherence.js';
 import { canonicalJson } from '../util.js';
 import type { BudgetMeter, BudgetStop, RunLimits } from './budget.js';
-import { checkKey, checkSpecProblem, evaluateChecks, largeScopes, type CheckOptions, type CheckResult, type CheckSpec } from './checks.js';
+import { checkKey, checkLabel, checkSpecProblem, documentsInScope, evaluateChecks, excludedBy, largeScopes, type CheckOptions, type CheckResult, type CheckSpec } from './checks.js';
 import type { TurnReport } from './events.js';
 import type { AgentSession, SubmitOptions } from './loop.js';
 
@@ -117,7 +118,14 @@ export interface GoalOptions {
   /** The writer's Stop for the whole run: it is passed to every turn. */
   readonly signal?: AbortSignal;
   /** The checks the writer has on and the dialogue facts, as the scan port reads them. */
-  readonly checks?: Omit<CheckOptions, 'now'>;
+  readonly checks?: Omit<CheckOptions, 'now' | 'withheld'>;
+  /**
+   * The nodes a read rule keeps from the agent (agent-harness §4), read afresh at each evaluation: `() => harness.withheldAnywhere()`.
+   * The goal path is a second route to the prompt, so it takes the same view as the rest of the harness: a withheld node is not
+   * measured by a check, not scanned, not counted toward the scope guard and never named in an iteration's request. Required, so a
+   * caller with no rules says so (`() => new Set()`) and one with rules cannot forget.
+   */
+  readonly withheld: () => ReadonlySet<string>;
   /** The profile, model and thinking level every iteration runs on. */
   readonly turn?: Pick<SubmitOptions, 'profileId' | 'model' | 'thinking'>;
   /** The writer agreed to a coherence scope over the document guard when the goal was set. The guard is satisfied once, here. */
@@ -238,16 +246,24 @@ export function goalRules(base: RulesProvider | undefined, scope: WriteScope, st
 /**
  * The writes a finished turn applied outside the write scope, one sentence each. A call's nodes are worked out against the tree as it was
  * before the turn (`before`), so a rename the turn made does not hide its own target. A write whose nodes cannot be worked out is a breach:
- * a scope that cannot be checked is not taken to allow it. A write that names no node (the codex, an export) is not a binder write.
+ * a scope that cannot be checked is not taken to allow it. A write that names no binder node (an export, a vocabulary or filter change) is not judged; a codex write is judged by the documents it attaches to.
  */
 export function scopeBreaches(report: TurnReport, state: ProjectState, before: readonly TreeNode[], scope: WriteScope): readonly string[] {
   const allowed = writableNodes(scope, before);
   if (allowed === undefined) return [];
   const view: ProjectState = { ...state, manifest: { ...state.manifest, tree: [...before] } };
   const out: string[] = [];
+  // An external tool is not in the registry, so no document of it can be worked out. One that ran under a card was not a trusted read
+  // (extensibility §4 rule 2: only a read the writer trusts runs without asking), so it is taken for a write.
+  const carded = new Set(report.cards.flatMap((card) => card.tools));
   for (const entry of report.trace) {
+    if (entry.outcome !== 'ok') continue;
     const meta = metadataFor(entry.tool);
-    if (entry.outcome !== 'ok' || meta === undefined || meta.risk === 'read' || meta.risk === 'meta') continue;
+    if (meta === undefined) {
+      if (carded.has(entry.tool)) out.push(`${entry.tool}: its documents could not be worked out`);
+      continue;
+    }
+    if (meta.risk === 'read' || meta.risk === 'meta') continue;
     const targets = TOOL_TARGETS[meta.name];
     if (targets === 'project') continue;
     const worked = targets(entry.params, view);
@@ -304,6 +320,14 @@ function scanPlan(
   return picked.length === 0 ? undefined : { scope, checks: picked };
 }
 
+const SETTINGS_BLOCK = 'a check cannot run: every check it names is turned off in Settings › Coherence, and no turn could change that';
+
+/** True when every check still failing is one a setting, not the manuscript, keeps from passing. */
+const onlySettingsBlock = (results: readonly CheckResult[]): boolean => {
+  const failing = results.filter((result) => !result.pass);
+  return failing.length > 0 && failing.every((result) => result.unmeetable === true);
+};
+
 export function createGoalRunner(): GoalRunner {
   return {
     async start(goal, options) {
@@ -323,15 +347,24 @@ export function createGoalRunner(): GoalRunner {
 
       // The scope guard (coherence.md §6.2) is satisfied here, once. The scan the run ends with reads a scope too, so it counts.
       const plan = scanPlan(checks, options.checks?.enabled);
-      const large = largeScopes(plan === undefined ? checks : [...checks, { kind: 'coherence.clean', scope: plan.scope }], state);
+      const large = largeScopes(plan === undefined ? checks : [...checks, { kind: 'coherence.clean', scope: plan.scope }], state, options.withheld());
       if (large.length > 0 && options.approvedLargeScope !== true) {
         return refuse(`a coherence scope of this goal reads ${large[0]?.documents} documents, over the guard that asks first; approve the scope when setting the goal, or narrow it`);
+      }
+      // A words, status or synopsis check over a scope that holds nothing would pass without measuring anything: the writer probably aimed
+      // it wrong. The `changed` scope is legitimately empty when nothing has changed, so it stays vacuous.
+      for (const spec of checks) {
+        if (spec.kind === 'coherence.clean' || spec.scope.mode === 'changed') continue;
+        const read = documentsInScope(state, spec.scope, options.withheld());
+        if (read.nodes.length === 0 && read.missing.length === 0) {
+          return refuse(`check "${checkLabel(spec)}" reads no document: its scope holds nothing a goal can read; name a scope with documents, or add them first`);
+        }
       }
 
       const maxIterations = goal.maxIterations ?? DEFAULT_MAX_ITERATIONS;
       const stallAfter = goal.stallAfter ?? DEFAULT_STALL_AFTER;
       const writeScope: WriteScope = goal.writeScope ?? { mode: 'full' };
-      const evaluate = (): readonly CheckResult[] => evaluateChecks(checks, state, { ...(options.checks ?? {}), now: now() });
+      const evaluate = (): readonly CheckResult[] => evaluateChecks(checks, state, { ...(options.checks ?? {}), now: now(), withheld: options.withheld() });
 
       const iterations: IterationRecord[] = [];
       const notes: string[] = [];
@@ -343,27 +376,43 @@ export function createGoalRunner(): GoalRunner {
       const finish = (status: GoalStatus, reason: string, extra: Pick<GoalRun, 'askBack' | 'budgetStop'> = {}): GoalRun => {
         let scanRunId: string | undefined;
         if (plan !== undefined) {
+          let scanned: ReturnType<typeof runDeterministic> | undefined;
           try {
-            const dialogue = options.checks?.dialogue?.(state);
-            const scanned = runDeterministic(state, heldFile(state), {
+            // As the scan port runs it: the dialogue facts from the project as the agent may read it, the withheld documents excluded.
+            const hidden = options.withheld();
+            const dialogue = options.checks?.dialogue?.(hidden.size === 0 ? state : withheldState(state, hidden));
+            const excluded = excludedBy(hidden);
+            scanned = runDeterministic(state, heldFile(state), {
               scope: plan.scope,
               checks: plan.checks,
               now: now(),
               detector: countIn,
               ...(dialogue === undefined ? {} : { dialogue }),
+              ...(excluded === undefined ? {} : { isExcluded: excluded }),
             });
-            const file = scanned.file as NonNullable<ProjectState['coherence']>;
-            if (options.recordCoherence === undefined) state.coherence = file;
-            else options.recordCoherence(file);
-            scanRunId = scanned.run.id;
           } catch (error) {
             notes.push(`the closing coherence scan did not run: ${error instanceof Error ? error.message : 'the scope could not be read'}`);
           }
+          // Recording is a second step with its own failure: the scan ran, but it is not the last scan in Findings.
+          if (scanned !== undefined) {
+            try {
+              const file = scanned.file as NonNullable<ProjectState['coherence']>;
+              if (options.recordCoherence === undefined) state.coherence = file;
+              else options.recordCoherence(file);
+              scanRunId = scanned.run.id;
+            } catch (error) {
+              notes.push(
+                `the closing coherence scan ran but could not be recorded, so it is not the last scan in Findings: ${error instanceof Error ? error.message : 'it could not be saved'}`,
+              );
+            }
+          }
         }
-        return { goal, status, reason, iterations, results, notes, ...extra, ...(scanRunId === undefined ? {} : { scanRunId }) };
+        // The status stays what the checks say; the notes ride along in the one sentence the host shows the writer.
+        return { goal, status, reason: [reason, ...notes].join('; '), iterations, results, notes, ...extra, ...(scanRunId === undefined ? {} : { scanRunId }) };
       };
 
       if (results.every((result) => result.pass)) return finish('passed', 'every check already passes, so no turn was needed');
+      if (onlySettingsBlock(results)) return finish('failed', SETTINGS_BLOCK);
 
       for (;;) {
         if (options.signal?.aborted === true) return finish('cancelled', 'the writer stopped the run');
@@ -384,19 +433,27 @@ export function createGoalRunner(): GoalRunner {
         const breaches = scopeBreaches(report, state, treeBefore, writeScope);
         const record: IterationRecord = { n, turnId: report.turnId, intent, before, after: results, report, distance: { before: sum(before), after: sum(results) }, outOfScope: breaches };
         iterations.push(record);
-        options.onIteration?.(record);
+        try {
+          options.onIteration?.(record);
+        } catch (error) {
+          notes.push(`the iteration observer failed: ${error instanceof Error ? error.message : 'it threw'}`);
+        }
 
         if (breaches.length > 0) {
           return finish('out-of-scope', `iteration ${n} wrote outside the goal’s write scope (${breaches.join('; ')}); restore it, or widen the scope and run again`);
         }
         if (results.every((result) => result.pass)) return finish('passed', `every check passes after ${plural(n, 'iteration')}`);
-        if (report.budgetStop !== undefined) {
-          return finish('budget', `iteration ${n} stopped on the run’s ${report.budgetStop.dimension} limit`, { budgetStop: report.budgetStop });
+        // A limit the turn reported, or the meter's time limit passing while it worked: both rank before the writer's Stop and a stall.
+        const stoppedOn = report.budgetStop ?? meter.stopped();
+        if (stoppedOn !== undefined) {
+          return finish('budget', `iteration ${n} stopped on the run’s ${stoppedOn.dimension} limit`, { budgetStop: stoppedOn });
         }
         if (report.status === 'cancelled') {
           return finish('cancelled', report.stop === undefined ? `iteration ${n} was cancelled: a card was declined` : 'the writer stopped the run');
         }
         if (report.status === 'failed') return finish('failed', `iteration ${n} failed: ${report.summary}`);
+        // What is left cannot be done by writing: another turn would be paid for and could not help.
+        if (onlySettingsBlock(results)) return finish('failed', SETTINGS_BLOCK);
 
         const broken = results.filter((result) => !result.pass && passedBefore.has(result.key));
         for (const result of results) if (result.pass) passedBefore.add(result.key);
@@ -406,11 +463,28 @@ export function createGoalRunner(): GoalRunner {
             reason: `iteration ${n} broke a check that passed: ${broken.map((result) => result.label).join('; ')}`,
             options: [...REGRESSION_OPTIONS],
           };
-          const choice = options.onRegression === undefined ? 'stop' : await options.onRegression({ iteration: n, turnId: report.turnId, broken });
+          let choice: RegressionChoice;
+          try {
+            choice = options.onRegression === undefined ? 'stop' : await options.onRegression({ iteration: n, turnId: report.turnId, broken });
+          } catch (error) {
+            // An unanswerable question is a stop, never a guess: the iteration stays applied and nothing is restored.
+            return finish(
+              'regressed',
+              `${askBack.reason}; the question could not be answered (${error instanceof Error ? error.message : 'the callback threw'}), so the run stopped and nothing was restored`,
+              { askBack },
+            );
+          }
           if (choice === 'restore') {
             const restored = session.restore(report.turnId);
             results = evaluate();
-            return finish('regressed', restored.ok ? `${askBack.reason}; iteration ${n} was restored` : `${askBack.reason}; restoring iteration ${n} failed: ${restored.error.message}`, { askBack });
+            // The bus undo is ok even when some compensations failed: those writes are still in the project.
+            const left = restored.ok ? restored.value.failures : [];
+            const said = !restored.ok
+              ? `restoring iteration ${n} failed: ${restored.error.message}`
+              : left.length === 0
+                ? `iteration ${n} was restored`
+                : `restoring iteration ${n} left ${plural(left.length, 'write')} in place: ${left.map((failure) => failure.target).join(', ')}`;
+            return finish('regressed', `${askBack.reason}; ${said}`, { askBack });
           }
           if (choice === 'stop') return finish('regressed', askBack.reason, { askBack });
           // Continue anyway: the writer has seen it, so it is not a regression again unless the check is fixed and breaks once more.
@@ -434,12 +508,23 @@ export function createGoalRunner(): GoalRunner {
 export interface RestoredTurn {
   readonly turnId: string;
   readonly result: Result<UndoOutcome, CommandError>;
+  /** True when the whole iteration was taken back: the undo was ok and no write was left in place. */
+  readonly complete: boolean;
 }
 
-/** Restores the whole run at once: every iteration's undo group, newest first, which is "restore to before this goal". */
+/**
+ * Restores the whole run at once: every iteration's undo group, newest first, which is "restore to before this goal". It stops after the
+ * first iteration it could not take back completely, so an older iteration is not undone under newer writes that are still in the
+ * project. The failed entries stay in that group, so the restore can be tried again; the iterations after the last entry are untouched.
+ */
 export function restoreGoal(session: AgentSession, run: GoalRun): readonly RestoredTurn[] {
-  return [...run.iterations]
-    .reverse()
-    .filter((record) => record.report.undoGroupId !== undefined)
-    .map((record) => ({ turnId: record.turnId, result: session.restore(record.turnId) }));
+  const out: RestoredTurn[] = [];
+  for (const record of [...run.iterations].reverse()) {
+    if (record.report.undoGroupId === undefined) continue;
+    const result = session.restore(record.turnId);
+    const complete = result.ok && result.value.failures.length === 0;
+    out.push({ turnId: record.turnId, result, complete });
+    if (!complete) break;
+  }
+  return out;
 }
