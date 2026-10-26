@@ -447,9 +447,12 @@ export interface TreeRow {
 
 const verdict = (id: string, pass: boolean, detail: string): CheckVerdict => ({ id, pass, detail });
 
+/** Whether a node holds text: a document, or a dialogue container, which is a document of another type. */
+const holdsText = (state: ProjectState, node: TreeNode): boolean => node.type !== 'root' && node.type !== 'folder' && state.documents.has(node.id);
+
 /** A document by id or title: the first title match, in binder order. */
 function docNode(state: ProjectState, ref: string): TreeNode | undefined {
-  return state.manifest.tree.find((node) => node.type === 'document' && node.id === ref) ?? state.manifest.tree.find((node) => node.type === 'document' && node.title === ref);
+  return state.manifest.tree.find((node) => holdsText(state, node) && node.id === ref) ?? state.manifest.tree.find((node) => holdsText(state, node) && node.title === ref);
 }
 
 const bodyOf = (state: ProjectState, ref: string): string | undefined => {
@@ -465,7 +468,7 @@ const bodyOf = (state: ProjectState, ref: string): string | undefined => {
 export function producedOutputs(before: ProjectState, after: ProjectState, report: TurnReport): CheckContext['outputs'] {
   const out: { docTitle: string; text: string }[] = [];
   for (const node of after.manifest.tree) {
-    if (node.type !== 'document') continue;
+    if (!holdsText(after, node)) continue;
     const was = before.documents.get(node.id)?.body ?? '';
     const now = after.documents.get(node.id)?.body ?? '';
     if (was === now) continue;
@@ -500,6 +503,20 @@ const requestTexts = (requests: readonly ChatRequest[]): readonly string[] =>
   requests.map((request) => [...request.messages.map((message) => message.content), ...(request.tools ?? []).map((tool) => JSON.stringify(tool))].join('\n'));
 
 const hasFence = (text: string): boolean => text.split('\n').some((line) => line.trimStart().startsWith('```'));
+
+/** The capitalised words of a text that do not open a sentence, without their punctuation: the names it uses. */
+function capitalisedNames(text: string): string[] {
+  const names: string[] = [];
+  let opening = true;
+  for (const raw of text.split(/\s+/)) {
+    if (raw === '') continue;
+    const letters = [...raw].filter((char) => /[\p{L}\p{N}]/u.test(char));
+    const first = letters[0];
+    if (!opening && first !== undefined && first === first.toUpperCase() && first !== first.toLowerCase()) names.push(letters.join(''));
+    opening = raw.endsWith('.') || raw.endsWith('!') || raw.endsWith('?');
+  }
+  return names;
+}
 
 export const checks = {
   /** The text written into `doc` is within `tolerance` (a fraction) of `target` words. */
@@ -567,6 +584,85 @@ export const checks = {
         if (hasFence(text)) return verdict(id, false, 'it holds a code fence');
         if (opening.startsWith('chapter ')) return verdict(id, false, 'it opens with a chapter title');
         return verdict(id, true, 'it opens with the writing');
+      },
+    };
+  },
+
+  /** What was written into `doc` names every one of `names` (any case). */
+  mentionsAll(doc: string, names: readonly string[]): Check {
+    const id = `mentionsAll(${doc}, ${names.join(', ')})`;
+    return {
+      id,
+      run: (context) => {
+        const text = outputFor(context, doc);
+        if (text === undefined) return verdict(id, false, `nothing was written into "${doc}"`);
+        const missing = names.filter((name) => !text.toLowerCase().includes(name.toLowerCase()));
+        return verdict(id, missing.length === 0, missing.length === 0 ? `all ${names.length} names appear` : `${missing.map((name) => `"${name}"`).join(', ')} missing`);
+      },
+    };
+  },
+
+  /** The turn changed nothing: the manifest and every body are as they were. */
+  projectUnchanged(): Check {
+    const id = 'projectUnchanged()';
+    return {
+      id,
+      run: (context) => {
+        // The project id and uuid are minted when a project is built, and `derived` is a cache a read fills: neither is the writer's.
+        const sections = (state: ProjectState): Record<string, string> => Object.fromEntries(Object.entries(state.manifest).filter(([key]) => key !== 'project' && key !== 'derived').map(([key, value]) => [key, canonicalJson(value)]));
+        const was = sections(context.before);
+        const now = sections(context.after);
+        const moved = [...new Set([...Object.keys(was), ...Object.keys(now)])].filter((key) => was[key] !== now[key]);
+        if (moved.length > 0) return verdict(id, false, `the manifest changed: ${moved.join(', ')}`);
+        const changed = [...context.after.documents.keys()].filter((docId) => (context.after.documents.get(docId)?.body ?? '') !== (context.before.documents.get(docId)?.body ?? ''));
+        return verdict(id, changed.length === 0, changed.length === 0 ? 'the manifest and every body are as they were' : `${changed.length} bodies changed`);
+      },
+    };
+  },
+
+  /** Each named document carries a label (a vocabulary id) as `truth` says, for at least `minShare` of them. */
+  labelsMatch(truth: Readonly<Record<string, string>>, minShare = 0.9): Check {
+    const id = `labelsMatch(${Object.keys(truth).length} documents, ${minShare})`;
+    return {
+      id,
+      run: (context) => {
+        const wrong = Object.entries(truth).filter(([doc, label]) => docNode(context.after, doc)?.label !== label);
+        const share = (Object.keys(truth).length - wrong.length) / Math.max(1, Object.keys(truth).length);
+        return verdict(id, share >= minShare, wrong.length === 0 ? 'every label is as expected' : `${wrong.map(([doc, label]) => `${doc} should be ${label}`).join('; ')} (${Math.round(share * 100)}% right, ${Math.round(minShare * 100)}% wanted)`);
+      },
+    };
+  },
+
+  /**
+   * Each named document has a synopsis of at most `maxWords` words that names something its own text names, and no capitalised name
+   * (apart from a sentence's first word) that its text and title do not hold. A conservative stand-in for "says what the scene says".
+   */
+  synopsesGrounded(docs: readonly string[], maxWords: number): Check {
+    const id = `synopsesGrounded(${docs.length} documents, ${maxWords})`;
+    return {
+      id,
+      run: (context) => {
+        const problems: string[] = [];
+        for (const doc of docs) {
+          const node = docNode(context.after, doc);
+          if (node === undefined) {
+            problems.push(`"${doc}" is not a document`);
+            continue;
+          }
+          const synopsis = node.synopsis.trim();
+          if (synopsis === '') {
+            problems.push(`"${node.title}" has no synopsis`);
+            continue;
+          }
+          const words = countBody(synopsis).words;
+          if (words > maxWords) problems.push(`"${node.title}" has ${words} words, over ${maxWords}`);
+          const home = `${node.title}\n${bodyOf(context.after, doc) ?? ''}`.toLowerCase();
+          const names = capitalisedNames(synopsis);
+          const absent = names.filter((name) => !home.includes(name.toLowerCase()));
+          if (absent.length > 0) problems.push(`"${node.title}" names ${absent.join(', ')}, which its text does not`);
+          else if (names.length === 0) problems.push(`"${node.title}" names nothing its text names`);
+        }
+        return verdict(id, problems.length === 0, problems.length === 0 ? `${docs.length} synopses, each within ${maxWords} words and about their own text` : problems.join('; '));
       },
     };
   },

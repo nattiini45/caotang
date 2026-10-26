@@ -514,6 +514,15 @@ describe('run-context checks', () => {
     });
   });
 
+  describe('mentionsAll', () => {
+    it('passes when every name appears, in any case, and names the ones that do not', () => {
+      expect(run(checks.mentionsAll(FRIEND, ['Hale', 'Elena']), turn(FRIEND, 'ELENA met captain hale.')).pass).toBe(true);
+      const failed = run(checks.mentionsAll(FRIEND, ['Hale', 'Mara']), turn(FRIEND, 'Hale waited.'));
+      expect(failed).toMatchObject({ pass: false, detail: '"Mara" missing' });
+      expect(run(checks.mentionsAll(FRIEND, ['Hale']), { ...turn(FRIEND, 'x'), outputs: [] }).pass).toBe(false);
+    });
+  });
+
   describe('absentEverywhere', () => {
     it('passes when no name is in the text or the requests', () => {
       expect(run(checks.absentEverywhere(['Ferryman']), turn(FRIEND, 'They talk in the rain.', { requests: [request('Write a scene about Elena.')] })).pass).toBe(true);
@@ -594,6 +603,61 @@ describe('run-context checks', () => {
       expect(run(checks.treeEquals([...base].reverse()), context).pass).toBe(false);
       const moved = base.map((row) => (row.title === 'The Friend' ? { ...row, parent: 'Chapter 1' } : row));
       expect(run(checks.treeEquals(moved), context).detail).toContain('expected [');
+    });
+  });
+
+  describe('projectUnchanged', () => {
+    it('passes for a turn that wrote nothing and fails for a changed body or manifest', () => {
+      const idle = { ...turn(FRIEND, ''), after: makeState() };
+      expect(run(checks.projectUnchanged(), idle).pass).toBe(true);
+      expect(run(checks.projectUnchanged(), turn(FRIEND, 'Written.')).pass).toBe(false);
+      const reworded = { ...idle, after: makeState() };
+      setBody(reworded.after, FRIEND, 'Written.');
+      reworded.before.manifest = structuredClone(reworded.after.manifest);
+      expect(run(checks.projectUnchanged(), reworded).detail).toBe('1 bodies changed');
+      const relabelled = makeState();
+      const node = relabelled.manifest.tree.find((candidate) => candidate.id === FRIEND);
+      if (node !== undefined) node.label = 'act-2';
+      expect(run(checks.projectUnchanged(), { ...idle, after: relabelled }).detail).toBe('the manifest changed');
+    });
+  });
+
+  describe('labelsMatch', () => {
+    const labelled = (labels: Record<string, string>): CheckContext => {
+      const context = turn(FRIEND, '');
+      for (const node of context.after.manifest.tree) if (labels[node.title] !== undefined) node.label = labels[node.title] as string;
+      return context;
+    };
+    const truth = { 'The Landing': 'act-1', 'The Storm': 'act-1', 'The Friend': 'act-2' };
+    it('passes when enough documents carry the expected label', () => {
+      expect(run(checks.labelsMatch(truth), labelled({ 'The Landing': 'act-1', 'The Storm': 'act-1', 'The Friend': 'act-2' })).pass).toBe(true);
+      expect(run(checks.labelsMatch(truth, 0.6), labelled({ 'The Landing': 'act-1', 'The Storm': 'act-1', 'The Friend': 'act-1' })).pass).toBe(true);
+    });
+    it('fails below the share and names the documents that are wrong', () => {
+      const failed = run(checks.labelsMatch(truth), labelled({ 'The Landing': 'act-1', 'The Storm': 'act-2', 'The Friend': 'act-2' }));
+      expect(failed.pass).toBe(false);
+      expect(failed.detail).toContain('The Storm should be act-1');
+    });
+  });
+
+  describe('synopsesGrounded', () => {
+    const synopsised = (synopses: Record<string, string>): CheckContext => {
+      const context = turn(FRIEND, '');
+      for (const node of context.after.manifest.tree) if (synopses[node.title] !== undefined) node.synopsis = synopses[node.title] as string;
+      return context;
+    };
+    it('passes for short synopses that name what their own text names', () => {
+      const context = synopsised({ 'The Landing': 'Elena waits for the ferry.', 'The Storm': 'The lamp fails in the rain.' });
+      expect(run(checks.synopsesGrounded([LANDING, STORM], 20), context).pass).toBe(false); // The Storm names no capitalised word beyond its first
+      const named = synopsised({ 'The Landing': 'The ferry arrives late at The Landing.', 'The Storm': 'Rain takes the lamp. The Storm ends.' });
+      expect(run(checks.synopsesGrounded([LANDING, STORM], 20), named).pass).toBe(true);
+    });
+    it('fails for a missing synopsis, one over the limit and a name its text does not hold', () => {
+      expect(run(checks.synopsesGrounded([FRIEND], 20), turn(FRIEND, '')).detail).toContain('"The Friend" has no synopsis');
+      const long = synopsised({ 'The Landing': 'The ferry arrives late at The Landing and nobody meets Elena there at all.' });
+      expect(run(checks.synopsesGrounded([LANDING], 5), long).detail).toContain('over 5');
+      const stranger = synopsised({ 'The Landing': 'The ferry brings Kestrel to The Landing.' });
+      expect(run(checks.synopsesGrounded([LANDING], 20), stranger).detail).toContain('names Kestrel, which its text does not');
     });
   });
 
