@@ -11,6 +11,7 @@ import {
   createRunWriter,
   newRunRecord,
   planResume,
+  structureDigest,
   summarizeRun,
   RUN_LOG_VERSION,
   type RunEvent,
@@ -189,6 +190,43 @@ describe('planResume', () => {
       expect(verdict.replay.spend).toEqual(spend);
       expect(verdict.replay.reservedCalls).toBe(1);
     }
+  });
+});
+
+describe('structureDigest', () => {
+  /** A manifest of the real shape: a project stamp and a tree whose order is the order of its nodes. */
+  const manifest = (stamp: string, tree: readonly Record<string, unknown>[]) => ({
+    project: { title: 'The Book', modifiedAt: stamp },
+    tree,
+  });
+  const nodes = [
+    { id: 'n_PARENT0000', parent: null, title: 'Chapter 1', kind: 'folder' },
+    { id: 'n_FIRST00000', parent: 'n_PARENT0000', title: 'Opening', kind: 'doc' },
+    { id: 'n_SECOND0000', parent: 'n_PARENT0000', title: 'Landing', kind: 'doc' },
+  ];
+
+  it('ignores the modified stamp every save moves, so a save does not look like a change to the project', () => {
+    expect(structureDigest(manifest('2026-01-01T00:00:00Z', nodes))).toBe(structureDigest(manifest('2026-02-02T09:30:00Z', nodes)));
+  });
+
+  it('changes when a node is renamed, when siblings swap places and when a node moves to another parent', () => {
+    const before = structureDigest(manifest('t', nodes));
+    const renamed = nodes.map((node) => (node.id === 'n_FIRST00000' ? { ...node, title: 'Prologue' } : node));
+    const reordered = [nodes[0]!, nodes[2]!, nodes[1]!];
+    const moved = nodes.map((node) => (node.id === 'n_SECOND0000' ? { ...node, parent: null } : node));
+    for (const changed of [renamed, reordered, moved]) expect(structureDigest(manifest('t', changed))).not.toBe(before);
+  });
+
+  it('does not depend on the order keys were written in', () => {
+    const shuffled = nodes.map((node) => Object.fromEntries(Object.entries(node).reverse()));
+    const other = { tree: shuffled, project: { modifiedAt: 't', title: 'The Book' } };
+    expect(structureDigest(other)).toBe(structureDigest(manifest('t', nodes)));
+  });
+
+  it('lets a step that began before a save be re-run, and refuses it when the structure moved', () => {
+    const recorded = log(start, user, card, approved, { ...intent(0, { [A]: 1 }), structure: structureDigest(manifest('old', nodes)) });
+    expect(planResume(recorded, project({ [A]: 1 }), { structure: () => structureDigest(manifest('new', nodes)) })).toMatchObject({ ok: true, kind: 're-run' });
+    expect(planResume(recorded, project({ [A]: 1 }), { structure: () => structureDigest(manifest('new', nodes.slice(1))) })).toMatchObject({ ok: false, reason: 'revision-drift' });
   });
 });
 
