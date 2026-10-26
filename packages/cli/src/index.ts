@@ -4,6 +4,8 @@
 
 export { main, USAGE, type MainIo } from './cli.js';
 export { runAgent, type AgentIo } from './run-agent.js';
+export { runScanCommand, type ScanIo } from './run-scan.js';
+export { parseScanArgs, SCAN_USAGE, type ScanArgs } from './scan-args.js';
 export { parseAgentArgs, AGENT_USAGE, UsageError, DEFAULT_KEY_ENV, DEFAULT_MAX_MODEL_CALLS, type AgentOptions, type PermissionMode, type OutputFormat } from './agent-args.js';
 export { policyFor } from './policy.js';
 export { printChanges, unifiedDiff } from './diff-print.js';

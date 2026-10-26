@@ -82,6 +82,8 @@ describe('the built caotang binary', () => {
     const front = await run(entry, ['--help']);
     expect(front).toMatchObject({ code: 0, stderr: '' });
     expect(front.stdout).toContain('usage: caotang agent');
+    expect(front.stdout).toContain('caotang scan');
+    expect((await run(entry, ['scan', '--help'])).stdout).toContain('--fail-on <level>');
     expect((await run(entry, ['agent', '--help'])).stdout).toContain('--permission <mode>');
     // `mcp` hands the rest to the MCP server's own command line.
     const mcp = await run(entry, ['mcp', '--help']);
@@ -96,6 +98,20 @@ describe('the built caotang binary', () => {
     const ran = await run(entry, ['agent', '-p', 'Check the manuscript for continuity problems.', '--mock', '--project', folder]);
     expect(ran.code).toBe(0);
     expect(ran.stdout).toMatch(/\S/);
+    expect(folderBytes(folder)).toEqual(before);
+  }, 60_000);
+
+  it('scans the fixture project: the annotation on stdout, exit 7 on the open error, and the folder byte-identical', async () => {
+    const folder = join(PACKAGE, 'test', 'fixtures', 'continuity-project');
+    const before = folderBytes(folder);
+    const ran = await run(entry, ['scan', '--project', folder, '--format', 'github']);
+    expect(ran.code, ran.stderr).toBe(7);
+    expect(ran.stderr).toBe('');
+    expect(ran.stdout.split('\n').filter((line) => line.startsWith('::error '))).toEqual([
+      '::error file=docs/n_7K2QX9M4A1.md,line=10,endLine=11,title=presence.expected::"Elena" is expected in "The Harbour" but is never named there',
+    ]);
+    expect((await run(entry, ['scan', '--project', folder, '--fail-on', 'never'])).code).toBe(0);
+    expect((await run(entry, ['scan', '--project', join(root, 'no-such-folder')])).code).toBe(2);
     expect(folderBytes(folder)).toEqual(before);
   }, 60_000);
 
