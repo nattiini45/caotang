@@ -229,6 +229,14 @@ describe('openai-responses stream parsing', () => {
     expect(terminal.toolCalls).toEqual([{ id: 'call_1', name: 'binder.create', argumentsJson: '{"a":1}' }]);
   });
 
+  it('treats a negative or infinite usage figure as no usage', () => {
+    const negative = frame({ type: 'response.completed', response: { status: 'completed', usage: { input_tokens: -5, output_tokens: 8 } } }, 'response.completed');
+    expect(parseStream(negative).pieces).toEqual([{ finish: 'stop' }, { done: true }]);
+    // JSON.parse turns 1e999 into Infinity.
+    const infinite = frame('{"type":"response.completed","response":{"status":"completed","usage":{"input_tokens":10,"output_tokens":1e999}}}', 'response.completed');
+    expect(parseStream(infinite).pieces).toEqual([{ finish: 'stop' }, { done: true }]);
+  });
+
   it('captures a reasoning item verbatim for replay, summary text as its display', () => {
     const item = {
       type: 'reasoning',
