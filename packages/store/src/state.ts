@@ -22,6 +22,8 @@ import { countBody, WORD_RULE_VERSION, wordRuleInUse } from './word-count.js';
 import { isBodyType } from './paths.js';
 import type { SkillFile } from '@caotang/skills';
 
+import { cloneAgentFiles, emptyAgentFiles, type AgentFiles } from './agent-files.js';
+
 export interface DocumentRecord {
   readonly id: string;
   /** Body text, no front matter, no title heading, no trailing newline. */
@@ -94,6 +96,17 @@ export interface ProjectState {
    */
   readonly removedSkillFiles: Set<string>;
   /**
+   * The agent's files: the writer's `CAOTANG.md` (or the `AGENTS.md` it falls back to) and the agent's `memory/` folder (agent-files.ts). Replaced
+   * as a whole by the commands that change it, never edited in place, so two states hold the same files exactly when they hold the same object.
+   * Not in `caotang.json`; the runtime store keeps the texts on the project row (`ProjectRow.agentFiles`).
+   */
+  agentFiles: AgentFiles;
+  /**
+   * The agent files the writer removed since this state was last written, by project path (a forgotten topic, a cleared `CAOTANG.md`). A save
+   * removes them from a folder and only them. Cleared per path as a write removes it, and not persisted.
+   */
+  readonly removedAgentFiles: Set<string>;
+  /**
    * The coherence file, when one is open (coherence.md §3). Optional: a project opened without
    * one has none, and the coherence commands refuse that case rather than creating it. Loaded and
    * saved by the coherence module through `ArtifactFs`; the applies change the in-memory copy here
@@ -139,6 +152,8 @@ export function createProjectState(manifest: Manifest, options: CreateStateOptio
     declinedText: new Map(),
     skills: new Map(),
     removedSkillFiles: new Set(),
+    agentFiles: emptyAgentFiles(),
+    removedAgentFiles: new Set(),
   };
 }
 
@@ -148,7 +163,7 @@ export interface CreateStateOptions {
 }
 
 /**
- * A copy of a state that shares nothing mutable with it: the manifest, the documents, the declined sets, the declined text and the skills. A write made
+ * A copy of a state that shares nothing mutable with it: the manifest, the documents, the declined sets, the declined text, the skills and the agent files. A write made
  * from the copy cannot change the original. `writeProject` stamps `project.modifiedAt` on whatever it writes from, so an export that writes
  * from the open project's own state would mark the project changed when nothing was edited (lifecycle `exportBundle`, persistence-plan).
  */
@@ -162,6 +177,8 @@ export function cloneProjectState(state: ProjectState): ProjectState {
   for (const [path, text] of state.declinedText) copy.declinedText.set(path, text);
   for (const [folder, files] of state.skills) copy.skills.set(folder, files.map((file) => ({ path: file.path, bytes: file.bytes.slice() })));
   for (const path of state.removedSkillFiles) copy.removedSkillFiles.add(path);
+  copy.agentFiles = cloneAgentFiles(state.agentFiles);
+  for (const path of state.removedAgentFiles) copy.removedAgentFiles.add(path);
   return copy;
 }
 

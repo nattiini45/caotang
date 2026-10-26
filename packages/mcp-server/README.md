@@ -98,7 +98,7 @@ Which transport a host should use:
 
 These are the tools a host lists, measured from `tools/list` on a server started with each setting. The annotations and descriptions are the harness's registry-to-MCP mapping ([extensibility.md §7](../../docs/architecture/extensibility.md)), unchanged. Two things differ from the whole registry: `tool.search` is not listed, and the tools that need a model are not listed. The empty-project note of `project.overview` is the harness's own, and it names a write tool only to a caller whose server allows writes.
 
-**Read-only server (7 tools), and always:**
+**Read-only server (8 tools), and always:**
 
 | Tool | Risk |
 |---|---|
@@ -109,8 +109,9 @@ These are the tools a host lists, measured from `tools/list` on a server started
 | `codex.read` | read |
 | `coherence.scan` | read |
 | `dialogue.table` | read |
+| `memory.read` | read |
 
-**With `--allow-writes` (21 tools):** the seven above, and:
+**With `--allow-writes` (22 tools):** the eight above, and:
 
 | Tool | Risk | What the host does |
 |---|---|---|
@@ -123,6 +124,7 @@ These are the tools a host lists, measured from `tools/list` on a server started
 
 - `agent.plan` is protocol, not a tool.
 - `project.deleteNode` is hard-denied: it is refused whatever the caller asks, in every mode, with the bus's own message.
+- `memory.write` and `instructions.propose` are not listed either. The writer's `CAOTANG.md` and the agent's memory notes are readable here (`memory.read`, and every prompt carries them), and they change in the app, at a card: a rule or a memory is a standing instruction, so no `--allow-writes` hands it to a host. `memory.forget` is the writer's alone and is hard-denied.
 - `tool.search` is not listed. It searches the tool servers Caotang's own MCP client connects to, and this server connects to none, so the tool could only report that.
 - The eight tools that need a model are not listed, because the server holds no provider key: `scene.draft`, `synopsis.fill`, `continuity.scan`, `coherence.review`, `shots.derive`, `prompt.draft`, `prompt.variant` and `dialogue.draft`.
 

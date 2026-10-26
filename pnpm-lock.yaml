@@ -275,6 +275,9 @@ importers:
       '@caotang/storyboard':
         specifier: workspace:*
         version: link:../../packages/storyboard
+      '@caotang/tasks':
+        specifier: workspace:*
+        version: link:../../packages/tasks
       '@caotang/video-prompt-pack':
         specifier: workspace:*
         version: link:../../packages/video-prompt-pack
@@ -912,6 +915,24 @@ importers:
       '@caotang/pdf-fonts':
         specifier: workspace:*
         version: link:../pdf-fonts
+      '@caotang/store':
+        specifier: workspace:*
+        version: link:../store
+
+  packages/tasks:
+    dependencies:
+      '@caotang/coherence':
+        specifier: workspace:*
+        version: link:../coherence
+      '@caotang/harness':
+        specifier: workspace:*
+        version: link:../harness
+      '@caotang/ids':
+        specifier: workspace:*
+        version: link:../ids
+      '@caotang/skills':
+        specifier: workspace:*
+        version: link:../skills
       '@caotang/store':
         specifier: workspace:*
         version: link:../store

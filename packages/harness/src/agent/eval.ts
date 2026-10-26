@@ -24,7 +24,7 @@
 
 import type { CoherenceModel, ModelReply, ModelRequest } from '@caotang/coherence';
 import type { ChatRequest, Gateway } from '@caotang/gateway';
-import type { ProjectState } from '@caotang/store';
+import { agentFileTexts, type ProjectState } from '@caotang/store';
 
 import { metadataFor, type ToolName } from '../metadata.js';
 import { createHarness } from '../runtime.js';
@@ -234,14 +234,15 @@ function recording(base: Gateway, into: ChatRequest[]): Gateway {
 
 /**
  * The bytes of everything an undo has to restore: the manifest, every body, and the decline record. Two projects with
- * the same bytes are the same project to the bus (command-bus §10). A document's revision is left out: it is runtime
+ * the same bytes are the same project to the bus (command-bus §10). The agent's files are in it (CAOTANG.md and the memory notes), so a
+ * restore that leaves a note behind is a failure. A document's revision is left out: it is runtime
  * bookkeeping that is never serialized, and an undo is a write that raises it.
  */
 export function projectBytes(state: ProjectState): string {
   const documents = [...state.documents.entries()]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([id, record]) => [id, { id: record.id, body: record.body }] as const);
-  return canonicalJson({ manifest: state.manifest, documents, declinedCodexFiles: [...state.declinedCodexFiles].sort() });
+  return canonicalJson({ manifest: state.manifest, documents, declinedCodexFiles: [...state.declinedCodexFiles].sort(), agentFiles: agentFileTexts(state.agentFiles) });
 }
 
 /** Runs a scenario once, end to end, and returns what it did. Nothing is asserted here. */

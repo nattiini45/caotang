@@ -1,6 +1,7 @@
 export { MockProvider, createMockProvider, type MockProviderOptions } from './mock-provider.js';
 export { DEMO_FALLBACK_REPLY, appMockProvider } from './app-provider.js';
 export {
+  DEMO_INSTRUCTIONS,
   DEMO_INTENTS,
   DEMO_REFUSAL,
   DRAFT_PREFIX,

@@ -152,6 +152,8 @@ interface Case {
   readonly dialogue?: boolean;
   /** The case needs a skill in the state: the skill commands name one. */
   readonly skill?: boolean;
+  /** The case needs a memory note in the state: the memory commands name one. */
+  readonly memory?: boolean;
 }
 
 /** The finding the coherence cases act on: one open finding that quotes the storm scene. */
@@ -471,6 +473,10 @@ const CASES: readonly Case[] = [
   { name: 'skill.write', params: { name: 'close-third', path: 'references/voice.md', text: 'Stay close.' }, titles: [], digestMentions: 'added references/voice.md in the skill “close-third”', skill: true },
   { name: 'skill.delete', params: { name: 'close-third' }, titles: [], digestMentions: 'deleted the skill “close-third”', skill: true },
   { name: 'skill.setEnabled', params: { name: 'close-third', enabled: false }, titles: [], digestMentions: 'turned the skill “close-third” off', skill: true },
+  // The agent's files report no node: CAOTANG.md and the memory notes are not in the binder. Their digests name the file or the note.
+  { name: 'project.setInstructions', params: { text: 'British spelling.' }, titles: [], digestMentions: 'created CAOTANG.md' },
+  { name: 'memory.write', params: { slug: 'style-dialogue', type: 'style', title: 'Dialogue tags', body: 'Use said.' }, titles: [], digestMentions: 'saved the memory note “Dialogue tags”' },
+  { name: 'memory.forget', params: { slug: 'style-dialogue' }, titles: [], digestMentions: 'forgot the memory note “Dialogue tags”', memory: true },
   {
     name: 'dialogue.setMeta',
     params: { nodeId: CELLAR, patch: { autoLineIds: true } },
@@ -530,6 +536,7 @@ describe('§8 — the activity row for every shipped store apply', () => {
       const state = fixture();
       if (testCase.coherence === true) state.coherence = coherenceWithFinding();
       if (testCase.skill === true) state.skills.set('close-third', [{ path: 'SKILL.md', bytes: new TextEncoder().encode(['---', 'name: close-third', 'description: d', '---', 'Body', ''].join('\n')) }]);
+      if (testCase.memory === true) state.agentFiles = { memory: [{ slug: 'style-dialogue', type: 'style', title: 'Dialogue tags', body: 'Use said.', modified: '', origin: 'writer' }], declined: new Map(), unreadable: [] };
       if (testCase.dialogue === true) {
         addDocument(state, { parentId: 'manuscript', title: 'The Cellar', type: 'dialogue', kind: 'branching', body: '=== Cellar ===\nHello.\n-> END\n', now: OPENED, id: CELLAR });
       }

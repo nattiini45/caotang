@@ -103,7 +103,7 @@ import { newId } from '@caotang/ids';
 import { assetRecordsOf, createExporter, exportMetadataOf, type EmitFailure, type ExporterService } from '@caotang/exporter';
 import { dropDanglingImages, shotCommandPort } from '@caotang/storyboard';
 import { InkCompilerNotLoaded } from '@caotang/dialogue';
-import { createProductHarness, dialogueFactsOf, type Harness, type SourcedRule } from '@caotang/harness';
+import { createProductHarness, dialogueFactsOf, excludedBy, withheldState, type Harness, type SourcedRule } from '@caotang/harness';
 import type { McpClient } from '@caotang/mcp-client';
 import type { SkillFile } from '@caotang/skills';
 
@@ -117,6 +117,7 @@ import { ProjectAssets, coverFileHeld } from './project-assets.js';
 import { SkillReviews } from './skill-reviews.js';
 import { skillsView, type SkillsView } from './skills-model.js';
 import type { DirectoryHandleLike } from './fs-access.js';
+import type { TasksHome } from './tasks-io.js';
 import { Persistence } from './persistence.js';
 import type { Shadow } from './persistence-plan.js';
 import { dropHistoryOf } from './history-store.js';
@@ -199,6 +200,11 @@ export interface ScanOptions {
   readonly scope?: ScopeSpec;
   /** Absent means every deterministic check. An empty list runs none, and the tab says so before it asks. */
   readonly checks?: readonly DeterministicCheckId[];
+  /**
+   * The documents a read rule keeps from the agent (`harness.withheld`), for a scan the agent's rules govern: they are left out like archived
+   * ones and their dialogue is not read, so no finding quotes them. The writer's own scan on the Findings tab passes none.
+   */
+  readonly withheld?: ReadonlySet<string>;
 }
 
 /** What the findings tab says about the coherence file: whether it is attached and writable, what the load noticed, and
@@ -333,6 +339,9 @@ export class ProjectSession {
   private readonly rejections: RejectedDispatch[] = [];
   /** The coherence file's write port and what its load said, once the file is attached (coherence.md §3). */
   private coherencePort: CoherencePort | null = null;
+  /** The project's recurring tasks and where they are saved (tasks-io.ts). Null until the lifecycle has loaded them. */
+  private tasksHome_: TasksHome | null = null;
+  private detachTasks: (() => void) | null = null;
   private coherenceWritable = false;
   private coherenceNotices: readonly string[] = [];
   /** Why the last findings save to this browser failed. The save indicator reads failed while it is set. */
@@ -754,6 +763,25 @@ export class ProjectSession {
     return true;
   }
 
+  /* ------------------------------------------------------------------ *
+   * The agent's files (context-assembly.md §2, layer LI): CAOTANG.md and the memory notes
+   * ------------------------------------------------------------------ */
+
+  /** Replaces CAOTANG.md (`project.setInstructions`). `expectedDigest` is the digest of the text the panel showed, so a change made since is a conflict. */
+  setInstructions(text: string, expectedDigest?: string): Result<ExecutionOutcome, CommandError> {
+    return this.dispatch('project.setInstructions', { text, ...(expectedDigest === undefined ? {} : { expectedDigest }) });
+  }
+
+  /** Saves one memory note (`memory.write`): a new one, or the one at `slug` with `expectedDigest` the digest of the body the panel showed. */
+  writeMemoryNote(note: { slug: string; type: 'style' | 'preference' | 'process' | 'reference'; title: string; body: string }, expectedDigest?: string): Result<ExecutionOutcome, CommandError> {
+    return this.dispatch('memory.write', { ...note, ...(expectedDigest === undefined ? {} : { expectedDigest }) });
+  }
+
+  /** Forgets one memory note (`memory.forget`). The writer's alone: the panel asks first, and one undo brings the note back. */
+  forgetMemoryNote(slug: string): Result<ExecutionOutcome, CommandError> {
+    return this.dispatch('memory.forget', { slug });
+  }
+
   /**
    * Imports an image as a shot's picture (`shot.importImage`, storyboard.md §3.1): the bytes are staged, the command names them
    * and the shot, and the file and the shot's `image` are one undo group. A refusal is kept for the status line, as every
@@ -1160,6 +1188,26 @@ export class ProjectSession {
     return this.state.coherence as CoherenceFile | undefined;
   }
 
+  /** Gives the session its recurring tasks, as the lifecycle loaded them (agent-harness.md §12). They are not project state: no command changes them. */
+  attachTasks(home: TasksHome): void {
+    this.detachTasks?.();
+    this.tasksHome_ = home;
+    // A tasks save is in the store only once it lands, so the save indicator follows it as it follows a findings write.
+    this.detachTasks = home.subscribe(() => this.bump());
+    this.bump();
+  }
+
+  /** The project's recurring tasks and where they are saved, or `null` when none were loaded. */
+  tasksHome(): TasksHome | null {
+    return this.tasksHome_;
+  }
+
+  /** Makes a folder a place the tasks file is saved to, as `attachCoherenceFolder` does for the findings. */
+  async attachTasksFolder(root: DirectoryHandleLike): Promise<void> {
+    if (this.persistence.isStopped()) return;
+    await this.tasksHome_?.attachFolder(root);
+  }
+
   /** What the findings tab reads about the file: attached, writable, what the load noticed, and the last save's failure. */
   coherenceStatus(): CoherenceStatus {
     return {
@@ -1240,7 +1288,8 @@ export class ProjectSession {
     // reporting a project with no branch findings.
     let dialogue: ReturnType<typeof dialogueFactsOf>;
     try {
-      dialogue = dialogueFactsOf(this.state);
+      const hidden = options.withheld;
+      dialogue = dialogueFactsOf(hidden === undefined ? this.state : withheldState(this.state, hidden));
     } catch (error) {
       if (!(error instanceof InkCompilerNotLoaded)) throw error;
       void requestInkCompiler();
@@ -1253,6 +1302,7 @@ export class ProjectSession {
       detector: countInEntries,
       approvedLargeScope: options.approvedLargeScope,
       dialogue,
+      ...(excludedBy(options.withheld) === undefined ? {} : { isExcluded: excludedBy(options.withheld) }),
     });
     if (result.ok && result.file !== undefined) {
       this.state.coherence = result.file;
@@ -1312,6 +1362,7 @@ export class ProjectSession {
     if (this.persistence.getStatus() === 'writing') return 'saving';
     if (this.autosave.dirtyDocIds().length > 0) return 'saving';
     if (this.coherenceInFlight > 0) return 'saving';
+    if (this.tasksHome_?.pending() === true) return 'saving';
     return 'saved';
   }
 
@@ -1339,6 +1390,7 @@ export class ProjectSession {
     await this.autosave.flush();
     await this.persistence.settle();
     await this.coherenceQueue;
+    await this.tasksHome_?.settled();
   }
 
   /**
@@ -1463,6 +1515,9 @@ export class ProjectSession {
         await this.autosave.flush();
         await this.persistence.settle();
         await this.coherenceQueue;
+        await this.tasksHome_?.settled();
+        this.detachTasks?.();
+        this.detachTasks = null;
         this.pending.prune();
         this.autosave.dispose();
         if (this.sitting.isOpen() && (this.sitting.pending()?.docIds.length ?? 0) > 0) {

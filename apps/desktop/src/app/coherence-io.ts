@@ -58,7 +58,7 @@ export function legacyCoherenceKey(projectId: string): string {
  * An `ArtifactFs` over an in-memory set of files that writes its whole set to the store after each change. Reads and listings
  * come from memory; the only writes are `writeAtomic`, `writeBytesAtomic` and `remove`, and each one persists.
  */
-class StoreArtifactFs implements ArtifactFs {
+export class StoreArtifactFs implements ArtifactFs {
   constructor(
     private readonly files: MemoryArtifactFs,
     private readonly persist: () => Promise<void>,

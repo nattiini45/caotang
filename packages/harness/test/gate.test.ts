@@ -58,7 +58,8 @@ describe('the tool-level permission matrix', () => {
   // storyboard and prompt-pack modules' write tools: shots.derive and prompt.draft (write-confirm), and the
   // write-auto shots.annotate; and the dialogue module's dialogue.draft (write-confirm,
   // dialogue-narrative.md §7); its read, dialogue.table, is not in either list. The five allowlisted bus primitives add
-  // notes.replace and vocabulary.upsert (write-confirm), and synopsis.set, filter.save and goal.save (write-auto).
+  // notes.replace and vocabulary.upsert (write-confirm), and synopsis.set, filter.save and goal.save (write-auto). The two rows issue #71 names,
+  // memory.write and instructions.propose, are write-confirm too; memory.read is a read.
   it('lists the write-confirm and write-auto tools the matrix covers', () => {
     expect(writeConfirm.sort()).toEqual([
       'binder.restructure',
@@ -68,6 +69,8 @@ describe('the tool-level permission matrix', () => {
       'dialogue.draft',
       'doc.import',
       'export.compile',
+      'instructions.propose',
+      'memory.write',
       'notes.replace',
       'prompt.draft',
       'scene.draft',
@@ -177,7 +180,7 @@ describe('a delegated agent’s calls (agent-harness §2, "Delegate")', () => {
 describe('the hard-deny list the tool names are checked against', () => {
   it('shares no name with the bus’s hard-denied commands, so the tool-level gate never reads a deny it does not own', () => {
     const hardDenied = Object.keys(HARD_DENIED);
-    expect(hardDenied).toEqual(['project.deleteNode']);
+    expect(hardDenied).toEqual(['project.deleteNode', 'memory.forget']);
     expect(TOOL_NAMES.filter((name) => hardDenied.includes(name))).toEqual([]);
     expect(HARD_DENY_CLASSES).toContain('deletion');
   });
@@ -214,6 +217,10 @@ function minimalParams(name: string): Record<string, unknown> {
       return { parent: 'Chapter 1', title: 'Import', body: 'x' };
     case 'notes.replace':
       return { doc: LANDING, notes: 'x' };
+    case 'memory.write':
+      return { title: 'Dialogue tags', type: 'style', body: 'Use said.' };
+    case 'instructions.propose':
+      return { text: 'British spelling.' };
     case 'vocabulary.upsert':
       return { kind: 'status', name: 'In Review', color: '#3fa66a' };
     case 'export.compile':

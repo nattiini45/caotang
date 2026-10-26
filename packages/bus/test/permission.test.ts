@@ -162,7 +162,7 @@ describe('§4 issuedBy: \'user\' — a gesture is its own confirmation', () => {
     // the UI cannot tell a destructive command from a rename by looking at it.
     expect(granted('project.deleteNode', 'user').requiresUserConfirm).toBe(true);
     const flagged = COMMAND_NAMES.filter((n) => granted(n, 'user').requiresUserConfirm);
-    expect(flagged).toEqual(['project.deleteNode']);
+    expect(flagged).toEqual(['project.deleteNode', 'memory.forget']);
   });
 
   it('grants every user command via user-gesture, whatever the plan context says', () => {
@@ -379,13 +379,14 @@ describe('the gate\'s own lists are held against the spec, not against themselve
     }
   });
 
-  it('hard-denies exactly one command, and it is the destructive one', () => {
+  it('hard-denies exactly two commands, and both are deletions', () => {
     // Three of §4's four classes have no command in §9's closed set (the bus has no
     // network, provider settings are app-level, and codex deletion is not an
-    // `action` value yet). A second member therefore cannot be added without this
-    // failing and naming it.
-    expect(Object.keys(HARD_DENIED)).toEqual(['project.deleteNode']);
+    // `action` value yet). A third member therefore cannot be added without this
+    // failing and naming it. `memory.forget` is the second: a memory note is the writer's to remove.
+    expect(Object.keys(HARD_DENIED)).toEqual(['project.deleteNode', 'memory.forget']);
     expect(hardDenyClass('project.deleteNode')).toBe('deletion');
+    expect(hardDenyClass('memory.forget')).toBe('deletion');
     expect(hardDenyClass('binder.rename')).toBeUndefined();
   });
 
@@ -435,6 +436,7 @@ describe('the gate\'s own lists are held against the spec, not against themselve
       'skill.write',
       'skill.delete',
       'skill.setEnabled',
+      'memory.forget',
     ]);
     expect(byRisk.get('write-confirm')).toContain('doc.write');
     expect(byRisk.get('write-auto')).toContain('binder.move');

@@ -283,6 +283,8 @@ export interface ScanData {
   readonly runId: string;
   readonly status: CoherenceRun['status'];
   readonly findingsUpserted: number;
+  /** How many documents the scope held once archived and withheld ones were left out. */
+  readonly documents: number;
   readonly groups: readonly FindingGroup[];
   readonly notes: readonly string[];
 }
@@ -356,6 +358,7 @@ export function scanTool(params: Readonly<Record<string, unknown>>, context: Coh
         runId: result.run.id,
         status: result.run.status,
         findingsUpserted: result.run.findingsUpserted.length,
+        documents: count,
         groups,
         notes: result.run.notes ?? [],
       },

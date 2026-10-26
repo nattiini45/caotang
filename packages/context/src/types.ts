@@ -13,12 +13,13 @@ import type { ChatMessage } from '@caotang/gateway';
 import type { ProjectState } from '@caotang/store';
 
 /** §2's fixed layer order. Rendering and the prompt preview both follow it. */
-export const LAYER_IDS = ['L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7'] as const;
+export const LAYER_IDS = ['L0', 'LI', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7'] as const;
 export type LayerId = (typeof LAYER_IDS)[number];
 
 /** The name each layer carries in the prompt's headings and in the preview. */
 export const LAYER_NAMES: Readonly<Record<LayerId, string>> = {
   L0: 'System',
+  LI: 'Instructions',
   L1: 'Project',
   L2: 'Codex',
   L3: 'Structure',
@@ -102,6 +103,13 @@ export interface AppSnapshot {
    * lists each in the preview as withheld; see `withhold`.
    */
   readonly withheld?: ReadonlySet<string>;
+  /**
+   * The writer's instructions for layer LI: `CAOTANG.md`, or the `AGENTS.md` it falls back to. Absent means the project's own
+   * (`state.agentFiles.instructions`), which is what the app and the MCP server both send.
+   */
+  readonly instructions?: { readonly source: 'CAOTANG.md' | 'AGENTS.md'; readonly text: string };
+  /** The memory index for layer LI (`memory/MEMORY.md`). Absent means the project's own (`state.agentFiles.index`). */
+  readonly memoryIndex?: string;
 }
 
 /** A model's limits and prices, as the gateway's profile and `listModels` report them. */
@@ -155,6 +163,8 @@ export type DropReason =
   | { readonly kind: 'budget'; readonly layer: LayerId; readonly budget: number; readonly rank: number }
   /** The whole prompt was over `contextBudget`, and this item was in the prune order (§2). */
   | { readonly kind: 'total-budget'; readonly layer: LayerId; readonly total: number; readonly rank: number }
+  /** LI was over its cap: it sent whole lines up to it, and the first `sentTokens` of `totalTokens` reached the model. */
+  | { readonly kind: 'instructions-cap'; readonly file: string; readonly sentTokens: number; readonly totalTokens: number }
   /** The codex's `always` entries alone need more than the layer's budget; they are sent whole. */
   | { readonly kind: 'reserve-overflow'; readonly layer: LayerId; readonly need: number; readonly budget: number };
 

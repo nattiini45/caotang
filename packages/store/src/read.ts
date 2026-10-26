@@ -45,6 +45,7 @@ import { PRODUCTION_FORMAT, type AppliedMigration, type FormatContext } from './
 import type { CodexEntry, Manifest, TreeNode } from './manifest.js';
 import { backfillProjectIdentity } from './project-identity.js';
 import { joinWords } from './folder-digests.js';
+import { readAgentFiles } from './agent-files-fs.js';
 import { readSkills } from './skills-fs.js';
 import { createProjectState, rebuildDerived, type DocumentRecord, type ProjectState } from './state.js';
 import { isIdWithPrefix, newId } from '@caotang/ids';
@@ -489,6 +490,7 @@ export async function readProject(fs: ArtifactFs, options: ReadOptions = {}): Pr
   const orphanCodex = await importOrphanCodex(fs, state, notices, encodingIssues);
   dropDanglingCodexIds(state, notices);
   await importSkills(fs, state, notices);
+  await importAgentFiles(fs, state, notices, encodingIssues);
 
   // §2's "loader recomputes on open if absent", and it runs **here** for a
   // reason that is not tidiness: an orphan document imported three lines above
@@ -508,6 +510,17 @@ export async function importSkills(fs: ArtifactFs, state: ProjectState, notices:
   const read = await readSkills(fs);
   for (const [folder, files] of read.skills) state.skills.set(folder, files);
   for (const notice of read.notices) notices.push({ path: notice.path, message: notice.message, say: notice.say });
+}
+
+/**
+ * Reads the project's agent files into the state (agent-files-fs.ts). A file whose bytes are not UTF-8 is held back whole, named in a notice
+ * and on the encoding report, and stays on disk as it is.
+ */
+export async function importAgentFiles(fs: ArtifactFs, state: ProjectState, notices: LoadNotice[], encodingIssues: EncodingIssue[] = []): Promise<void> {
+  const read = await readAgentFiles(fs);
+  state.agentFiles = read.files;
+  for (const notice of read.notices) notices.push({ path: notice.path, message: notice.message, say: notice.say });
+  for (const file of read.held) recordEncodingIssue(encodingIssues, file.path, 'agent', file.bytes);
 }
 
 /**

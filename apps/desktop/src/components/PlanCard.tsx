@@ -301,9 +301,11 @@ function StepPreviewBlock({ view, cost }: { view: StepPreviewView; cost?: PlanSt
   if (view.kind === 'review') return <ReviewPreviewBlock view={view} cost={cost} />;
   if (view.kind === 'notes') {
     return (
-      <figure className="plan-draft" aria-label="Notes this step writes">
+      <figure className="plan-draft" aria-label={view.subject === 'notes' ? 'Notes this step writes' : 'Text this step writes'}>
         <figcaption>
-          The notes of “{view.doc}”, word by word from the old to the new ({view.wordsBefore} words to {view.wordsAfter}), shown before approval
+          {view.subject === 'notes' ? <>The notes of “{view.doc}”</> : view.doc}, word by word from the old to the new ({view.wordsBefore} words to{' '}
+          {view.wordsAfter}), shown before approval
+          {view.subject === 'notes' ? null : ': every later request carries it'}
         </figcaption>
         <p className="notes-diff">
           {view.segments.map((segment, index) =>

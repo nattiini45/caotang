@@ -822,3 +822,113 @@
   gap: 0.3rem;
   font-size: 0.85em;
 }
+
+/* Recurring tasks (agent-harness.md §12): the offers for tasks that are due, and the list of definitions in the agent drawer. */
+/* The section always holds the live region, so it is never :empty; it takes room only while an offer is shown. With none it
+   adds nothing to the drawer, whose height the board shares the column with. */
+.recurring-offers {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.recurring-offers.has-offers {
+  margin: 0 0 0.5rem;
+}
+
+.recurring-offer,
+.recurring-task {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--raised);
+  font-size: 12.5px;
+}
+
+.recurring-offer {
+  border-color: var(--accent);
+}
+
+.recurring-offer p,
+.recurring-task p {
+  margin: 0.15rem 0;
+  overflow-wrap: anywhere;
+}
+
+.recurring {
+  margin: 0 0 0.75rem;
+}
+
+.recurring h4 {
+  margin: 0 0 0.25rem;
+  font-size: 12.5px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.recurring-note,
+.recurring-empty {
+  font-size: 12.5px;
+  margin: 0 0 0.4rem;
+}
+
+.recurring-list,
+.recurring-notices {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.recurring-notices {
+  font-size: 12.5px;
+  color: var(--review);
+}
+
+.recurring-problem {
+  color: var(--review);
+  font-weight: 600;
+}
+
+.recurring-off,
+.recurring-running {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.recurring-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.3rem;
+}
+
+.recurring-history {
+  margin-top: 0.3rem;
+}
+
+.recurring-history summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.recurring-history ol {
+  margin: 0.25rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.recurring-form {
+  margin: 0.4rem 0;
+}
+
+.recurring-form select,
+.recurring-form textarea,
+.recurring-form input {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+}

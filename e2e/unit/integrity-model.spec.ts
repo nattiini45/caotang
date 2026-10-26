@@ -983,7 +983,7 @@ function memoryFolder(name: string, children: Map<string, MemoryNode> = new Map(
         node = { kind: 'directory', children: new Map() };
         children.set(child, node);
       }
-      if (node.kind !== 'directory') throw new Error(`${child} is a file`);
+      if (node.kind !== 'directory') throw Object.assign(new Error(`${child} is a file`), { name: 'TypeMismatchError' });
       return memoryFolder(child, node.children);
     },
     async getFileHandle(child: string, options?: { create?: boolean }) {
@@ -993,7 +993,7 @@ function memoryFolder(name: string, children: Map<string, MemoryNode> = new Map(
         node = { kind: 'file', text: '' };
         children.set(child, node);
       }
-      if (node.kind !== 'file') throw new Error(`${child} is a folder`);
+      if (node.kind !== 'file') throw Object.assign(new Error(`${child} is a folder`), { name: 'TypeMismatchError' });
       const file = node;
       const handle: FileHandleLike = {
         kind: 'file',
@@ -1181,6 +1181,32 @@ test.describe('saving to a folder: what is written, and what is left alone', () 
     expect(saved).toMatchObject({ kind: 'saved' });
     expect(await fs.read(`${saved.kind === 'saved' ? saved.backup : ''}/docs/${IDS.sceneA}.md`)).toBe(otherText);
     expect(await fs.read(`docs/${IDS.sceneA}.md`)).toContain('Not written');
+    await session.close();
+  });
+
+  test('a CAOTANG.md or a memory note another program edited makes the save refuse in words, keeps those bytes, and the writer’s yes keeps what it replaced', async () => {
+    const { session, root } = await folderSession();
+    const fs = folderArtifactFs(root);
+    // This tab's own instructions and note are saved first, so the folder holds them and the baseline digests them.
+    session.setInstructions('British spelling.');
+    session.writeMemoryNote({ slug: 'style-dialogue', type: 'style', title: 'Dialogue tags', body: 'Use said.' });
+    expect(await saveFolder(session, root)).toEqual({ kind: 'saved' });
+
+    const otherText = 'Edited by another program.';
+    await fs.writeAtomic('CAOTANG.md', otherText);
+    session.setInstructions('Mine.');
+    expect(await saveFolder(session, root)).toEqual({ kind: 'refused', reason: 'files', files: [{ label: 'the file CAOTANG.md', change: 'changed' }] });
+    expect(await fs.read('CAOTANG.md')).toBe(otherText);
+
+    const saved = await confirmFolderOverwrite(session, root);
+    expect(saved).toMatchObject({ kind: 'saved' });
+    expect(await fs.read(`${saved.kind === 'saved' ? saved.backup : ''}/CAOTANG.md`)).toBe(otherText);
+    expect(await fs.read('CAOTANG.md')).toBe('Mine.');
+
+    // A note added by another program since is a file this tab does not hold, and the save names it.
+    await fs.writeAtomic('memory/other-note.md', ['---', 'type: style', 'title: Other', '---', '', 'Body.'].join(String.fromCharCode(10)));
+    session.setInstructions('Mine again.');
+    expect(await saveFolder(session, root)).toEqual({ kind: 'refused', reason: 'files', files: [{ label: 'the memory note “other-note”', change: 'added' }] });
     await session.close();
   });
 

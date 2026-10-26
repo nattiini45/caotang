@@ -424,6 +424,13 @@ function runConfirmed(
 }
 
 /**
+ * The rows that change what every later request says. An outside host reads CAOTANG.md and the memory notes (`memory.read`, and the prompts,
+ * which assemble with them), and never writes them: a memory the agent keeps, or a rule in CAOTANG.md, is the writer's decision in the app, at
+ * a card, whatever `--allow-writes` opens (context-assembly.md §2, layer LI).
+ */
+const IN_APP_ONLY: ReadonlySet<string> = new Set(['memory.write', 'instructions.propose']);
+
+/**
  * Registers every exposed harness tool on `server`. Returns the names registered, in table order. `roundWaitMs` is the
  * deadline of a confirmation on this server's connection, when it has one; the question says so (confirm.ts).
  */
@@ -436,6 +443,7 @@ export function registerCaotangTools(server: McpServer, runtime: ToolRuntime, ro
     // tool.search searches the tool servers that Caotang's own MCP client connects to. This server connects to none, so the
     // tool could only answer that no servers are connected, and an outside agent would plan around a dead end (§9).
     if (listing.name === 'tool.search') continue;
+    if (IN_APP_ONLY.has(listing.name)) continue;
     // A tool whose implementation this server does not have is not advertised: listed, it
     // would refuse every call, and an outside agent would plan around a tool that cannot run.
     if (!listing.wired) continue;

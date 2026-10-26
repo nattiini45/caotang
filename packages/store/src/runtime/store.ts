@@ -53,6 +53,7 @@
  * is what makes `await writeDocumentBody(…)` mean *committed*, not *issued*.
  */
 
+import { agentFileTexts, hasAgentFiles, parseAgentFiles, type AgentFiles } from '../agent-files.js';
 import type { Manifest } from '../manifest.js';
 import { createProjectState, rebuildDerived, type DocumentRecord, type ProjectState } from '../state.js';
 import { assertSessionRecord, type SessionRecord } from '../sessions.js';
@@ -170,11 +171,26 @@ export interface ProjectRow {
    */
   coherenceFiles?: Record<string, string>;
   /**
+   * The project's recurring-tasks artifact set (agent-harness.md §12), by its project-relative path: `tasks.json` and its `.bak.N`
+   * snapshots and any kept `.corrupt-<ts>` copy. The same home the coherence set has, for the same reason, and kept apart from it so
+   * that rewriting one set cannot tear the other. Optional, and absent means no tasks file yet. A manifest write leaves it alone, and
+   * the only writer is {@link writeTaskFiles}.
+   */
+  taskFiles?: Record<string, string>;
+  /**
    * `ProjectState.skills`, flattened: every skill file by its path inside `.agents/skills/` (`<folder>/<path>`), as bytes. The
    * store is a view over the state, so a rehydrated state holds the skills the project had. Optional, and absent means no skills,
    * which is what a row written before skills existed has. A structural commit carries it across, as it does `declinedText`.
    */
   skillFiles?: Record<string, Uint8Array>;
+  /**
+   * `ProjectState.agentFiles`, as the texts of its files by project path (`CAOTANG.md`, `memory/MEMORY.md`, `memory/<slug>.md`; agent-files.ts
+   * `agentFileTexts`). A rehydrated state parses them again. Optional, and absent means no agent files, which is what a row written before
+   * they existed has. A structural commit carries it across, as it does `skillFiles`.
+   */
+  agentFiles?: Record<string, string>;
+  /** The agent files the load held back because their bytes are not UTF-8 text (`AgentFiles.unreadable`). */
+  agentFilesUnreadable?: string[];
 }
 
 export interface DocumentRow {
@@ -589,6 +605,9 @@ export function readProjectState(
             state.skills.set(folder, files);
           }
           for (const files of state.skills.values()) files.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+          if (row.agentFiles !== undefined || row.agentFilesUnreadable !== undefined) {
+            state.agentFiles = parseAgentFiles(row.agentFiles ?? {}, row.agentFilesUnreadable ?? []).files;
+          }
           for (const document of rows) {
             state.documents.set(document.id, {
               id: document.id,
@@ -681,6 +700,14 @@ function skillFilesOf(state: ProjectState): Record<string, Uint8Array> {
   return files;
 }
 
+/** The agent files as a row stores them: the texts by path, and the paths held back. Neither key when the state has no agent files. */
+function agentFilesRowOf(files: AgentFiles): Pick<ProjectRow, 'agentFiles' | 'agentFilesUnreadable'> {
+  return {
+    ...(hasAgentFiles(files) ? { agentFiles: agentFileTexts(files) } : {}),
+    ...(files.unreadable.length === 0 ? {} : { agentFilesUnreadable: [...files.unreadable] }),
+  };
+}
+
 export function commitProject(store: RuntimeStore, commit: ProjectCommit): Promise<void> {
   const storedAt = (commit.now ?? new Date()).toISOString();
   return transact<void>(
@@ -713,9 +740,14 @@ export function commitProject(store: RuntimeStore, commit: ProjectCommit): Promi
         if (previous?.skillFiles !== undefined) {
           row.skillFiles = { ...previous.skillFiles };
         }
+        if (previous?.agentFiles !== undefined) row.agentFiles = { ...previous.agentFiles };
+        if (previous?.agentFilesUnreadable !== undefined) row.agentFilesUnreadable = [...previous.agentFilesUnreadable];
         // The coherence set is not the manifest's, so a structural commit keeps it (ProjectRow.coherenceFiles).
         if (previous?.coherenceFiles !== undefined) {
           row.coherenceFiles = { ...previous.coherenceFiles };
+        }
+        if (previous?.taskFiles !== undefined) {
+          row.taskFiles = { ...previous.taskFiles };
         }
         projects.put(row);
         for (const doc of commit.createDocuments ?? []) {
@@ -887,6 +919,7 @@ export function writeProjectState(
         declinedDocFiles: [...state.declinedDocFiles],
         declinedText: Object.fromEntries(state.declinedText),
         ...(state.skills.size === 0 ? {} : { skillFiles: skillFilesOf(state) }),
+        ...agentFilesRowOf(state.agentFiles),
       };
       // The coherence set is not in the state, so the row keeps the one it held (ProjectRow.coherenceFiles). The read
       // comes first in this transaction, so the put that follows it sees the row as it was.
@@ -894,6 +927,7 @@ export function writeProjectState(
       previousRequest.onsuccess = guarded(fail, () => {
         const previous = previousRequest.result as ProjectRow | undefined;
         if (previous?.coherenceFiles !== undefined) project.coherenceFiles = { ...previous.coherenceFiles };
+        if (previous?.taskFiles !== undefined) project.taskFiles = { ...previous.taskFiles };
         projects.put(project);
       });
 
@@ -963,6 +997,38 @@ export function writeCoherenceFiles(store: RuntimeStore, projectId: string, file
   });
 }
 
+/** The project's recurring-tasks artifact set, by path (ProjectRow.taskFiles), read as {@link readCoherenceFiles} reads its set. */
+export function readTaskFiles(store: RuntimeStore, projectId: string): Promise<Record<string, string>> {
+  return transact<Record<string, string>>(store.db, [PROJECT_STORE], 'readonly', (tx, done, fail) => {
+    const request = tx.objectStore(PROJECT_STORE).get(projectId);
+    request.onsuccess = guarded(fail, () => {
+      const row = request.result as ProjectRow | undefined;
+      if (!row) {
+        fail(new ProjectNotFoundError(projectId));
+        return;
+      }
+      done({ ...(row.taskFiles ?? {}) });
+    });
+  });
+}
+
+/** Replaces the project's recurring-tasks artifact set with `files` (ProjectRow.taskFiles), whole, in one read-and-put transaction. */
+export function writeTaskFiles(store: RuntimeStore, projectId: string, files: Readonly<Record<string, string>>): Promise<void> {
+  return transact<void>(store.db, [PROJECT_STORE], 'readwrite', (tx, done, fail) => {
+    const projects = tx.objectStore(PROJECT_STORE);
+    const request = projects.get(projectId);
+    request.onsuccess = guarded(fail, () => {
+      const row = request.result as ProjectRow | undefined;
+      if (!row) {
+        fail(new ProjectNotFoundError(projectId));
+        return;
+      }
+      projects.put({ ...row, taskFiles: { ...files } });
+      done(undefined);
+    });
+  });
+}
+
 /**
  * Replaces the project's skills with `skills` (ProjectRow.skillFiles): one `put` of the project row, read and written in one
  * transaction. The manifest and the bodies are not touched, so a change to a skill does not restate the manuscript.
@@ -987,6 +1053,29 @@ export function writeProjectSkills(
       for (const [folder, list] of skills) for (const file of list) files[`${folder}/${file.path}`] = file.bytes.slice();
       if (Object.keys(files).length > 0) next.skillFiles = files;
       projects.put(next);
+      done(undefined);
+    });
+  });
+}
+
+/**
+ * Replaces the project's agent files with `files` (ProjectRow.agentFiles): one `put` of the project row, read and written in one transaction.
+ * The manifest and the bodies are not touched, so a change to the writer's instructions or a memory note does not restate the manuscript.
+ */
+export function writeProjectAgentFiles(store: RuntimeStore, projectId: string, files: AgentFiles): Promise<void> {
+  return transact<void>(store.db, [PROJECT_STORE], 'readwrite', (tx, done, fail) => {
+    const projects = tx.objectStore(PROJECT_STORE);
+    const request = projects.get(projectId);
+    request.onsuccess = guarded(fail, () => {
+      const row = request.result as ProjectRow | undefined;
+      if (!row) {
+        fail(new ProjectNotFoundError(projectId));
+        return;
+      }
+      const next: ProjectRow = { ...row };
+      delete next.agentFiles;
+      delete next.agentFilesUnreadable;
+      projects.put({ ...next, ...agentFilesRowOf(files) });
       done(undefined);
     });
   });
