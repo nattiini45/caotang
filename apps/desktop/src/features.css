@@ -824,14 +824,15 @@
 }
 
 /* Recurring tasks (agent-harness.md §12): the offers for tasks that are due, and the list of definitions in the agent drawer. */
+/* The section always holds the live region, so it is never :empty; it takes room only while an offer is shown. With none it
+   adds nothing to the drawer, whose height the board shares the column with. */
 .recurring-offers {
   display: grid;
   gap: 0.4rem;
-  margin: 0 0 0.5rem;
 }
 
-.recurring-offers:empty {
-  display: none;
+.recurring-offers.has-offers {
+  margin: 0 0 0.5rem;
 }
 
 .recurring-offer,

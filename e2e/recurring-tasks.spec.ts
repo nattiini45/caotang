@@ -201,3 +201,16 @@ test('tasks are the writer’s: they are kept in the project, switched off and d
   await expect(page.getByTestId('recurring-tasks').locator('[data-task]')).toHaveCount(0);
   await expect(page.getByTestId('recurring-tasks')).toContainText('No tasks yet.');
 });
+
+test('with no task due, the offers section takes no room, so the closed drawer is no taller for it', async ({ page }) => {
+  await createProject(page, 'Quiet Book');
+  // The section stays in the page for its announcement region, so it must not add a margin of its own: the board above the drawer
+  // shares the column with it, and a few pixels there move a card under the storage notice.
+  const offers = page.getByTestId('task-offers');
+  await expect(offers).toBeAttached();
+  const box = await offers.evaluate((section) => {
+    const style = getComputedStyle(section);
+    return { height: section.getBoundingClientRect().height, above: style.marginTop, below: style.marginBottom };
+  });
+  expect(box).toEqual({ height: 0, above: '0px', below: '0px' });
+});
