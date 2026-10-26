@@ -10,8 +10,8 @@
  * A trace holds the prompts and the manuscript text they carry, which the request log never does, so it has rules of its own:
  *  - **Memory only.** `createTraceStore` keeps records in the tab. Nothing here writes to IndexedDB, a project, a bundle or the
  *    network; the only way out is `toJsonl`, which the writer asks for.
- *  - **Bounded.** The newest 25 turns and 16 MB of JSON, whole turns dropped oldest first. The turn being written is never dropped,
- *    and no record keeps more than 64 KB (the longest text in it is cut, and the record says by how much in `truncated`).
+ *  - **Bounded.** The newest 25 turns and 16 MB of JSON, whole turns dropped oldest first. The turn most recently started is never dropped,
+ *    so the latest turn can always be read, and no record keeps more than 64 KB (the longest text in it is cut, and the record says by how much in `truncated`).
  *  - **Scrubbed, best-effort.** The gateway scrubs a call's own secrets before it tells the observer; the store runs the bearer and
  *    `sk-` pattern pass over every string it keeps. Headers are never recorded, and a provider's opaque reasoning payload is kept as
  *    its byte length only. This lowers the chance of a credential in the file. It does not make the file safe to share.
@@ -19,8 +19,9 @@
  *    The id is the position of the message's exact canonical form; there is no hash, so a short line cannot be guessed from it.
  *  - **Not readable by the model.** Nothing in the command bus, the agent's tools or the MCP server reaches a store.
  *
- * `omitText` makes an export that is safe to attach to a bug report: every text the writer or the model wrote becomes
- * `{omitted:{chars}}`, and structure, timing, tool names, risk, outcome, token counts and finish reasons stay.
+ * `omitText` makes the export meant for a bug report: every text the writer or the model wrote becomes `{omitted:{chars}}`, and a
+ * reader should still look at it first. Profile and model names, session and turn ids, tool names, agent paths, risk, outcome, token
+ * counts, finish reasons and every timing stay.
  */
 
 import { redactDeep, type ChatMessage, type ChatRole, type FinishReason, type GatewayTraceEvent, type TaskRole, type ThinkingLevel } from '@caotang/gateway';
@@ -37,6 +38,8 @@ export const TRACE_REVIEWS = 'reviews';
 export const TRACE_MAX_TURNS = 25;
 export const TRACE_MAX_BYTES = 16 * 1024 * 1024;
 export const TRACE_RECORD_CAP = 64 * 1024;
+/** A stand-in for the largest `truncated.chars`, so the room the fields added after the cut take is counted in the cap. */
+const ENVELOPE_CHARS = 999_999_999;
 
 /** What an `omitText` export leaves where a text was: only how long it was. */
 export interface Omitted {
@@ -278,17 +281,27 @@ function leavesOf(value: unknown, out: Leaf[]): void {
   }
 }
 
-/** The text with `drop` characters cut from its end, never leaving half a surrogate pair. */
-function cutEnd(text: string, drop: number): string {
-  let end = Math.max(0, text.length - drop);
-  const last = text.charCodeAt(end - 1);
-  if (last >= 0xd800 && last <= 0xdbff) end -= 1;
-  return text.slice(0, Math.max(0, end));
+/** The bytes a string takes in JSON, quotes left out. */
+const leafBytes = (text: string): number => bytesOf(JSON.stringify(text)) - 2;
+
+/** The longest start of `text` that takes at most `budget` bytes in JSON, never ending in half a surrogate pair. */
+function cutToBytes(text: string, budget: number): string {
+  if (budget <= 0) return '';
+  let low = 0;
+  let high = Math.min(text.length, budget);
+  while (low < high) {
+    const mid = Math.ceil((low + high) / 2);
+    if (leafBytes(text.slice(0, mid)) <= budget) low = mid;
+    else high = mid - 1;
+  }
+  const last = text.charCodeAt(low - 1);
+  if (last >= 0xd800 && last <= 0xdbff) low -= 1;
+  return text.slice(0, low);
 }
 
 /**
- * Cuts the longest texts of a record until it serialises within `cap`, and returns how many characters it cut. The record must be
- * one this module owns (a copy), since it is edited in place.
+ * Cuts the longest texts of a record until it serialises within `cap` bytes, and returns how many characters it cut. The record must
+ * be one this module owns (a copy), since it is edited in place.
  */
 function fit(record: Record<string, unknown>, cap: number): number {
   let size = bytesOf(JSON.stringify(record));
@@ -301,9 +314,10 @@ function fit(record: Record<string, unknown>, cap: number): number {
     if (size <= cap) break;
     const parent = leaf.parent as Record<string | number, unknown>;
     const text = parent[leaf.key] as string;
-    const next = cutEnd(text, size - cap);
+    const before = leafBytes(text);
+    const next = cutToBytes(text, before - (size - cap));
     cut += text.length - next.length;
-    size -= text.length - next.length;
+    size -= before - leafBytes(next);
     parent[leaf.key] = next;
   }
   return cut;
@@ -520,7 +534,8 @@ export function createTraceStore(options: TraceStoreOptions): TraceStore {
       id = `m${nextMessage}`;
       nextMessage += 1;
       seq += 1;
-      const cut = fit(clean as unknown as Record<string, unknown>, recordCap);
+      const envelope = utf8({ v: TRACE_VERSION, seq, at, sessionId: options.sessionId, kind: 'message', id, message: {}, truncated: { chars: ENVELOPE_CHARS } });
+      const cut = fit(clean as unknown as Record<string, unknown>, recordCap - envelope);
       const record: MessageRecord = { v: TRACE_VERSION, seq, at, sessionId: options.sessionId, kind: 'message', id, message: clean, ...(cut > 0 ? { truncated: { chars: cut } } : {}) };
       const bytes = utf8(record);
       messages.set(id, { record, form, bytes, refs: 0 });
@@ -550,7 +565,8 @@ export function createTraceStore(options: TraceStoreOptions): TraceStore {
       bucket.intent = String(draft['intent']);
       bucket.startedAt = input.at;
     }
-    const cut = fit(draft, recordCap);
+    const envelope = utf8({ v: TRACE_VERSION, seq: seq + 1, sessionId: options.sessionId, truncated: { chars: ENVELOPE_CHARS } });
+    const cut = fit(draft, recordCap - envelope);
     seq += 1;
     const record = { v: TRACE_VERSION, seq, sessionId: options.sessionId, ...draft, ...(cut > 0 ? { truncated: { chars: cut } } : {}) } as unknown as TraceRecord;
     const bytes = utf8(record);
@@ -765,8 +781,8 @@ function typeOk(value: unknown, type: FieldType): boolean {
 }
 
 /**
- * Reads a trace file. The first line must be a header in a format this build reads: a different major version is refused, not guessed
- * at. A line of a kind this build does not know is skipped, so a newer minor version still opens; a line of a known kind that lacks
+ * Reads a trace file. The first line must be a header in a format this build reads, and no later line may be another header or carry
+ * another record version: a different major version is refused, not guessed at. A line of a kind this build does not know is skipped, so a newer minor version still opens; a line of a known kind that lacks
  * a field it must carry is an error, with its line number. Replay (#82) and the golden tasks (#83) read through here.
  */
 export function parseTrace(jsonl: string): Result<readonly TraceRecord[], string> {
@@ -792,9 +808,12 @@ export function parseTrace(jsonl: string): Result<readonly TraceRecord[], string
       if (value['v'] !== TRACE_VERSION || value['format'] !== TRACE_FORMAT) {
         return { ok: false, error: `this trace is ${String(value['format'])} (record version ${String(value['v'])}), and this build reads ${TRACE_FORMAT}` };
       }
+    } else if (value['kind'] === 'header') {
+      return { ok: false, error: `line ${line} is a second trace header` };
     }
     const kind = value['kind'] as TraceKind;
     if (!KINDS.includes(kind)) continue;
+    if (value['v'] !== TRACE_VERSION) return { ok: false, error: `line ${line} (${kind}) is record version ${String(value['v'])}, and this build reads ${TRACE_VERSION}` };
     if (typeof value['seq'] !== 'number' || typeof value['at'] !== 'number' || typeof value['sessionId'] !== 'string') {
       return { ok: false, error: `line ${line} (${kind}) lacks seq, at or sessionId` };
     }

@@ -11,6 +11,9 @@ import { createMockProvider } from '@caotang/gateway/mock';
 
 import {
   REQUIRED_FIELDS,
+  TRACE_MAX_BYTES,
+  TRACE_MAX_TURNS,
+  TRACE_RECORD_CAP,
   TRACE_REVIEWS,
   createAgentSession,
   createAgentPorts,
@@ -28,7 +31,9 @@ import {
 import { makeState } from '../fixtures.js';
 import { prose, steps, transcript } from './scripts.js';
 
-const KEY = 'sk-test-CAOTANG-SECRET-0123456789abcdef';
+const bytesOf = (text: string): number => new TextEncoder().encode(text).length;
+
+const KEY ='sk-test-CAOTANG-SECRET-0123456789abcdef';
 
 const system: ChatMessage = { role: 'system', content: 'You are the agent.' };
 
@@ -121,6 +126,12 @@ describe('parseTrace', () => {
   it('refuses a version it does not read, and says which', () => {
     const result = parseTrace(line({ ...header, v: 2, format: 'caotang.trace/2' }));
     expect(result).toEqual({ ok: false, error: expect.stringContaining('caotang.trace/2') });
+  });
+
+  it('refuses a body line of another record version, and a second header', () => {
+    const body = { v: 2, seq: 1, at: 0, sessionId: 's', kind: 'turn.start', turnId: 't', intent: 'x' };
+    expect(parseTrace(line(header) + line(body))).toEqual({ ok: false, error: expect.stringContaining('line 2') });
+    expect(parseTrace(line(header) + line({ ...header, seq: 1 }))).toEqual({ ok: false, error: 'line 2 is a second trace header' });
   });
 
   it('refuses a file that does not start with a header, a line that is not JSON, and a record that lacks a field', () => {
@@ -234,13 +245,52 @@ describe('the caps', () => {
     expect(s.turns().map((turn) => turn.turnId)).toEqual(['t.turn-1', 't.turn-2']);
   });
 
-  it('cuts a record to the per-record cap and says by how much', () => {
+  it('keeps the documented caps when nothing overrides them', () => {
+    expect(TRACE_MAX_TURNS).toBe(25);
+    expect(TRACE_MAX_BYTES).toBe(16 * 1024 * 1024);
+    expect(TRACE_RECORD_CAP).toBe(64 * 1024);
+    const s = store();
+    for (let n = 1; n <= 26; n += 1) s.write(start(`t.turn-${n}`));
+    expect(s.turns()).toHaveLength(25);
+    expect(s.records('t.turn-1')).toEqual([]);
+    expect(s.records('t.turn-2')).toHaveLength(1);
+  });
+
+  it.each([
+    ['ASCII', 'z'],
+    ['CJK', '漢'],
+    ['emoji', '😀'],
+  ])('cuts a record to the per-record cap in bytes, keeps most of the budget, and says by how much (%s)', (_name, unit) => {
     const s = store({ recordCap: 2_000 });
-    s.write({ kind: 'tool.result', at: 1, turnId: 't.turn-1', callId: 'c1', outcome: 'ok', finishedAt: 1, body: { text: 'z'.repeat(50_000) } });
+    const text = unit.repeat(50_000);
+    s.write({ kind: 'tool.result', at: 1, turnId: 't.turn-1', callId: 'c1', outcome: 'ok', finishedAt: 1, body: { text } });
     const [record] = s.records('t.turn-1');
-    expect(JSON.stringify(record).length).toBeLessThan(2_200);
-    expect(record).toMatchObject({ truncated: { chars: expect.any(Number) } });
-    expect((record as { truncated: { chars: number } }).truncated.chars).toBeGreaterThan(47_000);
+    expect(bytesOf(JSON.stringify(record))).toBeLessThanOrEqual(2_000);
+    const kept = (record as unknown as { body: { text: string } }).body.text;
+    expect(bytesOf(JSON.stringify(kept))).toBeGreaterThan(1_600);
+    expect(kept.length + (record as { truncated: { chars: number } }).truncated.chars).toBe(text.length);
+    expect(kept).toBe(unit.repeat(kept.length / unit.length));
+  });
+
+  it('never leaves half a surrogate pair where it cuts', () => {
+    for (let pad = 0; pad < 4; pad += 1) {
+      const s = store({ recordCap: 1_000 });
+      s.write({ kind: 'tool.result', at: 1, turnId: 't.turn-1', callId: 'c1', outcome: 'ok', finishedAt: 1, body: { text: `${'a'.repeat(pad)}${'😀'.repeat(5_000)}` } });
+      const [record] = s.records('t.turn-1');
+      const kept = (record as unknown as { body: { text: string } }).body.text;
+      expect(kept).toBe(`${'a'.repeat(pad)}${'😀'.repeat((kept.length - pad) / 2)}`);
+      expect(bytesOf(JSON.stringify(record))).toBeLessThanOrEqual(1_000);
+    }
+  });
+
+  it('cuts a stored message to the cap in bytes too', () => {
+    const s = store({ recordCap: 2_000 });
+    s.write(start('t.turn-1'));
+    s.write(request('t.turn-1', 1, [user('漢'.repeat(50_000))]));
+    const lines = s.toJsonl().split('\n').filter((line) => line !== '').map((line) => JSON.parse(line) as { kind: string; message?: { content: string } });
+    const record = lines.find((line) => line.kind === 'message');
+    expect(bytesOf(JSON.stringify(record))).toBeLessThanOrEqual(2_000);
+    expect(record?.message?.content.length).toBeGreaterThan(400);
   });
 
   it('empties on clear, and tells its listeners', () => {
