@@ -292,9 +292,12 @@ function messagesOk(value: unknown): value is readonly ChatMessage[] {
   );
 }
 
+/** A spend figure: finite and not below zero. It may be fractional (milliseconds, dollars). */
+const isAmount = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+
 function spendOk(value: unknown): value is BudgetSpend {
   if (!isRecord(value)) return false;
-  return ['modelCalls', 'promptTokens', 'completionTokens', 'estimatedTokens', 'steps', 'activeMs'].every((key) => typeof value[key] === 'number') && (value['costUsd'] === undefined || typeof value['costUsd'] === 'number');
+  return ['modelCalls', 'promptTokens', 'completionTokens', 'estimatedTokens', 'steps', 'activeMs'].every((key) => isAmount(value[key])) && (value['costUsd'] === undefined || isAmount(value['costUsd']));
 }
 
 const SHAPES: Readonly<Record<RunEvent['t'], (event: Record<string, unknown>) => boolean>> = {
@@ -312,11 +315,11 @@ const SHAPES: Readonly<Record<RunEvent['t'], (event: Record<string, unknown>) =>
     Array.isArray(e['done']) &&
     e['done'].every((index) => isCount(index) && index < (e['steps'] as readonly unknown[]).length),
   'card.decided': (e) => isString(e['turnId']) && ['approved', 'auto', 'cancelled', 'refused'].includes(e['decision'] as string),
-  'step.intent': (e) => isString(e['callId']) && isCount(e['index']) && isString(e['tool']) && revisionsOk(e['expect']) && isString(e['structure']),
-  'step.applied': (e) => isString(e['callId']) && isCount(e['index']) && isString(e['tool']) && revisionsOk(e['after']) && (e['summary'] === undefined || isString(e['summary'])),
-  'step.failed': (e) => isString(e['callId']) && isCount(e['index']) && isString(e['tool']) && isString(e['error']),
-  spend: (e) => spendOk(e['spend']) && isCount(e['reservedCalls']),
-  'turn.end': (e) => ['replied', 'applied', 'failed', 'cancelled'].includes(e['status'] as string) && isString(e['summary']),
+  'step.intent': (e) => isString(e['turnId']) && isString(e['callId']) && isCount(e['index']) && isString(e['tool']) && revisionsOk(e['expect']) && isString(e['structure']),
+  'step.applied': (e) => isString(e['turnId']) && isString(e['callId']) && isCount(e['index']) && isString(e['tool']) && revisionsOk(e['after']) && (e['summary'] === undefined || isString(e['summary'])),
+  'step.failed': (e) => isString(e['turnId']) && isString(e['callId']) && isCount(e['index']) && isString(e['tool']) && isString(e['error']),
+  spend: (e) => isString(e['turnId']) && spendOk(e['spend']) && isCount(e['reservedCalls']),
+  'turn.end': (e) => isString(e['turnId']) && ['replied', 'applied', 'failed', 'cancelled'].includes(e['status'] as string) && isString(e['summary']),
 };
 
 /** The events of a stored log, checked, or the reason one was refused. A row of a type or a shape this build does not know refuses the whole log. */

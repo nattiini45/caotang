@@ -127,6 +127,35 @@ describe('planResume', () => {
     expect(planResume([{ t: 'turn.end', seq: 0 }, 7], project({}))).toMatchObject({ ok: false, reason: 'schema' });
   });
 
+  it('refuses an event that carries no turn id, whichever kind it is', () => {
+    const base = log(start, user, card, approved);
+    const spend = { modelCalls: 1, promptTokens: 1, completionTokens: 1, estimatedTokens: 0, steps: 0, activeMs: 1 };
+    const rows: readonly RunEventDraft[] = [
+      intent(0, { [A]: 1 }),
+      applied(0, { [A]: 2 }),
+      { t: 'step.failed', turnId: 't1', callId: 'c.0', index: 0, tool: 'meta.set', error: 'It did not apply.' },
+      { t: 'spend', turnId: 't1', spend, reservedCalls: 0 },
+      { t: 'turn.end', turnId: 't1', status: 'applied', summary: 'Done.' },
+    ];
+    for (const row of rows) {
+      const withoutTurn = { ...row, seq: base.length, at: 2_000 } as Record<string, unknown>;
+      delete withoutTurn['turnId'];
+      expect(planResume([...base, withoutTurn], project({})), row.t).toMatchObject({ ok: false, reason: 'schema' });
+      expect(planResume([...base, { ...row, seq: base.length, at: 2_000 }], project({})), row.t).not.toMatchObject({ reason: 'schema' });
+    }
+  });
+
+  it('refuses a spend that is negative, not a number or not finite, and keeps a fractional one', () => {
+    const spend = { modelCalls: 2, promptTokens: 100, completionTokens: 30, estimatedTokens: 0, steps: 0, activeMs: 5 };
+    const logged = (changed: Record<string, unknown>) => planResume(log(start, user, { t: 'spend', turnId: 't1', spend: { ...spend, ...changed }, reservedCalls: 0 }), project({}));
+    for (const changed of [{ modelCalls: -1 }, { promptTokens: Number.NaN }, { steps: Number.POSITIVE_INFINITY }, { activeMs: -0.5 }, { costUsd: -0.5 }, { costUsd: Number.NaN }]) {
+      const verdict = logged(changed);
+      expect(verdict, JSON.stringify(changed)).toMatchObject({ ok: false, reason: 'schema' });
+      if (!verdict.ok) expect(verdict.detail).toContain('damaged or from another version');
+    }
+    expect(logged({ activeMs: 1234.5, costUsd: 0.0125 })).toMatchObject({ ok: true });
+  });
+
   it('asks back when a plan the app built stopped before its card, since there is no conversation to continue', () => {
     const verdict = planResume(log({ ...start, wire: 'plan' }), project({}));
     expect(verdict).toMatchObject({ ok: false, reason: 'ask-back' });
