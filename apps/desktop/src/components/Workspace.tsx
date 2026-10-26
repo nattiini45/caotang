@@ -7,7 +7,7 @@
  * the delete being confirmed, the export dialog, the theme, the status line). Project and view state live in the
  * session, and every change to them is a dispatch.
  */
-/* lingui-set comment="Interpolated values: backup, badge, change, descendants, documents, error, file, folder, folderName, label, storageSentence, title, words" */
+/* lingui-set comment="Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words" */
 
 import {
   useCallback,
@@ -19,7 +19,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react';
-import { plural, t } from '@lingui/core/macro';
+import { plural, select, t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { isolate } from '@caotang/i18n';
 import type { ProjectState, RuntimeStore } from '@caotang/store';
@@ -70,7 +70,7 @@ import {
   liveSelection,
   selectNode,
 } from './actions.js';
-import { ChoiceDialog, ConfirmDialog, ReportContext, useSession, wordsLabel, type StatusMessage } from './shared.js';
+import { ChoiceDialog, ConfirmDialog, ReportContext, useSession, type StatusMessage } from './shared.js';
 
 type RailTab = 'binder' | 'codex' | 'activity' | 'findings';
 
@@ -978,15 +978,14 @@ function DeleteSummary({ descendants, documents, words }: { descendants: number;
   if (descendants === 0) {
     return (
       <p>
-        {/* `wordsLabel` is a whole count phrase, and a value here keeps the sentence in message order. */}
-        {t`This removes the item and its ${{ words: wordsLabel(words) }} from the project. You can undo it right after with Ctrl+Z.`}
+        {t`This removes the item and its ${plural(words, { one: '# word', other: '# words' })} from the project. You can undo it right after with Ctrl+Z.`}
       </p>
     );
   }
   return (
     <p>
       {documents > 0
-        ? t`This removes the item, the ${plural(descendants, { one: '# item', other: '# items' })} inside it, and ${{ words: wordsLabel(words) }} across ${plural(documents, { one: '# document', other: '# documents' })}. You can undo it right after with Ctrl+Z.`
+        ? t`This removes the item, the ${plural(descendants, { one: '# item', other: '# items' })} inside it, and ${plural(words, { one: '# word', other: '# words' })} across ${plural(documents, { one: '# document', other: '# documents' })}. You can undo it right after with Ctrl+Z.`
         : t`This removes the item, the ${plural(descendants, { one: '# item', other: '# items' })} inside it. You can undo it right after with Ctrl+Z.`}
     </p>
   );
@@ -1070,12 +1069,21 @@ interface FolderOffer {
 /** The changed files, one line each, for a question that names them. Nothing renders for a save with none. */
 function changedFilesList(files: readonly FolderFileChange[]): ReactNode {
   if (files.length === 0) return null;
-  const change = { changed: t`changed`, removed: t`removed`, added: t`added` } as const;
   return (
     <ul>
-      {files.map((file, index) => (
-        <li key={index}>{t`${{ file: isolate(file.label) }}: ${{ change: change[file.change] }}`}</li>
-      ))}
+      {files.map((file, index) => {
+        const kind = file.change;
+        return (
+          <li key={index}>
+            {t`${{ file: isolate(file.label) }}: ${select(kind, {
+              changed: 'changed',
+              removed: 'removed',
+              added: 'added',
+              other: 'changed',
+            })}`}
+          </li>
+        );
+      })}
     </ul>
   );
 }

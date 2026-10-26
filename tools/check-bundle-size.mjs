@@ -43,10 +43,10 @@ export const BUDGET = {
    * later locale is its own lazy chunk and its size is recorded when it ships.
    *
    * **I5 (#196) raised `index` for the shell, home and Settings conversion.** The English source catalogue grew from the I3/I4 witness
-   * set to 625 messages; the converted surfaces' English text is in the entry catalogue because every screen renders from it before a
-   * paint. Measured on the L6 build: `index` 1,339.6 kB raw / 403.4 kB gzip. The cap is that measurement plus about 5%:
-   * 1,339,594 bytes × 1.05 = 1,406,573.7, rounded down to the thousand as I3 did, = 1,406,000. The first load (795.2 kB gzip) and all
-   * JS (5,397.1 kB raw) stayed under their existing caps, so neither moved. I6's catalogue growth carries the same measurement and
+   * set to 622 messages; the converted surfaces' English text is in the entry catalogue because every screen renders from it before a
+   * paint. Measured on the L6 build: `index` 1,340.0 kB raw / 403.5 kB gzip. The cap is that measurement plus about 5%:
+   * 1,339,957 bytes × 1.05 = 1,406,954.85, rounded down to the thousand as I3 did, = 1,406,000. The first load (795.3 kB gzip) and all
+   * JS (5,397.5 kB raw) stayed under their existing caps, so neither moved. I6's catalogue growth carries the same measurement and
    * margin obligation.
    */
   allow: {

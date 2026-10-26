@@ -70,6 +70,24 @@ describe('catalogue drift', () => {
   });
 });
 
+describe('whole-sentence ICU', () => {
+  // A word that is itself a translated message cannot be inflected by the sentence around it, so the
+  // reset day, the word count and the folder change kind must live inside the sentence's own ICU.
+  const english = readFileSync(resolve(repoRoot, 'apps/desktop/src/i18n/locales/en/messages.po'), 'utf8');
+
+  it('folds the footer reset words, the delete count and the folder change kind into the sentence', () => {
+    expect(english).toMatch(/msgid "The week starts on \{weekday, select,/);
+    expect(english).toMatch(/msgid "The month starts on the \{day, selectordinal,/);
+    expect(english).toContain('This removes the item and its {words, plural,');
+    expect(english).toContain('and {words, plural,');
+    expect(english).toContain('msgid "{file}: {kind, select,');
+    // The fragment forms are gone, not kept beside the folded ones.
+    expect(english).not.toContain('msgid "The week starts on {day}."');
+    expect(english).not.toContain('msgid "The month starts on the {day}."');
+    expect(english).not.toContain('msgid "{file}: {change}"');
+  });
+});
+
 describe('compilation and placeholder parity', () => {
   it('compiles the real catalogues and a missing translation does not fail', () => {
     const real = readCatalogues(resolve(repoRoot, 'apps/desktop/src/i18n/locales'));

@@ -85,6 +85,9 @@ export function goalSentence(
     : t`${select(degree, { least: 'at least', most: 'at most', other: 'about' })} ${plural(target, { one: '# word', other: '# words' })} on ${{ title }} by ${{ by }}`;
 }
 
+/** The ICU select key for a weekday, 0 (Sunday) to 6 (Saturday), as `Date.getDay` counts them. */
+const WEEKDAY_KEY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+
 /** A weekday as a reset day names it, 0 (Sunday) to 6 (Saturday), as `Date.getDay` counts them (goals-progress §9.3). */
 export function weekdayName(day: number): string {
   switch (day) {
@@ -119,12 +122,25 @@ export function ordinalDay(day: number): string {
  */
 export function resetSentence(goal: Partial<Pick<ProjectGoal, 'kind' | 'resetDay'>>, firstWeekday: number): string | undefined {
   if (goal.kind === 'weekly') {
+    // The day name is a select branch, not a translated value: German can then say "am Samstag".
     const day = typeof goal.resetDay === 'number' ? goal.resetDay : firstWeekday;
-    return t`The week starts on ${{ day: weekdayName(day) }}.`;
+    const weekday = WEEKDAY_KEY[day] ?? 'mon';
+    return t`The week starts on ${select(weekday, {
+      sun: 'Sunday',
+      mon: 'Monday',
+      tue: 'Tuesday',
+      wed: 'Wednesday',
+      thu: 'Thursday',
+      fri: 'Friday',
+      sat: 'Saturday',
+      other: 'Monday',
+    })}.`;
   }
   if (goal.kind === 'monthly') {
     if (goal.resetDay === 'last') return t`The month starts on its last day.`;
-    return t`The month starts on the ${{ day: ordinalDay(typeof goal.resetDay === 'number' ? goal.resetDay : 1) }}.`;
+    // The ordinal is ICU selectOrdinal inside the sentence, so the article and suffix stay inflectable.
+    const day = typeof goal.resetDay === 'number' ? goal.resetDay : 1;
+    return t`The month starts on the ${selectOrdinal(day, { one: '#st', two: '#nd', few: '#rd', other: '#th' })}.`;
   }
   return undefined;
 }
