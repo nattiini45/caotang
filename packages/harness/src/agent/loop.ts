@@ -1284,7 +1284,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return loggable({ modelCalls: turn.modelCalls, promptTokens: totals.promptTokens, completionTokens: totals.completionTokens, estimatedTokens: 0, steps: writesOf(turn).length, activeMs: 0 });
   };
 
-  /** The spend as the log keeps it: every figure finite and not below zero, whatever a clock or a provider reported, so the log reads back. */
+  /**
+   * The spend as the log keeps it: every figure finite and not below zero, and the call and step counts whole, whatever a clock or a
+   * provider reported, so the log reads back.
+   */
   const loggable = (spend: BudgetSpend): BudgetSpend => {
     const amount = (value: number): number => (Number.isFinite(value) && value >= 0 ? value : 0);
     const whole = (value: number): number => Math.floor(amount(value));

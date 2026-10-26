@@ -223,7 +223,7 @@ export function createBudgetMeter(limits: RunLimits = {}, options: BudgetMeterOp
 
     settle(reservation, usage, estimate) {
       if (!held.delete(reservation.id)) return;
-      // A figure a provider reports that cannot be a count (negative or not finite) is no usage: the call settles at the estimate.
+      // A figure a provider reports that is not an amount (negative or not finite) is no usage: the call settles at the estimate.
       const reported = usage !== undefined && isAmount(usage.promptTokens) && isAmount(usage.completionTokens) ? usage : undefined;
       const used = reported ?? estimate ?? { promptTokens: reservation.promptTokens, completionTokens: reservation.maxOutputTokens };
       promptTokens += used.promptTokens;

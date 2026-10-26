@@ -33,7 +33,7 @@ import type {
   StreamPiece,
 } from './types.js';
 
-/** A token figure that can be a count: a number, finite and not below zero. Anything else is no usage. */
+/** A token figure that is an amount: a number, finite and not below zero. Anything else is no usage. */
 const isAmount = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
 
 function mapStopReason(raw: unknown): FinishReason | undefined {
