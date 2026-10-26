@@ -58,7 +58,9 @@ async function listedNames(client: Client): Promise<string[]> {
   return tools.map((tool) => tool.name).sort();
 }
 
-const WRITE_TOOLS = TOOL_METADATA.filter((meta) => meta.risk === 'write-auto' || meta.risk === 'write-confirm').map((meta) => meta.name);
+/** The two write rows this server never lists, with writes on: a standing instruction is changed in the app, at a card (tools.ts, `IN_APP_ONLY`). */
+const IN_APP_ONLY = ['memory.write', 'instructions.propose'];
+const WRITE_TOOLS = TOOL_METADATA.filter((meta) => (meta.risk === 'write-auto' || meta.risk === 'write-confirm') && !IN_APP_ONLY.includes(meta.name)).map((meta) => meta.name);
 /**
  * The tools this server does not list, because no port answers them here and an unwired tool is never advertised
  * (tools.ts, the `wired` check). The first three draft with Caotang's own provider, which this server does not hold.
@@ -178,7 +180,7 @@ describe('the tool surface', () => {
       for (const listing of listings) {
         const exposure = mcpExposure(listing);
         // tool.search is the one exposed tool this server leaves out: it has no tool server to search (tools.ts).
-        if (!exposure.exposed || !listing.wired || listing.name === 'tool.search') {
+        if (!exposure.exposed || !listing.wired || listing.name === 'tool.search' || IN_APP_ONLY.includes(listing.name)) {
           expect(byName.has(listing.name), `${listing.name} must not be listed`).toBe(false);
           continue;
         }
@@ -811,7 +813,7 @@ describe('the registry seam', () => {
         roClient = await connectClient(readOnly.url, readOnly.token);
         const rwClient = await connectClient(writable.url, writable.token);
         try {
-          expect(await listedNames(roClient)).toEqual(['binder.read_tree', 'codex.read', 'coherence.scan', 'dialogue.table', 'doc.read', 'notes.read', 'project.overview']);
+          expect(await listedNames(roClient)).toEqual(['binder.read_tree', 'codex.read', 'coherence.scan', 'dialogue.table', 'doc.read', 'memory.read', 'notes.read', 'project.overview']);
           expect(await listedNames(rwClient)).toEqual([
             'binder.read_tree',
             'binder.restructure',
@@ -826,6 +828,7 @@ describe('the registry seam', () => {
             'export.compile',
             'filter.save',
             'goal.save',
+            'memory.read',
             'meta.set',
             'notes.append',
             'notes.read',
