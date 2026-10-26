@@ -420,6 +420,18 @@ export interface AgentSession {
   /** Reverses a turn's undo group: "restore to before this turn" (command-bus §5). */
   restore(turnId: string): Result<UndoOutcome, CommandError>;
   /**
+   * Drops this turn and every later one from the conversation the planner sees (L6), and returns the turn's intent so the Intent
+   * box can offer it again. It touches no project state and no activity row, and the turns stay in `reports()`. An unknown turn
+   * returns no turns. The writer's action: the agent has no tool for it.
+   */
+  rewindConversation(turnId: string): { readonly intent: string; readonly rewound: readonly string[] };
+  /**
+   * Records that the writer took these turns' project changes back while keeping the conversation, so L6 says the work is no longer
+   * there. `fromStep` (1-based) applies to the first turn only, when the restore began at one of its steps; the others are whole.
+   * A turn rewound or unknown is left as it is.
+   */
+  markRestored(turnIds: readonly string[], at: number, fromStep?: number): void;
+  /**
    * What the next planner request would send now: its layers with their tokens, and what was left out. It assembles the request the way a
    * turn does and sends nothing, so no model call is made and the gateway sees no request (`/context`).
    */
@@ -3332,6 +3344,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     await closeRun(turn, report);
     // What L6 reads for this turn once its activity rows are gone, or when it wrote none: a reply's own answer is its outcome.
     started[slot] = {
+      ...started[slot],
       turnId: turn.id,
       intent,
       outcome: clipOutcome(report.summary),
@@ -3509,6 +3522,22 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         return err(refusal('not-found', `turn ${turnId} has no checkpoint: it wrote nothing, or it has not finished`, { correctiveHint: 'restore a turn that wrote something, by its id' }));
       }
       return harness.undo.undo(report.undoGroupId);
+    },
+
+    rewindConversation(turnId: string): { readonly intent: string; readonly rewound: readonly string[] } {
+      const at = started.findIndex((entry) => entry.turnId === turnId);
+      if (at === -1) return { intent: '', rewound: [] };
+      for (let index = at; index < started.length; index++) started[index] = { ...started[index]!, rewound: true };
+      return { intent: started[at]!.intent, rewound: started.slice(at).map((entry) => entry.turnId) };
+    },
+
+    markRestored(turnIds: readonly string[], at: number, fromStep?: number): void {
+      turnIds.forEach((id, position) => {
+        const slot = started.findIndex((entry) => entry.turnId === id);
+        if (slot === -1 || started[slot]!.rewound === true) return;
+        const { restoredFromStep: _before, ...rest } = started[slot]!;
+        started[slot] = { ...rest, restoredAt: at, ...(position === 0 && fromStep !== undefined ? { restoredFromStep: fromStep } : {}) };
+      });
     },
 
     reports: () => [...finished],
