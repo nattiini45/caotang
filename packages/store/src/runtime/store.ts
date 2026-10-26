@@ -63,6 +63,9 @@ import { assertSessionRecord, type SessionRecord } from '../sessions.js';
 
 export const RUNTIME_DB_NAME = 'caotang';
 /**
+ * 4: the `runs` and `runEvents` object stores joined (agent-harness §5.1, the run log). The upgrade is additive: it creates them and
+ * leaves every other store and row as it was.
+ *
  * 3: the `snapshots` object store joined `projects`, `documents` and
  * `sessions`.
  *
@@ -71,7 +74,7 @@ export const RUNTIME_DB_NAME = 'caotang';
  * database an older version created that this one has to read. The same
  * no-wild-artifacts argument §2 uses for adding `codex[]` to format v1.
  */
-export const RUNTIME_DB_VERSION = 3;
+export const RUNTIME_DB_VERSION = 4;
 
 /** The manifest — structural truth, vocabulary, codex (§2). */
 export const PROJECT_STORE = 'projects';
@@ -112,6 +115,18 @@ export const SESSION_PROJECT_INDEX = 'byProject';
 export const SNAPSHOT_STORE = 'snapshots';
 /** Index for "every snapshot of project P", so the retention sweep needs no key range. */
 export const SNAPSHOT_PROJECT_INDEX = 'byProject';
+
+/**
+ * One row per agent run (agent-harness §5.1): its record, keyed by `runId`. The log of what the run did is the `runEvents` rows, one
+ * per event, keyed `[runId, seq]` so a run's events are one contiguous range in the order they were appended. Neither store carries a
+ * key, a header or a request body: the events hold the chat messages the harness built, which are the writer's own text.
+ */
+export const RUN_STORE = 'runs';
+/** Index for "every run of project P". */
+export const RUN_PROJECT_INDEX = 'byProject';
+export const RUN_EVENT_STORE = 'runEvents';
+/** Index for "every event of run R", read without a key range. */
+export const RUN_EVENT_RUN_INDEX = 'byRun';
 
 export interface ProjectRow {
   id: string;
@@ -346,7 +361,7 @@ export class SnapshotExistsError extends Error {
  * is the only window IndexedDB gives, and it is why there is no `await` in any
  * transaction body in this file.
  */
-function transact<T>(
+export function transact<T>(
   db: IDBDatabase,
   storeNames: string[],
   mode: IDBTransactionMode,
@@ -482,6 +497,14 @@ export function openRuntimeStore(
           keyPath: ['projectId', 'docId', 'revision'],
         });
         snapshots.createIndex(SNAPSHOT_PROJECT_INDEX, 'projectId', { unique: false });
+      }
+      if (!db.objectStoreNames.contains(RUN_STORE)) {
+        const runs = db.createObjectStore(RUN_STORE, { keyPath: 'runId' });
+        runs.createIndex(RUN_PROJECT_INDEX, 'projectId', { unique: false });
+      }
+      if (!db.objectStoreNames.contains(RUN_EVENT_STORE)) {
+        const events = db.createObjectStore(RUN_EVENT_STORE, { keyPath: ['runId', 'seq'] });
+        events.createIndex(RUN_EVENT_RUN_INDEX, 'runId', { unique: false });
       }
     };
     request.onsuccess = () => {
@@ -1110,11 +1133,11 @@ export function readBodySnapshots(store: RuntimeStore, projectId: string): Promi
   });
 }
 
-/** Drop a project and all of its documents, session lines and snapshots — one transaction, four stores. */
+/** Drop a project and all of its documents, session lines, snapshots, runs and run events — one transaction, six stores. */
 export function deleteProject(store: RuntimeStore, projectId: string): Promise<boolean> {
   return transact<boolean>(
     store.db,
-    [PROJECT_STORE, DOCUMENT_STORE, SESSION_STORE, SNAPSHOT_STORE],
+    [PROJECT_STORE, DOCUMENT_STORE, SESSION_STORE, SNAPSHOT_STORE, RUN_STORE, RUN_EVENT_STORE],
     'readwrite',
     (tx, done, fail) => {
       const projects = tx.objectStore(PROJECT_STORE);
@@ -1145,7 +1168,27 @@ export function deleteProject(store: RuntimeStore, projectId: string): Promise<b
               for (const row of snapshotsRequest.result as SnapshotRow[]) {
                 snapshots.delete([projectId, row.docId, row.revision]);
               }
-              done(existed);
+              // The project's agent runs and their events go with it (agent-harness §5.1): a run log holds the writer's own text.
+              const runs = tx.objectStore(RUN_STORE);
+              const runEvents = tx.objectStore(RUN_EVENT_STORE);
+              const runsRequest = runs.index(RUN_PROJECT_INDEX).getAll(projectId);
+              runsRequest.onsuccess = guarded(fail, () => {
+                const ids = (runsRequest.result as { runId: string }[]).map((row) => row.runId);
+                for (const id of ids) runs.delete(id);
+                let left = ids.length;
+                if (left === 0) {
+                  done(existed);
+                  return;
+                }
+                for (const id of ids) {
+                  const eventsRequest = runEvents.index(RUN_EVENT_RUN_INDEX).getAll(id);
+                  eventsRequest.onsuccess = guarded(fail, () => {
+                    for (const event of eventsRequest.result as { runId: string; seq: number }[]) runEvents.delete([event.runId, event.seq]);
+                    left -= 1;
+                    if (left === 0) done(existed);
+                  });
+                }
+              });
             });
           });
         });

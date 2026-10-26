@@ -166,3 +166,7 @@ export const CHECKPOINT_LABEL = 'restore to before this turn';
  * restoring the turn reverses Caotang's own changes, and cannot reverse what the external server did.
  */
 export const EXTERNAL_CHECKPOINT_NOTE = 'External side effects are not reversible. Restoring this turn puts back Caotang’s own changes only.';
+
+/** The note a checkpoint row carries when the turn was resumed after a reload: the undo of a turn reaches what it applied since. */
+export const RESUMED_CHECKPOINT_NOTE =
+  'This turn was resumed after a reload. Restoring it puts back only what it applied since; the steps applied before the reload are kept.';

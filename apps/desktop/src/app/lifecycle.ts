@@ -79,6 +79,7 @@ import {
   type LoadResult,
   type PermissionRule,
   type WriteReport,
+  markRunsInterrupted,
   readCoherenceFiles,
   writeCoherenceFiles,
   writeProjectState,
@@ -213,6 +214,9 @@ async function sessionFor(
 ): Promise<ProjectSession> {
   let session: ProjectSession;
   try {
+    // The lease allows one live tab per project, so an agent run still marked running or waiting on a card is one whose tab is gone: it is
+    // interrupted, and only the writer resumes or discards it (agent-harness §5.1). A store that cannot be written does not stop the open.
+    await markRunsInterrupted(store, state.manifest.project.id).catch(() => 0);
     session = new ProjectSession({
       store,
       projectId: state.manifest.project.id,

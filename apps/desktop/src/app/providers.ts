@@ -10,7 +10,7 @@
  *   back to the generator. The key is revealed from the vault and sealed again under that id, because the vault binds
  *   each key to its profile id.
  * - **Usage** (the ledger's day rows) and the **request log** (its last 50 entries) are kept in the app database. Turn
- *   rows are not: they belong to a session, and an agent turn does not survive a reload in the activity log either.
+ *   rows are not: they belong to a session. An agent turn's run log is kept in the runtime database, not here (agent-harness §5.1).
  *
  * ## The probes
  *

@@ -39,6 +39,7 @@ import { openDialog } from './dialog-requests.js';
 import { PlanCard, planHeading } from './PlanCard.js';
 import { PlanOfferCard } from './PlanOfferCard.js';
 import { BackgroundTasks } from './BackgroundTasks.js';
+import { InterruptedRuns } from './InterruptedRuns.js';
 import { TaskChecklist } from './TaskChecklist.js';
 
 export interface AgentPanelProps {
@@ -203,6 +204,9 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
           {snapshot.announcement}
         </p>
       </header>
+
+      {/* An unfinished run is shown with the drawer closed too: it is the first thing the writer has to decide after a reload. */}
+      <InterruptedRuns agent={agent} runs={snapshot.interrupted} busy={snapshot.busy} onResume={() => (open ? undefined : onToggle())} />
 
       {open ? (
         <div id="agent-body" className="agent-body">

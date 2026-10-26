@@ -102,6 +102,7 @@ import {
   askRefusal,
   evaluateRules,
   ruleRefusal,
+  withheldAnywhere,
   withheldNodes,
   type CallTargets,
   type RuleSet,
@@ -302,6 +303,8 @@ export interface Harness {
   ruleCheck(tool: string, params: unknown, external?: { readonly writes: boolean }): RuleCheck;
   /** The binder nodes a read-deny keeps from what `tool` reads: prompts, read tools and scans leave them out. */
   withheld(tool: string): ReadonlySet<string>;
+  /** The binder nodes a read-deny keeps from any tool: what a prompt built now would leave out, whichever tool it was for. */
+  withheldAnywhere(): ReadonlySet<string>;
 }
 
 /**
@@ -1088,7 +1091,8 @@ export function createHarness(options: HarnessOptions): Harness {
 
     // What runs is the plan, the step it resumes from, and the drafts staged for it: a replay must match all three.
     const fingerprint = canonicalJson({ plan, from: options.from ?? 0, proposals: options.proposals ?? [] });
-    const replay = planCache.lookup(turn.turnId, turn.callId);
+    // A run that stops before the plan's end is one step of a logged plan: each step has a call id of its own, and the bus dedupes it.
+    const replay = options.until === undefined ? planCache.lookup(turn.turnId, turn.callId) : undefined;
     if (replay !== undefined) {
       return replay.fingerprint === fingerprint
         ? ok(replay.outcome)
@@ -1097,7 +1101,7 @@ export function createHarness(options: HarnessOptions): Harness {
 
     const outcome = runPlan(plan, turn, host, options);
     const reached = outcome.status === 'applied' || ((outcome.status === 'failed' || outcome.status === 'stopped') && outcome.completed.length > 0);
-    if (reached) planCache.record(turn.turnId, turn.callId, fingerprint, outcome);
+    if (reached && options.until === undefined) planCache.record(turn.turnId, turn.callId, fingerprint, outcome);
     return ok(outcome);
   }
 
@@ -1327,6 +1331,10 @@ export function createHarness(options: HarnessOptions): Harness {
     },
     loadedExternalTools: () => index().tools.filter((tool) => loaded.isLoaded(tool.qualifiedName)),
     withheld: withheldFor,
+    withheldAnywhere: () => {
+      const set = currentRules();
+      return set.rules.length === 0 ? NO_WITHHELD : withheldAnywhere(set, state);
+    },
     ruleCheck: (tool, params, loadedExternal) => {
       const set = currentRules();
       if (set.rules.length === 0 && set.unreadable !== true) return {};
