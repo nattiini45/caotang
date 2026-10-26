@@ -78,6 +78,7 @@ export {
   synopsisInstruction,
   type AgentSession,
   type AgentSessionOptions,
+  type ContextPreview,
   type OfferAnswer,
   type PlanOffer,
   type StageOnlyResult,

@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 
 import { expect, test, type Page } from '@playwright/test';
 
+import { fakeEndpoint, useFakeEndpoint } from './endpoint.js';
 import { binderTitle, createProject, firstChapter, waitForSaved } from './support.js';
 
 /**
@@ -313,4 +314,44 @@ test('the recurring tasks, with a task due, its form, its runs and a confirmatio
   await tasks.locator('[data-task]', { hasText: 'Daily read' }).getByRole('button', { name: /^Delete/ }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   expect([...(await contrastProblemsIn(page, 'dialog[open]')), ...(await shellProblemsIn(page, 'dialog[open]'))]).toEqual([]);
+});
+
+test('the agent’s Intent combobox, with its command list open and a command’s answer shown, passes the colour-contrast, target-size, role and ARIA rules', async ({
+  page,
+}) => {
+  await fakeEndpoint(page, () => 'Nothing to say.');
+  await useFakeEndpoint(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Check for continuity problems', exact: true }).click();
+  await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
+  await expect(page.locator('.agent-turn')).toHaveCount(1);
+
+  const rules = [
+    'color-contrast',
+    'target-size',
+    'aria-allowed-role',
+    'aria-allowed-attr',
+    'aria-required-attr',
+    'aria-valid-attr-value',
+    'aria-required-children',
+    'aria-input-field-name',
+    'aria-hidden-focus',
+    'scrollable-region-focusable',
+  ];
+  const box = page.getByRole('combobox', { name: 'Intent' });
+  await box.click();
+  await page.keyboard.type('/');
+  await expect(page.getByRole('listbox', { name: 'Commands' })).toBeVisible();
+  await page.keyboard.press('ArrowDown');
+  expect(await problemsIn(page, '.agent', rules)).toEqual([]);
+
+  // With the list closed, and a command's answer under the box.
+  await box.fill('/help');
+  await box.press('Enter');
+  await expect(page.getByTestId('agent-command-note')).toBeVisible();
+  expect(await problemsIn(page, '.agent', rules)).toEqual([]);
+  await box.fill('/draft The');
+  await box.press('Enter');
+  await expect(page.getByTestId('agent-command-note')).toContainText('matches');
+  expect(await problemsIn(page, '.agent', rules)).toEqual([]);
 });

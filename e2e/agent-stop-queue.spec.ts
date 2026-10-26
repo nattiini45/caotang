@@ -50,7 +50,7 @@ async function openSample(page: Page): Promise<void> {
   await expect(page.locator('.agent-turn')).toHaveCount(1);
 }
 
-const intentBox = (page: Page) => page.getByRole('textbox', { name: 'Intent' });
+const intentBox = (page: Page) => page.getByRole('combobox', { name: 'Intent' });
 const turns = (page: Page) => page.locator('.agent-turn');
 
 async function typeAndPress(page: Page, text: string, key: string): Promise<void> {
