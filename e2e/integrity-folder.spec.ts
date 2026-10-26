@@ -232,6 +232,23 @@ async function editFolderDocument(page: Page, folder: string, holding: string, t
   );
 }
 
+/** Adds a folder-only document, as another program writing a Markdown file in `docs/` would. */
+async function addFolderDocument(page: Page, folder: string, name: string, text: string): Promise<void> {
+  await page.evaluate(
+    async ([dir, file, body]: readonly [string, string, string]) => {
+      type Writable = { write(data: string): Promise<void>; close(): Promise<void> };
+      type FileHandle = { createWritable(): Promise<Writable> };
+      type Dir = { getDirectoryHandle(child: string, options?: { create: boolean }): Promise<Dir>; getFileHandle(child: string, options: { create: boolean }): Promise<FileHandle> };
+      const root = (await (await navigator.storage.getDirectory()).getDirectoryHandle(dir)) as unknown as Dir;
+      const docs = await root.getDirectoryHandle('docs', { create: true });
+      const writable = await (await docs.getFileHandle(file, { create: true })).createWritable();
+      await writable.write(body);
+      await writable.close();
+    },
+    [folder, name, text] as const,
+  );
+}
+
 /** The document text the folder's `docs/` holds, joined: what the folder's version of the book says. */
 async function folderDocuments(page: Page, folder: string): Promise<string> {
   return page.evaluate(async (dir: string) => {
@@ -287,6 +304,9 @@ test('documents another program changed are asked about with Save as a new folde
   const question = page.getByRole('dialog').filter({ hasText: 'Some documents in this folder changed since Caotang last saved them' });
   await expect(question).toBeVisible();
   await expect(question.getByRole('listitem')).toContainText(['The Landing']);
+  const preview = question.getByRole('region', { name: 'Changes for the document “The Landing”' });
+  await expect(preview).toContainText('− Words from another program.');
+  await expect(preview).toContainText('+ Words from this tab.');
   await expect(question).toContainText(
     'Saving writes this tab’s version over them. The folder’s version is kept first, in .caotang-backup in the folder, so if you need anything from it, copy it from there.',
   );
@@ -315,6 +335,45 @@ test('documents another program changed are asked about with Save as a new folde
   await pickFolder(page, 'new-empty-folder');
   await saveToFolder(page);
   await expect.poll(() => folderDocuments(page, 'new-empty-folder')).toContain('Words saved again.');
+});
+
+test('folder-only documents with one generic label each receive an exact preview', async ({ page }) => {
+  await switchableFolderPicker(page, 'duplicate-preview-folder');
+  await page.goto('/');
+  await projectWithWords(page, 'Duplicate Preview', 'Words from this tab.');
+  await saveToFolder(page);
+  await addFolderDocument(page, 'duplicate-preview-folder', 'n_B2C3D4E5F6.md', 'First folder-only document.');
+  await addFolderDocument(page, 'duplicate-preview-folder', 'n_C3D4E5F6G7.md', 'Second folder-only document.');
+
+  await page.getByRole('button', { name: 'Save to folder' }).click();
+  const question = page.getByRole('dialog').filter({ hasText: 'Some documents in this folder changed since Caotang last saved them' });
+  await expect(question).toBeVisible();
+  await expect(question.getByRole('listitem')).toHaveCount(1);
+  const first = question.getByRole('region', { name: 'Changes for a document this copy does not hold, file 1 of 2' });
+  const second = question.getByRole('region', { name: 'Changes for a document this copy does not hold, file 2 of 2' });
+  await expect(first).toContainText('First folder-only document.');
+  await expect(second).toContainText('Second folder-only document.');
+  await expect(question).not.toContainText('n_B2C3D4E5F6');
+  await expect(question).not.toContainText('n_C3D4E5F6G7');
+});
+
+test('large folder changes show only a bounded set of previews and explain omissions', async ({ page }) => {
+  await switchableFolderPicker(page, 'bounded-preview-folder');
+  await page.goto('/');
+  await projectWithWords(page, 'Bounded Preview', 'Words from this tab.');
+  await saveToFolder(page);
+  const idPrefix = 'ABCDEFGHJKMNPQRSTUVWXYZ';
+  for (let index = 0; index < 14; index += 1) {
+    const id = `n_${idPrefix[index]}234567890`;
+    await addFolderDocument(page, 'bounded-preview-folder', `${id}.md`, `Folder-only document ${index}.`);
+  }
+
+  await page.getByRole('button', { name: 'Save to folder' }).click();
+  const question = page.getByRole('dialog').filter({ hasText: 'Some documents in this folder changed since Caotang last saved them' });
+  await expect(question).toBeVisible();
+  await expect(question.getByRole('region')).toHaveCount(12);
+  await expect(question).toContainText('Detailed comparisons for 2 more files are not shown to keep the question manageable.');
+  await expect(question).not.toContainText('Folder-only document 13.');
 });
 
 test('“Save over them” keeps the folder’s version in .caotang-backup, and the status line says where', async ({ page }) => {

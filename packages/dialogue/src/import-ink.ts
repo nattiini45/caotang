@@ -14,6 +14,7 @@
  */
 
 import { parseInk, ROOT_NODE_ID, type DialogueGraph, type GraphNode, type VariableDecl } from './ink-parse.js';
+import { ensureLineIds, lineIdsOf, type MintOptions } from './line-ids.js';
 
 export interface ImportedContainer {
   /** The first knot's name, which is what the binder shows. */
@@ -195,4 +196,60 @@ function preambleOf(source: string, sections: readonly Section[], decls: readonl
     cursor = Math.max(cursor, cut.to);
   }
   return out.trim();
+}
+
+export interface ImportIdOptions {
+  /** Randomness, injectable so a fixture mints the same ids every run. */
+  readonly randomBytes?: MintOptions['randomBytes'];
+  /** Ids held elsewhere in the project, avoided on top of every id already in the plan. */
+  readonly taken?: ReadonlySet<string>;
+  /** The compile gate. A container whose body compiled before minting and does not after keeps its text as written. */
+  readonly compiles?: (body: string) => boolean;
+}
+
+export interface ImportIdResult {
+  readonly containers: readonly ImportedContainer[];
+  /** Ids written across every container. */
+  readonly minted: number;
+  /** Lines that need an id and cannot take one, with the container that holds them. */
+  readonly unplaceable: readonly { readonly title: string; readonly line: number; readonly text: string }[];
+  /** Ids the source already wrote in more than one place. They are kept as written, never renamed. */
+  readonly duplicatesInSource: readonly string[];
+  /** Containers left as written because the minted text did not compile. */
+  readonly kept: readonly string[];
+}
+
+/**
+ * The one-shot mint of an import (dialogue-narrative.md A3): every container's lines that have no id get one, from one set
+ * of taken ids shared by the whole plan, so no two containers hold the same id. The ids already in the source are kept.
+ * Pure: the caller dispatches the result, so the ids and the containers land in one undo step.
+ */
+export function mintImportIds(containers: readonly ImportedContainer[], options: ImportIdOptions = {}): ImportIdResult {
+  const taken = new Set<string>(options.taken ?? []);
+  const seen = new Set<string>();
+  const duplicates = new Set<string>();
+  for (const container of containers) {
+    for (const { lineId } of lineIdsOf(container.body)) {
+      if (seen.has(lineId)) duplicates.add(lineId);
+      seen.add(lineId);
+      taken.add(lineId);
+    }
+  }
+
+  let minted = 0;
+  const unplaceable: { title: string; line: number; text: string }[] = [];
+  const kept: string[] = [];
+  const next = containers.map((container): ImportedContainer => {
+    const result = ensureLineIds(container.body, { taken, ...(options.randomBytes === undefined ? {} : { randomBytes: options.randomBytes }) });
+    for (const line of result.unplaceable) unplaceable.push({ title: container.title, line: line.line, text: line.text });
+    if (result.minted.length === 0) return container;
+    if (options.compiles !== undefined && options.compiles(container.body) && !options.compiles(result.body)) {
+      kept.push(container.title);
+      return container;
+    }
+    for (const { lineId } of result.minted) taken.add(lineId);
+    minted += result.minted.length;
+    return { ...container, body: result.body };
+  });
+  return { containers: next, minted, unplaceable, duplicatesInSource: [...duplicates], kept };
 }

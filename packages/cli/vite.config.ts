@@ -16,7 +16,9 @@ import { defineConfig, type Plugin } from 'vite';
  */
 const FONT_FILES = [
   '@caotang/font-noto-cjk/NotoSansMonoCJKsc-Regular.woff',
+  '@caotang/font-noto-cjk/NotoSansMonoCJKsc-Regular-common.woff',
   '@caotang/font-noto-emoji/NotoEmoji-Regular.woff',
+  '@caotang/font-noto-emoji/NotoEmoji-Regular-common.woff',
   '@caotang/font-noto-arabic/NotoSansArabic-Regular.ttf',
   '@caotang/font-noto-hebrew/NotoSansHebrew-Regular.ttf',
   '@caotang/font-noto-devanagari/NotoSansDevanagari-Regular.ttf',

@@ -12,11 +12,15 @@
  * (pdf-fonts `emojiLayoutGlyph`), which is used first. Every distinct cluster gets its own CID, so the ToUnicode map gives a
  * reader the whole sequence back, even where two clusters share a glyph (👍 and 👍🏽: the font has no skin tones).
  *
+ * Like the CJK font, it comes as two files (`@caotang/pdf-fonts/common`): a script whose emoji are all in the common file
+ * (the single-code-point emoji and the keycaps) reads only that, and any other emoji reads the full font.
+ *
  * This module is reached only by the dynamic import in render-pdf.ts, and only for a script with an emoji the font
  * prints.
  */
 
 import { cutCidSubset, emojiKey, emojiLayoutGlyph, firstCodePoint, isEmojiCluster, loadFont, type FontLoader } from '@caotang/pdf-fonts';
+import { emojiLoaderFor } from '@caotang/pdf-fonts/common';
 import type { Font, Glyph } from '@pdf-lib/fontkit';
 
 import type { PdfEmojiFont, PdfEmojiGlyph } from './pdf.js';
@@ -34,15 +38,16 @@ export const EMOJI_SIZE = 10;
 
 const loaded = new WeakMap<FontLoader, Promise<Font>>();
 
-/** The parsed emoji font. Loaded once per loader. */
-export function loadNotoEmoji(load: FontLoader): Promise<Font> {
-  let font = loaded.get(load);
+/** The parsed emoji font, from the common file when `units` are all in it and the full font otherwise. Loaded once per file. */
+export function loadNotoEmoji(load: FontLoader, units: Iterable<string>): Promise<Font> {
+  const file = emojiLoaderFor(load, units);
+  let font = loaded.get(file);
   if (font === undefined) {
-    font = loadFont(load, 'the emoji fallback font').catch((error: unknown) => {
-      loaded.delete(load);
+    font = loadFont(file, 'the emoji fallback font').catch((error: unknown) => {
+      loaded.delete(file);
       throw error;
     });
-    loaded.set(load, font);
+    loaded.set(file, font);
   }
   return font;
 }

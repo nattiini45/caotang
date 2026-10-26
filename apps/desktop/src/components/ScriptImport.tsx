@@ -7,11 +7,12 @@
 
 import { useRef, useState, type ReactNode } from 'react';
 
-import { planInkImport, planTweeImport, type TweeImportPlan } from '@caotang/dialogue';
+import { compileInk, mintImportIds, planInkImport, planTweeImport, type TweeImportPlan } from '@caotang/dialogue';
 
 import { explain } from './actions.js';
 import { requestInkCompiler } from '../app/ink-compiler.js';
 import type { ProjectSession } from '../app/session.js';
+import { importLineIdsSentence } from '../media/ink-model.js';
 import { useReport, useSession } from './shared.js';
 import { TweeImportDialog } from './TweeImportDialog.js';
 
@@ -28,6 +29,7 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
   const scriptFile = useRef<HTMLInputElement>(null);
   const inkFile = useRef<HTMLInputElement>(null);
   const tweeFile = useRef<HTMLInputElement>(null);
+  const [addIds, setAddIds] = useState(false);
   const [pendingTwee, setPendingTwee] = useState<{ readonly fileName: string; readonly plan: TweeImportPlan } | null>(null);
 
   const importScript = async (file: File): Promise<void> => {
@@ -52,8 +54,10 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
       report({ text: `${file.name} has no knot to import. An Ink story makes one container for each knot.`, tone: 'error' });
       return;
     }
+    // The ids are minted here, before the one dispatch, so one undo takes the containers and their ids together (dialogue-narrative.md A3).
+    const minted = addIds ? mintImportIds(plan.containers, { compiles: (body) => compileInk(body).ok }) : null;
     const outcome = session.dispatch('dialogue.importInk', {
-      containers: plan.containers.map((container) => ({ title: container.title, body: container.body })),
+      containers: (minted?.containers ?? plan.containers).map((container) => ({ title: container.title, body: container.body })),
     });
     if (!outcome.ok) {
       report({ text: explain(outcome.error), tone: 'error' });
@@ -66,7 +70,8 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
       above === 0
         ? []
         : [`${countOf(above, 'line')} above the first knot ${above === 1 ? 'was' : 'were'} not imported. Copy ${above === 1 ? 'it' : 'them'} by hand if you need ${above === 1 ? 'it' : 'them'}.`];
-    report({ text: [made, ...plan.notes, ...left].join(' '), tone: 'info' });
+    const ids = minted === null ? [] : [importLineIdsSentence(minted)];
+    report({ text: [made, ...plan.notes, ...left, ...ids].join(' '), tone: 'info' });
   };
 
   const planTwee = async (file: File): Promise<void> => {
@@ -106,6 +111,10 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
       <button type="button" className="button is-quiet" onClick={() => tweeFile.current?.click()}>
         Import Twee
       </button>
+      <label className="script-import-ids">
+        <input type="checkbox" checked={addIds} onChange={(event) => setAddIds(event.currentTarget.checked)} />
+        Add line ids to the imported containers (one time)
+      </label>
       <input
         ref={scriptFile}
         type="file"

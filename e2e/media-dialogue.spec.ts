@@ -6,7 +6,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { binderTitle, createProject, firstChapter, traceNames, waitForSaved } from './support.js';
+import { binderTitle, bodyOf, createProject, firstChapter, idOf, traceNames, waitForSaved } from './support.js';
 
 const PROJECT = 'Night Shift';
 
@@ -75,6 +75,34 @@ test('a whole Ink story imports as one branching container per knot cluster, in 
   await expect.poll(() => traceNames(page)).toContain('dialogue.importInk');
   // The cluster takes the name of its first knot, which is what the binder shows.
   await expect(binderTitle(page, 'start')).toBeVisible();
+});
+
+test('Import Ink leaves the Ink as written unless the one-time line-id box is ticked, and the box starts unticked', async ({ page }) => {
+  await createProject(page, PROJECT);
+  const box = page.getByRole('checkbox', { name: 'Add line ids to the imported containers (one time)' });
+  await expect(box).not.toBeChecked();
+  await page.locator('input[type="file"][aria-label="Ink file"]').setInputFiles({ name: 'tavern.ink', mimeType: 'text/plain', buffer: Buffer.from(INK) });
+
+  await expect(page.getByText(/Imported 1 dialogue container from tavern\.ink\./)).toBeVisible();
+  const body = (await bodyOf(page, await idOf(page, 'start'))) ?? '';
+  expect(body).toContain('Alice: Hello.\n* [Wave] -> wave\n* [Leave] -> END');
+  expect(body).not.toContain('lineId');
+});
+
+test('Import Ink with the line-id box ticked adds ids once, and names a line that cannot take one', async ({ page }) => {
+  await createProject(page, PROJECT);
+  await page.getByRole('checkbox', { name: 'Add line ids to the imported containers (one time)' }).check();
+  const stuck = '=== start ===\nAlice: Hello.\n* [Yes] Oh yes. -> END\n';
+  await page.locator('input[type="file"][aria-label="Ink file"]').setInputFiles({ name: 'gate.ink', mimeType: 'text/plain', buffer: Buffer.from(stuck) });
+
+  await expect(page.getByText(/Added 2 line ids to the imported containers, once\./)).toBeVisible();
+  await expect(page.getByText(/1 line \(start line 3\) could not take one: move the choice or jump so the line has room for its id\./)).toBeVisible();
+  await expect(page.getByText(/"Add line ids on save" was left as it was\./)).toBeVisible();
+  const body = (await bodyOf(page, await idOf(page, 'start'))) ?? '';
+  expect(body.match(/# lineId: l_/g)).toHaveLength(2);
+  // The setting is untouched: the import is a one-time mint, so no container setting was written.
+  await waitForSaved(page);
+  expect(await traceNames(page)).not.toContain('dialogue.setMeta');
 });
 
 test('the container settings in the Inspector change the engine target and the line-id opt-in, each as a command', async ({ page }) => {

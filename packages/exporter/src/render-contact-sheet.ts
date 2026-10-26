@@ -18,13 +18,15 @@
  * in Noto Sans Mono CJK SC (`@caotang/font-noto-cjk`), embedded through `@pdf-lib/fontkit` (exact pin, MIT) as a subset that carries only
  * the glyphs the file draws. Each run of text switches font per character cluster: Helvetica for what WinAnsi encodes, the
  * fallback for the rest. The font is read through the input's `loadFallbackFont`, and only when a run needs it, so a
- * Latin-only sheet never reads it and its bytes do not change.
+ * Latin-only sheet never reads it and its bytes do not change. The font comes as two files (`@caotang/pdf-fonts/common`): a
+ * sheet whose characters are all in the small common file reads only that, and one character outside it reads the full font
+ * ({@link fallbackNeeds} reads the sheet's text before the first font is loaded), so the PDF holds the same glyphs either way.
  *
  * Emoji are set in Noto Emoji (`./emoji-font.ts`), monochrome, the last fallback: a cluster in emoji presentation (🎬, ❤️,
  * 👨‍👩‍👧, 🇩🇪, 1️⃣, 👍🏽) goes to it directly; a pictograph whose default is text (☺, ✌) tries Helvetica and Noto Sans Mono CJK first.
  * Each emoji is laid out through the font's ligatures as one grapheme cluster, so a sequence is measured, cut and drawn as one
  * unit, and the ToUnicode map gives the exact sequence back when it is copied. The emoji font is read only when a sheet holds
- * an emoji, through the input's `loadEmojiFont`.
+ * an emoji, through the input's `loadEmojiFont`; it too has a common file, which a sheet whose emoji are all in it reads alone.
  *
  * Arabic, Persian, Urdu and Hebrew are set in Noto Sans Arabic and Noto Sans Hebrew (`./rtl-font.ts`), after Helvetica and before
  * the CJK font. A text line holding either script is resolved by the bidirectional algorithm of UAX #9 (`@caotang/pdf-fonts/bidi`)
@@ -65,6 +67,7 @@ import {
   countMarks,
   devanagariFontPrints,
   emojiStyleOf,
+  fallbackCovers,
   isBidiControl,
   isRtlMark,
   loadFont,
@@ -113,12 +116,13 @@ export interface ContactSheetPdfInput {
   readonly at: Date;
   /**
    * Reads the fallback font for text outside WinAnsi (`@caotang/font-noto-cjk`). Called at most once, and only when the sheet holds such
-   * text. Without it, that text is drawn as `?` and the log says so.
+   * text. A loader with a `common` file (`withCommon`, `@caotang/pdf-fonts`) is read through it when the sheet's characters are all in it.
+   * Without it, that text is drawn as `?` and the log says so.
    */
   readonly loadFallbackFont?: FontLoader;
   /**
-   * Reads the emoji font (Noto Emoji, `./emoji-font.ts`). Called at most once, and only when the sheet holds an emoji. Without
-   * it, emoji are drawn as `?` and the log says so.
+   * Reads the emoji font (Noto Emoji, `./emoji-font.ts`). Called at most once, and only when the sheet holds an emoji; a `common`
+   * file is read when all its emoji are in it. Without it, emoji are drawn as `?` and the log says so.
    */
   readonly loadEmojiFont?: FontLoader;
   /** Reads Noto Sans Arabic (`./rtl-font.ts`). Called at most once, and only when the sheet holds Arabic-script text. Without it, that text is drawn as `?` and the log says so. */
@@ -181,6 +185,52 @@ function isControl(code: number): boolean {
   return code < 0x20 || (code >= 0x7f && code < 0xa0);
 }
 
+/** The text a plan draws. It takes every string the emitter may set, the caption of a card whose picture is drawn included. */
+function planTexts(plan: SheetPlan): string[] {
+  const texts: string[] = [];
+  for (const sheet of plan.pages) {
+    texts.push(sheet.title.text, sheet.pageLabel.text);
+    if (sheet.summary !== undefined) texts.push(sheet.summary.text);
+    if (sheet.emptyNote !== undefined) texts.push(sheet.emptyNote.text);
+    for (const card of sheet.cards) {
+      texts.push(card.chipText.text, card.fallback.text);
+      if (card.placeholder !== undefined) texts.push(card.placeholder.text);
+      if (card.caption !== undefined) texts.push(card.caption.text);
+      for (const line of [...card.spec, ...card.action]) texts.push(line.text);
+    }
+  }
+  return texts;
+}
+
+/**
+ * What a sheet sets in the CJK font and in the emoji font, as `piecesOf` routes it: the characters of every cluster that is
+ * neither WinAnsi, nor a right-to-left or Devanagari letter, nor an emoji in emoji presentation, and the emoji clusters. It
+ * decides which file of each font is read (`@caotang/pdf-fonts/common`), so it errs toward more: a text pictograph is counted
+ * for the emoji font when the CJK font lacks any of it.
+ */
+export function fallbackNeeds(texts: Iterable<string>, builtIn: ReadonlySet<number>): { readonly cjk: Set<string>; readonly emoji: Set<string> } {
+  const cjk = new Set<string>();
+  const emoji = new Set<string>();
+  for (const text of texts) {
+    for (const cluster of clustersOf(text.normalize('NFC'))) {
+      const codes = [...cluster].map((char) => char.codePointAt(0) ?? 0);
+      if ((codes.length === 1 && isControl(codes[0] ?? 0)) || isBidiControl(cluster)) continue;
+      const style = emojiStyleOf(cluster);
+      if (style === 'emoji') {
+        emoji.add(cluster);
+        continue;
+      }
+      const textCodes = codes.filter((code) => code !== VS15);
+      if (textCodes.length > 0 && textCodes.every((code) => builtIn.has(code))) continue;
+      const first = String.fromCodePoint(codes[0] ?? 0);
+      if (rtlFontPrints(first) !== undefined || devanagariFontPrints(first)) continue;
+      for (const code of textCodes) cjk.add(String.fromCodePoint(code));
+      if (style === 'text' && !textCodes.every((code) => fallbackCovers(String.fromCodePoint(code)))) emoji.add(String.fromCodePoint(...textCodes));
+    }
+  }
+  return { cjk, emoji };
+}
+
 /** The text cut, with an ellipsis, to the width the font measures. Text that fits is returned as it is. */
 export function fitToWidth(text: string, maxWidth: number, measure: (text: string) => number): string {
   if (measure(text) <= maxWidth) return text;
@@ -219,6 +269,11 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
   /** What WinAnsi encodes: the same set for Helvetica and Helvetica-Bold. */
   const builtIn = new Set(regular.getCharacterSet());
 
+  // What the sheet sets in the CJK and the emoji font, read from its text the first time either font is needed: it decides
+  // which of a font's two files is read.
+  let needs: ReturnType<typeof fallbackNeeds> | undefined;
+  const fontNeeds = (): ReturnType<typeof fallbackNeeds> => (needs ??= fallbackNeeds(planTexts(input.plan), builtIn));
+
   // The fallback font, embedded the first time a run needs it. `null` once it is known to be unavailable, with the reason.
   let fallback: CjkEmbedding | null | undefined;
   let fallbackError = '';
@@ -230,7 +285,9 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
       return fallback;
     }
     try {
-      fallback = new CjkEmbedding(lib, pdf, new CjkFace((await loadFont(input.loadFallbackFont, 'the fallback font')) as unknown as FontkitFont, input.language));
+      const { cjkLoaderFor } = await import('@caotang/pdf-fonts/common');
+      const load = cjkLoaderFor(input.loadFallbackFont, fontNeeds().cjk);
+      fallback = new CjkEmbedding(lib, pdf, new CjkFace((await loadFont(load, 'the fallback font')) as unknown as FontkitFont, input.language));
     } catch (error) {
       fallbackError = `the fallback font could not be read (${error instanceof Error ? error.message : String(error)})`;
     }
@@ -249,7 +306,9 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
       return emoji;
     }
     try {
-      const face = new EmojiFace((await loadFont(input.loadEmojiFont, 'the emoji font')) as unknown as FontkitFont);
+      const { emojiLoaderFor } = await import('@caotang/pdf-fonts/common');
+      const load = emojiLoaderFor(input.loadEmojiFont, fontNeeds().emoji);
+      const face = new EmojiFace((await loadFont(load, 'the emoji font')) as unknown as FontkitFont);
       emoji = new EmojiEmbedding(lib, pdf, face);
     } catch (error) {
       emojiError = `the emoji font could not be read (${error instanceof Error ? error.message : String(error)})`;

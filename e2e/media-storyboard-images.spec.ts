@@ -11,7 +11,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { binderTitle, createProject, firstChapter, trace, waitForSaved } from './support.js';
+import { binderTitle, createProject, dragShotCard, firstChapter, trace, waitForSaved } from './support.js';
 
 const PROJECT = 'Picture Book';
 /** A 1×1 PNG, the smallest picture the store will take. */
@@ -30,6 +30,12 @@ interface Sent {
   readonly name: string;
   readonly type: string;
   readonly bytes: Buffer;
+}
+
+interface ReceivedTransfer {
+  readonly types: readonly string[];
+  readonly files: readonly { readonly name: string; readonly type: string }[];
+  readonly items: readonly { readonly kind: string; readonly type: string; readonly file: string | null }[];
 }
 
 const FRAME_PNG: Sent = { name: 'frame.png', type: 'image/png', bytes: PNG };
@@ -62,11 +68,14 @@ async function storyboardWithShot(page: Page): Promise<Locator> {
 }
 
 /**
- * Builds a `DataTransfer` of the given files, checks that it holds exactly those (by count and name) before anything is dispatched, and
- * dispatches a `drop` (after its `dragover`) or a `paste` on the element. Resolves with whether the handler cancelled the event; for a
- * drop that is what keeps the tab from opening the file.
+ * Builds a `DataTransfer` of the given files, checks that it holds and delivers exactly those files, then dispatches a `drop` (after its
+ * `dragover`) or a `paste` on the element. Resolves with whether the handler cancelled the event; for a drop that keeps the tab from opening it.
  */
-async function send(target: Locator, gesture: 'drop' | 'paste', files: readonly Sent[]): Promise<{ cancelled: boolean }> {
+async function send(
+  target: Locator,
+  gesture: 'drop' | 'paste',
+  files: readonly Sent[],
+): Promise<{ cancelled: boolean; received: ReceivedTransfer | null }> {
   return target.evaluate(
     (element, input) => {
       const data = new DataTransfer();
@@ -75,14 +84,36 @@ async function send(target: Locator, gesture: 'drop' | 'paste', files: readonly 
       if (held.length !== input.files.length || held.join('|') !== input.files.map((file) => file.name).join('|')) {
         throw new Error(`the DataTransfer holds ${held.length} file(s) (${held.join(', ')}), not the ${input.files.length} sent`);
       }
+      const inspect = (event: Event): ReceivedTransfer | null => {
+        const transfer = input.gesture === 'paste' ? (event as ClipboardEvent).clipboardData : (event as DragEvent).dataTransfer;
+        return transfer === null ? null : {
+          types: Array.from(transfer.types),
+          files: Array.from(transfer.files, (file) => ({ name: file.name, type: file.type })),
+          items: Array.from(transfer.items, (item) => ({ kind: item.kind, type: item.type, file: item.getAsFile()?.name ?? null })),
+        };
+      };
       if (input.gesture === 'paste') {
-        return { cancelled: !element.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: data })) };
+        const event = new ClipboardEvent('paste', { bubbles: true, cancelable: true });
+        // Firefox ignores ClipboardEventInit.clipboardData; put the prepared payload on the dispatched event explicitly.
+        Object.defineProperty(event, 'clipboardData', { configurable: true, value: data });
+        let received: ReceivedTransfer | null = null;
+        element.addEventListener('paste', (receivedEvent) => { received = inspect(receivedEvent); }, { capture: true, once: true });
+        const cancelled = !element.dispatchEvent(event);
+        return { cancelled, received };
       }
       element.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: data }));
-      return { cancelled: !element.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data })) };
+      let received: ReceivedTransfer | null = null;
+      element.addEventListener('drop', (receivedEvent) => { received = inspect(receivedEvent); }, { capture: true, once: true });
+      const cancelled = !element.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data }));
+      return { cancelled, received };
     },
     { gesture, files: files.map((file) => ({ name: file.name, type: file.type, bytes: [...file.bytes] })) },
   );
+}
+
+function expectReceivedFiles(received: ReceivedTransfer | null, files: readonly Sent[]): void {
+  expect(received?.files).toEqual(files.map(({ name, type }) => ({ name, type })));
+  expect(received?.items).toEqual(files.map(({ name, type }) => ({ kind: 'file', type, file: name })));
 }
 
 /** How many times a picture was set through the command the picker uses. */
@@ -144,7 +175,8 @@ test('a drop that carries no picture changes nothing, and the tab still does not
 test('a picture pasted while a card is selected is its image', async ({ page }) => {
   const card = await storyboardWithShot(page);
   await card.focus();
-  const { cancelled } = await send(card, 'paste', [FRAME_PNG]);
+  const { cancelled, received } = await send(card, 'paste', [FRAME_PNG]);
+  expectReceivedFiles(received, [FRAME_PNG]);
   expect(cancelled).toBe(true);
   await expect(card.locator('img')).toBeVisible();
   expect(await imports(page)).toBe(1);
@@ -153,7 +185,8 @@ test('a picture pasted while a card is selected is its image', async ({ page }) 
 test('a JPEG pasted while a card is selected is its image', async ({ page }) => {
   const card = await storyboardWithShot(page);
   await card.focus();
-  await send(card, 'paste', [FRAME_JPG]);
+  const { received } = await send(card, 'paste', [FRAME_JPG]);
+  expectReceivedFiles(received, [FRAME_JPG]);
   await expect(card.locator('img')).toBeVisible();
   expect(await imports(page)).toBe(1);
   // The browser decoded what the card kept, so the card shows a picture and not a broken-image box.
@@ -163,7 +196,8 @@ test('a JPEG pasted while a card is selected is its image', async ({ page }) => 
 test('a paste that carries no picture is left to the browser', async ({ page }) => {
   const card = await storyboardWithShot(page);
   await card.focus();
-  const { cancelled } = await send(card, 'paste', [NOTES_TXT]);
+  const { cancelled, received } = await send(card, 'paste', [NOTES_TXT]);
+  expectReceivedFiles(received, [NOTES_TXT]);
   expect(cancelled).toBe(false);
   await expect(card.locator('img')).toHaveCount(0);
   expect(await imports(page)).toBe(0);
@@ -285,8 +319,8 @@ test('a drop on the board that matches no shot imports nothing, names every file
 test('a card dragged on the board still reorders, and a file dropped on a card still goes on that card whatever its name', async ({ page }) => {
   const { cards } = await storyboardWithThreeShots(page);
   const ids = await cards.evaluateAll((items) => items.map((item) => item.getAttribute('data-shot-id')));
-
-  await cards.nth(1).dragTo(cards.nth(0));
+  // The panel can cover a card's centre; use the blank gap below its header and let the browser deliver stepped native drag events.
+  await dragShotCard(page, cards.nth(1), cards.nth(0));
   await expect.poll(() => cards.nth(0).getAttribute('data-shot-id')).toBe(ids[1]);
   expect(await ran(page, 'binder.move')).toBeGreaterThan(0);
   expect(await ran(page, 'shot.importImages')).toBe(0);

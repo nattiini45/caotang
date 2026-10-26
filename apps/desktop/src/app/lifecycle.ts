@@ -34,6 +34,7 @@
 
 import { COHERENCE_FILE, serializeCoherenceFile, type CoherenceFile } from '@caotang/coherence';
 import {
+  ArtifactNotFoundError,
   appendSession,
   bodyNamesOf,
   commitRecovery,
@@ -61,6 +62,7 @@ import {
   parseSessionsLog,
   projectFileChanges,
   projectFileDigests,
+  projectFileLabel,
   projectFileTitles,
   readProject,
   readProjectState,
@@ -90,6 +92,7 @@ import { newId } from '@caotang/ids';
 import type { McpClient } from '@caotang/mcp-client';
 
 import { attachCoherence } from './coherence-io.js';
+import { folderFileDiff, type FolderDiffLine } from './folder-diff.js';
 import { applyEncodingDecisions, encodingResultLines, type EncodingDecision } from './encoding-review.js';
 import { changedDuringSave, pruneFolderBackups, watchSave } from './folder-guard.js';
 import { folderArtifactFs, isSameFolder, type DirectoryHandleLike } from './fs-access.js';
@@ -1450,13 +1453,31 @@ export async function completeEncodingReview(
   }
 }
 
-/** What the writer has said about a folder save the checks asked about (see `folderSaveVerdict`). */
-export interface FolderSaveAnswers {
-  /** Save although the Caotang MCP server holds the folder. */
-  readonly lockConfirmed?: boolean;
-  /** Replace a manifest that changed, or that this session never saw. */
-  readonly overwriteConfirmed?: boolean;
+/** The exact folder state shown by an overwrite question. */
+export interface FolderOverwriteSnapshot {
+  readonly manifestText: string | null;
+  readonly digests: ReadonlyMap<string, string>;
 }
+
+function folderOverwriteSnapshotMatches(snapshot: FolderOverwriteSnapshot, manifestText: string | null, digests: ReadonlyMap<string, string>): boolean {
+  if (snapshot.manifestText !== manifestText || snapshot.digests.size !== digests.size) return false;
+  for (const [path, digest] of snapshot.digests) if (digests.get(path) !== digest) return false;
+  return true;
+}
+
+/** What the writer has said about a folder save the checks asked about (see `folderSaveVerdict`). */
+export type FolderSaveAnswers =
+  | {
+      readonly lockConfirmed?: boolean;
+      readonly overwriteConfirmed?: false;
+      readonly overwriteSnapshot?: never;
+    }
+  | {
+      readonly lockConfirmed?: boolean;
+      readonly overwriteConfirmed: true;
+      /** The unchanged folder state the writer saw in the overwrite question. */
+      readonly overwriteSnapshot: FolderOverwriteSnapshot;
+    };
 
 /** One document or codex file another program changed, removed or added, in the words the folder question shows (`folderChanges`). */
 export type FolderFileChange = ProjectFileChange;
@@ -1467,6 +1488,110 @@ export type FolderFileChange = ProjectFileChange;
  */
 export function folderChanges(drift: FolderDrift, state: ProjectState, heldTitles: ReadonlyMap<string, string>): FolderFileChange[] {
   return projectFileChanges(drift, state, heldTitles, 'this copy');
+}
+
+/** A changed project file whose path remains internal, so equal display labels cannot mix their previews. */
+export interface FolderFilePreviewTarget extends FolderFileChange {
+  readonly path: string;
+}
+
+/** Bounded exact paths retained for comparison and the number not retained. */
+export interface FolderFilePreviewTargets {
+  readonly targets: readonly FolderFilePreviewTarget[];
+  readonly omitted: number;
+}
+
+/** The text lines a writer can compare before confirming a folder overwrite. */
+export interface FolderFilePreview extends FolderFilePreviewTarget {
+  readonly lines: readonly FolderDiffLine[];
+}
+
+/** A bounded set of previews and the number of file comparisons omitted to keep the question manageable. */
+export interface FolderFilePreviewBatch {
+  readonly previews: readonly FolderFilePreview[];
+  readonly omitted: number;
+}
+
+const MAX_FOLDER_FILE_PREVIEWS = 12;
+const MAX_FOLDER_PREVIEW_CHARACTERS = 48_000;
+const FOLDER_PREVIEW_READ_CONCURRENCY = 3;
+
+async function readFolderPreviewFile(fs: ArtifactFs, path: string): Promise<string | null | undefined> {
+  try {
+    return await fs.read(path);
+  } catch (error) {
+    return error instanceof ArtifactNotFoundError ? undefined : null;
+  }
+}
+
+function folderFilePreviewTargets(
+  drift: FolderDrift,
+  state: ProjectState,
+  heldTitles: ReadonlyMap<string, string>,
+): FolderFilePreviewTargets {
+  const currentTitles = projectFileTitles(state);
+  const target = (path: string, change: ProjectFileChange['change']): FolderFilePreviewTarget => ({
+    path,
+    label: projectFileLabel(path, currentTitles, heldTitles, 'this copy'),
+    change,
+  });
+  const previewable = (path: string): boolean => path.startsWith(`${DOCS_DIR}/`) || path.startsWith('codex/');
+  const targets: FolderFilePreviewTarget[] = [];
+  let total = 0;
+  const collect = (paths: readonly string[], change: ProjectFileChange['change']): void => {
+    for (const path of paths) {
+      if (!previewable(path)) continue;
+      total += 1;
+      if (targets.length < MAX_FOLDER_FILE_PREVIEWS) targets.push(target(path, change));
+    }
+  };
+  collect(drift.changed, 'changed');
+  collect(drift.removed, 'removed');
+  collect(drift.added, 'added');
+  return { targets, omitted: total - targets.length };
+}
+
+/**
+ * Prepares a read-only, line-based comparison for the exact files named by a folder-save question. The
+ * folder text is read as it stands when the question opens; the tab's text is serialized into a
+ * temporary in-memory artifact using the same project writer as a save. No folder file is changed.
+ */
+export async function previewFolderChanges(
+  session: ProjectSession,
+  root: DirectoryHandleLike,
+  files: readonly FolderFilePreviewTarget[],
+  previouslyOmitted = 0,
+): Promise<FolderFilePreviewBatch> {
+  if (files.length === 0) return { previews: [], omitted: previouslyOmitted };
+  const targets = files.slice(0, MAX_FOLDER_FILE_PREVIEWS);
+  const folderFs = folderArtifactFs(root);
+  const proposedFs = new MemoryArtifactFs();
+  try {
+    await writeProject(proposedFs, copyState(session.state), { copyFor: 'internal' });
+  } catch {
+    const previews = targets.map((file) => ({ ...file, lines: [{ kind: 'note' as const, text: 'Caotang could not prepare this comparison.' }] }));
+    return { previews, omitted: previouslyOmitted + files.length - previews.length };
+  }
+  const previews: FolderFilePreview[] = [];
+  let characters = 0;
+  for (let start = 0; start < targets.length; start += FOLDER_PREVIEW_READ_CONCURRENCY) {
+    const batch = await Promise.all(targets.slice(start, start + FOLDER_PREVIEW_READ_CONCURRENCY).map(async (file) => {
+      const { path } = file;
+      const folderText = await readFolderPreviewFile(folderFs, path);
+      const declined = path.startsWith(`${DOCS_DIR}/`) && session.state.declinedDocFiles.has(path.slice(DOCS_DIR.length + 1));
+      const tabText = declined ? undefined : await readFolderPreviewFile(proposedFs, path);
+      return { ...file, lines: folderFileDiff(folderText, tabText) };
+    }));
+    for (const preview of batch) {
+      const size = preview.lines.reduce((total, line) => total + 2 + Math.max(1, line.text.length) + 1, 0);
+      if (characters + size > MAX_FOLDER_PREVIEW_CHARACTERS) {
+        return { previews, omitted: previouslyOmitted + files.length - previews.length };
+      }
+      previews.push(preview);
+      characters += size;
+    }
+  }
+  return { previews, omitted: previouslyOmitted + files.length - previews.length };
 }
 
 /**
@@ -1485,6 +1610,10 @@ export type FolderSaveOutcome =
       readonly kind: 'refused';
       readonly reason: Exclude<FolderSaveVerdict, 'write'>;
       readonly files: readonly FolderFileChange[];
+      /** Bounded exact changed file paths for previews; paths are internal and are not rendered to the writer. */
+      readonly previewFiles?: readonly FolderFilePreviewTarget[];
+      /** Exact file comparisons not retained for previews due to target or output limits. */
+      readonly omittedPreviewFiles?: number;
       readonly partial?: true;
       /**
        * Set when the save was written in full and the change was found after it: another program changed these files, or put its lock in the
@@ -1494,6 +1623,21 @@ export type FolderSaveOutcome =
       /** Set on a changed refusal when the folder's `caotang.json` is gone, rather than changed: there is no newer copy to open. */
       readonly removed?: true;
     };
+
+const folderOverwriteSnapshots = new WeakMap<object, FolderOverwriteSnapshot>();
+
+/** The exact folder state a save refusal associates with its overwrite question. */
+export function folderOverwriteSnapshotFor(outcome: FolderSaveOutcome): FolderOverwriteSnapshot | undefined {
+  return folderOverwriteSnapshots.get(outcome);
+}
+
+function withFolderOverwriteSnapshot<T extends Extract<FolderSaveOutcome, { readonly kind: 'refused' }>>(
+  outcome: T,
+  snapshot: FolderOverwriteSnapshot,
+): T {
+  folderOverwriteSnapshots.set(outcome, snapshot);
+  return outcome;
+}
 
 /** What a copy opened from a folder says when it is asked to save into that folder: a copy of the book, not the book. */
 const COPY_CANNOT_SAVE_INTO_FOLDER =
@@ -1533,19 +1677,34 @@ export async function saveFolder(
   if (held === null && route === 'own') held = await rememberedCopyFor(session.projectId, root);
   // What the folder holds now, digested before anything is compared or written, so the check and the write see the same files.
   const before = await projectFileDigests(fs);
-  const files = held === null ? [] : folderChanges(driftOf(held.digests, before), session.state, held.titles);
+  const drift = held === null ? null : driftOf(held.digests, before);
+  const previewHeldTitles = held?.titles ?? new Map<string, string>();
+  const files = drift === null ? [] : folderChanges(drift, session.state, previewHeldTitles);
+  const previewTargets = drift === null ? { targets: [], omitted: 0 } : folderFilePreviewTargets(drift, session.state, previewHeldTitles);
   const lockedBefore = await fs.exists(MCP_LOCK_FILE);
+  const overwriteConfirmed = answers.overwriteConfirmed === true
+    && answers.overwriteSnapshot !== undefined
+    && folderOverwriteSnapshotMatches(answers.overwriteSnapshot, onDisk, before);
   const verdict = folderSaveVerdict({
     onDisk,
     baseline: held?.manifestText ?? null,
     locked: lockedBefore,
     lockConfirmed: answers.lockConfirmed === true,
-    overwriteConfirmed: answers.overwriteConfirmed === true,
+    overwriteConfirmed,
     filesChanged: files.length > 0,
     sameProject: route === 'own',
   });
   if (verdict !== 'write') {
-    return verdict === 'changed' && onDisk === null ? { kind: 'refused', reason: verdict, files, removed: true } : { kind: 'refused', reason: verdict, files };
+    const refusal = verdict === 'changed' && onDisk === null
+      ? { kind: 'refused' as const, reason: verdict, files, removed: true as const }
+      : { kind: 'refused' as const, reason: verdict, files };
+    return withFolderOverwriteSnapshot({
+      ...refusal,
+      ...(previewTargets.targets.length === 0 ? {} : {
+        previewFiles: previewTargets.targets,
+        ...(previewTargets.omitted === 0 ? {} : { omittedPreviewFiles: previewTargets.omitted }),
+      }),
+    }, { manifestText: onDisk, digests: before });
   }
   // The session log is written first, so a log the folder cannot take refuses the save before any project file is written (writeFolderLog).
   await writeFolderLog(session, fs);
@@ -1574,8 +1733,20 @@ export async function saveFolder(
     // Another program changed a file after the check above, and the write stopped before that file. The copy keeps the digests of what this
     // save did write and of no other, so the next save still sees that other change. Nothing it changed is overwritten.
     if (held !== null) session.setFolderBaseline(root, held.manifestText, held.documentIds, await digestsAfterWrite(fs, before, error.partial), held.titles);
+    const overwriteSnapshot = { manifestText: await readManifestText(fs), digests: await projectFileDigests(fs) };
     const changed = { changed: [...error.paths], removed: [], added: [] };
-    return { kind: 'refused', reason: 'files', files: folderChanges(changed, session.state, held?.titles ?? new Map()), partial: true };
+    const heldTitles = held?.titles ?? new Map<string, string>();
+    const previewTargets = folderFilePreviewTargets(changed, session.state, heldTitles);
+    return withFolderOverwriteSnapshot({
+      kind: 'refused',
+      reason: 'files',
+      files: folderChanges(changed, session.state, heldTitles),
+      partial: true,
+      ...(previewTargets.targets.length === 0 ? {} : {
+        previewFiles: previewTargets.targets,
+        ...(previewTargets.omitted === 0 ? {} : { omittedPreviewFiles: previewTargets.omitted }),
+      }),
+    }, overwriteSnapshot);
   }
   // The skill files the folder no longer holds are no longer owed a removal.
   if (held !== null) for (const path of [...session.state.removedSkillFiles]) if (!toWrite.removedSkillFiles.has(path)) session.state.removedSkillFiles.delete(path);
@@ -1584,7 +1755,9 @@ export async function saveFolder(
   // not taken as this save's own, so the next save asks about it. The same goes for caotang.json.
   const settled = await changedDuringSave(fs, before, watch);
   const written = watch.manifestText();
-  const manifestNow = (await readManifestText(fs)) ?? '';
+  const currentManifestText = await readManifestText(fs);
+  const manifestNow = currentManifestText ?? '';
+  const overwriteSnapshot = { manifestText: currentManifestText, digests: settled.currentDigests };
   const manifestMoved = written !== undefined && manifestNow !== written;
   holdFolderCopy(session, root, manifestMoved ? written : manifestNow, settled.digests);
   // The findings file goes beside the project, and stays in step with it from now on (coherence.md §3).
@@ -1596,10 +1769,28 @@ export async function saveFolder(
   if (backup !== undefined) await pruneFolderBackups(fs);
   // The lock is read again: a server that took the folder while the save wrote may have read half of it.
   const lockAppeared = !lockedBefore && (await fs.exists(MCP_LOCK_FILE));
-  const changes = (): FolderFileChange[] => folderChanges(settled.drift, session.state, session.folderBaseline()?.titles ?? new Map());
-  if (manifestMoved) return { kind: 'refused', reason: 'changed', files: changes(), after: true };
-  if (hasDrift(settled.drift)) return { kind: 'refused', reason: 'files', files: changes(), after: true };
-  if (lockAppeared) return { kind: 'refused', reason: 'locked', files: [], after: true };
+  const heldTitles = session.folderBaseline()?.titles ?? new Map<string, string>();
+  const changes = (): FolderFileChange[] => folderChanges(settled.drift, session.state, heldTitles);
+  const afterWritePreviewTargets = folderFilePreviewTargets(settled.drift, session.state, heldTitles);
+  const afterWritePreview = afterWritePreviewTargets.targets.length === 0 ? {} : {
+    previewFiles: afterWritePreviewTargets.targets,
+    ...(afterWritePreviewTargets.omitted === 0 ? {} : { omittedPreviewFiles: afterWritePreviewTargets.omitted }),
+  };
+  if (manifestMoved) return withFolderOverwriteSnapshot({
+    kind: 'refused',
+    reason: 'changed',
+    files: changes(),
+    after: true,
+    ...afterWritePreview,
+  }, overwriteSnapshot);
+  if (hasDrift(settled.drift)) return withFolderOverwriteSnapshot({
+    kind: 'refused',
+    reason: 'files',
+    files: changes(),
+    after: true,
+    ...afterWritePreview,
+  }, overwriteSnapshot);
+  if (lockAppeared) return withFolderOverwriteSnapshot({ kind: 'refused', reason: 'locked', files: [], after: true }, overwriteSnapshot);
   return backup === undefined ? { kind: 'saved' } : { kind: 'saved', backup };
 }
 

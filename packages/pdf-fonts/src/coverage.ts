@@ -10,10 +10,10 @@ import { NOTO_CJK_RANGES } from './coverage/noto-cjk-coverage.js';
 import { NOTO_EMOJI_LAYOUT, NOTO_EMOJI_RANGES, NOTO_EMOJI_SEQUENCES, NOTO_EMOJI_TONED } from './coverage/noto-emoji-coverage.js';
 import { NOTO_HEBREW_RANGES } from './coverage/noto-hebrew-coverage.js';
 
-type Ranges = readonly (readonly [number, number])[];
+export type Ranges = readonly (readonly [number, number])[];
 
 /** A "gap.length" range table (base 36) decoded to inclusive ranges in code point order. */
-function decodeRanges(table: string): Ranges {
+export function decodeRanges(table: string): Ranges {
   const ranges: [number, number][] = [];
   let end = -1;
   for (const token of table.split(' ')) {

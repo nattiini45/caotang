@@ -21,7 +21,7 @@ binder makes their nodes (`media/create-menu.ts`, through `binder.create`).
   card in the graph moves the caret to that knot's header in the text. Each choice's label is drawn on its arrow, and the
   choices list under the outline keeps it whole. The graph and the findings follow the text once the writer pauses (800 ms),
   and a codex change (an alias, a rename) is read at once. A compile error shows its line once. *Add line ids to N lines* asks first, then writes an id tag into each line that has none. A
-  container whose `autoLineIds` is on also gets its ids when the writer pauses, and the caret stays where it was. The view is drawn once the Ink compiler has loaded (`components/InkGate.tsx`): a *Loading the Ink compiler…* status line until then, and
+  container whose `autoLineIds` is on also gets its ids when the writer pauses, and the caret stays where it was. *Import Ink* has its own one-time box for the ids of a whole story (below). The view is drawn once the Ink compiler has loaded (`components/InkGate.tsx`): a *Loading the Ink compiler…* status line until then, and
   **Try again** and **Reload** if it cannot be fetched.
 - **Container settings.** The Inspector's *Container settings* section sets a dialogue container's default speaker (a
   codex character), its engine target, its line-id opt-in and its locale. Each change is a `dialogue.setMeta` command.
@@ -32,7 +32,7 @@ binder makes their nodes (`media/create-menu.ts`, through `binder.create`).
 - **Import a script, an Ink story or a Twee story.** The binder's *Import script* reads a `.fountain` or `.fdx` file: its sections become
   folders, and its scenes become screenplay documents, in one undo step (`screenplay.import`). *Import Ink* reads a `.ink`
   file, and makes one branching container for each knot cluster, in one undo step (`dialogue.importInk`). Text above the
-  first knot is not imported, and the status line says how many lines it was. *Import Twee* (`.twee`, `.tw`) plans one container
+  first knot is not imported, and the status line says how many lines it was. The box *Add line ids to the imported containers (one time)* beside it starts unticked; when it is ticked, `mintImportIds` writes the ids into every planned body before the one dispatch, so one undo takes the containers and their ids together, and `autoLineIds` stays unset. The status line says how many ids were added and names a line that could not take one with its container and line. *Import Twee* (`.twee`, `.tw`) plans one container
   with `planTweeImport` and shows its report in `TweeImportDialog` before it writes: passages, choices, stripped macros,
   skipped special passages, the story format and the warnings. *Import* then runs `dialogue.importInk` once (one undo step), and
   *Cancel* writes nothing. `e2e/import-twee.spec.ts` covers it.
@@ -157,8 +157,11 @@ One exception is open: `ScreenplayPreview.tsx` imports `paginate` and `LAYOUT` f
    opens the element in the Source tab, with the caret at its start, and generated lines have none. One line is in the tab order, and Up and Down move between them. The PDF is the `pdf` export
    format (screenplay.md §5.3), from the Compile dialog. The preview draws a dual-dialogue pair side by side, as the PDF
    does: the pair's two columns share their rows, and the blank rows stay collapsed, so the preview is not page-accurate.
-8. **Ink line ids on import.** An imported container keeps the Ink as written. Line ids are minted by the Add line ids
-    action or by a container whose `autoLineIds` is on, not by the import.
+8. **Ink line ids on import.** An imported container keeps the Ink as written unless the writer ticks *Add line ids to the imported
+    containers (one time)* in the import. The tick mints once and sets no container setting, so a container is not opted into
+    *Add line ids on save* by it. An id the source already holds in two places is kept and reported, never renamed, and a line
+    that cannot take an id is named on the status line. Otherwise ids come from the Add line ids action or from a container whose
+    `autoLineIds` is on.
 9. **The agent's derive plan is not verified.** The derive offers send their request to the agent (*What a writer can do*,
     *Derive shots*), and the plan the agent proposes for it, its folder and its shots, needs a model that proposes shots, which
     no test drives.

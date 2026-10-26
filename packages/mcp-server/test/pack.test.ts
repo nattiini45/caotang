@@ -9,7 +9,15 @@ import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
-import { ARABIC_FONT_FILE, CJK_FONT_FILE, DEVANAGARI_FONT_FILE, EMOJI_FONT_FILE, HEBREW_FONT_FILE } from '@caotang/pdf-fonts';
+import {
+  ARABIC_FONT_FILE,
+  CJK_COMMON_FONT_FILE,
+  CJK_FONT_FILE,
+  DEVANAGARI_FONT_FILE,
+  EMOJI_COMMON_FONT_FILE,
+  EMOJI_FONT_FILE,
+  HEBREW_FONT_FILE,
+} from '@caotang/pdf-fonts';
 import { cjkFontCandidates, emojiFontCandidates } from '@caotang/pdf-fonts/node-loader';
 import { WEBP_DECODER_FILE, webpDecoderCandidates } from '@caotang/exporter/picture-transcoder-node';
 
@@ -231,18 +239,20 @@ describe('staging and packing', () => {
     expect(statSync(wasm).size).toBe(137960);
   });
 
-  it('has exactly one CJK, one emoji, one Arabic, one Hebrew and one Devanagari font to stage, from their packages, 8.2 MB together', () => {
+  it('has the CJK and emoji fonts with their common files, and one Arabic, one Hebrew and one Devanagari font to stage, from their packages, 13.9 MB together', () => {
     const require = createRequire(import.meta.url);
     const sizes = [
       `@caotang/font-noto-cjk/${CJK_FONT_FILE}`,
+      `@caotang/font-noto-cjk/${CJK_COMMON_FONT_FILE}`,
       `@caotang/font-noto-emoji/${EMOJI_FONT_FILE}`,
+      `@caotang/font-noto-emoji/${EMOJI_COMMON_FONT_FILE}`,
       `@caotang/font-noto-arabic/${ARABIC_FONT_FILE}`,
       `@caotang/font-noto-hebrew/${HEBREW_FONT_FILE}`,
       `@caotang/font-noto-devanagari/${DEVANAGARI_FONT_FILE}`,
     ].map((specifier) => statSync(require.resolve(specifier)).size);
-    expect(sizes).toEqual([10692940, 579236, 142140, 16836, 184228]);
+    expect(sizes).toEqual([10692940, 1956568, 579236, 298992, 142140, 16836, 184228]);
     // Against 25,065,212 bytes of four font files before the two PDFs shared one of each.
-    expect(sizes.reduce((sum, size) => sum + size, 0)).toBeLessThan(11_700_000);
+    expect(sizes.reduce((sum, size) => sum + size, 0)).toBeLessThan(14_000_000);
   });
 
   it('stages the fonts where the Node loader looks first, from the server bundle it stages', () => {

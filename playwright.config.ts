@@ -11,7 +11,7 @@ const isolated = process.env['CAOTANG_E2E_PORT'] !== undefined;
 const previewPort = Number(process.env['CAOTANG_E2E_PREVIEW_PORT'] ?? port + 1000);
 
 // The Firefox and WebKit projects exist only when CAOTANG_E2E_BROWSERS=all, so `pnpm test:e2e` on a machine (or a CI job) with only
-// Chromium installed keeps working. The nightly workflow sets it.
+// Chromium installed keeps working. The e2e-browsers workflow sets it for pull requests, nightly and on-demand runs.
 const crossBrowser = process.env['CAOTANG_E2E_BROWSERS'] === 'all';
 
 // CAOTANG_E2E_NO_SERVER=1 starts neither web server, for the one spec that needs none: the real-key round, which runs in the Node
@@ -27,8 +27,8 @@ const chromiumOnlySpecs = [/[\\/]e2e[\\/]unit[\\/]/, /prod-smoke\.spec\.ts/, /pr
  *
  * Four projects. `chromium` runs the suite against the dev server. `firefox` and `webkit` run it too, minus the specs that are
  * browser-independent or need Chromium (e2e/unit, the production smoke, the provider specs), so a writer in those browsers meets the
- * bundle-only storage path tested (File System Access is Chromium-only). They exist only with CAOTANG_E2E_BROWSERS=all, which the nightly
- * workflow .github/workflows/e2e-browsers.yml sets; a pull request's CI does not run them. `production-preview` runs only
+ * bundle-only storage path tested (File System Access is Chromium-only). They exist only with CAOTANG_E2E_BROWSERS=all, which the
+ * cross-browser workflow .github/workflows/e2e-browsers.yml sets for pull requests, nightly and on-demand runs. `production-preview` runs only
  * e2e/prod-smoke.spec.ts against `vite preview` of a fresh build, so a build-only failure (a root-absolute asset path, a
  * DEV-only hook) is caught here and not by a writer. The preview server builds before it starts, so it tests the source
  * this checkout holds.
