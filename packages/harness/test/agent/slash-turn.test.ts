@@ -23,10 +23,12 @@ import {
   type PermissionMode,
   type PlanStep,
   type RunEvent,
+  type RuleSet,
   type RunLogPort,
+  type SourcedRule,
   type TurnReport,
 } from '../../src/index.js';
-import { FRIEND, clock, makeState } from '../fixtures.js';
+import { FRIEND, LANDING, STORM, clock, makeState } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
 import { answer, prose, steps, transcript } from './scripts.js';
 
@@ -42,14 +44,18 @@ interface Built {
   readonly requests: ChatRequest[];
 }
 
-async function build(scripts: readonly MockScript[], extras: Partial<AgentSessionOptions> & { readonly decision?: Decision; readonly state?: ProjectState } = {}): Promise<Built> {
+async function build(
+  scripts: readonly MockScript[],
+  extras: Partial<AgentSessionOptions> & { readonly decision?: Decision; readonly state?: ProjectState; readonly rules?: readonly SourcedRule[] } = {},
+): Promise<Built> {
   const state = extras.state ?? makeState();
   const base = await mockGateway(scripts);
   const requests: ChatRequest[] = [];
   const gateway = { ...base, complete: (request: ChatRequest, signal?: AbortSignal) => (requests.push(request), base.complete(request, signal)) };
-  const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now });
+  const set: RuleSet = { rules: extras.rules ?? [] };
+  const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now, rules: () => set });
   const asked: PendingCard[] = [];
-  const { decision, state: _state, ...rest } = extras;
+  const { decision, state: _state, rules: _rules, ...rest } = extras;
   const session = createAgentSession({
     harness,
     gateway,
@@ -208,6 +214,45 @@ describe('the card of a command’s plan', () => {
       expect({ ...ours?.card, id: '', turnId: '' }).toEqual({ ...theirs?.card, id: '', turnId: '' });
     });
   }
+});
+
+describe('a command’s plan is held to the agent’s rules (agent-harness §4)', () => {
+  const draftStorm: PlanStep = { tool: 'scene.draft', params: { doc: STORM, instruction: 'Open.' }, expect: 'The Storm holds a draft' };
+  const note: PlanStep = { tool: 'notes.append', params: { doc: 'The Landing', text: 'Check the tide.' }, expect: 'noted' };
+
+  it('refuses a step a deny rule covers before its draft is asked for, and says why', async () => {
+    const run = await build([prose('Brief: Open.', 'Never drafted.')], { rules: [{ effect: 'deny', tool: 'scene.draft', source: 'project' }] });
+    const report = await run.session.submitPlan('Draft “The Storm”', { steps: [draftStorm] }, { command: 'draft' });
+    expect(report.status).toBe('failed');
+    expect(report.askBack?.reason).toContain('scene.draft');
+    expect(run.requests).toHaveLength(0);
+    expect(run.asked).toHaveLength(0);
+    expect(run.state.documents.get(STORM)?.body).not.toContain('Never drafted.');
+  });
+
+  it('refuses a draft in a subtree whose writes are denied, whatever the command', async () => {
+    const run = await build([prose('Brief: Open.', 'Never drafted.')], { rules: [{ effect: 'deny', tool: '*', source: 'project', scope: { subtree: STORM }, access: 'write' }] });
+    const report = await run.session.submitPlan('Draft “The Storm”', { steps: [draftStorm] }, { command: 'draft' });
+    expect(report.status).toBe('failed');
+    expect(run.requests).toHaveLength(0);
+  });
+
+  it('shows a card for a step an ask rule covers, in every mode', async () => {
+    for (const mode of ['ask', 'accept-edits', 'auto'] as PermissionMode[]) {
+      const run = await build([], { mode, rules: [{ effect: 'ask', tool: 'notes.append', source: 'project' }] });
+      const report = await run.session.submitPlan('Note on The Landing', { steps: [note] }, { command: 'plan' });
+      expect(run.asked, mode).toHaveLength(1);
+      expect(kinds(report), mode).toEqual([['confirm', 'approved']]);
+    }
+  });
+
+  it('cannot reach a document a read rule withholds: a scan of it is refused and nothing of it is read', async () => {
+    const run = await build([], { rules: [{ effect: 'deny', tool: '*', source: 'project', scope: { subtree: LANDING }, access: 'read' }] });
+    const report = await run.session.submitPlan('Scan “The Landing”', { steps: [{ tool: 'coherence.scan', params: { scope: { mode: 'doc', docIds: [LANDING] } }, expect: 'findings' }] }, { command: 'scan' });
+    expect(report.status).toBe('failed');
+    expect(report.trace.every((row) => row.outcome !== 'ok')).toBe(true);
+    expect(run.requests).toHaveLength(0);
+  });
 });
 
 describe('a plan of one read', () => {

@@ -180,7 +180,8 @@ function compile(command: BuiltinCommand, parsed: ParsedSlash, context: SlashCon
 export function resolveBuiltin(command: BuiltinCommand, parsed: ParsedSlash, context: SlashContext): SlashResolution {
   switch (command.name) {
     case 'help': {
-      const topic = parsed.head[0]?.replace(/^\//, '');
+      const word = parsed.head[0];
+      const topic = word?.startsWith('/') === true ? word.slice(1) : word;
       return { kind: 'session', action: 'help', command: 'help', ...(topic === undefined || topic === '' ? {} : { arg: topic.toLowerCase() }) };
     }
     case 'plan':
