@@ -96,3 +96,21 @@ test('the warning colour that marks an unknown status meets 4.5:1 on the same fo
     }
   }
 });
+
+/**
+ * Apply-then-review (editor-engine §15): the words an agent edit added and removed are drawn on a tint, and the text on that tint meets
+ * 4.5:1 in the light theme and both dark blocks. The tint is never the only cue: the insertion rule underlines and the deletion rule
+ * strikes through.
+ */
+test('review marks: the ink on the insertion and deletion tints meets 4.5:1 in every theme, and each mark has a cue besides colour', () => {
+  for (const theme of THEMES) {
+    for (const kind of ['add', 'del'] as const) {
+      const ink = theme.tokens[`suggest-${kind}-ink`] ?? '';
+      const background = theme.tokens[`suggest-${kind}-bg`] ?? '';
+      expect(background, `${theme.name} declares the ${kind} tint`).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(contrastOf(ink, background), `${theme.name}: ${ink} on ${background}`).toBeGreaterThanOrEqual(4.5);
+    }
+  }
+  expect(bodyOf(css, '.suggestion-insertion {')).toMatch(/text-decoration:\s*underline/);
+  expect(bodyOf(css, '.suggestion-deletion {')).toMatch(/text-decoration:\s*line-through/);
+});

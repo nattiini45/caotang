@@ -248,6 +248,29 @@ export interface AgentSnapshot {
   readonly tasks: readonly TaskView[];
   /** What the last slash command said under the Intent box (help, a missing argument, the context), or `null`. */
   readonly command: CommandNote | null;
+  /** The turns whose approved edits are still marked for review, with how many suggestions each has left (editor-engine §15). */
+  readonly reviews: readonly ReviewView[];
+}
+
+/** One turn's suggestions that wait for the writer to keep or put back. */
+export interface ReviewView {
+  readonly turnId: string;
+  readonly pending: number;
+}
+
+/** What one open editor holds marked, and the call that keeps or puts back a turn's suggestions in it. */
+export interface ReviewHold {
+  readonly views: readonly ReviewView[];
+  resolve(turnId: string, mode: 'accept' | 'reject'): number;
+}
+
+/** An agent apply that landed in the store, as the editor pane is told about it so it can show the edit as marks. */
+export interface AgentApply {
+  readonly docId: string;
+  /** The revision the editor asked about. */
+  readonly revision: number;
+  /** The id of the plan step that made the edit. The editor keeps it in its own map; no mark carries it. */
+  readonly toolCallId: string;
 }
 
 /** What the panel says when the queue waits after a turn that stopped on a question. */
@@ -324,6 +347,12 @@ export class AgentController {
   /** The text a scene's draft has streamed so far, by document, while the model writes it (agent-harness §8). */
   private readonly streams = new Map<string, string>();
   private message: string | null = null;
+  /** The steps whose approved drafts have not reached the editor of their document yet, by document, in the order they land (editor-engine §15). */
+  private readonly armed = new Map<string, string[]>();
+  /** The turn each approved step belongs to, by step id. */
+  private readonly appliedIn = new Map<string, string | null>();
+  /** What the open editors in review mode hold marked, by document (ReviewSide.tsx). */
+  private readonly reviewing = new Map<string, ReviewHold>();
   /** What the last slash command said under the Intent box. View state: never saved, never sent to a model. */
   private commandNote: CommandNote | null = null;
   private readonly listeners = new Set<() => void>();
@@ -415,6 +444,7 @@ export class AgentController {
       offer: this.offer?.view ?? null,
       tasks: this.tasks.snapshot().map((task) => viewOf(task, this.session.state)),
       command: this.commandNote,
+      reviews: [...this.reviewing.values()].flatMap((hold) => hold.views),
     };
   }
 
@@ -649,10 +679,24 @@ export class AgentController {
         held = 'The project’s images could not be listed again, so this export was not applied automatically. Approve it to try again.';
       }
     }
-    if (held === undefined) return;
+    if (held === undefined) {
+      // A card the mode approved lands as an approved one does: its drafts are remembered by scene, so review marks can show it.
+      this.armDrafts();
+      this.clearGhosts();
+      return;
+    }
     this.message = held;
     this.bump();
     return held;
+  }
+
+  /** The drafts about to land are remembered by scene, so the editor of each can tell this store change from an undo or a restore. */
+  private armDrafts(): void {
+    for (const view of this.ghosts) {
+      if (view.docId === null) continue;
+      this.armed.set(view.docId, [...(this.armed.get(view.docId) ?? []), view.callId]);
+      this.appliedIn.set(view.callId, this.runningTurnId);
+    }
   }
 
   /** How many turns this controller has started. A queued message counts once it starts, never while it waits. */
@@ -1092,6 +1136,7 @@ export class AgentController {
           this.bump();
           return;
         }
+        this.armDrafts();
         this.clearGhosts();
         // An approved compile lists the project's images again, as the export dialog's compile does (session.exportsReady): the
         // compile reads the listing it last made, and an image added since would be missing from the shot list. When the listing
@@ -1301,7 +1346,10 @@ export class AgentController {
     this.turns = this.turns.map((turn) => reduceTurn(turn, event, nameOf));
     if (event.type === 'ghost') this.addGhost(event);
     if (event.type === 'draft.delta') this.streamDraft(event);
-    if (event.type === 'report') this.clearGhosts();
+    if (event.type === 'report') {
+      this.clearGhosts();
+      this.armed.clear();
+    }
     this.bump();
   }
 
@@ -1602,6 +1650,46 @@ export class AgentController {
       if (known || task.status === 'ready') this.announcement = announcementFor(task) || this.announcement;
     }
     this.bump();
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Review (editor-engine §15)
+   * ------------------------------------------------------------------ */
+
+  /**
+   * The editor of `docId` asks whether the store change it just saw is the landing of a draft the writer approved. It is, once: the
+   * record is spent by the question, so an undo or a restore that follows is not mistaken for another apply. A scene drafted by
+   * more than one step answers with those steps in order. The controller remembers only the step per document: `revision` is
+   * echoed back as the caller passed it, never matched.
+   */
+  consumeApply(docId: string, revision: number): AgentApply | null {
+    const waiting = this.armed.get(docId);
+    const toolCallId = waiting?.shift();
+    if (toolCallId === undefined) return null;
+    if (waiting?.length === 0) this.armed.delete(docId);
+    return { docId, revision, toolCallId };
+  }
+
+  /** The turn that made the step `toolCallId`, or `null` when the controller does not know it. */
+  turnOf(toolCallId: string): string | null {
+    return this.appliedIn.get(toolCallId) ?? null;
+  }
+
+  /** An open editor in review mode says what it holds marked, so a turn's card can show and resolve it. `null` when it goes. */
+  setReview(docId: string, hold: ReviewHold | null): void {
+    if (hold === null) this.reviewing.delete(docId);
+    else this.reviewing.set(docId, hold);
+    this.bump();
+  }
+
+  /**
+   * Keeps (`accept`: nothing the store holds changes) or puts back (`reject`: the stored scenes change, as the writer's own edit) every
+   * suggestion the turn left. Returns how many were resolved.
+   */
+  resolveReview(turnId: string, mode: 'accept' | 'reject'): number {
+    let resolved = 0;
+    for (const hold of this.reviewing.values()) resolved += hold.resolve(turnId, mode);
+    return resolved;
   }
 
   /* ------------------------------------------------------------------ *

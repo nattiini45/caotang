@@ -8,7 +8,7 @@
  * Ctrl+Enter sends it to the running turn as a note, and Stop (or Escape, with the box empty) stops the turn.
  */
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import {
   CHECKPOINT_LABEL,
   MODE_LABELS,
@@ -29,6 +29,7 @@ import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, 
 import { formatUsd, turnCostOf } from '../app/plan-preview.js';
 import { resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
+import { UNRESOLVED_NOTICE } from '../app/review-text.js';
 import type { AgentController, AgentSnapshot } from '../app/agent.js';
 import type { CommandNote } from '../app/slash-model.js';
 import type { RecurringTasks } from '../app/recurring-tasks.js';
@@ -48,6 +49,9 @@ import { TaskOffers } from './TaskOffers.js';
 import { InterruptedRuns } from './InterruptedRuns.js';
 import { TaskChecklist } from './TaskChecklist.js';
 import { TurnMenu } from './TurnMenu.js';
+
+/** Fetched when a turn has suggestions pending, which only an editor in review mode makes. */
+const TurnReview = lazy(() => import('./TurnReview.js').then((module) => ({ default: module.TurnReview })));
 
 export interface AgentPanelProps {
   readonly session: ProjectSession;
@@ -403,6 +407,10 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
                     onRestoreStep={(turnId, summary, stepId) => openRestore(restoreOf(agent, turnId, summary, false, stepId))}
                     onRewind={rewind}
                     onRunHeld={(turnId) => void agent.runHeldPlan(turnId)}
+                    onResolveReview={(turnId, mode) => {
+                      // The card offers this only while it shows a pending count, so nothing settled means the marks are still there.
+                      if (agent.resolveReview(turnId, mode) === 0) report({ text: UNRESOLVED_NOTICE, tone: 'info' });
+                    }}
                   />
                 ));
                 return run.rewound ? (
@@ -552,6 +560,7 @@ function TurnBlock({
   onRestoreStep,
   onRewind,
   onRunHeld,
+  onResolveReview,
 }: {
   turn: TurnView;
   snapshot: AgentSnapshot;
@@ -573,6 +582,8 @@ function TurnBlock({
   onRewind: (turnId: string) => void;
   /** Switches to Ask and runs the writes Plan only refused in the turn. */
   onRunHeld: (turnId: string) => void;
+  /** Keeps or puts back the suggestions this turn's edits still have marked in the editor (editor-engine §15). */
+  onResolveReview: (turnId: string, mode: 'accept' | 'reject') => void;
 }): ReactNode {
   const live = snapshot.pending !== null && snapshot.pending.turnId === turn.turnId;
   const settled = isSettled(turn);
@@ -663,6 +674,12 @@ function TurnBlock({
               : undefined
           }
         />
+      ) : null}
+
+      {snapshot.reviews.length > 0 ? (
+        <Suspense fallback={null}>
+          <TurnReview turnId={turn.turnId} reviews={snapshot.reviews} onResolve={onResolveReview} />
+        </Suspense>
       ) : null}
 
       {turn.steering.length > 0 ? (

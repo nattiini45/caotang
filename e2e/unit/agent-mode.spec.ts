@@ -180,3 +180,65 @@ test('a macro’s held steps are retried under the macro’s command, so the ret
   expect((await running)?.status).toBe('applied');
   await session.close();
 });
+
+test('Accept edits records the applied draft for its editor, so review marks can show it, and a card held for unsaved typing records none', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const { session, controller } = await controllerOver(state, store);
+  const friend = state.manifest.tree.find((node) => node.title === 'The Friend')?.id ?? '';
+  // The editor asks on the store change that lands the text, as EditorPane does.
+  const asked: ReturnType<AgentController['consumeApply']>[] = [];
+  session.subscribe(() => {
+    if (getBody(state, friend) === '') return;
+    asked.push(controller.consumeApply(friend, 1));
+  });
+  controller.setMode('accept-edits');
+  const report = await controller.submit(DEMO_INTENTS.draftScene);
+  expect(report?.status).toBe('applied');
+  expect(getBody(state, friend).startsWith('The ferry came in')).toBe(true);
+  const apply = asked.find((entry) => entry !== null);
+  expect(apply).toMatchObject({ docId: friend, revision: 1 });
+  const call = (apply as { toolCallId: string }).toolCallId;
+  expect(controller.turnOf(call)).toBe(report?.turnId);
+  // The record is spent by the question: a later change to the scene is not taken for another apply.
+  expect(controller.consumeApply(friend, 2)).toBeNull();
+  await session.close();
+});
+
+test('Accept edits records no apply for a draft whose card was held for the writer’s unsaved typing', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const { session, controller } = await controllerOver(state, store);
+  const friend = state.manifest.tree.find((node) => node.title === 'The Friend')?.id ?? '';
+  const saves = session.autosave as unknown as { flush: () => Promise<{ docId: string; outcome: string }[]> };
+  saves.flush = async () => [{ docId: 'any', outcome: 'failed' }];
+  controller.setMode('accept-edits');
+  const running = controller.submit(DEMO_INTENTS.draftScene);
+  await until(() => controller.snapshot().pending !== null, 'the held card to wait for the writer');
+  expect(controller.consumeApply(friend, 1)).toBeNull();
+  controller.answer({ action: 'cancel' });
+  await running;
+  await session.close();
+});
+
+test('a scene drafted by two steps of one card answers each store change with its own step, in order, and a question about another scene spends nothing', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const { session, controller } = await controllerOver(state, store);
+  const friend = state.manifest.tree.find((node) => node.title === 'The Friend')?.id ?? '';
+  const other = state.manifest.tree.find((node) => node.type === 'document' && node.id !== friend)?.id ?? '';
+  const inner = controller as unknown as { onEvent: (event: unknown) => void; armDrafts: () => void; runningTurnId: string | null };
+  const ghost = (callId: string) => ({ type: 'ghost', callId, docTitle: 'The Friend', text: `Draft ${callId}.`, words: 2 });
+  inner.onEvent(ghost('call-1'));
+  inner.onEvent(ghost('call-2'));
+  inner.runningTurnId = 'turn-1';
+  inner.armDrafts();
+  // The question is about the revision it was asked with; another scene's question neither answers nor spends this one's record.
+  expect(controller.consumeApply(other, 1)).toBeNull();
+  expect(controller.consumeApply(friend, 1)).toMatchObject({ docId: friend, revision: 1, toolCallId: 'call-1' });
+  expect(controller.consumeApply(friend, 2)).toMatchObject({ docId: friend, revision: 2, toolCallId: 'call-2' });
+  expect(controller.consumeApply(friend, 3)).toBeNull();
+  expect(controller.turnOf('call-1')).toBe('turn-1');
+  expect(controller.turnOf('call-2')).toBe('turn-1');
+  await session.close();
+});

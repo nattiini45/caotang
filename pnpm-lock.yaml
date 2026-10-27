@@ -423,6 +423,9 @@ importers:
       '@caotang/store':
         specifier: workspace:*
         version: link:../store
+      '@handlewithcare/prosemirror-suggest-changes':
+        specifier: 0.1.8
+        version: 0.1.8(prosemirror-model@1.25.12)(prosemirror-state@1.4.4)(prosemirror-transform@1.12.2)(prosemirror-view@1.42.6)
       '@handlewithcare/remark-prosemirror':
         specifier: 0.1.5
         version: 0.1.5(prosemirror-model@1.25.12)
@@ -1143,6 +1146,14 @@ packages:
     peerDependenciesMeta:
       '@noble/hashes':
         optional: true
+
+  '@handlewithcare/prosemirror-suggest-changes@0.1.8':
+    resolution: {integrity: sha512-ewrJl4a8dTpPJNhqYySE2ZCjTRpXulWlUmFy3sbyJgPnGtN/zx7+8tbQ1OhHfMzZWfdmA8VjP9ecy+KO4HdOpA==}
+    peerDependencies:
+      prosemirror-model: ^1.0.0
+      prosemirror-state: ^1.0.0
+      prosemirror-transform: ^1.0.0
+      prosemirror-view: ^1.0.0
 
   '@handlewithcare/remark-prosemirror@0.1.5':
     resolution: {integrity: sha512-HLDQJLKyvvLs8F62xR9ufWl42PDHOzJbRYL5zoAiBWTrx+6mqyBOZrB7ZygLtt9Q8kW1g57GSXJLh+ScUA/Rwg==}
@@ -3300,6 +3311,13 @@ snapshots:
       levn: 0.4.1
 
   '@exodus/bytes@1.16.0': {}
+
+  '@handlewithcare/prosemirror-suggest-changes@0.1.8(prosemirror-model@1.25.12)(prosemirror-state@1.4.4)(prosemirror-transform@1.12.2)(prosemirror-view@1.42.6)':
+    dependencies:
+      prosemirror-model: 1.25.12
+      prosemirror-state: 1.4.4
+      prosemirror-transform: 1.12.2
+      prosemirror-view: 1.42.6
 
   '@handlewithcare/remark-prosemirror@0.1.5(prosemirror-model@1.25.12)':
     dependencies:
