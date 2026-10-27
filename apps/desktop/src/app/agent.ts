@@ -678,10 +678,24 @@ export class AgentController {
         held = 'The project’s images could not be listed again, so this export was not applied automatically. Approve it to try again.';
       }
     }
-    if (held === undefined) return;
+    if (held === undefined) {
+      // A card the mode approved lands as an approved one does: its drafts are remembered by scene, so review marks can show it.
+      this.armDrafts();
+      this.clearGhosts();
+      return;
+    }
     this.message = held;
     this.bump();
     return held;
+  }
+
+  /** The drafts about to land are remembered by scene, so the editor of each can tell this store change from an undo or a restore. */
+  private armDrafts(): void {
+    for (const view of this.ghosts) {
+      if (view.docId === null) continue;
+      this.armed.set(view.docId, view.callId);
+      this.appliedIn.set(view.callId, this.runningTurnId);
+    }
   }
 
   /** How many turns this controller has started. A queued message counts once it starts, never while it waits. */
@@ -1121,12 +1135,7 @@ export class AgentController {
           this.bump();
           return;
         }
-        // The drafts about to land are remembered by scene, so the editor of each can tell this store change from an undo or a restore.
-        for (const view of this.ghosts) {
-          if (view.docId === null) continue;
-          this.armed.set(view.docId, view.callId);
-          this.appliedIn.set(view.callId, this.runningTurnId);
-        }
+        this.armDrafts();
         this.clearGhosts();
         // An approved compile lists the project's images again, as the export dialog's compile does (session.exportsReady): the
         // compile reads the listing it last made, and an image added since would be missing from the shot list. When the listing
