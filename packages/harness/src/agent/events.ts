@@ -16,6 +16,7 @@ import type { PlanCardView, PlanEdit, StatusCard } from './cards.js';
 import type { BudgetSpend, BudgetStop, RunLimits } from './budget.js';
 import type { Finding } from './drafting.js';
 import type { BudgetUse, PermissionMode } from './mode.js';
+import type { ContinuityReport, Critique, ReviewNotice } from './roles.js';
 
 /** One tool call as it ran, in order. An eval's trace matcher reads these (agent-harness §9). */
 export interface TraceEntry {
@@ -153,6 +154,24 @@ export type AgentEvent =
   | { readonly type: 'card'; readonly turnId: string; readonly card: StatusCard }
   /** `auto` marks a card the mode's policy approved instead of the writer (agent-harness §4): it is shown collapsed, with an auto-approved badge. */
   | { readonly type: 'plan'; readonly turnId: string; readonly card: PlanCardView; readonly auto?: true }
+  /**
+   * The draft review has begun (agent-harness §8, "Draft review"): the scene's draft is in hand and the critic's call is in flight. The panel shows
+   * "Reviewing draft…" with a Skip review control until the draft's `review` event arrives. Only a session with the review on emits it.
+   */
+  | { readonly type: 'review.start'; readonly turnId: string; readonly docTitle: string }
+  /**
+   * What the review found, emitted once for a draft just before its `ghost` event (agent-harness §8). Advisory: a half that did not run or
+   * could not be read is a notice, and the draft is shown whatever the review did. Absent for a session with the review off.
+   */
+  | {
+      readonly type: 'review';
+      readonly turnId: string;
+      readonly callId: string;
+      readonly docTitle: string;
+      readonly critique?: Critique;
+      readonly continuity?: ContinuityReport;
+      readonly notices: readonly ReviewNotice[];
+    }
   /** The ghost-preview handoff (agent-harness §8): a generated draft, waiting for apply, retry or discard. */
   | { readonly type: 'ghost'; readonly turnId: string; readonly callId: string; readonly docTitle: string; readonly text: string; readonly words: number; readonly cut?: boolean }
   | { readonly type: 'findings'; readonly turnId: string; readonly callId: string; readonly findings: readonly Finding[] }

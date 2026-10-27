@@ -1,7 +1,7 @@
 /**
  * The prompt manifest golden (agent-harness §9): every text Caotang sends a model that is not the writer's own, hashed, with the
  * full text beside it in `prompt-manifest.md`. The planner's system message on both wires, the native tool declarations, every
- * draft role, the review prompts, the delegated agents' roles, and the description of every registry row.
+ * draft role, the review prompts, the delegated agents' roles, the draft review's critic, and the description of every registry row.
  *
  * Two failures, so the reason is plain. A text changed: read the diff of `prompt-manifest.md`, then rewrite both files with
  * `CAOTANG_UPDATE_GOLDEN=1` and review them like a context golden. A tool's description changed and its `descriptionVersion` did
@@ -17,7 +17,7 @@ import { extractionPrompt, verificationPrompt } from '@caotang/coherence';
 
 import { DERIVE_SCHEMA_HINT, deriveRole } from '../../src/agent/storyboard-model.js';
 import { continuityRole, dialogueRole, sceneRole, synopsisRole } from '../../src/agent/drafting.js';
-import { MORE_TOOLS_LINE, TOOL_METADATA, SUBAGENT_SPECS, UNTRUSTED_RULE, createProductHarness, plannerSystem, plannerSystemNative, plannerToolDefs } from '../../src/index.js';
+import { CRITIC, MORE_TOOLS_LINE, TOOL_METADATA, SUBAGENT_SPECS, UNTRUSTED_RULE, createProductHarness, plannerSystem, plannerSystemNative, plannerToolDefs } from '../../src/index.js';
 import { makeState } from '../fixtures.js';
 
 const DIR = __dirname;
@@ -92,6 +92,8 @@ function sources(): readonly Source[] {
     { id: 'review.verification.system', text: verification.system },
     { id: 'review.verification.schema', text: JSON.stringify(verification.jsonSchemaHint) },
     ...Object.values(SUBAGENT_SPECS).map((spec): Source => ({ id: `subagent.${spec.name}`, text: spec.system, descriptionVersion: spec.descriptionVersion })),
+    // The draft review's critic (agent-harness §8): the one role with a text of its own. The drafter's is `draft.scene.*` above.
+    { id: 'role.critic', text: CRITIC.system ?? '', descriptionVersion: CRITIC.descriptionVersion },
     ...TOOL_METADATA.map((meta): Source => ({ id: `tool.${meta.name}`, text: meta.description, descriptionVersion: meta.descriptionVersion })),
   ];
   return out;

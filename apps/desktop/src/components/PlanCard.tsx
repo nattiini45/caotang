@@ -274,6 +274,13 @@ function StepRow({
 
       <ExpectField step={step} live={live} onEdit={onEdit} />
 
+      {/* The draft review is on for this scene draft (agent-harness §8): its one more call, in words. No dollar figure: only a coherence review's plan is priced. */}
+      {step.review === undefined ? null : (
+        <p className="plan-step-review muted" data-testid="plan-step-review">
+          Draft review is on: {step.review}.
+        </p>
+      )}
+
       {step.error !== undefined ? <p className="plan-step-error">{refusalSentence(step.error.message, step.error.correctiveHint)}</p> : null}
 
       {/* A hook that warned about the step (hooks.md §3): the step can still be approved, and the hook's words are here. */}

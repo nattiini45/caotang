@@ -10,11 +10,17 @@ import {
   delegationViewOf,
   documentIdFor,
   draftCheckOf,
+  REVIEW_CATEGORY_LABELS,
+  REVIEW_SEVERITY_LABELS,
   elapsedOf,
+  highlightsOf,
+  locateQuote,
   newTurnView,
   phaseLabel,
   proposedByWords,
   reduceTurn,
+  reviewSummary,
+  reviewViewOf,
   spendLine,
   stepMenuOf,
   type GhostView,
@@ -222,7 +228,7 @@ function cardOf(steps: readonly PlanStepView[]): PlanCardView {
 }
 
 function draftOf(docTitle: string, callId: string, docId: string | null): GhostView {
-  return { callId, docTitle, docId, text: `Prose for ${docTitle}.`, words: 3, cut: false };
+  return { callId, docTitle, docId, text: `Prose for ${docTitle}.`, words: 3, cut: false, review: null };
 }
 
 test('a drafted scene can be approved only once its draft has been on screen, and the card says which draft is still unseen', () => {
@@ -443,4 +449,90 @@ test('a step of a finished turn gets a rewind menu when its restore would take s
   expect(stepMenuOf({ tool: 'mcp__s_STORYB0002__write_note', status: 'failed' }, false)).toEqual({ show: false });
   // The note rides with the restorable menu of an outside step that also registered a Caotang change.
   expect(stepMenuOf({ tool: 'mcp__s_STORYB0002__write_note', status: 'done' }, true).show).toBe(true);
+});
+
+/**
+ * The draft review (agent-harness §8, "Draft review"): the events fold into the turn's status line, and a review event becomes the ghost's
+ * read-only list. The critic's quotes are located in the draft by the edit-anchor ladder, and a quote the ladder cannot find is listed unmarked,
+ * never dropped.
+ */
+const REVIEW_DRAFT = 'The ferry came in on the evening tide. Elena was not on it. The ferry was late, as always.';
+
+function reviewEvent(overrides: Partial<Extract<AgentEvent, { type: 'review' }>> = {}): Extract<AgentEvent, { type: 'review' }> {
+  return {
+    type: 'review',
+    turnId: TURN,
+    callId: 'c1',
+    docTitle: 'The Friend',
+    critique: {
+      notes: [
+        { id: `${TURN}/critic/n0`, category: 'brief', severity: 'high', quote: 'Elena was not on it.', note: 'The brief says the friend brings news of Elena.', suggestion: 'Say what the news is.' },
+        { id: `${TURN}/critic/n1`, category: 'voice', severity: 'low', quote: 'a paraphrase the draft never says', note: 'The narrator drifts.' },
+        { id: `${TURN}/critic/n2`, category: 'pacing', severity: 'medium', quote: '', note: 'The scene is slow to start.' },
+      ],
+    },
+    continuity: {
+      introduced: [{ checkId: 'presence.expected', type: 'expected-absent', severity: 'error', factGroup: 'g', evidence: [], message: '"Kestrel" is expected in "The Friend" but is never named there' }],
+      omitted: 2,
+    },
+    notices: [],
+    ...overrides,
+  };
+}
+
+test('the review starts a status line, and the review event, the card or the report ends it', () => {
+  const start: AgentEvent = { type: 'review.start', turnId: TURN, docTitle: 'The Friend' };
+  expect(fold([start]).reviewing).toBe('The Friend');
+  expect(fold([start, reviewEvent()]).reviewing).toBeNull();
+  expect(fold([start, { type: 'plan', turnId: TURN, card: cardOf([stepOf(0, 'scene.draft', { doc: 'The Friend' })]) }]).reviewing).toBeNull();
+  expect(newTurnView(TURN, 'x').reviewing).toBeNull();
+});
+
+test('a review event is the ghost’s list: notes with their words, found quotes marked, an unfound quote kept and said to be missing', () => {
+  const review = reviewViewOf(reviewEvent(), REVIEW_DRAFT);
+  expect(review.critiqued).toBe(true);
+  expect(review.notes.map((note) => [note.category, note.severity, note.range])).toEqual([
+    ['brief', 'high', { from: 39, to: 59 }],
+    ['voice', 'low', null],
+    ['pacing', 'medium', null],
+  ]);
+  expect(REVIEW_DRAFT.slice(39, 59)).toBe('Elena was not on it.');
+  expect(review.notes[0]?.suggestion).toBe('Say what the news is.');
+  expect(review.notes[1]).not.toHaveProperty('suggestion');
+  expect(highlightsOf(review)).toEqual([{ from: 39, to: 59 }]);
+  expect(review.introduced).toEqual([
+    { checkId: 'presence.expected', label: 'A character expected in a scene is never named there', severity: 'error', message: '"Kestrel" is expected in "The Friend" but is never named there' },
+  ]);
+  expect(review.omitted).toBe(2);
+  expect(reviewSummary(review)).toBe('3 notes from the critic; applying it introduces 3 continuity findings.');
+  expect(REVIEW_CATEGORY_LABELS.pov).toBe('Point of view');
+  expect(REVIEW_SEVERITY_LABELS.high).toBe('High');
+});
+
+test('markup in a note stays text: the view holds the string as it came and nothing parses it', () => {
+  const hostile = '<img src=x onerror=alert(1)> <b>bold</b>';
+  const review = reviewViewOf(reviewEvent({ critique: { notes: [{ id: 'n', category: 'clarity', severity: 'low', quote: hostile, note: hostile, suggestion: hostile }] } }), `A line. ${hostile}`);
+  expect(review.notes[0]).toMatchObject({ quote: hostile, note: hostile, suggestion: hostile, range: { from: 8, to: 8 + hostile.length } });
+});
+
+test('a review whose halves did not run says so, with its notices, and a review with nothing to say reads as nothing found', () => {
+  const noCritic = reviewViewOf(reviewEvent({ critique: undefined, notices: [{ key: 'critic.budget', message: 'The review was skipped: this turn has no model call left for it.' }] }), REVIEW_DRAFT);
+  expect(noCritic.critiqued).toBe(false);
+  expect(noCritic.notices.map((notice) => notice.key)).toEqual(['critic.budget']);
+  expect(reviewSummary(noCritic)).toBe('Applying it introduces 3 continuity findings.');
+  const neither = reviewViewOf(reviewEvent({ critique: undefined, continuity: undefined }), REVIEW_DRAFT);
+  expect(neither.introduced).toBeNull();
+  expect(reviewSummary(neither)).toBe('The review did not run.');
+  const clean = reviewViewOf(reviewEvent({ critique: { notes: [] }, continuity: { introduced: [], omitted: 0 } }), REVIEW_DRAFT);
+  expect(reviewSummary(clean)).toBe('The critic found nothing to note; applying it introduces no continuity finding.');
+  expect(highlightsOf(null)).toEqual([]);
+});
+
+test('locateQuote finds a quote with the ladder, takes the first occurrence of a repeated one, and does not find text that is not there', () => {
+  expect(locateQuote('The ferry', REVIEW_DRAFT)).toEqual({ from: 0, to: 9 });
+  expect(locateQuote('The ferry was late', REVIEW_DRAFT)).toEqual({ from: 60, to: 78 });
+  expect(locateQuote('  Elena was not on it.  ', REVIEW_DRAFT)).toEqual({ from: 39, to: 59 });
+  expect(locateQuote('Kestrel circled the lamp twice.', REVIEW_DRAFT)).toBeNull();
+  expect(locateQuote('', REVIEW_DRAFT)).toBeNull();
+  expect(locateQuote('x'.repeat(2_500), REVIEW_DRAFT)).toBeNull();
 });

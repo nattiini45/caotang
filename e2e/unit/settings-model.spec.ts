@@ -16,7 +16,7 @@ import {
 
 test.describe('settings (ui-modules §5.1)', () => {
   test('the Agent slice loads off, reads only a true as on, and a patch changes it alone', () => {
-    const off = { loadEveryTool: false, keepTraces: true, defaultMode: 'ask', lockAuto: false, budget: {}, rules: [] };
+    const off = { loadEveryTool: false, reviewDrafts: false, keepTraces: true, defaultMode: 'ask', lockAuto: false, budget: {}, rules: [] };
     expect(DEFAULT_SETTINGS.agent).toEqual(off);
     // A record written before the slice existed has none, which reads as off.
     expect(normalizeSettings({ editor: {} }).agent).toEqual(off);
@@ -26,6 +26,17 @@ test.describe('settings (ui-modules §5.1)', () => {
     expect(on.agent.loadEveryTool).toBe(true);
     expect(on.editor).toEqual(DEFAULT_SETTINGS.editor);
     expect(applyPatch(on, { editor: { autosaveDebounceMs: 1200 } }).agent.loadEveryTool).toBe(true);
+  });
+
+  test('Review drafts before showing them loads off, reads only a true as on, and a patch changes it alone', () => {
+    expect(DEFAULT_SETTINGS.agent.reviewDrafts).toBe(false);
+    expect(normalizeSettings({ agent: { reviewDrafts: 'yes' } }).agent.reviewDrafts).toBe(false);
+    expect(normalizeSettings({ agent: { reviewDrafts: 1 } }).agent.reviewDrafts).toBe(false);
+    expect(normalizeSettings({ agent: { reviewDrafts: true } }).agent.reviewDrafts).toBe(true);
+    const on = applyPatch(DEFAULT_SETTINGS, { agent: { reviewDrafts: true } });
+    expect(on.agent).toEqual({ ...DEFAULT_SETTINGS.agent, reviewDrafts: true });
+    expect(applyPatch(on, { agent: { loadEveryTool: true } }).agent.reviewDrafts).toBe(true);
+    expect(applyPatch(on, { agent: { reviewDrafts: false } }).agent.reviewDrafts).toBe(false);
   });
 
   test('the permission mode loads field by field: Ask unless the record names a mode, and never Auto while Auto is off (agent-harness §4)', () => {

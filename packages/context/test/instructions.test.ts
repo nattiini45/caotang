@@ -60,6 +60,7 @@ describe('LI renders between L0 and L1', () => {
       'continuity.scan': { tool: 'continuity.scan', instruction: 'Find drift.', scope: [IDS.ch1, IDS.ch2] },
       'synopsis.fill': { tool: 'synopsis.fill', instruction: 'Summarise.', focus: FOCUS_ID },
       delegate: { tool: 'delegate', instruction: 'Brief.', scope: [IDS.ch1] },
+      critic: { tool: 'critic', instruction: 'Brief.', focus: FOCUS_ID },
       meta: META,
     };
     for (const [tool, task] of Object.entries(tasks)) {

@@ -66,6 +66,7 @@
  * the agent has no tool for either, and nothing here is saved: a reload starts both again.
  */
 
+import type { DeterministicCheckId } from '@caotang/coherence';
 import type { GhostPreview } from '@caotang/editor/tiptap';
 import type { ProfileView, TaskRole } from '@caotang/gateway';
 import {
@@ -107,7 +108,7 @@ import {
 import { newId } from '@caotang/ids';
 import { createRunLogPort, nodeById } from '@caotang/store';
 
-import { documentIdFor, draftCheckOf, newTurnView, reduceTurn, spendLine, type DraftCheck, type GhostView, type TurnView } from './agent-model.js';
+import { documentIdFor, draftCheckOf, highlightsOf, newTurnView, reduceTurn, reviewViewOf, spendLine, type DraftCheck, type GhostView, type TurnView } from './agent-model.js';
 import { fixPlanFor } from './findings-model.js';
 import { DEFAULT_AGENT_SETTINGS, type AgentSettings } from './settings.js';
 import { requestInkCompilerFor } from './ink-compiler.js';
@@ -236,6 +237,8 @@ export interface AgentSnapshot {
   readonly providerIsDemo: boolean;
   /** The drafts of the card the loop is showing: one for each drafted scene. */
   readonly ghosts: readonly GhostView[];
+  /** The title of the scene whose draft the critic is reading now (agent-harness §8, "Draft review"), or `null`. The panel shows it with Skip review. */
+  readonly draftReview: string | null;
   /** What the pending card's drafts need before it can be approved, or `null` when no card waits. */
   readonly drafts: DraftCheck | null;
   /** Whether the pending card may be approved now: it is approvable, and every draft has been on screen. */
@@ -338,6 +341,8 @@ export class AgentController {
   private readonly heldRun = new Set<string>();
   /** The drafts of the card the loop is showing. Each is a value of its own, so a draft shown for an earlier card is never this one. */
   private ghosts: GhostView[] = [];
+  /** The `review` events of the drafts the loop is showing, by the call each belongs to: a review comes just before its ghost. */
+  private readonly reviewEvents = new Map<string, Extract<AgentEvent, { type: 'review' }>>();
   /** The drafts that have been on screen in their scene while their card is shown. */
   private readonly previewed = new Set<GhostView>();
   /** The documents whose editor is on screen now. A draft is on screen only in one of these. */
@@ -383,6 +388,8 @@ export class AgentController {
     background: BackgroundOptions = {},
     /** The Agent settings, read at each card and turn so a change in Settings applies to the next one (agent-harness §4). */
     private readonly agentSettings: () => AgentSettings = () => DEFAULT_AGENT_SETTINGS,
+    /** The deterministic checks the draft review's continuity pass runs: the ones Settings › Coherence has on. Absent, every check a what-if scan can run. */
+    private readonly reviewChecks: () => readonly DeterministicCheckId[] | undefined = () => undefined,
   ) {
     this.tasks = new TaskQueue({
       projectId: session.projectId,
@@ -437,6 +444,7 @@ export class AgentController {
       providerName: active?.name ?? null,
       providerIsDemo: active?.kind === 'mock',
       ghosts: this.ghosts,
+      draftReview: this.turns.find((turn) => turn.turnId === this.runningTurnId)?.reviewing ?? null,
       drafts,
       approvable: this.pending !== null && this.pending.card.approvable && (drafts === null || drafts.blocked === null),
       message: this.message,
@@ -981,6 +989,17 @@ export class AgentController {
   }
 
   /**
+   * Skips the draft review in flight (agent-harness §8, "Draft review"): the critic's call is aborted, the draft is shown with a notice, and
+   * the turn goes on. It is not Stop: only the review's own call is cut short.
+   */
+  skipReview(): void {
+    if (this.runningAgent === null || this.runningTurnId === null) return;
+    if (!this.runningAgent.skipReview(this.runningTurnId)) return;
+    this.announcement = 'Skipping the review.';
+    this.bump();
+  }
+
+  /**
    * Sends the running turn a note, which the model reads at its next request. While a card waits the note is not sent: the panel
    * offers Send with Cancel and Queue as next turn, and neither approves or drops the card behind the writer's back.
    */
@@ -1343,6 +1362,7 @@ export class AgentController {
     const tree = this.session.state.manifest.tree;
     const nameOf = (ref: string): string => tree.find((node) => node.id === ref)?.title ?? ref;
     this.turns = this.turns.map((turn) => reduceTurn(turn, event, nameOf));
+    if (event.type === 'review') this.reviewEvents.set(event.callId, event);
     if (event.type === 'ghost') this.addGhost(event);
     if (event.type === 'draft.delta') this.streamDraft(event);
     if (event.type === 'report') {
@@ -1358,6 +1378,7 @@ export class AgentController {
 
   private addGhost(event: Extract<AgentEvent, { type: 'ghost' }>): void {
     const docId = documentIdFor(this.session.state.manifest.tree, event.docTitle);
+    const reviewed = this.reviewEvents.get(event.callId);
     const view: GhostView = {
       callId: event.callId,
       docTitle: event.docTitle,
@@ -1365,6 +1386,7 @@ export class AgentController {
       text: event.text,
       words: event.words,
       cut: event.cut === true,
+      review: reviewed === undefined ? null : reviewViewOf(reviewed, event.text),
     };
     this.ghosts = [...this.ghosts, view];
     if (docId === null) return;
@@ -1408,6 +1430,8 @@ export class AgentController {
     if (ghost === undefined || view === undefined) return;
     ghost.clear();
     ghost.append(view.text);
+    // The spans the critic's notes quote, marked in the ghost only (editor-engine §8). A note whose quote was not found marks nothing.
+    ghost.highlight(highlightsOf(view.review));
     if (this.visibleDocs.has(docId)) this.previewed.add(view);
   }
 
@@ -1451,6 +1475,7 @@ export class AgentController {
     for (const docId of this.streams.keys()) this.editors.get(docId)?.clear();
     this.streams.clear();
     this.ghosts = [];
+    this.reviewEvents.clear();
     this.previewed.clear();
   }
 
@@ -1589,6 +1614,9 @@ export class AgentController {
       clock: this.clock,
       trace: this.traceSink,
       loadEveryTool: this.loadEveryTool,
+      // Settings › Providers, "Review drafts before showing them": read at the start of each turn (agent-harness §8).
+      review: () => this.agentSettings().reviewDrafts,
+      reviewChecks: this.reviewChecks,
       beforeStage: (offer) => this.askOffer(offer),
       mode: () => this.mode(),
       lockAuto: () => this.agentSettings().lockAuto,

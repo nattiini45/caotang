@@ -52,6 +52,8 @@ export interface ModelCall {
   readonly toolChoice?: 'auto' | 'none';
   /** The session's effort level, when it pins one — passed to the request as `thinking`. */
   readonly thinking?: ThinkingLevel;
+  /** The sampling temperature, when the call fixes one: the critic reads at 0. Absent, the provider's own default applies. */
+  readonly temperature?: number;
   readonly onDelta?: (text: string) => void;
   /**
    * The call's reasoning deltas as they stream (provider-gateway §3). The panel folds them into its "Thinking" block;
@@ -132,6 +134,7 @@ export async function complete(call: ModelCall, messages: readonly ChatMessage[]
     ...(responseFormat === undefined ? {} : { responseFormat }),
     ...(call.tools === undefined || call.tools.length === 0 ? {} : { tools: call.tools, toolChoice: call.toolChoice ?? 'auto' }),
     ...(call.thinking === undefined ? {} : { thinking: call.thinking }),
+    ...(call.temperature === undefined ? {} : { temperature: call.temperature }),
   };
   const { signal } = call;
   const stopped = (): boolean => signal?.aborted === true;

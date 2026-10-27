@@ -146,6 +146,11 @@ export interface Expectation {
    * `preflight` needs neither.
    */
   readonly reached?: Readonly<Record<string, ReachedBy>>;
+  /**
+   * The draft review's `review` events (agent-harness §8): how many the turn emitted. Every run is held to the invariant behind it: a `review` event is
+   * followed at once by the `ghost` of its own call, and a turn that reviewed nothing emits none.
+   */
+  readonly reviews?: number;
   /** The turn's prompt and completion tokens together, at most this many. */
   readonly maxTokens?: number;
   readonly maxModelCalls?: number;
@@ -198,6 +203,8 @@ export interface Scenario {
   readonly slash?: string;
   /** Deferred rows loaded before the planner's first request, as `submit(intent, { preload })` does. */
   readonly preload?: readonly ToolName[];
+  /** The session's draft review (Settings › "Review drafts before showing them", agent-harness §8). Absent, the option is not given, which is the same as off. */
+  readonly review?: boolean;
   /**
    * The app's lookup of the writer's reviews, as `HarnessOptions.skills` takes it. Given, the harness offers the project's skills as the
    * app does, and a turn that has a skill on offer preloads `skill.load` itself. Absent, the harness has no skills, as the outward server has none.
@@ -371,6 +378,7 @@ export async function runScenario(scenario: Scenario, options: { readonly trace?
     ...(sink === undefined || clock === undefined ? {} : { trace: sink, clock: () => clock.now() }),
     ...(scenario.maxRetries === undefined ? {} : { maxRetries: scenario.maxRetries }),
     ...(scenario.modelCallBound === undefined ? {} : { maxModelCalls: scenario.modelCallBound }),
+    ...(scenario.review === undefined ? {} : { review: scenario.review }),
     ...(scenario.modeOptions ?? {}),
   });
   held.session = session;
@@ -509,6 +517,20 @@ export function taskListFailures(events: readonly AgentEvent[], report: TurnRepo
   return failures;
 }
 
+/** The review events of a run, checked: each one is followed at once by the ghost of its own call, and `expected` of them were emitted. */
+export function reviewFailures(events: readonly AgentEvent[], expected?: number): string[] {
+  const failures: string[] = [];
+  let count = 0;
+  for (const [index, event] of events.entries()) {
+    if (event.type !== 'review') continue;
+    count += 1;
+    const next = events[index + 1];
+    if (next?.type !== 'ghost' || next.callId !== event.callId) failures.push(`review: the review of ${event.callId} is not followed by its ghost`);
+  }
+  if (expected !== undefined && count !== expected) failures.push(`review: expected ${expected} review events, got ${count}`);
+  return failures;
+}
+
 /** The restore, checked: it ran, and the project after it is the project before the turn, byte for byte. */
 function restoreFailures(run: ScenarioRun): string[] {
   if (run.restored === undefined) return ['restore: the scenario asked for a restore, and none ran'];
@@ -579,6 +601,7 @@ export function checkRun(scenario: Scenario, run: ScenarioRun): string[] {
   if (expect.cards !== undefined) failures.push(...matchCards(expect.cards.items, report.cards, expect.cards.matcher));
   if (expect.trace !== undefined) failures.push(...matchTrace(expect.trace.calls, report.trace, expect.trace.matcher));
   failures.push(...taskListFailures(run.events, report, expect.tasks));
+  failures.push(...reviewFailures(run.events, expect.reviews));
   if (expect.requests !== undefined) failures.push(...matchRequests(expect.requests, run.requests));
   for (const reason of expect.dropped ?? []) {
     if (!report.dropped.some((entry) => entry.includes(reason))) failures.push(`dropped: no reason includes ${JSON.stringify(reason)}`);

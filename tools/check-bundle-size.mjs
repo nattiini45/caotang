@@ -46,7 +46,9 @@ export const BUDGET = {
     // 1,516.6 kB measured with the result schemas of every callable row (#58), whose specs the registry builds at start; the cap is that plus about 1%.
     // 1,532.9 kB measured with those and hooks (#59) together: the bus's hook reader and commands, the store's loader and serializer, the harness's runner and
     // its checks, and the plan card's hook line, which put the entry 0.9 kB over the old cap; the cap is that plus about 1%.
-    index: 1_549_000,
+    // 1,547.0 kB measured with the draft review (#48): the harness's roles, critique spec and what-if diff, the loop's review path, the ghost's note marks,
+    // the review list in the ghost bar and the Settings switch; the cap is that plus about 1%.
+    index: 1_563_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
   // 772.4 kB measured with Colour emoji, against 769.1 kB before it; 779.3 kB with Colour emoji and Agent rules together (Wave 14); 786.4 kB with the agent run log and resume.
@@ -55,7 +57,8 @@ export const BUDGET = {
   // 840.2 kB measured with macros (#57); 847.8 kB measured with macros, the injection guards and the export Preview together on top of wave 20's fixes,
   // which left 0.2 kB under the old 848.0 kB ceiling, so it is raised to that plus about 1%.
   // 858.2 kB measured with the result schemas (#58); the ceiling is that plus about 1%.
-  initialGzip: 867_000,
+  // 870.9 kB measured with the draft review (#48); the ceiling is that plus about 1%.
+  initialGzip: 880_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -64,7 +67,8 @@ export const BUDGET = {
   // app carries the host-model rows' registry metadata, params and preflights and none of their ports, which only the MCP server builds.
   // 6,036.1 kB measured with those and macros (#57), the prompt-injection guards (#54) and the export Preview (#106) together; the ceiling is that plus about 0.6%.
   // 6,076.1 kB measured with the narrow layout (#18): its model, notice and hook, the drawer, sheet and More menu in the workspace, and the row Actions button; the ceiling is that plus about 1%.
-  totalJs: 6_140_000,
+  // 6,147.3 kB measured with the draft review (#48); the ceiling is that plus about 0.6%.
+  totalJs: 6_185_000,
 };
 
 const KB = 1000;

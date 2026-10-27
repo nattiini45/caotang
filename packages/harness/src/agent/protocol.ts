@@ -34,6 +34,8 @@ export const PLANNER_SYSTEM_PREFIX = "You are Caotang's agent.";
 export const DRAFT_SYSTEM_PREFIX = 'You are drafting prose for Caotang.';
 /** The first words of a delegated agent's system message (agent-harness §2, "Delegate"). The mock scripts match on it (gateway mock). */
 export const SUBAGENT_SYSTEM_PREFIX = 'You are a delegated agent for Caotang.';
+/** The first words of the draft review's critic call (agent-harness §8). The mock scripts match on it (gateway mock). */
+export const CRITIC_SYSTEM_PREFIX = 'You are a critic reading a draft for Caotang.';
 
 /** The shape of a reply, as the gateway's schema hint states it. Derived from the plan schema for the steps. */
 export const REPLY_SCHEMA_HINT = {

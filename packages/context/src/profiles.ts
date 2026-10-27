@@ -75,6 +75,14 @@ const PROFILES: Readonly<Record<AssemblyTool, ToolProfile>> = {
     budgets: { LI: DEFAULT_INSTRUCTIONS_BUDGET, L1: 1_500, L2: 2_500, L4: 6_000, L5: SCOPE_DOCUMENT_LIMIT * 1_000 + SCOPE_OVERHEAD_TOKENS },
     totalBudget: 'sum-of-caps',
   },
+  critic: {
+    // The draft review's call (agent-harness §8): the project, and the codex entries the draft mentions. The brief, the document's synopsis
+    // and notes and the draft are the task (L7, never cut), so the critic judges the scene against its brief and not against the prose
+    // around it: no structure, no story so far, no focus tail and no turns.
+    layers: ['L0', 'LI', 'L1', 'L2', 'L7'],
+    budgets: { LI: DEFAULT_INSTRUCTIONS_BUDGET, L1: 1_500, L2: 1_000 },
+    totalBudget: DEFAULT_CONTEXT_BUDGET,
+  },
   delegate: {
     // A delegated agent starts from a fresh context (agent-harness §2, "Delegate"): the project summary, the codex per its
     // policies, and the structure, story and scope tails of the documents it was given. No L6: nothing of the parent's

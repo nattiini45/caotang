@@ -33,8 +33,10 @@ export const LAYER_NAMES: Readonly<Record<LayerId, string>> = {
  * The tools with a context profile (§3). Every other tool assembles as `meta`. `dialogue.draft`'s focus is a dialogue container, not a
  * document (dialogue-narrative.md §7): its L4 is the container's prior beats and its L2 the codex of its speakers. `delegate` is a
  * delegated agent's call (agent-harness.md §2): a fresh context with no L6, whose L3 to L5 are built from the `scope` it was given.
+ * `critic` is the draft review's call (agent-harness.md §8): the project, the codex and the task, with the brief, the document's synopsis and
+ * notes and the draft in the task, and no structure, story so far, focus or turns (context-assembly.md §3).
  */
-export type AssemblyTool = 'scene.draft' | 'continuity.scan' | 'synopsis.fill' | 'dialogue.draft' | 'delegate' | 'meta';
+export type AssemblyTool = 'scene.draft' | 'continuity.scan' | 'synopsis.fill' | 'dialogue.draft' | 'delegate' | 'critic' | 'meta';
 
 /** scene.draft's text modes (agent-harness.md §3, row 8). */
 export type DraftMode = 'draft' | 'continue' | 'rewrite_selection';
