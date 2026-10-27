@@ -35,6 +35,7 @@ import * as shotImageDescriptors from './descriptors-shot-image.js';
 import * as scriptDescriptors from './descriptors-script.js';
 import * as skillDescriptors from './descriptors-skills.js';
 import * as agentFileDescriptors from './descriptors-agent-files.js';
+import * as hookDescriptors from './descriptors-hooks.js';
 import * as macroDescriptors from './descriptors-macros.js';
 import {
   viewSetActiveDocApply,
@@ -145,6 +146,9 @@ export function buildRegistry(): CommandRegistry {
     // The writer's macros (extensibility.md §10). User-only: both descriptors are `agentRisk: 'never'`. The applies are the store's (`commands-macros.ts`).
     'macro.save': { descriptor: macroDescriptors.macroSave },
     'macro.delete': { descriptor: macroDescriptors.macroDelete },
+    // The writer's hooks (hooks.md). User-only: both descriptors are `agentRisk: 'never'`. The applies are the store's (`commands-hooks.ts`).
+    'hook.save': { descriptor: hookDescriptors.hookSave },
+    'hook.delete': { descriptor: hookDescriptors.hookDelete },
   };
 }
 

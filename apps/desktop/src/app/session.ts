@@ -1265,11 +1265,13 @@ export class ProjectSession {
 
   /**
    * Replaces the project's rules. Not a bus command: nothing the agent can reach writes a rule, and the writer undoes a rule by
-   * changing it back. The change is saved with the manifest, and the next agent call reads it.
+   * changing it back. The change is saved with the manifest, and the next agent call reads it. The project's hooks are not touched.
    */
   setAgentRules(rules: readonly PermissionRule[]): void {
-    if (rules.length === 0) delete this.state.manifest.agent;
-    else this.state.manifest.agent = { rules: rules.map((rule) => ({ ...rule })) };
+    // The rules are one key of `agent`: the writer's hooks and any key a newer build wrote stay as they are.
+    const { rules: _replaced, ...kept } = this.state.manifest.agent ?? {};
+    if (rules.length === 0 && Object.keys(kept).length === 0) delete this.state.manifest.agent;
+    else this.state.manifest.agent = { ...(rules.length === 0 ? {} : { rules: rules.map((rule) => ({ ...rule })) }), ...kept };
     this.persistence.schedule();
     this.bump();
   }

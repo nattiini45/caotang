@@ -63,7 +63,8 @@ The two system prefixes (`PLANNER_SYSTEM_PREFIX`, `DRAFT_SYSTEM_PREFIX`) are dup
 | File | Role |
 |---|---|
 | `src/runtime.ts` | `createHarness`: the call path, the tool gate, the port path, plan execution, external callers |
-| `src/plan.ts` | Plans: preflight, execution from a step (`from`), the shared `AskBack` envelope (four codes) |
+| `src/plan.ts` | Plans: preflight, execution from a step (`from`), the shared `AskBack` envelope (six codes) |
+| `src/hooks.ts` | Hooks (hooks.md): `createHookRunner`, the four pure checks, the literal whole-word matching, and the decisions. The runtime asks it at the plan's preflight, as a call runs, and after it returns |
 | `src/macro.ts` | Macros (extensibility.md §10): `checkMacro` against the registry, `expandMacro` into a `Plan`, the derived risk. A macro is the writer's, not a registry row |
 | `src/agent/preload.ts` | `PRELOAD_BY_CONTEXT`: the deferred rows a turn starts with when a dialogue container or a storyboard is open |
 | `src/agent/protocol.ts` | The two wire protocols, the reply shapes, the tool declarations, the planner's system messages, the model-facing messages |
@@ -116,9 +117,9 @@ The two system prefixes (`PLANNER_SYSTEM_PREFIX`, `DRAFT_SYSTEM_PREFIX`) are dup
     a failed model call, or stopped by the bound after an applied step still has its checkpoint, and its summary
     says what was written before the stop.
 
-### The four ask-back codes
+### The ask-back codes
 
-`AskBack.code` is one type with four values:
+`AskBack.code` is one type with six values:
 
 - `needs_input`: the user has to act. This covers a refusal the ladder may adjust, a turn that used its
   model-call bound, and a provider call that failed (a rejected key, an unreachable endpoint). A provider failure
@@ -129,6 +130,7 @@ The two system prefixes (`PLANNER_SYSTEM_PREFIX`, `DRAFT_SYSTEM_PREFIX`) are dup
 - `verify_failed`: a postcondition failed, or an internal defect. Reported, and not retried.
 - `anchor_unresolvable`: a selection the ladder could not place, with up to three candidates and the drift.
 - `budget_exhausted`: the run reached a limit the writer set (a run limit, agent-harness §7.1), or the call that would pass one was not sent.
+- `hook_blocked`: a hook the writer set refused the step (hooks.md). Only the writer can change a hook; the options say so.
 
 ### Model-call stops, and the draft a provider cut
 

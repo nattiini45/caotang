@@ -13,6 +13,7 @@ export {
   type CodexSource,
   type SavedFilter,
   type ProjectGoal,
+  type ProjectHook,
   type ProjectMacro,
 } from './manifest.js';
 export {

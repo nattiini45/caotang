@@ -32,7 +32,9 @@ export const UNTRUSTED_RULE =
 export type UntrustedSource =
   | { readonly kind: 'mcp-result'; readonly serverName: string; readonly toolName: string }
   | { readonly kind: 'mcp-description'; readonly serverName: string; readonly toolName: string }
-  | { readonly kind: 'project-file'; readonly file: string };
+  | { readonly kind: 'project-file'; readonly file: string }
+  /** A note a hook added to a tool result (hooks.md §4): the writer's words plus what the check found in the project. */
+  | { readonly kind: 'hook'; readonly name: string };
 
 /** The id an envelope carries when the caller has no turn to derive one from (a brief, a prompt, a preview). The marker escape does not depend on it. */
 export const STATIC_NONCE = '000000000000';
@@ -59,6 +61,8 @@ export function sourceLabel(source: UntrustedSource): string {
       return labelOf(`mcp-description:${source.serverName}/${source.toolName}`);
     case 'project-file':
       return labelOf(`project:${source.file}`);
+    case 'hook':
+      return labelOf(`hook:${source.name}`);
   }
 }
 

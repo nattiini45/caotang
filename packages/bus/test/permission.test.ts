@@ -400,10 +400,10 @@ describe('the gate\'s own lists are held against the spec, not against themselve
       expect(COMMAND_REGISTRY[name].descriptor.agentRisk, name).toBe('never');
     }
     const inheritable = NEVER_CLASS.filter((n) => HARD_DENIED[n] === undefined);
-    // The four skill commands and the two macro commands are `never` too, and nothing composes them: the harness's allowlist of primitives excludes them
+    // The four skill commands, the two macro commands and the two hook commands are `never` too, and nothing composes them: the harness's allowlist of primitives excludes them
     // (`NEVER_EXPOSED`), so an agent reaches a skill only through the user's own gesture. `mcp.readResource` is the same: the writer's
     // pick is the only way to it, and no tool is written over it.
-    expect([...inheritable].sort()).toEqual(['editor.insert', 'editor.replaceRange', 'macro.delete', 'macro.save', 'mcp.readResource', 'skill.delete', 'skill.import', 'skill.setEnabled', 'skill.write']);
+    expect([...inheritable].sort()).toEqual(['editor.insert', 'editor.replaceRange', 'hook.delete', 'hook.save', 'macro.delete', 'macro.save', 'mcp.readResource', 'skill.delete', 'skill.import', 'skill.setEnabled', 'skill.write']);
     for (const name of inheritable) {
       expect(granted(name, 'agent', { inheritedGrant: 'write-confirm' }).via, name).toBe('inherited');
     }
@@ -439,6 +439,8 @@ describe('the gate\'s own lists are held against the spec, not against themselve
       'memory.forget',
       'macro.save',
       'macro.delete',
+      'hook.save',
+      'hook.delete',
     ]);
     expect(byRisk.get('write-confirm')).toContain('doc.write');
     expect(byRisk.get('write-auto')).toContain('binder.move');

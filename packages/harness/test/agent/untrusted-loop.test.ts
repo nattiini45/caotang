@@ -14,7 +14,7 @@ import { userTextOf, type MockScript } from '@caotang/gateway/mock';
 import { createMcpClient, createMockWireFactory, qualifiedNameOf, type McpClient, type McpServerConfig, type MockMcpScript, type WireTool } from '@caotang/mcp-client';
 import { addDocument, type ProjectState } from '@caotang/store';
 
-import { createAgentSession, PLANNER_SYSTEM_PREFIX, turnNonce, type AskBack, type Decision, type PendingCard, type PlanPreflight, type TurnReport } from '../../src/index.js';
+import { createAgentSession, PLANNER_SYSTEM_PREFIX, turnNonce, type AskBack, type Decision, type HarnessOptions, type PendingCard, type PlanPreflight, type TurnReport } from '../../src/index.js';
 import { refusedStepsMessage, retryMessage } from '../../src/agent/protocol.js';
 import { readsOutsideText, type OutsideOf } from '../../src/agent/untrusted.js';
 import { mockGateway } from './gateway.js';
@@ -122,9 +122,16 @@ interface Run {
 }
 
 /** One intent on the JSON wire, with the decisions the writer makes in order (approve when they run out). */
-async function jsonTurn(intent: string, replies: readonly string[], decisions: readonly Decision[] = [], state: ProjectState = makeState(), errorText?: string): Promise<Run> {
+async function jsonTurn(
+  intent: string,
+  replies: readonly string[],
+  decisions: readonly Decision[] = [],
+  state: ProjectState = makeState(),
+  errorText?: string,
+  harnessOptions: Partial<HarnessOptions> = {},
+): Promise<Run> {
   const calls: string[] = [];
-  const harness = makeHarness({ mcp: { client: await connected(calls, INJECTED, errorText) } }, state);
+  const harness = makeHarness({ mcp: { client: await connected(calls, INJECTED, errorText) }, ...harnessOptions }, state);
   const requests: ChatRequest[] = [];
   const base = await mockGateway([transcript(intent, replies, requests)]);
   let completions = 0;
@@ -271,6 +278,23 @@ describe('a turn that read outside text asks before a write it would have run by
     expect(pending.map((card) => [card.kind, card.card.steps.map((step) => step.tool)])).toEqual([['confirm', ['meta.set']]]);
     expect(pending[0]?.card.caution?.followsUntrusted).toEqual(['Story Bible › search_lore']);
     expect(report.cards.map((card) => [card.kind, card.tools, card.decision])).toEqual([['confirm', ['meta.set'], 'cancelled']]);
+    expect(state.manifest.tree.find((node) => node.id === FRIEND)?.label).not.toBe('act-2');
+  });
+
+  it('is not eased by a hook that has nothing to say: the same card, the same cancel, and nothing written', async () => {
+    const quiet = [{ id: 'h_0000000054', name: 'Quiet', event: 'tool.before' as const, matcher: { tools: ['meta.set'] }, handler: { kind: 'check' as const, check: { kind: 'pattern' as const, patterns: [{ match: 'never-said', message: 'x' }] } }, enabled: true }];
+    const { report, pending, state } = await jsonTurn('Look Hanne up, then label.', [FIND('lore'), READ, LABEL, answer('Done.')], [{ action: 'cancel' }], makeState(), undefined, { hooks: quiet });
+    expect(pending.map((card) => [card.kind, card.card.steps.map((step) => step.tool)])).toEqual([['confirm', ['meta.set']]]);
+    expect(report.cards.map((card) => [card.kind, card.tools, card.decision])).toEqual([['confirm', ['meta.set'], 'cancelled']]);
+    expect(state.manifest.tree.find((node) => node.id === FRIEND)?.label).not.toBe('act-2');
+  });
+
+  it('still stops the write at the hook: the one-step card is shown refused, and cannot be approved', async () => {
+    const stop = [{ id: 'h_0000000055', name: 'No relabel', event: 'tool.before' as const, matcher: { tools: ['meta.set'] }, onBlock: 'block' as const, handler: { kind: 'check' as const, check: { kind: 'status' as const, allowed: ['final'] } }, enabled: true }];
+    const { report, pending, state } = await jsonTurn('Look Hanne up, then label.', [FIND('lore'), READ, LABEL, answer('Done.')], [{ action: 'cancel' }], makeState(), undefined, { hooks: stop });
+    expect(pending.map((card) => card.kind)).toEqual(['confirm']);
+    expect(pending[0]?.card.approvable).toBe(false);
+    expect(report.hooks?.map((run) => run.decision.action)).toEqual(['block']);
     expect(state.manifest.tree.find((node) => node.id === FRIEND)?.label).not.toBe('act-2');
   });
 
