@@ -75,6 +75,7 @@ import {
   createContextPort,
   docResolverFor,
   expandMacro,
+  isMacroCommand,
   macroCommandName,
   macroIntent,
   preloadFor,
@@ -615,9 +616,12 @@ export class AgentController {
     this.heldRun.add(turnId);
     this.modeOverride = 'ask';
     this.bump();
-    // A macro's held plan stays the writer's: its name is not sent to a model on the retry either.
-    const hidden = turn.command?.startsWith('macro-') === true;
-    return this.turnWith(turn.intent, {}, (agent, options) => agent.submitPlan(turn.intent, { steps: held }, hidden ? { ...options, hiddenFromPlanner: true } : options));
+    // A macro's held plan stays the writer's: the retry is logged under the macro's command, so it is kept from the planner live and, if it is
+    // interrupted, when it is resumed from the run log.
+    const macro = isMacroCommand(turn.command ?? undefined) ? turn.command : null;
+    return this.turnWith(turn.intent, macro === null ? {} : { command: macro }, (agent, options) =>
+      agent.submitPlan(turn.intent, { steps: held }, macro === null ? options : { ...options, hiddenFromPlanner: true }),
+    );
   }
 
   /** Saves the writer's typing. False when it could not be written: the flush reports a failed write or a conflict rather than rejecting. */

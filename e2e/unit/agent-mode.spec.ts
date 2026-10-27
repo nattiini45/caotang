@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-import { MemoryIndexedDb, getBody, openRuntimeStore, serializeManifest, validateManifest, type ProjectState, type RuntimeStore } from '../../packages/store/src/index.js';
+import { MemoryIndexedDb, createRunLogPort, getBody, openRuntimeStore, serializeManifest, validateManifest, type ProjectState, type RuntimeStore } from '../../packages/store/src/index.js';
+import { planResume } from '../../packages/harness/src/index.js';
 import { DEMO_INTENTS } from '../../packages/gateway/src/mock/index.js';
 
 import { ProjectSession } from '../../apps/desktop/src/app/session.js';
@@ -147,5 +148,35 @@ test('Accept edits does not apply a card unattended when the writer’s typing c
   expect(report?.status).toBe('applied');
   expect(report?.cards.map((card) => card.kind)).toEqual(['confirm']);
   expect(synopsisOf(state, 'The Storm')).not.toBe('');
+  await session.close();
+});
+
+test('a macro’s held steps are retried under the macro’s command, so the retry stays the writer’s and a resumed one does too', async () => {
+  const state = sampleProjectState();
+  state.manifest.macros = [{
+    id: 'm_7K2QX9M4A1',
+    slug: 'fill',
+    name: 'Fill the synopses',
+    description: '',
+    params: { kind: 'object', description: 'p', properties: {}, required: [] },
+    steps: [{ tool: 'synopsis.fill', params: { docs: ['The Storm'], source: 'text', max_words: 20 }, expect: 'The scene has a synopsis' }],
+  }];
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const { session, controller } = await controllerOver(state, store);
+  controller.setMode('plan-only');
+  expect(controller.runMacro('m_7K2QX9M4A1', {})).toEqual({ started: true });
+  await until(() => controller.snapshot().turns[0]?.report?.heldSteps !== undefined, 'the macro’s steps to be held');
+  const turnId = controller.snapshot().turns[0]?.turnId ?? '';
+  expect(controller.snapshot().turns[0]?.command).toBe('macro-fill');
+
+  const running = controller.runHeldPlan(turnId);
+  await until(() => controller.snapshot().pending !== null, 'the held plan to wait for a decision');
+  // The retry carries the macro’s command, which is what a run resumed after a reload is told apart by (the loop hides such a run).
+  expect(controller.snapshot().turns[1]?.command).toBe('macro-fill');
+  const port = createRunLogPort(store);
+  const logged = await Promise.all((await port.open(session.projectId)).map(async (run) => planResume(await port.events(run.runId), () => undefined).replay));
+  expect(logged.some((replay) => replay?.command === 'macro-fill' && replay.intent === 'Run the macro “Fill the synopses”')).toBe(true);
+  controller.answer({ action: 'approve' });
+  expect((await running)?.status).toBe('applied');
   await session.close();
 });
