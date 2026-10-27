@@ -6,11 +6,11 @@
  * unknown-tolerant rules that make them safe.
  */
 
-import type { ProjectMacro, RecipeScriptFont, SceneNumbersOption } from '@caotang/bus';
+import type { ProjectHook, ProjectMacro, RecipeScriptFont, SceneNumbersOption } from '@caotang/bus';
 
 import type { PermissionRule } from './agent-rules.js';
 
-export type { ProjectMacro };
+export type { ProjectHook, ProjectMacro };
 
 export const APP_ID = 'caotang';
 export const FORMAT_VERSION = 1;
@@ -254,6 +254,9 @@ export interface Manifest {
   /**
    * additive in v1 (agent-harness.md §4, Rules): the writer's rules for the agent that travel with the folder. Only `deny` and `ask` rules are
    * read, so a project file can restrict the agent and never grant it power. Absent = no rules.
+   *
+   * `hooks` (hooks.md): the writer's checks for the agent's calls, changed only by `hook.save` and `hook.delete`; only the `check` handler
+   * is read from a file. Any other key under `agent` is kept as read and written back, so a newer build's key survives this build's save.
    */
-  agent?: { rules?: PermissionRule[] };
+  agent?: { rules?: PermissionRule[]; hooks?: ProjectHook[]; [other: string]: unknown };
 }

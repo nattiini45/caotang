@@ -59,6 +59,7 @@ import {
   execute,
   executeAsync,
   ok,
+  textDigest,
   type ActivityEntry,
   type ActivityLog,
   type AgentRisk,
@@ -70,6 +71,7 @@ import {
   type CommandProvenance,
   type CommandRegistry,
   type ExecutionOutcome,
+  type HookNote,
   type PermissionContext,
   type Result,
   type UndoStore,
@@ -112,6 +114,7 @@ import {
   type SourcedRule,
 } from './rules.js';
 import { portPreflights } from './agent/ports.js';
+import { blockOf, blockWords, createHookRunner, hookLabel, type HookRun, type HookSource } from './hooks.js';
 import { TOOL_METADATA, capOf, metadataFor, type ToolMetadata, type ToolName, type ToolRisk } from './metadata.js';
 import type { ResultData } from './results.js';
 import { coherenceAsyncPorts, coherencePorts, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
@@ -129,7 +132,7 @@ import {
   type PlanOutcome,
   type PlanPreflight,
 } from './plan.js';
-import { failure, invalidParams, limitExceeded, notFound, notWired, refusal } from './errors.js';
+import { failure, hooksAreTheWriters, invalidParams, isHookCommand, limitExceeded, notFound, notWired, refusal } from './errors.js';
 import { withoutWithheld } from './resolve.js';
 import { fitsCap } from './tokens.js';
 import { buildEntries } from './tools/table.js';
@@ -207,6 +210,12 @@ export interface HarnessOptions {
    * throws is read as rules that could not be read, and every call that changes the project is refused.
    */
   readonly rules?: RulesProvider;
+  /**
+   * The writer's hooks (hooks.md), read at each call so a change applies to the next one. A hook runs after the gate has answered and
+   * before the command is dispatched, and again at the plan's preflight; it can block a step, warn, or add a note for the model, and it
+   * never approves a call. Absent, there are none.
+   */
+  readonly hooks?: HookSource;
 }
 
 /** What the rules say about one step, before it is drafted or carded. */
@@ -310,6 +319,11 @@ export interface Harness {
   withheld(tool: string): ReadonlySet<string>;
   /** The binder nodes a read-deny keeps from any tool: what a prompt built now would leave out, whichever tool it was for. */
   withheldAnywhere(): ReadonlySet<string>;
+  /**
+   * The hook runs that spoke (a warning, a block, a note) on this turn's calls since the last time this was asked, oldest first. A run
+   * that only allowed is not kept. The agent loop reads them into the turn's report and trace (hooks.md §7).
+   */
+  takeHookRuns(turnId: string): readonly HookRun[];
 }
 
 /**
@@ -563,6 +577,10 @@ function externalTurnId(turnId: string): string {
   return `mcp:${turnId}`;
 }
 
+/** The most hook notes one result carries, and the longest one. */
+const HOOK_NOTES_MAX = 5;
+const HOOK_NOTE_MAX = 1500;
+
 /** The turn a call runs under: an external caller's turn is its own, and a native turn is used as given. */
 function scopeTurn(turn: TurnContext): TurnContext {
   return turn.source === 'mcp' ? { ...turn, turnId: externalTurnId(turn.turnId) } : turn;
@@ -740,6 +758,95 @@ export function createHarness(options: HarnessOptions): Harness {
   const idempotency = createIdempotencyCache();
   const entries = buildEntries();
 
+  // The writer's hooks (hooks.md). Read at each call, like the rules; a hook only ever refuses, warns or notes, and it runs after the gate.
+  const hooks = options.hooks === undefined ? undefined : createHookRunner(options.hooks, { state, withheld: withheldFor });
+  const hookRuns = new Map<string, HookRun[]>();
+  const hookSeen = new Map<string, Set<string>>();
+  /** Keeps what the hooks said on a turn for the loop to read. The same hook saying the same thing about the same call is kept once. */
+  const recordHooks = (turnId: string | undefined, runs: readonly HookRun[], params: CallParams): void => {
+    if (turnId === undefined) return;
+    for (const run of runs) {
+      if (run.decision.action === 'allow') continue;
+      const said = run.decision.action === 'context' ? run.decision.text : run.decision.reason;
+      const key = `${run.event}|${run.hookId}|${run.tool}|${run.decision.action}|${textDigest(said)}|${textDigest(canonicalJson(params))}`;
+      const seen = hookSeen.get(turnId) ?? new Set<string>();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      hookSeen.set(turnId, seen);
+      hookRuns.set(turnId, [...(hookRuns.get(turnId) ?? []), run]);
+    }
+  };
+  /**
+   * The `tool.before` hooks for a call that has not run. `preflight` is the plan card's check (no effect, nothing awaited); a call that
+   * runs asks the hooks again, against the project as it stands then. A block is a refusal the model and the card read as `hook_blocked`.
+   */
+  const hooksBefore = (
+    call: { readonly name: string; readonly callId?: string; readonly params: CallParams; readonly proposal?: unknown; readonly write?: boolean },
+    meta: ToolMetadata | undefined,
+    turnId: string | undefined,
+    phase: 'preflight' | 'run',
+  ): { readonly runs: readonly HookRun[]; readonly error?: CommandError } => {
+    if (hooks === undefined) return { runs: [] };
+    const targets = meta === undefined ? undefined : targetsOf(meta, call.params);
+    const input = {
+      event: 'tool.before' as const,
+      ...(turnId === undefined ? {} : { turnId }),
+      tool: call.name,
+      ...(call.callId === undefined ? {} : { callId: call.callId }),
+      params: call.params,
+      ...(call.proposal === undefined ? {} : { proposal: call.proposal }),
+      ...(call.write === undefined ? {} : { write: call.write }),
+      affected: targets === undefined ? [] : [...targets.writes, ...targets.reads],
+    };
+    const runs = phase === 'preflight' ? hooks.preflight(input) : hooks.run(input);
+    recordHooks(turnId, runs, call.params);
+    const blocked = blockOf(runs);
+    if (blocked === undefined) return { runs };
+    return {
+      runs,
+      error: refusal('permission-denied', `${blockWords(blocked, call.name)} Nothing was run.`, {
+        target: call.name,
+        correctiveHint: 'change the step so the hook passes, or tell the writer which hook is in the way; only the writer can change a hook',
+        details: { askBackCode: 'hook_blocked', hook: { id: blocked.hookId, name: hookLabel(blocked.name) } },
+      }),
+    };
+  };
+  /** The note a hook's run adds for the model: what a `tool.before` hook warned about, and what a `tool.after` hook reported. */
+  const noteOf = (run: HookRun): HookNote[] => {
+    const hook = hookLabel(run.name);
+    if (run.decision.action === 'context') return [{ hook, text: run.decision.text.slice(0, HOOK_NOTE_MAX) }];
+    if (run.decision.action === 'warn' && run.event === 'tool.before') return [{ hook, text: run.decision.reason.slice(0, HOOK_NOTE_MAX) }];
+    return [];
+  };
+  const withNotes = (outcome: ToolOutcome, notes: readonly HookNote[]): ToolOutcome => {
+    if (!outcome.ok || notes.length === 0) return outcome;
+    return ok({ ...outcome.value, hookNotes: [...(outcome.value.hookNotes ?? []), ...notes].slice(0, HOOK_NOTES_MAX) });
+  };
+  /** The `tool.after` hooks for a call that returned: its result, with what they reported added for the model. */
+  const hooksAfter = (
+    call: { readonly name: string; readonly callId: string; readonly params: CallParams; readonly proposal?: unknown },
+    turnId: string,
+    outcome: ToolOutcome,
+  ): ToolOutcome => {
+    if (hooks === undefined || !outcome.ok) return outcome;
+    // The nodes the call changed; for a read, which changes none, the nodes it read.
+    const changed = outcome.value.affected.map((node) => node.nodeId);
+    const entry = entries.get(call.name as ToolName);
+    const targets = entry === undefined ? undefined : targetsOf(entry.meta, call.params);
+    const read = targets === undefined ? [] : [...targets.reads];
+    const runs = hooks.run({
+      event: 'tool.after',
+      turnId,
+      tool: call.name,
+      callId: call.callId,
+      params: call.params,
+      ...(call.proposal === undefined ? {} : { proposal: call.proposal }),
+      affected: changed.length > 0 ? changed : read,
+    });
+    recordHooks(turnId, runs, call.params);
+    return withNotes(outcome, runs.flatMap(noteOf));
+  };
+
   const busFor = (turn?: TurnContext, inherit?: AgentRisk): BusContext<ProjectState> => {
     const source = turn?.source ?? 'native';
     // A primitive a port dispatches carries the port's grant (command-bus §4). The turn's own
@@ -794,6 +901,7 @@ export function createHarness(options: HarnessOptions): Harness {
    */
   function prepareCall(name: string, raw: unknown, writes: boolean = true): Result<Prepared, CommandError> {
     const entry = entries.get(name as ToolName);
+    if (entry === undefined && isHookCommand(name)) return failure(hooksAreTheWriters(name)) as Result<Prepared, CommandError>;
     if (entry === undefined) {
       return failure(
         notFound(`"${name}" is not a tool in this build`, `valid tools: ${[...entries.values()].filter((item) => item.kind !== 'protocol').map((item) => item.meta.name).join(', ')}`, 'name'),
@@ -965,8 +1073,17 @@ export function createHarness(options: HarnessOptions): Harness {
     return { outcome: measured, applied: tally.effect };
   }
 
-  /** Runs one prepared call. Returns whether any command reached an effect, which decides the replay cache. */
+  /**
+   * Runs one prepared call, with the notes a `tool.before` hook left on it. Returns whether any command reached an effect, which decides
+   * the replay cache.
+   */
   function invoke(call: ToolCall, turn: TurnContext): { readonly outcome: ToolOutcome; readonly applied: boolean } {
+    const warned: HookNote[] = [];
+    const ran = invokeCall(call, turn, warned);
+    return warned.length === 0 ? ran : { ...ran, outcome: withNotes(ran.outcome, warned) };
+  }
+
+  function invokeCall(call: ToolCall, turn: TurnContext, warned: HookNote[]): { readonly outcome: ToolOutcome; readonly applied: boolean } {
     // An external caller may write only where the project has opened external writes, and its tools are described to it so (extensibility §9).
     const prep = prepareCall(call.name, call.params, turn.source === 'mcp' ? externalWrites : true);
     if (!prep.ok) return { outcome: failure(prep.error) as ToolOutcome, applied: false };
@@ -985,11 +1102,17 @@ export function createHarness(options: HarnessOptions): Harness {
       // The gate has answered (above), so a state refusal is named only to a caller that may run the tool.
       const held = portStateRefusal(prep.value, call.proposal);
       if (held !== undefined) return { outcome: failure(held) as ToolOutcome, applied: false };
+      const hooked = hooksBefore({ ...call, params: prep.value.params }, prep.value.entry.meta, turn.turnId, 'run');
+      if (hooked.error !== undefined) return { outcome: failure(hooked.error) as ToolOutcome, applied: false };
+      warned.push(...hooked.runs.flatMap(noteOf));
       return runPort(call, turn, prep.value.entry, prep.value.params, port);
     }
 
     const prepared = prep.value.prepared;
     if (prepared === undefined) return { outcome: failure(notWired(call.name)) as ToolOutcome, applied: false };
+    const hooked = hooksBefore({ ...call, params: prep.value.params }, prep.value.entry.meta, turn.turnId, 'run');
+    if (hooked.error !== undefined) return { outcome: failure(hooked.error) as ToolOutcome, applied: false };
+    warned.push(...hooked.runs.flatMap(noteOf));
     if (prepared.commands.length === 0) {
       return { outcome: withinCap(prep.value.entry.meta, prepared.finish([])), applied: false };
     }
@@ -1053,8 +1176,9 @@ export function createHarness(options: HarnessOptions): Harness {
       return replay.fingerprint === fingerprint ? replay.outcome : (failure(replayMismatch(call, turn)) as ToolOutcome);
     }
 
-    const { outcome, applied } = invoke(call, turn);
-    if (applied) callCache.record(turn.turnId, call.callId, fingerprint, outcome);
+    const ran = invoke(call, turn);
+    const outcome = hooksAfter({ ...call, params: call.params as CallParams }, turn.turnId, ran.outcome);
+    if (ran.applied) callCache.record(turn.turnId, call.callId, fingerprint, outcome);
     return outcome;
   }
 
@@ -1070,18 +1194,25 @@ export function createHarness(options: HarnessOptions): Harness {
 
   const host: PlanHost = {
     known: (tool) => entries.has(tool as ToolName),
-    check: (tool, params, proposal) => {
+    check: (tool, params, proposal, turnId) => {
       const prep = prepareCall(tool, params);
-      if (!prep.ok) return failure(prep.error) as Result<{ readonly preview?: unknown }, CommandError>;
+      if (!prep.ok) return failure(prep.error) as Result<{ readonly preview?: unknown; readonly hooks?: readonly HookRun[] }, CommandError>;
       // A deny shows on the plan card as a refused step, before anything is drafted or approved. An ask is the card itself.
       const ruled = verdictFor(prep.value.entry.meta, prep.value.params);
       if (ruled.verdict.effect === 'deny') {
         const index = ruled.targets?.opOf?.[ruled.verdict.target];
-        return failure(ruleRefusal(ruled.verdict, tool, state, index)) as Result<{ readonly preview?: unknown }, CommandError>;
+        return failure(ruleRefusal(ruled.verdict, tool, state, index)) as Result<{ readonly preview?: unknown; readonly hooks?: readonly HookRun[] }, CommandError>;
       }
       const held = portStateRefusal(prep.value, proposal);
-      if (held !== undefined) return failure(held) as Result<{ readonly preview?: unknown }, CommandError>;
-      return ok(prep.value.prepared === undefined ? {} : { preview: prep.value.prepared.preview });
+      if (held !== undefined) return failure(held) as Result<{ readonly preview?: unknown; readonly hooks?: readonly HookRun[] }, CommandError>;
+      // Last, after the rules and the port's own check: a hook narrows a step the gate would let through, and never widens one.
+      const hooked = hooksBefore({ name: tool, params: prep.value.params, ...(proposal === undefined ? {} : { proposal }) }, prep.value.entry.meta, turnId, 'preflight');
+      if (hooked.error !== undefined) return failure(hooked.error) as Result<{ readonly preview?: unknown; readonly hooks?: readonly HookRun[] }, CommandError>;
+      const spoke = hooked.runs.filter((run) => run.decision.action !== 'allow');
+      return ok({
+        ...(prep.value.prepared === undefined ? {} : { preview: prep.value.prepared.preview }),
+        ...(spoke.length === 0 ? {} : { hooks: spoke }),
+      });
     },
     run: (call, turn) => callTool(call, turn),
   };
@@ -1157,6 +1288,8 @@ export function createHarness(options: HarnessOptions): Harness {
     idempotency.endTurn(turnId);
     undo.endTurn(turnId);
     skillLoads.forget(turnId);
+    hookRuns.delete(turnId);
+    hookSeen.delete(turnId);
     if (loaded.turnId === turnId) loaded.endTurn();
   }
 
@@ -1220,6 +1353,10 @@ export function createHarness(options: HarnessOptions): Harness {
       if (verdict.effect === 'deny') return failure(ruleRefusal(verdict, call.name, state)) as ToolOutcome;
     }
 
+    // The writer's hooks, last, after the rules and before the bus is asked: an external tool has no nodes, so only its name and arguments are seen.
+    const hooked = hooksBefore({ name: call.name, callId: call.callId, params: call.params as CallParams, write: tool.effectiveRisk !== 'read-auto' }, undefined, turn.turnId, 'run');
+    if (hooked.error !== undefined) return failure(hooked.error) as ToolOutcome;
+
     // The definition the turn saw: the hash the search showed when it loaded the tool. The bus compares it with the
     // server's hash now, and a mismatch is refused, so a tool the server changed (even if re-approved) is not called
     // under a description this turn never read (extensibility §4 rule 3, §6 expectedPins).
@@ -1256,6 +1393,7 @@ export function createHarness(options: HarnessOptions): Harness {
     } else {
       outcome = failure(dispatched.error) as ToolOutcome;
     }
+    outcome = hooksAfter({ ...call, params: call.params as CallParams }, turn.turnId, withNotes(outcome, hooked.runs.flatMap(noteOf)));
     if (log.length > before) callCache.record(turn.turnId, call.callId, fingerprint, outcome);
     return outcome;
   }
@@ -1293,8 +1431,15 @@ export function createHarness(options: HarnessOptions): Harness {
     // The gate has answered (above), so a state refusal is named only to a caller that may run the tool (callAsync's plan approval).
     const held = portStateRefusal(prep.value, call.proposal);
     if (held !== undefined) return failure(held) as ToolOutcome;
-    const { outcome, applied } = await runAsyncPort(call, turn, prep.value.entry, prep.value.params, port);
-    if (applied) callCache.record(turn.turnId, call.callId, fingerprint, outcome);
+    const hooked = hooksBefore({ ...call, params: prep.value.params }, prep.value.entry.meta, turn.turnId, 'run');
+    if (hooked.error !== undefined) return failure(hooked.error) as ToolOutcome;
+    const ran = await runAsyncPort(call, turn, prep.value.entry, prep.value.params, port);
+    const outcome = hooksAfter(
+      { ...call, params: prep.value.params },
+      turn.turnId,
+      withNotes(ran.outcome, hooked.runs.flatMap(noteOf)),
+    );
+    if (ran.applied) callCache.record(turn.turnId, call.callId, fingerprint, outcome);
     return outcome;
   }
 
@@ -1343,6 +1488,11 @@ export function createHarness(options: HarnessOptions): Harness {
     },
     loadedExternalTools: () => index().tools.filter((tool) => loaded.isLoaded(tool.qualifiedName)),
     withheld: withheldFor,
+    takeHookRuns: (turnId) => {
+      const runs = hookRuns.get(turnId) ?? [];
+      hookRuns.delete(turnId);
+      return runs;
+    },
     withheldAnywhere: () => {
       const set = currentRules();
       return set.rules.length === 0 ? NO_WITHHELD : withheldAnywhere(set, state);

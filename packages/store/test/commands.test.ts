@@ -1610,8 +1610,9 @@ describe('the bus/store split these applies depend on', () => {
     // `shot.importImages` (the batch of `shot.importImage`) is descriptor-only for the same reason as `shot.importImage`: 51 names, 40 implemented.
     // The agent's files add three names with applies of the store's own: 51 + 3 = 54 names, 40 + 3 = 43 implemented.
     // The macros add two names with applies of the store's own: 54 + 2 = 56 names, 43 + 2 = 45 implemented.
-    expect(Object.keys(registry)).toHaveLength(56);
-    expect(implemented).toHaveLength(45);
+    // The hooks add two names with applies of the store's own: 56 + 2 = 58 names, 45 + 2 = 47 implemented.
+    expect(Object.keys(registry)).toHaveLength(58);
+    expect(implemented).toHaveLength(47);
   });
 });
 

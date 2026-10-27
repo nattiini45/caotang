@@ -71,6 +71,27 @@ export {
   type PlanStepPreflight,
   type StepResult,
 } from './plan.js';
+// Hooks (hooks.md): the writer's checks at a tool call, and the runner the harness builds from them.
+export {
+  HOOK_SLOW_MS,
+  HOOK_TEXT_CAP,
+  countWholeWord,
+  createHookRunner,
+  foldText,
+  hookLabel,
+  hookWarnings,
+  proseOf,
+  type HookCheck,
+  type HookDecision,
+  type HookDeps,
+  type HookEvent,
+  type HookInput,
+  type HookMatcher,
+  type HookRun,
+  type HookRunner,
+  type HookSource,
+  type HookSpec,
+} from './hooks.js';
 // Macros (extensibility.md §10): the checks that need the registry, and the expansion into a plan.
 export {
   checkMacro,

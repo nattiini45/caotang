@@ -13,6 +13,7 @@
 import { nonceFor, scanForInjection, spotlight, UNTRUSTED_OPEN, type InjectionHit } from '@caotang/context';
 import type { TaintRef } from '@caotang/mcp-client';
 
+import { hookLabel } from '../hooks.js';
 import { isRecord } from '../util.js';
 
 export {
@@ -82,6 +83,36 @@ export function outsideSources(body: unknown): readonly TaintRef[] {
  * loaded external tool (`outside`) is outside text too: the server's own words sit in its error, so the error goes in an envelope.
  */
 export function modelResult(result: { readonly tool: string; readonly ok: boolean; readonly body: unknown }, nonce: string, named = true, outside?: OutsideOf): string {
+  const notes = result.ok ? hookNotesOf(result.body) : [];
+  if (notes.length > 0) return [resultOf({ ...result, body: withoutHookNotes(result.body) }, nonce, named, outside), ...notes.map((note) => hookBlock(note, nonce))].join('\n');
+  return resultOf(result, nonce, named, outside);
+}
+
+/** The notes the writer's hooks added to a result (`ToolValue.hookNotes`, which the loop puts in the body the model is handed). */
+function hookNotesOf(body: unknown): readonly { readonly hook: string; readonly text: string }[] {
+  if (!isRecord(body) || !Array.isArray(body['hookNotes'])) return [];
+  return body['hookNotes'].filter(
+    (note): note is { hook: string; text: string } => isRecord(note) && typeof note['hook'] === 'string' && typeof note['text'] === 'string',
+  );
+}
+
+function withoutHookNotes(body: unknown): unknown {
+  if (!isRecord(body)) return body;
+  const { hookNotes: _notes, ...rest } = body;
+  return rest;
+}
+
+/**
+ * One hook's note, in an envelope of its own under a line that says whose it is. The note can quote the project (a coherence finding
+ * names a passage), so the model reads it as data, never as an instruction (hooks.md §4). A hook is deterministic and its note is not
+ * a connected server's text, so it does not taint the turn.
+ */
+function hookBlock(note: { readonly hook: string; readonly text: string }, nonce: string): string {
+  const name = hookLabel(note.hook);
+  return `Hook “${name}” reported:\n${spotlight(note.text, { kind: 'hook', name }, nonce)}`;
+}
+
+function resultOf(result: { readonly tool: string; readonly ok: boolean; readonly body: unknown }, nonce: string, named: boolean, outside?: OutsideOf): string {
   const head = named ? { tool: result.tool } : {};
   if (!result.ok) {
     const from = outside?.(result.tool);

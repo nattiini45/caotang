@@ -156,6 +156,8 @@ interface Case {
   readonly memory?: boolean;
   /** The project holds the macro `m_FXTRE00001`, which the case deletes. */
   readonly macro?: boolean;
+  /** The project holds the hook `h_FXTRE00001`, which the case deletes. */
+  readonly hook?: boolean;
 }
 
 /** The finding the coherence cases act on: one open finding that quotes the storm scene. */
@@ -487,6 +489,14 @@ const CASES: readonly Case[] = [
     digestMentions: 'saved the macro "Tidy notes"',
   },
   { name: 'macro.delete', params: { macroId: 'm_FXTRE00001' }, titles: [], digestMentions: 'deleted the macro "Revise chapter"', macro: true },
+  // The hook commands report no node either: a hook is not in the binder. Their digests name the hook.
+  {
+    name: 'hook.save',
+    params: { hook: { name: 'No suddenly', event: 'tool.before', handler: { kind: 'check', check: { kind: 'pattern', patterns: [{ match: 'suddenly', message: 'Show it.' }] } }, enabled: true } },
+    titles: [],
+    digestMentions: 'saved the hook "No suddenly"',
+  },
+  { name: 'hook.delete', params: { hookId: 'h_FXTRE00001' }, titles: [], digestMentions: 'deleted the hook "No suddenly"', hook: true },
   {
     name: 'dialogue.setMeta',
     params: { nodeId: CELLAR, patch: { autoLineIds: true } },
@@ -548,6 +558,7 @@ describe('§8 — the activity row for every shipped store apply', () => {
       if (testCase.skill === true) state.skills.set('close-third', [{ path: 'SKILL.md', bytes: new TextEncoder().encode(['---', 'name: close-third', 'description: d', '---', 'Body', ''].join('\n')) }]);
       if (testCase.memory === true) state.agentFiles = { memory: [{ slug: 'style-dialogue', type: 'style', title: 'Dialogue tags', body: 'Use said.', modified: '', origin: 'writer' }], declined: new Map(), unreadable: [] };
       if (testCase.macro === true) state.manifest.macros = [{ id: 'm_FXTRE00001', slug: 'revise-chapter', name: 'Revise chapter', description: '', params: { kind: 'object', description: 'p', properties: {}, required: [] }, steps: [{ tool: 'meta.set', params: { status: 'revised' }, expect: 'Marks the node revised.' }] }];
+      if (testCase.hook === true) state.manifest.agent = { hooks: [{ id: 'h_FXTRE00001', name: 'No suddenly', event: 'tool.before', handler: { kind: 'check', check: { kind: 'pattern', patterns: [{ match: 'suddenly', message: 'Show it.' }] } }, enabled: true }] };
       if (testCase.dialogue === true) {
         addDocument(state, { parentId: 'manuscript', title: 'The Cellar', type: 'dialogue', kind: 'branching', body: '=== Cellar ===\nHello.\n-> END\n', now: OPENED, id: CELLAR });
       }

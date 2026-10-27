@@ -23,6 +23,7 @@ import {
   type AgentSession,
   type AgentSessionOptions,
   type Decision,
+  type HookSpec,
   type PendingCard,
   type PermissionMode,
   type RuleSet,
@@ -62,13 +63,13 @@ interface Built {
   readonly asked: PendingCard[];
 }
 
-async function build(extras: Partial<AgentSessionOptions> & { readonly decision?: Decision; readonly rules?: readonly SourcedRule[] } = {}): Promise<Built> {
+async function build(extras: Partial<AgentSessionOptions> & { readonly decision?: Decision; readonly rules?: readonly SourcedRule[]; readonly hooks?: readonly HookSpec[] } = {}): Promise<Built> {
   const state = makeState();
   const scripts: MockScript[] = [];
   const set: RuleSet = { rules: extras.rules ?? [] };
-  const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now, rules: () => set });
+  const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now, rules: () => set, ...(extras.hooks === undefined ? {} : { hooks: extras.hooks }) });
   const asked: PendingCard[] = [];
-  const { decision, rules: _rules, ...rest } = extras;
+  const { decision, rules: _rules, hooks: _hooks, ...rest } = extras;
   const session = createAgentSession({
     harness,
     gateway: await mockGateway(scripts),
@@ -242,5 +243,35 @@ describe('a macro’s turn is named by the macro in the report and the run log',
     const intents = events.filter((event) => event.t === 'step.intent');
     expect(intents.length).toBeGreaterThanOrEqual(2);
     expect(JSON.stringify(intents)).toContain('notes.append');
+  });
+});
+
+describe("a macro step is held to the writer's hooks like any call (hooks.md)", () => {
+  const tidied: HookSpec = {
+    id: 'h_0000000057',
+    name: 'No “tidied”',
+    event: 'tool.before',
+    matcher: { tools: ['notes.append'] },
+    onBlock: 'block',
+    handler: { kind: 'check', check: { kind: 'pattern', patterns: [{ match: 'tidied', message: 'Say what was tidied.' }] } },
+    enabled: true,
+  };
+
+  it('shows the blocked step refused on the card, so the whole macro cannot be approved, and writes nothing', async () => {
+    const built = await build({ hooks: [tidied], decision: { action: 'cancel' } });
+    const report = await runMacro(built, TWO_WRITES, { doc: 'The Landing' });
+    const card = built.asked[0]?.card;
+    expect(card?.approvable).toBe(false);
+    expect(card?.steps.map((step) => step.status)).toEqual(['ready', 'refused']);
+    expect(card?.steps[1]?.error?.details?.['askBackCode']).toBe('hook_blocked');
+    expect(report.status).toBe('cancelled');
+    expect(labelOf(built.state, LANDING)).toBe('act-1');
+  });
+
+  it('runs a macro the hook has nothing to say about, with no hook in the report', async () => {
+    const built = await build({ hooks: [{ ...tidied, matcher: { tools: ['doc.read'] } }] });
+    const report = await runMacro(built, TWO_WRITES, { doc: 'The Landing' });
+    expect(report.status).toBe('applied');
+    expect(report).not.toHaveProperty('hooks');
   });
 });

@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { COMMAND_REGISTRY, MACROS_MAX, MACRO_DESCRIPTION_MAX, MACRO_STEPS_MAX } from '../packages/bus/src/index.js';
+import { COMMAND_REGISTRY, HOOKS_MAX, HOOK_EVENTS_RUN, HOOK_PATTERNS_MAX, HOOK_TEXT_MAX, MACROS_MAX, MACRO_DESCRIPTION_MAX, MACRO_STEPS_MAX, readHook } from '../packages/bus/src/index.js';
 import { BUILTIN_COMMAND_NAMES } from '../packages/harness/src/commands/slash.js';
 import { macroCommandName } from '../packages/harness/src/macro.js';
 
@@ -521,5 +521,42 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(read('apps/desktop/src/app/agent.ts')).toContain('forcePlan: checked.value.risk !== \'read\'');
     expect(changelog).toContain('**Macros.** Under a plan you approved, **Save as macro…**');
     expect(read('docs/decisions.md')).toContain('Macros are writer-authored, parameterised plan templates');
+  });
+
+  it('describes hooks as the app and the bus treat them: the file shape, the events, the limits and who may change one', () => {
+    const section = guide.slice(guide.indexOf('## Hooks'), guide.indexOf('## Export'));
+    // The example in the guide is a hook the bus and the loader accept, with the id a stored hook must have.
+    const json = /```json\n([\s\S]*?)\n```/.exec(section)?.[1];
+    expect(json).toBeDefined();
+    const parsed = JSON.parse(`{${json}}`) as { agent: { hooks: unknown[] } };
+    expect(parsed.agent.hooks).toHaveLength(1);
+    expect(readHook(parsed.agent.hooks[0], true).ok).toBe(true);
+    // Each check the guide shows is one the bus reads.
+    const base = { id: 'h_7K2QX9M4A1', name: 'A hook', event: 'tool.before', enabled: true };
+    const checks = [
+      { kind: 'pattern', patterns: [{ match: 'suddenly', message: 'Show it.' }] },
+      { kind: 'status', allowed: ['Final'] },
+      { kind: 'words', min: 200, max: 900 },
+      { kind: 'coherence', checks: ['codex.alias-collisions'] },
+    ];
+    for (const check of checks) expect(readHook({ ...base, handler: { kind: 'check', check } }, true).ok).toBe(true);
+    for (const shape of ['{ "kind": "status", "allowed": ["Final"] }', '{ "kind": "words", "min": 200, "max": 900 }', '{ "kind": "coherence", "checks": ["codex.alias-collisions"] }']) {
+      expect(section).toContain(shape);
+    }
+    // A program or a model handler is not a project-file hook, as the guide says.
+    expect(readHook({ ...base, handler: { kind: 'command', command: 'x' } }, true).ok).toBe(false);
+    // The events the guide names are the ones this build runs, and the limits are the bus's own.
+    expect([...HOOK_EVENTS_RUN]).toEqual(['tool.before', 'tool.after']);
+    expect(section).toContain(`A project holds at most ${HOOKS_MAX} hooks, a check at most ${HOOK_PATTERNS_MAX} patterns, and a pattern or a message at most ${HOOK_TEXT_MAX} characters.`);
+    // Only the writer changes a hook: the agent has no command for it.
+    expect(COMMAND_REGISTRY['hook.save'].descriptor.agentRisk).toBe('never');
+    expect(COMMAND_REGISTRY['hook.delete'].descriptor.agentRisk).toBe('never');
+    expect(section).toContain('The agent cannot add, change, turn off or remove a hook');
+    // The refusal the card shows, and the three places the guide and the README point a writer to.
+    expect(read('packages/harness/src/hooks.ts')).toContain('stopped ${tool}: ${run.decision.reason}');
+    expect(guide).toContain('- **Hooks.** A hook is a check you write for the agent');
+    expect(guide.slice(guide.indexOf('## What is not in this build yet'))).toContain('- **Hooks.** There is no Settings › Hooks');
+    expect(read('README.md')).toContain('- **Hooks.** Write a check the agent is held to');
+    expect(read('docs/decisions.md')).toMatch(/hooks/i);
   });
 });

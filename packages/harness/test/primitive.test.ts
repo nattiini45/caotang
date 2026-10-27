@@ -148,6 +148,10 @@ describe('never-exposed commands', () => {
       () => primitiveTool(specFor('macro.save')),
       // @ts-expect-error a macro is a plan the writer will run later, so the agent never writes one
       () => primitiveTool(specFor('macro.delete')),
+      // @ts-expect-error a hook is a rule the agent is held to, so the agent never writes one
+      () => primitiveTool(specFor('hook.save')),
+      // @ts-expect-error a hook is a rule the agent is held to, so the agent never writes one
+      () => primitiveTool(specFor('hook.delete')),
       // @ts-expect-error a memory note is the writer's to forget: hard-denied for an agent as a deletion
       () => primitiveTool(specFor('memory.forget')),
     ];
