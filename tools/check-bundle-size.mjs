@@ -49,7 +49,9 @@ export const BUDGET = {
   // 810.0 kB measured with the instructions layer, the agent files and recurring tasks (Wave 17).
   // 831.2 kB measured with the restore planner and rewind menus (#53) and the host-model rows (#81) together; the ceiling is that plus about 1%.
   // 840.2 kB measured with macros (#57); the ceiling is that plus about 1%.
-  initialGzip: 848_000,
+  // 854.0 kB measured with hooks (#59): the bus's hook reader and commands, the store's loader and serializer, the harness's runner and its
+  // checks, and the plan card's hook line, against 847.1 kB without them; the ceiling is that plus about 1%.
+  initialGzip: 862_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
@@ -58,7 +60,8 @@ export const BUDGET = {
   // 5,954.2 kB measured with the four host-model rows (scene.brief and the rest, #81): the app carries their registry metadata, params and
   // preflights and none of their ports, which only the MCP server builds.
   // 6,013.6 kB measured with macros (#57), 40 kB over the 5,973.5 kB before them; the ceiling is that plus about 1%.
-  totalJs: 6_075_000,
+  // 6,058.0 kB measured with hooks (#59), against 6,034.4 kB without them; the ceiling is that plus about 1%.
+  totalJs: 6_120_000,
 };
 
 const KB = 1000;
