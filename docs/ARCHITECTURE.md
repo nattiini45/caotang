@@ -160,11 +160,13 @@ ProjectGoal    { id, nodeId, metric, comparator: at-least|at-most|about, target,
 McpServerConfig{ key, name, transport: 'http', url, auth, enabled, trustReads, pinnedTools, addedAt }  // extensibility.md §3.2 (app settings, never project files)
 ```
 
-Additive manifest arrays (`codex[]`, `recipes[]`, `filters[]`, `goals[]`) and per-node `createdAt`/`updatedAt` join format v1 without a `formatVersion` bump. MCP server configs are not project data: they live in app settings, never in `caotang.json`, so a committed project can never carry a server URL or token.
+Additive manifest arrays (`codex[]`, `recipes[]`, `filters[]`, `goals[]`, `macros[]`) and per-node `createdAt`/`updatedAt` join format v1 without a `formatVersion` bump. MCP server configs are not project data: they live in app settings, never in `caotang.json`, so a committed project can never carry a server URL or token.
 
 ## 4. Explicit non-goals
 
 Collaboration and sync in the local version, a plugin system, a theme marketplace, version history beyond git, **embedding/RAG context retrieval** (keyed context is the design; revisit only with usage evidence), a **codex relations graph**. Screen and media formats were once on this list and are now built (§6).
+
+Macros (writer-authored plan templates over the app's own tools, [extensibility.md](architecture/extensibility.md) §10) are not a plugin system: a macro is JSON data with no code and no install path, and only the writer runs one.
 
 ## 5. Scope non-negotiables
 
