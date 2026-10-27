@@ -20,9 +20,13 @@ export function describeSuggestion(suggestion: ReviewSuggestion): string {
   return suggestion.added === '' ? 'Adds a paragraph' : `Adds “${suggestion.added}”`;
 }
 
-export function ReviewBar({ review }: { review: ReviewApi }): ReactNode {
+/** `onUnsettled` hears of a button that was pressed with something to resolve and settled none of it. */
+export function ReviewBar({ review, onUnsettled }: { review: ReviewApi; onUnsettled?: () => void }): ReactNode {
   const state = useSyncExternalStore(review.subscribe, review.state);
   const { pending, current, position, selected } = state;
+  const resolve = (call: () => number, asked: number): void => {
+    if (call() === 0 && asked > 0) onUnsettled?.();
+  };
   return (
     <>
       <span className="visually-hidden" role="status" aria-live="polite" data-testid="review-live">
@@ -48,16 +52,16 @@ export function ReviewBar({ review }: { review: ReviewApi }): ReactNode {
             <button type="button" className="button" onClick={() => review.next()}>
               Next
             </button>
-            <button type="button" className="button is-primary" disabled={selected === 0} onClick={() => review.accept()}>
+            <button type="button" className="button is-primary" disabled={selected === 0} onClick={() => resolve(() => review.accept(), selected)}>
               Accept
             </button>
-            <button type="button" className="button" disabled={selected === 0} onClick={() => review.reject()}>
+            <button type="button" className="button" disabled={selected === 0} onClick={() => resolve(() => review.reject(), selected)}>
               Reject
             </button>
-            <button type="button" className="button" onClick={() => review.acceptAll()}>
+            <button type="button" className="button" onClick={() => resolve(() => review.acceptAll(), pending)}>
               Accept all
             </button>
-            <button type="button" className="button is-quiet" onClick={() => review.rejectAll()}>
+            <button type="button" className="button is-quiet" onClick={() => resolve(() => review.rejectAll(), pending)}>
               Reject all
             </button>
           </div>

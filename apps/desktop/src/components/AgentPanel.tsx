@@ -29,6 +29,7 @@ import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, 
 import { formatUsd, turnCostOf } from '../app/plan-preview.js';
 import { resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
+import { UNRESOLVED_NOTICE } from '../app/review-text.js';
 import type { AgentController, AgentSnapshot } from '../app/agent.js';
 import type { CommandNote } from '../app/slash-model.js';
 import type { RecurringTasks } from '../app/recurring-tasks.js';
@@ -406,7 +407,10 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
                     onRestoreStep={(turnId, summary, stepId) => openRestore(restoreOf(agent, turnId, summary, false, stepId))}
                     onRewind={rewind}
                     onRunHeld={(turnId) => void agent.runHeldPlan(turnId)}
-                    onResolveReview={(turnId, mode) => agent.resolveReview(turnId, mode)}
+                    onResolveReview={(turnId, mode) => {
+                      // The card offers this only while it shows a pending count, so nothing settled means the marks are still there.
+                      if (agent.resolveReview(turnId, mode) === 0) report({ text: UNRESOLVED_NOTICE, tone: 'info' });
+                    }}
                   />
                 ));
                 return run.rewound ? (

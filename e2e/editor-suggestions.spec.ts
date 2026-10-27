@@ -30,12 +30,12 @@ const PLAN = {
   ],
 };
 
-/** Settings > Writing, set to mark the changes for review, saved, and closed. */
-async function markChangesForReview(page: Page): Promise<void> {
+/** Settings > Writing, set to mark the changes for review (or to replace the text), saved, and closed. */
+async function markChangesForReview(page: Page, mode: 'suggestions' | 'ghost' = 'suggestions'): Promise<void> {
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.getByTestId('settings');
   await settings.getByRole('button', { name: 'Writing' }).click();
-  await settings.getByRole('combobox', { name: 'When you apply an agent edit' }).selectOption('suggestions');
+  await settings.getByRole('combobox', { name: 'When you apply an agent edit' }).selectOption(mode);
   await settings.getByRole('button', { name: 'Save writing settings' }).click();
   await expect(settings.getByText(/Saved\./)).toBeVisible();
   await settings.getByRole('button', { name: 'Close' }).click();
@@ -126,4 +126,21 @@ test('reloading with changes still marked keeps the agent’s text and says so o
   await expect(page.getByTestId('review-bar')).toHaveCount(0);
   await expect(page.getByRole('textbox', { name: 'Document text' }).locator('ins, del')).toHaveCount(0);
   expect(await bodyOf(page, friend)).toBe(`${REWRITE}\n`);
+});
+
+test('changes left marked are announced on the next open even when it opens in the replace-the-text mode, so the notice cannot go stale', async ({ page }) => {
+  const friend = await openFriendWithText(page);
+  await applyRewrite(page);
+  await expect(page.getByTestId('review-bar')).toContainText('2 suggestions pending review');
+  await waitForSaved(page);
+
+  await page.reload();
+  await markChangesForReview(page, 'ghost');
+  await page.getByRole('listitem').filter({ hasText: 'Sample manuscript' }).getByRole('button', { name: 'Open' }).click();
+  await page.getByRole('treeitem', { name: /The Friend/ }).locator('.row-title').click();
+
+  await expect(page.getByText(/2 suggestions from the last agent turn were kept as written on reload/)).toBeVisible();
+  await expect(page.getByTestId('review-bar')).toHaveCount(0);
+  expect(await bodyOf(page, friend)).toBe(`${REWRITE}
+`);
 });
