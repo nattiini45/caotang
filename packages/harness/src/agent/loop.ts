@@ -172,6 +172,9 @@ import {
   type Reply,
 } from './protocol.js';
 import { previewFor, sceneDraftPreflight, shotsDeriveScenePreflight } from './ports.js';
+import { cautionOf, type ApprovalCaution, type CardHit, type QuoteFinding, type TaintRef } from '@caotang/mcp-client';
+import { quotedProjectText } from './egress-check.js';
+import { modelResult, outsideSources, scanForInjection, sourceName, turnNonce, UNTRUSTED_OPEN } from './untrusted.js';
 import { createContextPort, dropLinesOf, mergePreviews, type ContextPort } from './context.js';
 import { createSubagentRunner, framedResult, resultLine, SUBAGENT_SPECS, type ParentTurnHandle } from './subagent.js';
 import {
@@ -597,6 +600,15 @@ interface Turn {
   readonly command: string | undefined;
   /** A single reversible step shows a card instead of running at once. */
   readonly forcePlan: boolean;
+  /** The id of the envelopes this turn's outside text sits in (`untrusted.ts`): fresh for each turn, the same under an eval's session id. */
+  readonly nonce: string;
+  /**
+   * The turn has taken in text from outside the project: an external call's result, or the description of an external tool a search surfaced
+   * (agent-harness §4, "Tainted turns"). It lasts to the end of the turn; the writer's next intent starts a turn that is not tainted.
+   */
+  tainted: boolean;
+  /** What tainted the turn, once each, in the order it was read: the servers by name, and how a card names the read. */
+  readonly taintedBy: TaintRef[];
 }
 
 /** How the turn ended, before the report is built from it. */
@@ -680,6 +692,9 @@ function needsWriterApproval(error: CommandError): boolean {
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
+
+/** How many hits of the injection scan a card lists. */
+const MAX_CARD_HITS = 8;
 
 /** The reason a native call's tool message reports when the call never ran (the step was cancelled or edited away). */
 const NOT_RUN = 'the call did not run: its step was cancelled or changed before it ran';
@@ -976,7 +991,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const policyOf = (turn: Turn): ModePolicy => {
     const policy = modePolicy(modeNow(), {
       ...(autoLocked() ? { lockAuto: true } : {}),
-      ...(options.taint === undefined ? {} : { taint: options.taint }),
+      // A turn that took in text from outside is tainted for the rest of the turn, and so is a session whose host says its project holds some.
+      taint: () => turn.tainted || options.taint?.() === true,
       ...(options.noHuman === true ? { noHuman: true } : {}),
     });
     turn.mode = policy.mode;
@@ -1318,7 +1334,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const plannerCall = (turn: Turn): ModelCall => {
     const call = modelCall(turn);
     if (!turn.native) return call;
-    const tools = plannerToolDefs(harness.tools(), harness.loadedNativeTools(), harness.loadedExternalTools(), loadEvery());
+    const tools = plannerToolDefs(harness.tools(), harness.loadedNativeTools(), harness.loadedExternalTools(), loadEvery(), undefined, turn.nonce);
     return tools.length === 0 ? call : { ...call, tools };
   };
 
@@ -1334,6 +1350,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     pending?.results.set(call.id, result);
   };
 
+  /** Marks the turn as having taken in text from outside the project (agent-harness §4, "Tainted turns"), and remembers where from. */
+  const taint = (turn: Turn, sources: readonly TaintRef[]): void => {
+    if (sources.length === 0) return;
+    turn.tainted = true;
+    for (const source of sources) if (!turn.taintedBy.some((known) => known.label === source.label)) turn.taintedBy.push(source);
+  };
+
   /**
    * The tool messages the next request carries, one per call the model made and has not yet heard back
    * for — every call is answered, so the model is never left guessing whether one ran. A call with no
@@ -1346,7 +1369,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         turn.messages.push({
           role: 'tool',
           toolCallId: call.id,
-          content: JSON.stringify(result.ok ? { ok: true, data: result.body } : { ok: false, error: result.body }),
+          content: modelResult({ tool: call.name, ok: result.ok, body: result.body }, turn.nonce, false),
           ...(result.ok ? {} : { isError: true }),
         });
       }
@@ -1720,6 +1743,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const instruction = String(step.params['instruction'] ?? '');
       const targetWords = typeof step.params['target_words'] === 'number' ? step.params['target_words'] : undefined;
       const call = context.assemble({
+      nonce: turn.nonce,
         ...history,
         task: withSkills(turn, sceneTask(node.value.title, node.value.id, mode, instruction, selection, targetWords, step.params['include_forward_outline'] === true)),
         role: sceneRole(targetWords, node.value.kind, mode),
@@ -1795,6 +1819,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const previews: PromptPreview[] = [];
       for (const node of nodes) {
         const call = context.assemble({
+      nonce: turn.nonce,
           ...history,
           state: sourceView(state, node.id, source),
           task: withSkills(turn, { tool: 'synopsis.fill', instruction: synopsisInstruction(node, source), focus: node.id }),
@@ -1830,6 +1855,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // The container is the focus (dialogue-narrative §7): its Ink is L5, its prior beats are L4 and the codex of its speakers is L2,
       // so the prompt is the standard stack. The task carries the brief only, because the Ink is already in the focus.
       const call = context.assemble({
+      nonce: turn.nonce,
         ...history,
         task: withSkills(turn, { tool: 'dialogue.draft', instruction: `Brief: ${instruction}`, focus: container.node.id }),
         role: dialogueRole(targetLines),
@@ -1862,6 +1888,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (callsLeft(turn) < 1) return refusedDraft(tooCostly(step.tool, 1, 0, maxModelCalls));
     const aspects = Array.isArray(step.params['aspects']) ? (step.params['aspects'] as readonly string[]) : [];
     const call = context.assemble({
+      nonce: turn.nonce,
       ...history,
       task: continuityTask(scope.map((node) => node.id), aspects),
       role: continuityRole(aspects),
@@ -2053,6 +2080,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         cardFor(turn, id, step.tool, step.params, 'running');
       }
       const result = settleRead(turn, index, step, callId, outcome);
+      if (result.ok) taint(turn, outsideSources(result.body));
       wireResult(turn, step, { ok: result.ok, body: result.body });
       results.push(result);
       if (step.tool === 'tool.search' && outcome.ok && Array.isArray(outcome.value.data['surfaced'])) {
@@ -2060,6 +2088,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
     }
     const loadedNow = harness.loadedExternalTools().filter((tool) => surfaced.has(tool.qualifiedName));
+    taint(turn, loadedNow.map((tool) => ({ serverName: tool.serverName, label: sourceName(tool.serverName, tool.toolName) })));
     // With every tool declared, a native row a search loads is already in front of the model, so only external descriptors follow.
     const nativeNow = loadEvery() ? [] : harness.loadedNativeTools().filter((tool) => surfaced.has(tool.name));
     const loadedAny = loadedNow.length > 0 || nativeNow.length > 0;
@@ -2067,9 +2096,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // On the native wire each call is answered by its own tool message, keyed by its id; a search that
       // surfaced tools still puts their descriptors in a user note after the results, as the JSON wire does.
       flushWire(turn);
-      if (loadedAny) turn.messages.push({ role: 'user', content: loadedToolsMessage(nativeNow, loadedNow) });
+      if (loadedAny) turn.messages.push({ role: 'user', content: loadedToolsMessage(nativeNow, loadedNow, turn.nonce) });
     } else {
-      const sections = [resultsMessage(results), ...(loadedAny ? [loadedToolsMessage(nativeNow, loadedNow)] : [])];
+      const sections = [resultsMessage(results, turn.nonce), ...(loadedAny ? [loadedToolsMessage(nativeNow, loadedNow, turn.nonce)] : [])];
       turn.messages.push({ role: 'user', content: sections.join('\n\n') });
     }
     // The descriptors just sent name every tool the search loaded, so the planner's one-line addendum for the same set is not
@@ -2128,6 +2157,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const key = canonicalJson({ tool: step.tool, params: step.params });
       return turn.proposals.find((entry) => entry.key === key)?.agent;
     });
+    const caution = cautionFor(turn, editable, from);
     const card = planCardOf({
       id: `${turn.id}:card`,
       turnId: turn.id,
@@ -2142,8 +2172,39 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       staged,
       ...(proposedBy.some((agent) => agent !== undefined) ? { proposedBy } : {}),
       ...(notice === undefined ? {} : { notice }),
+      ...(caution === undefined ? {} : { caution }),
     });
     return { card, preflight };
+  }
+
+  /**
+   * What a card says beside its steps (issue #54): the outside text the turn read before it, and for each external write still to run the
+   * project text its arguments quote and what the scan finds in them and in the tool's description. Information: it never refuses a step.
+   */
+  function cautionFor(turn: Turn, editable: EditableSteps, from: number): ApprovalCaution | undefined {
+    const quotes: QuoteFinding[] = [];
+    const hits: CardHit[] = [];
+    const leads: string[] = [];
+    let second = false;
+    for (const [index, step] of editable.steps.entries()) {
+      const external = loadedExternal(step.tool);
+      if (index < from || ranAt(editable, index) || external === undefined || external.effectiveRisk === 'read-auto') continue;
+      const found = quotedProjectText(step.params, harness.state).map((quote): QuoteFinding => ({ ...quote, step: index + 1 }));
+      const scanned = [...scanForInjection(JSON.stringify(step.params)), ...scanForInjection(external.description)].map((hit): CardHit => ({ kind: hit.kind, excerpt: hit.excerpt }));
+      const caution = cautionOf(external.serverName, { followsUntrusted: turn.taintedBy, quotes: found, hits: scanned });
+      quotes.push(...found);
+      hits.push(...scanned);
+      if (caution?.lead !== undefined) leads.push(caution.lead);
+      second ||= caution?.requiresSecondClick === true;
+    }
+    if (turn.taintedBy.length === 0 && quotes.length === 0 && hits.length === 0) return undefined;
+    return {
+      followsUntrusted: turn.taintedBy.map((source) => source.label),
+      quotes,
+      hits: hits.slice(0, MAX_CARD_HITS),
+      ...(leads.length === 0 ? {} : { lead: leads.join(' ') }),
+      requiresSecondClick: second,
+    };
   }
 
   /**
@@ -2738,7 +2799,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   async function runWrites(turn: Turn, plan: Plan, staged: Staged, restore?: { readonly kind: 'plan' | 'confirm'; readonly completed: readonly number[] }): Promise<Settled | 'continue'> {
     const single = plan.steps.length === 1 ? (plan.steps[0] as PlanStep) : undefined;
     // A rule that asks gives a single write-auto call the one-step card a write-confirm call has (agent-harness §4, "Rules").
-    const asked = single !== undefined && asksWriter(single);
+    // A tainted turn does the same: the outside text it read may be what asked for the write (issue #54).
+    const asked = single !== undefined && (asksWriter(single) || (turn.tainted && riskOf(single.tool) === 'write-auto'));
     const kind: 'plan' | 'confirm' = restore?.kind ?? (single !== undefined && (riskOf(single.tool) === 'write-confirm' || asked) ? 'confirm' : 'plan');
     // A single write-auto call runs at once: a reversible op skips the plan (agent-harness §2), unless the writer asked for a plan card (`/plan`).
     // A card restored from a log is shown, not run.
@@ -3078,8 +3140,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * summary as L1, and the request as L7. The skills list (context-assembly §2) is a second planner addendum beside the loaded-tools line,
    * in a user message after the system prompt and so never part of L0; a project with no skill on offer has none.
    */
-  function plannerAssembly(native: boolean, intent: string, priorTurns: readonly RecentTurn[]) {
+  function plannerAssembly(native: boolean, intent: string, priorTurns: readonly RecentTurn[], nonce?: string) {
     const planner = context.assemble({
+      ...(nonce === undefined ? {} : { nonce }),
       task: { tool: 'meta', instruction: `Request: ${intent}` },
       // L0 is the core rows and nothing the turn loads, so it is the same bytes before and after a load (context-assembly §2).
       role: native ? plannerSystemNative(harness.tools(), loadEvery()) : plannerSystem(harness.tools(), loadEvery()),
@@ -3101,7 +3164,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // speaks (protocol.ts `plannerSystem`/`plannerSystemNative` — same rules, different wording).
     turn.native = nativeTools(turn) !== undefined;
     turn.converses = true;
-    const { planner, skills, dropped } = plannerAssembly(turn.native, intent, turn.priorTurns);
+    const { planner, skills, dropped } = plannerAssembly(turn.native, intent, turn.priorTurns, turn.nonce);
     turn.dropped.push(...dropped);
     emit({ type: 'context', turnId: turn.id, layers: planner.prompt.layers.map((layer) => ({ id: layer.id, tokens: layer.tokens })), dropped });
     trace({ kind: 'context', at: now(), turnId: turn.id, callIndex: turn.calls + 1, layers: planner.prompt.layers.map((layer) => ({ id: layer.id, tokens: layer.tokens })), dropped });
@@ -3232,8 +3295,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     maxModelCalls = boundNow();
     const meter = typeof options.meter === 'function' ? options.meter() : options.meter;
     const signals = [turnOptions.signal, meter?.signal].filter((signal): signal is AbortSignal => signal !== undefined);
+    const id = `${sessionName}.turn-${turnCounter}`;
     return {
-      id: `${sessionName}.turn-${turnCounter}`,
+      id,
       messages: [],
       trace: [],
       cards: [],
@@ -3267,6 +3331,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       carried: 0,
       command: isCommandName(turnOptions.command) ? turnOptions.command : undefined,
       forcePlan: turnOptions.forcePlan === true,
+      nonce: turnNonce(id),
+      tainted: false,
+      taintedBy: [],
     };
   }
 
@@ -3416,6 +3483,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     turn.restored = true;
     turn.carried = replay.applied.length;
     turn.messages.push(...replay.messages);
+    // The log holds the conversation as the model read it, envelopes included: a turn that read outside text before the reload is still tainted.
+    if (replay.messages.some((message) => typeof message.content === 'string' && message.content.includes(UNTRUSTED_OPEN))) taint(turn, [{ serverName: '', label: 'outside text' }]);
     turn.logged = turn.messages.length;
     turn.native = replay.native;
     const card = replay.card;

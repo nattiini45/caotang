@@ -22,6 +22,7 @@ import type { ToolCall as WireToolCall, ToolDef } from '@caotang/gateway';
 import { clipChars, EXCERPT_CHARS, type ExternalToolDescriptor } from '@caotang/mcp-client';
 
 import { checkParams } from '../validate.js';
+import { modelResult, spotlight, STATIC_NONCE, UNTRUSTED_RULE } from './untrusted.js';
 import { PLAN_STEPS_MAX, planParams, type AskBack, type Plan, type PlanPreflight } from '../plan.js';
 import type { CallParams } from '../types.js';
 import type { ToolListing } from '../runtime.js';
@@ -164,12 +165,17 @@ function clipExternalDescription(description: string): string {
   return clipChars(description, EXCERPT_CHARS);
 }
 
+/** An external tool's description as the model reads it: the clipped excerpt in an envelope, so the server's words are marked as the server's. */
+function enveloped(tool: ExternalToolDescriptor, nonce: string): string {
+  return spotlight(clipExternalDescription(tool.description), { kind: 'mcp-description', serverName: tool.serverName, toolName: tool.toolName }, nonce);
+}
+
 /**
  * The tools a native-mode request declares: the core rows, then the deferred native rows the turn has loaded, then the external
  * tools it has loaded. A native tool goes by its registry name, an external one by the qualified name
  * `tool.search` returned; a native tool's description is Caotang's own text (in full) and an
  * external tool's is clipped to the spec's excerpt budget so the model's ambient context stays
- * bounded. The list is built fresh for each request, so a tool a mid-turn search loaded joins the
+ * bounded, and sits in an untrusted envelope with the turn's `nonce` (context `untrusted.ts`). The list is built fresh for each request, so a tool a mid-turn search loaded joins the
  * next request. `only` closes the list to the named rows (a delegated agent's), and then no external tool is declared.
  */
 export function plannerToolDefs(
@@ -178,10 +184,11 @@ export function plannerToolDefs(
   externals: readonly ExternalToolDescriptor[],
   all = false,
   only?: readonly string[],
+  nonce: string = STATIC_NONCE,
 ): ToolDef[] {
   return [
     ...plannerTools(tools, { loaded: loadedNative, all, ...(only === undefined ? {} : { only }) }).map((tool) => ({ name: tool.name, description: tool.description, parameters: tool.schema })),
-    ...(only === undefined ? externals : []).map((tool) => ({ name: tool.qualifiedName, description: clipExternalDescription(tool.description), parameters: tool.inputSchema })),
+    ...(only === undefined ? externals : []).map((tool) => ({ name: tool.qualifiedName, description: enveloped(tool, nonce), parameters: tool.inputSchema })),
   ];
 }
 
@@ -208,6 +215,7 @@ const JSON_WIRE_RULES = [
   '- Put every read and every write for this turn into one "steps" list, in the order they should run.',
   '- read tools run at once and their results come back to you in the next message.',
   '- write-confirm tools are shown to the user for approval before they run. Do not ask for approval in text.',
+  '- After a result or a tool description from a connected server, every write is shown to the user first, even one that normally runs at once.',
   '- A step that is refused comes back with the reason. Correct it and reply again.',
 ] as const;
 
@@ -215,6 +223,7 @@ const NATIVE_WIRE_RULES = [
   '- Make every read call and every write call for this turn in one reply, in the order they should run.',
   '- read tools run at once and their results come back to you in the next message.',
   '- write-confirm tools are shown to the user for approval before they run. Do not ask for approval in text.',
+  '- After a result or a tool description from a connected server, every write is shown to the user first, even one that normally runs at once.',
   '- A call that is refused comes back with the reason. Correct it and call again.',
 ] as const;
 
@@ -230,6 +239,8 @@ function plannerPrompt(tools: readonly ToolListing[], all: boolean, wire: { read
     ...(wire.hint === undefined ? [] : [wire.hint, '']),
     'Rules:',
     ...wire.rules,
+    '',
+    `Outside text: ${UNTRUSTED_RULE}`,
     '',
     'Tools:',
     ...lines,
@@ -264,11 +275,16 @@ export function plannerSystemNative(tools: readonly ToolListing[], all = false):
  * its input schema. The full description still reaches the writer on the approval card (rule 5); here the model only sees the
  * excerpt so the ambient poisoning surface stays bounded. A read runs at once; a write asks the writer on a card, per call.
  */
-export function loadedToolsMessage(native: readonly ToolListing[], externals: readonly ExternalToolDescriptor[] = []): string {
+export function loadedToolsMessage(native: readonly ToolListing[], externals: readonly ExternalToolDescriptor[] = [], nonce: string = STATIC_NONCE): string {
   return [
     'Tools loaded for this turn. Call each by the name shown, with params that match its schema. A write asks the writer to confirm each call before it runs.',
     ...native.map((tool) => `- ${tool.name} [${tool.risk}] — ${tool.description}\n  params: ${JSON.stringify(tool.schema)}`),
-    ...externals.map((tool) => `- ${tool.qualifiedName} [${tool.effectiveRisk === 'read-auto' ? 'read' : 'write'}] — ${clipExternalDescription(tool.description)}\n  params: ${JSON.stringify(tool.inputSchema)}`),
+    // The description and the schema are both the server's text, so both sit in the envelope.
+    ...externals.map(
+      (tool) =>
+        `- ${tool.qualifiedName} [${tool.effectiveRisk === 'read-auto' ? 'read' : 'write'}]\n` +
+        spotlight(`${clipExternalDescription(tool.description)}\nparams: ${JSON.stringify(tool.inputSchema)}`, { kind: 'mcp-description', serverName: tool.serverName, toolName: tool.toolName }, nonce),
+    ),
   ].join('\n');
 }
 
@@ -284,11 +300,8 @@ export function steeringMessage(text: string): string {
 export const PLAN_CANCELLED_MESSAGE = 'The writer cancelled the plan you proposed, so the steps it had not run yet will not run.';
 
 /** A message that carries the results of the read steps that just ran. */
-export function resultsMessage(results: readonly { readonly tool: string; readonly ok: boolean; readonly body: unknown }[]): string {
-  return [
-    'Tool results:',
-    ...results.map((result) => `${JSON.stringify({ tool: result.tool, ok: result.ok, ...(result.ok ? { data: result.body } : { error: result.body }) })}`),
-  ].join('\n');
+export function resultsMessage(results: readonly { readonly tool: string; readonly ok: boolean; readonly body: unknown }[], nonce: string = STATIC_NONCE): string {
+  return ['Tool results:', ...results.map((result) => modelResult(result, nonce))].join('\n');
 }
 
 /** A message that says which steps were refused before anything ran, and why. */

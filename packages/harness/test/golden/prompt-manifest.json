@@ -1,15 +1,19 @@
 [
   {
     "id": "planner.system.json",
-    "sha256": "dea61b9b074a622894ba519a27db024bf4b52949ae1035272504f1f5df0ae02d"
+    "sha256": "d59f01c707bcddc309869832a437162e84ddc7065571f92e4ff7ec8d54e645ad"
   },
   {
     "id": "planner.system.native",
-    "sha256": "247bd8e5104572afac2b4d9b28bab41bb66b09793994f526b144dca5198ff22d"
+    "sha256": "c18f63b7e78b11ccd914d0b65750d3248a94c4d6b3aa70bb485bae89a77db290"
   },
   {
     "id": "planner.more-tools-line",
     "sha256": "386043697bf20578213420c283e647e32b1f9fb2274867e06e8b2ff577b973e2"
+  },
+  {
+    "id": "context.untrusted-rule",
+    "sha256": "865263173ccb8e0120411680d6463a5b1272408940c7864a4f040fe2e310f34e"
   },
   {
     "id": "planner.tools.native.all",

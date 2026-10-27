@@ -346,9 +346,11 @@ describe('the agent loop and a loaded external tool, end to end (extensibility Â
     // the qualified name and risk, the description verbatim, and the input schema the server advertised.
     const afterSearch = requests[1]?.messages.map((message) => message.content).join('\n') ?? '';
     expect(afterSearch).toContain('Tools loaded for this turn.');
-    expect(afterSearch).toContain(`- ${SEARCH} [read] â€” Search the story bible for an entry.`);
+    // It sits in an envelope that names the server, the description and the schema together.
+    expect(afterSearch).toContain(`- ${SEARCH} [read]\n<<untrusted source="mcp-description:Story Bible/search_lore" id="`);
+    expect(afterSearch).toContain('\nSearch the story bible for an entry.\n');
     expect(afterSearch).toContain(
-      `  params: ${JSON.stringify({ type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false })}`,
+      `params: ${JSON.stringify({ type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false })}`,
     );
     // The read ran once, through the bus, from the loop, and its row carries the external source.
     expect(calls).toEqual(['search_lore']);

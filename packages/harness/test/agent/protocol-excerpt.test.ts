@@ -18,17 +18,21 @@ function external(description: string): ExternalToolDescriptor {
   } as unknown as ExternalToolDescriptor;
 }
 
+/** The excerpt inside the envelope a declaration puts a description in (context `untrusted.ts`). */
 function declared(description: string): string {
   const defs = plannerToolDefs([], [], [external(description)]);
   const def = defs.find((d) => d.name === 'mcp__notes__search');
   if (def === undefined) throw new Error('external tool missing from the declaration');
-  return def.description;
+  const lines = def.description.split('\n');
+  expect(lines[0]).toBe('<<untrusted source="mcp-description:Notes/search" id="000000000000">>');
+  expect(lines.at(-1)).toBe('<</untrusted id="000000000000">>');
+  return lines.slice(1, -1).join('\n');
 }
 
 describe('external tool descriptions reach the model as the spec excerpt (extensibility §4 rule 4)', () => {
   it('keeps a short description whole', () => {
     expect(declared('Search the notes.')).toBe('Search the notes.');
-    expect(loadedToolsMessage([], [external('Search the notes.')])).toContain('— Search the notes.');
+    expect(loadedToolsMessage([], [external('Search the notes.')])).toContain('\nSearch the notes.\nparams: ');
   });
 
   it('clips a long description to the excerpt budget, ellipsis included', () => {
