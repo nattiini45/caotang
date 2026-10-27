@@ -104,7 +104,15 @@ import {
   type WriteDocumentResult,
 } from '@caotang/store';
 import { newId } from '@caotang/ids';
-import { assetRecordsOf, createExporter, exportMetadataOf, type EmitFailure, type ExporterService } from '@caotang/exporter';
+import {
+  assetRecordsOf,
+  createExporter,
+  exportMetadataOf,
+  type EmitFailure,
+  type ExportPreview,
+  type ExportPreviewRequest,
+  type ExporterService,
+} from '@caotang/exporter';
 import { dropDanglingImages, shotCommandPort } from '@caotang/storyboard';
 import { InkCompilerNotLoaded } from '@caotang/dialogue';
 import { createProductHarness, dialogueFactsOf, excludedBy, withheldState, type Harness, type SourcedRule } from '@caotang/harness';
@@ -956,6 +964,15 @@ export class ProjectSession {
     await requestInkCompilerFor(this.state);
     await this.refreshAssetRecords();
     await this.exporterService.ready();
+  }
+
+  /**
+   * The Draft of a compile (exporter.md §4): what the same request would write and leave out, from the project as it is now. A read: no bus
+   * command runs, so there is no gate, activity row or undo entry, and nothing is written to `exports/` or the compile log. A media format
+   * renders in its plan, so its gates and counts are only as current as `exportsReady` (the Ink compiler, the image listing).
+   */
+  previewExport(request: ExportPreviewRequest): ExportPreview {
+    return this.exporterService.preview(request);
   }
 
   /** Resolves when every queued export write has settled, so the bytes of a finished compile are in the store. */

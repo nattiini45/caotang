@@ -12,6 +12,8 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - **Agent trace.** Every prompt, reply, tool call, tool result and timing of a turn, in a Trace view beside Activity, kept only in the open tab and exported on request as a JSONL file (`caotang.trace/1`, with OpenTelemetry’s GenAI field names). **Export trace** saves one turn or all of them, and **Leave out manuscript text** replaces every text with its length. The coherence and encoding reviews, which run outside a turn, are shown in their own group. Keys are removed on a best-effort basis; the trace is never saved in a project, a backup or the browser’s storage, and nothing is sent anywhere. **Keep agent traces for this tab** turns it off. A turn run in an eval can write the same trace, byte for byte the same each time (developers).
 
+- **A Preview in the Export dialog.** Before you compile, the dialog lists what the compile will write: the title page, each chapter with its scenes and words, the totals, and every document it will leave out, in the compile log's words. It follows the recipe, the format and what to export, and its counts are the ones the compile reports. It writes nothing and adds nothing to Undo. The screenplay, dialogue and storyboard formats show their counts, or the reason Caotang would refuse the compile. This is the Draft; the styled page (the Proof) is not built.
+
 ### Known limits
 
 - Writing through an AI tool's model covers scenes and dialogue only. The host's confirmation names the document and the word change, not the text, and it is not a review. How a real host shows it has not been seen, and a run of changes is as many questions: staging them as one change is specified and not built.
