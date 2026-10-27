@@ -231,8 +231,10 @@ export interface ReviewState {
   pending: number;
   /** The pending suggestions of each tool call, oldest first. */
   byToolCall: ReadonlyArray<{ toolCallId: string; pending: number }>;
-  /** The suggestion at the caret or selection, or `null`. */
+  /** The first suggestion at the caret or selection, or `null`. */
   current: ReviewSuggestion | null;
+  /** How many suggestions the caret or selection touches: what Accept and Reject act on. */
+  selected: number;
   /** 1-based place of `current` among the pending, or 0. */
   position: number;
 }
@@ -244,7 +246,7 @@ export interface ReviewState {
 export interface ReviewApi {
   state(): ReviewState;
   subscribe(listener: () => void): () => void;
-  /** The suggestion at the caret or selection. */
+  /** The suggestions at the caret or selection. */
   accept(): number;
   reject(): number;
   acceptToolCall(toolCallId: string): number;

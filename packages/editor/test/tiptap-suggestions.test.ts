@@ -134,6 +134,37 @@ describe('the marks an agent edit leaves (§15)', () => {
     expect(marksIn(liveDoc(host)).some((mark) => mark.name === 'deletion')).toBe(true);
   });
 
+  it('makes one suggestion for a run of paragraphs added together, in their order', async () => {
+    const { host, instance } = await mountReview(BEFORE);
+    const added = `${BEFORE}
+One more.
+
+And another.
+`;
+    expect((await instance.showAgentEdit(added, info())).landed).toBe('suggestions');
+    expect(instance.getContent()).toBe(added);
+    expect(instance.review.state().pending).toBe(1);
+    expect([...focusDom(host).querySelectorAll('p')].map((p) => p.textContent)).toEqual([
+      'The rain kept falling on the harbour.',
+      'The clerk counted the crates twice, and nobody believed the manifest.',
+      'The ship had already gone.',
+      'One more.',
+      'And another.',
+    ]);
+    expect(instance.review.rejectAll()).toBe(1);
+    expect(instance.getContent()).toBe(BEFORE);
+  });
+
+  it('writes the agent’s words into an empty scene as one suggestion inside its paragraph', async () => {
+    const { host, instance } = await mountReview('');
+    expect((await instance.showAgentEdit('The ferry came in.\n', info())).landed).toBe('suggestions');
+    expect(instance.getContent()).toBe('The ferry came in.\n');
+    expect(instance.review.state().pending).toBe(1);
+    expect(focusDom(host).querySelectorAll('p')).toHaveLength(1);
+    expect(instance.review.rejectAll()).toBe(1);
+    expect(instance.getContent()).toBe('');
+  });
+
   it('marks a change inside a list item without touching the other items', async () => {
     const before = '- apples\n- pears and plums\n- figs\n';
     const after = '- apples\n- pears and cherries\n- figs\n';
@@ -429,17 +460,9 @@ describe('when the marks are not trusted', () => {
   });
 
   it('replaces the text when the marks would not project back to the stored body, and the screen never shows a wrong text', async () => {
-    const real = await loadSuggestionLayer();
-    const faulty = {
-      ...real,
-      // A diff that drops its last hunk: the projection then lacks one of the agent's changes.
-      trackAgentEdit: (...args: Parameters<typeof real.trackAgentEdit>) => {
-        const [state, next, newId, meta] = args;
-        const half = state.doc.copy(state.doc.content.cut(0, state.doc.content.size));
-        return real.trackAgentEdit(state, next.copy(next.content.replaceChild(1, half.child(1))), newId, meta);
-      },
-    };
-    const { host, instance } = await mountReview(BEFORE, { loadReviewLayer: async () => faulty });
+    // A diff engine that calls two different texts equal: the marks it makes cannot add up to the agent's text.
+    const blind: DiffEngine = { diff_main: (text) => [[0, text]], diff_cleanupSemantic: () => {} };
+    const { host, instance } = await mountReview(BEFORE, { loadReviewLayer: () => loadSuggestionLayer(blind) });
     const outcome = await instance.showAgentEdit(AFTER, info());
     expect(outcome).toEqual({ landed: 'replaced', reason: 'mismatch' });
     expect(instance.getContent()).toBe(AFTER);

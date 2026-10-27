@@ -86,8 +86,6 @@ import type {
   ProjectionMap,
   ReviewApi,
   ReviewableEditorInstance,
-  ReviewState,
-  ReviewSuggestion,
   TextAnchor,
 } from '../seam.js';
 import { caotangExtensions } from './extensions.js';
@@ -103,7 +101,7 @@ import {
   schemaSignature,
 } from './history-journal.js';
 import type { HistoryJournal, HistoryPort } from './history-journal.js';
-import type { SuggestionLayer, SuggestionSpan } from './suggestions.js';
+import type { SuggestionLayer } from './suggestions.js';
 import { insertedSpans, reachesScope, replacedSpans, shrinkSpan, unionSpan } from './undo-scope.js';
 import type { Span } from './undo-scope.js';
 
@@ -324,6 +322,21 @@ export interface TiptapEditorInstance extends ReviewableEditorInstance {
 export interface TiptapEditorApi extends EditorApi {
   mount(host: HTMLElement, opts: TiptapMountOptions): Promise<TiptapEditorInstance>;
 }
+
+/** The review calls of an editor that is not in review mode: nothing is ever pending. */
+const NONE = (): number => 0;
+const INERT_REVIEW: ReviewApi = {
+  state: () => ({ pending: 0, byToolCall: [], current: null, selected: 0, position: 0 }),
+  subscribe: () => () => {},
+  accept: NONE,
+  reject: NONE,
+  acceptToolCall: NONE,
+  rejectToolCall: NONE,
+  acceptAll: NONE,
+  rejectAll: NONE,
+  next: () => false,
+  previous: () => false,
+};
 
 /** The meta an accept carries, so the update it causes is not mistaken for the writer's edit. */
 const REVIEW_ACCEPT = 'caotangReviewAccept';
@@ -828,123 +841,20 @@ const createInstance = (
   };
 
   // --- §15: the review marks and the calls that resolve them --------------------------
-  /** The turns this editor has shown, by their local number. A mark's id holds the number and never the tool call. */
-  let turnCount = 0;
-  const turnTools = new Map<number, string>();
-  const reviewListeners = new Set<() => void>();
-  const emptyReview: ReviewState = { pending: 0, byToolCall: [], current: null, position: 0 };
-  let review: ReviewState = emptyReview;
-  let spansFor: { readonly doc: PmNode; readonly spans: SuggestionSpan[] } | null = null;
-  const pendingSpans = (): SuggestionSpan[] => {
-    if (layer === null || destroyed) return [];
-    const live = editor.state.doc;
-    if (spansFor === null || spansFor.doc !== live) spansFor = { doc: live, spans: layer.spans(live) };
-    return spansFor.spans;
-  };
-  const suggestionOf = (span: SuggestionSpan): ReviewSuggestion => ({
-    id: span.id,
-    toolCallId: turnTools.get(span.turn) ?? null,
-    kind: span.kind,
-    added: span.added,
-    removed: span.removed,
-  });
-  const readReview = (): ReviewState => {
-    const spans = pendingSpans();
-    if (layer === null || spans.length === 0) return emptyReview;
-    const { from, to } = editor.state.selection;
-    const here = new Set(layer.idsAt(editor.state.doc, from, to));
-    const at = spans.findIndex((span) => here.has(span.id));
-    const counts = new Map<number, number>();
-    for (const span of spans) counts.set(span.turn, (counts.get(span.turn) ?? 0) + 1);
-    return {
-      pending: spans.length,
-      byToolCall: [...counts.entries()]
-        .sort((a, b) => a[0] - b[0])
-        .flatMap(([turn, pending]) => {
-          const toolCallId = turnTools.get(turn);
-          return toolCallId === undefined ? [] : [{ toolCallId, pending }];
-        }),
-      current: at < 0 ? null : suggestionOf(spans[at] as SuggestionSpan),
-      position: at + 1,
-    };
-  };
-  const sameReview = (a: ReviewState, b: ReviewState): boolean =>
-    a.pending === b.pending &&
-    a.position === b.position &&
-    a.current?.id === b.current?.id &&
-    a.byToolCall.length === b.byToolCall.length &&
-    a.byToolCall.every((entry, index) => entry.toolCallId === b.byToolCall[index]?.toolCallId && entry.pending === b.byToolCall[index]?.pending);
-  /** Tells the subscribers when the marks or the caret's place among them changed. Nothing is computed while no one listens. */
-  const notifyReview = (): void => {
-    if (destroyed || reviewListeners.size === 0) return;
-    const next = readReview();
-    if (sameReview(review, next)) return;
-    review = next;
-    for (const listener of [...reviewListeners]) listener();
-  };
-  editor.on('transaction', notifyReview);
-
-  /** Accepts or rejects suggestions in one Lane 1 transaction, so one Ctrl+Z puts them back. */
-  const resolveIds = (ids: readonly string[], mode: 'accept' | 'reject'): number => {
-    if (layer === null || destroyed || ids.length === 0) return 0;
-    const tr = layer.resolve(editor.state, ids, mode);
-    if (tr === null) return 0;
-    if (mode === 'accept') tr.setMeta(REVIEW_ACCEPT, true);
-    commit(tr);
-    return ids.length;
-  };
-  const currentId = (): string[] => {
-    const here = readReview().current;
-    return here === null ? [] : [here.id];
-  };
-  const idsOfToolCall = (toolCallId: string): string[] => {
-    const turns = new Set([...turnTools.entries()].filter(([, call]) => call === toolCallId).map(([turn]) => turn));
-    return pendingSpans()
-      .filter((span) => turns.has(span.turn))
-      .map((span) => span.id);
-  };
-  const resolveAll = (mode: 'accept' | 'reject'): number => {
-    if (layer === null || destroyed) return 0;
-    const count = pendingSpans().length;
-    const tr = layer.resolveAll(editor.state, mode);
-    if (tr === null) return 0;
-    if (mode === 'accept') tr.setMeta(REVIEW_ACCEPT, true);
-    commit(tr);
-    return count;
-  };
-  const moveTo = (direction: 1 | -1): boolean => {
-    const spans = pendingSpans();
-    if (layer === null || spans.length === 0) return false;
-    const here = readReview().current;
-    const hereSpan = here === null ? undefined : spans.find((span) => span.id === here.id);
-    const from = hereSpan === undefined ? editor.state.selection.from : hereSpan.from;
-    const ahead =
-      direction === 1
-        ? spans.filter((span) => (hereSpan === undefined ? span.from >= from : span.from > from))
-        : spans.filter((span) => span.from < from).reverse();
-    const target = ahead[0] ?? (direction === 1 ? spans[0] : spans[spans.length - 1]);
-    if (target === undefined) return false;
-    commit(layer.select(editor.state, target));
-    return true;
-  };
-  const reviewApi: ReviewApi = {
-    state: () => (reviewListeners.size === 0 ? readReview() : review),
-    subscribe: (listener) => {
-      review = readReview();
-      reviewListeners.add(listener);
-      return () => {
-        reviewListeners.delete(listener);
-      };
+  // --- §15: the review marks and the calls that resolve them (the lazily loaded layer's) ----
+  const desk = layer?.createReview({
+    editor,
+    commit,
+    destroyed: () => destroyed,
+    replace: (next) => landReplacement(next, { historyExcluded: true }),
+    markAgent: (tr) => void markLane(tr, { historyExcluded: true }),
+    matches: (doc, next) => serialize(caotangSchema.nodeFromJSON(doc.toJSON())) === serialize(next.doc),
+    loaded: (next) => {
+      load = { warnings: next.warnings, dialect: next.dialect };
+      opts.onLoadDiagnostics?.(load);
+      announce();
     },
-    accept: () => resolveIds(currentId(), 'accept'),
-    reject: () => resolveIds(currentId(), 'reject'),
-    acceptToolCall: (toolCallId) => resolveIds(idsOfToolCall(toolCallId), 'accept'),
-    rejectToolCall: (toolCallId) => resolveIds(idsOfToolCall(toolCallId), 'reject'),
-    acceptAll: () => resolveAll('accept'),
-    rejectAll: () => resolveAll('reject'),
-    next: () => moveTo(1),
-    previous: () => moveTo(-1),
-  };
+  });
 
   /**
    * §15's entry path. The store already holds `text`, so this only shows the difference. It falls back to `setContent` whenever
@@ -952,13 +862,9 @@ const createInstance = (
    */
   const showAgentEdit = async (text: string, info: AgentEditInfo): Promise<AgentEditOutcome> => {
     const replaceOpts: SetContentOptions = { historyExcluded: true, discardUnsaved: true, revision: info.revision };
-    if (layer === null) {
+    if (desk === undefined || unsaved()) {
       await instance.setContent(text, replaceOpts);
-      return { landed: 'replaced', reason: 'off' };
-    }
-    if (unsaved()) {
-      await instance.setContent(text, replaceOpts);
-      return { landed: 'replaced', reason: 'unsaved' };
+      return { landed: 'replaced', reason: desk === undefined ? 'off' : 'unsaved' };
     }
     const seq = (loadSeq += 1);
     const next = await parseWithDiagnostics(text);
@@ -967,35 +873,7 @@ const createInstance = (
       await autosave.reseat(docId, { body: serialize(next.doc), revision: info.revision });
       if (destroyed || seq !== loadSeq) return { landed: 'replaced', reason: 'superseded' };
     }
-    const fallback = (reason: 'diff' | 'mismatch'): AgentEditOutcome => {
-      landReplacement(next, { historyExcluded: true });
-      return { landed: 'replaced', reason };
-    };
-    // Earlier marks are accepted first. That changes nothing the store holds, and the new diff is made against the text on screen.
-    if (layer.hasMarks(editor.state.doc)) {
-      const earlier = layer.resolveAll(editor.state, 'accept');
-      if (earlier !== null) commit(markLane(earlier, { historyExcluded: true }));
-    }
-    turnCount += 1;
-    const turn = turnCount;
-    let counter = 0;
-    const tracked = layer.trackAgentEdit(
-      editor.state,
-      editor.schema.nodeFromJSON(next.doc.toJSON()),
-      () => `${turn}.${(counter += 1)}`,
-      (tr) => {
-        markLane(tr, { historyExcluded: true });
-      },
-    );
-    if (tracked === null) return fallback('diff');
-    const accepted = layer.project(tracked.doc)?.doc ?? tracked.doc;
-    if (serialize(caotangSchema.nodeFromJSON(accepted.toJSON())) !== serialize(next.doc)) return fallback('mismatch');
-    turnTools.set(turn, info.toolCallId);
-    if (tracked.docChanged) commit(tracked);
-    load = { warnings: next.warnings, dialect: next.dialect };
-    opts.onLoadDiagnostics?.(load);
-    announce();
-    return { landed: 'suggestions', suggestions: pendingSpans().length };
+    return desk.land(next, info.toolCallId);
   };
 
   const instance: TiptapEditorInstance = {
@@ -1034,7 +912,7 @@ const createInstance = (
 
     showAgentEdit,
 
-    review: reviewApi,
+    review: desk?.api ?? INERT_REVIEW,
 
     getSelection,
 

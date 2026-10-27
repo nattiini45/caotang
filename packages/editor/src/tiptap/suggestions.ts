@@ -36,6 +36,9 @@ import {
   suggestChangesKey,
   transformToSuggestionTransaction,
 } from '@handlewithcare/prosemirror-suggest-changes';
+import type { Editor } from '@tiptap/core';
+import type { ParseResult } from '../pipeline.js';
+import type { AgentEditOutcome, ReviewApi, ReviewState, ReviewSuggestion } from '../seam.js';
 import { caotangExtensions } from './extensions.js';
 import type { CaotangExtensionOptions } from './extensions.js';
 
@@ -63,6 +66,8 @@ export interface Projection {
 }
 
 export interface SuggestionLayer {
+  /** The review state, the calls that resolve the marks of one editor, and the call that lands an agent edit as marks. */
+  createReview(host: ReviewHost): ReviewDesk;
   /** The mark extensions and the plugin, to add to the focus editor's set. */
   extensions(options: CaotangExtensionOptions): Extensions;
   hasMarks(doc: PmNode): boolean;
@@ -462,7 +467,8 @@ const SIMILAR = 0.4;
 /** Whether the old block and the new one are the same paragraph, edited: the pairing that keeps unchanged and rewritten text apart. */
 const pairable = (a: PmNode, b: PmNode): boolean => {
   if (a.type !== b.type) return false;
-  if (a.isTextblock) return similarity(a, b) >= SIMILAR;
+  // An empty paragraph is filled, not replaced: the words go into it.
+  if (a.isTextblock) return a.content.size === 0 || b.content.size === 0 || similarity(a, b) >= SIMILAR;
   return !a.isLeaf;
 };
 
@@ -522,6 +528,8 @@ const childHunks = (
     let o = o0;
     let n = n0;
     for (const [po, pn] of pairs) {
+      // A run of blocks added or removed together is one suggestion: the library resolves neighbouring block marks of one kind as a
+      // single run (`findSuggestionMarkEnd`), so they are given one id and kept or put back together.
       if (o < po || n < pn) {
         hunks.push({ from: startOld(o), to: startOld(po), slice: newDoc.slice(startNew(n), startNew(pn)) });
       }
@@ -609,9 +617,196 @@ const chain = (
   return merged;
 };
 
+/** What the review calls need from the adapter that owns the editor. */
+export interface ReviewHost {
+  readonly editor: Editor;
+  /** Dispatches a transaction through the adapter's lane and scope handling. */
+  commit(tr: Transaction): void;
+  destroyed(): boolean;
+  /** Puts a parsed body in the place of the whole document, outside the writer's undo: the fallback when marks are not trusted. */
+  replace(next: ParseResult): void;
+  /** Marks a transaction as the agent's (Lane 2), so the writer's undo never reaches it. */
+  markAgent(tr: Transaction): void;
+  /** Whether `doc`, on the live schema, serializes to exactly the body `next` serializes to. */
+  matches(doc: PmNode, next: ParseResult): boolean;
+  /** The body the editor now shows came from `next`: its diagnostics are the load's. */
+  loaded(next: ParseResult): void;
+}
+
+/** The meta an accept carries, so the update it causes is not mistaken for the writer's edit. The adapter spells the same string itself, because importing it would load this module with the editor. */
+export const REVIEW_ACCEPT = 'caotangReviewAccept';
+
+/** One editor's review calls, and the call that lands an agent edit. */
+export interface ReviewDesk {
+  readonly api: ReviewApi;
+  /**
+   * Shows `next`, which the store already holds, as marks over the text on screen, as one turn of `toolCallId`. Earlier marks are
+   * accepted first: that changes nothing the store holds, and the new diff is made against the text on screen. When the marks would not
+   * project back to `next` exactly, the text is replaced instead and the outcome says why.
+   */
+  land(next: ParseResult, toolCallId: string): AgentEditOutcome;
+}
+
+/** The review state of one editor, and the calls that resolve its marks. */
+const createReview = (layer: Omit<SuggestionLayer, 'createReview'>, host: ReviewHost): ReviewDesk => {
+  const { editor } = host;
+  /** The turns this editor has shown, by their local number. A mark's id holds the number and never the tool call. */
+  const turnTools = new Map<number, string>();
+  const listeners = new Set<() => void>();
+  const empty: ReviewState = { pending: 0, byToolCall: [], current: null, selected: 0, position: 0 };
+  let review: ReviewState = empty;
+  let spansFor: { readonly doc: PmNode; readonly spans: SuggestionSpan[] } | null = null;
+  const pendingSpans = (): SuggestionSpan[] => {
+    if (host.destroyed()) return [];
+    const live = editor.state.doc;
+    if (spansFor === null || spansFor.doc !== live) spansFor = { doc: live, spans: layer.spans(live) };
+    return spansFor.spans;
+  };
+  const suggestionOf = (span: SuggestionSpan): ReviewSuggestion => ({
+    id: span.id,
+    toolCallId: turnTools.get(span.turn) ?? null,
+    kind: span.kind,
+    added: span.added,
+    removed: span.removed,
+  });
+  /** The ids of the suggestions the caret or selection touches, in document order. */
+  const selectedIds = (): string[] => {
+    const { from, to } = editor.state.selection;
+    const here = new Set(layer.idsAt(editor.state.doc, from, to));
+    return pendingSpans()
+      .filter((span) => here.has(span.id))
+      .map((span) => span.id);
+  };
+  const read = (): ReviewState => {
+    const spans = pendingSpans();
+    if (spans.length === 0) return empty;
+    const here = new Set(selectedIds());
+    const at = spans.findIndex((span) => here.has(span.id));
+    const counts = new Map<number, number>();
+    for (const span of spans) counts.set(span.turn, (counts.get(span.turn) ?? 0) + 1);
+    return {
+      pending: spans.length,
+      byToolCall: [...counts.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .flatMap(([turn, pending]) => {
+          const toolCallId = turnTools.get(turn);
+          return toolCallId === undefined ? [] : [{ toolCallId, pending }];
+        }),
+      current: at < 0 ? null : suggestionOf(spans[at] as SuggestionSpan),
+      selected: here.size,
+      position: at + 1,
+    };
+  };
+  const same = (a: ReviewState, b: ReviewState): boolean =>
+    a.pending === b.pending &&
+    a.position === b.position &&
+    a.selected === b.selected &&
+    a.current?.id === b.current?.id &&
+    a.byToolCall.length === b.byToolCall.length &&
+    a.byToolCall.every((entry, index) => entry.toolCallId === b.byToolCall[index]?.toolCallId && entry.pending === b.byToolCall[index]?.pending);
+  // Tells the subscribers when the marks or the caret's place among them changed. Nothing is computed while no one listens.
+  editor.on('transaction', () => {
+    if (host.destroyed() || listeners.size === 0) return;
+    const next = read();
+    if (same(review, next)) return;
+    review = next;
+    for (const listener of [...listeners]) listener();
+  });
+
+  /** Accepts or rejects suggestions in one Lane 1 transaction, so one Ctrl+Z puts them back. */
+  const resolveIds = (ids: readonly string[], mode: 'accept' | 'reject'): number => {
+    if (host.destroyed() || ids.length === 0) return 0;
+    const tr = layer.resolve(editor.state, ids, mode);
+    if (tr === null) return 0;
+    if (mode === 'accept') tr.setMeta(REVIEW_ACCEPT, true);
+    host.commit(tr);
+    return ids.length;
+  };
+  const idsOfToolCall = (toolCallId: string): string[] => {
+    const turns = new Set([...turnTools].filter(([, call]) => call === toolCallId).map(([turn]) => turn));
+    return pendingSpans()
+      .filter((span) => turns.has(span.turn))
+      .map((span) => span.id);
+  };
+  const resolveAll = (mode: 'accept' | 'reject'): number => {
+    if (host.destroyed()) return 0;
+    const count = pendingSpans().length;
+    const tr = layer.resolveAll(editor.state, mode);
+    if (tr === null) return 0;
+    if (mode === 'accept') tr.setMeta(REVIEW_ACCEPT, true);
+    host.commit(tr);
+    return count;
+  };
+  const moveTo = (direction: 1 | -1): boolean => {
+    const spans = pendingSpans();
+    if (spans.length === 0) return false;
+    const here = read().current;
+    const hereSpan = here === null ? undefined : spans.find((span) => span.id === here.id);
+    const from = hereSpan === undefined ? editor.state.selection.from : hereSpan.from;
+    const ahead =
+      direction === 1
+        ? spans.filter((span) => (hereSpan === undefined ? span.from >= from : span.from > from))
+        : spans.filter((span) => span.from < from).reverse();
+    const target = ahead[0] ?? (direction === 1 ? spans[0] : spans[spans.length - 1]);
+    if (target === undefined) return false;
+    host.commit(layer.select(editor.state, target));
+    return true;
+  };
+  const api: ReviewApi = {
+    // The same object while nothing in it changed, so a view that reads it on every render sees a stable value.
+    state: () => {
+      const next = read();
+      if (!same(review, next)) review = next;
+      return review;
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    accept: () => resolveIds(selectedIds(), 'accept'),
+    reject: () => resolveIds(selectedIds(), 'reject'),
+    acceptToolCall: (toolCallId) => resolveIds(idsOfToolCall(toolCallId), 'accept'),
+    rejectToolCall: (toolCallId) => resolveIds(idsOfToolCall(toolCallId), 'reject'),
+    acceptAll: () => resolveAll('accept'),
+    rejectAll: () => resolveAll('reject'),
+    next: () => moveTo(1),
+    previous: () => moveTo(-1),
+  };
+  const land = (next: ParseResult, toolCallId: string): AgentEditOutcome => {
+    const fallback = (reason: 'diff' | 'mismatch'): AgentEditOutcome => {
+      host.replace(next);
+      return { landed: 'replaced', reason };
+    };
+    if (layer.hasMarks(editor.state.doc)) {
+      const earlier = layer.resolveAll(editor.state, 'accept');
+      if (earlier !== null) {
+        host.markAgent(earlier);
+        host.commit(earlier);
+      }
+    }
+    const turn = Math.max(0, ...turnTools.keys()) + 1;
+    let counter = 0;
+    const tracked = layer.trackAgentEdit(
+      editor.state,
+      editor.schema.nodeFromJSON(next.doc.toJSON()),
+      () => `${turn}.${(counter += 1)}`,
+      (tr) => host.markAgent(tr),
+    );
+    if (tracked === null) return fallback('diff');
+    if (!host.matches(layer.project(tracked.doc)?.doc ?? tracked.doc, next)) return fallback('mismatch');
+    turnTools.set(turn, toolCallId);
+    if (tracked.docChanged) host.commit(tracked);
+    host.loaded(next);
+    return { landed: 'suggestions', suggestions: api.state().pending };
+  };
+  return { api, land };
+};
+
 /** Loads the review layer: the library, the diff engine and the helpers over them. */
-export const loadSuggestionLayer = async (): Promise<SuggestionLayer> => {
-  const engine = await loadEngine();
+export const loadSuggestionLayer = async (diff?: DiffEngine): Promise<SuggestionLayer> => {
+  const engine = diff ?? (await loadEngine());
   const resolveWith = (state: EditorState, ids: readonly string[], mode: 'accept' | 'reject'): Transaction | null =>
     chain(
       state,
@@ -619,7 +814,7 @@ export const loadSuggestionLayer = async (): Promise<SuggestionLayer> => {
         (mode === 'accept' ? applySuggestion(id) : revertSuggestion(id))(on, dispatch),
       ),
     );
-  return {
+  const layer: Omit<SuggestionLayer, 'createReview'> = {
     extensions: (options) => [
       ...caotangExtensions({ ...options, reviewMarks: true }),
       INSERTION,
@@ -644,8 +839,9 @@ export const loadSuggestionLayer = async (): Promise<SuggestionLayer> => {
       const hunks = diffHunks(engine, state.doc, next);
       if (hunks === null) return null;
       const raw = state.tr;
-      // Latest first (a longer hunk before an insertion at its start), so each hunk's positions are still those of the document it was found in.
-      for (const hunk of [...hunks].sort((x, y) => y.from - x.from || y.to - x.to)) raw.replace(hunk.from, hunk.to, hunk.slice);
+      // In document order, each hunk's positions carried through the steps before it. Blocks added at one place keep their order because the
+      // second goes in after the first (`rebasePos` in the library does the same through its own steps).
+      for (const hunk of hunks) raw.replace(raw.mapping.map(hunk.from, 1), raw.mapping.map(hunk.to, 1), hunk.slice);
       meta(raw);
       const tracked = transformToSuggestionTransaction(raw, state, newId);
       // The library moves an empty caret to the suggestion it just made; the writer's caret stays where their text is.
@@ -668,4 +864,5 @@ export const loadSuggestionLayer = async (): Promise<SuggestionLayer> => {
       return state.tr.setSelection(TextSelection.between($from, $to)).scrollIntoView();
     },
   };
+  return { ...layer, createReview: (host) => createReview(layer, host) };
 };
