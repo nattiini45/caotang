@@ -110,6 +110,11 @@ export interface CommandErrorDetails {
    * non-boolean under this name.
    */
   changesNothing?: boolean;
+  /**
+   * An external call (`mcp.invoke`) that was sent and then timed out or was cancelled: the server may already have done part of the work, and the
+   * bus cannot know or undo it. A caller must not report such a call as having changed nothing.
+   */
+  mayHaveActed?: true;
   /** A status or label id the project does not hold (`unknownTerm`, params.ts): which vocabulary it was named in. */
   unknownVocabulary?: 'status' | 'label';
   /** anything else the refusing command wants the model to see */

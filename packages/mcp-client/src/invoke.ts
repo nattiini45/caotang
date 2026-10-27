@@ -32,7 +32,7 @@
 import type { ApplyContext, CommandApply, CommandDescriptor, CommandError, Result } from '@caotang/bus';
 import { ApplyRefusal, err, ok } from '@caotang/bus';
 
-import type { McpClient, McpToolResult, McpTransport } from './client.js';
+import type { McpCallOptions, McpClient, McpToolResult, McpTransport } from './client.js';
 import { McpFailure, PIN_MISMATCH_TEXT, schemaText, serverErrorText, toCommandError, unreachableText, unsupportedSchemaText, type McpError } from './errors.js';
 import type { EffectiveRisk } from './risk.js';
 import { validateArguments } from './schema.js';
@@ -75,6 +75,11 @@ export interface ValidateDeps {
  */
 export interface InvokeDeps extends ValidateDeps {
   readonly transport: Pick<McpTransport, 'callTool' | 'relist'>;
+  /**
+   * Read when the call is about to be sent: the signal that ends it (the writer's Stop, a run limit), and where the server's progress
+   * reports go. Absent, a call has neither. The harness sets it for the call it is dispatching.
+   */
+  readonly callOptions?: () => McpCallOptions | undefined;
   /** The most tokens an external answer may carry before it is refused. Defaults to {@link EXTERNAL_RESULT_TOKEN_CAP}. */
   readonly resultTokenCap?: number;
 }
@@ -224,14 +229,19 @@ export async function applyMcpInvoke(deps: InvokeDeps, params: McpInvokeNormaliz
 
   let result: McpToolResult;
   try {
-    result = await deps.transport.callTool(serverKey, toolName, params.args);
+    result = await deps.transport.callTool(serverKey, toolName, params.args, deps.callOptions?.());
   } catch (error) {
     const mcp: McpError =
       error instanceof McpFailure
         ? error.error
         : { code: 'server_error', message: serverErrorText(serverName, toolName, error instanceof Error ? error.message : String(error)) };
-    context.report({ affected: [], summary: `called ${serverName} › ${toolName} (external) — failed: ${mcp.code}` });
-    return { ok: false, error: toCommandError(mcp, serverName, toolName) };
+    // A call that was sent and then timed out or was cancelled may have done part of its work on the server. A read is trusted not to act;
+    // anything else is said to have maybe acted, in the row, the message the model reads and the details a card reads.
+    const unsure = (mcp.code === 'timeout' || mcp.code === 'cancelled') && params.risk !== 'read-auto';
+    const told = unsure && mcp.code === 'timeout' ? { ...mcp, message: `${mcp.message}. The server may already have done part of the work, and Caotang cannot undo it` } : mcp;
+    context.report({ affected: [], summary: `called ${serverName} › ${toolName} (external) — ${failedWords(mcp.code, unsure)}` });
+    const envelope = toCommandError(told, serverName, toolName);
+    return { ok: false, error: unsure ? { ...envelope, details: { ...envelope.details, mayHaveActed: true } } : envelope };
   }
 
   // Postcondition (§2): the result is well-formed. Each block names a type, which is all Caotang reads.
@@ -279,6 +289,14 @@ export async function applyMcpInvoke(deps: InvokeDeps, params: McpInvokeNormaliz
       content: result.content,
     },
   };
+}
+
+/** How a failed call reads in its activity row. */
+function failedWords(code: McpError['code'], unsure: boolean): string {
+  const more = unsure ? '; the server may already have done part of the work' : '';
+  if (code === 'timeout') return `timed out${more}`;
+  if (code === 'cancelled') return `cancelled before the server answered${more}`;
+  return `failed: ${code}`;
 }
 
 /**
