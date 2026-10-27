@@ -39,9 +39,10 @@ export const BUDGET = {
   // The entry measured 1,419.9 kB with the agent trace store, the Trace tab and the trace export (Wave 19); its cap was 1,450 kB.
   // 1,458.6 kB measured with macros (#57): the bus's macro reader, the harness's checkMacro and expandMacro, the store's commands and loader, and the
   // Save as macro dialog with its model; the cap is that plus about 1%. The Macros panel is in the Settings chunk.
+  // 1,479.2 kB measured with macros (#57), the prompt-injection guards (#54) and the export Preview (#106) together; the cap is that plus about 1%.
   allow: {
     'fontkit.es': 750_000,
-    index: 1_475_000,
+    index: 1_495_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
   // 772.4 kB measured with Colour emoji, against 769.1 kB before it; 779.3 kB with Colour emoji and Agent rules together (Wave 14); 786.4 kB with the agent run log and resume.
