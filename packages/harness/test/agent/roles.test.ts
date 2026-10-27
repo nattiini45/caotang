@@ -21,6 +21,7 @@ import {
   ROLE_SPECS,
   ReviewSkipped,
   UNTRUSTED_RULE,
+  continuityChecksFor,
   continuityReportOf,
   createContextPort,
   createRolePipeline,
@@ -215,6 +216,13 @@ describe('the continuity role’s what-if scan', () => {
     const whatIf = withBody(state, FRIEND, 'The ferry came in.');
     expect(introducedFindings(state, whatIf, heldFile(state), { checks: ['pov.coverage'] })).toEqual([]);
     expect(introducedFindings(state, whatIf, heldFile(state), { isExcluded: (node) => node.id === FRIEND })).toEqual([]);
+  });
+
+  it('has no check to run when the writer’s list holds none the scan can run', () => {
+    expect(continuityChecksFor(undefined)).toEqual(CONTINUITY_CHECKS);
+    expect(continuityChecksFor([])).toEqual([]);
+    expect(continuityChecksFor(['medium.speaker-parity', 'codex.never-mentioned', 'branch.dead-end'])).toEqual([]);
+    expect(continuityChecksFor(['pov.coverage', 'medium.speaker-parity'])).toEqual(['pov.coverage']);
   });
 
   it('never runs a check that needs the app’s dialogue facts or a whole-manuscript count', () => {

@@ -185,6 +185,7 @@ import { createSubagentRunner, framedResult, resultLine, SUBAGENT_SPECS, type Pa
 import {
   CRITIC,
   CRITIQUE_HINT,
+  continuityChecksFor,
   continuityReportOf,
   createRolePipeline,
   criticTask,
@@ -1952,6 +1953,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const whatIf = withBody(state, node.id, body.slice(0, range.from) + placed.value.text + body.slice(range.to));
     const excluded = excludedBy(harness.withheld('scene.draft'));
     const checks = options.reviewChecks?.();
+    // A clean report means the checks ran and found nothing; with none to run there is nothing to say.
+    if (continuityChecksFor(checks).length === 0) throw new ReviewSkipped('continuity.skipped', 'The continuity check was skipped: no continuity check is turned on in Settings › Coherence.');
     return continuityReportOf(introducedFindings(state, whatIf, heldFile(state), { ...(checks === undefined ? {} : { checks }), ...(excluded === undefined ? {} : { isExcluded: excluded }) }));
   }
 

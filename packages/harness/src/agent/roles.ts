@@ -298,10 +298,14 @@ export interface WhatIfOptions {
   readonly isExcluded?: (node: TreeNode) => boolean;
 }
 
+/** The checks the what-if scan runs for the writer's list: theirs that it can run, or all it can run when they have no list. Empty means no check would run. */
+export function continuityChecksFor(checks: readonly DeterministicCheckId[] | undefined): readonly DeterministicCheckId[] {
+  return checks === undefined ? CONTINUITY_CHECKS : checks.filter((id) => CONTINUITY_CHECKS.includes(id));
+}
+
 function draftsOf(state: ProjectState, file: CoherenceFile, options: WhatIfOptions): readonly DraftFinding[] {
   const assembled = assembleInput(state, file, { detector: countIn, ...(options.isExcluded === undefined ? {} : { isExcluded: options.isExcluded }) });
-  const wanted = options.checks === undefined ? CONTINUITY_CHECKS : options.checks.filter((id) => CONTINUITY_CHECKS.includes(id));
-  return runChecks(assembled.input, wanted).drafts;
+  return runChecks(assembled.input, continuityChecksFor(options.checks)).drafts;
 }
 
 /**

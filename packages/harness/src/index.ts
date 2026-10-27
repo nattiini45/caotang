@@ -275,6 +275,7 @@ export {
   DRAFTER,
   ROLE_SPECS,
   ReviewSkipped,
+  continuityChecksFor,
   continuityReportOf,
   createRolePipeline,
   criticTask,

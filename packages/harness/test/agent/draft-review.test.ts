@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore, type ChatRequest, type Gateway } from '@caotang/gateway';
 import { createMockProvider, criticScript, userTextOf, type MockScript } from '@caotang/gateway/mock';
+import type { DeterministicCheckId } from '@caotang/coherence';
 import { getBody, getRevision, type ProjectState } from '@caotang/store';
 
 import {
@@ -65,6 +66,7 @@ interface FixtureOptions {
   readonly capped?: boolean;
   readonly hooks?: readonly HookSpec[];
   readonly review?: boolean;
+  readonly reviewChecks?: () => readonly DeterministicCheckId[] | undefined;
   readonly rules?: readonly SourcedRule[];
   readonly decide?: (events: readonly AgentEvent[]) => Decision;
   readonly onEvent?: (event: AgentEvent, session: AgentSession | undefined) => void;
@@ -99,6 +101,7 @@ async function fixture(scripts: readonly MockScript[], options: FixtureOptions =
     },
     sessionId: 'review',
     ...(options.review === undefined ? {} : { review: options.review }),
+    ...(options.reviewChecks === undefined ? {} : { reviewChecks: options.reviewChecks }),
     ...(options.meter === undefined ? {} : { meter: options.meter }),
     ...(options.maxModelCalls === undefined ? {} : { maxModelCalls: options.maxModelCalls }),
   });
@@ -245,6 +248,25 @@ describe('a draft is the writer’s to read whatever the review did', () => {
     expect(review?.notices[0]?.key).toBe('critic.call');
     expect(review?.notices[0]?.message).toContain('the provider is down');
     expect(getBody(run.state, FRIEND)).toBe(DRAFT);
+  });
+
+  it('says nothing was checked, not that nothing was found, when no continuity check is turned on or runnable', async () => {
+    for (const checks of [[], ['medium.speaker-parity', 'codex.never-mentioned']] as const) {
+      const run = await fixture([planner, drafter, critic(CRITIQUE)], { review: true, reviewChecks: () => checks });
+      expect((await run.submit()).status).toBe('applied');
+      const [review] = reviews(run.events);
+      expect(review?.continuity).toBeUndefined();
+      expect(review?.notices.map((notice) => notice.key)).toEqual(['continuity.skipped']);
+      expect(review?.critique?.notes).toHaveLength(1);
+    }
+  });
+
+  it('reports a clean continuity pass when a runnable check ran and found nothing', async () => {
+    const run = await fixture([planner, drafter, critic(CRITIQUE)], { review: true, reviewChecks: () => ['pov.coverage'] });
+    await run.submit();
+    const [review] = reviews(run.events);
+    expect(review?.continuity).toEqual({ introduced: [], omitted: 0 });
+    expect(review?.notices).toEqual([]);
   });
 
   it('never reviews a draft staged for the background', async () => {
