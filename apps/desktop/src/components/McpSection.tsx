@@ -12,7 +12,7 @@ import { useEffect, useReducer, useState, type FormEvent, type ReactNode } from 
 import { riskBadge, type ExternalToolDescriptor, type McpServerConfig, type McpServerHealth, type ReviewCard } from '@caotang/mcp-client';
 
 import type { McpApp } from '../app/mcp.js';
-import { mcpServerView, reviewHeading, reviewSummary, STATE_LABEL, toolStatusLabel } from '../app/mcp-model.js';
+import { mcpServerView, reviewHeading, reviewSummary, stateLabel, toolStatusLabel } from '../app/mcp-model.js';
 import { CatalogReview, CatalogRows } from './McpCatalog.js';
 import { useComposingEnter } from './shared.js';
 
@@ -106,7 +106,7 @@ function ServerCard({ mcp, server, onChanged }: { mcp: McpApp; server: McpServer
         </div>
         <span className={`mcp-state is-${health.state}`} data-testid="mcp-state">
           <span className="mcp-dot" aria-hidden="true" />
-          {STATE_LABEL[health.state]}
+          {stateLabel(health.state)}
         </span>
       </header>
       <p className="mcp-detail" role="status" data-testid="mcp-detail">

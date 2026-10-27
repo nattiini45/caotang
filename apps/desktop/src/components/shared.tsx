@@ -4,6 +4,7 @@
  * 800 ms cadence ui-modules §4.1 specifies for synopsis and notes.
  */
 
+import { Trans } from '@lingui/react/macro';
 import {
   createContext,
   useCallback,
@@ -257,7 +258,11 @@ export function Menu({
           </button>
         </div>
       ))}
-      {enabled.length === 0 ? <p className="menu-empty">Nothing to choose.</p> : null}
+      {enabled.length === 0 ? (
+        <p className="menu-empty">
+          <Trans>Nothing to choose.</Trans>
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -308,7 +313,7 @@ export function ConfirmDialog({
         <div className="confirm-text">{children}</div>
         <div className="confirm-actions">
           <button type="button" className="button" autoFocus onClick={onCancel}>
-            Cancel
+            <Trans>Cancel</Trans>
           </button>
           <button type="button" className="button is-danger" onClick={onConfirm}>
             {confirmLabel}
@@ -372,7 +377,7 @@ export function ChoiceDialog({
             </button>
           ))}
           <button type="button" className="button" autoFocus onClick={onCancel}>
-            Cancel
+            <Trans>Cancel</Trans>
           </button>
         </div>
       </form>

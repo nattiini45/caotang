@@ -97,6 +97,7 @@ import Strike from '@tiptap/extension-strike';
 import Text from '@tiptap/extension-text';
 import { Dropcursor, Gapcursor, Placeholder, UndoRedo } from '@tiptap/extensions';
 import { plainPasteHtml } from './paste.js';
+import { DEFAULT_EDITOR_LABELS, type EditorLabels } from './labels.js';
 
 /** §3.1's list item name. Tiptap's list extensions look it up by option, not by name. */
 const LIST_ITEM = 'list_item';
@@ -164,6 +165,8 @@ export interface CaotangExtensionOptions {
   role?: CaotangRole;
   /** The empty-document hint (§10's Placeholder). Focus only. */
   placeholder?: string;
+  /** The editor's own words; the app passes its translated set, and the package's English defaults fill any it leaves out. */
+  labels?: Partial<EditorLabels>;
 }
 
 /**
@@ -172,6 +175,7 @@ export interface CaotangExtensionOptions {
  */
 export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extensions => {
   const role: CaotangRole = options.role ?? 'focus';
+  const labels: EditorLabels = { ...DEFAULT_EDITOR_LABELS, ...options.labels };
   // The schema-shaping half. Its order is the mark rank: `Italic` precedes `Bold`
   // and `Strike` precedes `Code`, because the list is what the stable priority sort
   // keeps. Changing this order changes which way nested marks save.
@@ -216,7 +220,7 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
         const src = typeof HTMLAttributes['src'] === 'string' ? HTMLAttributes['src'] : '';
         if (isAppLocalSource(src)) return ['img', HTMLAttributes];
         const alt = typeof HTMLAttributes['alt'] === 'string' ? HTMLAttributes['alt'] : '';
-        return ['span', { class: 'caotang-image-placeholder' }, alt.length > 0 ? alt : 'Image'];
+        return ['span', { class: 'caotang-image-placeholder' }, alt.length > 0 ? alt : labels.image];
       },
     }).configure({ inline: true }),
   ];
@@ -228,7 +232,7 @@ export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extens
     }),
     Dropcursor,
     Gapcursor,
-    Placeholder.configure({ placeholder: options.placeholder ?? 'Begin the scene…' }),
+    Placeholder.configure({ placeholder: options.placeholder ?? labels.placeholder }),
     UndoRedo,
     CaotangPaste,
   ];

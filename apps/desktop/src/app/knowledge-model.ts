@@ -6,11 +6,16 @@
  * and a scene in a mode that does not teach (a dream, a myth) is listed and marked, because the check does not count it.
  */
 
+import { i18n, type MessageDescriptor } from '@lingui/core';
+import { msg, t } from '@lingui/core/macro';
+import { isolate } from '@caotang/i18n';
 import { effectiveMode, knowledgeTreatmentOf, type CoherenceFile, type KnowledgeFact } from '@caotang/coherence';
 import type { CodexEntry, ProjectState, TreeNode } from '@caotang/store';
 
 import { projectCollator } from '../i18n/project-collator.js';
 import { childrenOf } from './binder-model.js';
+
+/* lingui-set comment="Interpolated values: what, who" */
 
 /** A document in binder order: the depth-first walk, siblings by their order. */
 export interface BinderScene {
@@ -49,7 +54,8 @@ export interface KnowledgeRow {
   readonly declarations: number;
 }
 
-const GONE_CHARACTER = 'a character that is gone';
+const GONE_CHARACTER: MessageDescriptor = msg`a character that is gone`;
+const GONE_FACT: MessageDescriptor = msg`a fact that is gone`;
 
 /** The Knowledge list: each fact with the lines of its ledger, in the order the file keeps the facts. */
 export function knowledgeRows(state: ProjectState, file: CoherenceFile | undefined): KnowledgeRow[] {
@@ -63,7 +69,13 @@ export function knowledgeRows(state: ProjectState, file: CoherenceFile | undefin
         const counts = field === 'knows' || knowledgeTreatmentOf(effectiveMode(meta)).teaches;
         return (meta[field] ?? [])
           .filter((link) => link.factId === fact.id)
-          .map((link) => ({ entryId: link.entryId, who: entries.get(link.entryId) ?? GONE_CHARACTER, docId: scene.docId, title: scene.title, counts }));
+          .map((link) => ({
+            entryId: link.entryId,
+            who: entries.get(link.entryId) ?? i18n._(GONE_CHARACTER),
+            docId: scene.docId,
+            title: scene.title,
+            counts,
+          }));
       });
     const learns = lines('learns');
     const knows = lines('knows');
@@ -87,7 +99,7 @@ export function pairWords(
   entries: readonly CodexEntry[],
   facts: readonly { readonly id: string; readonly text: string }[],
 ): string {
-  const who = entries.find((entry) => entry.id === link.entryId)?.name ?? GONE_CHARACTER;
-  const what = facts.find((fact) => fact.id === link.factId)?.text ?? 'a fact that is gone';
-  return `${who}: ${what}`;
+  const who = entries.find((entry) => entry.id === link.entryId)?.name ?? i18n._(GONE_CHARACTER);
+  const what = facts.find((fact) => fact.id === link.factId)?.text ?? i18n._(GONE_FACT);
+  return t`${{ who: isolate(who) }}: ${{ what: isolate(what) }}`;
 }

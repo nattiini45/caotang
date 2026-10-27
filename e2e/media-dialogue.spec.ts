@@ -6,7 +6,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { binderTitle, bodyOf, createProject, firstChapter, idOf, traceNames, waitForSaved } from './support.js';
+import { binderTitle, bodyOf, createProject, firstChapter, idOf, traceNames, waitForSaved, writerText } from './support.js';
 
 const PROJECT = 'Night Shift';
 
@@ -70,7 +70,7 @@ test('a whole Ink story imports as one branching container per knot cluster, in 
     buffer: Buffer.from(INK),
   });
 
-  await expect(page.getByText(/Imported 1 dialogue container from tavern\.ink\./)).toBeVisible();
+  await expect(page.getByText(new RegExp(`Imported 1 dialogue container from ${writerText('tavern.ink')}\\.`))).toBeVisible();
   await waitForSaved(page);
   await expect.poll(() => traceNames(page)).toContain('dialogue.importInk');
   // The cluster takes the name of its first knot, which is what the binder shows.
@@ -83,7 +83,7 @@ test('Import Ink leaves the Ink as written unless the one-time line-id box is ti
   await expect(box).not.toBeChecked();
   await page.locator('input[type="file"][aria-label="Ink file"]').setInputFiles({ name: 'tavern.ink', mimeType: 'text/plain', buffer: Buffer.from(INK) });
 
-  await expect(page.getByText(/Imported 1 dialogue container from tavern\.ink\./)).toBeVisible();
+  await expect(page.getByText(new RegExp(`Imported 1 dialogue container from ${writerText('tavern.ink')}\\.`))).toBeVisible();
   const body = (await bodyOf(page, await idOf(page, 'start'))) ?? '';
   expect(body).toContain('Alice: Hello.\n* [Wave] -> wave\n* [Leave] -> END');
   expect(body).not.toContain('lineId');

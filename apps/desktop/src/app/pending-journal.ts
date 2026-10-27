@@ -15,9 +15,12 @@
  * and the bundle never read it. Every read and write tolerates a browser with no storage, a full quota and a value this build did not write.
  */
 
+import { plural, t } from '@lingui/core/macro';
 import { getRevision, type ProjectState } from '@caotang/store';
 
 import type { ProjectSession } from './session.js';
+
+/* lingui-set comment="Interpolated values: count" */
 import {
   addUnsentEntry,
   browserStorage,
@@ -304,11 +307,13 @@ function offerOf(state: ProjectState, entry: PendingEntry): UnsentDocument {
 export function recoveryNotice(outcome: RecoveryOutcome): string | null {
   const parts: string[] = [];
   if (outcome.saved > 0) {
-    const one = outcome.saved === 1;
-    parts.push(`Caotang kept ${outcome.saved} unsaved ${one ? 'change' : 'changes'} from before the reload and saved ${one ? 'it' : 'them'}.`);
+    const saved = outcome.saved;
+    parts.push(
+      t`Caotang kept ${plural(saved, { one: '# unsaved change', other: '# unsaved changes' })} from before the reload and saved ${plural(saved, { one: 'it', other: 'them' })}.`,
+    );
   }
   if (outcome.offered > 0) {
-    parts.push('Words from before the reload that newer text now covers are kept in the binder footer, to put back as new documents or discard.');
+    parts.push(t`Words from before the reload that newer text now covers are kept in the binder footer, to put back as new documents or discard.`);
   }
   return parts.length === 0 ? null : parts.join(' ');
 }

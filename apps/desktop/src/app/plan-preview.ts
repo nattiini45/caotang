@@ -6,11 +6,16 @@
  * touches the DOM, and every id in the preview is named by its title, never shown raw.
  */
 
+import { i18n, type MessageDescriptor } from '@lingui/core';
+import { msg, t } from '@lingui/core/macro';
+import { isolate } from '@caotang/i18n';
 import { costLineRef, refusalSentence } from '@caotang/harness';
 import type { MessageRef } from '@caotang/i18n';
 
 import { renderRef } from '../i18n/render-ref.js';
 import { nodeById, type ProjectState } from '@caotang/store';
+
+/* lingui-set comment="Interpolated values: parent, title" */
 
 /** One synopsis a batch writes: the document, whether the synopsis is new or replaces one, the text and its word count. */
 export interface SynopsisPreviewRow {
@@ -118,46 +123,67 @@ export interface ReviewPreviewView {
 }
 
 /** The name a node takes when the project no longer holds it, so a preview never shows an id. */
-const MISSING_NODE = 'a document that is no longer in the project';
+const MISSING_NODE: MessageDescriptor = msg`a document that is no longer in the project`;
 
-/** The `from` a new entry's field shows: a create has no earlier value (codex.md §7, "create = full proposed content"). */
-export const NEW_ENTRY_FROM = '(new entry)';
+/**
+ * The `from` a create's field carries (codex.md §7, "create = full proposed content"). It marks a field that has no earlier
+ * value and is never rendered: the card shows a create's fields as "label: value", so the marker is data, not copy.
+ */
+export const NEW_ENTRY_FROM = 'new-entry';
 
 /** The writer's word for each codex field a write can name (codex.md §2). The preview's field names are internal, so they are mapped here. */
-const FIELD_LABELS: Readonly<Record<string, string>> = {
-  name: 'Name',
-  type: 'Type',
-  description: 'Description',
-  aliases: 'Also known as',
-  includePolicy: 'Included in drafting',
-  caseSensitive: 'Match case',
-  exclude: 'Ignore matches in',
-  visualRefs: 'Visual references',
+const FIELD_LABELS: Readonly<Record<string, MessageDescriptor>> = {
+  name: msg`Name`,
+  type: msg`Type`,
+  description: msg`Description`,
+  aliases: msg`Also known as`,
+  includePolicy: msg`Included in drafting`,
+  caseSensitive: msg`Match case`,
+  exclude: msg`Ignore matches in`,
+  visualRefs: msg`Visual references`,
 };
+
+/** A field's writer-facing label, or the internal name for one with no label. */
+function fieldLabel(field: string): string {
+  const label = FIELD_LABELS[field];
+  return label === undefined ? field : i18n._(label);
+}
 
 /** The fields a create carries whole, in the order the card lists them. */
 const CREATE_FIELDS = ['type', 'description', 'aliases', 'includePolicy', 'caseSensitive', 'exclude', 'visualRefs'] as const;
 
 /** The name a picture takes when the project no longer holds its file, so the card names it rather than showing its id. */
-const MISSING_PICTURE = 'a picture that is no longer in the project';
+const MISSING_PICTURE: MessageDescriptor = msg`a picture that is no longer in the project`;
 
 /** The writer's words for each include policy (codex.md §2): when the entry is put into a drafting call. */
-const POLICY_WORDS: Readonly<Record<string, string>> = {
-  always: 'Always, in every drafting call',
-  detected: 'When its name or an alias appears in the text',
-  manual: 'Only when attached to the scene',
-  never: 'Never',
+const POLICY_WORDS: Readonly<Record<string, MessageDescriptor>> = {
+  always: msg`Always, in every drafting call`,
+  detected: msg`When its name or an alias appears in the text`,
+  manual: msg`Only when attached to the scene`,
+  never: msg`Never`,
 };
 
-/** The flag the codex diff carries for an always-include entry (`ALWAYS_INCLUDE_FLAG` in the harness), in the writer's words. */
-const ALWAYS_FLAG = 'always-include affects every generation call';
+/**
+ * The flag the codex diff carries for an always-include entry (`ALWAYS_INCLUDE_FLAG` in the harness) — its data token, never
+ * translated; the harness is free to extend the sentence after `always-include`.
+ */
+function isAlwaysFlag(flag: string): boolean {
+  return flag.startsWith('always-include');
+}
 
-const CHANGE_WORDS: Readonly<Record<string, string>> = {
-  created: 'Created',
-  moved: 'Moved',
-  renamed: 'Renamed',
-  'moved and renamed': 'Moved and renamed',
+const CHANGE_WORDS: Readonly<Record<string, MessageDescriptor>> = {
+  created: msg`Created`,
+  moved: msg`Moved`,
+  renamed: msg`Renamed`,
+  both: msg`Moved and renamed`,
 };
+
+/** A restructure change in the writer's words: a move and a rename together are one change of their own. */
+function changeWordsOf(change: string): string {
+  const key = change.startsWith('moved') && change.includes('renamed') ? 'both' : change;
+  const word = CHANGE_WORDS[key];
+  return word === undefined ? change : i18n._(word);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -168,23 +194,26 @@ function textsOf(value: unknown): string[] {
 }
 
 function titleOf(state: ProjectState, id: string): string {
-  return nodeById(state, id)?.title ?? MISSING_NODE;
+  return nodeById(state, id)?.title ?? i18n._(MISSING_NODE);
 }
 
 /** A place in the tree as the restructure preview names it: the node's title, and the title of the node it sits in. */
 function placeOf(slot: Record<string, unknown>): string {
   const title = typeof slot['title'] === 'string' ? slot['title'] : '';
   const parent = typeof slot['parentTitle'] === 'string' ? slot['parentTitle'] : null;
-  return parent === null ? title : `${title}, in ${parent}`;
+  return parent === null ? title : t`${{ title: isolate(title) }}, in ${{ parent: isolate(parent) }}`;
 }
 
 function flagWords(flag: string): string {
-  return flag === ALWAYS_FLAG ? 'Always included: this entry goes into every drafting call' : flag;
+  return isAlwaysFlag(flag) ? t`Always included: this entry goes into every drafting call` : flag;
 }
 
 /** A codex value in the words the card shows: yes or no, the list joined, the policy named in words, and "(none)" for nothing. */
 function plainOf(field: string, value: unknown): string {
-  if (field === 'includePolicy' && typeof value === 'string') return POLICY_WORDS[value] ?? value;
+  if (field === 'includePolicy' && typeof value === 'string') {
+    const policy = POLICY_WORDS[value];
+    return policy === undefined ? value : i18n._(policy);
+  }
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (Array.isArray(value)) return value.length === 0 ? '(none)' : value.map((item) => String(item)).join(', ');
   if (value === null || value === undefined || value === '') return '(none)';
@@ -207,7 +236,7 @@ function valueOfJson(text: string): unknown {
 function wordsOf(field: string, value: unknown, names: ReadonlyMap<string, string>): string {
   if (field !== 'visualRefs') return plainOf(field, value);
   const ids = Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
-  return ids.length === 0 ? '(none)' : ids.map((id) => names.get(id) ?? MISSING_PICTURE).join(', ');
+  return ids.length === 0 ? '(none)' : ids.map((id) => names.get(id) ?? i18n._(MISSING_PICTURE)).join(', ');
 }
 
 /**
@@ -216,7 +245,7 @@ function wordsOf(field: string, value: unknown, names: ReadonlyMap<string, strin
  */
 function createChangesOf(entry: Record<string, unknown>, names: ReadonlyMap<string, string>): CodexPreviewChange[] {
   return CREATE_FIELDS.filter((field) => entry[field] !== undefined || field === 'visualRefs').map((field) => ({
-    field: FIELD_LABELS[field] ?? field,
+    field: fieldLabel(field),
     from: NEW_ENTRY_FROM,
     to: wordsOf(field, entry[field], names),
   }));
@@ -228,7 +257,7 @@ function updateChangesOf(changes: unknown, names: ReadonlyMap<string, string>): 
   return changes.filter(isRecord).map((change) => {
     const field = String(change['field'] ?? '');
     return {
-      field: FIELD_LABELS[field] ?? field,
+      field: fieldLabel(field),
       from: wordsOf(field, valueOfJson(String(change['from'] ?? 'null')), names),
       to: wordsOf(field, valueOfJson(String(change['to'] ?? 'null')), names),
     };
@@ -409,8 +438,8 @@ export function stepPreviewOf(
       const change = typeof node['change'] === 'string' ? node['change'] : '';
       return {
         title: typeof after['title'] === 'string' ? after['title'] : '',
-        change: CHANGE_WORDS[change] ?? change,
-        from: before === undefined ? 'Not in the project yet' : placeOf(before),
+        change: changeWordsOf(change),
+        from: before === undefined ? t`Not in the project yet` : placeOf(before),
         to: placeOf(after),
       };
     });
@@ -449,7 +478,7 @@ export function refusalReasonOf(
  * for an amount too small to show.
  */
 export function formatUsd(value: number): string {
-  if (value < 0.0001) return 'under $0.0001';
+  if (value < 0.0001) return t`under $0.0001`;
   return value < 1 ? `$${value.toFixed(4)}` : `$${value.toFixed(2)}`;
 }
 

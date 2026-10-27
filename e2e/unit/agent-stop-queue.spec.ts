@@ -6,7 +6,7 @@ import { createMockProvider, isDraftCall, isPlannerCall, userTextOf, type MockSc
 import type { GhostPreview } from '../../packages/editor/src/tiptap/index.js';
 
 import { ProjectSession } from '../../apps/desktop/src/app/session.js';
-import { AgentController, QUEUE_PAUSED, type AgentSnapshot } from '../../apps/desktop/src/app/agent.js';
+import { AgentController, queuePausedText, type AgentSnapshot } from '../../apps/desktop/src/app/agent.js';
 import type { ProviderService } from '../../apps/desktop/src/app/providers.js';
 import { sampleProjectState } from '../../apps/desktop/src/app/demo.js';
 
@@ -339,7 +339,7 @@ test('the queue pauses after a turn that stops on a question, and Run the queue 
   expect(report?.askBack).toBeDefined();
   const paused = controller.snapshot();
   expect(paused.queuePaused).toBe(true);
-  expect(paused.announcement).toBe(QUEUE_PAUSED);
+  expect(paused.announcement).toBe(queuePausedText());
   expect(paused.queue.map((entry) => entry.intent)).toEqual(['After the failure.']);
   expect(paused.turns).toHaveLength(1);
 

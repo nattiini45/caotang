@@ -6,6 +6,9 @@
  * and a review is "approved", never "pinned".
  */
 
+import { i18n, type MessageDescriptor } from '@lingui/core';
+import { msg, plural, t } from '@lingui/core/macro';
+import { isolate } from '@caotang/i18n';
 import {
   SKILL_FILE,
   SKILL_LIMITS,
@@ -23,6 +26,8 @@ import {
 } from '@caotang/skills';
 import { parsedSkillsOf } from '@caotang/harness';
 import type { ProjectState } from '@caotang/store';
+
+/* lingui-set comment="Interpolated values: bytes, folder, max, name, path, problem, size, taken" */
 
 /** Where a skill stands with the writer's review. `changed` is a skill reviewed once whose files are not what was reviewed. */
 export type ReviewState = 'unreviewed' | 'reviewed' | 'changed';
@@ -86,10 +91,10 @@ export function skillsView(state: ProjectState, pinOf: (name: string) => string 
 
 /** The line that says where a skill stands, in words. */
 export function reviewLine(row: SkillRow): string {
-  if (row.review === 'changed') return 'Changed since you approved it. The agent does not see it until you approve it again.';
-  if (row.review === 'unreviewed') return 'Not approved yet. The agent does not see it until you have read it and approved it.';
-  if (row.writerOnly) return 'Approved. It is kept for you, so the agent is not told about it.';
-  return row.enabled ? 'Approved. The agent is told about it.' : 'Approved, and turned off.';
+  if (row.review === 'changed') return t`Changed since you approved it. The agent does not see it until you approve it again.`;
+  if (row.review === 'unreviewed') return t`Not approved yet. The agent does not see it until you have read it and approved it.`;
+  if (row.writerOnly) return t`Approved. It is kept for you, so the agent is not told about it.`;
+  return row.enabled ? t`Approved. The agent is told about it.` : t`Approved, and turned off.`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -120,12 +125,27 @@ export interface ReviewCard {
   readonly comments: number;
 }
 
-export const SCRIPTS_NOTICE =
-  'This skill includes scripts. Caotang reads the instructions and does not run them. Other programs that read the same folder, such as Claude Code or Codex, may run them.';
+const SCRIPTS_NOTICE: MessageDescriptor =
+  msg`This skill includes scripts. Caotang reads the instructions and does not run them. Other programs that read the same folder, such as Claude Code or Codex, may run them.`;
 
-export const ALLOWED_TOOLS_NOTICE = 'Not enforced in this build: it does not limit what the agent can do here.';
+const ALLOWED_TOOLS_NOTICE: MessageDescriptor = msg`Not enforced in this build: it does not limit what the agent can do here.`;
 
-export const OTHER_FILES_NOTICE = 'These files are kept with the skill. The agent cannot read them in this build.';
+const OTHER_FILES_NOTICE: MessageDescriptor = msg`These files are kept with the skill. The agent cannot read them in this build.`;
+
+/** The scripts notice, in the current interface language. */
+export function scriptsNotice(): string {
+  return i18n._(SCRIPTS_NOTICE);
+}
+
+/** The allowed-tools notice, in the current interface language. */
+export function allowedToolsNotice(): string {
+  return i18n._(ALLOWED_TOOLS_NOTICE);
+}
+
+/** The other-files notice, in the current interface language. */
+export function otherFilesNotice(): string {
+  return i18n._(OTHER_FILES_NOTICE);
+}
 
 /** Everything a writer must read before the agent is told of the skill: every file, as it is, in plain text. */
 export function reviewCardOf(skill: Skill): ReviewCard {
@@ -155,7 +175,9 @@ export function reviewCardOf(skill: Skill): ReviewCard {
 
 /** A size in words for the review card. */
 export function sizeLabel(bytes: number): string {
-  return bytes < 1024 ? `${bytes} bytes` : `${(Math.ceil((bytes / 1024) * 10) / 10).toString()} KB`;
+  if (bytes < 1024) return t`${{ bytes }} bytes`;
+  const size = (Math.ceil((bytes / 1024) * 10) / 10).toString();
+  return t`${{ size }} KB`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -164,14 +186,26 @@ export function sizeLabel(bytes: number): string {
 
 /** A new skill's instructions: front matter that parses, and a body that says where to begin. */
 export function skillTemplate(name: string): string {
-  return ['---', `name: ${name}`, 'description: Say when the agent should use this skill, in a sentence or two.', '---', '', 'Write the instructions here, in plain sentences.', ''].join('\n');
+  // The name line is a skill-file field, not a sentence; the two prose lines are the writer's starting text.
+  return [
+    '---',
+    ['name', name].join(': '),
+    t`description: Say when the agent should use this skill, in a sentence or two.`,
+    '---',
+    '',
+    t`Write the instructions here, in plain sentences.`,
+    '',
+  ].join('\n');
 }
 
 /** Why `name` cannot be a skill's name, in words, or `undefined`. */
 export function nameProblem(name: string, taken: readonly string[]): string | undefined {
-  if (name === '') return 'Give the skill a name.';
-  if (!isSkillName(name)) return `A name uses lower-case letters, digits and hyphens, up to ${SKILL_LIMITS.maxNameChars} characters, and does not start or end with a hyphen.`;
-  if (taken.includes(name)) return `There is already a skill called “${name}”.`;
+  if (name === '') return t`Give the skill a name.`;
+  if (!isSkillName(name)) {
+    const max = SKILL_LIMITS.maxNameChars;
+    return t`A name uses lower-case letters, digits and hyphens, up to ${{ max }} characters, and does not start or end with a hyphen.`;
+  }
+  if (taken.includes(name)) return t`There is already a skill called “${{ name: isolate(name) }}”.`;
   return undefined;
 }
 
@@ -181,7 +215,10 @@ export function nameProblem(name: string, taken: readonly string[]): string | un
  */
 export function draftProblem(name: string, files: readonly SkillFile[], draft: string): string | undefined {
   const bytes = new TextEncoder().encode(draft);
-  if (bytes.length > SKILL_LIMITS.maxFileBytes) return `The instructions are longer than ${SKILL_LIMITS.maxFileBytes / 1024} KB. Move part of them into a second file.`;
+  if (bytes.length > SKILL_LIMITS.maxFileBytes) {
+    const max = SKILL_LIMITS.maxFileBytes / 1024;
+    return t`The instructions are longer than ${{ max }} KB. Move part of them into a second file.`;
+  }
   const next = files.map((file) => (file.path === SKILL_FILE ? { path: SKILL_FILE, bytes } : file));
   const { skill, issues } = parseSkillFolder(name, next);
   if (skill !== undefined) return undefined;
@@ -239,29 +276,48 @@ export function findCandidates(offered: readonly OfferedFile[], fallback: string
     const files = inside.map((file) => ({ path: file.path.slice(prefix.length), size: file.size, source: file.path }));
     const bad = files.map((file) => skillPathProblem(file.path)).find((problem) => problem !== undefined);
     if (bad !== undefined) {
-      refused.push({ folder, text: `The skill “${folder}” was not taken: a file in it has an unsafe path (${bad.replace('the path ', '')}).` });
+      const path = bad.replace(/^the path /u, '');
+      refused.push({
+        folder,
+        text: t`The skill “${{ folder: isolate(folder) }}” was not taken: a file in it has an unsafe path (${{ path }}).`,
+      });
       continue;
     }
     if (!isSkillName(folder)) {
-      refused.push({ folder, text: `“${folder.slice(0, 64)}” cannot be the name of a skill. ${nameProblem(folder, [])}` });
+      const name = folder.slice(0, 64);
+      const problem = nameProblem(folder, []) ?? '';
+      refused.push({ folder, text: t`“${{ name: isolate(name) }}” cannot be the name of a skill. ${{ problem }}` });
       continue;
     }
     const problem = skillFilesProblem(folder, files.map((file) => ({ path: file.path, bytes: { length: file.size } })));
     if (problem !== undefined) {
-      refused.push({ folder, text: `The skill “${folder}” was not taken: ${problem.message.replace(/^the skill “[^”]*” /u, '')}` });
+      const reason = problem.message.replace(/^the skill “[^”]*” /u, '');
+      refused.push({ folder, text: t`The skill “${{ folder: isolate(folder) }}” was not taken: ${{ reason }}` });
       continue;
     }
     candidates.push({ folder, files });
   }
   if (candidates.length + refused.length > SKILL_LIMITS.maxSkills) {
     const kept = candidates.slice(0, SKILL_LIMITS.maxSkills);
-    return { candidates: kept, refused: [...refused, { folder: '', text: `Only ${SKILL_LIMITS.maxSkills} skills can be taken at once; the rest were left out.` }], ignored: usable.length - used.size };
+    const max = SKILL_LIMITS.maxSkills;
+    return {
+      candidates: kept,
+      refused: [...refused, { folder: '', text: t`Only ${{ max }} skills can be taken at once; the rest were left out.` }],
+      ignored: usable.length - used.size,
+    };
   }
   return { candidates, refused, ignored: usable.length - used.size };
 }
 
 /** The line a finished import says: how many skills came in, and why any did not. */
 export function importSummary(taken: readonly string[], refused: readonly string[]): string {
-  const head = taken.length === 0 ? 'No skill was imported.' : taken.length === 1 ? `Imported the skill “${taken[0]}”. Read it and approve it before the agent can use it.` : `Imported ${taken.length} skills. Read each one and approve it before the agent can use it.`;
+  const count = taken.length;
+  const first = taken[0];
+  const head =
+    count === 0
+      ? t`No skill was imported.`
+      : count === 1
+        ? t`Imported the skill “${{ name: isolate(first ?? '') }}”. Read it and approve it before the agent can use it.`
+        : t`Imported ${plural(count, { one: '# skill', other: '# skills' })}. Read each one and approve it before the agent can use it.`;
   return [head, ...refused].join(' ');
 }

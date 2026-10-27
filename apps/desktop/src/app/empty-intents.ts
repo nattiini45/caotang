@@ -4,6 +4,7 @@
  * plan it makes is the plan the agent panel shows and the writer decides. The demo intents of the inspector's empty state
  * are `DEMO_CHOICES` in `demo.ts`, which the agent panel and the first-run card already use.
  */
+// i18n: model-facing
 export const EMPTY_STATE_INTENTS = {
   /** The empty manuscript's "Let the agent structure it" (ui-modules §2.4): a `binder.restructure` plan. */
   restructure: 'Structure the manuscript: group its scenes into chapters with clear titles.',

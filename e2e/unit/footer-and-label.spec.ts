@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import { formatDay, formatRemaining, goalSentence, goalStateWords, SPRINT_CHOICES } from '../../apps/desktop/src/app/footer-model.js';
 import { providerLabel } from '../../apps/desktop/src/app/provider-label.js';
 import { SPRINT_MAX_MINUTES, SPRINT_MIN_MINUTES } from '../../packages/furniture/src/index.js';
+import { withoutIsolates } from '../support.js';
 
 test.describe('the provider label (polish: the demo profile is marked once)', () => {
   test('the built-in profile already says it is a demo, so the panel adds no second mark', () => {
@@ -11,7 +12,7 @@ test.describe('the provider label (polish: the demo profile is marked once)', ()
   });
 
   test('a demo profile whose name does not say so is marked once, and a real provider is never marked', () => {
-    expect(providerLabel('Trial run', true)).toBe('Trial run (demo)');
+    expect(withoutIsolates(providerLabel('Trial run', true))).toBe('Trial run (demo)');
     expect(providerLabel('Fake endpoint', false)).toBe('Fake endpoint');
   });
 });

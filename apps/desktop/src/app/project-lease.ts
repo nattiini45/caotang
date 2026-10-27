@@ -14,6 +14,8 @@
  * lease is granted and the revision guard is the only protection. That is said in the notes, not hidden.
  */
 
+import { t } from '@lingui/core/macro';
+
 /** How long an open waits for a lock another tab holds before it is refused. */
 export const LEASE_WAIT_MS = 1_000;
 
@@ -28,7 +30,7 @@ const UNGUARDED: ProjectLease = { release: () => {} };
 /** The refusal an open gets when another tab holds the project. */
 export class ProjectOpenElsewhereError extends Error {
   constructor(readonly projectId: string) {
-    super('This project is open in another tab. Switch to that tab, or close it, then open the project again.');
+    super(t`This project is open in another tab. Switch to that tab, or close it, then open the project again.`);
     this.name = 'ProjectOpenElsewhereError';
   }
 }

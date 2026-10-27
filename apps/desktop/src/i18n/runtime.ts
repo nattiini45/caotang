@@ -25,6 +25,7 @@
  */
 
 import { i18n, type Messages } from '@lingui/core';
+import { t } from '@lingui/core/macro';
 
 import {
   interfaceCatalogueForId,
@@ -33,6 +34,8 @@ import {
   type InterfaceCatalogue,
 } from './catalogues.js';
 import { messages as enMessages } from './locales/en/messages.po';
+
+/* lingui-set comment="Interpolated values: tag" */
 
 /** The source locale. Always shipped; the per-message fallback (§3.3). */
 export const SOURCE_LOCALE_TAG = 'en';
@@ -52,7 +55,7 @@ export const PSEUDO_CATALOGUES: readonly Catalogue[] = pseudoCatalogues();
 /** A tag with no catalogue in this build. */
 export class UnknownCatalogueError extends Error {
   constructor(tag: string) {
-    super(`No interface catalogue is shipped for "${tag}".`);
+    super(t`No interface catalogue is shipped for "${{ tag }}".`);
     this.name = 'UnknownCatalogueError';
   }
 }
@@ -60,7 +63,7 @@ export class UnknownCatalogueError extends Error {
 /** A pseudo catalogue asked for by a production build, where it does not exist and must not. */
 export class PseudoCatalogueUnavailableError extends Error {
   constructor(tag: string) {
-    super(`The pseudo catalogue "${tag}" is available only in development and tests.`);
+    super(t`The pseudo catalogue "${{ tag }}" is available only in development and tests.`);
     this.name = 'PseudoCatalogueUnavailableError';
   }
 }

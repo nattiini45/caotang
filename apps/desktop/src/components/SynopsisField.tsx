@@ -8,6 +8,8 @@
  */
 
 import type { ReactNode } from 'react';
+import { t } from '@lingui/core/macro';
+
 import { nodeById } from '../app/binder-model.js';
 import { SYNOPSIS_MAX_CHARS } from '../app/corkboard-model.js';
 import type { ProjectSession } from '../app/session.js';
@@ -43,10 +45,10 @@ export function SynopsisField({
       <textarea
         id={fieldId}
         className="synopsis"
-        aria-label="Synopsis"
+        aria-label={t`Synopsis`}
         maxLength={SYNOPSIS_MAX_CHARS}
         rows={variant === 'card' ? 2 : 4}
-        placeholder="Add a synopsis"
+        placeholder={t`Add a synopsis`}
         lang={session.state.manifest.project.language}
         dir="auto"
         value={field.value}

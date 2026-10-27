@@ -86,6 +86,7 @@ import type {
 } from '../seam.js';
 import { caotangExtensions } from './extensions.js';
 import { createGhostPreview } from './ghost.js';
+import { DEFAULT_EDITOR_LABELS, type EditorLabels } from './labels.js';
 import type { GhostCallbacks, GhostPreview } from './ghost.js';
 import {
   HISTORY_JOURNAL_VERSION,
@@ -121,6 +122,8 @@ export interface TiptapMountOptions extends EditorMountOptions {
   autosave?: Autosave;
   /** §8's Apply, Retry and Discard handlers. */
   ghost?: GhostCallbacks;
+  /** The editor's own words; the app passes its translated set, and the package's English defaults fill any it leaves out. */
+  labels?: Partial<EditorLabels>;
   /**
    * §7: Lane 1's history across a reload. The app hands in the journal it kept for the document and is told when the history changes. The
    * journal rebuilds the user's undo only if it replays to the body the editor opened with (`history-journal.ts`).
@@ -469,7 +472,7 @@ const createInstance = (
 
   const editor = new Editor({
     element: focusEl,
-    extensions: caotangExtensions({ role: 'focus', placeholder: opts.placeholder }),
+    extensions: caotangExtensions({ role: 'focus', placeholder: opts.placeholder, ...(opts.labels === undefined ? {} : { labels: opts.labels }) }),
     content: loaded.doc.toJSON(),
     editable: opts.readOnly !== true,
     injectCSS: opts.injectCSS ?? true,
@@ -752,7 +755,7 @@ const createInstance = (
     announceHistory();
   }
 
-  const ghost = createGhostPreview(ghostEl, opts.ghost);
+  const ghost = createGhostPreview(ghostEl, opts.ghost, { ...DEFAULT_EDITOR_LABELS, ...opts.labels });
 
   // §9's indicator: the store announces each change to a document's save state. Another
   // document's change is not this editor's to report, so it is filtered here, and the

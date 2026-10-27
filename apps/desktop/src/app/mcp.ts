@@ -15,6 +15,10 @@
  *   network. The end-to-end suite uses it; the app calls it only in a development build (App.tsx).
  */
 
+import { t } from '@lingui/core/macro';
+
+/* lingui-set comment="Interpolated values: key" */
+
 import {
   createMcpClient,
   createMockWire,
@@ -122,9 +126,9 @@ export class McpApp {
   /** Replaces a server's bearer token. The reference stays the same; the server must connect again to check the tool list. */
   async setToken(key: string, token: string): Promise<{ ok: true } | { ok: false; message: string }> {
     const server = this.client.serverFor(key);
-    if (server === undefined) return { ok: false, message: `no MCP server with key ${key} is configured` };
+    if (server === undefined) return { ok: false, message: t`no MCP server with key ${{ key }} is configured` };
     const trimmed = token.trim();
-    if (trimmed === '') return { ok: false, message: 'the token is empty — enter the token the server gave you' };
+    if (trimmed === '') return { ok: false, message: t`the token is empty — enter the token the server gave you` };
     const ref = server.auth.kind === 'bearer' ? server.auth.tokenRef : `${BEARER_REF_PREFIX}${randomRef()}`;
     await this.keys.put(ref, trimmed);
     const updated = await this.client.updateServer(key, { auth: { kind: 'bearer', tokenRef: ref } });

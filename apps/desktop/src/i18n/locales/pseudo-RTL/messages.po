@@ -147,6 +147,21 @@ msgstr ""
 msgid "“{name}” {times, plural, one {# time} other {# times}}"
 msgstr ""
 
+#. Interpolated values: error, name
+#: apps/desktop/src/app/providers.ts
+msgid "“{name}” came back under a new id, so its saved usage is not attached to it."
+msgstr ""
+
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "“{name}” cannot be the name of a skill. {problem}"
+msgstr ""
+
+#. Interpolated values: error, name
+#: apps/desktop/src/app/providers.ts
+msgid "“{name}” could not be restored: {error}"
+msgstr ""
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "“{name}” has changes that are not in a bundle yet. A bundle is the copy that does not depend on this browser."
@@ -155,6 +170,21 @@ msgstr ""
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "“{name}” is open in another tab. Close it there, then remove it here."
+msgstr ""
+
+#. Interpolated values: error, name, reason, refused
+#: apps/desktop/src/app/furniture-store.ts
+msgid "“{name}”: {reason}"
+msgstr ""
+
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "“{path}” is not UTF-8 text, so this copy holds an empty file in its place instead of its text; the file it was opened from still holds its text, and a save of this copy over it would write that empty text over it"
+msgstr ""
+
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "“{path}” is not UTF-8 text, so this copy leaves it out; the file it was opened from still holds its text"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -268,9 +298,29 @@ msgstr ""
 msgid "{action, select, creating {Creating the project} openingProject {Opening the project} makingBundle {Making the bundle} renamingProject {Renaming the project} openingFolder {Opening the folder} importingBundle {Importing the bundle} recovering {Recovering the project} removing {Removing the project} other {That action}} did not finish: {error}"
 msgstr ""
 
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "{added} new, {changed} changed, {unchanged} unchanged, {removed} removed. Every tool stays confirm-only until you approve this list."
+msgstr ""
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "{added} new, {changed} changed, {unchanged} unchanged. Every tool stays confirm-only until you approve this list."
+msgstr ""
+
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "{badge, plural, one {# open} other {# open}}"
+msgstr ""
+
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "{bytes} bytes"
+msgstr ""
+
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "{change, select, changed {changed} removed {removed} added {added} other {changed}} {label}"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -303,9 +353,66 @@ msgstr ""
 msgid "{count} {words, plural, one {word} other {words}} today"
 msgstr ""
 
+#. Interpolated values: count, target, words
+#: apps/desktop/src/app/session-progress.ts
+msgid "{count} {words, plural, one {word} other {words}} today · set a daily target"
+msgstr ""
+
+#. Interpolated values: count, target, words
+#: apps/desktop/src/app/session-progress.ts
+msgid "{count} / {target} words today"
+msgstr ""
+
+#. Interpolated values: count, target, words
+#: apps/desktop/src/app/session-progress.ts
+msgid "{count} / {target} words today. Today’s target is met."
+msgstr ""
+
 #. Interpolated values: count, layerId, max, min
 #: apps/desktop/src/components/ContextSection.tsx
 msgid "{count} by default"
+msgstr ""
+
+#. Interpolated values: cap, done, omitted, tokens, total, used
+#: apps/desktop/src/components/BackgroundTasks.tsx
+msgid "{count} documents could not be drafted and are left out of the review."
+msgstr ""
+
+#. Interpolated values: scope, title
+#: apps/desktop/src/components/Corkboard.tsx
+msgid "{count} items"
+msgstr ""
+
+#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "{count} line above the first knot was not imported. Copy it by hand if you need it."
+msgstr ""
+
+#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "{count} lines above the first knot were not imported. Copy them by hand if you need them."
+msgstr ""
+
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "{count} shots lost their pictures because the files are not in the project. The storyboard names them."
+msgstr ""
+
+#. Interpolated values: completion, count, levels, prompt, window
+#: apps/desktop/src/app/provider-details.ts
+msgid "{count} tokens"
+msgstr ""
+
+#. Interpolated values: count, day, days, error
+#. Interpolated values: count, day, days, error
+#. Interpolated values: count, day, days, error
+#: apps/desktop/src/components/WritingHistory.tsx
+msgid "{count} words"
+msgstr ""
+
+#. Interpolated values: completion, count, levels, prompt, window
+#: apps/desktop/src/app/provider-details.ts
+msgid "{count}-token window"
 msgstr ""
 
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
@@ -321,6 +428,16 @@ msgstr ""
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "{day, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}"
+msgstr ""
+
+#. Interpolated values: count, day, days, error
+#: apps/desktop/src/components/WritingHistory.tsx
+msgid "{day}: {count} {words, plural, one {word} other {words}}"
+msgstr ""
+
+#. Interpolated values: count, day, days, error
+#: apps/desktop/src/components/WritingHistory.tsx
+msgid "{day}: {count} {words, plural, one {word} other {words}}, target met"
 msgstr ""
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
@@ -368,6 +485,16 @@ msgstr ""
 msgid "{documents} · {words}"
 msgstr ""
 
+#. Interpolated values: cap, done, omitted, tokens, total, used
+#: apps/desktop/src/components/BackgroundTasks.tsx
+msgid "{done} / {total} drafted · {used} of {cap} model calls · {tokens} tokens"
+msgstr ""
+
+#. Interpolated values: error
+#: apps/desktop/src/app/coherence-io.ts
+msgid "{error} Findings are kept in this browser."
+msgstr ""
+
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "{field, select, maxModelCalls {Model calls per turn} maxActiveMinutes {Minutes of work per turn} maxTokens {Tokens per turn} maxSteps {Steps per turn} maxWordsChanged {Words changed per turn} maxDocuments {Documents touched per turn} other {This limit}} is a whole number from {min} to {max}, or empty for the default."
@@ -376,6 +503,16 @@ msgstr ""
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "{field} (optional)"
+msgstr ""
+
+#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "{file} has no knot to import. An Ink story makes one container for each knot."
+msgstr ""
+
+#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "{file} has no passage to import. A Twee story makes one knot for each passage."
 msgstr ""
 
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
@@ -398,14 +535,29 @@ msgstr ""
 msgid "{n, plural, one {# document} other {# documents}}"
 msgstr ""
 
+#. Interpolated values: name
+#: apps/desktop/src/app/provider-label.ts
+msgid "{name} (demo)"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "{product} documentation"
 msgstr ""
 
+#. Interpolated values: completion, count, levels, prompt, window
+#: apps/desktop/src/app/provider-details.ts
+msgid "{prompt} in, {completion} out per 1,000 tokens"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "{provider} — Desktop app or hosted only"
+msgstr ""
+
+#. Interpolated values: refusal
+#: apps/desktop/src/app/binder-model.ts
+msgid "{refusal} Select a chapter first, or make one with New folder."
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -433,7 +585,9 @@ msgstr ""
 msgid "{size} GB"
 msgstr ""
 
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
 #. Interpolated values: size, total, used
+#: apps/desktop/src/app/skills-model.ts
 #: apps/desktop/src/app/storage.ts
 msgid "{size} KB"
 msgstr ""
@@ -459,9 +613,34 @@ msgstr ""
 msgid "{subject} still could not be loaded"
 msgstr ""
 
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "{summary} {catalog}"
+msgstr ""
+
+#. Interpolated values: count, stamp, titles
+#: apps/desktop/src/components/UnsentWords.tsx
+msgid "{title} (kept from a stopped tab)"
+msgstr ""
+
+#. Interpolated values: count, stamp, titles
+#: apps/desktop/src/components/UnsentWords.tsx
+msgid "{title} (kept from before a reload)"
+msgstr ""
+
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/plan-preview.ts
+msgid "{title}, in {parent}"
+msgstr ""
+
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "{totalWords, plural, one {# word} other {# words}} in the project"
+msgstr ""
+
+#. Interpolated values: what, who
+#: apps/desktop/src/app/knowledge-model.ts
+msgid "{who}: {what}"
 msgstr ""
 
 #. Interpolated values: count, target, words
@@ -499,6 +678,11 @@ msgstr ""
 msgid "### {intent}"
 msgstr ""
 
+#. Interpolated values: file, title
+#: apps/desktop/src/components/TweeImportDialog.tsx
+msgid "<0>{title}</0> ({file}) will be one dialogue container. Read what the import changes first."
+msgstr ""
+
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "<0>caotang.json</0> in this folder was changed by another program after Caotang last loaded or saved it, so nothing was written."
@@ -524,15 +708,80 @@ msgstr ""
 msgid "| # | Time | Command | Summary | Issued by | Source | Undo group |"
 msgstr ""
 
+#. Interpolated values: scope, title
+#: apps/desktop/src/components/Corkboard.tsx
+msgid "1 item"
+msgstr ""
+
+#. Interpolated values: calls, cap
+#: apps/desktop/src/components/PlanOfferCard.tsx
+msgid "A background run goes on only while this project is open in this tab."
+msgstr ""
+
+#. Interpolated values: done, intent, outdated, staged, total
+#: apps/desktop/src/app/task-model.ts
+msgid "A background task failed: {intent}"
+msgstr ""
+
+#. Interpolated values: done, intent, outdated, staged, total
+#: apps/desktop/src/app/task-model.ts
+msgid "A background task is ready to review: {intent}"
+msgstr ""
+
+#. Interpolated values: done, intent, outdated, staged, total
+#: apps/desktop/src/app/task-model.ts
+msgid "A background task was stopped: {intent}"
+msgstr ""
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "a change could not be taken back"
+msgstr ""
+
+#. Interpolated values: what, who
+#: apps/desktop/src/app/knowledge-model.ts
+msgid "a character that is gone"
+msgstr ""
+
 #. Interpolated values: shotTitle, sceneTitle
 #. js-lingui-explicit-id
 #: packages/coherence/src/checks/script.ts
 msgid "coherence.script.anchorDrift"
 msgstr ""
 
+#. Interpolated values: refusal
+#: apps/desktop/src/app/binder-model.ts
+msgid "A document cannot hold other items."
+msgstr ""
+
+#. Interpolated values: cap, done, omitted, tokens, total, used
+#: apps/desktop/src/components/BackgroundTasks.tsx
+msgid "A document could not be drafted and is left out of the review."
+msgstr ""
+
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/plan-preview.ts
+msgid "a document that is no longer in the project"
+msgstr ""
+
+#. Interpolated values: what, who
+#: apps/desktop/src/app/knowledge-model.ts
+msgid "a fact that is gone"
+msgstr ""
+
+#. Interpolated values: refusal
+#: apps/desktop/src/app/binder-model.ts
+msgid "A folder cannot go inside another folder."
+msgstr ""
+
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "a folder that is gone"
+msgstr ""
+
+#. Interpolated values: error, name, reason, refused
+#: apps/desktop/src/app/furniture-store.ts
+msgid "a goal: {reason}"
 msgstr ""
 
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
@@ -545,9 +794,39 @@ msgstr ""
 msgid "A lock file in this folder says that another program, such as the Caotang MCP server, may be using it. Saving now can overwrite what that program has written. If no such program is running, the lock was left behind when one closed. Save anyway?"
 msgstr ""
 
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "A name uses lower-case letters, digits and hyphens, up to {max} characters, and does not start or end with a hyphen."
+msgstr ""
+
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/plan-preview.ts
+msgid "a picture that is no longer in the project"
+msgstr ""
+
+#. Interpolated values: error, name
+#: apps/desktop/src/app/providers.ts
+msgid "A price needs both the prompt price and the reply price, per 1,000 tokens. Fill both, or leave both empty."
+msgstr ""
+
 #. Interpolated values: count, layerId, max, min
 #: apps/desktop/src/components/ContextSection.tsx
 msgid "A prompt of about {whole} tokens: {l2} tokens for the codex entries, {l4} tokens for the story so far, {l5} tokens for the focus document, and the rest for the instruction and the reply. The plan card shows this split for each request before you approve it."
+msgstr ""
+
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "A shot lost its picture because the file is not in the project. The storyboard names it."
+msgstr ""
+
+#. Interpolated values: count, stamp, titles
+#: apps/desktop/src/components/UnsentWords.tsx
+msgid "A tab stopped because another tab saved newer text for this project."
+msgstr ""
+
+#. Interpolated values: cap, done, omitted, tokens, total, used
+#: apps/desktop/src/components/BackgroundTasks.tsx
+msgid "A task is drafted only while this project is open in this tab. Nothing is applied until you review it."
 msgstr ""
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
@@ -575,6 +854,11 @@ msgstr ""
 msgid "Accept edits"
 msgstr ""
 
+#. Interpolated values: scope, title
+#: apps/desktop/src/components/Corkboard.tsx
+msgid "Actions for {title}"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Active"
@@ -592,6 +876,11 @@ msgstr ""
 msgid "Activity"
 msgstr ""
 
+#. Interpolated values: name
+#: apps/desktop/src/components/VocabularyEditor.tsx
+msgid "Add {kind, select, status {status} label {label} other {status}}"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Add a header"
@@ -600,6 +889,15 @@ msgstr ""
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Add a provider"
+msgstr ""
+
+#: apps/desktop/src/components/SynopsisField.tsx
+msgid "Add a synopsis"
+msgstr ""
+
+#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "Add line ids to the imported containers (one time)"
 msgstr ""
 
 #. Interpolated values: name
@@ -612,6 +910,11 @@ msgstr ""
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.notesAppend.content"
+msgstr ""
+
+#. Interpolated values: name
+#: apps/desktop/src/components/VocabularyEditor.tsx
+msgid "Added the {kind, select, status {status} label {label} other {status}} “{name}”."
 msgstr ""
 
 #. Interpolated values: fact
@@ -645,14 +948,53 @@ msgstr ""
 msgid "Agent"
 msgstr ""
 
+#. Interpolated values: reason
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "Agent preview"
+msgstr ""
+
 #. Interpolated values: fieldCount, fields, name, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts
 msgid "All changes saved in this browser"
 msgstr ""
 
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/plan-preview.ts
+msgid "Also known as"
+msgstr ""
+
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Also while Accept edits or Auto decides"
+msgstr ""
+
+#: apps/desktop/src/app/codex-model.ts
+msgid "Always"
+msgstr ""
+
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/plan-preview.ts
+msgid "Always included: this entry goes into every drafting call"
+msgstr ""
+
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/plan-preview.ts
+msgid "Always, in every drafting call"
+msgstr ""
+
+#. Interpolated values: refusal
+#: apps/desktop/src/app/binder-model.ts
+msgid "An item cannot be moved into itself."
+msgstr ""
+
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "Another program {changes} after Caotang read the folder, so nothing was written. Close this, then open the folder again to see its current copy."
+msgstr ""
+
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "Another program changed a file in this folder after Caotang read the folder, so nothing was written. Close this, then open the folder again to see its current copy."
 msgstr ""
 
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
@@ -670,6 +1012,11 @@ msgstr ""
 msgid "Another program may be using this folder"
 msgstr ""
 
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "Another program may be using this folder: a lock file in it says so, and the Caotang MCP server may be writing this project too. Going ahead replaces caotang.json, so anything that program wrote could be lost. Go ahead anyway?"
+msgstr ""
+
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Another program removed <0>caotang.json</0> from this folder after Caotang last loaded or saved it, so nothing was written."
@@ -678,6 +1025,10 @@ msgstr ""
 #. Interpolated values: fieldCount, fields, name, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts
 msgid "Another tab has newer text"
+msgstr ""
+
+#: apps/desktop/src/components/StaleTabNotice.tsx
+msgid "Another tab has stored newer text for this project, so this tab cannot save. The words here are still on screen."
 msgstr ""
 
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
@@ -701,6 +1052,46 @@ msgstr ""
 msgid "applied"
 msgstr ""
 
+#. Interpolated values: done, intent, outdated, staged, total
+#: apps/desktop/src/app/task-model.ts
+msgid "Applied"
+msgstr ""
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Approve these prompts and templates"
+msgstr ""
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Approve this tool list"
+msgstr ""
+
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "Approved, and turned off."
+msgstr ""
+
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "Approved. It is kept for you, so the agent is not told about it."
+msgstr ""
+
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "Approved. The agent is told about it."
+msgstr ""
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Approved. The prompts and resource templates are pinned as listed."
+msgstr ""
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Approved. The tools are searchable now, and the pins are updated to this list."
+msgstr ""
+
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Ask"
@@ -716,10 +1107,26 @@ msgstr ""
 msgid "Auto"
 msgstr ""
 
+#. Interpolated values: calls, error, mode, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Auto is turned off in Settings › Agent."
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Background"
+msgstr ""
+
+#. Interpolated values: cap, done, omitted, tokens, total, used
+#. Interpolated values: cap, done, omitted, tokens, total, used
+#: apps/desktop/src/components/BackgroundTasks.tsx
+msgid "Background tasks"
+msgstr ""
+
+#. Interpolated values: calls, cap, error
+#: apps/desktop/src/app/task-queue.ts
+msgid "Background tasks need a browser feature this one does not have, so this plan can only run now."
 msgstr ""
 
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
@@ -769,14 +1176,27 @@ msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
+#. Interpolated values: calls, cap
+#. Interpolated values: cap, done, omitted, tokens, total, used
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/BackgroundTasks.tsx
 #: apps/desktop/src/components/Home.tsx
+#: apps/desktop/src/components/PlanOfferCard.tsx
+#: apps/desktop/src/components/RecoveryDialog.tsx
 #: apps/desktop/src/components/Settings.tsx
+#: apps/desktop/src/components/shared.tsx
+#: apps/desktop/src/components/TargetQuickSet.tsx
 msgid "Cancel"
 msgstr ""
 
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
 msgid "cancelled"
+msgstr ""
+
+#. Interpolated values: done, intent, outdated, staged, total
+#: apps/desktop/src/app/task-model.ts
+msgid "Cancelled"
 msgstr ""
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
@@ -789,10 +1209,20 @@ msgstr ""
 msgid "Caotang also noted {unsaid, plural, one {one smaller thing} other {# smaller things}} in the project’s files as it opened them."
 msgstr ""
 
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "Caotang can read “{name}”."
+msgstr ""
+
 #. Interpolated values: title
 #. js-lingui-explicit-id
 #: packages/store/src/read.ts
 msgid "store.load.unreadableDocument"
+msgstr ""
+
+#. Interpolated values: error
+#: apps/desktop/src/App.tsx
+msgid "Caotang could not open its storage"
 msgstr ""
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
@@ -805,9 +1235,52 @@ msgstr ""
 msgid "Caotang has no record of what this folder held when this project was last saved there, so it can’t tell which documents changed since. Saving writes this tab’s version over the folder’s documents. The folder’s version of each one it replaces is kept in <0>.caotang-backup</0> in the folder, and an older <1>caotang.json</1> is kept as a backup of its own, so if you need anything from it, copy it from there."
 msgstr ""
 
+#. Interpolated values: count
+#: apps/desktop/src/app/pending-journal.ts
+msgid "Caotang kept {saved, plural, one {# unsaved change} other {# unsaved changes}} from before the reload and saved {saved, plural, one {it} other {them}}."
+msgstr ""
+
+#: apps/desktop/src/components/StaleTabNotice.tsx
+msgid "Caotang was updated in another tab"
+msgstr ""
+
+#: apps/desktop/src/components/StaleTabNotice.tsx
+msgid "Caotang was updated in another tab, so this tab cannot save to browser storage. The words here are still on screen."
+msgstr ""
+
 #. Interpolated values: fieldCount, fields, name, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts
 msgid "Caotang was updated in another tab, so this tab cannot save. Export a backup, then reload this tab."
+msgstr ""
+
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "caotang.json in “{name}” and every backup copy of it cannot be read. Caotang can rebuild the project from its document files. The rebuilt project is a new one."
+msgstr ""
+
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "caotang.json in “{name}” cannot be read. The newest backup that can be read is {path}, which is backup {generation} of 3 (1 is the newest). Caotang can open that copy instead."
+msgstr ""
+
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "caotang.json in “{name}” cannot be read. The single backup an older version kept, {path}, can be read. Caotang can open that copy instead."
+msgstr ""
+
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "caotang.json in this folder was changed by another program after Caotang read it, so nothing was written. Close this, then open the folder again to see its current copy."
+msgstr ""
+
+#: apps/desktop/src/components/ZoomControl.tsx
+msgid "Card size"
+msgstr ""
+
+#. Interpolated values: scope, title
+#. Interpolated values: scope, title
+#: apps/desktop/src/components/Corkboard.tsx
+msgid "Cards in {scope}"
 msgstr ""
 
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
@@ -823,6 +1296,16 @@ msgstr ""
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.vocabularyUpsert.kind"
+msgstr ""
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Changed since review"
+msgstr ""
+
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "Changed since you approved it. The agent does not see it until you approve it again."
 msgstr ""
 
 #. Interpolated values: fact
@@ -857,6 +1340,10 @@ msgstr ""
 msgid "Chat"
 msgstr ""
 
+#: apps/desktop/src/app/demo.ts
+msgid "Check for continuity problems"
+msgstr ""
+
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
 msgid "Check run discarded"
@@ -888,8 +1375,10 @@ msgid "Choose another folder…"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: confirm, generation, label, name, path
 #. Interpolated values: subject
 #: apps/desktop/src/components/lazy-view.tsx
+#: apps/desktop/src/components/RecoveryDialog.tsx
 #: apps/desktop/src/components/Settings.tsx
 msgid "Close"
 msgstr ""
@@ -921,9 +1410,34 @@ msgstr ""
 msgid "Coherence"
 msgstr ""
 
+#. Interpolated values: error
+#: apps/desktop/src/app/coherence-io.ts
+msgid "coherence.json in the project folder was changed by another program since Caotang last read or saved it, so it was not replaced. The findings in this browser are kept; open the folder again from Projects to use the folder’s."
+msgstr ""
+
+#. Interpolated values: error
+#: apps/desktop/src/app/coherence-io.ts
+msgid "coherence.json in the project folder was changed by another program while Caotang was saving it, so the folder holds that program’s version."
+msgstr ""
+
+#. Interpolated values: name
+#: apps/desktop/src/components/VocabularyEditor.tsx
+msgid "Colour"
+msgstr ""
+
+#. Interpolated values: name
+#: apps/desktop/src/components/VocabularyEditor.tsx
+msgid "Colour of {name}"
+msgstr ""
+
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.exportCompile.content"
+msgstr ""
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "compile again in a moment, when the listing has finished"
 msgstr ""
 
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
@@ -934,6 +1448,21 @@ msgstr ""
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.exportCompile.active"
+msgstr ""
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Configured"
+msgstr ""
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Connected"
+msgstr ""
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Connected. Its tools are waiting for a review."
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -951,6 +1480,11 @@ msgstr ""
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Corkboard"
+msgstr ""
+
+#. Interpolated values: scope, title
+#: apps/desktop/src/components/Corkboard.tsx
+msgid "Corkboard scope"
 msgstr ""
 
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
@@ -983,13 +1517,33 @@ msgstr ""
 msgid "Create project"
 msgstr ""
 
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/plan-preview.ts
+msgid "Created"
+msgstr ""
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Creating the project"
 msgstr ""
 
+#. Interpolated values: count, day, days, error
+#: apps/desktop/src/components/WritingHistory.tsx
+msgid "Daily average"
+msgstr ""
+
+#. Interpolated values: count, day, days, error
+#: apps/desktop/src/components/WritingHistory.tsx
+msgid "Daily best"
+msgstr ""
+
+#: apps/desktop/src/components/TargetQuickSet.tsx
+msgid "Daily target"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
+#: apps/desktop/src/components/TargetQuickSet.tsx
 msgid "Daily target, in words (0 for none)"
 msgstr ""
 
@@ -1042,6 +1596,11 @@ msgstr ""
 msgid "Delete?"
 msgstr ""
 
+#. Interpolated values: scope, title
+#: apps/desktop/src/components/Corkboard.tsx
+msgid "Delete…"
+msgstr ""
+
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
 msgid "Deleted"
@@ -1052,9 +1611,23 @@ msgstr ""
 msgid "Deleted “{title}”. Ctrl+Z restores it right after."
 msgstr ""
 
+#: apps/desktop/src/components/FirstRun.tsx
+msgid "Demo intents"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Demo, no key"
+msgstr ""
+
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/plan-preview.ts
+msgid "Description"
+msgstr ""
+
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "description: Say when the agent should use this skill, in a sentence or two."
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -1068,9 +1641,18 @@ msgstr ""
 msgid "Desktop app or hosted only — {note}"
 msgstr ""
 
+#: apps/desktop/src/app/codex-model.ts
+msgid "Detected"
+msgstr ""
+
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
 msgid "Dialogue settings changed"
+msgstr ""
+
+#. Interpolated values: count, stamp, titles
+#: apps/desktop/src/components/UnsentWords.tsx
+msgid "Discard them"
 msgstr ""
 
 #. Interpolated values: run
@@ -1088,6 +1670,8 @@ msgstr ""
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
+#. Interpolated values: cap, done, omitted, tokens, total, used
+#: apps/desktop/src/components/BackgroundTasks.tsx
 #: apps/desktop/src/components/Home.tsx
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Dismiss"
@@ -1133,6 +1717,22 @@ msgstr ""
 msgid "Documents touched per turn"
 msgstr ""
 
+#. Interpolated values: done, limit, total, used
+#. Interpolated values: name
+#: apps/desktop/src/components/TaskChecklist.tsx
+#: apps/desktop/src/components/VocabularyEditor.tsx
+msgid "Done"
+msgstr ""
+
+#. Interpolated values: count, day, days, error
+#: apps/desktop/src/components/WritingHistory.tsx
+msgid "Download CSV"
+msgstr ""
+
+#: apps/desktop/src/app/demo.ts
+msgid "Draft the opening scene"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -1143,6 +1743,31 @@ msgstr ""
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.plan.drafting"
+msgstr ""
+
+#. Interpolated values: done, intent, outdated, staged, total
+#: apps/desktop/src/app/task-model.ts
+msgid "Drafting: {done} of {total} done"
+msgstr ""
+
+#. Interpolated values: scope, title
+#: apps/desktop/src/components/Corkboard.tsx
+msgid "Drag {title} to reorder"
+msgstr ""
+
+#. Interpolated values: scope, title
+#: apps/desktop/src/components/Corkboard.tsx
+msgid "Drag scenes in from the binder, or create one. Each card holds a scene’s synopsis, and the order here is the order in the manuscript."
+msgstr ""
+
+#. Interpolated values: refusal
+#: apps/desktop/src/app/binder-model.ts
+msgid "Drop it inside a section, not beside it."
+msgstr ""
+
+#. Interpolated values: refusal
+#: apps/desktop/src/app/binder-model.ts
+msgid "Drop onto a row in the binder."
 msgstr ""
 
 #. Interpolated values: source, summary
@@ -1219,8 +1844,17 @@ msgstr ""
 
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
+#: apps/desktop/src/components/StaleTabNotice.tsx
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Export a backup"
+msgstr ""
+
+#: apps/desktop/src/components/StaleTabNotice.tsx
+msgid "Export a backup to keep them first, or keep this tab."
+msgstr ""
+
+#: apps/desktop/src/components/StaleTabNotice.tsx
+msgid "Export a backup too if you want a copy outside this browser."
 msgstr ""
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
@@ -1268,6 +1902,11 @@ msgstr ""
 msgid "Exported the activity log as {file}."
 msgstr ""
 
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "Exports are kept in this browser, not in the folder. {reason}"
+msgstr ""
+
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
 msgid "External resource read"
@@ -1288,10 +1927,24 @@ msgstr ""
 msgid "Extra request headers (optional)"
 msgstr ""
 
+#. Interpolated values: done, limit, total, used
+#: apps/desktop/src/components/TaskChecklist.tsx
+msgid "Failed"
+msgstr ""
+
+#. Interpolated values: done, intent, outdated, staged, total
+#: apps/desktop/src/app/task-model.ts
+msgid "Failed: nothing could be drafted"
+msgstr ""
+
 #. Interpolated values: count
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.synopsisFill.content"
+msgstr ""
+
+#: apps/desktop/src/app/demo.ts
+msgid "Fill in the synopses"
 msgstr ""
 
 #. Interpolated values: doc
@@ -1352,9 +2005,29 @@ msgstr ""
 msgid "Follow the system"
 msgstr ""
 
+#. Interpolated values: name
+#: apps/desktop/src/components/VocabularyEditor.tsx
+msgid "For example, Act 2"
+msgstr ""
+
+#. Interpolated values: name
+#: apps/desktop/src/components/VocabularyEditor.tsx
+msgid "For example, Second pass"
+msgstr ""
+
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "Friday"
+msgstr ""
+
+#. Interpolated values: name
+#: apps/desktop/src/components/VocabularyEditor.tsx
+msgid "Give the {kind, select, status {status} label {label} other {status}} a name."
+msgstr ""
+
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "Give the skill a name."
 msgstr ""
 
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
@@ -1370,6 +2043,10 @@ msgstr ""
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "Goals"
+msgstr ""
+
+#: apps/desktop/src/components/FirstRun.tsx
+msgid "Got it"
 msgstr ""
 
 #. js-lingui-explicit-id
@@ -1392,6 +2069,21 @@ msgstr ""
 msgid "Header {number} value"
 msgstr ""
 
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Healthy"
+msgstr ""
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Healthy. {count} {tools, plural, one {tool} other {tools}} listed and verified."
+msgstr ""
+
+#. Interpolated values: count, day, days, error
+#: apps/desktop/src/components/WritingHistory.tsx
+msgid "Hide the history"
+msgstr ""
+
 #. Interpolated values: count, layerId, max, min
 #: apps/desktop/src/components/ContextSection.tsx
 msgid "Hide the prompt for a scene"
@@ -1400,6 +2092,21 @@ msgstr ""
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "High"
+msgstr ""
+
+#. Interpolated values: count, day, days, error
+#: apps/desktop/src/components/WritingHistory.tsx
+msgid "History"
+msgstr ""
+
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/plan-preview.ts
+msgid "Ignore matches in"
+msgstr ""
+
+#. Interpolated values: reason
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "Image"
 msgstr ""
 
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
@@ -1412,9 +2119,19 @@ msgstr ""
 msgid "Image imported"
 msgstr ""
 
+#. Interpolated values: completion, count, levels, prompt, window
+#: apps/desktop/src/app/provider-details.ts
+msgid "image input"
+msgstr ""
+
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
 msgid "Images added to shots"
+msgstr ""
+
+#. Interpolated values: file, title
+#: apps/desktop/src/components/TweeImportDialog.tsx
+msgid "Import"
 msgstr ""
 
 #. Interpolated values: title
@@ -1429,14 +2146,64 @@ msgstr ""
 msgid "harness.progress.codexImport.content"
 msgstr ""
 
+#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "Import a script, an Ink story or a Twee story"
+msgstr ""
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Import bundle (.caotang)"
 msgstr ""
 
+#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "Import Ink"
+msgstr ""
+
+#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "Import script"
+msgstr ""
+
+#. Interpolated values: file, title
+#: apps/desktop/src/components/TweeImportDialog.tsx
+msgid "Import this Twee story?"
+msgstr ""
+
+#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "Import Twee"
+msgstr ""
+
+#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "Imported {containers, plural, one {# dialogue container} other {# dialogue containers}} from {file}."
+msgstr ""
+
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "Imported {count, plural, one {# skill} other {# skills}}. Read each one and approve it before the agent can use it."
+msgstr ""
+
+#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "Imported {file} as one dialogue container: {passages, plural, one {# knot} other {# knots}}, {choices, plural, one {# choice} other {# choices}}, {stripped, plural, one {# logic block} other {# logic blocks}} stripped."
+msgstr ""
+
+#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "Imported {scenes, plural, one {# scene} other {# scenes}} and {sections, plural, one {# section} other {# sections}} from {file}."
+msgstr ""
+
 #. js-lingui-explicit-id
 #: packages/store/src/commands-script.ts
 msgid "store.script.importSummary"
+msgstr ""
+
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "Imported the skill “{name}”. Read it and approve it before the agent can use it."
 msgstr ""
 
 #. Interpolated values: title
@@ -1466,6 +2233,21 @@ msgstr ""
 msgid "in progress"
 msgstr ""
 
+#. Interpolated values: done, limit, total, used
+#: apps/desktop/src/components/TaskChecklist.tsx
+msgid "In progress"
+msgstr ""
+
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/plan-preview.ts
+msgid "Included in drafting"
+msgstr ""
+
+#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "Ink file"
+msgstr ""
+
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
 msgid "Ink story imported"
@@ -1481,14 +2263,38 @@ msgstr ""
 msgid "its folder is gone"
 msgstr ""
 
+#. Interpolated values: completion, count, levels, prompt, window
+#: apps/desktop/src/app/provider-details.ts
+msgid "JSON-object replies"
+msgstr ""
+
+#. Interpolated values: completion, count, levels, prompt, window
+#: apps/desktop/src/app/provider-details.ts
+msgid "JSON-schema replies"
+msgstr ""
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Keep this browser’s version and save it to the folder"
 msgstr ""
 
+#: apps/desktop/src/components/StaleTabNotice.tsx
+msgid "Keep this tab"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Kept"
+msgstr ""
+
+#. Interpolated values: count, stamp, titles
+#: apps/desktop/src/components/UnsentWords.tsx
+msgid "Kept from a stopped tab"
+msgstr ""
+
+#. Interpolated values: count, stamp, titles
+#: apps/desktop/src/components/UnsentWords.tsx
+msgid "Kept from before a reload"
 msgstr ""
 
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
@@ -1504,6 +2310,15 @@ msgstr ""
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
 msgid "Knowledge fact removed"
+msgstr ""
+
+#. Interpolated values: name
+#: apps/desktop/src/components/VocabularyEditor.tsx
+msgid "Labels"
+msgstr ""
+
+#: apps/desktop/src/components/ZoomControl.tsx
+msgid "Large cards, title, synopsis, status, label and keywords"
 msgstr ""
 
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
@@ -1537,6 +2352,10 @@ msgstr ""
 msgid "Loading {subject}…"
 msgstr ""
 
+#: apps/desktop/src/components/InkGate.tsx
+msgid "Loading the Ink compiler…"
+msgstr ""
+
 #. Interpolated values: query
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -1559,14 +2378,28 @@ msgstr ""
 msgid "Low"
 msgstr ""
 
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "make sure the project folder can be read, then compile again"
+msgstr ""
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Making the bundle"
 msgstr ""
 
+#: apps/desktop/src/app/codex-model.ts
+msgid "Manual"
+msgstr ""
+
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
 msgid "Manuscript exported"
+msgstr ""
+
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/plan-preview.ts
+msgid "Match case"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -1589,6 +2422,10 @@ msgstr ""
 msgid "Medium"
 msgstr ""
 
+#: apps/desktop/src/components/ZoomControl.tsx
+msgid "Medium cards, title and synopsis"
+msgstr ""
+
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "met"
@@ -1604,6 +2441,11 @@ msgstr ""
 msgid "Minutes of work per turn"
 msgstr ""
 
+#. Interpolated values: calls, error, mode, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Mode: {modeKey, select, planOnly {Plan only} ask {Ask} acceptEdits {Accept edits} auto {Auto} other {Ask}}. It applies from the next card."
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
@@ -1613,6 +2455,21 @@ msgstr ""
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Model calls per turn"
+msgstr ""
+
+#. Interpolated values: done, limit, total, used
+#: apps/desktop/src/components/TaskChecklist.tsx
+msgid "Model calls: {used} of {limit}"
+msgstr ""
+
+#. Interpolated values: done, limit, total, used
+#: apps/desktop/src/components/TaskChecklist.tsx
+msgid "Model calls: {used} of {limit} · limit reached"
+msgstr ""
+
+#. Interpolated values: done, limit, total, used
+#: apps/desktop/src/components/TaskChecklist.tsx
+msgid "Model calls: {used} of {limit} · one call left"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -1638,19 +2495,70 @@ msgstr ""
 msgid "Most findings one model review may add (1–{MAX_FINDINGS_CAP})"
 msgstr ""
 
+#. Interpolated values: scope, title
+#: apps/desktop/src/components/Corkboard.tsx
+msgid "Move down"
+msgstr ""
+
+#. Interpolated values: scope, title
+#: apps/desktop/src/components/Corkboard.tsx
+msgid "Move up"
+msgstr ""
+
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: parent, title
 #: apps/desktop/src/app/activity-model.ts
+#: apps/desktop/src/app/plan-preview.ts
 msgid "Moved"
 msgstr ""
 
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/plan-preview.ts
+msgid "Moved and renamed"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/plan-preview.ts
 #: apps/desktop/src/components/Settings.tsx
 msgid "Name"
+msgstr ""
+
+#. Interpolated values: name
+#: apps/desktop/src/components/VocabularyEditor.tsx
+msgid "Name of {name}"
 msgstr ""
 
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
 msgid "Native"
+msgstr ""
+
+#. Interpolated values: completion, count, levels, prompt, window
+#: apps/desktop/src/app/provider-details.ts
+msgid "native tools"
+msgstr ""
+
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/codex-model.ts
+#: apps/desktop/src/app/plan-preview.ts
+msgid "Never"
+msgstr ""
+
+#: apps/desktop/src/app/codex-model.ts
+msgid "Never sent. Use it for private notes and spoilers."
+msgstr ""
+
+#. Interpolated values: name
+#: apps/desktop/src/components/VocabularyEditor.tsx
+msgid "New {kind, select, status {status} label {label} other {status}}"
+msgstr ""
+
+#. Interpolated values: scope, title
+#. Interpolated values: scope, title
+#. Interpolated values: scope, title
+#: apps/desktop/src/components/Corkboard.tsx
+msgid "New card"
 msgstr ""
 
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
@@ -1678,10 +2586,40 @@ msgstr ""
 msgid "New provider"
 msgstr ""
 
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "New, not reviewed"
+msgstr ""
+
+#. Interpolated values: scope, title
+#: apps/desktop/src/components/Corkboard.tsx
+msgid "No cards yet"
+msgstr ""
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "No findings file is open for this project."
+msgstr ""
+
+#. Interpolated values: tag
+#: apps/desktop/src/i18n/runtime.ts
+msgid "No interface catalogue is shipped for \"{tag}\"."
+msgstr ""
+
+#. Interpolated values: name
+#: apps/desktop/src/components/VocabularyEditor.tsx
+msgid "No labels yet. Add the first one below."
+msgstr ""
+
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "no limit"
+msgstr ""
+
+#. Interpolated values: key
+#: apps/desktop/src/app/mcp.ts
+msgid "no MCP server with key {key} is configured"
 msgstr ""
 
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
@@ -1699,6 +2637,11 @@ msgstr ""
 msgid "No provider is active, so the agent cannot run."
 msgstr ""
 
+#. Interpolated values: calls, error, mode, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "No provider is active. Add one in Settings > Providers to use the agent."
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "No request has been sent yet."
@@ -1709,9 +2652,64 @@ msgstr ""
 msgid "No requests yet. Usage is counted by day, per profile, model and role, and stays in this browser."
 msgstr ""
 
+#. Interpolated values: folder, max, path, reason, size
+#: apps/desktop/src/app/skills-import.ts
+msgid "No skill was found there. A skill is a folder with its instructions file in it."
+msgstr ""
+
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "No skill was imported."
+msgstr ""
+
+#. Interpolated values: scope, title
+#: apps/desktop/src/components/Corkboard.tsx
+msgid "No status"
+msgstr ""
+
+#. Interpolated values: name
+#: apps/desktop/src/components/VocabularyEditor.tsx
+msgid "No statuses yet. Add the first one below."
+msgstr ""
+
+#. Interpolated values: calls, cap, error
+#: apps/desktop/src/app/task-queue.ts
+msgid "No step of this plan needs a model call."
+msgstr ""
+
+#. Interpolated values: count, day, days, error
+#: apps/desktop/src/components/WritingHistory.tsx
+msgid "No writing is recorded yet."
+msgstr ""
+
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "None yet. Set the filter bar, then choose Save current."
+msgstr ""
+
+#. Interpolated values: completion, count, levels, prompt, window
+#: apps/desktop/src/app/provider-details.ts
+msgid "Not a documented model for this provider — it is called with conservative defaults (no tools, no thinking level)."
+msgstr ""
+
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "Not approved yet. The agent does not see it until you have read it and approved it."
+msgstr ""
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Not connected this session. Connect it to list its tools; nothing is searchable until then."
+msgstr ""
+
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "Not enforced in this build: it does not limit what the agent can do here."
+msgstr ""
+
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/plan-preview.ts
+msgid "Not in the project yet"
 msgstr ""
 
 #. Interpolated values: fieldCount, fields, name, times, unsaid
@@ -1722,6 +2720,11 @@ msgstr ""
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Note"
+msgstr ""
+
+#. Interpolated values: calls, error, mode, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Note sent. The agent reads it at its next step."
 msgstr ""
 
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
@@ -1749,6 +2752,10 @@ msgstr ""
 msgid "Nothing in the project changed."
 msgstr ""
 
+#: apps/desktop/src/components/shared.tsx
+msgid "Nothing to choose."
+msgstr ""
+
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Nothing to undo"
@@ -1771,6 +2778,16 @@ msgstr ""
 msgid "On this computer"
 msgstr ""
 
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "Only {max} skills can be taken at once; the rest were left out."
+msgstr ""
+
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/plan-preview.ts
+msgid "Only when attached to the scene"
+msgstr ""
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Open"
@@ -1786,6 +2803,16 @@ msgstr ""
 msgid "Open a project to see its checkpoints."
 msgstr ""
 
+#: apps/desktop/src/app/context-preview.ts
+msgid "Open a scene to see the prompt the agent would send for it."
+msgstr ""
+
+#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "Open an older copy of this project?"
+msgstr ""
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Open as a separate copy"
@@ -1794,6 +2821,33 @@ msgstr ""
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "Open its goals in the inspector"
+msgstr ""
+
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "Open the project"
+msgstr ""
+
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "Open the project anyway"
+msgstr ""
+
+#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "Open this copy"
+msgstr ""
+
+#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "Open this copy anyway"
+msgstr ""
+
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "Open this project?"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -1819,6 +2873,11 @@ msgstr ""
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Opening the project"
+msgstr ""
+
+#. Interpolated values: error
+#: apps/desktop/src/App.tsx
+msgid "Opening your projects…"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -1871,6 +2930,11 @@ msgstr ""
 msgid "harness.progress.plan.active"
 msgstr ""
 
+#. Interpolated values: count, day, days, error
+#: apps/desktop/src/components/WritingHistory.tsx
+msgid "Point at a bar to read its day and words."
+msgstr ""
+
 #. Interpolated values: entry, sceneTitle
 #. js-lingui-explicit-id
 #: packages/coherence/src/checks/presence.ts
@@ -1890,6 +2954,11 @@ msgstr ""
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Price per 1,000 tokens, in dollars (optional: fill both to see the cost of a step). A saved price stays until you type a new one, so clearing these fields does not remove it."
+msgstr ""
+
+#. Interpolated values: error, name
+#: apps/desktop/src/app/providers.ts
+msgid "Prices are dollars per 1,000 tokens, written as a number of zero or more."
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -1938,6 +3007,11 @@ msgstr ""
 msgid "Projects"
 msgstr ""
 
+#. Interpolated values: error
+#: apps/desktop/src/App.tsx
+msgid "Projects are kept in this browser’s storage. Check that it is enabled for this site, then reload."
+msgstr ""
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Projects in this browser"
@@ -1969,6 +3043,21 @@ msgstr ""
 msgid "Providers"
 msgstr ""
 
+#. Interpolated values: count, stamp, titles
+#: apps/desktop/src/components/UnsentWords.tsx
+msgid "Put them back as new documents"
+msgstr ""
+
+#. Interpolated values: done, limit, total, used
+#: apps/desktop/src/components/TaskChecklist.tsx
+msgid "Queued"
+msgstr ""
+
+#. Interpolated values: calls, error, mode, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Queued. {count} {waiting, plural, one {message} other {messages}} waiting."
+msgstr ""
+
 #. Interpolated values: MAX_FINDINGS_CAP, max
 #: apps/desktop/src/components/CoherenceSettings.tsx
 msgid "Quick checks the Findings tab’s scan runs"
@@ -1995,6 +3084,11 @@ msgstr ""
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.skillLoad.content"
+msgstr ""
+
+#. Interpolated values: count, day, days, error
+#: apps/desktop/src/components/WritingHistory.tsx
+msgid "Reading the history…"
 msgstr ""
 
 #. Interpolated values: doc
@@ -2025,14 +3119,53 @@ msgstr ""
 msgid "Reads run. Every write is refused and kept as a plan you can run later."
 msgstr ""
 
+#. Interpolated values: done, intent, outdated, staged, total
+#: apps/desktop/src/app/task-model.ts
+msgid "Ready to review: {staged} of {total} drafted"
+msgstr ""
+
+#. Interpolated values: done, intent, outdated, staged, total
+#: apps/desktop/src/app/task-model.ts
+msgid "Ready to review: {staged} of {total} drafted, {outdated} out of date"
+msgstr ""
+
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "Rebuild the project"
+msgstr ""
+
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "Rebuild the project anyway"
+msgstr ""
+
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "Rebuild this project from its documents?"
+msgstr ""
+
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "Rebuilding loses:"
+msgstr ""
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Recovering the project"
 msgstr ""
 
 #. Interpolated values: subject
+#: apps/desktop/src/components/InkGate.tsx
 #: apps/desktop/src/components/lazy-view.tsx
 msgid "Reload"
+msgstr ""
+
+#: apps/desktop/src/components/StaleTabNotice.tsx
+msgid "Reload and keep the words here"
+msgstr ""
+
+#: apps/desktop/src/components/StaleTabNotice.tsx
+msgid "Reload and lose these words"
 msgstr ""
 
 #. Interpolated values: subject
@@ -2040,12 +3173,30 @@ msgstr ""
 msgid "Reload the page to fetch it again."
 msgstr ""
 
+#: apps/desktop/src/components/InkGate.tsx
+msgid "Reload the page to fetch it again. Nothing in the project changed."
+msgstr ""
+
+#: apps/desktop/src/components/StaleTabNotice.tsx
+msgid "Reload this tab"
+msgstr ""
+
+#: apps/desktop/src/components/StaleTabNotice.tsx
+msgid "Reloading this tab keeps the words in this browser, where the project offers them back once it opens again. Nothing already saved is overwritten."
+msgstr ""
+
+#: apps/desktop/src/components/StaleTabNotice.tsx
+msgid "Reloading this tab loses the latest words in it. They are on screen only, not in browser storage, so they cannot come back after the reload."
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
+#. Interpolated values: name
 #: apps/desktop/src/components/Home.tsx
 #: apps/desktop/src/components/Settings.tsx
+#: apps/desktop/src/components/VocabularyEditor.tsx
 msgid "Remove"
 msgstr ""
 
@@ -2089,6 +3240,11 @@ msgstr ""
 msgid "Removed profile"
 msgstr ""
 
+#. Interpolated values: name
+#: apps/desktop/src/components/VocabularyEditor.tsx
+msgid "Removed the {kind, select, status {status} label {label} other {status}} “{name}”. Undo puts it back."
+msgstr ""
+
 #. Interpolated values: fact
 #. js-lingui-explicit-id
 #: packages/store/src/commands-coherence.ts
@@ -2107,6 +3263,8 @@ msgid "Removing the project"
 msgstr ""
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
+#. Interpolated values: scope, title
+#: apps/desktop/src/components/Corkboard.tsx
 #: apps/desktop/src/components/Home.tsx
 msgid "Rename"
 msgstr ""
@@ -2116,8 +3274,15 @@ msgstr ""
 msgid "Rename {name}"
 msgstr ""
 
+#. Interpolated values: scope, title
+#: apps/desktop/src/components/Corkboard.tsx
+msgid "Rename {title}"
+msgstr ""
+
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
+#. Interpolated values: parent, title
 #: apps/desktop/src/app/activity-model.ts
+#: apps/desktop/src/app/plan-preview.ts
 msgid "Renamed"
 msgstr ""
 
@@ -2189,7 +3354,9 @@ msgstr ""
 msgid "harness.progress.binderRestructure.active"
 msgstr ""
 
+#. Interpolated values: cap, done, omitted, tokens, total, used
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
+#: apps/desktop/src/components/BackgroundTasks.tsx
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "Resume"
 msgstr ""
@@ -2199,14 +3366,59 @@ msgstr ""
 msgid "Reusable writing instructions for the agent"
 msgstr ""
 
+#. Interpolated values: cap, done, omitted, tokens, total, used
+#: apps/desktop/src/components/BackgroundTasks.tsx
+msgid "Review"
+msgstr ""
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Review the prompts and resource templates"
+msgstr ""
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Review the tool list"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Role"
 msgstr ""
 
+#. Interpolated values: calls, cap
+#: apps/desktop/src/components/PlanOfferCard.tsx
+msgid "Run in background"
+msgstr ""
+
+#. Interpolated values: calls, cap
+#: apps/desktop/src/components/PlanOfferCard.tsx
+msgid "Run in background drafts one call at a time while you keep writing, up to {calls} calls. Nothing is applied until you review the drafts."
+msgstr ""
+
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "Run limits"
+msgstr ""
+
+#. Interpolated values: calls, cap
+#: apps/desktop/src/components/PlanOfferCard.tsx
+msgid "Run now"
+msgstr ""
+
+#. Interpolated values: calls, cap
+#: apps/desktop/src/components/PlanOfferCard.tsx
+msgid "Run now drafts in this turn, which may make at most {cap} model calls, so it would stop short of the end of this plan."
+msgstr ""
+
+#. Interpolated values: calls, cap
+#: apps/desktop/src/components/PlanOfferCard.tsx
+msgid "Run now drafts in this turn, which may make at most {cap} model calls."
+msgstr ""
+
+#. Interpolated values: calls, cap
+#: apps/desktop/src/components/PlanOfferCard.tsx
+msgid "Run this plan"
 msgstr ""
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
@@ -2216,6 +3428,8 @@ msgstr ""
 
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
+#. Interpolated values: name
+#: apps/desktop/src/components/VocabularyEditor.tsx
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Save"
 msgstr ""
@@ -2265,6 +3479,10 @@ msgstr ""
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Save profile"
+msgstr ""
+
+#: apps/desktop/src/components/TargetQuickSet.tsx
+msgid "Save target"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -2334,6 +3552,11 @@ msgstr ""
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "Saved filters"
+msgstr ""
+
+#. Interpolated values: name
+#: apps/desktop/src/components/VocabularyEditor.tsx
+msgid "Saved the {kind, select, status {status} label {label} other {status}} “{name}”."
 msgstr ""
 
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
@@ -2422,6 +3645,11 @@ msgstr ""
 msgid "Scope the Findings tab starts with"
 msgstr ""
 
+#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "Script file"
+msgstr ""
+
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
 msgid "Script imported"
@@ -2432,6 +3660,11 @@ msgstr ""
 msgid "Scrolled"
 msgstr ""
 
+#. Interpolated values: refusal
+#: apps/desktop/src/app/binder-model.ts
+msgid "Sections cannot be moved."
+msgstr ""
+
 #. Interpolated values: count, layerId, max, min
 #: apps/desktop/src/components/ContextSection.tsx
 msgid "See the prompt for a scene"
@@ -2440,6 +3673,18 @@ msgstr ""
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
 msgid "Selection changed"
+msgstr ""
+
+#: apps/desktop/src/app/codex-model.ts
+msgid "Sent only in the documents it is attached to."
+msgstr ""
+
+#: apps/desktop/src/app/codex-model.ts
+msgid "Sent when its name or an alias appears in the text being written."
+msgstr ""
+
+#: apps/desktop/src/app/codex-model.ts
+msgid "Sent with every generation, whether or not it is mentioned."
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -2461,6 +3706,10 @@ msgstr ""
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.goalSave.content"
+msgstr ""
+
+#: apps/desktop/src/components/TargetQuickSet.tsx
+msgid "Set the daily target"
 msgstr ""
 
 #. Interpolated values: node
@@ -2504,6 +3753,11 @@ msgstr ""
 msgid "Show older ({count} more)"
 msgstr ""
 
+#. Interpolated values: count, day, days, error
+#: apps/desktop/src/components/WritingHistory.tsx
+msgid "Show the history"
+msgstr ""
+
 #. Interpolated values: source, summary
 #: apps/desktop/src/components/ActivityPanel.tsx
 msgid "Show view changes"
@@ -2539,6 +3793,15 @@ msgstr ""
 msgid "Skills"
 msgstr ""
 
+#. Interpolated values: done, limit, total, used
+#: apps/desktop/src/components/TaskChecklist.tsx
+msgid "Skipped"
+msgstr ""
+
+#: apps/desktop/src/components/ZoomControl.tsx
+msgid "Small cards, title only"
+msgstr ""
+
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Some changes have not reached browser storage yet, so the project stays open. Export a bundle to keep a copy, then leave."
@@ -2547,6 +3810,11 @@ msgstr ""
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Some documents in this folder changed since Caotang last saved them"
+msgstr ""
+
+#. Interpolated values: error, name, reason, refused
+#: apps/desktop/src/app/furniture-store.ts
+msgid "Some saved filters or goals could not be moved into the project, so they are kept in this browser and will be tried again on the next open. {refused}"
 msgstr ""
 
 #. Interpolated values: source, summary
@@ -2575,6 +3843,8 @@ msgid "Start sprint"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: scope, title
+#: apps/desktop/src/components/Corkboard.tsx
 #: apps/desktop/src/components/Settings.tsx
 msgid "Status"
 msgstr ""
@@ -2594,10 +3864,25 @@ msgstr ""
 msgid "Status, label or keywords changed"
 msgstr ""
 
+#. Interpolated values: name
+#: apps/desktop/src/components/VocabularyEditor.tsx
+msgid "Statuses"
+msgstr ""
+
+#. Interpolated values: name
+#: apps/desktop/src/components/VocabularyEditor.tsx
+msgid "Statuses and labels"
+msgstr ""
+
 #. Interpolated values: step, total, activeForm
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.header.step"
+msgstr ""
+
+#. Interpolated values: calls, cap
+#: apps/desktop/src/components/PlanOfferCard.tsx
+msgid "Steps"
 msgstr ""
 
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
@@ -2615,10 +3900,30 @@ msgstr ""
 msgid "stopped"
 msgstr ""
 
+#. Interpolated values: calls, error, mode, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Stopped by you."
+msgstr ""
+
+#. Interpolated values: calls, error, mode, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Stopped by you. The next queued message runs now."
+msgstr ""
+
+#. Interpolated values: done, intent, outdated, staged, total
+#: apps/desktop/src/app/task-model.ts
+msgid "Stopped when the project was closed: {done} of {total} done. Resume to finish it"
+msgstr ""
+
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
 #: apps/desktop/src/components/BinderFooter.tsx
 msgid "Stopped."
+msgstr ""
+
+#. Interpolated values: calls, error, mode, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "Stopping the turn."
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -2656,9 +3961,23 @@ msgstr ""
 msgid "Sunday"
 msgstr ""
 
+#: apps/desktop/src/components/SynopsisField.tsx
+msgid "Synopsis"
+msgstr ""
+
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
 msgid "Synopsis changed"
+msgstr ""
+
+#. Interpolated values: done, limit, total, used
+#: apps/desktop/src/components/TaskChecklist.tsx
+msgid "Task list"
+msgstr ""
+
+#. Interpolated values: done, limit, total, used
+#: apps/desktop/src/components/TaskChecklist.tsx
+msgid "Task list · {done} of {total} done"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -2671,6 +3990,11 @@ msgstr ""
 msgid "Text inserted"
 msgstr ""
 
+#. Interpolated values: completion, count, levels, prompt, window
+#: apps/desktop/src/app/provider-details.ts
+msgid "Text only — no documented capabilities beyond it."
+msgstr ""
+
 #. Interpolated values: at, calls, completion, detail, ended, id, intent, label, prompt, status, summary, title, tool
 #: apps/desktop/src/app/activity-model.ts
 msgid "Text replaced"
@@ -2681,9 +4005,64 @@ msgstr ""
 msgid "Text saved"
 msgstr ""
 
+#. Interpolated values: calls, error, mode, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "That card is no longer waiting for a decision, so nothing was sent."
+msgstr ""
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "That change has already been undone, so there is nothing to take back."
+msgstr ""
+
+#. Interpolated values: folder, max, path, reason, size
+#: apps/desktop/src/app/skills-import.ts
+msgid "That file is not a zip that can be opened."
+msgstr ""
+
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "That folder is not empty"
+msgstr ""
+
+#. Interpolated values: refusal
+#: apps/desktop/src/app/binder-model.ts
+msgid "That is already where it is."
+msgstr ""
+
+#. Interpolated values: error
+#: apps/desktop/src/App.tsx
+msgid "That project is already in this browser, so the file opened as a separate copy."
+msgstr ""
+
+#. Interpolated values: error
+#: apps/desktop/src/App.tsx
+msgid "That project is already in this browser, so the folder opened as a separate copy. This copy may differ from the folder, and saving it into that folder is refused. The original is in the projects list."
+msgstr ""
+
+#. Interpolated values: calls, error, mode, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "That task is no longer ready to review."
+msgstr ""
+
+#. Interpolated values: calls, error, mode, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "That turn wrote nothing, so there is nothing to restore."
+msgstr ""
+
+#. Interpolated values: folder, max, path, reason, size
+#: apps/desktop/src/app/skills-import.ts
+msgid "That zip holds more than {max} files, which is not a skill or a folder of skills."
+msgstr ""
+
+#. Interpolated values: folder, max, path, reason, size
+#: apps/desktop/src/app/skills-import.ts
+msgid "That zip is larger than {size} MB, which is more than skills need."
+msgstr ""
+
+#. Interpolated values: folder, max, path, reason, size
+#: apps/desktop/src/app/skills-import.ts
+msgid "That zip was not opened: a file in it has a path that does not stay inside its folder ({path})."
 msgstr ""
 
 #. Interpolated values: sceneTitle
@@ -2697,6 +4076,11 @@ msgstr ""
 msgid "The agent calls the active profile. Keys are encrypted in this browser and never written into a project. The built-in demo profile answers only the three demo requests."
 msgstr ""
 
+#. Interpolated values: calls, error, mode, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The agent is working on another turn. Open this task when it has finished."
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "the agent panel"
@@ -2707,9 +4091,19 @@ msgstr ""
 msgid "The agent starts each request with a short list of tools and finds the others with a search when a task needs them. Some models search poorly. Turn this on to give such a model every tool on every request, at the cost of a longer prompt each time."
 msgstr ""
 
+#. Interpolated values: error
+#: apps/desktop/src/app/services.ts
+msgid "The app settings could not be opened here, so they will not be kept: {error}"
+msgstr ""
+
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "The bundle could not be made: {error}"
+msgstr ""
+
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "The bundle file itself is not changed. Its unreadable caotang.json is not kept, so keep the bundle file if you may need that copy."
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -2733,6 +4127,11 @@ msgstr ""
 msgid "store.load.recoveredCodexEntry"
 msgstr ""
 
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "the cover image is not available in this browser, so the bundle has no cover. A project kept in a folder has its cover there: open that folder, or choose the cover again in the project panel"
+msgstr ""
+
 #. Interpolated values: cue, sceneTitle
 #. js-lingui-explicit-id
 #: packages/coherence/src/checks/script.ts
@@ -2740,6 +4139,8 @@ msgid "coherence.script.cueUnmatched"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
+#. Interpolated values: max
+#: apps/desktop/src/app/target-draft.ts
 #: apps/desktop/src/components/Settings.tsx
 msgid "The daily target is a whole number of words from 0 to {max}; 0 means no target."
 msgstr ""
@@ -2755,10 +4156,30 @@ msgstr ""
 msgid "store.load.unreadableFrontMatter"
 msgstr ""
 
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "The details Caotang made for this project as it opened could not be saved to the folder, so the next open may make another set. {reason}"
+msgstr ""
+
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "The details Caotang made for this project as it opened were not saved to the folder, because another program, such as the Caotang MCP server, may be using it. The next open may make another set."
+msgstr ""
+
 #. Interpolated values: sceneTitle, dialogueName
 #. js-lingui-explicit-id
 #: packages/coherence/src/checks/medium.ts
 msgid "coherence.medium.speakerDialogueOnly"
+msgstr ""
+
+#. Interpolated values: error, name
+#: apps/desktop/src/app/providers.ts
+msgid "The endpoint did not answer the format check, so the agent asks for JSON in the prompt: {error}"
+msgstr ""
+
+#. Interpolated values: error, name
+#: apps/desktop/src/app/providers.ts
+msgid "The endpoint did not list its models, so the profile was saved but is not verified: {error}"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -2780,6 +4201,11 @@ msgstr ""
 #. Interpolated values: fieldCount, fields, name, times, unsaid
 #: apps/desktop/src/app/integrity-model.ts
 msgid "The file has a field Caotang keeps but does not use: {fields}. It is dropped on the next save."
+msgstr ""
+
+#. Interpolated values: error
+#: apps/desktop/src/app/coherence-io.ts
+msgid "The findings file could not be read from this browser: {error}. The findings are shown empty, and nothing is saved over the stored file until the project is opened again."
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -2820,6 +4246,34 @@ msgstr ""
 msgid "the header’s value"
 msgstr ""
 
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "the images of this project are still being listed, so no export was written"
+msgstr ""
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "the images of this project could not be listed ({error}), so no export was written"
+msgstr ""
+
+#: apps/desktop/src/components/InkGate.tsx
+msgid "The Ink compiler could not be loaded"
+msgstr ""
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "The Ink compiler is still loading, so the dialogue checks cannot run yet. Run the scan again in a moment."
+msgstr ""
+
+#: apps/desktop/src/components/InkGate.tsx
+msgid "The Ink compiler still could not be loaded"
+msgstr ""
+
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "The instructions are longer than {max} KB. Move part of them into a second file."
+msgstr ""
+
 #: apps/desktop/src/i18n/language.ts
 msgid "The interface language changed, but the choice could not be saved in this browser. It will go back to the saved language when you reload."
 msgstr ""
@@ -2838,14 +4292,42 @@ msgstr ""
 msgid "the item"
 msgstr ""
 
+#. Interpolated values: error, name
+#: apps/desktop/src/app/providers.ts
+msgid "The key for “{name}” is no longer in this browser, so the profile was not restored. Add it again in Settings."
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "The last {entryCount, plural, one {# request} other {# requests}}, retries included. Nothing here holds a key or a message."
 msgstr ""
 
+#. Interpolated values: calls, error, mode, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The last turn stopped on a question. Answer it or choose Run the queue."
+msgstr ""
+
+#: apps/desktop/src/components/StaleTabNotice.tsx
+msgid "The latest words are not in browser storage. Export a backup to keep them, then reload this tab to carry on from the saved text."
+msgstr ""
+
+#: apps/desktop/src/components/StaleTabNotice.tsx
+msgid "The latest words are not in browser storage. Export a backup to keep them, then reload this tab to carry on with the updated Caotang."
+msgstr ""
+
 #. Interpolated values: defaultSteps, defaultTokens, field, max, min
 #: apps/desktop/src/components/AgentModeSettings.tsx
 msgid "The mode decides who answers the agent’s cards. Ask is the default: every card waits for you. The agent panel can pick another mode for the project you have open; this is the one a panel starts in. Nothing about it is saved in a project."
+msgstr ""
+
+#. Interpolated values: calls, cap, error
+#: apps/desktop/src/app/task-queue.ts
+msgid "The model call failed: {error}"
+msgstr ""
+
+#. Interpolated values: calls, cap, error
+#: apps/desktop/src/app/task-queue.ts
+msgid "The model returned nothing for this step."
 msgstr ""
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
@@ -2863,9 +4345,23 @@ msgstr ""
 msgid "The most findings one review may add is a whole number from 1 to {max}."
 msgstr ""
 
+#: apps/desktop/src/app/context-preview.ts
+msgid "The open document is not a scene the agent drafts. Open a scene to see the prompt it would send."
+msgstr ""
+
+#. Interpolated values: count, stamp, titles
+#: apps/desktop/src/components/UnsentWords.tsx
+msgid "The page reloaded before these words were saved, and the project has newer text now (from another tab, or a save that did land)."
+msgstr ""
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "The project and its history are deleted from this browser. Export a bundle first if you may want it again. This does not touch any folder you saved it to."
+msgstr ""
+
+#. Interpolated values: calls, cap, error
+#: apps/desktop/src/app/task-queue.ts
+msgid "The project is not open here, so the plan can only run now."
 msgstr ""
 
 #. Interpolated values: current, met, name, stateKey, target, totalWords, wordsGained, wpm
@@ -2878,14 +4374,54 @@ msgstr ""
 msgid "the prompt pack’s generations"
 msgstr ""
 
+#. Interpolated values: tag
+#: apps/desktop/src/i18n/runtime.ts
+msgid "The pseudo catalogue \"{tag}\" is available only in development and tests."
+msgstr ""
+
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "The recovery was written, and the project’s files are as it left them. The project was not opened."
+msgstr ""
+
+#. Interpolated values: error, name
+#: apps/desktop/src/app/providers.ts
+msgid "The request log could not be read: {error}"
+msgstr ""
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "The restore stopped part way, because a later change could not be taken back: {reason}. Changes made before that one were not touched."
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "The retention is a whole number of days from 1 to {max}."
 msgstr ""
 
+#. Interpolated values: error
+#: apps/desktop/src/App.tsx
+msgid "The sample could not be opened: {error}"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "The save delay is a whole number of milliseconds from {min} to {max}."
+msgstr ""
+
+#. Interpolated values: error, name, reason, refused
+#: apps/desktop/src/app/furniture-store.ts
+msgid "The saved filters and goals could not be read from this browser, so none were moved into the project: {error}"
+msgstr ""
+
+#. Interpolated values: error, name, reason, refused
+#: apps/desktop/src/app/furniture-store.ts
+msgid "The saved filters and goals moved into the project, but the stored copy could not be marked: {error}"
+msgstr ""
+
+#. Interpolated values: error, name, reason, refused
+#: apps/desktop/src/app/furniture-store.ts
+msgid "The saved filters and goals were added to the project, but the project has not saved them yet. They are kept in this browser and will be tried again on the next open."
 msgstr ""
 
 #. Interpolated values: sceneTitle, screenplayName
@@ -2900,6 +4436,53 @@ msgstr ""
 msgid "coherence.medium.speakerDiffersTwoEntries"
 msgstr ""
 
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The server also lists {prompts} {prompts, plural, one {prompt} other {prompts}} and {templates} {templates, plural, one {resource template} other {resource templates}}, shown in full below. They are pinned when you approve, and a changed one is shown again."
+msgstr ""
+
+#. Interpolated values: error
+#: apps/desktop/src/app/services.ts
+msgid "The settings could not be read, so the defaults are in use: {error}"
+msgstr ""
+
+#. Interpolated values: error
+#: apps/desktop/src/app/services.ts
+msgid "The settings could not be saved in this browser: {error}"
+msgstr ""
+
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#. Interpolated values: folder, max, path, reason, size
+#: apps/desktop/src/app/skills-import.ts
+#: apps/desktop/src/app/skills-model.ts
+msgid "The skill “{folder}” was not taken: {reason}"
+msgstr ""
+
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "The skill “{folder}” was not taken: a file in it has an unsafe path ({path})."
+msgstr ""
+
+#. Interpolated values: reason
+#: apps/desktop/src/components/EditorPane.tsx
+msgid "The stream stopped before it finished ({reason}). The text above is partial; Retry or Discard."
+msgstr ""
+
+#. Interpolated values: key
+#: apps/desktop/src/app/mcp.ts
+msgid "the token is empty — enter the token the server gave you"
+msgstr ""
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The tools are unchanged and stay as they are."
+msgstr ""
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "The tools are unchanged and stay as they are. {catalog}"
+msgstr ""
+
 #. Interpolated values: caps, total
 #: apps/desktop/src/app/settings.ts
 msgid "The total ({total} tokens) is below the layer caps together ({caps} tokens), so a layer can be cut before it reaches its own cap."
@@ -2910,9 +4493,24 @@ msgstr ""
 msgid "The trim did not finish: {error}"
 msgstr ""
 
+#. Interpolated values: calls, error, mode, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "The turn stopped unexpectedly: {error}"
+msgstr ""
+
+#. Interpolated values: confirm, generation, label, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "The unreadable caotang.json is kept in the folder, under a name with the date, so nothing is lost."
+msgstr ""
+
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "The unsaved text is too large to keep a spare copy in this browser, so a reload in the next moment could lose it."
+msgstr ""
+
+#. Interpolated values: error, name
+#: apps/desktop/src/app/providers.ts
+msgid "The usage totals could not be read: {error}"
 msgstr ""
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
@@ -2925,14 +4523,89 @@ msgstr ""
 msgid "The whole prompt is a whole number of tokens from {min} to {max}, or empty for the profile’s default."
 msgstr ""
 
+#. Interpolated values: count, stamp, titles
+#: apps/desktop/src/components/UnsentWords.tsx
+msgid "The words are in this project, but the store has not saved them yet. They stay kept here until a save lands."
+msgstr ""
+
+#. Interpolated values: count, stamp, titles
+#. Interpolated values: count, stamp, titles
+#. Interpolated values: count, stamp, titles
+#: apps/desktop/src/components/UnsentWords.tsx
+msgid "The words could not be put back: {reason}"
+msgstr ""
+
+#. Interpolated values: count, stamp, titles
+#: apps/desktop/src/components/UnsentWords.tsx
+msgid "The words could not be put back: the new chapter has no id."
+msgstr ""
+
+#. Interpolated values: count, stamp, titles
+#: apps/desktop/src/components/UnsentWords.tsx
+msgid "The words could not be put back: the new document has no id."
+msgstr ""
+
+#. Interpolated values: count, stamp, titles
+#: apps/desktop/src/components/UnsentWords.tsx
+msgid "The words it held were kept in this browser on {stamp}, in {count, plural, one {one document} other {# documents}}: {titles}. Putting them back adds them as new documents in the chapters they came from, so nothing already saved is overwritten. A document whose chapter is gone goes into a new chapter, “{chapter}”."
+msgstr ""
+
+#. Interpolated values: count, stamp, titles
+#: apps/desktop/src/components/UnsentWords.tsx
+msgid "The words it held were kept in this browser, in {count, plural, one {one document} other {# documents}}: {titles}. Putting them back adds them as new documents in the chapters they came from, so nothing already saved is overwritten. A document whose chapter is gone goes into a new chapter, “{chapter}”."
+msgstr ""
+
+#. Interpolated values: count, day, days, error
+#: apps/desktop/src/components/WritingHistory.tsx
+msgid "The writing history could not be read: {error}"
+msgstr ""
+
+#. Interpolated values: error
+#: apps/desktop/src/App.tsx
+msgid "The writing session could not be recorded: {error}"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Theme"
 msgstr ""
 
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "There is already a skill called “{name}”."
+msgstr ""
+
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "There is nothing to undo."
+msgstr ""
+
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "These files are kept with the skill. The agent cannot read them in this build."
+msgstr ""
+
+#: apps/desktop/src/components/StaleTabNotice.tsx
+msgid "They are also kept in this browser, so the project can offer them back as new documents. Export a backup to keep a copy outside this browser, then reload this tab to carry on from the saved text."
+msgstr ""
+
+#: apps/desktop/src/components/StaleTabNotice.tsx
+msgid "They are also kept in this browser, so the project can offer them back as new documents. Export a backup to keep a copy outside this browser, then reload this tab to carry on with the updated Caotang."
+msgstr ""
+
+#. Interpolated values: completion, count, levels, prompt, window
+#: apps/desktop/src/app/provider-details.ts
+msgid "thinking always streams"
+msgstr ""
+
+#. Interpolated values: completion, count, levels, prompt, window
+#: apps/desktop/src/app/provider-details.ts
+msgid "thinking: {levels}"
+msgstr ""
+
+#. Interpolated values: error
+#: apps/desktop/src/app/services.ts
+msgid "This browser has no IndexedDB, so provider settings and usage are kept for this visit only."
 msgstr ""
 
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
@@ -2945,9 +4618,43 @@ msgstr ""
 msgid "This browser would not keep a spare copy of the unsaved text, so a reload in the next moment could lose it."
 msgstr ""
 
+#. Interpolated values: calls, cap, error
+#: apps/desktop/src/app/task-queue.ts
+msgid "This browser would not keep the task, so this plan can only run now."
+msgstr ""
+
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "this browser’s copy"
+msgstr ""
+
 #. Interpolated values: subject
 #: apps/desktop/src/components/lazy-view.tsx
 msgid "This can happen after an update, or when the connection drops."
+msgstr ""
+
+#: apps/desktop/src/components/InkGate.tsx
+msgid "This can happen after an update, or when the connection drops. Nothing in the project changed."
+msgstr ""
+
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "this copy"
+msgstr ""
+
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
+msgid "This copy cannot be saved into that folder. It is a second copy of the book the folder holds, and saving it there would change the folder’s book into this copy. Nothing was written. Save this copy to a new folder, or export a backup."
+msgstr ""
+
+#. Interpolated values: error, name
+#: apps/desktop/src/app/providers.ts
+msgid "This endpoint accepts structured output."
+msgstr ""
+
+#. Interpolated values: error, name
+#: apps/desktop/src/app/providers.ts
+msgid "This endpoint does not take a JSON response format, so the agent asks for JSON in the prompt instead."
 msgstr ""
 
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
@@ -2968,6 +4675,24 @@ msgstr ""
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This folder’s caotang.json was removed"
+msgstr ""
+
+#. Interpolated values: calls, cap
+#: apps/desktop/src/components/PlanOfferCard.tsx
+msgid "This plan needs {calls} {calls, plural, one {model call} other {model calls}}"
+msgstr ""
+
+#. Interpolated values: calls, error, mode, waiting
+#: apps/desktop/src/app/agent.ts
+msgid "This plan needs {calls} {calls, plural, one {model call} other {model calls}}. Choose how it runs."
+msgstr ""
+
+#: apps/desktop/src/components/StaleTabNotice.tsx
+msgid "This project is open in another tab"
+msgstr ""
+
+#: apps/desktop/src/app/project-lease.ts
+msgid "This project is open in another tab. Switch to that tab, or close it, then open the project again."
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -2995,9 +4720,23 @@ msgstr ""
 msgid "This removes the item, the {descendants, plural, one {# item} other {# items}} inside it. You can undo it right after with Ctrl+Z."
 msgstr ""
 
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "This skill includes scripts. Caotang reads the instructions and does not run them. Other programs that read the same folder, such as Claude Code or Codex, may run them."
+msgstr ""
+
+#. Interpolated values: calls, cap, error
+#: apps/desktop/src/app/task-queue.ts
+msgid "This step needs {calls} model {calls, plural, one {call} other {calls}}, which would go past the task's limit of {cap}."
+msgstr ""
+
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "This tab cannot save: another tab has newer text for this project. Export a backup to keep the words in this tab."
+msgstr ""
+
+#: apps/desktop/src/components/FirstRun.tsx
+msgid "Three requests run on a sample manuscript, through a demo provider that is built in. Nothing leaves this browser, and every change waits for your approval before it is written."
 msgstr ""
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
@@ -3019,6 +4758,11 @@ msgstr ""
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "To see the folder’s newer copy, go to Projects and open the folder again: it opens as a separate project. Saving here writes <0>caotang.json</0> from this tab, and an older one that is there is kept as a backup."
+msgstr ""
+
+#. Interpolated values: count, day, days, error
+#: apps/desktop/src/components/WritingHistory.tsx
+msgid "Today"
 msgstr ""
 
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
@@ -3053,9 +4797,14 @@ msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #. Interpolated values: subject
+#: apps/desktop/src/components/InkGate.tsx
 #: apps/desktop/src/components/lazy-view.tsx
 #: apps/desktop/src/components/Settings.tsx
 msgid "Try again"
+msgstr ""
+
+#: apps/desktop/src/components/FirstRun.tsx
+msgid "Try the agent with no key"
 msgstr ""
 
 #. js-lingui-explicit-id
@@ -3066,6 +4815,26 @@ msgstr ""
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "Tuesday"
+msgstr ""
+
+#. Interpolated values: choices, count, file, name, scenes, sections, stripped
+#: apps/desktop/src/components/ScriptImport.tsx
+msgid "Twee file"
+msgstr ""
+
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/plan-preview.ts
+msgid "Type"
+msgstr ""
+
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Unchanged"
+msgstr ""
+
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/plan-preview.ts
+msgid "under $0.0001"
 msgstr ""
 
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
@@ -3080,6 +4849,11 @@ msgstr ""
 msgid "Undo the later changes first"
 msgstr ""
 
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "Undo the later changes first. Taking back this one now could also take back text written after it."
+msgstr ""
+
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Undo: {label}"
@@ -3090,7 +4864,31 @@ msgstr ""
 msgid "Undo: {summary}"
 msgstr ""
 
+#. Interpolated values: error, name, reason, refused
+#: apps/desktop/src/app/furniture-store.ts
+msgid "Unknown label"
+msgstr ""
+
+#. Interpolated values: error, name, reason, refused
+#. Interpolated values: scope, title
+#: apps/desktop/src/app/furniture-store.ts
+#: apps/desktop/src/components/Corkboard.tsx
+msgid "Unknown status"
+msgstr ""
+
+#. Interpolated values: completion, count, levels, prompt, window
+#: apps/desktop/src/app/provider-details.ts
+msgid "Until the server says more: {window}-token window, no native tools, no image input."
+msgstr ""
+
+#. Interpolated values: completion, count, levels, prompt, window
+#: apps/desktop/src/app/provider-details.ts
+msgid "Until the server says more: a small window, no native tools, no image input."
+msgstr ""
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
+#. Interpolated values: count, path, reason
+#: apps/desktop/src/app/lifecycle.ts
 #: apps/desktop/src/components/Home.tsx
 msgid "Untitled project"
 msgstr ""
@@ -3169,6 +4967,21 @@ msgstr ""
 msgid "Using the folder’s version replaces this browser’s copy with it. This browser’s copy is not kept, so export it first if you may want it. Keeping this browser’s version saves it to the folder, and asks first about any document it would write over. A separate copy leaves both as they are, and cannot be saved into that folder."
 msgstr ""
 
+#. Interpolated values: added, catalog, changed, prompts, removed, summary, templates, unchanged
+#: apps/desktop/src/app/mcp-model.ts
+msgid "Verified"
+msgstr ""
+
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/plan-preview.ts
+msgid "Visual references"
+msgstr ""
+
+#. Interpolated values: done, limit, total, used
+#: apps/desktop/src/components/TaskChecklist.tsx
+msgid "Waiting for you"
+msgstr ""
+
 #. Interpolated values: content
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
@@ -3181,6 +4994,17 @@ msgstr ""
 msgid "harness.progress.header.waitingPlan"
 msgstr ""
 
+#. Interpolated values: done, intent, outdated, staged, total
+#: apps/desktop/src/app/task-model.ts
+msgid "Waiting to start"
+msgstr ""
+
+#. Interpolated values: file, title
+#. Interpolated values: file, title
+#: apps/desktop/src/components/TweeImportDialog.tsx
+msgid "Warnings"
+msgstr ""
+
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
 #: apps/desktop/src/app/footer-model.ts
 msgid "Wednesday"
@@ -3191,9 +5015,33 @@ msgstr ""
 msgid "What the agent may send the model in one request, in tokens. An empty field keeps the default of the profile and the spec. A change applies from the agent’s next request."
 msgstr ""
 
+#. Interpolated values: file, title
+#: apps/desktop/src/components/TweeImportDialog.tsx
+msgid "What the import does"
+msgstr ""
+
+#. Interpolated values: parent, title
+#: apps/desktop/src/app/plan-preview.ts
+msgid "When its name or an alias appears in the text"
+msgstr ""
+
+#: apps/desktop/src/components/FirstRun.tsx
+msgid "When you want the agent to answer anything else, <0>add your provider key</0>. It is kept in this browser, encrypted, and is checked when you save it."
+msgstr ""
+
+#. Interpolated values: name
+#: apps/desktop/src/components/VocabularyEditor.tsx
+msgid "Which list to edit"
+msgstr ""
+
 #. Interpolated values: count, layerId, max, min
 #: apps/desktop/src/components/ContextSection.tsx
 msgid "Whole prompt"
+msgstr ""
+
+#. Interpolated values: cap, done, omitted, tokens, total, used
+#: apps/desktop/src/components/BackgroundTasks.tsx
+msgid "Why drafting failed"
 msgstr ""
 
 #. Interpolated values: about, by, clock, count, day, degree, perDay, target, title
@@ -3207,6 +5055,21 @@ msgid "Words changed per turn"
 msgstr ""
 
 #. Interpolated values: count
+#: apps/desktop/src/app/pending-journal.ts
+msgid "Words from before the reload that newer text now covers are kept in the binder footer, to put back as new documents or discard."
+msgstr ""
+
+#. Interpolated values: count, stamp, titles
+#: apps/desktop/src/components/UnsentWords.tsx
+msgid "Words kept from a stopped tab"
+msgstr ""
+
+#. Interpolated values: count, day, days, error
+#: apps/desktop/src/components/WritingHistory.tsx
+msgid "Words on each of the last {days} days"
+msgstr ""
+
+#. Interpolated values: count
 #. js-lingui-explicit-id
 #: packages/harness/src/agent/progress.ts
 msgid "harness.progress.codexWrite.content"
@@ -3215,6 +5078,11 @@ msgstr ""
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Write it back"
+msgstr ""
+
+#. Interpolated values: bytes, folder, max, name, path, problem, size, taken
+#: apps/desktop/src/app/skills-model.ts
+msgid "Write the instructions here, in plain sentences."
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -3229,6 +5097,11 @@ msgstr ""
 msgid "harness.progress.codexWrite.active"
 msgstr ""
 
+#. Interpolated values: count, day, days, error
+#: apps/desktop/src/components/WritingHistory.tsx
+msgid "Writing history"
+msgstr ""
+
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "x-my-header"
@@ -3239,10 +5112,31 @@ msgstr ""
 msgid "You"
 msgstr ""
 
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "Your findings could not be saved in this browser: {error}"
+msgstr ""
+
+#. Interpolated values: error, reason, title
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "Your findings could not be saved to the folder: {error}"
+msgstr ""
+
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #: apps/desktop/src/components/Home.tsx
 msgid "Your projects could not be listed: {error}"
+msgstr ""
+
+#. Interpolated values: error, name
+#: apps/desktop/src/app/providers.ts
+msgid "Your provider profiles could not be read: {error}"
+msgstr ""
+
+#. Interpolated values: error, name
+#: apps/desktop/src/app/providers.ts
+msgid "Your provider settings could not be saved in this browser: {error}"
 msgstr ""
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
@@ -3253,6 +5147,16 @@ msgstr ""
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "Your text stays on this computer."
+msgstr ""
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "your typing"
+msgstr ""
+
+#. Interpolated values: error, reason, title
+#: apps/desktop/src/app/session.ts
+msgid "your typing in “{title}”"
 msgstr ""
 
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words

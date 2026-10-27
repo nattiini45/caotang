@@ -13,8 +13,12 @@
  *     moving node** — the same meaning `binder.move`'s `index` carries.
  */
 
+import { t } from '@lingui/core/macro';
+
 import { CHAPTERLESS_DOCUMENT_REFUSAL } from '@caotang/bus';
 import type { ProjectState, TreeNode } from '@caotang/store';
+
+/* lingui-set comment="Interpolated values: refusal" */
 
 /** The two fixed roots the binder renders as section headers (project-format §2). */
 export const SECTION_IDS = ['manuscript', 'research'] as const;
@@ -303,7 +307,9 @@ export function newItemParent(state: ProjectState, selectedId: string | null): s
  */
 export function newDocumentRefusalText(parentId: string): string | undefined {
   if (parentId !== 'manuscript') return undefined;
-  return `${dropRefusalText('chapterless')} Select a chapter first, or make one with New folder.`;
+  // The first sentence is the bus's own refusal, which the bus states untranslated until its messages are ported (I6);
+  // it is a placeholder rather than a separate app sentence so the translator sees one frame to write.
+  return t`${{ refusal: CHAPTERLESS_DOCUMENT_REFUSAL }} Select a chapter first, or make one with New folder.`;
 }
 
 /**
@@ -329,22 +335,23 @@ export function newFolderParent(state: ProjectState, selectedId: string | null):
 export function dropRefusalText(reason: DropRefusal): string {
   switch (reason) {
     case 'fixed-root':
-      return 'Sections cannot be moved.';
+      return t`Sections cannot be moved.`;
     case 'no-target':
-      return 'Drop onto a row in the binder.';
+      return t`Drop onto a row in the binder.`;
     case 'not-a-container':
-      return 'A document cannot hold other items.';
+      return t`A document cannot hold other items.`;
     case 'section-edge':
-      return 'Drop it inside a section, not beside it.';
+      return t`Drop it inside a section, not beside it.`;
     case 'cycle':
-      return 'An item cannot be moved into itself.';
+      return t`An item cannot be moved into itself.`;
     case 'same-place':
-      return 'That is already where it is.';
+      return t`That is already where it is.`;
     case 'chapterless':
       // The bus's own sentence for the same rule, so a drop, New document and a refused create say the same words.
+      // It is the package's untranslated constant until the bus's messages are ported (I6).
       return CHAPTERLESS_DOCUMENT_REFUSAL;
     case 'folder-in-folder':
-      return 'A folder cannot go inside another folder.';
+      return t`A folder cannot go inside another folder.`;
   }
 }
 

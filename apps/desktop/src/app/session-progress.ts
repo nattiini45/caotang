@@ -110,6 +110,23 @@ export function todayLine(progress: TargetProgress, locale: string = formatterLo
 }
 
 /**
+ * The target button's whole line: today's count, and the next thing the writer can do or the notice that
+ * today's target is met. One message per state, so no translated sentence is appended to another.
+ */
+export function targetQuickSetLine(progress: TargetProgress, locale: string = formatterLocale()): string {
+  const count = numberFormat(locale);
+  const words = progress.words;
+  const wordsText = count.format(words);
+  if (progress.target === undefined) {
+    return t`${{ count: wordsText }} ${plural(words, { one: 'word', other: 'words' })} today · set a daily target`;
+  }
+  const target = count.format(progress.target);
+  return progress.met
+    ? t`${{ count: wordsText }} / ${{ target }} words today. Today’s target is met.`
+    : t`${{ count: wordsText }} / ${{ target }} words today`;
+}
+
+/**
  * The one-shot notice of goals-progress §2.1: true on the reading where today's target is first met, and not yet noticed today.
  * `previous` is the last reading and the day its notice was given (kept in memory, so a reload may notice again the same day).
  * It is a completion notice only: nothing here asks the writer to keep going.

@@ -16,9 +16,9 @@ import { SKILL_FILE } from '@caotang/skills';
 import { isImeEnter } from '../app/keymap.js';
 import { importPicked, nameFromFile, pickedFromZip, type PickedFile } from '../app/skills-import.js';
 import {
-  ALLOWED_TOOLS_NOTICE,
-  OTHER_FILES_NOTICE,
-  SCRIPTS_NOTICE,
+  allowedToolsNotice,
+  otherFilesNotice,
+  scriptsNotice,
   draftProblem,
   nameProblem,
   reviewCardOf,
@@ -208,7 +208,7 @@ function SkillList({ session, onView, onDone }: { session: ProjectSession; onVie
             <div className="skills-row-head">
               <strong className="skills-name">{row.name}</strong>
               {!row.enabled ? <span className="chip">Off</span> : null}
-              {row.hasScripts ? <span className="chip" title={SCRIPTS_NOTICE}>Includes scripts</span> : null}
+              {row.hasScripts ? <span className="chip" title={scriptsNotice()}>Includes scripts</span> : null}
               {row.writerOnly ? <span className="chip">Only you use it</span> : null}
             </div>
             <p className="skills-description">{row.description}</p>
@@ -292,7 +292,7 @@ function Review({ session, name, onBack }: { session: ProjectSession; name: stri
       <div className="skills-notices">
         {card.scripts.length > 0 ? (
           <div role="note" className="skills-notice">
-            <strong>Includes scripts.</strong> {SCRIPTS_NOTICE}
+            <strong>Includes scripts.</strong> {scriptsNotice()}
             <ul>
               {card.scripts.map((path) => (
                 <li key={path}>{path}</li>
@@ -302,12 +302,12 @@ function Review({ session, name, onBack }: { session: ProjectSession; name: stri
         ) : null}
         {card.allowedTools !== undefined ? (
           <div role="note" className="skills-notice">
-            <strong>Allowed tools:</strong> {card.allowedTools}. {ALLOWED_TOOLS_NOTICE}
+            <strong>Allowed tools:</strong> {card.allowedTools}. {allowedToolsNotice()}
           </div>
         ) : null}
         {card.otherFiles > 0 ? (
           <div role="note" className="skills-notice">
-            <strong>{card.otherFiles === 1 ? '1 other file.' : `${card.otherFiles} other files.`}</strong> {OTHER_FILES_NOTICE}
+            <strong>{card.otherFiles === 1 ? '1 other file.' : `${card.otherFiles} other files.`}</strong> {otherFilesNotice()}
           </div>
         ) : null}
         {card.invisible > 0 ? (

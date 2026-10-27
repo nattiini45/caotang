@@ -22,6 +22,7 @@
  */
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react';
+import { t } from '@lingui/core/macro';
 import {
   createTiptapEditorApi,
   type GhostPreview,
@@ -41,6 +42,8 @@ import { registerSelectionReader } from '../app/test-hook.js';
 import type { TargetProgress } from '../app/session-progress.js';
 import { EmptyState, useReport, useSession, wordsLabel } from './shared.js';
 import { TargetQuickSet } from './TargetQuickSet.js';
+
+/* lingui-set comment="Interpolated values: reason" */
 
 /** One API for every mount: it holds no state of its own (the instance does). */
 const editorApi = createTiptapEditorApi();
@@ -210,6 +213,11 @@ function DocumentEditor({
           autosave: session.autosave,
           injectCSS: false,
           placeholder: PLACEHOLDER,
+          labels: {
+            ghostRegion: t`Agent preview`,
+            ghostStopped: (reason) => t`The stream stopped before it finished (${{ reason }}). The text above is partial; Retry or Discard.`,
+            image: t`Image`,
+          },
           history: { journal, onChange: saver.onChange },
           ghost: {
             onApply: () => agent.answer({ action: 'approve' }),

@@ -9,7 +9,7 @@ import { useState, type DragEvent, type KeyboardEvent, type ReactNode } from 're
 
 import type { AgentController, AgentSnapshot, QueuedMessage } from '../app/agent.js';
 import { isImeEnter } from '../app/keymap.js';
-import { QUEUE_PAUSED } from '../app/agent.js';
+import { queuePausedText } from '../app/agent.js';
 
 /** The note the writer wrote while a card waits. The card is neither approved nor dropped by it: the writer chooses what happens to both. */
 export interface HeldNote {
@@ -122,7 +122,7 @@ export function AgentQueue({
           <h4>Queued messages</h4>
           {snapshot.queuePaused ? (
             <p className="agent-queue-paused">
-              {QUEUE_PAUSED}{' '}
+              {queuePausedText()}{' '}
               <button type="button" className="button" onClick={() => agent.runQueue()}>
                 Run the queue
               </button>

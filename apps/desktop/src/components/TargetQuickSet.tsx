@@ -5,9 +5,11 @@
  * to the button.
  */
 
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 
-import { todayLine, type TargetProgress } from '../app/session-progress.js';
+import { targetQuickSetLine, type TargetProgress } from '../app/session-progress.js';
 import { TARGET_MAX_WORDS } from '../app/settings.js';
 import { targetDraftOf } from '../app/target-draft.js';
 import { SessionRing } from './SessionRing.js';
@@ -54,7 +56,7 @@ export function TargetQuickSet({ progress, onSetTarget }: { progress: TargetProg
     close();
   };
 
-  const line = todayLine(progress);
+  const line = targetQuickSetLine(progress);
   return (
     <span className="editor-target" data-testid="session-target">
       <span className="target-quick-set-control">
@@ -64,19 +66,17 @@ export function TargetQuickSet({ progress, onSetTarget }: { progress: TargetProg
           className="target-button"
           aria-expanded={open}
           aria-controls={open ? formId : undefined}
-          title="Set the daily target"
+          title={t`Set the daily target`}
           onClick={() => (open ? close() : openForm())}
         >
           <SessionRing progress={progress} />
           {line}
-          {progress.target === undefined ? ' · set a daily target' : ''}
-          {progress.met ? '. Today’s target is met.' : ''}
         </button>
         {open ? (
           <form
             id={formId}
             className="target-quick-set"
-            aria-label="Daily target"
+            aria-label={t`Daily target`}
             // The form's own check (targetDraftOf) says what is wrong, so the browser's native bubble does not pre-empt it.
             noValidate
             onSubmit={save}
@@ -88,7 +88,9 @@ export function TargetQuickSet({ progress, onSetTarget }: { progress: TargetProg
             }}
           >
             <label className="target-quick-set-field">
-              <span>Daily target, in words (0 for none)</span>
+              <span>
+                <Trans>Daily target, in words (0 for none)</Trans>
+              </span>
               <input
                 ref={field}
                 type="number"
@@ -109,10 +111,10 @@ export function TargetQuickSet({ progress, onSetTarget }: { progress: TargetProg
             ) : null}
             <div className="target-quick-set-actions">
               <button type="button" className="button is-quiet" onClick={close}>
-                Cancel
+                <Trans>Cancel</Trans>
               </button>
               <button type="submit" className="button is-primary">
-                Save target
+                <Trans>Save target</Trans>
               </button>
             </div>
           </form>

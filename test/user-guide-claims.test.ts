@@ -23,7 +23,7 @@ describe('the user guide matches what the app does', () => {
     // the book it was copied from (integrity-model `folderProjectRoute` 'original'); any other project is asked about.
     const lifecycle = read('apps/desktop/src/app/lifecycle.ts');
     expect(lifecycle).toMatch(/if \(taken\.has\(originalId\)\)/);
-    expect(lifecycle).toMatch(/if \(route === 'original'\) throw new Error\(COPY_CANNOT_SAVE_INTO_FOLDER\)/);
+    expect(lifecycle).toMatch(/if \(route === 'original'\) throw new Error\(copyCannotSaveIntoFolder\(\)\)/);
     expect(read('apps/desktop/src/app/integrity-model.ts')).toMatch(/facts\.copiedFrom !== null && facts\.folderId === facts\.copiedFrom \? 'original' : 'other'/);
     expect(guide).toMatch(/A second copy of a book, opened from that book's folder, still cannot be saved into it\./);
     expect(guide).toMatch(/A folder whose project this browser does not keep opens as its project, and saving writes back to the folder\./);
@@ -65,7 +65,7 @@ describe('the user guide matches what the app does', () => {
   });
 
   it('lists the stop a tab shows when Caotang was updated in another tab, with what to do', () => {
-    expect(read('apps/desktop/src/components/StaleTabNotice.tsx')).toMatch(/'Caotang was updated in another tab'/);
+    expect(read('apps/desktop/src/components/StaleTabNotice.tsx')).toMatch(/<Trans>Caotang was updated in another tab<\/Trans>/);
     const wrong = guide.slice(guide.indexOf('## When something seems wrong'));
     expect(wrong).toMatch(/\*\*Caotang was updated in another tab\.\*\*[^\n]*Export a backup[^\n]*then reload this tab/);
   });
@@ -170,7 +170,7 @@ describe('the user guide’s reviewed claims match the code', () => {
 
   it('says a visual reference card names a picture no longer in the project', () => {
     expect(guide).toContain('says so when a picture is no longer in the project');
-    expect(read('apps/desktop/src/app/plan-preview.ts')).toContain("'a picture that is no longer in the project'");
+    expect(read('apps/desktop/src/app/plan-preview.ts')).toContain('msg`a picture that is no longer in the project`');
   });
 
   it('says a manual codex entry is sent in the documents under the folder it is attached to', () => {
@@ -375,7 +375,7 @@ describe('the user guide’s reviewed claims match the code', () => {
       expect(guide).toContain(`**${label}**`);
     }
     // The queue's pause sentence is the controller's, and the guide names the choice it offers.
-    expect(read('apps/desktop/src/app/agent.ts')).toContain("'The last turn stopped on a question. Answer it or choose Run the queue.'");
+    expect(read('apps/desktop/src/app/agent.ts')).toContain('t`The last turn stopped on a question. Answer it or choose Run the queue.`');
     expect(guide).toContain('answer the question or choose **Run the queue**');
     expect(changelog).toContain('**Stop** (or **Esc**, with the Intent box empty) ends a running turn');
   });

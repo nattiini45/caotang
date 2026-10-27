@@ -4,6 +4,7 @@ import { emptyCoherenceFile, type CoherenceFile, type KnowledgeFact } from '../.
 import { binderScenes, characterCandidates, knowledgeRows, pairWords } from '../../apps/desktop/src/app/knowledge-model.js';
 import type { CodexEntry } from '../../packages/store/src/index.js';
 import { IDS, project } from './fixtures.js';
+import { withoutIsolates } from '../support.js';
 
 const NOW = '2026-10-08T09:00:00.000Z';
 const ANNA = 'c_ANNA000001';
@@ -86,7 +87,7 @@ test.describe('the Knowledge list model (coherence.md §4.4, §8)', () => {
 
   test('reads a declared pair as the character and the fact, each by name', () => {
     const entries = [entry(ANNA, 'Anna')];
-    expect(pairWords({ entryId: ANNA, factId: HEIR }, entries, [fact])).toBe('Anna: Mara is the heir');
-    expect(pairWords({ entryId: BEN, factId: 'k_GONE000001' }, entries, [fact])).toBe('a character that is gone: a fact that is gone');
+    expect(withoutIsolates(pairWords({ entryId: ANNA, factId: HEIR }, entries, [fact]))).toBe('Anna: Mara is the heir');
+    expect(withoutIsolates(pairWords({ entryId: BEN, factId: 'k_GONE000001' }, entries, [fact]))).toBe('a character that is gone: a fact that is gone');
   });
 });

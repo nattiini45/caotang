@@ -18,6 +18,8 @@
  * spec's view commands do (ui-modules §0.2).
  */
 
+import { t } from '@lingui/core/macro';
+import { isolate } from '@caotang/i18n';
 import {
   createBinderIndex,
   createSprint,
@@ -49,6 +51,8 @@ import { getBody, type ProjectState, type SessionRecord } from '@caotang/store';
 
 import { activeAppDb, type AppDb } from './app-db.js';
 import type { ProjectSession } from './session.js';
+
+/* lingui-set comment="Interpolated values: error, name, reason, refused" */
 
 /** The app-database key for one project's stored furniture, read only by the one-time move into the manifest. */
 export function furnitureKey(projectId: string): string {
@@ -189,8 +193,8 @@ export function draftOf(criteria: FilterCriteria): FilterDraft {
 export function unknownTermsOf(criteria: FilterCriteria, vocabulary: VocabularyIds): string[] {
   const dangling = danglingVocabulary(criteria, vocabulary);
   const words: string[] = [];
-  if (criteria.statusId !== undefined && dangling.includes(criteria.statusId)) words.push('Unknown status');
-  if (criteria.labelId !== undefined && dangling.includes(criteria.labelId)) words.push('Unknown label');
+  if (criteria.statusId !== undefined && dangling.includes(criteria.statusId)) words.push(t`Unknown status`);
+  if (criteria.labelId !== undefined && dangling.includes(criteria.labelId)) words.push(t`Unknown label`);
   return words;
 }
 
@@ -321,9 +325,10 @@ export class FurnitureStore {
     try {
       stored = await this.db.get<StoredFurniture>(furnitureKey(this.session.projectId));
     } catch (error) {
+      const reason = messageOf(error);
       this.set({
         ready: true,
-        failure: `The saved filters and goals could not be read from this browser, so none were moved into the project: ${messageOf(error)}`,
+        failure: t`The saved filters and goals could not be read from this browser, so none were moved into the project: ${{ error: reason }}`,
       });
       return;
     }
@@ -349,13 +354,13 @@ export class FurnitureStore {
           criteria: { ...filter.criteria },
         },
       });
-      if (!result.ok) refused.push(`"${filter.name}": ${result.error.message}`);
+      if (!result.ok) refused.push(t`“${{ name: isolate(filter.name) }}”: ${{ reason: result.error.message }}`);
       else this.keepMoved(result.value.undoGroupId);
     }
     for (const goal of goals) {
       if (heldGoals.has(goal.id)) continue;
       const result = this.session.dispatch('project.saveGoal', { goal: goalParamsOf(goal) });
-      if (!result.ok) refused.push(`a goal: ${result.error.message}`);
+      if (!result.ok) refused.push(t`a goal: ${{ reason: result.error.message }}`);
       else this.keepMoved(result.value.undoGroupId);
     }
 
@@ -365,8 +370,7 @@ export class FurnitureStore {
       if (!(await this.saved())) {
         this.set({
           ready: true,
-          failure:
-            'The saved filters and goals were added to the project, but the project has not saved them yet. They are kept in this browser and will be tried again on the next open.',
+          failure: t`The saved filters and goals were added to the project, but the project has not saved them yet. They are kept in this browser and will be tried again on the next open.`,
         });
         this.refresh();
         return;
@@ -374,7 +378,8 @@ export class FurnitureStore {
       try {
         await this.db.put(furnitureKey(this.session.projectId), { ...stored, moved: true });
       } catch (error) {
-        this.set({ ready: true, failure: `The saved filters and goals moved into the project, but the stored copy could not be marked: ${messageOf(error)}` });
+        const reason = messageOf(error);
+        this.set({ ready: true, failure: t`The saved filters and goals moved into the project, but the stored copy could not be marked: ${{ error: reason }}` });
         this.refresh();
         return;
       }
@@ -382,7 +387,7 @@ export class FurnitureStore {
     } else {
       this.set({
         ready: true,
-        failure: `Some saved filters or goals could not be moved into the project, so they are kept in this browser and will be tried again on the next open. ${refused.join(' ')}`,
+        failure: t`Some saved filters or goals could not be moved into the project, so they are kept in this browser and will be tried again on the next open. ${{ refused: refused.join(' ') }}`,
       });
     }
     this.refresh();

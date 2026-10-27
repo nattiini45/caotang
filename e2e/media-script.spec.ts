@@ -6,7 +6,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { binderTitle, bodyOf, createProject, firstChapter, idOf, traceNames, treeOf, waitForSaved } from './support.js';
+import { binderTitle, bodyOf, createProject, firstChapter, idOf, traceNames, treeOf, waitForSaved, writerText } from './support.js';
 
 const PROJECT = 'Night Shift';
 
@@ -59,7 +59,7 @@ test('a whole Fountain file imports as sections and scenes, and the import is on
     buffer: Buffer.from(SCRIPT),
   });
 
-  await expect(page.getByText(/Imported 3 scenes and 3 sections from night\.fountain/)).toBeVisible();
+  await expect(page.getByText(new RegExp(`Imported 3 scenes and 3 sections from ${writerText('night.fountain')}`))).toBeVisible();
   await waitForSaved(page);
   await expect.poll(() => traceNames(page)).toContain('screenplay.import');
 

@@ -75,9 +75,9 @@ test('a character who knows a fact before the scene that teaches it is reported,
   // Scene A shows Anna knowing it; Scene B is where she learns it. The pickers are native controls, reached by keyboard.
   await page.getByRole('tab', { name: 'Binder' }).click();
   await declare(page, 'Scene A', 'Knows');
-  await expect(page.getByTestId('scene-knowledge').getByRole('list', { name: 'Knows', exact: true })).toContainText('Anna: Mara is the heir');
+  expect(withoutIsolates(await page.getByTestId('scene-knowledge').getByRole('list', { name: 'Knows', exact: true }).textContent())).toContain('Anna: Mara is the heir');
   await declare(page, 'Scene B', 'Learns');
-  await expect(page.getByTestId('scene-knowledge').getByRole('list', { name: 'Learns', exact: true })).toContainText('Anna: Mara is the heir');
+  expect(withoutIsolates(await page.getByTestId('scene-knowledge').getByRole('list', { name: 'Learns', exact: true }).textContent())).toContain('Anna: Mara is the heir');
   await expect.poll(() => countOf(page, 'coherence.setSceneMeta')).toBe(2);
 
   // The ledger lists where she learns it and where she is shown knowing it, each scene a button.
@@ -144,14 +144,14 @@ test('removing a fact takes its declarations with it, and one undo brings them a
   await page.getByRole('tab', { name: 'Binder' }).click();
   await binderTitle(page, 'Scene A').click();
   await openDeclarations(page);
-  await expect(page.getByTestId('scene-knowledge').getByRole('list', { name: 'Learns', exact: true })).toContainText('None declared.');
+  expect(withoutIsolates(await page.getByTestId('scene-knowledge').getByRole('list', { name: 'Learns', exact: true }).textContent())).toContain('None declared.');
   expect(await countOf(page, 'coherence.removeKnowledgeFact')).toBe(1);
 
   // One undo puts the fact and both declarations back.
   await page.keyboard.press('Control+z');
-  await expect(page.getByTestId('scene-knowledge').getByRole('list', { name: 'Learns', exact: true })).toContainText('Anna: Mara is the rightful heir');
+  expect(withoutIsolates(await page.getByTestId('scene-knowledge').getByRole('list', { name: 'Learns', exact: true }).textContent())).toContain('Anna: Mara is the rightful heir');
   await binderTitle(page, 'Scene B').click();
   await openDeclarations(page);
-  await expect(page.getByTestId('scene-knowledge').getByRole('list', { name: 'Knows', exact: true })).toContainText('Anna: Mara is the rightful heir');
+  expect(withoutIsolates(await page.getByTestId('scene-knowledge').getByRole('list', { name: 'Knows', exact: true }).textContent())).toContain('Anna: Mara is the rightful heir');
   expect((await traceNames(page)).filter((name) => name === 'coherence.removeKnowledgeFact')).toHaveLength(1);
 });

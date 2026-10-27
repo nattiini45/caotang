@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import { sampleProjectState } from '../../apps/desktop/src/app/demo.js';
 import { elapsedOf, formatElapsed } from '../../apps/desktop/src/app/agent-model.js';
 import { costLineOf, formatUsd, NEW_ENTRY_FROM, planCostOf, refusalReasonOf, stepPreviewOf, turnCostOf, wordDiff } from '../../apps/desktop/src/app/plan-preview.js';
+import { withoutIsolates } from '../support.js';
 
 /**
  * The view model of what a plan card draws for a step's preview (agent-harness §3 rows 7, 9 and 13), the prices it shows, and the
@@ -277,14 +278,12 @@ test.describe('the view model of a restructure carries where each item sits now 
       },
       state,
     );
-    expect(view).toEqual({
-      kind: 'tree',
-      lines: ['move "Scene" to Chapter 2'],
-      rows: [
-        { title: 'Scene', change: 'Moved', from: 'Scene, in Chapter 1', to: 'Scene, in Chapter 2' },
-        { title: 'New', change: 'Created', from: 'Not in the project yet', to: 'New' },
-      ],
-    });
+    if (view === undefined || view.kind !== 'tree') throw new Error('expected a tree preview');
+    expect(view.lines).toEqual(['move "Scene" to Chapter 2']);
+    expect(view.rows.map((row) => ({ ...row, from: withoutIsolates(row.from), to: withoutIsolates(row.to) }))).toEqual([
+      { title: 'Scene', change: 'Moved', from: 'Scene, in Chapter 1', to: 'Scene, in Chapter 2' },
+      { title: 'New', change: 'Created', from: 'Not in the project yet', to: 'New' },
+    ]);
   });
 });
 

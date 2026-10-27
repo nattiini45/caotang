@@ -12,6 +12,7 @@ import type { CodexEntry, TreeNode } from '@caotang/store';
 import { attachEntry, explain, setSceneStyle } from './actions.js';
 import { afterCandidates, dialogueContainerChoices, modeLabel, povCandidates, sceneMetaOf } from '../app/findings-model.js';
 import { characterCandidates, pairWords } from '../app/knowledge-model.js';
+import { accessibleText } from '../i18n/accessible-text.js';
 import { isImeEnter } from '../app/keymap.js';
 import type { ProjectSession } from '../app/session.js';
 import { projectCollator } from '../i18n/project-collator.js';
@@ -381,7 +382,7 @@ function KnowledgeRowEditor({
           return (
             <li key={`${link.entryId}:${link.factId}`} className="chip chip-keyword">
               <span>{words}</span>
-              <button type="button" className="chip-remove" aria-label={`Stop declaring ${words} under ${label}`} onClick={() => onRemove(link)}>
+              <button type="button" className="chip-remove" aria-label={`Stop declaring ${accessibleText(words)} under ${label}`} onClick={() => onRemove(link)}>
                 ×
               </button>
             </li>

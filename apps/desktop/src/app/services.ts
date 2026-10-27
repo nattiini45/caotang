@@ -4,7 +4,10 @@
  * provider and a notice, and the writing surfaces work as they did before.
  */
 
+import { t } from '@lingui/core/macro';
 import type { WireFactory } from '@caotang/mcp-client';
+
+/* lingui-set comment="Interpolated values: error" */
 
 import { sweepHistory } from './history-store.js';
 import { APP_KEYS, openAppDb, setActiveAppDb, type AppDb } from './app-db.js';
@@ -48,7 +51,8 @@ export class SettingsStore {
       await this.db.put(APP_KEYS.settings, this.value);
       return null;
     } catch (error) {
-      return `The settings could not be saved in this browser: ${error instanceof Error ? error.message : String(error)}`;
+      const errorText = error instanceof Error ? error.message : String(error);
+      return t`The settings could not be saved in this browser: ${{ error: errorText }}`;
     }
   }
 }
@@ -80,10 +84,11 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
     try {
       db = await openAppDb(factory);
     } catch (error) {
-      notices.push(`The app settings could not be opened here, so they will not be kept: ${errorText(error)}`);
+      const message = errorText(error);
+      notices.push(t`The app settings could not be opened here, so they will not be kept: ${{ error: message }}`);
     }
   } else {
-    notices.push('This browser has no IndexedDB, so provider settings and usage are kept for this visit only.');
+    notices.push(t`This browser has no IndexedDB, so provider settings and usage are kept for this visit only.`);
   }
 
   let initial = DEFAULT_SETTINGS;
@@ -92,7 +97,8 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
       stored = await db.get<unknown>(APP_KEYS.settings);
       initial = normalizeSettings(stored);
     } catch (error) {
-      notices.push(`The settings could not be read, so the defaults are in use: ${errorText(error)}`);
+      const message = errorText(error);
+      notices.push(t`The settings could not be read, so the defaults are in use: ${{ error: message }}`);
     }
   }
   // An MCP server that did not load is named, and the rest of the settings are kept (extensibility §8).

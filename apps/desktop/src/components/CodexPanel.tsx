@@ -28,14 +28,14 @@ import {
 import { isImeEnter } from '../app/keymap.js';
 import {
   NO_FILTER,
-  POLICY_HELP,
-  POLICY_LABELS,
   POLICY_ORDER,
   TYPE_LABELS,
   appearancesOf,
   groupByType,
   isFiltered,
   matchesFilter,
+  policyHelp,
+  policyLabel,
   totalsOf,
   uniqueName,
   type CodexFilter,
@@ -178,7 +178,7 @@ function CodexList({
             aria-pressed={filter.policies.has(policy)}
             onClick={() => setFilter({ ...filter, policies: toggle(filter.policies, policy) })}
           >
-            {POLICY_LABELS[policy]}
+            {policyLabel(policy)}
           </button>
         ))}
       </div>
@@ -227,7 +227,7 @@ function CodexList({
                       <button type="button" className="codex-row" onClick={() => onOpen(entry.id)}>
                         <span className="codex-row-name" lang={contentLang} dir="auto">{entry.name}</span>
                         <span className={`codex-row-policy is-${entry.includePolicy}`}>
-                          {POLICY_LABELS[entry.includePolicy]}
+                          {policyLabel(entry.includePolicy)}
                         </span>
                         <span className="codex-row-count">{mentionsLabel(mentions)}</span>
                       </button>
@@ -330,11 +330,11 @@ function CodexEntryEditor({
                   checked={entry.includePolicy === policy}
                   onChange={() => change({ includePolicy: policy })}
                 />
-                {POLICY_LABELS[policy]}
+                {policyLabel(policy)}
               </label>
             ))}
           </div>
-          <p className="field-help">{POLICY_HELP[entry.includePolicy]}</p>
+          <p className="field-help">{policyHelp(entry.includePolicy)}</p>
         </fieldset>
 
         <label className="check">

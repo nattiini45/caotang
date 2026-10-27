@@ -54,6 +54,7 @@
  * the document ends where it was before the turn, and the confirmation says so.
  */
 
+import { plural, select, t } from '@lingui/core/macro';
 import type { GhostPreview } from '@caotang/editor/tiptap';
 import type { ProfileView } from '@caotang/gateway';
 import {
@@ -174,11 +175,17 @@ export interface AgentSnapshot {
   readonly tasks: readonly TaskView[];
 }
 
+/* lingui-set comment="Interpolated values: calls, error, mode, waiting" */
+
 /** What the panel says when the queue waits after a turn that stopped on a question. */
-export const QUEUE_PAUSED = 'The last turn stopped on a question. Answer it or choose Run the queue.';
+export function queuePausedText(): string {
+  return t`The last turn stopped on a question. Answer it or choose Run the queue.`;
+}
 
 // Said without a pointer to the first-run card, which the writer can dismiss for good (settings firstRun), so it may not be on screen.
-const NO_PROVIDER = 'No provider is active. Add one in Settings > Providers to use the agent.';
+function noProviderText(): string {
+  return t`No provider is active. Add one in Settings > Providers to use the agent.`;
+}
 
 /** The controller each open project's session has, so a panel outside the agent panel (the findings tab) can start a turn in it. */
 const controllers = new WeakMap<ProjectSession, AgentController>();
@@ -362,12 +369,19 @@ export class AgentController {
   /** Picks the mode for this panel. It applies from the next card, also in a turn that is running. Auto is refused while Settings has it off. */
   setMode(mode: PermissionMode): void {
     if (mode === 'auto' && this.agentSettings().lockAuto) {
-      this.message = 'Auto is turned off in Settings › Agent.';
+      this.message = t`Auto is turned off in Settings › Agent.`;
       this.bump();
       return;
     }
     this.modeOverride = mode;
-    this.announcement = `Mode: ${mode}. It applies from the next card.`;
+    const modeKey = mode === 'plan-only' ? 'planOnly' : mode === 'accept-edits' ? 'acceptEdits' : mode;
+    this.announcement = t`Mode: ${select(modeKey, {
+        planOnly: 'Plan only',
+        ask: 'Ask',
+        acceptEdits: 'Accept edits',
+        auto: 'Auto',
+        other: 'Ask',
+      })}. It applies from the next card.`;
     this.bump();
   }
 
@@ -444,7 +458,7 @@ export class AgentController {
       const profile: ProfileView | undefined =
         options.demo === true ? await this.providers.demoProfile() : (resolved?.profile ?? this.providers.active());
       if (profile === undefined) {
-        this.message = NO_PROVIDER;
+        this.message = noProviderText();
         return null;
       }
       // The dialogue tools compile Ink synchronously, so the compiler is loaded before the turn plans (ink-compiler.ts).
@@ -492,7 +506,8 @@ export class AgentController {
       });
       return report;
     } catch (error) {
-      this.message = `The turn stopped unexpectedly: ${error instanceof Error ? error.message : String(error)}`;
+      const reason = error instanceof Error ? error.message : String(error);
+      this.message = t`The turn stopped unexpectedly: ${{ error: reason }}`;
       return null;
     } finally {
       // The turn has settled, so the next one may start. Only the turn that set the per-turn fields clears them.
@@ -534,8 +549,13 @@ export class AgentController {
     }
     // A turn that stopped on a question, or never ran, holds the queue; a turn that went through (the answer to that question, say) lets it go.
     this.queuePaused = (report === null || (report.status === 'failed' && report.askBack !== undefined)) && this.queue.length > 0;
-    if (stopped) this.announcement = this.queue.length > 0 && !this.queuePaused ? 'Stopped by you. The next queued message runs now.' : 'Stopped by you.';
-    else if (this.queuePaused) this.announcement = QUEUE_PAUSED;
+    if (stopped) {
+      this.announcement =
+        this.queue.length > 0 && !this.queuePaused
+          ? t`Stopped by you. The next queued message runs now.`
+          : t`Stopped by you.`;
+    }
+    else if (this.queuePaused) this.announcement = queuePausedText();
     if (this.queue.length > 0 && !this.queuePaused && !this.detached) queueMicrotask(() => void this.runNext());
   }
 
@@ -555,7 +575,7 @@ export class AgentController {
   stop(): void {
     if (this.turnAbort === null || this.stopping) return;
     this.stopping = true;
-    this.announcement = 'Stopping the turn.';
+    this.announcement = t`Stopping the turn.`;
     this.turnAbort.abort();
     const resolve = this.resolveDecision;
     this.resolveDecision = null;
@@ -594,7 +614,7 @@ export class AgentController {
       return 'refused';
     }
     this.pendingNotes = [...this.pendingNotes, { noteId: receipt.value.noteId, text: note, lands: receipt.value.lands }];
-    this.announcement = 'Note sent. The agent reads it at its next step.';
+    this.announcement = t`Note sent. The agent reads it at its next step.`;
     this.bump();
     return 'sent';
   }
@@ -604,7 +624,10 @@ export class AgentController {
     const text = intent.trim();
     if (text === '') return;
     this.queue = [...this.queue, { id: this.nextQueueId(), intent: text, options }];
-    this.announcement = this.busy ? `Queued. ${this.queue.length} ${this.queue.length === 1 ? 'message' : 'messages'} waiting.` : '';
+    const waiting = this.queue.length;
+    this.announcement = this.busy
+      ? t`Queued. ${{ count: waiting }} ${plural(waiting, { one: 'message', other: 'messages' })} waiting.`
+      : '';
     this.bump();
     if (!this.busy && !this.queuePaused) queueMicrotask(() => void this.runNext());
   }
@@ -684,7 +707,7 @@ export class AgentController {
   answer(decision: Decision): void {
     const resolve = this.resolveDecision;
     if (resolve === null) {
-      this.message = 'That card is no longer waiting for a decision, so nothing was sent.';
+      this.message = t`That card is no longer waiting for a decision, so nothing was sent.`;
       this.bump();
       return;
     }
@@ -728,7 +751,7 @@ export class AgentController {
    */
   async restore(turnId: string): Promise<RestoreResult> {
     const group = this.checkpointOf(turnId);
-    if (group === undefined) return { ok: false, message: 'That turn wrote nothing, so there is nothing to restore.' };
+    if (group === undefined) return { ok: false, message: t`That turn wrote nothing, so there is nothing to restore.` };
     const outcome = await this.session.restoreBefore(group);
     this.bump();
     return outcome;
@@ -900,7 +923,8 @@ export class AgentController {
       }
       this.dropOffer();
       this.offer = { view: { offer, unavailable: this.tasks.unavailable(), error: null }, resolve };
-      this.announcement = `This plan needs ${offer.estimatedCalls} model calls. Choose how it runs.`;
+      const calls = offer.estimatedCalls;
+      this.announcement = t`This plan needs ${{ calls }} ${plural(calls, { one: 'model call', other: 'model calls' })}. Choose how it runs.`;
       this.bump();
     });
   }
@@ -940,13 +964,13 @@ export class AgentController {
    */
   async reviewTask(id: string): Promise<TurnReport | null> {
     if (this.busy) {
-      this.message = 'The agent is working on another turn. Open this task when it has finished.';
+      this.message = t`The agent is working on another turn. Open this task when it has finished.`;
       this.bump();
       return null;
     }
     const found = this.tasks.review(id);
     if (found === undefined) {
-      this.message = 'That task is no longer ready to review.';
+      this.message = t`That task is no longer ready to review.`;
       this.bump();
       return null;
     }
@@ -989,7 +1013,7 @@ export class AgentController {
   private agentForTask(sessionId: string, maxModelCalls: number): TaskAgent | string {
     const resolved = this.providers.resolveForRole?.('background');
     const profile = resolved?.profile ?? this.providers.active();
-    if (profile === undefined) return NO_PROVIDER;
+    if (profile === undefined) return noProviderText();
     return createAgentSession({
       harness: this.session.harness,
       gateway: this.providers.gateway,

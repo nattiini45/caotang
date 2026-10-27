@@ -8,7 +8,11 @@
  */
 
 import { SKILL_LIMITS, skillPathProblem, type SkillFile } from '@caotang/skills';
+import { t } from '@lingui/core/macro';
+import { isolate } from '@caotang/i18n';
 import { loadZipEngine } from '@caotang/store';
+
+/* lingui-set comment="Interpolated values: folder, max, path, reason, size" */
 
 import { findCandidates, importSummary, type OfferedFile } from './skills-model.js';
 import type { ProjectSession } from './session.js';
@@ -53,7 +57,10 @@ function sentence(error: { readonly message: string; readonly correctiveHint?: s
  * a zip, it holds too many entries, or an entry's path leaves the folder it is in.
  */
 export async function pickedFromZip(bytes: Uint8Array): Promise<{ readonly files: readonly PickedFile[] } | { readonly problem: string }> {
-  if (bytes.length > ZIP_MAX_BYTES) return { problem: `That zip is larger than ${ZIP_MAX_BYTES / (1024 * 1024)} MB, which is more than skills need.` };
+  if (bytes.length > ZIP_MAX_BYTES) {
+    const size = ZIP_MAX_BYTES / (1024 * 1024);
+    return { problem: t`That zip is larger than ${{ size }} MB, which is more than skills need.` };
+  }
   const { unzipSync } = await loadZipEngine();
   const seen = new Map<string, number>();
   let entries: Record<string, Uint8Array>;
@@ -66,14 +73,20 @@ export async function pickedFromZip(bytes: Uint8Array): Promise<{ readonly files
       },
     });
   } catch {
-    return { problem: 'That file is not a zip that can be opened.' };
+    return { problem: t`That file is not a zip that can be opened.` };
   }
-  if (seen.size > ZIP_MAX_ENTRIES) return { problem: `That zip holds more than ${ZIP_MAX_ENTRIES} files, which is not a skill or a folder of skills.` };
+  if (seen.size > ZIP_MAX_ENTRIES) {
+    const max = ZIP_MAX_ENTRIES;
+    return { problem: t`That zip holds more than ${{ max }} files, which is not a skill or a folder of skills.` };
+  }
   const files: PickedFile[] = [];
   for (const [name, size] of seen) {
     if (name.endsWith('/')) continue;
     const bad = skillPathProblem(name);
-    if (bad !== undefined) return { problem: `That zip was not opened: a file in it has a path that does not stay inside its folder (${bad.replace('the path ', '')}).` };
+    if (bad !== undefined) {
+      const path = bad.replace(/^the path /u, '');
+      return { problem: t`That zip was not opened: a file in it has a path that does not stay inside its folder (${{ path }}).` };
+    }
     const data = entries[name];
     files.push({ path: name, size, read: async () => data ?? new Uint8Array(0) });
   }
@@ -103,10 +116,13 @@ export async function importPicked(session: ProjectSession, picked: readonly Pic
     }
     const result = session.importSkill(candidate.folder, files);
     if (result.ok) taken.push(candidate.folder);
-    else refused.push(`The skill “${candidate.folder}” was not taken: ${sentence(result.error)}`);
+    else {
+      const reason = sentence(result.error);
+      refused.push(t`The skill “${{ folder: isolate(candidate.folder) }}” was not taken: ${{ reason }}`);
+    }
   }
   if (found.candidates.length === 0 && found.refused.length === 0) {
-    return { text: 'No skill was found there. A skill is a folder with its instructions file in it.', tone: 'error' };
+    return { text: t`No skill was found there. A skill is a folder with its instructions file in it.`, tone: 'error' };
   }
   return { text: importSummary(taken, refused), tone: refused.length === 0 ? 'info' : 'error' };
 }

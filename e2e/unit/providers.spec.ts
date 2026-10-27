@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { APP_KEYS, type AppDb } from '../../apps/desktop/src/app/app-db.js';
 import { DEMO_PROFILE_NAME, ProviderService } from '../../apps/desktop/src/app/providers.js';
+import { withoutIsolates } from '../support.js';
 
 /**
  * The provider services (provider-gateway §2, §5–§7; ui-modules §5.2), run without a browser: an in-memory app database
@@ -141,7 +142,7 @@ test('a key that is no longer in the vault is named, and its profile is not rest
   // A fresh vault has none of the keys the first one sealed, which is what a cleared site-data store looks like.
   const second = await ProviderService.open({ db, vault: null, fetch: scriptedFetch() });
 
-  expect(second.notices.some((notice) => notice.includes('“Remote” is no longer in this browser'))).toBe(true);
+  expect(second.notices.some((notice) => withoutIsolates(notice).includes('“Remote” is no longer in this browser'))).toBe(true);
   expect(second.service.list().map((profile) => profile.name)).not.toContain('Remote');
   expect(second.service.active()?.name).toBe(DEMO_PROFILE_NAME);
 });

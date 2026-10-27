@@ -21,6 +21,8 @@
  * has no cached answer (provider-gateway §5).
  */
 
+import { t } from '@lingui/core/macro';
+import { isolate } from '@caotang/i18n';
 import {
   PROFILE_ID_PATTERN,
   createGateway,
@@ -49,7 +51,12 @@ import { DEMO_FALLBACK_REPLY, appMockProvider, type MockProvider } from '@caotan
 import { APP_KEYS, type AppDb } from './app-db.js';
 import { normalizeSettings, type RoleSettings } from './settings.js';
 
-/** The name the first-run profile carries. It answers the three demo intents and nothing else. */
+/* lingui-set comment="Interpolated values: error, name" */
+
+/**
+ * The name the first-run profile carries. It answers the three demo intents and nothing else. It is stored with the profile and
+ * shown as the writer's data, so it stays untranslated ([i18n.md §3.4]); a writer who wants another name renames it.
+ */
 export const DEMO_PROFILE_NAME = 'Demo (no key)';
 
 // The demo provider's mock lives in the gateway, shared with the SDK. These keep the names the app and its specs import.
@@ -281,7 +288,7 @@ export class ProviderService {
           // The sealed payload holds the key and any custom headers; both come back together.
           const payload = kind === 'endpoint' ? await this.keys.revealPayload(record.id) : undefined;
           if (kind === 'endpoint' && record.hasKey && (payload === undefined || payload.apiKey === '')) {
-            notices.push(`The key for “${record.name}” is no longer in this browser, so the profile was not restored. Add it again in Settings.`);
+            notices.push(t`The key for “${{ name: isolate(record.name) }}” is no longer in this browser, so the profile was not restored. Add it again in Settings.`);
             continue;
           }
           pin(record.id);
@@ -299,19 +306,21 @@ export class ProviderService {
             ...(record.pricePer1k === undefined ? {} : { pricePer1k: record.pricePer1k }),
           });
           if (view.id !== record.id) {
-            notices.push(`“${record.name}” came back under a new id, so its saved usage is not attached to it.`);
+            notices.push(t`“${{ name: isolate(record.name) }}” came back under a new id, so its saved usage is not attached to it.`);
           }
           if (record.responseFormat !== undefined) this.profiles.recordProbe(view.id, record.responseFormat);
           if (record.isActive) activeId = view.id;
         } catch (error) {
-          notices.push(`“${record.name}” could not be restored: ${messageOf(error)}`);
+          const reason = messageOf(error);
+            notices.push(t`“${{ name: isolate(record.name) }}” could not be restored: ${{ error: reason }}`);
         } finally {
           pin(null);
         }
       }
       if (activeId !== null) this.profiles.activate(activeId);
     } catch (error) {
-      notices.push(`Your provider profiles could not be read: ${messageOf(error)}`);
+      const reason = messageOf(error);
+      notices.push(t`Your provider profiles could not be read: ${{ error: reason }}`);
     }
 
     try {
@@ -324,14 +333,16 @@ export class ProviderService {
         );
       }
     } catch (error) {
-      notices.push(`The usage totals could not be read: ${messageOf(error)}`);
+      const reason = messageOf(error);
+      notices.push(t`The usage totals could not be read: ${{ error: reason }}`);
     }
 
     try {
       const entries = (await db.get<RequestLogEntry[]>(APP_KEYS.requests)) ?? [];
       for (const entry of entries.slice(-REQUEST_LOG_KEEP)) this.requests.append(entry);
     } catch (error) {
-      notices.push(`The request log could not be read: ${messageOf(error)}`);
+      const reason = messageOf(error);
+      notices.push(t`The request log could not be read: ${{ error: reason }}`);
     }
   }
 
@@ -370,7 +381,8 @@ export class ProviderService {
       await this.db.put(APP_KEYS.requests, this.requests.entries().slice(-REQUEST_LOG_KEEP));
       return null;
     } catch (error) {
-      return `Your provider settings could not be saved in this browser: ${messageOf(error)}`;
+      const reason = messageOf(error);
+      return t`Your provider settings could not be saved in this browser: ${{ error: reason }}`;
     }
   }
 
@@ -424,7 +436,8 @@ export class ProviderService {
         try {
           note = formatNote(await this.gateway.probeResponseFormat(id));
         } catch (error) {
-          note = `The endpoint did not answer the format check, so the agent asks for JSON in the prompt: ${messageOf(error)}`;
+          const reason = messageOf(error);
+          note = t`The endpoint did not answer the format check, so the agent asks for JSON in the prompt: ${{ error: reason }}`;
         }
       }
     }
@@ -479,7 +492,8 @@ export class ProviderService {
       const models = await this.gateway.listModels(id);
       return { models };
     } catch (error) {
-      return { error: `The endpoint did not list its models, so the profile was saved but is not verified: ${messageOf(error)}` };
+      const reason = messageOf(error);
+      return { error: t`The endpoint did not list its models, so the profile was saved but is not verified: ${{ error: reason }}` };
     } finally {
       if (previous !== undefined && previous.id !== id && this.profiles.get(previous.id) !== undefined) {
         this.profiles.activate(previous.id);
@@ -495,8 +509,8 @@ function messageOf(error: unknown): string {
 /** The activation note for a profile's response-format answer, in the words the Settings section shows. */
 function formatNote(supported: boolean): string {
   return supported
-    ? 'This endpoint accepts structured output.'
-    : 'This endpoint does not take a JSON response format, so the agent asks for JSON in the prompt instead.';
+    ? t`This endpoint accepts structured output.`
+    : t`This endpoint does not take a JSON response format, so the agent asks for JSON in the prompt instead.`;
 }
 
 /** The profile's price per 1,000 tokens, as the form's two optional fields carry it (provider-gateway §2). */
@@ -513,11 +527,11 @@ export function priceFromInputs(promptText: string, completionText: string): Pri
   const completion = completionText.trim();
   if (prompt === '' && completion === '') return { ok: true };
   if (prompt === '' || completion === '') {
-    return { ok: false, message: 'A price needs both the prompt price and the reply price, per 1,000 tokens. Fill both, or leave both empty.' };
+    return { ok: false, message: t`A price needs both the prompt price and the reply price, per 1,000 tokens. Fill both, or leave both empty.` };
   }
   const numeric = /^(\d+\.?\d*|\.\d+)$/;
   if (!numeric.test(prompt) || !numeric.test(completion)) {
-    return { ok: false, message: 'Prices are dollars per 1,000 tokens, written as a number of zero or more.' };
+    return { ok: false, message: t`Prices are dollars per 1,000 tokens, written as a number of zero or more.` };
   }
   return { ok: true, price: { prompt: Number(prompt), completion: Number(completion) } };
 }

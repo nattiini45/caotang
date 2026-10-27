@@ -25,6 +25,7 @@ import {
   skillsView,
 } from '../../apps/desktop/src/app/skills-model.js';
 
+import { withoutIsolates } from '../support.js';
 import { project } from './fixtures.js';
 
 /**
@@ -148,7 +149,7 @@ test.describe('finding skills among picked files', () => {
     expect(unsafe.candidates).toEqual([]);
     expect(unsafe.refused[0]?.text).toContain('unsafe path');
     const big = findCandidates([{ path: 'a/SKILL.md', size: 10 }, { path: 'a/huge.md', size: 256 * 1024 + 1 }], 'x');
-    expect(big.refused[0]?.text).toMatch(/“a” was not taken.*256\.1 KB.*at most 256 KB/u);
+    expect(withoutIsolates(big.refused[0]?.text ?? '')).toMatch(/“a” was not taken.*256\.1 KB.*at most 256 KB/u);
     const many = findCandidates(offered('a/SKILL.md', ...Array.from({ length: 64 }, (_, i) => `a/f${i}.md`)), 'x');
     expect(many.refused[0]?.text).toMatch(/65 files.*at most 64/u);
     expect(findCandidates(offered('Bad Name/SKILL.md'), 'x').refused[0]?.text).toContain('cannot be the name of a skill');
@@ -320,8 +321,8 @@ test.describe('the session: the agent is told of a skill only after the writer h
       const picked = (path: string, text: string): PickedFile => ({ path, size: text.length, read: async () => enc(text) });
       const outcome = await importPicked(session, [picked('good/SKILL.md', md('good')), picked('good/references/a.md', 'a'), picked('bad/SKILL.md', md('bad')), picked('bad/huge.md', 'x'.repeat(256 * 1024 + 1))], 'x');
       expect(outcome.tone).toBe('error');
-      expect(outcome.text).toContain('Imported the skill “good”. Read it and approve it before the agent can use it.');
-      expect(outcome.text).toContain('The skill “bad” was not taken');
+      expect(withoutIsolates(outcome.text)).toContain('Imported the skill “good”. Read it and approve it before the agent can use it.');
+      expect(withoutIsolates(outcome.text)).toContain('The skill “bad” was not taken');
       expect([...session.state.skills.keys()]).toEqual(['good']);
       expect(session.state.skills.get('good')?.map((f) => f.path)).toEqual(['SKILL.md', 'references/a.md']);
       expect((await importPicked(session, [picked('notes/readme.md', 'x')], 'x')).text).toContain('No skill was found');

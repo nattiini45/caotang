@@ -18,6 +18,8 @@
  * opens again, and Resume stages only the items still pending, inside the cap the task has left.
  */
 
+import { i18n, type MessageDescriptor } from '@lingui/core';
+import { msg, plural, t } from '@lingui/core/macro';
 import { backgroundEligibility, estimatedModelCalls, type AgentSession, type PlanStep, type StageOnlyResult } from '@caotang/harness';
 
 import {
@@ -60,8 +62,10 @@ export interface TaskQueueOptions {
 
 export type EnqueueResult = { readonly ok: true; readonly task: TaskRecord } | { readonly ok: false; readonly reason: string };
 
-const NO_LOCKS = 'Background tasks need a browser feature this one does not have, so this plan can only run now.';
-const NO_STORAGE = 'This browser would not keep the task, so this plan can only run now.';
+/* lingui-set comment="Interpolated values: calls, cap, error" */
+
+const NO_LOCKS: MessageDescriptor = msg`Background tasks need a browser feature this one does not have, so this plan can only run now.`;
+const NO_STORAGE: MessageDescriptor = msg`This browser would not keep the task, so this plan can only run now.`;
 
 function browserHasLocks(): boolean {
   return (globalThis as { navigator?: { locks?: unknown } }).navigator?.locks !== undefined;
@@ -92,8 +96,8 @@ export class TaskQueue {
 
   /** Why the queue cannot take a plan, in a sentence, or `null` when it can. */
   unavailable(): string | null {
-    if (!(this.options.locksAvailable ?? browserHasLocks)()) return NO_LOCKS;
-    if (!this.options.store.available) return NO_STORAGE;
+    if (!(this.options.locksAvailable ?? browserHasLocks)()) return i18n._(NO_LOCKS);
+    if (!this.options.store.available) return i18n._(NO_STORAGE);
     return null;
   }
 
@@ -139,11 +143,11 @@ export class TaskQueue {
   async enqueue(intent: string, steps: readonly PlanStep[]): Promise<EnqueueResult> {
     const unavailable = this.unavailable();
     if (unavailable !== null) return { ok: false, reason: unavailable };
-    if (this.closed) return { ok: false, reason: 'The project is not open here, so the plan can only run now.' };
+    if (this.closed) return { ok: false, reason: t`The project is not open here, so the plan can only run now.` };
     const eligible = backgroundEligibility(steps);
     if (!eligible.eligible) return { ok: false, reason: eligible.reason };
     const cap = estimatedModelCalls(steps);
-    if (cap < 1) return { ok: false, reason: 'No step of this plan needs a model call.' };
+    if (cap < 1) return { ok: false, reason: t`No step of this plan needs a model call.` };
     const at = this.now();
     const task: TaskRecord = {
       id: (this.options.newId ?? newTaskId)(),
@@ -274,7 +278,8 @@ export class TaskQueue {
   private async run(id: string): Promise<void> {
     const started = await this.update(id, { status: 'running', runs: (this.find(id)?.runs ?? 0) + 1 });
     if (started === undefined) return;
-    const sessionId = started.runs === 1 ? started.id : `${started.id}.run${started.runs}`;
+    // A run's session id is a stored token, not a message: keep it out of the catalogue.
+    const sessionId = started.runs === 1 ? started.id : started.id + '.run' + started.runs;
     const agent = this.options.agentFor(started, sessionId, Math.max(0, started.cap - started.used));
     const abort = new AbortController();
     const active: NonNullable<TaskQueue['active']> = { id, abort, reason: 'interrupted' };
@@ -303,9 +308,10 @@ export class TaskQueue {
     if (task === undefined || item === undefined) return true;
     const calls = callsOfItem(task, item);
     if (task.used + calls > task.cap) {
+      const cap = task.cap;
       await this.updateItem(id, key, {
         state: 'failed',
-        error: `This step needs ${calls} model ${calls === 1 ? 'call' : 'calls'}, which would go past the task's limit of ${task.cap}.`,
+        error: t`This step needs ${{ calls }} model ${plural(calls, { one: 'call', other: 'calls' })}, which would go past the task's limit of ${{ cap }}.`,
       });
       return true;
     }
@@ -313,7 +319,8 @@ export class TaskQueue {
     try {
       result = await agent.stageOnly([stepOfItem(task, item)], { signal });
     } catch (error) {
-      await this.updateItem(id, key, { state: 'failed', error: `The model call failed: ${error instanceof Error ? error.message : String(error)}` });
+      const errorText = error instanceof Error ? error.message : String(error);
+      await this.updateItem(id, key, { state: 'failed', error: t`The model call failed: ${{ error: errorText }}` });
       return !signal.aborted;
     }
     const spent = {
@@ -327,7 +334,7 @@ export class TaskQueue {
     }
     const proposal = result.proposals[0];
     if (proposal === undefined || result.refusals.length > 0) {
-      const why = result.refusals[0]?.message ?? 'The model returned nothing for this step.';
+      const why = result.refusals[0]?.message ?? t`The model returned nothing for this step.`;
       await this.updateItem(id, key, { state: 'failed', error: why }, spent);
     } else {
       await this.updateItem(id, key, { state: 'staged', proposal, revisions: result.revisions[0] ?? {} }, spent);

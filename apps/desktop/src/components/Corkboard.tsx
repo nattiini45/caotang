@@ -6,6 +6,9 @@
  */
 
 import { useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { t } from '@lingui/core/macro';
+import { Trans } from '@lingui/react/macro';
+import { accessibleText } from '../i18n/accessible-text.js';
 import type { TreeNode } from '@caotang/store';
 
 import {
@@ -42,6 +45,8 @@ import {
   type MenuAnchor,
   type MenuItem,
 } from './shared.js';
+
+/* lingui-set comment="Interpolated values: scope, title" */
 
 export interface CorkboardProps {
   readonly session: ProjectSession;
@@ -135,11 +140,11 @@ export function Corkboard(props: CorkboardProps): ReactNode {
   const cardMenuItems = (node: TreeNode): MenuItem[] => {
     if (!isMovable(node)) return [];
     const items: MenuItem[] = [
-      { key: 'rename', label: 'Rename', onSelect: () => onRename(node.id) },
-      { key: 'move-up', label: 'Move up', onSelect: () => keyboardReorder(node.id, 'up') },
-      { key: 'move-down', label: 'Move down', onSelect: () => keyboardReorder(node.id, 'down') },
+      { key: 'rename', label: t`Rename`, onSelect: () => onRename(node.id) },
+      { key: 'move-up', label: t`Move up`, onSelect: () => keyboardReorder(node.id, 'up') },
+      { key: 'move-down', label: t`Move down`, onSelect: () => keyboardReorder(node.id, 'down') },
     ];
-    items.push({ key: 'delete', label: 'Delete…', danger: true, separatorBefore: true, onSelect: () => onAskDelete(node.id) });
+    items.push({ key: 'delete', label: t`Delete…`, danger: true, separatorBefore: true, onSelect: () => onAskDelete(node.id) });
     return items;
   };
 
@@ -190,7 +195,7 @@ export function Corkboard(props: CorkboardProps): ReactNode {
       const items = cardMenuItems(node);
       if (items.length === 0) return;
       const rect = event.currentTarget.getBoundingClientRect();
-      setCardMenu({ label: `Actions for ${node.title}`, anchor: { x: rect.left + 24, y: rect.top + 24 }, items });
+      setCardMenu({ label: t`Actions for ${{ title: accessibleText(node.title) }}`, anchor: { x: rect.left + 24, y: rect.top + 24 }, items });
       return;
     }
     if (event.altKey || event.ctrlKey || event.metaKey) return;
@@ -259,7 +264,7 @@ export function Corkboard(props: CorkboardProps): ReactNode {
       }}
     >
       <header className="corkboard-head">
-        <nav aria-label="Corkboard scope">
+        <nav aria-label={t`Corkboard scope`}>
           <ol className="crumbs">
             {path.map((name, index) => (
               <li key={`${index}-${name}`}>{name}</li>
@@ -269,28 +274,30 @@ export function Corkboard(props: CorkboardProps): ReactNode {
         <div className="corkboard-controls">
           <ZoomControl zoom={zoom} onZoom={onZoom} />
           <button type="button" className="button is-primary" onClick={create}>
-            New card
+            <Trans>New card</Trans>
           </button>
         </div>
       </header>
 
       {cards.length === 0 ? (
         <EmptyState
-          title="No cards yet"
+          title={t`No cards yet`}
           actions={
             <button type="button" className="button is-primary" onClick={create}>
-              New card
+              <Trans>New card</Trans>
             </button>
           }
         >
-          Drag scenes in from the binder, or create one. Each card holds a scene’s synopsis, and the order here is the
-          order in the manuscript.
+          <Trans>
+            Drag scenes in from the binder, or create one. Each card holds a scene’s synopsis, and the order here is the order in the
+            manuscript.
+          </Trans>
         </EmptyState>
       ) : (
         <ol
           ref={boardRef}
           className={`cards zoom-${zoom}`}
-          aria-label={`Cards in ${scope.title}`}
+          aria-label={t`Cards in ${{ scope: accessibleText(scope.title) }}`}
           onDragOver={(event) => {
             // Empty space below the cards appends to the scope.
             if (event.target !== event.currentTarget) return;
@@ -349,9 +356,9 @@ export function Corkboard(props: CorkboardProps): ReactNode {
 
       {menuAt ? (
         <Menu
-          label={`Cards in ${scope.title}`}
+          label={t`Cards in ${{ scope: accessibleText(scope.title) }}`}
           anchor={menuAt}
-          items={[{ key: 'new-card', label: 'New card', onSelect: create }]}
+          items={[{ key: 'new-card', label: t`New card`, onSelect: create }]}
           onClose={() => setMenuAt(null)}
         />
       ) : null}
@@ -418,7 +425,7 @@ function Card(props: CardProps): ReactNode {
           className="card-grip"
           draggable={isMovable(node) && !renaming}
           role="img"
-          aria-label={`Drag ${node.title} to reorder`}
+          aria-label={t`Drag ${{ title: accessibleText(node.title) }} to reorder`}
           onDragStart={props.onGripStart}
           onDragEnd={props.onGripEnd}
         >
@@ -427,7 +434,7 @@ function Card(props: CardProps): ReactNode {
         {renaming ? (
           <InlineText
             initial={node.title}
-            label={`Rename ${node.title}`}
+            label={t`Rename ${{ title: accessibleText(node.title) }}`}
             className="card-rename"
             onCommit={props.onRenameCommit}
             onCancel={props.onRenameCancel}
@@ -448,9 +455,9 @@ function Card(props: CardProps): ReactNode {
         )}
         {titleOnly ? null : (
           // Every node carries a status, folders included (ui-modules §3.1).
-          <span className="chip chip-status" title="Status">
+          <span className="chip chip-status" title={t`Status`}>
             <span className="chip-dot" style={{ background: status?.color ?? 'var(--dot-empty)' }} aria-hidden="true" />
-            {status?.name ?? (node.status === null ? 'No status' : 'Unknown status')}
+            {status?.name ?? (node.status === null ? t`No status` : t`Unknown status`)}
           </span>
         )}
       </header>
@@ -471,7 +478,7 @@ function Card(props: CardProps): ReactNode {
       {titleOnly ? null : (
         <footer className="card-foot">
           {isContainerCard ? (
-            <span>{childCount === 1 ? '1 item' : `${formatCount(childCount)} items`}</span>
+            <span>{childCount === 1 ? t`1 item` : t`${{ count: formatCount(childCount) }} items`}</span>
           ) : (
             <span>{wordsLabel(wordCountOf(state, node.id))}</span>
           )}

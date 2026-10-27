@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { Trans } from '@lingui/react/macro';
 
 import { stopCause, subscribeStopCause } from '../app/integrity-model.js';
 import { browserStorage, stopKeptInBrowser, subscribeStop } from '../app/unsent-copy.js';
@@ -32,7 +33,6 @@ export function StaleTabNotice({ onExport, onReload }: StaleTabNoticeProps): Rea
   // Why this tab stopped (integrity-model.ts `StopCause`): another tab stored newer text, or another tab upgraded Caotang's storage, which a reload of this
   // tab carries on from once the updated Caotang is the one this tab runs.
   const updated = useSyncExternalStore(subscribeStopCause, stopCause) === 'updated';
-  const resume = updated ? 'carry on with the updated Caotang' : 'carry on from the saved text';
 
   // Shown as a modal from the start, so the page underneath cannot be used while the words are unsaved.
   useEffect(() => {
@@ -57,41 +57,70 @@ export function StaleTabNotice({ onExport, onReload }: StaleTabNoticeProps): Rea
       }}
     >
       <form method="dialog" className="confirm-body">
-        <h2 id={titleId}>{updated ? 'Caotang was updated in another tab' : 'This project is open in another tab'}</h2>
+        <h2 id={titleId}>
+          {updated ? <Trans>Caotang was updated in another tab</Trans> : <Trans>This project is open in another tab</Trans>}
+        </h2>
         <div className="confirm-text">
           {reloadAsked ? (
             kept ? (
               <>
                 <p>
-                  Reloading this tab keeps the words in this browser, where the project offers them back once it opens again. Nothing
-                  already saved is overwritten.
+                  <Trans>
+                    Reloading this tab keeps the words in this browser, where the project offers them back once it opens again. Nothing
+                    already saved is overwritten.
+                  </Trans>
                 </p>
-                <p>Export a backup too if you want a copy outside this browser.</p>
+                <p><Trans>Export a backup too if you want a copy outside this browser.</Trans></p>
               </>
             ) : (
               <>
                 <p>
-                  Reloading this tab loses the latest words in it. They are on screen only, not in browser storage, so they cannot come
-                  back after the reload.
+                  <Trans>
+                    Reloading this tab loses the latest words in it. They are on screen only, not in browser storage, so they cannot come
+                    back after the reload.
+                  </Trans>
                 </p>
-                <p>Export a backup to keep them first, or keep this tab.</p>
+                <p><Trans>Export a backup to keep them first, or keep this tab.</Trans></p>
               </>
             )
           ) : (
             <>
               <p>
-                {updated
-                  ? 'Caotang was updated in another tab, so this tab cannot save to browser storage. The words here are still on screen.'
-                  : 'Another tab has stored newer text for this project, so this tab cannot save. The words here are still on screen.'}
+                {updated ? (
+                  <Trans>
+                    Caotang was updated in another tab, so this tab cannot save to browser storage. The words here are still on screen.
+                  </Trans>
+                ) : (
+                  <Trans>Another tab has stored newer text for this project, so this tab cannot save. The words here are still on screen.</Trans>
+                )}
               </p>
               {kept ? (
                 <p>
-                  They are also kept in this browser, so the project can offer them back as new documents. Export a backup to keep a
-                  copy outside this browser, then reload this tab to {resume}.
+                  {updated ? (
+                    <Trans>
+                      They are also kept in this browser, so the project can offer them back as new documents. Export a backup to keep a
+                      copy outside this browser, then reload this tab to carry on with the updated Caotang.
+                    </Trans>
+                  ) : (
+                    <Trans>
+                      They are also kept in this browser, so the project can offer them back as new documents. Export a backup to keep a
+                      copy outside this browser, then reload this tab to carry on from the saved text.
+                    </Trans>
+                  )}
                 </p>
               ) : (
                 <p>
-                  The latest words are not in browser storage. Export a backup to keep them, then reload this tab to {resume}.
+                  {updated ? (
+                    <Trans>
+                      The latest words are not in browser storage. Export a backup to keep them, then reload this tab to carry on with the
+                      updated Caotang.
+                    </Trans>
+                  ) : (
+                    <Trans>
+                      The latest words are not in browser storage. Export a backup to keep them, then reload this tab to carry on from the
+                      saved text.
+                    </Trans>
+                  )}
                 </p>
               )}
             </>
@@ -101,28 +130,28 @@ export function StaleTabNotice({ onExport, onReload }: StaleTabNoticeProps): Rea
           {reloadAsked ? (
             <>
               <button type="button" className="button" autoFocus onClick={() => setReloadAsked(false)}>
-                Keep this tab
+                <Trans>Keep this tab</Trans>
               </button>
               {kept ? (
                 <button type="button" className="button is-danger" onClick={onReload}>
-                  Reload and keep the words here
+                  <Trans>Reload and keep the words here</Trans>
                 </button>
               ) : (
                 <button type="button" className="button is-danger" onClick={onReload}>
-                  Reload and lose these words
+                  <Trans>Reload and lose these words</Trans>
                 </button>
               )}
               <button type="button" className="button is-primary" onClick={onExport}>
-                Export a backup
+                <Trans>Export a backup</Trans>
               </button>
             </>
           ) : (
             <>
               <button type="button" className="button" onClick={() => setReloadAsked(true)}>
-                Reload this tab
+                <Trans>Reload this tab</Trans>
               </button>
               <button type="button" className="button is-primary" autoFocus onClick={onExport}>
-                Export a backup
+                <Trans>Export a backup</Trans>
               </button>
             </>
           )}

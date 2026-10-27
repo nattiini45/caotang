@@ -44,6 +44,8 @@
  * attaching a folder makes it again, and the registry reaches the new one through a port that never changes.
  */
 
+import { t } from '@lingui/core/macro';
+import { isolate } from '@caotang/i18n';
 import { scanTool, type CoherenceFile, type CoherenceModel, type DeterministicCheckId, type ScanData, type ScopeSpec, type ToolResult } from '@caotang/coherence';
 import { compileCodex, countMentions, type DocumentTerm } from '@caotang/codex';
 import {
@@ -119,6 +121,8 @@ import type { Shadow } from './persistence-plan.js';
 import { dropHistoryOf } from './history-store.js';
 import { PendingJournal, type PendingFailure } from './pending-journal.js';
 import { browserStorage, stopKeptInBrowser } from './unsent-copy.js';
+
+/* lingui-set comment="Interpolated values: error, reason, title" */
 
 /**
  * Whether every change has reached the store (`saved`), is on its way (`saving`), failed (`failed`: retried by the next
@@ -241,11 +245,14 @@ export interface SessionCoherence {
 }
 
 /** What the session says when an older change is asked to be undone while a later one stands (see `undoGroup`). */
-const LATER_CHANGES_FIRST =
-  'Undo the later changes first. Taking back this one now could also take back text written after it.';
+function laterChangesFirst(): string {
+  return t`Undo the later changes first. Taking back this one now could also take back text written after it.`;
+}
 
 /** What the session says when a change is asked to be taken back after it already was. */
-const ALREADY_UNDONE = 'That change has already been undone, so there is nothing to take back.';
+function alreadyUndone(): string {
+  return t`That change has already been undone, so there is nothing to take back.`;
+}
 
 /**
  * How long the latch that answers one moment at the front holds.
@@ -878,8 +885,8 @@ export class ProjectSession {
     if (this.heldImages === null) {
       throw new ApplyRefusal({
         code: 'io-error',
-        message: 'the images of this project are still being listed, so no export was written',
-        correctiveHint: 'compile again in a moment, when the listing has finished',
+        message: t`the images of this project are still being listed, so no export was written`,
+        correctiveHint: t`compile again in a moment, when the listing has finished`,
         target: 'export.compile',
       });
     }
@@ -887,8 +894,8 @@ export class ProjectSession {
       const reason = this.heldImages.failure instanceof Error ? this.heldImages.failure.message : String(this.heldImages.failure);
       throw new ApplyRefusal({
         code: 'io-error',
-        message: `the images of this project could not be listed (${reason}), so no export was written`,
-        correctiveHint: 'make sure the project folder can be read, then compile again',
+        message: t`the images of this project could not be listed (${{ error: reason }}), so no export was written`,
+        correctiveHint: t`make sure the project folder can be read, then compile again`,
         target: 'export.compile',
       });
     }
@@ -978,7 +985,7 @@ export class ProjectSession {
     const newest = this.log.entriesForGroup(last.id).at(-1);
     if (newest?.command === 'doc.write' && newest.issuedBy === 'user') {
       const title = newest.affected[0]?.title;
-      return title === undefined ? 'your typing' : `your typing in “${title}”`;
+      return title === undefined ? t`your typing` : t`your typing in “${{ title: isolate(title) }}”`;
     }
     return this.summaryOf(last);
   }
@@ -1021,11 +1028,11 @@ export class ProjectSession {
     await this.autosave.flush();
     this.lastUndoMessage = null;
     if (this.undo.group(id) === undefined) {
-      this.lastUndoMessage = ALREADY_UNDONE;
+      this.lastUndoMessage = alreadyUndone();
       return false;
     }
     if (this.newestUndoGroupId() !== id) {
-      this.lastUndoMessage = LATER_CHANGES_FIRST;
+      this.lastUndoMessage = laterChangesFirst();
       return false;
     }
     return this.undoNow(id);
@@ -1043,13 +1050,13 @@ export class ProjectSession {
     this.lastUndoMessage = null;
     const groups = this.undo.groups();
     const at = groups.findIndex((group) => group.id === id);
-    if (at === -1) return { ok: false, message: ALREADY_UNDONE };
+    if (at === -1) return { ok: false, message: alreadyUndone() };
     for (const group of groups.slice(at).reverse()) {
       if (!this.undoNow(group.id)) {
-        const reason = this.lastUndoMessage ?? 'a change could not be taken back';
+        const reason = this.lastUndoMessage ?? t`a change could not be taken back`;
         return {
           ok: false,
-          message: `The restore stopped part way, because a later change could not be taken back: ${reason}. Changes made before that one were not touched.`,
+          message: t`The restore stopped part way, because a later change could not be taken back: ${{ reason }}. Changes made before that one were not touched.`,
         };
       }
     }
@@ -1143,11 +1150,12 @@ export class ProjectSession {
         if (error instanceof CoherenceFolderError) {
           // The browser's copy was saved; the folder's was not, and the findings tab says why.
           this.coherenceFailure = null;
-          this.coherenceFolderFailure = `Your findings could not be saved to the folder: ${error.message}`;
+          this.coherenceFolderFailure = t`Your findings could not be saved to the folder: ${{ error: error.message }}`;
           if (this.coherenceQueued === signature) this.coherenceQueued = null;
           return;
         }
-        this.coherenceFailure = `Your findings could not be saved in this browser: ${error instanceof Error ? error.message : String(error)}`;
+        const message = error instanceof Error ? error.message : String(error);
+        this.coherenceFailure = t`Your findings could not be saved in this browser: ${{ error: message }}`;
         // Unless a newer file has been queued behind this one, the next change queues this file again.
         if (this.coherenceQueued === signature) this.coherenceQueued = null;
       }
@@ -1180,7 +1188,7 @@ export class ProjectSession {
    */
   scanCoherence(options: ScanOptions): ToolResult<ScanData> {
     const file = this.coherenceFile();
-    if (file === undefined) return { ok: false, code: 'no-file', message: 'No findings file is open for this project.' };
+    if (file === undefined) return { ok: false, code: 'no-file', message: t`No findings file is open for this project.` };
     // The scope and the checks are the writer's choice on the Findings tab, and default to the whole manuscript and every
     // check. The dialogue facts are the branch checks' input (coherence.md §5.1, dialogue-narrative.md §5), read here so a scan
     // of the open project always sees the containers as they are now.
@@ -1194,7 +1202,7 @@ export class ProjectSession {
     } catch (error) {
       if (!(error instanceof InkCompilerNotLoaded)) throw error;
       void requestInkCompiler();
-      return { ok: false, code: 'ink-loading', message: 'The Ink compiler is still loading, so the dialogue checks cannot run yet. Run the scan again in a moment.' };
+      return { ok: false, code: 'ink-loading', message: t`The Ink compiler is still loading, so the dialogue checks cannot run yet. Run the scan again in a moment.` };
     }
     const result = scanTool(params, {
       state: this.state,
@@ -1244,7 +1252,8 @@ export class ProjectSession {
         await port.attachFolder(root, file);
         this.coherenceFolderFailure = null;
       } catch (error) {
-        this.coherenceFolderFailure = `Your findings could not be saved to the folder: ${error instanceof Error ? error.message : String(error)}`;
+        const message = error instanceof Error ? error.message : String(error);
+        this.coherenceFolderFailure = t`Your findings could not be saved to the folder: ${{ error: message }}`;
       }
     });
     await attached;
