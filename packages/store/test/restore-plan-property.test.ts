@@ -247,11 +247,9 @@ function build(seed: number): Stack {
       const op = opFor(r.state, next, serial);
       const callId = agent ? `${turnId}.${c}` : undefined;
       const before = snapshot(r.state);
-      const groupsBefore = r.undo.groups().length;
       const ok = dispatch(r, op, { agent, ...(agent ? { turnId } : {}), ...(callId === undefined ? {} : { callId }) }, serial);
       if (!ok) continue;
       done.push({ op, ...(callId === undefined ? {} : { callId }), touched: diff(before, snapshot(r.state)) });
-      void groupsBefore;
     }
     // The group this turn or gesture opened is the newest on the stack, when it registered anything.
     const stack = r.undo.groups();
