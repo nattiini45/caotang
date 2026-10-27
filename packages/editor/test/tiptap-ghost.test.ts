@@ -15,6 +15,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createAutosave } from '@caotang/store';
 import type { DocumentWriter } from '@caotang/store';
+import { positionsOf } from '../src/tiptap/ghost.js';
 import { mountInto, focusDom, ghostDom, ghostRegion, selectDom, textNodeWith, tiptapOf } from './tiptap-harness.js';
 
 const PLAIN = '# Title\n\nSome _emphasis_ and **strong** text.\n';
@@ -236,5 +237,57 @@ describe('teardown', () => {
     expect(host.querySelector('.caotang-editor-ghost')).toBeNull();
     expect(() => instance.ghost.append('y')).not.toThrow();
     expect(() => instance.ghost.clear()).not.toThrow();
+  });
+});
+
+describe('note highlights (§8, the draft review)', () => {
+  const marked = (host: HTMLElement): string[] => Array.from(ghostDom(host).querySelectorAll('.caotang-ghost-note')).map((span) => span.textContent ?? '');
+
+  it('positionsOf maps a span of the text to the paragraphs it touches, two positions apart for each paragraph before it', () => {
+    expect(positionsOf('One.\nTwo words.', { from: 0, to: 3 })).toEqual([{ from: 1, to: 4 }]);
+    // "Two words." starts at text offset 5 and at position 7 (the first paragraph is 4 characters and 2 tokens, then the opening token).
+    expect(positionsOf('One.\nTwo words.', { from: 9, to: 14 })).toEqual([{ from: 11, to: 16 }]);
+    expect(positionsOf('One.\nTwo words.', { from: 2, to: 8 })).toEqual([
+      { from: 3, to: 5 },
+      { from: 7, to: 10 },
+    ]);
+    expect(positionsOf('One.\n\nTwo.', { from: 4, to: 6 })).toEqual([]);
+  });
+
+  it('marks the spans it is given as decorations of the ghost, and nothing else changes', async () => {
+    const { host, instance } = await mountInto(PLAIN);
+    instance.ghost.append('The ferry came in.\n\nElena was not on it.');
+    instance.ghost.highlight([
+      { from: 4, to: 9 },
+      { from: 20, to: 40 },
+    ]);
+    expect(marked(host)).toEqual(['ferry', 'Elena was not on it.']);
+    expect(instance.ghost.text()).toBe('The ferry came in.\n\nElena was not on it.');
+    expect(instance.ghost.canApply()).toBe(true);
+    expect(instance.getContent()).toBe(PLAIN);
+  });
+
+  it('replaces the marks it had, ignores a range outside the text, and drops them when the text changes or the ghost clears', async () => {
+    const { host, instance } = await mountInto(PLAIN);
+    instance.ghost.append('One two three.');
+    instance.ghost.highlight([{ from: 0, to: 3 }]);
+    instance.ghost.highlight([{ from: 4, to: 7 }, { from: 90, to: 99 }, { from: 5, to: 5 }, { from: -1, to: 2 }]);
+    expect(marked(host)).toEqual(['two']);
+    instance.ghost.append(' More.');
+    expect(marked(host)).toEqual([]);
+    instance.ghost.highlight([{ from: 0, to: 3 }]);
+    instance.ghost.clear();
+    expect(marked(host)).toEqual([]);
+  });
+
+  it('keeps the marks out of the focus document and out of both undo lanes', async () => {
+    const { host, instance } = await mountInto(PLAIN);
+    const ghostEditor = tiptapOf(ghostDom(host));
+    const meta: Array<boolean | undefined> = [];
+    ghostEditor.on('transaction', ({ transaction }) => meta.push(transaction.getMeta('addToHistory')));
+    instance.ghost.append('One two.');
+    instance.ghost.highlight([{ from: 0, to: 3 }]);
+    expect(meta.every((value) => value === false)).toBe(true);
+    expect(focusDom(host).querySelector('.caotang-ghost-note')).toBeNull();
   });
 });

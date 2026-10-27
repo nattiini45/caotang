@@ -32,16 +32,79 @@
  *
  * ## A failed stream keeps its text and cannot be applied
  *
+ * ## Note highlights
+ *
+ * The draft review (agent-harness §8) marks the spans its notes quote. {@link GhostPreview.highlight} takes character ranges of
+ * {@link GhostPreview.text} and shows them as inline decorations of this instance's own view: the focus document is never decorated,
+ * which is the reason §8 gives for a second instance. A decoration is not content: the text, Apply and the body Apply writes are as
+ * they were, and the next transaction that changes the ghost's text drops the marks.
+ *
  * §8's abort path is {@link GhostPreview.fail}: the partial text stays, an error note says why,
  * Apply is unavailable, and a later append is ignored. The harness calls it when the gateway
  * aborts or errors, so the ghost never shows a stream that has stopped as if it were complete.
  */
-import { Editor } from '@tiptap/core';
+import { Editor, Extension } from '@tiptap/core';
 import type { Node as PmNode } from '@tiptap/pm/model';
-import type { Transaction } from '@tiptap/pm/state';
+import { Plugin, PluginKey, type Transaction } from '@tiptap/pm/state';
+import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { GhostController } from '../seam.js';
 import { markLane } from '../lanes.js';
 import { caotangExtensions } from './extensions.js';
+
+/** A span of {@link GhostPreview.text}, in characters: `from` inclusive, `to` exclusive. */
+export interface GhostRange {
+  readonly from: number;
+  readonly to: number;
+}
+
+/**
+ * The document positions a span of the ghost's text occupies, one range for each paragraph it touches. The ghost is a sequence of
+ * paragraphs, one for each line of the text, so a paragraph that begins at text offset `s` begins at position `start + 1`, where `start`
+ * counts two positions (the paragraph's opening and closing token) for each paragraph before it. An empty line holds no text to mark.
+ * Pure, so the mapping is tested without a view.
+ */
+export const positionsOf = (text: string, range: GhostRange): readonly GhostRange[] => {
+  const out: GhostRange[] = [];
+  let lineStart = 0;
+  let paragraphStart = 0;
+  for (const line of text.split('\n')) {
+    const from = Math.max(range.from, lineStart);
+    const to = Math.min(range.to, lineStart + line.length);
+    if (to > from) out.push({ from: paragraphStart + 1 + (from - lineStart), to: paragraphStart + 1 + (to - lineStart) });
+    lineStart += line.length + 1;
+    paragraphStart += line.length + 2;
+  }
+  return out;
+};
+
+/** The class a marked span carries. */
+export const GHOST_NOTE_CLASS = 'caotang-ghost-note';
+
+const notesKey = new PluginKey<DecorationSet>('caotangGhostNotes');
+
+/**
+ * The ghost's one plugin: a decoration set that is replaced by a transaction carrying `notesKey` meta and emptied by any transaction that
+ * changes the text, so a mark never outlives the words it was placed on.
+ */
+const GhostNotes = Extension.create({
+  name: 'caotangGhostNotes',
+  addProseMirrorPlugins() {
+    return [
+      new Plugin<DecorationSet>({
+        key: notesKey,
+        state: {
+          init: () => DecorationSet.empty,
+          apply: (tr, set) => {
+            const given = tr.getMeta(notesKey) as DecorationSet | undefined;
+            if (given !== undefined) return given;
+            return tr.docChanged ? DecorationSet.empty : set;
+          },
+        },
+        props: { decorations: (state) => notesKey.getState(state) ?? DecorationSet.empty },
+      }),
+    ];
+  },
+});
 
 /** §8's three buttons, as the caller's handlers. Each is optional. */
 export interface GhostCallbacks {
@@ -65,6 +128,11 @@ export interface GhostCallbacks {
 export interface GhostPreview extends GhostController {
   /** The streamed text so far, as the harness appended it. */
   text(): string;
+  /**
+   * Marks spans of {@link text} (the draft review's quotes), replacing the marks there were. A range outside the text is ignored. Marks are
+   * decorations of this instance only; they are dropped when the text changes and by {@link clear}.
+   */
+  highlight(ranges: readonly GhostRange[]): void;
   /** Whether Apply is available: there is streamed text, and the stream has not failed (§8). */
   canApply(): boolean;
   /**
@@ -93,7 +161,7 @@ export interface GhostPreview extends GhostController {
 export const createGhostPreview = (element: HTMLElement, callbacks: GhostCallbacks = {}): GhostPreview => {
   const editor = new Editor({
     element,
-    extensions: caotangExtensions({ role: 'ghost' }),
+    extensions: [...caotangExtensions({ role: 'ghost' }), GhostNotes],
     content: { type: 'doc', content: [{ type: 'paragraph' }] },
     editable: false,
     injectCSS: false,
@@ -175,6 +243,16 @@ export const createGhostPreview = (element: HTMLElement, callbacks: GhostCallbac
     },
 
     text: () => streamed,
+
+    highlight(ranges: readonly GhostRange[]): void {
+      if (destroyed) return;
+      const doc = editor.state.doc;
+      const marks = ranges
+        .filter((range) => Number.isInteger(range.from) && Number.isInteger(range.to) && range.from >= 0 && range.to > range.from && range.to <= streamed.length)
+        .flatMap((range) => positionsOf(streamed, range))
+        .map((span) => Decoration.inline(span.from, span.to, { class: GHOST_NOTE_CLASS }));
+      editor.view.dispatch(markLane(editor.state.tr.setMeta(notesKey, DecorationSet.create(doc, marks)), { historyExcluded: true }));
+    },
 
     canApply,
 
