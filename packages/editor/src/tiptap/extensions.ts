@@ -98,6 +98,9 @@ import Text from '@tiptap/extension-text';
 import { Dropcursor, Gapcursor, Placeholder, UndoRedo } from '@tiptap/extensions';
 import { plainPasteHtml } from './paste.js';
 
+/** The marks a container may carry on its children when the review layer is on (editor-engine §15, the library's README). */
+const REVIEW_BLOCK_MARKS = 'insertion modification deletion';
+
 /** §3.1's list item name. Tiptap's list extensions look it up by option, not by name. */
 const LIST_ITEM = 'list_item';
 
@@ -164,6 +167,11 @@ export interface CaotangExtensionOptions {
   role?: CaotangRole;
   /** The empty-document hint (§10's Placeholder). Focus only. */
   placeholder?: string;
+  /**
+   * Let the containers carry the three review marks as block marks (§15), so a whole inserted or deleted paragraph or list item can be
+   * marked. Only the lazily loaded review layer (`suggestions.ts`) passes it, together with the marks it adds.
+   */
+  reviewMarks?: boolean;
 }
 
 /**
@@ -172,24 +180,26 @@ export interface CaotangExtensionOptions {
  */
 export const caotangExtensions = (options: CaotangExtensionOptions = {}): Extensions => {
   const role: CaotangRole = options.role ?? 'focus';
+  const blockMarks = options.reviewMarks === true ? { marks: REVIEW_BLOCK_MARKS } : {};
   // The schema-shaping half. Its order is the mark rank: `Italic` precedes `Bold`
   // and `Strike` precedes `Code`, because the list is what the stable priority sort
   // keeps. Changing this order changes which way nested marks save.
   const shape: Extensions = [
-    Document,
+    Document.extend(blockMarks),
     Paragraph,
     Text,
     Heading,
-    Blockquote,
-    BulletList.extend({ name: 'bullet_list', defining: true }).configure({ itemTypeName: LIST_ITEM }),
+    Blockquote.extend(blockMarks),
+    BulletList.extend({ name: 'bullet_list', defining: true, ...blockMarks }).configure({ itemTypeName: LIST_ITEM }),
     OrderedList.extend({
       name: 'ordered_list',
       defining: true,
+      ...blockMarks,
       addAttributes() {
         return { start: { default: 1 } };
       },
     }).configure({ itemTypeName: LIST_ITEM }),
-    ListItem.extend({ name: LIST_ITEM, group: 'listitem', content: 'block+', defining: false }),
+    ListItem.extend({ name: LIST_ITEM, group: 'listitem', content: 'block+', defining: false, ...blockMarks }),
     HorizontalRule.extend({ name: 'horizontal_rule' }),
     CodeBlock.extend({ name: 'code_block' }),
     HardBreak.extend({ name: 'hard_break' }),

@@ -149,8 +149,8 @@ export interface EditorMountOptions {
   docId: string;
   /** Body projection MD ([project-format.md](project-format.md) §3). */
   initialBody: string;
-  /** Agent-driven preview states, future apply-then-review. Carried by the seam;
-   *  `editable` is the **adapter's** to enforce, so no implementation here does. */
+  /** Read-only mounts, for previews. Carried by the seam; `editable` is the **adapter's** to enforce, so no implementation here does.
+   *  Apply-then-review (§15) is not read-only: the marks sit in an editable document, and the writer resolves them. */
   readOnly?: boolean;
   /** Content changed (autosave + revision pipeline, §9). */
   onChange?: () => void;
@@ -196,6 +196,75 @@ export interface EditorInstance {
   wordCount(): { words: number; chars: number };
   focus(): void;
   destroy(): void;
+}
+
+/** §15: where an approved agent edit came from, so the editor can group its marks and the store can be re-seated. */
+export interface AgentEditInfo {
+  /** The tool call that made the edit. Kept in the editor's own map; it is never part of a mark. */
+  toolCallId: string;
+  /** The revision the store holds for the edit's body. */
+  revision: number;
+}
+
+/**
+ * §15: how `showAgentEdit` landed an edit. `suggestions` means the marks are on screen; `replaced` means the text was swapped in
+ * as `setContent` does, with `reason` saying why (`off` when the editor was not mounted in review mode, so no notice is owed).
+ */
+export type AgentEditOutcome =
+  | { landed: 'suggestions'; suggestions: number }
+  | { landed: 'replaced'; reason: 'off' | 'unsaved' | 'diff' | 'mismatch' | 'superseded' };
+
+/** One pending suggestion, as the review bar and the agent panel show it. */
+export interface ReviewSuggestion {
+  id: string;
+  /** The tool call of the turn that made it, or `null` once the editor has forgotten the turn. */
+  toolCallId: string | null;
+  kind: 'insert' | 'delete' | 'replace';
+  /** The words added and the words removed, shortened. */
+  added: string;
+  removed: string;
+}
+
+/** What the review bar reads. A new object whenever anything in it changed. */
+export interface ReviewState {
+  /** Pending suggestions in the document. */
+  pending: number;
+  /** The pending suggestions of each tool call, oldest first. */
+  byToolCall: ReadonlyArray<{ toolCallId: string; pending: number }>;
+  /** The suggestion at the caret or selection, or `null`. */
+  current: ReviewSuggestion | null;
+  /** 1-based place of `current` among the pending, or 0. */
+  position: number;
+}
+
+/**
+ * §15's resolution calls. Each is Lane 1 (undoable with Ctrl+Z) and returns how many suggestions it resolved. Accepting writes
+ * nothing, because the store already holds the accepted text; rejecting changes the body, so autosave stores it as the writer's edit.
+ */
+export interface ReviewApi {
+  state(): ReviewState;
+  subscribe(listener: () => void): () => void;
+  /** The suggestion at the caret or selection. */
+  accept(): number;
+  reject(): number;
+  acceptToolCall(toolCallId: string): number;
+  rejectToolCall(toolCallId: string): number;
+  acceptAll(): number;
+  rejectAll(): number;
+  /** Moves the selection to the next or previous pending suggestion, wrapping round. */
+  next(): boolean;
+  previous(): boolean;
+}
+
+/** §15's widening of the instance: an agent edit shown as marks, and the calls that resolve them. */
+export interface ReviewableEditorInstance extends EditorInstance {
+  /**
+   * Shows `nextBody`, which the store already holds, as suggestion marks over the text on screen, grouped as one turn. Falls back to
+   * `setContent` (and says so in the outcome) when the editor is not in review mode, holds unsaved edits, or the marks would not
+   * project back to `nextBody` exactly.
+   */
+  showAgentEdit(nextBody: string, info: AgentEditInfo): Promise<AgentEditOutcome>;
+  readonly review: ReviewApi;
 }
 
 export interface EditorApi {

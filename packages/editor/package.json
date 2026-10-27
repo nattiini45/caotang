@@ -12,6 +12,7 @@
     "./tiptap": "./src/tiptap/index.ts"
   },
   "dependencies": {
+    "@handlewithcare/prosemirror-suggest-changes": "0.1.8",
     "@handlewithcare/remark-prosemirror": "0.1.5",
     "@caotang/store": "workspace:*",
     "@tiptap/core": "3.31.4",

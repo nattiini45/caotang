@@ -58,6 +58,7 @@
  */
 import { Editor } from '@tiptap/core';
 import type { Node as PmNode } from '@tiptap/pm/model';
+import type { Mapping } from '@tiptap/pm/transform';
 import { EditorState, Selection, TextSelection } from '@tiptap/pm/state';
 import type { Transaction } from '@tiptap/pm/state';
 import type { Autosave, AutosaveState, AutosaveStatus, FlushReport } from '@caotang/store';
@@ -75,13 +76,18 @@ import {
   textPositionFor,
 } from '../seam.js';
 import type {
+  AgentEditInfo,
+  AgentEditOutcome,
   EditorApi,
-  EditorInstance,
   EditorMountOptions,
   EditorSelection,
   LoadDiagnostics,
   LossWarningGroup,
   ProjectionMap,
+  ReviewApi,
+  ReviewableEditorInstance,
+  ReviewState,
+  ReviewSuggestion,
   TextAnchor,
 } from '../seam.js';
 import { caotangExtensions } from './extensions.js';
@@ -97,6 +103,7 @@ import {
   schemaSignature,
 } from './history-journal.js';
 import type { HistoryJournal, HistoryPort } from './history-journal.js';
+import type { SuggestionLayer, SuggestionSpan } from './suggestions.js';
 import { insertedSpans, reachesScope, replacedSpans, shrinkSpan, unionSpan } from './undo-scope.js';
 import type { Span } from './undo-scope.js';
 
@@ -128,6 +135,13 @@ export interface TiptapMountOptions extends EditorMountOptions {
   history?: HistoryPort;
   /** §10's empty-document hint. */
   placeholder?: string;
+  /**
+   * §15: where an approved agent edit lands. `ghost` (the default) replaces the text, as `setContent` does. `suggestions` loads the
+   * review layer when the editor mounts, and `showAgentEdit` then shows the edit as marks. A change takes effect on the next mount.
+   */
+  agentEditMode?: 'ghost' | 'suggestions';
+  /** How the review layer is fetched. Absent, it is the dynamic import above; a test passes its own to stand in for the layer. */
+  loadReviewLayer?: () => Promise<SuggestionLayer>;
   /** Default `true`, which is Tiptap's own default. Pass `false` if the app owns the stylesheet. */
   injectCSS?: boolean;
   /**
@@ -254,7 +268,7 @@ export class UnsavedEditsError extends Error {
  * The seam's instance, widened by what the app needs from a live editor. The seam's
  * members are unchanged, so a function that takes an `EditorInstance` takes this too.
  */
-export interface TiptapEditorInstance extends EditorInstance {
+export interface TiptapEditorInstance extends ReviewableEditorInstance {
   readonly ghost: GhostPreview;
   /** The load's diagnostics, grouped. Updated by every `setContent`. */
   loadResult(): LoadResult;
@@ -310,6 +324,9 @@ export interface TiptapEditorInstance extends EditorInstance {
 export interface TiptapEditorApi extends EditorApi {
   mount(host: HTMLElement, opts: TiptapMountOptions): Promise<TiptapEditorInstance>;
 }
+
+/** The meta an accept carries, so the update it causes is not mistaken for the writer's edit. */
+const REVIEW_ACCEPT = 'caotangReviewAccept';
 
 const assertElement = (host: unknown): HTMLElement => {
   if (host === null || typeof host !== 'object' || (host as { nodeType?: unknown }).nodeType !== 1) {
@@ -421,7 +438,13 @@ export const createTiptapEditorApi = (): TiptapEditorApi => ({
       journal !== undefined && journal.version === HISTORY_JOURNAL_VERSION && journal.entries.length > 0
         ? await parseWithDiagnostics(journal.baseBody).catch(() => null)
         : null;
-    return createInstance(element, opts, loaded, seed, historyBase);
+    // §15: the review layer is a separate chunk, fetched only by an editor that asks for it. A chunk that cannot load leaves the
+    // editor in ghost mode, where `showAgentEdit` replaces the text.
+    const layer =
+      opts.agentEditMode === 'suggestions'
+        ? await (opts.loadReviewLayer ?? (() => import('./suggestions.js').then((module) => module.loadSuggestionLayer())))().catch(() => null)
+        : null;
+    return createInstance(element, opts, loaded, seed, historyBase, layer);
   },
 });
 
@@ -431,6 +454,7 @@ const createInstance = (
   loaded: ParseResult,
   seed: MountSeed,
   historyBase: ParseResult | null,
+  layer: SuggestionLayer | null,
 ): TiptapEditorInstance => {
   const doc = host.ownerDocument;
   const docId = opts.docId;
@@ -469,7 +493,10 @@ const createInstance = (
 
   const editor = new Editor({
     element: focusEl,
-    extensions: caotangExtensions({ role: 'focus', placeholder: opts.placeholder }),
+    extensions:
+      layer === null
+        ? caotangExtensions({ role: 'focus', placeholder: opts.placeholder })
+        : layer.extensions({ role: 'focus', placeholder: opts.placeholder }),
     content: loaded.doc.toJSON(),
     editable: opts.readOnly !== true,
     injectCSS: opts.injectCSS ?? true,
@@ -484,7 +511,9 @@ const createInstance = (
   ring.reset(editor.state.doc);
   /** The state before the transaction being handled, which tells an undo from a redo. */
   let lastState = editor.state;
-  const serializeDoc = (node: PmNode): string => serialize(caotangSchema.nodeFromJSON(node.toJSON()));
+  /** The document without review marks: the journal keeps the accepted text, never a mark (§15). */
+  const plainOf = (node: PmNode): PmNode => layer?.project(node)?.doc ?? node;
+  const serializeDoc = (node: PmNode): string => serialize(caotangSchema.nodeFromJSON(plainOf(node).toJSON()));
   const readJournal = (): HistoryJournal | null => ring.snapshot(serializeDoc, liveSchema);
   /** Tells the app the ring changed. Cheap by contract: the app reads the journal when it writes. */
   const announceHistory = (): void => opts.history?.onChange(readJournal);
@@ -492,8 +521,10 @@ const createInstance = (
   // --- Derived state, per document state (decisions 1 and 2) ---------------------
   interface Snapshot {
     readonly doc: PmNode;
-    /** The document on `caotangSchema`, which is what serialization and the map read. */
+    /** The document on `caotangSchema`, which is what serialization and the map read. With review marks it is the accepted text (§15). */
     readonly copy: PmNode;
+    /** Live positions to the positions of `copy`, or `null` while the document holds no review marks. */
+    readonly mapping: Mapping | null;
     text: string | null;
     map: ProjectionMap | null;
   }
@@ -501,7 +532,14 @@ const createInstance = (
   const current = (): Snapshot => {
     const live = editor.state.doc;
     if (snapshot === null || snapshot.doc !== live) {
-      snapshot = { doc: live, copy: caotangSchema.nodeFromJSON(live.toJSON()), text: null, map: null };
+      const projected = layer?.project(live) ?? null;
+      snapshot = {
+        doc: live,
+        copy: caotangSchema.nodeFromJSON((projected?.doc ?? live).toJSON()),
+        mapping: projected?.mapping ?? null,
+        text: null,
+        map: null,
+      };
     }
     return snapshot;
   };
@@ -513,6 +551,10 @@ const createInstance = (
     if (shot.text === null) shot.text = serialize(shot.copy);
     return shot.text;
   };
+
+  /** A live position as the position the body projection reads, and back. They differ only while review marks are on screen. */
+  const toProjected = (pos: number, assoc: -1 | 1 = 1): number => current().mapping?.map(pos, assoc) ?? pos;
+  const toLive = (pos: number, assoc: -1 | 1 = 1): number => current().mapping?.invert().map(pos, assoc) ?? pos;
 
   /** The projection map, for the members that take or return offsets. Built at most once per document state. */
   const projection = (): ProjectionMap => {
@@ -545,8 +587,8 @@ const createInstance = (
     const map = projection();
     // The end takes the earlier run at a markup boundary, so the range stops before the markup
     // that closes the run it selected (seam.ts, PmAssoc).
-    const from = bodyOffsetFromPmPos(map, selection.from, 'start');
-    const to = bodyOffsetFromPmPos(map, selection.to, 'end');
+    const from = bodyOffsetFromPmPos(map, toProjected(selection.from, 1), 'start');
+    const to = bodyOffsetFromPmPos(map, toProjected(selection.to, -1), 'end');
     return from === to ? null : { from, to };
   };
 
@@ -658,9 +700,12 @@ const createInstance = (
     const to = textPositionFor(map, sel.to);
     if (from === null || to === null) return;
     const live = editor.state.doc;
-    const [start, end] = from <= to ? [from, to] : [to, from];
-    const at = textPosition(live, start);
-    const until = textPosition(live, end);
+    const [low, high] = from <= to ? [from, to] : [to, from];
+    // The offsets name text of the body projection; while review marks are on screen the range is found in the live document.
+    const start = toLive(low, 1);
+    const end = toLive(high, -1);
+    const at = textPosition(live, Math.min(start, end));
+    const until = textPosition(live, Math.max(start, end));
     const tr = editor.state.tr;
     if (text.length === 0) {
       dispatch(tr.delete(at, until), laneOpts);
@@ -723,7 +768,8 @@ const createInstance = (
     if (destroyed) return;
     // Lane 2 is an agent apply or a restore. The store already holds it, so it is not
     // a user edit and schedules nothing. Everything else is the user's, undo included.
-    if (transaction.getMeta('addToHistory') !== false) noteUserEdit();
+    // An accept removes marks and changes no text the store holds (§15), so it is not an edit to save.
+    if (transaction.getMeta('addToHistory') !== false && transaction.getMeta(REVIEW_ACCEPT) !== true) noteUserEdit();
     opts.onChange?.();
   });
   editor.on('selectionUpdate', announce);
@@ -767,6 +813,191 @@ const createInstance = (
 
   let loadSeq = 0;
 
+  /** Puts a parsed body in the place of the whole document: `setContent`'s last step, and the fallback of `showAgentEdit`. */
+  const landReplacement = (next: ParseResult, setOpts?: SetContentOptions): void => {
+    const replacement = editor.schema.nodeFromJSON(next.doc.toJSON());
+    const tr = markLane(editor.state.tr.replaceWith(0, editor.state.doc.content.size, replacement.content), setOpts);
+    // The replacement puts the store's body in the editor, so the user's unsaved edits, if
+    // any were discarded, are no longer unsaved. Cleared before the commit, because a user
+    // replacement is itself an edit and the update event must be the one that sets the flag.
+    if (laneOf(setOpts) === 'agent') setLocallyEdited(false);
+    commit(tr);
+    load = { warnings: next.warnings, dialect: next.dialect };
+    opts.onLoadDiagnostics?.(load);
+    announce();
+  };
+
+  // --- §15: the review marks and the calls that resolve them --------------------------
+  /** The turns this editor has shown, by their local number. A mark's id holds the number and never the tool call. */
+  let turnCount = 0;
+  const turnTools = new Map<number, string>();
+  const reviewListeners = new Set<() => void>();
+  const emptyReview: ReviewState = { pending: 0, byToolCall: [], current: null, position: 0 };
+  let review: ReviewState = emptyReview;
+  let spansFor: { readonly doc: PmNode; readonly spans: SuggestionSpan[] } | null = null;
+  const pendingSpans = (): SuggestionSpan[] => {
+    if (layer === null || destroyed) return [];
+    const live = editor.state.doc;
+    if (spansFor === null || spansFor.doc !== live) spansFor = { doc: live, spans: layer.spans(live) };
+    return spansFor.spans;
+  };
+  const suggestionOf = (span: SuggestionSpan): ReviewSuggestion => ({
+    id: span.id,
+    toolCallId: turnTools.get(span.turn) ?? null,
+    kind: span.kind,
+    added: span.added,
+    removed: span.removed,
+  });
+  const readReview = (): ReviewState => {
+    const spans = pendingSpans();
+    if (layer === null || spans.length === 0) return emptyReview;
+    const { from, to } = editor.state.selection;
+    const here = new Set(layer.idsAt(editor.state.doc, from, to));
+    const at = spans.findIndex((span) => here.has(span.id));
+    const counts = new Map<number, number>();
+    for (const span of spans) counts.set(span.turn, (counts.get(span.turn) ?? 0) + 1);
+    return {
+      pending: spans.length,
+      byToolCall: [...counts.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .flatMap(([turn, pending]) => {
+          const toolCallId = turnTools.get(turn);
+          return toolCallId === undefined ? [] : [{ toolCallId, pending }];
+        }),
+      current: at < 0 ? null : suggestionOf(spans[at] as SuggestionSpan),
+      position: at + 1,
+    };
+  };
+  const sameReview = (a: ReviewState, b: ReviewState): boolean =>
+    a.pending === b.pending &&
+    a.position === b.position &&
+    a.current?.id === b.current?.id &&
+    a.byToolCall.length === b.byToolCall.length &&
+    a.byToolCall.every((entry, index) => entry.toolCallId === b.byToolCall[index]?.toolCallId && entry.pending === b.byToolCall[index]?.pending);
+  /** Tells the subscribers when the marks or the caret's place among them changed. Nothing is computed while no one listens. */
+  const notifyReview = (): void => {
+    if (destroyed || reviewListeners.size === 0) return;
+    const next = readReview();
+    if (sameReview(review, next)) return;
+    review = next;
+    for (const listener of [...reviewListeners]) listener();
+  };
+  editor.on('transaction', notifyReview);
+
+  /** Accepts or rejects suggestions in one Lane 1 transaction, so one Ctrl+Z puts them back. */
+  const resolveIds = (ids: readonly string[], mode: 'accept' | 'reject'): number => {
+    if (layer === null || destroyed || ids.length === 0) return 0;
+    const tr = layer.resolve(editor.state, ids, mode);
+    if (tr === null) return 0;
+    if (mode === 'accept') tr.setMeta(REVIEW_ACCEPT, true);
+    commit(tr);
+    return ids.length;
+  };
+  const currentId = (): string[] => {
+    const here = readReview().current;
+    return here === null ? [] : [here.id];
+  };
+  const idsOfToolCall = (toolCallId: string): string[] => {
+    const turns = new Set([...turnTools.entries()].filter(([, call]) => call === toolCallId).map(([turn]) => turn));
+    return pendingSpans()
+      .filter((span) => turns.has(span.turn))
+      .map((span) => span.id);
+  };
+  const resolveAll = (mode: 'accept' | 'reject'): number => {
+    if (layer === null || destroyed) return 0;
+    const count = pendingSpans().length;
+    const tr = layer.resolveAll(editor.state, mode);
+    if (tr === null) return 0;
+    if (mode === 'accept') tr.setMeta(REVIEW_ACCEPT, true);
+    commit(tr);
+    return count;
+  };
+  const moveTo = (direction: 1 | -1): boolean => {
+    const spans = pendingSpans();
+    if (layer === null || spans.length === 0) return false;
+    const here = readReview().current;
+    const hereSpan = here === null ? undefined : spans.find((span) => span.id === here.id);
+    const from = hereSpan === undefined ? editor.state.selection.from : hereSpan.from;
+    const ahead =
+      direction === 1
+        ? spans.filter((span) => (hereSpan === undefined ? span.from >= from : span.from > from))
+        : spans.filter((span) => span.from < from).reverse();
+    const target = ahead[0] ?? (direction === 1 ? spans[0] : spans[spans.length - 1]);
+    if (target === undefined) return false;
+    commit(layer.select(editor.state, target));
+    return true;
+  };
+  const reviewApi: ReviewApi = {
+    state: () => (reviewListeners.size === 0 ? readReview() : review),
+    subscribe: (listener) => {
+      review = readReview();
+      reviewListeners.add(listener);
+      return () => {
+        reviewListeners.delete(listener);
+      };
+    },
+    accept: () => resolveIds(currentId(), 'accept'),
+    reject: () => resolveIds(currentId(), 'reject'),
+    acceptToolCall: (toolCallId) => resolveIds(idsOfToolCall(toolCallId), 'accept'),
+    rejectToolCall: (toolCallId) => resolveIds(idsOfToolCall(toolCallId), 'reject'),
+    acceptAll: () => resolveAll('accept'),
+    rejectAll: () => resolveAll('reject'),
+    next: () => moveTo(1),
+    previous: () => moveTo(-1),
+  };
+
+  /**
+   * §15's entry path. The store already holds `text`, so this only shows the difference. It falls back to `setContent` whenever
+   * the marks could be wrong: the projection of the marked document must serialize to exactly the body the store holds.
+   */
+  const showAgentEdit = async (text: string, info: AgentEditInfo): Promise<AgentEditOutcome> => {
+    const replaceOpts: SetContentOptions = { historyExcluded: true, discardUnsaved: true, revision: info.revision };
+    if (layer === null) {
+      await instance.setContent(text, replaceOpts);
+      return { landed: 'replaced', reason: 'off' };
+    }
+    if (unsaved()) {
+      await instance.setContent(text, replaceOpts);
+      return { landed: 'replaced', reason: 'unsaved' };
+    }
+    const seq = (loadSeq += 1);
+    const next = await parseWithDiagnostics(text);
+    if (destroyed || seq !== loadSeq) return { landed: 'replaced', reason: 'superseded' };
+    if (autosave !== undefined) {
+      await autosave.reseat(docId, { body: serialize(next.doc), revision: info.revision });
+      if (destroyed || seq !== loadSeq) return { landed: 'replaced', reason: 'superseded' };
+    }
+    const fallback = (reason: 'diff' | 'mismatch'): AgentEditOutcome => {
+      landReplacement(next, { historyExcluded: true });
+      return { landed: 'replaced', reason };
+    };
+    // Earlier marks are accepted first. That changes nothing the store holds, and the new diff is made against the text on screen.
+    if (layer.hasMarks(editor.state.doc)) {
+      const earlier = layer.resolveAll(editor.state, 'accept');
+      if (earlier !== null) commit(markLane(earlier, { historyExcluded: true }));
+    }
+    turnCount += 1;
+    const turn = turnCount;
+    let counter = 0;
+    const tracked = layer.trackAgentEdit(
+      editor.state,
+      editor.schema.nodeFromJSON(next.doc.toJSON()),
+      () => `${turn}.${(counter += 1)}`,
+      (tr) => {
+        markLane(tr, { historyExcluded: true });
+      },
+    );
+    if (tracked === null) return fallback('diff');
+    const accepted = layer.project(tracked.doc)?.doc ?? tracked.doc;
+    if (serialize(caotangSchema.nodeFromJSON(accepted.toJSON())) !== serialize(next.doc)) return fallback('mismatch');
+    turnTools.set(turn, info.toolCallId);
+    if (tracked.docChanged) commit(tracked);
+    load = { warnings: next.warnings, dialect: next.dialect };
+    opts.onLoadDiagnostics?.(load);
+    announce();
+    return { landed: 'suggestions', suggestions: pendingSpans().length };
+  };
+
   const instance: TiptapEditorInstance = {
     getContent: () => body(),
 
@@ -798,20 +1029,12 @@ const createInstance = (
         // A later load, or a teardown, that began during the wait supersedes this one.
         if (destroyed || seq !== loadSeq) return;
       }
-      const replacement = editor.schema.nodeFromJSON(next.doc.toJSON());
-      const tr = markLane(
-        editor.state.tr.replaceWith(0, editor.state.doc.content.size, replacement.content),
-        setOpts,
-      );
-      // The replacement puts the store's body in the editor, so the user's unsaved edits, if
-      // any were discarded, are no longer unsaved. Cleared before the commit, because a user
-      // replacement is itself an edit and the update event must be the one that sets the flag.
-      if (agent) setLocallyEdited(false);
-      commit(tr);
-      load = { warnings: next.warnings, dialect: next.dialect };
-      opts.onLoadDiagnostics?.(load);
-      announce();
+      landReplacement(next, setOpts);
     },
+
+    showAgentEdit,
+
+    review: reviewApi,
 
     getSelection,
 
@@ -846,7 +1069,7 @@ const createInstance = (
       const to = textPositionFor(map, sel.to);
       if (from === null || to === null) return;
       const live = editor.state.doc;
-      const [anchor, head] = from <= to ? [from, to] : [to, from];
+      const [anchor, head] = from <= to ? [toLive(from, 1), toLive(to, -1)] : [toLive(to, 1), toLive(from, -1)];
       dispatch(
         editor.state.tr
           .setSelection(TextSelection.create(live, textPosition(live, anchor), textPosition(live, head)))
@@ -857,7 +1080,7 @@ const createInstance = (
     insertAtSelection: (text: string, laneOpts?: LaneOptions): void => {
       if (destroyed) return;
       // The caret, or the end of a selection: a primitive inserts, it does not replace.
-      const at = bodyOffsetFromPmPos(projection(), editor.state.selection.to);
+      const at = bodyOffsetFromPmPos(projection(), toProjected(editor.state.selection.to));
       replaceAt({ from: at, to: at }, text, laneOpts);
     },
 
