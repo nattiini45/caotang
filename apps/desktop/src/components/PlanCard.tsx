@@ -10,6 +10,9 @@
  * approved. A drafted scene is approved only once its
  * draft has been on screen in its scene (agent-harness §8); a draft that is not on screen now is written out in its step. The
  * prompt behind each step is one click away (context-assembly §5).
+ *
+ * A card also says what the writer should check (issue #54): that the turn read text from outside before it, what an external step would
+ * send of the project, and what the scan found in its arguments. A step that quotes the project needs a second click on Approve.
  */
 
 import { useState, type ReactNode } from 'react';
@@ -71,6 +74,16 @@ export function PlanCard({ card, live, drafts, project, pictureNames, onDecide, 
   const approvable = live && card.approvable && held === null;
   // A refused step is why Approve is off, and its reason is the preflight's own words (plan-preview.ts `refusalReasonOf`).
   const refused = refusalReasonOf(card.steps);
+  const caution = card.caution;
+  // A step that sends project text out asks twice: the first click arms the button for this showing of the card, the second approves.
+  const showing = `${card.id}:${card.revision}`;
+  const [armedFor, setArmedFor] = useState<string | null>(null);
+  const needsSecond = live && caution?.requiresSecondClick === true;
+  const armed = armedFor === showing;
+  const approve = (): void => {
+    if (needsSecond && !armed) setArmedFor(showing);
+    else onDecide({ action: 'approve' });
+  };
   // The window check and the estimate are the prompt's own (context-assembly §5, §7), read from each step's preview.
   const windowWarnings = card.steps.flatMap((step) => {
     const warning = step.context?.window?.warning;
@@ -101,6 +114,7 @@ export function PlanCard({ card, live, drafts, project, pictureNames, onDecide, 
         ))}
       </ol>
 
+      {caution === undefined ? null : <CautionNotes caution={caution} />}
       {card.notice !== undefined ? (
         <p className="plan-notice" role="status">
           {card.notice}
@@ -120,8 +134,8 @@ export function PlanCard({ card, live, drafts, project, pictureNames, onDecide, 
 
       {/* A card the mode approved has nothing left to decide. */}
       <div className="plan-actions" hidden={auto}>
-        <button type="button" className="button is-primary" disabled={!approvable} onClick={() => onDecide({ action: 'approve' })}>
-          {card.kind === 'confirm' ? 'Approve' : 'Approve plan'}
+        <button type="button" className="button is-primary" disabled={!approvable} onClick={approve}>
+          {needsSecond && armed ? 'Click again to send this text' : card.kind === 'confirm' ? 'Approve' : 'Approve plan'}
         </button>
         {!approvable && refused !== undefined ? (
           <p className="plan-notice is-warn plan-approve-reason" role="status">
@@ -148,6 +162,34 @@ export function PlanCard({ card, live, drafts, project, pictureNames, onDecide, 
         </button>
       </div>
     </section>
+  );
+}
+
+/** The card's words about the turn and its external steps (issue #54). Information only: nothing here stops a step. */
+function CautionNotes({ caution }: { caution: NonNullable<PlanCardView['caution']> }): ReactNode {
+  return (
+    <div className="plan-caution" data-testid="plan-caution">
+      {caution.lead === undefined ? null : (
+        <p className="plan-notice is-warn" role="status" data-testid="plan-caution-lead">
+          {caution.lead}
+        </p>
+      )}
+      {caution.followsUntrusted.length === 0 ? null : (
+        <p className="plan-notice is-warn" role="status" data-testid="plan-caution-taint">
+          This comes after the agent read text from {caution.followsUntrusted.join(', ')}. Check that it is what you asked for.
+        </p>
+      )}
+      {caution.quotes.map((quote) => (
+        <p key={`${quote.nodeId}:${quote.argPath}:${quote.step ?? 0}`} className="plan-notice is-warn" role="status" data-testid="plan-caution-quote">
+          {quote.step === undefined ? 'The call' : `Step ${quote.step}`} sends {quote.words} words in a row from “{quote.title}” ({quote.argPath}). Approve asks twice.
+        </p>
+      ))}
+      {caution.hits.length === 0 ? null : (
+        <p className="plan-notice is-warn" role="status" data-testid="plan-caution-hits">
+          Text in a step reads like instructions to an AI: {caution.hits.map((hit) => `“${hit.excerpt}”`).join(', ')}
+        </p>
+      )}
+    </div>
   );
 }
 

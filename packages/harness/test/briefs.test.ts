@@ -191,6 +191,13 @@ describe('the registry column', () => {
   });
 });
 
+/**
+ * The messages with the envelope ids made one. A turn's envelopes carry its own id, and a brief's the fixed one (a host's prompt has no
+ * turn); every other byte is the same.
+ */
+const sameBytes = (messages: readonly { readonly role: string; readonly content: string }[]) =>
+  messages.map(({ role, content }) => ({ role, content: content.split(/ id="[0-9A-F]{12}"/).join(' id="N"') }));
+
 describe('a brief is what the in-app tool sends its model', () => {
   /** The messages the agent loop sent the mock provider for one planned step, and the state it drafted from. */
   async function inApp(step: { tool: string; params: Record<string, unknown> }, marker: string) {
@@ -224,8 +231,8 @@ describe('a brief is what the in-app tool sends its model', () => {
     const sent = await inApp({ tool: 'scene.draft', params }, marker);
     const { harness } = hostOf(project());
     const data = briefOf(brief(harness, 'scene.brief', params).data);
-    expect(data.messages).toEqual(sent);
-    expect(data.messages[0]?.content).toBe(sceneRole(params['target_words'] as number | undefined, undefined, (params['mode'] ?? 'draft') as 'draft'));
+    expect(sameBytes(data.messages)).toEqual(sameBytes(sent));
+    expect(data.messages[0]?.content.startsWith(sceneRole(params['target_words'] as number | undefined, undefined, (params['mode'] ?? 'draft') as 'draft'))).toBe(true);
   });
 
   it('scene.brief, rewrite_selection: the selection is quoted as the loop quotes it', async () => {
@@ -234,7 +241,7 @@ describe('a brief is what the in-app tool sends its model', () => {
     const sent = await inApp({ tool: 'scene.draft', params }, 'Make it a boat.');
     const { harness } = hostOf(project());
     const data = briefOf(brief(harness, 'scene.brief', params).data);
-    expect(data.messages).toEqual(sent);
+    expect(sameBytes(data.messages)).toEqual(sameBytes(sent));
     expect(data.applyWith).toEqual({ doc: LANDING, mode: 'rewrite_selection', selection, briefId: data.briefId });
   });
 
@@ -243,8 +250,8 @@ describe('a brief is what the in-app tool sends its model', () => {
     const sent = await inApp({ tool: 'dialogue.draft', params }, 'A thank-you.');
     const { harness } = hostOf(project());
     const data = briefOf(brief(harness, 'dialogue.brief', params).data);
-    expect(data.messages).toEqual(sent);
-    expect(data.messages[0]?.content).toBe(dialogueRole(4));
+    expect(sameBytes(data.messages)).toEqual(sameBytes(sent));
+    expect(data.messages[0]?.content.startsWith(dialogueRole(4))).toBe(true);
   });
 
   it('carries CAOTANG.md and the codex as the in-app assembly does, names itself project data, and says what it dropped', () => {
@@ -263,7 +270,7 @@ describe('a brief is what the in-app tool sends its model', () => {
     addDocument(state, { id: 'n_SCRN000001', parentId: 'manuscript', title: 'Harbour', kind: 'screenplay', body: 'INT. HARBOUR - NIGHT\n\nELENA waits.\n', now: OPENED });
     const { harness } = hostOf(state);
     const data = briefOf(brief(harness, 'scene.brief', { doc: 'Harbour', instruction: 'More.', mode: 'continue' }).data);
-    expect(data.messages[0]?.content).toBe(sceneRole(undefined, 'screenplay', 'continue'));
+    expect(data.messages[0]?.content.startsWith(sceneRole(undefined, 'screenplay', 'continue'))).toBe(true);
     expect(data.messages[0]?.content).toContain('Fountain');
   });
 });

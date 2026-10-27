@@ -5,6 +5,10 @@
  * labelled as the writer's. Both are plain files in the project (store `agent-files.ts`). The layer carries no date and no `modified`
  * value, so the same files give the same bytes on any day.
  *
+ * Each file's lines sit in an untrusted envelope (`untrusted.ts`): the files are not what the writer typed this turn, and a memory note was written
+ * by an earlier turn. The envelope tells the model where the text came from, shows hidden characters, and defuses any marker the text carries.
+ * It does not take the files' authority away: they still guide style and process (`UNTRUSTED_RULE`).
+ *
  * It is never cut silently. Over its cap it sends whole lines up to the cap, and it says so three times: a drop record per file, a
  * layer note, and the sentence both use ("CAOTANG.md is 3,240 tokens; the first 1,500 were sent"). It is not in the total-budget
  * pass's order, so a writer's rules do not vanish because a codex grew. A project with neither file has no such layer.
@@ -13,6 +17,7 @@
 import { dropRecord, describeDrop } from '../drops.js';
 import { charsFor, estimateTokens, tokensForChars } from '../tokens.js';
 import type { AppSnapshot, DropReason, DropRecord, LayerItemReport } from '../types.js';
+import { STATIC_NONCE, closingOf, neutralise, openingOf } from '../untrusted.js';
 
 export interface InstructionsLayer {
   readonly text: string;
@@ -95,9 +100,12 @@ export function instructionsLayer(app: AppSnapshot, budgetTokens: number): Instr
   const sources = sourcesOf(app);
   if (sources.length === 0) return undefined;
   const limit = charsFor(budgetTokens);
+  const nonce = app.nonce ?? STATIC_NONCE;
+  const close = closingOf(nonce);
   const out: string[] = [HEADING, INTRO];
   let used = HEADING.length + 1 + INTRO.length;
-  const fits = (line: string): boolean => used + 1 + line.length <= limit;
+  // The closing marker is part of what a line has to leave room for, so an envelope is never left open.
+  const fits = (line: string): boolean => used + 1 + line.length + 1 + close.length <= limit;
   const push = (line: string): void => {
     out.push(line);
     used += 1 + line.length;
@@ -110,16 +118,23 @@ export function instructionsLayer(app: AppSnapshot, budgetTokens: number): Instr
     const total = estimateTokens(source.lines.join('\n'));
     const sent: string[] = [];
     // A file's heading and intro go with its first line: a heading with nothing under it is not sent.
-    const preface = [...(out.length > 0 ? [''] : []), source.heading, ...(source.intro === undefined ? [] : [source.intro])];
+    const preface = [
+      ...(out.length > 0 ? [''] : []),
+      source.heading,
+      ...(source.intro === undefined ? [] : [source.intro]),
+      openingOf({ kind: 'project-file', file: source.file }, nonce),
+    ];
     const cost = preface.reduce((sum, line) => sum + 1 + line.length, 0);
-    const first = source.lines[0] as string;
-    if (used + cost + 1 + first.length <= limit) {
+    const lines = source.lines.map(neutralise);
+    const first = lines[0] as string;
+    if (used + cost + 1 + first.length + 1 + close.length <= limit) {
       for (const line of preface) push(line);
-      for (const line of source.lines) {
+      for (const line of lines) {
         if (!fits(line)) break;
         push(line);
         sent.push(line);
       }
+      push(close);
     }
     const sentTokens = tokensForChars(sent.join('\n').length);
     kept.push({ label: source.file, reason: 'the writer’s instructions', tokens: sentTokens });

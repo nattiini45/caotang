@@ -39,6 +39,7 @@ import { DEMO_PROFILE_NAME, priceClearedBy, priceFromInputs } from '../app/provi
 import { CoherenceSection } from './CoherenceSettings.js';
 import { AgentModeSettings } from './AgentModeSettings.js';
 import { AgentRulesSettings } from './AgentRulesSettings.js';
+import { MacrosPanel } from './MacrosPanel.js';
 import { ContextSection } from './ContextSection.js';
 import { McpSection } from './McpSection.js';
 
@@ -61,12 +62,13 @@ function FormMessage({ message }: { message: { readonly text: string; readonly t
   );
 }
 
-export type SettingsSection = 'providers' | 'context' | 'agent' | 'writing' | 'coherence' | 'mcp' | 'appearance' | 'data';
+export type SettingsSection = 'providers' | 'context' | 'agent' | 'macros' | 'writing' | 'coherence' | 'mcp' | 'appearance' | 'data';
 
 const SECTIONS: readonly { readonly id: SettingsSection; readonly label: string }[] = [
   { id: 'providers', label: 'Providers' },
   { id: 'context', label: 'Context' },
   { id: 'agent', label: 'Agent' },
+  { id: 'macros', label: 'Macros' },
   { id: 'writing', label: 'Writing' },
   { id: 'coherence', label: 'Coherence' },
   { id: 'mcp', label: 'MCP & tools' },
@@ -81,6 +83,8 @@ export interface SettingsProps {
   readonly store: RuntimeStore | null;
   readonly initialSection?: SettingsSection;
   readonly onClose: () => void;
+  /** Called when a macro's run has started, so the agent panel is open for the card it shows. */
+  readonly onOpenAgent?: () => void;
   /** Called after a provider changes, so a view that shows the active provider reads it again. */
   readonly onProvidersChanged?: () => void;
   /** The storage bridge; tests pass their own. Defaults to the browser's. */
@@ -93,6 +97,7 @@ export function Settings({
   store,
   initialSection = 'providers',
   onClose,
+  onOpenAgent,
   onProvidersChanged,
   storage,
 }: SettingsProps): ReactNode {
@@ -150,6 +155,15 @@ export function Settings({
             {section === 'providers' ? <ProvidersSection services={services} onChanged={onProvidersChanged} /> : null}
             {section === 'context' ? <ContextSection services={services} session={session} /> : null}
             {section === 'agent' ? <AgentSection services={services} session={session} /> : null}
+            {section === 'macros' ? (
+              <MacrosPanel
+                session={session}
+                onRan={() => {
+                  onOpenAgent?.();
+                  onClose();
+                }}
+              />
+            ) : null}
             {section === 'writing' ? <WritingSection services={services} /> : null}
             {section === 'coherence' ? <CoherenceSection services={services} /> : null}
             {section === 'mcp' ? <McpSection mcp={services.mcp} /> : null}

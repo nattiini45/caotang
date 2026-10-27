@@ -27,7 +27,7 @@
  * both directions, and the load path is where a version changes.
  */
 
-import { CHAR_LIMIT_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type ProjectMacro } from '@caotang/bus';
 import type { PermissionRule } from './agent-rules.js';
 import { jsonValueProblem } from './json-value.js';
 import type {
@@ -309,6 +309,31 @@ function projectGoal(g: ProjectGoal): string {
 }
 
 /**
+ * extensibility.md §10. A macro is a block, not a line: its fields one to a line and its steps one to a line, so a changed step is a one-line
+ * diff. A step's params and the macro's param spec are written as the JSON they are, in the key order they hold.
+ */
+function macroBlock(m: ProjectMacro): string {
+  const inner = INDENT.repeat(3);
+  const steps = m.steps.map((step) =>
+    oneLine([
+      ['tool', str(step.tool, 'macro.step.tool')],
+      ['params', criterion(step.params, 'macro.step.params')],
+      ['expect', str(step.expect, 'macro.step.expect')],
+    ]),
+  );
+  return [
+    '{',
+    `${inner}"id": ${str(m.id, 'macro.id')},`,
+    `${inner}"slug": ${str(m.slug, 'macro.slug')},`,
+    `${inner}"name": ${str(m.name, 'macro.name')},`,
+    `${inner}"description": ${str(m.description, 'macro.description')},`,
+    `${inner}"params": ${criterion(m.params, 'macro.params')},`,
+    `${inner}"steps": ${objectArray(steps, 3)}`,
+    `${INDENT.repeat(2)}}`,
+  ].join('\n');
+}
+
+/**
  * agent-harness §4, Rules. One rule per line under `agent.rules`, keys in a fixed order; `scope`, `access` and `note` are written only
  * when present, so a rule round-trips with no new key. A project with no rules writes no `agent` key at all.
  */
@@ -511,6 +536,9 @@ export function serializeManifest(
   }
   if (manifest.disabledSkills !== undefined) {
     parts.push(`${INDENT}"disabledSkills": ${inlineArray(manifest.disabledSkills, 'disabledSkills')},`);
+  }
+  if (manifest.macros !== undefined && manifest.macros.length > 0) {
+    parts.push(`${INDENT}"macros": ${objectArray(manifest.macros.map(macroBlock), 1)},`);
   }
   if (manifest.agent?.rules !== undefined && manifest.agent.rules.length > 0) {
     parts.push(agentBlock(manifest.agent.rules));

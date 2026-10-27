@@ -11,7 +11,7 @@
  * than one file (a prompt pack, or a story per container) is downloaded as one zip; a single file downloads as itself.
  */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   COLOUR_EMOJI_HINT,
   COLOUR_EMOJI_LABEL,
@@ -31,7 +31,9 @@ import { PACK_TEMPLATES } from '../media/prompt-pack-model.js';
 import { recipeChoicesOf } from '../app/recipe-choices.js';
 import type { ProjectSession } from '../app/session.js';
 import { compileManuscript, compileSelection, explain, saveRecipe } from './actions.js';
-import { formatCount, useReport, type StatusMessage } from './shared.js';
+import { ExportPreviewPanel, type PreviewState } from './ExportPreviewPanel.js';
+import { holdsOf } from './export-preview-model.js';
+import { formatCount, useReport, useSession, type StatusMessage } from './shared.js';
 
 /** What the dialog compiles when the selection is a single item: its id and its title, for the scope's label. */
 export interface ExportSelection {
@@ -219,6 +221,53 @@ export function ExportDialog({
   // because the status line sits under the dialog and the writer is reading the dialog. A finished compile is said on the status line.
   const [notice, setNotice] = useState<StatusMessage | null>(null);
   const shown = shownOptionsOf(recipe);
+  // What the compile and the Preview both ask for, so the Preview is of the compile that Compile makes. A part compiles with the recipe's
+  // options too. The pack's vendor is sent on the command, never read from the recipe: a recipe's templateId may be a layout template.
+  // With none chosen the recipe is left off too, so the refusal is the bus's one about the vendor and not about the layout id.
+  const partId = scope === 'selection' && selection !== null ? selection.id : null;
+  const pack = format === 'promptpack';
+  const templateId = pack && vendor !== '' ? vendor : undefined;
+  const recipeFor = pack && vendor === '' ? undefined : recipe?.name;
+
+  // The Preview waits for the same readiness a compile does (the Ink compiler, the image listing), so a media format's gates are the compile's.
+  const [ready, setReady] = useState(false);
+  const [readyFailure, setReadyFailure] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    session.exportsReady().then(
+      () => {
+        if (live) setReady(true);
+      },
+      (error: unknown) => {
+        if (live) setReadyFailure(error instanceof Error ? error.message : String(error));
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [session]);
+  // A recipe saved, a format, scope or vendor chosen, or any change to the project, makes another Draft. Making one is a read of the project.
+  const version = useSession(session);
+  const preview = useMemo((): PreviewState => {
+    // The project is the session's, read in place, so the Draft is made again whenever the session has committed something.
+    void version;
+    if (readyFailure !== null) return { kind: 'failed', message: readyFailure };
+    if (!ready) return { kind: 'waiting' };
+    if (pack && vendor === '') return { kind: 'needs-vendor' };
+    try {
+      return {
+        kind: 'ready',
+        preview: session.previewExport({
+          selection: partId === null ? { kind: 'manuscript' } : { kind: 'nodes', includeRootIds: [partId] },
+          format,
+          ...(recipeFor === undefined ? {} : { recipeName: recipeFor }),
+          ...(templateId === undefined ? {} : { templateId }),
+        }),
+      };
+    } catch (error) {
+      return { kind: 'failed', message: error instanceof Error ? error.message : String(error) };
+    }
+  }, [session, ready, readyFailure, version, format, pack, vendor, recipeFor, templateId, partId]);
 
   // The control that opened the dialog takes focus back when it closes, so the keyboard is where it was. It is read on
   // the first render, before any effect runs: an effect that runs twice (React's development double run) would
@@ -302,15 +351,8 @@ export function ExportDialog({
       // failure. Only the entries this compile adds are matched, so a path that wrote successfully now is not reported
       // as failed because an earlier compile of the same name failed.
       const priorFailures = session.exportFailures().length;
-      const useSelection = scope === 'selection' && selection !== null;
-      // The pack's vendor is sent on the command, never read from the recipe: a recipe's templateId may be a layout template.
-      // With none chosen the recipe is left off too, so the refusal is the bus's one about the vendor and not about the layout id.
-      const pack = format === 'promptpack';
-      const templateId = pack && vendor !== '' ? vendor : undefined;
-      const recipeFor = pack && vendor === '' ? undefined : recipe?.name;
-      // A part compiles with the recipe's options too, so the title page, the contents and the author apply to one item.
-      const outcome = useSelection
-        ? compileSelection(session, [selection.id], format, recipeFor, templateId)
+      const outcome = partId !== null
+        ? compileSelection(session, [partId], format, recipeFor, templateId)
         : compileManuscript(session, format, recipeFor, templateId);
       if (!outcome.ok) {
         // A refusal keeps the dialog open, so the reason is said here, next to Compile, and not on the status line under the dialog.
@@ -589,6 +631,8 @@ export function ExportDialog({
           Empty documents are left out and listed in the compile log. Undo removes the file again.
         </p>
 
+        <ExportPreviewPanel state={preview} />
+
         <div className="export-footer">
           {notice === null ? null : (
             <p className={`form-message is-${notice.tone}`} role={notice.tone === 'error' ? 'alert' : 'status'}>
@@ -694,40 +738,6 @@ async function zipFiles(files: readonly { readonly name: string; readonly bytes:
   const entries: Record<string, Uint8Array> = {};
   for (const file of files) entries[file.name] = file.bytes;
   return zipSync(entries, { level: 6 });
-}
-
-/**
- * What a compile's file holds, in the words of its format (media-track.md). A script counts its scenes and sections, a
- * table its lines and containers, a shot list or a prompt pack its shots, and an Ink story its containers. A prose format
- * counts chapters, scenes and words, as it always has. The counts are the compile's own, so the sentence says what was written.
- */
-function holdsOf(digest: ExportCommandDigest): string {
-  switch (digest.format) {
-    case 'fountain':
-    case 'fdx':
-    case 'pdf':
-      return `${countPhrase(digest.sceneCount, 'scene')} in ${countPhrase(digest.chapterCount, 'section')}, ${countPhrase(digest.wordCount, 'word')}`;
-    case 'ink-json':
-      return countPhrase(digest.sceneCount, 'container');
-    case 'dialogue-csv':
-    case 'dialogue-xlsx':
-      return `${countPhrase(digest.blockCount, 'line')} in ${countPhrase(digest.sceneCount, 'container')}, ${countPhrase(digest.wordCount, 'word')}`;
-    case 'shot-list-csv':
-    case 'shot-list-xlsx':
-    case 'promptpack':
-    case 'contact-sheet-pdf':
-      return countPhrase(digest.blockCount, 'shot');
-    case 'coherence-md':
-    case 'coherence-json':
-      return 'the coherence report';
-    default:
-      return `${countPhrase(digest.chapterCount, 'chapter')}, ${countPhrase(digest.sceneCount, 'scene')}, ${countPhrase(digest.wordCount, 'word')}`;
-  }
-}
-
-/** A count and its noun, in the singular or the plural: "1 scene", "3 scenes", "1,204 words". */
-function countPhrase(count: number, noun: string): string {
-  return `${formatCount(count)} ${count === 1 ? noun : `${noun}s`}`;
 }
 
 /** What the status line says about a finished compile: what it holds, what was skipped, and where it went. */

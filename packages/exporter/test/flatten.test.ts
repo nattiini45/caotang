@@ -2,7 +2,7 @@
  * Stages 1–2, select and flatten — exporter.md §2.
  *
  * Every assertion here is on the block list or the notes, because those are what
- * `previewFlatten` shows the user before anything is written (§4), and what the
+ * `preview` shows the user before anything is written (§4), and what the
  * compile log records afterwards. A flatten that drops a skip note would still
  * produce a sensible-looking artifact, so the notes are asserted in their own tests.
  */

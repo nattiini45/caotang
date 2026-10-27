@@ -28,7 +28,7 @@ import { checkCommand } from './common.js';
 
 /**
  * The commands no tool may stand for: deletes, the document-body writes, the view commands, the staging commands, the external
- * call, the skill commands and the hard-denied names. The list is the source of the type, so naming one in a spec is a compile error
+ * call, the skill and macro commands and the hard-denied names. The list is the source of the type, so naming one in a spec is a compile error
  * (`test/primitive.test.ts` holds the `@ts-expect-error`), and the runtime guard reads the same list.
  */
 export const NEVER_EXPOSED = [
@@ -58,6 +58,9 @@ export const NEVER_EXPOSED = [
   'skill.write',
   'skill.delete',
   'skill.setEnabled',
+  // A macro is a plan the writer will run later, so the agent never saves or deletes one (extensibility §4 rule 7).
+  'macro.save',
+  'macro.delete',
   // A memory note is the writer's to forget: hard-denied for an agent as a deletion (command-bus §4).
   'memory.forget',
 ] as const satisfies readonly CommandName[];

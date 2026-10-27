@@ -135,6 +135,8 @@ describe('resuming a run dropped after step 2 of 4', () => {
     expect(second.cards).toHaveLength(1);
     expect(second.cards[0]?.card.steps.map((step) => step.status)).toEqual(['done', 'done', 'ready', 'ready']);
     expect(second.cards[0]?.card.approvable).toBe(true);
+    // Nothing from outside the project was read, though the logged conversation holds the system prompt's words about the markers.
+    expect(second.cards[0]?.card.caution).toBeUndefined();
     // The four steps are in the project once each, and the project is what an uninterrupted run left.
     expect(getBody(state, LANDING).split('She added a line.')).toHaveLength(2);
     expect(outcomeOf(state)).toEqual(outcomeOf(whole));

@@ -10,6 +10,7 @@
  * the call site in `test/exporter.test.ts`.
  */
 
+import type { CommandError } from '@caotang/bus';
 import type { ExportRecipeOptions as StoreExportRecipeOptions, ProjectState } from '@caotang/store';
 
 /**
@@ -180,14 +181,46 @@ export interface ExportFile {
 }
 
 /**
- * exporter.md §4, verbatim except for the format enum, which now carries `epub`. `saveRecipe` is gone: a recipe is
- * written by the bus's `recipe.save` (an undoable command on the manifest), so there is one way to save one.
+ * exporter.md §4, except for the format enum, which now carries `epub`, and `preview`, which replaces `previewFlatten` (the Draft).
+ * `saveRecipe` is gone: a recipe is written by the bus's `recipe.save` (an undoable command on the manifest), so there is one way to save one.
  */
 export interface Exporter {
   compile(selection: ExportSelection, format: ExportFormat, templateId?: string): Promise<ExportResult>;
-  previewFlatten(selection: ExportSelection): FlatBlock[];
+  preview(request: ExportPreviewRequest): ExportPreview;
   listRecipes(): ExportRecipe[];
 }
+
+/**
+ * What `preview` is asked: the request a bus compile makes, without its clock reading. The recipe, the selection and the template
+ * resolve exactly as the compile resolves them, so the Draft is the book the compile would write.
+ */
+export type ExportPreviewRequest = Omit<ExportCommandRequest, 'at'>;
+
+/** What a compile will record in its log row, known before anything is made: the Draft's numbers and the compile log's are the same. */
+export interface ExportPreviewFacts {
+  readonly format: ExportFormat;
+  readonly blockCount: number;
+  readonly chapterCount: number;
+  readonly sceneCount: number;
+  readonly wordCount: number;
+  /** Labels of the documents left out, in the compile log's words, e.g. `Chapter 3 → The Call`. */
+  readonly skippedDocs: readonly string[];
+  readonly tocIncluded: boolean;
+  readonly notes: readonly string[];
+}
+
+/**
+ * exporter.md §4, the Draft half of the Draft/Proof duality: what a compile would write, and what it would leave out. Nothing is
+ * reserved, written, gated or logged, and no command runs.
+ *
+ * - `draft`: a prose format. The block list the artifact is built from (`flatten`, the compile's own call), with the facts of its log row.
+ * - `media`: a media format, which does not go through `flatten`. Its selection gates passed; it has the compile's counts and notes and no block list.
+ * - `refused`: the compile would be refused, with the refusal it would get.
+ */
+export type ExportPreview =
+  | (ExportPreviewFacts & { readonly kind: 'draft'; readonly blocks: readonly FlatBlock[]; readonly titlePage: boolean })
+  | (ExportPreviewFacts & { readonly kind: 'media' })
+  | { readonly kind: 'refused'; readonly error: CommandError };
 
 /** The selection a bus command names: the whole manuscript, or the nodes it lists. */
 export type ExportCommandSelection =

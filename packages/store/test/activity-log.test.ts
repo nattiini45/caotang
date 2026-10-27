@@ -154,6 +154,8 @@ interface Case {
   readonly skill?: boolean;
   /** The case needs a memory note in the state: the memory commands name one. */
   readonly memory?: boolean;
+  /** The project holds the macro `m_FXTRE00001`, which the case deletes. */
+  readonly macro?: boolean;
 }
 
 /** The finding the coherence cases act on: one open finding that quotes the storm scene. */
@@ -477,6 +479,14 @@ const CASES: readonly Case[] = [
   { name: 'project.setInstructions', params: { text: 'British spelling.' }, titles: [], digestMentions: 'created CAOTANG.md' },
   { name: 'memory.write', params: { slug: 'style-dialogue', type: 'style', title: 'Dialogue tags', body: 'Use said.' }, titles: [], digestMentions: 'saved the memory note “Dialogue tags”' },
   { name: 'memory.forget', params: { slug: 'style-dialogue' }, titles: [], digestMentions: 'forgot the memory note “Dialogue tags”', memory: true },
+  // The macro commands report no node: a macro is not in the binder. Their digests name the macro.
+  {
+    name: 'macro.save',
+    params: { macro: { slug: 'tidy-notes', name: 'Tidy notes', description: '', params: { kind: 'object', description: 'p', properties: {}, required: [] }, steps: [{ tool: 'notes.append', params: { text: 'x' }, expect: 'Adds a note.' }] } },
+    titles: [],
+    digestMentions: 'saved the macro "Tidy notes"',
+  },
+  { name: 'macro.delete', params: { macroId: 'm_FXTRE00001' }, titles: [], digestMentions: 'deleted the macro "Revise chapter"', macro: true },
   {
     name: 'dialogue.setMeta',
     params: { nodeId: CELLAR, patch: { autoLineIds: true } },
@@ -537,6 +547,7 @@ describe('§8 — the activity row for every shipped store apply', () => {
       if (testCase.coherence === true) state.coherence = coherenceWithFinding();
       if (testCase.skill === true) state.skills.set('close-third', [{ path: 'SKILL.md', bytes: new TextEncoder().encode(['---', 'name: close-third', 'description: d', '---', 'Body', ''].join('\n')) }]);
       if (testCase.memory === true) state.agentFiles = { memory: [{ slug: 'style-dialogue', type: 'style', title: 'Dialogue tags', body: 'Use said.', modified: '', origin: 'writer' }], declined: new Map(), unreadable: [] };
+      if (testCase.macro === true) state.manifest.macros = [{ id: 'm_FXTRE00001', slug: 'revise-chapter', name: 'Revise chapter', description: '', params: { kind: 'object', description: 'p', properties: {}, required: [] }, steps: [{ tool: 'meta.set', params: { status: 'revised' }, expect: 'Marks the node revised.' }] }];
       if (testCase.dialogue === true) {
         addDocument(state, { parentId: 'manuscript', title: 'The Cellar', type: 'dialogue', kind: 'branching', body: '=== Cellar ===\nHello.\n-> END\n', now: OPENED, id: CELLAR });
       }

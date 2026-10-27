@@ -25,7 +25,7 @@ import {
 import type { ProjectState } from '@caotang/store';
 
 import { DEMO_CHOICES } from '../app/demo.js';
-import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, MODE_HINTS, phaseLabel, spendLine, stepMenuOf, type DelegationCardView, type TurnView } from '../app/agent-model.js';
+import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, MODE_HINTS, phaseLabel, savesAsMacro, spendLine, stepMenuOf, type DelegationCardView, type TurnView } from '../app/agent-model.js';
 import { formatUsd, turnCostOf } from '../app/plan-preview.js';
 import { resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
@@ -40,6 +40,7 @@ import { AgentQueue, type HeldNote } from './AgentQueue.js';
 import { CommandComposer } from './CommandComposer.js';
 import { openDialog } from './dialog-requests.js';
 import { PlanCard, planHeading } from './PlanCard.js';
+import { SaveAsMacro } from './SaveAsMacro.js';
 import { PlanOfferCard } from './PlanOfferCard.js';
 import { BackgroundTasks } from './BackgroundTasks.js';
 import { RecurringTasksPanel } from './RecurringTasks.js';
@@ -392,6 +393,7 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
                     turn={turn}
                     snapshot={snapshot}
                     project={session.state}
+                    session={session}
                     pictureNames={pictureNames}
                     stands={turn.checkpoint !== null && session.undo.group(turn.checkpoint.undoGroupId) !== undefined}
                     canRewind={agent.canRewind(turn.turnId)}
@@ -540,6 +542,7 @@ function TurnBlock({
   turn,
   snapshot,
   project,
+  session,
   pictureNames,
   stands,
   canRewind,
@@ -554,6 +557,8 @@ function TurnBlock({
   snapshot: AgentSnapshot;
   /** The open project, which a plan card reads its previews against. */
   project: ProjectState;
+  /** The open project, which "Save as macro…" saves into. */
+  session: ProjectSession;
   /** The project's pictures by asset id, as their file names (a codex step names its visual references by these). */
   pictureNames: ReadonlyMap<string, string>;
   /** The turn's checkpoint is still on the undo stack, so it can be restored. */
@@ -682,6 +687,8 @@ function TurnBlock({
         // Keyed on the showing, so every field of the card is read again from the card the loop holds (agent-harness §2).
         <PlanCard key={turn.planSeq} card={turn.plan} live={live} drafts={live ? snapshot.drafts : null} project={project} pictureNames={pictureNames} onDecide={onDecide} />
       ) : null}
+
+      {turn.plan !== null && savesAsMacro(turn) ? <SaveAsMacro session={session} steps={turn.plan.steps} intent={turn.intent} /> : null}
 
       {turn.report?.heldSteps !== undefined && !snapshot.heldRun.includes(turn.turnId) ? (
         <HeldPlan report={turn.report} disabled={snapshot.busy} onRun={() => onRunHeld(turn.turnId)} />

@@ -15,6 +15,24 @@ export { buildPreview } from './preview.js';
 export { describeDrop } from './drops.js';
 export { SYSTEM_PROMPT_VERSION } from './layers/system.js';
 export { FOCUS_MARKER } from './layers/focus.js';
+export {
+  STATIC_NONCE,
+  UNTRUSTED_CLOSE,
+  UNTRUSTED_OPEN,
+  UNTRUSTED_RULE,
+  closingOf,
+  defuseMarkers,
+  neutralise,
+  nonceFor,
+  openingOf,
+  revealInvisible,
+  scanForInjection,
+  sourceLabel,
+  spotlight,
+  type InjectionHit,
+  type InvisibleRun,
+  type UntrustedSource,
+} from './untrusted.js';
 
 export { entryWithheld, withhold, withheldState, type WithheldView } from './withheld.js';
 export { ContextError, type ContextErrorCode } from './errors.js';

@@ -22,6 +22,7 @@ import type {
   ScreenplayImportParams,
 } from './descriptors-script.js';
 import type { RecipeScriptFont, SceneNumbersOption } from './descriptors-project.js';
+import type { MacroDraft } from './macro-rules.js';
 
 /**
  * §9's closed v0.1 registry, in the order the spec tabulates it.
@@ -142,6 +143,10 @@ export const COMMAND_NAMES = [
   'project.setInstructions',
   'memory.write',
   'memory.forget',
+  // The writer's macros (extensibility.md §10): plan templates in the manifest's `macros[]`. Both are `agentRisk: 'never'`, so only the writer
+  // saves or deletes one. The applies are the store's (`commands-macros.ts`).
+  'macro.save',
+  'macro.delete',
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
@@ -285,6 +290,8 @@ export interface ValidationSnapshot {
     readonly project?: { readonly name?: string };
     /** The skills the writer turned off (extensibility.md §10), by name. Additive, so absent means every skill is on. */
     readonly disabledSkills?: readonly string[];
+    /** The writer's macros (extensibility.md §10). Additive, so absent means none. Only the id and slug are read, for the refusals `macro.save` and `macro.delete` make. */
+    readonly macros?: readonly { readonly id: string; readonly slug: string }[];
   };
   readonly documents: ReadonlyMap<string, ValidationDocument>;
   /** The coherence file, when one is open. Additive, like `codex` — absent means no file. */
@@ -612,6 +619,8 @@ export interface CommandParams {
   'project.setInstructions': ProjectSetInstructionsParams;
   'memory.write': MemoryWriteParams;
   'memory.forget': MemoryForgetParams;
+  'macro.save': MacroSaveParams;
+  'macro.delete': MacroDeleteParams;
 }
 
 /**
@@ -967,6 +976,12 @@ export type MemoryWriteParams = {
 
 /** `memory.forget`: remove one memory note and its index line. The writer's alone. */
 export type MemoryForgetParams = { slug: string };
+
+/** `macro.save` (extensibility.md §10): create a macro, or replace the one with the same id. The store mints the id of a new one. */
+export type MacroSaveParams = { macro: MacroDraft };
+
+/** `macro.delete`: remove one macro. The project's content is not touched. */
+export type MacroDeleteParams = { macroId: string };
 
 /** The two vocabularies (project-format.md §2). */
 export type VocabularyKind = 'status' | 'label';

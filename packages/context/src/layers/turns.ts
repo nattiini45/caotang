@@ -61,8 +61,8 @@ export function turnsBlock(
   activity: readonly ActivityEntry[],
   formatTime: (epochMs: number) => string = utcClock,
 ): TurnsPlan {
-  // A rewound turn leaves before the limit applies, so rewinding never shrinks the two-turn window.
-  const kept = turns.filter((turn) => turn.rewound !== true);
+  // A rewound or hidden turn leaves before the limit applies, so neither shrinks the two-turn window.
+  const kept = turns.filter((turn) => turn.rewound !== true && turn.hidden !== true);
   const recent = kept.slice(-TURN_LIMIT);
   const older = kept.length - recent.length;
 

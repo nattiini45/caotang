@@ -17,7 +17,7 @@ import { extractionPrompt, verificationPrompt } from '@caotang/coherence';
 
 import { DERIVE_SCHEMA_HINT, deriveRole } from '../../src/agent/storyboard-model.js';
 import { continuityRole, dialogueRole, sceneRole, synopsisRole } from '../../src/agent/drafting.js';
-import { MORE_TOOLS_LINE, TOOL_METADATA, SUBAGENT_SPECS, createProductHarness, plannerSystem, plannerSystemNative, plannerToolDefs } from '../../src/index.js';
+import { MORE_TOOLS_LINE, TOOL_METADATA, SUBAGENT_SPECS, UNTRUSTED_RULE, createProductHarness, plannerSystem, plannerSystemNative, plannerToolDefs } from '../../src/index.js';
 import { makeState } from '../fixtures.js';
 
 const DIR = __dirname;
@@ -72,6 +72,8 @@ function sources(): readonly Source[] {
     { id: 'planner.system.json', text: plannerSystem(tools) },
     { id: 'planner.system.native', text: plannerSystemNative(tools) },
     { id: 'planner.more-tools-line', text: MORE_TOOLS_LINE },
+    // The two sentences of system prompt v2 (context-assembly §2, L0) that every call meeting an untrusted envelope carries.
+    { id: 'context.untrusted-rule', text: UNTRUSTED_RULE },
     { id: 'planner.tools.native.all', text: lines(plannerToolDefs(tools, [], [], true)) },
     { id: 'draft.scene.prose', text: sceneRole() },
     { id: 'draft.scene.prose.target', text: sceneRole(120) },

@@ -148,6 +148,8 @@ export const FOOTPRINT_CLASS: Readonly<Record<CommandName, 'content' | 'move' | 
   'project.setInstructions': 'global',
   'memory.write': 'global',
   'memory.forget': 'global',
+  'macro.save': 'global',
+  'macro.delete': 'global',
 };
 
 const FOOTPRINTS: Readonly<Record<'content' | 'move', FootprintOf>> = { content, move };

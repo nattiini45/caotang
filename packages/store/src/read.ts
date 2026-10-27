@@ -160,6 +160,7 @@ const KNOWN_TOP_LEVEL = new Set([
   'goals',
   'recipes',
   'disabledSkills',
+  'macros',
   'agent',
 ]);
 

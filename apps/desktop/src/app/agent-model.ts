@@ -237,6 +237,19 @@ export function isSettled(turn: TurnView): boolean {
   return turn.report !== null;
 }
 
+/**
+ * Whether "Save as macro…" is offered under a turn (extensibility.md §10): the turn applied a plan card the writer approved, and the card
+ * has steps. A card the mode approved was not the writer's decision, a plan that did not run is not one to repeat, and a turn that ran a
+ * macro already is one.
+ */
+export function savesAsMacro(turn: TurnView): boolean {
+  const report = turn.report;
+  if (report === null || report.status !== 'applied' || report.stop !== undefined) return false;
+  if (turn.command?.startsWith('macro-') === true) return false;
+  if (turn.plan === null || turn.plan.steps.length === 0 || turn.plan.steps.some((step) => step.status === 'refused')) return false;
+  return report.cards.some((card) => (card.kind === 'plan' || card.kind === 'confirm') && card.decision === 'approved');
+}
+
 /** What each permission mode does, in the words the mode control carries as its hint (agent-harness §4). */
 export const MODE_HINTS: Readonly<Record<PermissionMode, string>> = Object.freeze({
   'plan-only': 'Reads run. Every write is refused and kept as a plan you can run later.',

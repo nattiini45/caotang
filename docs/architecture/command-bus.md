@@ -1,6 +1,6 @@
 # Command bus & undo — the spine every module talks through (v1)
 
-> Status: built. §9 lists every one of the registry's 54 command names (`packages/bus/src/command.ts` `COMMAND_NAMES`).
+> Status: built. §9 lists every one of the registry's 56 command names (`packages/bus/src/command.ts` `COMMAND_NAMES`).
 > Cross-refs: tool registry = [agent-harness.md](agent-harness.md) §3 · write-ahead snapshots = [project-format.md](project-format.md) §4 · edit anchors = [edit-anchors.md](edit-anchors.md) · usage ledger = [provider-gateway.md](provider-gateway.md) §6.
 
 ## 1. Purpose
@@ -14,7 +14,7 @@ Non-goals: no network in the bus (the gateway owns transport); no cross-worker b
 ```ts
 interface Command {
   id: string;                 // "cmd_" + 10 chars Crockford base32 (same generator family as node ids)
-  name: CommandName;          // from the registry (§9; 54 names)
+  name: CommandName;          // from the registry (§9; 56 names)
   params: object;             // flat, enum-constrained, schema-validated
   issuedBy: 'user' | 'agent';
   turnId?: string;            // agent turn this command belongs to (agent-issued only)
@@ -137,7 +137,7 @@ The log keeps every row it is given. The Activity panel shows a 200-row window o
 
 ## 9. v0.1 command registry (closed set)
 
-The heading keeps the name the v0.1 table had. The table lists all 54 of the registry's names: the v0.1 rows and those each module added (their owning specs are named in the notes). Reads are **not commands** — modules read the store directly; only mutations route through the bus. Provider/settings mutation is app-level state, never a project command (agentRisk `never`, hard-deny §4). `sessions.jsonl` appends are session-tracker side-effects of doc writes, not commands.
+The heading keeps the name the v0.1 table had. The table lists all 56 of the registry's names: the v0.1 rows and those each module added (their owning specs are named in the notes). Reads are **not commands** — modules read the store directly; only mutations route through the bus. Provider/settings mutation is app-level state, never a project command (agentRisk `never`, hard-deny §4). `sessions.jsonl` appends are session-tracker side-effects of doc writes, not commands.
 
 | Command | Params (essentials) | agentRisk | undo | Notes |
 |---|---|---|---|---|
@@ -193,6 +193,8 @@ The heading keeps the name the v0.1 table had. The table lists all 54 of the reg
 | `project.setInstructions` | `{text, expectedDigest?}` | write-confirm | compensable | Replaces the text of `CAOTANG.md`, the writer's standing instructions (context-assembly.md §2, layer LI). Up to 50,000 characters. An empty text leaves the file empty, which keeps an `AGENTS.md` beside it unread. `expectedDigest` is the digest of the text the caller read (`textDigest`); the write is refused with `revision-conflict` when the file is no longer that text. Refused for a file that is not UTF-8. For an agent it is write-confirm, because it changes every later prompt; the plan or confirm card shows the old and new text as a word diff. Undo puts the file back as it was, absent included.
 | `memory.write` | `{slug, type, title, body, expectedDigest?}` | write-confirm | compensable | Creates or updates one memory note (`memory/<slug>.md`) and regenerates its line in `memory/MEMORY.md` (project-format.md §1). `type` is `style`, `preference`, `process` or `reference`; the body is at most 4,000 characters; a project keeps at most 200 notes. **A title that is a codex entry's name or alias is refused, naming `codex.write` and never the entry**: a story fact has one home, the codex. `modified`, `origin` (`agent` or `writer`, from `issuedBy`) and `sourceTurn` are the apply's, never params. `expectedDigest` is the digest of the body the caller read (`memory.read` gives it), for an update. A slug that names a note the load could not read is refused. Agent write-confirm, for the reason `project.setInstructions` is. Undo restores the note, or removes it if it was new. |
 | `memory.forget` | `{slug}` | **never** | compensable | Removes one memory note and its index line. The writer's alone: **hard-denied for an agent as a deletion** (§4), like `project.deleteNode`, and the UI asks first. A save removes that file and no other. One undo brings the note back. |
+| `macro.save` | `{macro: {id?, slug, name, description, params, steps}}` | **never** | inverse | Creates a macro, or replaces the one with the same `id`, in the manifest's `macros[]` (extensibility.md §10, project-format.md §2). A macro is a plan template: `steps` are `{tool, params, expect}` over registry tools, and a step's params may hold whole-value `{"$param": name}` placeholders for the macro's own `params` (an object spec of string, integer, boolean and enum fields). The bus cannot see the tool registry, so it checks the structure: a slug of 1 to 40 lower-case letters, digits and hyphens, a name of up to 60 characters, a description of up to 600, 1 to 30 steps, at most 12 params, at most 24,000 characters of JSON, and a step that names `agent.plan`, `tool.search`, an `mcp__*` tool or a `macro.*` is refused, as is a placeholder the macro does not declare and a `__proto__`, `constructor` or `prototype` key anywhere. A slug another macro holds, or a 51st macro, is refused. That a named tool exists and that a placeholder fits the step's tool is the harness's `checkMacro`, which the Macros panel runs first and every run runs again. The store mints the id of a new macro. One undo removes it, or puts the earlier version back. User-only: an agent never saves a macro. |
+| `macro.delete` | `{macroId}` | **never** | inverse | Removes one macro. The project's content is not touched. An id the project does not hold is `not-found`. One undo brings the macro back. User-only. |
 
 The `agentRisk` and `undo` columns are the descriptors' own (`packages/bus/src/descriptors*.ts`), and the owning spec for each is named in its notes.
 

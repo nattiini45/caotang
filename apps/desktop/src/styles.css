@@ -1216,6 +1216,76 @@ dialog.export-dialog::backdrop {
   color: var(--muted);
 }
 
+/* The Preview (exporter.md §4, the Draft): a fixed-height region that scrolls, so the list of a long book does not push Compile out of the dialog. */
+.export-preview-summary {
+  margin: 0;
+  font-weight: 600;
+}
+
+.export-preview {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.export-preview:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.export-preview-heading {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.export-preview-heading:not(:first-child) {
+  margin-top: 10px;
+}
+
+.export-preview-list,
+.export-preview-notes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.export-preview-notes li {
+  padding: 2px 0;
+}
+
+.export-preview-front,
+.export-preview-chapter {
+  font-weight: 600;
+}
+
+.export-preview-chapter {
+  margin-top: 6px;
+}
+
+.export-preview-scene {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 1px 0 1px 14px;
+}
+
+.export-preview-words {
+  flex: none;
+  color: var(--muted);
+}
+
+.export-preview-break {
+  padding-left: 14px;
+  color: var(--muted);
+}
+
 /* The refusal or save notice sits directly above the buttons it answers, so the writer reads it where they just acted. */
 .export-footer {
   display: flex;

@@ -2,7 +2,7 @@
  * Stages 1 and 2 of the pipeline — select and flatten — [exporter.md §2](../../../docs/architecture/exporter.md).
  *
  * Pure: it reads the project state and returns a value. Nothing here touches a
- * port, a clock or a file, which is why `previewFlatten` can run on the same
+ * port, a clock or a file, which is why `preview` can run on the same
  * function the compile runs (§4: the user sees the block list the artifact is
  * built from, not a second guess at it).
  *

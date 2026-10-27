@@ -71,6 +71,21 @@ export {
   type PlanStepPreflight,
   type StepResult,
 } from './plan.js';
+// Macros (extensibility.md §10): the checks that need the registry, and the expansion into a plan.
+export {
+  checkMacro,
+  expandMacro,
+  isMacroCommand,
+  macroCommandName,
+  macroFieldSpec,
+  macroIntent,
+  macroRisk,
+  registryMacroTools,
+  type MacroCheck,
+  type MacroRegistry,
+  type MacroRisk,
+  type MacroTool,
+} from './macro.js';
 export {
   continuityTask,
   createAgentSession,
@@ -415,6 +430,8 @@ export {
   MORE_TOOLS_LINE,
   type Reply,
 } from './agent/protocol.js';
+export { importScanSentence, modelResult, outsideSources, scanForInjection, scanImport, turnNonce, UNTRUSTED_RULE, type ImportHit, type InjectionHit } from './agent/untrusted.js';
+export { QUOTE_MIN_WORDS, quotedProjectText, wordsOfText } from './agent/egress-check.js';
 export {
   draftScene,
   fillSynopses,

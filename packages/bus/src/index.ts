@@ -89,6 +89,32 @@ export * as commands from './descriptors.js';
 export * as projectCommands from './descriptors-project.js';
 // The skill commands (extensibility.md §10), by name. The store reads them here.
 export * as skillCommands from './descriptors-skills.js';
+// The macro commands (extensibility.md §10) and the shape and rules the store's loader shares with them.
+export * as macroCommands from './descriptors-macros.js';
+export {
+  MACROS_MAX,
+  MACRO_DEPTH_MAX,
+  MACRO_DESCRIPTION_MAX,
+  MACRO_EXPECT_MAX,
+  MACRO_NAME_MAX,
+  MACRO_NODES_MAX,
+  MACRO_PARAMS_MAX,
+  MACRO_SIZE_MAX,
+  MACRO_SLUG_MAX,
+  MACRO_STEPS_MAX,
+  isMacroId,
+  isMacroParamName,
+  isMacroPlaceholder,
+  isMacroSlug,
+  macroToolProblem,
+  placeholdersOf,
+  readMacro,
+  type MacroDraft,
+  type MacroPlaceholder,
+  type MacroStep,
+  type MacroValue,
+  type ProjectMacro,
+} from './macro-rules.js';
 // The agent-file commands (context-assembly.md §2, layer LI), by name, and the rules the store's file codec shares with them.
 export * as agentFileCommands from './descriptors-agent-files.js';
 export {
@@ -117,6 +143,8 @@ export {
 } from './descriptors-project.js';
 export type {
   ProjectImportAssetParams,
+  MacroDeleteParams,
+  MacroSaveParams,
   MemoryForgetParams,
   MemoryWriteParams,
   ProjectSetInstructionsParams,

@@ -853,7 +853,8 @@ describe('the registration refusal is never reached, because the captures are co
     // The skill commands add `skill.write`, `skill.delete` and `skill.setEnabled` (`skill.import` needs the host's staging): 34 + 3 = 37.
     // The three knowledge commands are compensable and need no port: 37 + 3 = 40.
     // The agent's files add `project.setInstructions`, `memory.write` and `memory.forget`: 40 + 3 = 43.
-    expect(implemented).toHaveLength(43);
+    // The macros add `macro.save` and `macro.delete`: 43 + 2 = 45.
+    expect(implemented).toHaveLength(45);
   });
 
   it('the sink is not consulted for notes, and a notes undo needs no store', () => {

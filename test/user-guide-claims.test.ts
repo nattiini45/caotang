@@ -8,7 +8,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import { COMMAND_REGISTRY, MACROS_MAX, MACRO_DESCRIPTION_MAX, MACRO_STEPS_MAX } from '../packages/bus/src/index.js';
 import { BUILTIN_COMMAND_NAMES } from '../packages/harness/src/commands/slash.js';
+import { macroCommandName } from '../packages/harness/src/macro.js';
 
 const repoRoot = resolve(__dirname, '..');
 
@@ -409,7 +411,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(read('apps/desktop/src/app/settings.ts')).toContain("DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false, defaultMode: 'ask'");
     expect(guide).toContain('**Settings › Agent** has **Load every tool on every request** for a model that searches poorly. It is off by default, and it makes every request longer.');
     expect(guide).toContain('- **Agent.** **Load every tool on every request**, off by default.');
-    expect(guide).toContain('It has eight sections: Providers, Context, Agent, Writing, Coherence, MCP & tools, Appearance and Data.');
+    expect(guide).toContain('It has nine sections: Providers, Context, Agent, Macros, Writing, Coherence, MCP & tools, Appearance and Data.');
     expect(changelog).toContain('**Settings › Agent** has **Load every tool on every request**, off by default');
   });
 
@@ -466,5 +468,27 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(read('apps/desktop/src/components/CommandComposer.tsx')).toContain('aria-label="Commands"');
     expect(read('apps/desktop/src/components/AgentPanel.tsx')).toContain('Dismiss');
     expect(read('docs/decisions.md')).toContain('Slash commands in the agent panel are a closed set of built-ins');
+  });
+
+  it('names the Macros panel and Save as macro in the words the app shows, with the limits the bus enforces', () => {
+    // MacrosPanel.tsx and SaveAsMacro.tsx are the words the guide names; the limits are the bus's own constants, and the agent's part is the registry's.
+    const panel = read('apps/desktop/src/components/MacrosPanel.tsx');
+    for (const label of ['Run…', 'Show the card', 'Edit', 'Delete', 'This project has no macros yet.']) expect(panel).toContain(label);
+    expect(read('apps/desktop/src/components/SaveAsMacro.tsx')).toContain('Save as macro…');
+    expect(read('apps/desktop/src/components/Settings.tsx')).toContain("{ id: 'macros', label: 'Macros' }");
+    const section = guide.slice(guide.indexOf('## Macros'), guide.indexOf('## Export'));
+    for (const label of ['**Save as macro…**', '**Run…**', '**Show the card**', '**Edit**', '**Delete**']) expect(section).toContain(label);
+    expect(section).toContain(`A macro can hold at most ${MACRO_STEPS_MAX} steps, a project at most ${MACROS_MAX} macros, and a description at most ${MACRO_DESCRIPTION_MAX} characters`);
+    expect(section).toContain(`the turn is named \`/macro-\` and the macro's short name`);
+    expect(macroCommandName('revise')).toBe('macro-revise');
+    // Only the writer saves or deletes one, and the agent has no command for it.
+    expect(COMMAND_REGISTRY['macro.save'].descriptor.agentRisk).toBe('never');
+    expect(COMMAND_REGISTRY['macro.delete'].descriptor.agentRisk).toBe('never');
+    expect(section).toContain('The agent does not run macros, cannot see them and cannot change them.');
+    // A mode never approves a card it would not approve for any plan, and the run is one turn.
+    expect(section).toContain('a mode approves only the cards it approves for any plan');
+    expect(read('apps/desktop/src/app/agent.ts')).toContain('forcePlan: checked.value.risk !== \'read\'');
+    expect(changelog).toContain('**Macros.** Under a plan you approved, **Save as macro…**');
+    expect(read('docs/decisions.md')).toContain('Macros are writer-authored, parameterised plan templates');
   });
 });

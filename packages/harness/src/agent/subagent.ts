@@ -38,6 +38,7 @@ import { canonicalJson } from '../util.js';
 import type { ContextPort } from './context.js';
 import { assistantOf, complete, spendOf, TurnStopped, type ModelCall } from './drafting.js';
 import type { TraceEntry } from './events.js';
+import { turnNonce } from './untrusted.js';
 import { callArgs, errorSummary, parseReply, plannerToolDefs, plannerTools, REPLY_SCHEMA_HINT, resultsMessage, SUBAGENT_SYSTEM_PREFIX } from './protocol.js';
 
 export { SUBAGENT_SYSTEM_PREFIX } from './protocol.js';
@@ -278,6 +279,7 @@ export function createSubagentRunner(host: SubagentHost): SubagentRunner {
         const system = subagentSystem(spec, tools, native);
         const scope = params.scope === undefined ? {} : { scope: params.scope };
         const assembled = host.context.assemble({
+          nonce: turnNonce(parent.turnId),
           task: { tool: 'delegate', instruction: `Brief: ${params.brief}`, params: { agent: spec.name }, ...scope },
           role: system,
         });

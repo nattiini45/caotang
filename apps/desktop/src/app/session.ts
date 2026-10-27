@@ -48,6 +48,7 @@ import { scanTool, type CoherenceFile, type CoherenceModel, type DeterministicCh
 import { compileCodex, countMentions, type DocumentTerm } from '@caotang/codex';
 import {
   ApplyRefusal,
+  err,
   createIdempotencyCache,
   createViewState,
   execute,
@@ -62,6 +63,8 @@ import {
   type CommandRegistry,
   type DocWriteParams,
   type ExecutionOutcome,
+  type MacroDraft,
+  type ProjectMacro,
   type RestorePlan,
   type Result,
   type UndoGroup,
@@ -104,10 +107,18 @@ import {
   type WriteDocumentResult,
 } from '@caotang/store';
 import { newId } from '@caotang/ids';
-import { assetRecordsOf, createExporter, exportMetadataOf, type EmitFailure, type ExporterService } from '@caotang/exporter';
+import {
+  assetRecordsOf,
+  createExporter,
+  exportMetadataOf,
+  type EmitFailure,
+  type ExportPreview,
+  type ExportPreviewRequest,
+  type ExporterService,
+} from '@caotang/exporter';
 import { dropDanglingImages, shotCommandPort } from '@caotang/storyboard';
 import { InkCompilerNotLoaded } from '@caotang/dialogue';
-import { createProductHarness, dialogueFactsOf, excludedBy, withheldState, type Harness, type SourcedRule } from '@caotang/harness';
+import { checkMacro, createProductHarness, dialogueFactsOf, excludedBy, withheldState, type Harness, type SourcedRule } from '@caotang/harness';
 import type { McpClient } from '@caotang/mcp-client';
 import type { SkillFile } from '@caotang/skills';
 
@@ -283,8 +294,8 @@ export type RestoreResult =
   | { readonly ok: false; readonly message: string; readonly undone: readonly string[] };
 
 /**
- * Why "restore only this" refused, in words that name the cause: a later change that meets this one, one the planner cannot read, or a
- * checkpoint it could not find. Nothing was restored in any of them.
+ * Why "restore only this" refused, in words that name the cause: a later change that meets this one, one the planner cannot read, a
+ * checkpoint it could not find, or an error in the check itself. Nothing was restored in any of them.
  */
 function refusalOf(plan: Extract<RestorePlan, { kind: 'with-later' }>, id: string): string {
   switch (plan.reason) {
@@ -294,7 +305,9 @@ function refusalOf(plan: Extract<RestorePlan, { kind: 'with-later' }>, id: strin
       return plan.blockedBy.includes(id)
         ? 'That change cannot be told apart from the ones made after it, so nothing was restored. The full restore takes every later change back too; everything is as it was.'
         : 'A change made after it cannot be told apart from it, so nothing was restored. The full restore takes every later change back too; everything is as it was.';
-    default:
+    case 'defect':
+      return 'Caotang hit an error while checking which later changes this one touches, so nothing was restored and everything is as it was. The full restore still takes every later change back too.';
+    case 'unknown':
       return 'That checkpoint could not be checked (it may no longer be on the undo stack), so nothing was restored and everything is as it was.';
   }
 }
@@ -788,6 +801,29 @@ export class ProjectSession {
   }
 
   /* ------------------------------------------------------------------ *
+   * The writer's macros (extensibility.md §10): plan templates in the manifest
+   * ------------------------------------------------------------------ */
+
+  /** The project's macros, in the order it holds them. */
+  macros(): readonly ProjectMacro[] {
+    return this.state.manifest.macros ?? [];
+  }
+
+  /**
+   * Saves a macro (`macro.save`): a new one, or the one at `draft.id`. The harness's `checkMacro` runs first, which the bus cannot (it cannot
+   * see the tools), so a macro that names a tool this build lacks, or puts a param in a field it cannot fill, is refused here with the reason.
+   */
+  saveMacro(draft: MacroDraft): Result<ExecutionOutcome, CommandError> {
+    const checked = checkMacro({ ...draft, id: draft.id ?? 'm_0000000000' });
+    if (!checked.ok) return err(checked.error);
+    return this.dispatch('macro.save', { macro: draft });
+  }
+
+  deleteMacro(macroId: string): Result<ExecutionOutcome, CommandError> {
+    return this.dispatch('macro.delete', { macroId });
+  }
+
+  /* ------------------------------------------------------------------ *
    * The agent's files (context-assembly.md §2, layer LI): CAOTANG.md and the memory notes
    * ------------------------------------------------------------------ */
 
@@ -973,6 +1009,15 @@ export class ProjectSession {
     await requestInkCompilerFor(this.state);
     await this.refreshAssetRecords();
     await this.exporterService.ready();
+  }
+
+  /**
+   * The Draft of a compile (exporter.md §4): what the same request would write and leave out, from the project as it is now. A read: no bus
+   * command runs, so there is no gate, activity row or undo entry, and nothing is written to `exports/` or the compile log. A media format
+   * renders in its plan, so its gates and counts are only as current as `exportsReady` (the Ink compiler, the image listing).
+   */
+  previewExport(request: ExportPreviewRequest): ExportPreview {
+    return this.exporterService.preview(request);
   }
 
   /** Resolves when every queued export write has settled, so the bytes of a finished compile are in the store. */
