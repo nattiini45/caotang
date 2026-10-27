@@ -144,6 +144,8 @@ export interface SubmitOptions {
   readonly forcePlan?: boolean;
   /** A plan the app built whose steps are all reads runs at once, with no card (a macro of reads). */
   readonly readsWithoutCard?: boolean;
+  /** The turn's intent and outcome are never sent to a model (a macro run): the planner's conversation memory leaves it out. */
+  readonly hiddenFromPlanner?: boolean;
   /** The slash command that started the turn (`draft`), which the report and the run log name. */
   readonly command?: string;
 }
@@ -534,6 +536,7 @@ export class AgentController {
         ...turn,
         ...(options.forcePlan === true ? { forcePlan: true } : {}),
         ...(options.readsWithoutCard === true ? { readsWithoutCard: true } : {}),
+        ...(options.hiddenFromPlanner === true ? { hiddenFromPlanner: true } : {}),
       }),
     );
   }
@@ -556,6 +559,7 @@ export class AgentController {
       command: macroCommandName(macro.slug),
       forcePlan: checked.value.risk !== 'read',
       readsWithoutCard: true,
+      hiddenFromPlanner: true,
     });
     return { started: true };
   }
@@ -611,7 +615,9 @@ export class AgentController {
     this.heldRun.add(turnId);
     this.modeOverride = 'ask';
     this.bump();
-    return this.turnWith(turn.intent, {}, (agent, options) => agent.submitPlan(turn.intent, { steps: held }, options));
+    // A macro's held plan stays the writer's: its name is not sent to a model on the retry either.
+    const hidden = turn.command?.startsWith('macro-') === true;
+    return this.turnWith(turn.intent, {}, (agent, options) => agent.submitPlan(turn.intent, { steps: held }, hidden ? { ...options, hiddenFromPlanner: true } : options));
   }
 
   /** Saves the writer's typing. False when it could not be written: the flush reports a failed write or a conflict rather than rejecting. */

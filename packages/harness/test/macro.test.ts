@@ -157,6 +157,18 @@ describe('checkMacro', () => {
     expect(({} as Record<string, unknown>)['polluted']).toBeUndefined();
   });
 
+  it('refuses, and does not throw on, a param placed under a key that names an Object.prototype member', () => {
+    for (const key of ['toString', 'valueOf', 'hasOwnProperty', '__defineGetter__', 'isPrototypeOf']) {
+      for (const [tool, fixed] of [['meta.set', { targets: ['x'] }], ['notes.append', { doc: 'x' }]] as const) {
+        const hostile = macro({ steps: [step(tool, { ...fixed, [key]: { $param: 'note' } })] });
+        const result = checkMacro(hostile);
+        expect(result, `${tool} ${key}`).toMatchObject({ ok: false, error: { code: 'invalid-params' } });
+        if (!result.ok) expect(result.error.message).toContain('does not say what it takes');
+        expect(expandMacro(hostile, { chapter: 'a' }).ok).toBe(false);
+      }
+    }
+  });
+
   it('refuses a stale macro: a tool whose field changed shape since the macro was saved', () => {
     const was = macro({ steps: [step('notes.append', { doc: { $param: 'chapter' }, text: 'x' })] });
     expect(checkMacro(was).ok).toBe(true);
@@ -229,6 +241,18 @@ describe('expandMacro', () => {
     const extra = expandMacro(macro(), { chapter: 'a', ghost: 1 });
     expect(extra).toMatchObject({ ok: false });
     if (!extra.ok) expect(extra.error.message).toContain('"ghost"');
+  });
+
+  it('treats a run value named for an Object.prototype member as undeclared, and a declared param of that name as not given', () => {
+    const extra = expandMacro(macro(), { chapter: 'a', toString: 'x' });
+    expect(extra).toMatchObject({ ok: false });
+    if (!extra.ok) expect(extra.error.message).toContain('"toString"');
+    const declared = macro({
+      params: { ...PARAMS, properties: { ...PARAMS.properties, toString: { kind: 'string' as const, description: 'A param named like a method.' } } },
+      steps: [step('notes.append', { doc: { $param: 'chapter' }, text: { $param: 'toString' } })],
+    });
+    expect(expandMacro(declared, { chapter: 'a' })).toMatchObject({ ok: false });
+    expect(expandMacro(declared, { chapter: 'a', toString: 'hello' })).toMatchObject({ ok: true, value: { steps: [{ params: { doc: 'a', text: 'hello' } }] } });
   });
 
   it('refuses a missing optional param in a list, where a key cannot simply be dropped', () => {

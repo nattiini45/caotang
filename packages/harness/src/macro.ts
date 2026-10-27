@@ -149,7 +149,7 @@ function childSpec(spec: ParamSpec | undefined, value: MacroValue, key: string |
   if (spec === undefined) return undefined;
   switch (spec.kind) {
     case 'object':
-      return typeof key === 'string' ? spec.properties[key] : undefined;
+      return typeof key === 'string' && Object.hasOwn(spec.properties, key) ? spec.properties[key] : undefined;
     case 'array':
       return typeof key === 'number' ? spec.items : undefined;
     case 'tagged': {
@@ -157,7 +157,7 @@ function childSpec(spec: ParamSpec | undefined, value: MacroValue, key: string |
       const tag = (value as Record<string, MacroValue>)[spec.tag];
       if (isMacroPlaceholder(tag)) return 'tag-placeholder';
       const variant = typeof tag === 'string' && Object.hasOwn(spec.variants, tag) ? spec.variants[tag] : undefined;
-      return variant?.properties[key];
+      return variant !== undefined && Object.hasOwn(variant.properties, key) ? variant.properties[key] : undefined;
     }
     case 'union': {
       const wanted = Array.isArray(value) ? 'array' : 'object';
@@ -180,7 +180,9 @@ export function macroFieldSpec(tool: MacroTool, params: MacroValue, path: readon
     const next = childSpec(spec, value, key);
     if (next === 'tag-placeholder') return undefined;
     spec = next;
-    const inner: unknown = Array.isArray(value) ? (value as readonly MacroValue[])[key as number] : (value as Record<string, MacroValue>)[key as string];
+    const inner: unknown = Array.isArray(value)
+      ? (value as readonly MacroValue[])[key as number]
+      : isRecord(value) && Object.hasOwn(value, key) ? (value as Record<string, MacroValue>)[key as string] : undefined;
     if (inner === undefined) return undefined;
     value = inner as MacroValue;
   }
@@ -196,7 +198,7 @@ function checkValue(
   index: number,
 ): Result<null, CommandError> {
   if (isMacroPlaceholder(value)) {
-    const param = macro.params.properties[value.$param];
+    const param = Object.hasOwn(macro.params.properties, value.$param) ? macro.params.properties[value.$param] : undefined;
     if (param === undefined) {
       return stale(macro, `step ${index + 1} uses the param “${value.$param}”, which the macro does not declare`, 'declare the param, or use a fixed value', where);
     }
@@ -269,12 +271,12 @@ function withDefaults(macro: ProjectMacro, given: CallParams): Record<string, un
   const out: Record<string, unknown> = {};
   for (const name of Object.keys(macro.params.properties)) {
     const spec = macro.params.properties[name] as ParamSpec;
-    const value = given[name];
+    const value = Object.hasOwn(given, name) ? given[name] : undefined;
     if (value !== undefined) out[name] = value;
     else if ('default' in spec && spec.default !== undefined) out[name] = spec.default;
   }
   // A key the macro does not declare is kept, so the closed-set check names it.
-  for (const name of Object.keys(given)) if (!(name in macro.params.properties) && given[name] !== undefined) out[name] = given[name];
+  for (const name of Object.keys(given)) if (!Object.hasOwn(macro.params.properties, name) && given[name] !== undefined) out[name] = given[name];
   return out;
 }
 

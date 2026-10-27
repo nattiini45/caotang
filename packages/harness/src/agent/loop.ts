@@ -353,6 +353,12 @@ export interface TurnOptions {
    * extensibility §10). Absent, `submitPlan` shows the card it always showed. A rule that asks about a read still asks.
    */
   readonly readsWithoutCard?: boolean;
+  /**
+   * Keeps the turn out of the planner's conversation memory (L6): its intent and its outcome are never sent to a model. A macro run sets it,
+   * because a macro's name and steps are project data a collaborator may have written, and only the writer runs it (extensibility §10).
+   * The turn is still in the activity list, the run log and the trace, and the writer can still rewind or restore it.
+   */
+  readonly hiddenFromPlanner?: boolean;
 }
 
 /** What a UI action can tell a planner turn before it starts. */
@@ -3359,7 +3365,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const turn = newTurn(turnOptions, [...started]);
     if (logPlan.mode === 'resume') turn.modelCalls = (logPlan.replay.spend?.modelCalls ?? 0) + logPlan.replay.reservedCalls;
     turn.run = await openRun(turn, intent, logPlan);
-    const slot = started.push({ turnId: turn.id, intent }) - 1;
+    const slot = started.push({ turnId: turn.id, intent, ...(turnOptions.hiddenFromPlanner === true ? { hidden: true } : {}) }) - 1;
     running.set(turn.id, turn);
     trace({ kind: 'turn.start', at: now(), turnId: turn.id, intent });
     if (policyOf(turn).decides) takeBase(turn);
