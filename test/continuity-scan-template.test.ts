@@ -61,30 +61,26 @@ describe('docs/ci/continuity-scan.yml', () => {
     expect(ran).toBeGreaterThan(checked);
   });
 
-  it('stops while the version and the hash are still placeholders, and once set accepts only a tag and a 64-digit hash', () => {
+  it('pins a release: the version is a tag and the hash is a 64-digit SHA-256, both of which its guards accept', () => {
     const version = /CAOTANG_VERSION: '([^']*)'/.exec(code)?.[1] ?? '';
     const hash = /CAOTANG_SHA256: '([^']*)'/.exec(code)?.[1] ?? '';
-    expect(version).not.toBe('');
-    expect(hash).not.toBe('');
-    // The template guards both values with the patterns below; a placeholder fails them.
-    expect(/^v[0-9]+\.[0-9]+\.[0-9]+$/.test(version) || version.startsWith('REPLACE-')).toBe(true);
-    expect(/^[0-9a-f]{64}$/.test(hash) || hash.startsWith('REPLACE-')).toBe(true);
+    expect(version).toMatch(/^v[0-9]+\.[0-9]+\.[0-9]+$/);
+    expect(hash).toMatch(/^[0-9a-f]{64}$/);
     expect(code).toContain('=~ ^v[0-9]+\\.[0-9]+\\.[0-9]+$');
     expect(code).toContain('=~ ^[0-9a-f]{64}$');
-    expect(template).toContain('PLACEHOLDERS');
   });
 
   it('evaluates each guard: a placeholder fails it, a tag and a 64-digit hash pass it, and a failed guard exits 1', () => {
     const guards = [
-      { name: 'CAOTANG_VERSION', good: 'v0.1.0', bad: ['v0.1', '0.1.0', 'v0.1.0 ', 'latest'] },
-      { name: 'CAOTANG_SHA256', good: 'a'.repeat(64), bad: ['a'.repeat(63), 'A'.repeat(64), `${'a'.repeat(64)}0`] },
+      { name: 'CAOTANG_VERSION', good: 'v0.1.0', bad: ['v0.1', '0.1.0', 'v0.1.0 ', 'latest', 'REPLACE-WITH-A-RELEASE-TAG-LIKE-v0.1.0'] },
+      { name: 'CAOTANG_SHA256', good: 'a'.repeat(64), bad: ['a'.repeat(63), 'A'.repeat(64), `${'a'.repeat(64)}0`, 'REPLACE-WITH-THE-SHA-256-OF-caotang.mjs'] },
     ];
     for (const { name, good, bad } of guards) {
       const line = code.split('\n').find((candidate) => candidate.includes(`"$${name}" =~`)) ?? '';
       expect(line, `the guard for ${name}`).not.toBe('');
       const pattern = new RegExp(/=~ (\S+) \]\]/.exec(line)?.[1] ?? '(?!)');
-      const placeholder = new RegExp(`${name}: '([^']*)'`).exec(code)?.[1] ?? '';
-      expect(pattern.test(placeholder), `the placeholder of ${name} passes its guard`).toBe(false);
+      const pinned = new RegExp(`${name}: '([^']*)'`).exec(code)?.[1] ?? '';
+      expect(pattern.test(pinned), `the pinned ${name} passes its guard`).toBe(true);
       expect(pattern.test(good)).toBe(true);
       for (const value of bad) expect(pattern.test(value), value).toBe(false);
       // The guard fails closed: a mismatch prints an error annotation and ends the step with exit 1, never `|| true`.
