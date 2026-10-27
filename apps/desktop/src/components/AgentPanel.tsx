@@ -761,7 +761,7 @@ const STATUS_WORDS: Readonly<Record<StatusCard['status'], string>> = {
 
 function StatusCardRow({ card, steps }: { card: StatusCard; steps?: StepRestore }): ReactNode {
   const delegation = delegationViewOf(card);
-  // A step of a finished turn that changed the project can be restored to before it; a step that called an outside tool says its effects stay.
+  // A step of a finished turn, up to the last one that changed the project, can be restored to before it (a step that changed nothing starts the restore at the next one that did); a step that called an outside tool says its effects stay.
   const restorable = steps?.restorable.has(card.id) === true;
   const menu = stepMenuOf(card, restorable);
   return (

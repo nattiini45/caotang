@@ -435,6 +435,10 @@ test('a step of a finished turn gets a rewind menu when its restore would take s
   const external = stepMenuOf({ tool: 'mcp__s_STORYB0002__write_note', status: 'done' }, false);
   expect(external.show).toBe(true);
   expect(external.note).toContain('External side effects are not reversible');
+  // The menu's one action restores from the step, so the note names the step and not the turn.
+  expect(external.note).toContain('this step');
+  expect(external.note).not.toContain('this turn');
+  expect(stepMenuOf({ tool: 'meta.set', status: 'done' }, true).note).toBeUndefined();
   // A call that did not finish made no external change to speak of.
   expect(stepMenuOf({ tool: 'mcp__s_STORYB0002__write_note', status: 'failed' }, false)).toEqual({ show: false });
   // The note rides with the restorable menu of an outside step that also registered a Caotang change.

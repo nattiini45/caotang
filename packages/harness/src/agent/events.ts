@@ -169,6 +169,9 @@ export const CHECKPOINT_LABEL = 'restore to before this turn';
  */
 export const EXTERNAL_CHECKPOINT_NOTE = 'External side effects are not reversible. Restoring this turn puts back Caotang’s own changes only.';
 
+/** The same note for a step's own menu, where the restore it offers starts at that step and not at the turn. */
+export const STEP_EXTERNAL_CHECKPOINT_NOTE = 'External side effects are not reversible. Restoring from this step puts back Caotang’s own changes only.';
+
 /** The note a checkpoint row carries when the turn was resumed after a reload: the undo of a turn reaches what it applied since. */
 export const RESUMED_CHECKPOINT_NOTE =
   'This turn was resumed after a reload. Restoring it puts back only what it applied since; the steps applied before the reload are kept.';
