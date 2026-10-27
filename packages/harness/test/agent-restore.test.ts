@@ -313,6 +313,7 @@ describe('step checkpoints in a plan that mixes native and external steps', () =
 describe('the agent has no way to rewind', () => {
   it('registers no tool for a rewind or a restore', () => {
     expect(TOOL_NAMES.filter((name) => /rewind|restore|checkpoint/i.test(name))).toEqual([]);
-    expect(TOOL_NAMES).toHaveLength(36);
+    // 36 agent-visible tools and the four externalOnly host-model rows (#81), which only the MCP server lists.
+    expect(TOOL_NAMES).toHaveLength(40);
   });
 });
