@@ -296,6 +296,14 @@ describe('the runner', () => {
       expect(warn?.decision).toEqual({ action: 'warn', reason: '1 finding from codex.alias-collisions in “The Landing”.' });
     });
 
+    it.each(['branch.loose-end', 'branch.dead-end', 'dialogue.speaker-unknown', 'medium.speaker-parity'])('treats %s, which a document scan does not run, as a failure of the hook and not a pass', (id) => {
+      const hook = check({ kind: 'coherence', checks: [id] }, { onBlock: 'block', failClosed: true });
+      const [run] = createHookRunner([hook], { state: makeState() }).run(input({ affected: [LANDING] }));
+      expect(run).toMatchObject({ decision: { action: 'block' }, failed: expect.stringContaining('did not run') });
+      const [warned] = createHookRunner([{ ...hook, failClosed: false }], { state: makeState() }).run(input({ affected: [LANDING] }));
+      expect(warned?.decision.action).toBe('warn');
+    });
+
     it('says nothing for a project with no finding, and leaves the held coherence file alone', () => {
       const s = makeState();
       const before = JSON.stringify(s.coherence ?? null);

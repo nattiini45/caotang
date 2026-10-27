@@ -266,6 +266,9 @@ function coherenceCheck(check: Extract<HookCheck, { kind: 'coherence' }>, input:
   );
   if (!outcome.ok) throw new Error(outcome.message);
   const run = outcome.file?.runs.find((candidate) => candidate.id === outcome.data.runId);
+  // The dialogue checks run on a full scan with the app's dialogue facts, which a hook has not got: a check that did not run is no pass.
+  const skipped = check.checks.filter((id) => !(run?.checkIds ?? []).includes(id));
+  if (skipped.length > 0) throw new Error(`${skipped.map(quote).join(', ')} did not run on the touched documents (some checks need a full scan)`);
   const upserted = new Set(run?.findingsUpserted ?? []);
   const floor = SEVERITY_RANK[check.severityAtLeast ?? 'info'] ?? 0;
   const found = (outcome.file?.findings ?? []).filter((finding) => upserted.has(finding.id) && finding.status === 'open' && (SEVERITY_RANK[finding.severity] ?? 0) >= floor);
