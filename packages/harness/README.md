@@ -64,6 +64,7 @@ The two system prefixes (`PLANNER_SYSTEM_PREFIX`, `DRAFT_SYSTEM_PREFIX`) are dup
 |---|---|
 | `src/runtime.ts` | `createHarness`: the call path, the tool gate, the port path, plan execution, external callers |
 | `src/plan.ts` | Plans: preflight, execution from a step (`from`), the shared `AskBack` envelope (four codes) |
+| `src/macro.ts` | Macros (extensibility.md §10): `checkMacro` against the registry, `expandMacro` into a `Plan`, the derived risk. A macro is the writer's, not a registry row |
 | `src/agent/preload.ts` | `PRELOAD_BY_CONTEXT`: the deferred rows a turn starts with when a dialogue container or a storyboard is open |
 | `src/agent/protocol.ts` | The two wire protocols, the reply shapes, the tool declarations, the planner's system messages, the model-facing messages |
 | `src/agent/context.ts` | `ContextPort` and the product's port over `@caotang/context`: the layers it assembles (L1–L7), the harness's own L0 role text, the turns before this one as L6, the drop reasons, the layer budgets and the prompt preview (`buildPreview`) |

@@ -71,6 +71,20 @@ export {
   type PlanStepPreflight,
   type StepResult,
 } from './plan.js';
+// Macros (extensibility.md §10): the checks that need the registry, and the expansion into a plan.
+export {
+  checkMacro,
+  expandMacro,
+  macroCommandName,
+  macroFieldSpec,
+  macroIntent,
+  macroRisk,
+  registryMacroTools,
+  type MacroCheck,
+  type MacroRegistry,
+  type MacroRisk,
+  type MacroTool,
+} from './macro.js';
 export {
   continuityTask,
   createAgentSession,

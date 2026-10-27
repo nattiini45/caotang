@@ -343,15 +343,20 @@ export interface TurnOptions {
    * turn by, and it is logged with the turn. A name that is not a command name (`isCommandName`) is ignored.
    */
   readonly command?: string;
+  /**
+   * Shows a card even when a single reversible step would run at once (`/plan`, a macro). It only adds a card: the mode, the rules and the
+   * gate decide it as they decide any card, so it never lets a mode approve what the mode would not.
+   */
+  readonly forcePlan?: boolean;
+  /**
+   * For `submitPlan`: a plan whose steps are all reads runs at once with no card, as a planner's read-only steps do (a macro of reads,
+   * extensibility §10). Absent, `submitPlan` shows the card it always showed. A rule that asks about a read still asks.
+   */
+  readonly readsWithoutCard?: boolean;
 }
 
 /** What a UI action can tell a planner turn before it starts. */
 export interface SubmitOptions extends TurnOptions {
-  /**
-   * Shows a card even when the planner proposes a single reversible step, which otherwise runs at once (`/plan`). It only adds a card: the
-   * mode, the rules and the gate decide it as they decide any card, so it never lets a mode approve what the mode would not.
-   */
-  readonly forcePlan?: boolean;
   /** Deferred native rows the turn is about, loaded before the first request as if the planner had searched for them. */
   readonly preload?: readonly ToolName[];
 }
@@ -597,6 +602,8 @@ interface Turn {
   readonly command: string | undefined;
   /** A single reversible step shows a card instead of running at once. */
   readonly forcePlan: boolean;
+  /** A plan the app built whose steps are all reads runs at once, with no card. */
+  readonly readsWithoutCard: boolean;
 }
 
 /** How the turn ended, before the report is built from it. */
@@ -3129,6 +3136,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const named = staged.refusals.map((refused) => `Step ${refused.index + 1} (${refused.tool}) was refused: ${refused.message}`).join(' ');
       return { status: 'failed', askBack: askBackFor(refusal('invalid-params', named, { correctiveHint: 'change the step before its draft can be made' })) };
     }
+    if (turn.readsWithoutCard && plan.steps.every((step) => riskOf(step.tool) === 'read')) {
+      const ended = await runReads(turn, plan.steps, staged.proposals);
+      if (ended !== undefined) return ended;
+      return { status: 'replied', text: turn.steps.map((step) => step.summary ?? step.tool).join('; ') };
+    }
     const written = await runWrites(turn, plan, staged);
     if (written === 'continue') {
       return { status: 'failed', askBack: askBackFor(refusal('invalid-params', 'the plan was refused before anything ran', { correctiveHint: 'correct the step and send it again' })) };
@@ -3267,6 +3279,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       carried: 0,
       command: isCommandName(turnOptions.command) ? turnOptions.command : undefined,
       forcePlan: turnOptions.forcePlan === true,
+      readsWithoutCard: turnOptions.readsWithoutCard === true,
     };
   }
 
