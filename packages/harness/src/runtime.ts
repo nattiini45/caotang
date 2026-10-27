@@ -86,6 +86,7 @@ import {
   type ExternalToolDescriptor,
   type IndexedTools,
   type LoadedTools,
+  type McpCallOptions,
   type McpClient,
   type NativeIndexRow,
   type UntrustedCallResult,
@@ -312,21 +313,17 @@ export interface Harness {
  * server (its pin, its loaded set, its schema), and its apply awaits the server. The cast is the one the store's port
  * type needs: its apply takes the normalized call, which only the client's own validate produces.
  *
- * `stop` names the signal of the external read in flight, if any: the transport hands it to the server call, so the writer's
- * Stop ends the wait. `callExternal` sets it for a read only; a write the bus has started is never interrupted.
+ * `call` names the signal and the progress listener of the external call in flight, if any: the transport hands them to the server
+ * call, so the writer's Stop (or a run limit) ends the wait and tells the server, and the server's progress reaches the card.
+ * `callExternal` sets it for every external call, read or write: the call mutates nothing in the project, so there is no half-applied
+ * command to leave, and a server that already acted is told in the step's words, not hidden.
  */
-function mcpInvokeInjection(client: McpClient, loaded: LoadedTools, stop: () => AbortSignal | undefined): McpInvokeCommandPort {
-  const transport = createMcpTransport(client);
+function mcpInvokeInjection(client: McpClient, loaded: LoadedTools, call: () => McpCallOptions | undefined): McpInvokeCommandPort {
   const registration = mcpInvokeRegistration({
     client,
     loaded,
-    transport: {
-      relist: (serverKey) => transport.relist(serverKey),
-      callTool: (serverKey, toolName, args, options) => {
-        const signal = stop();
-        return transport.callTool(serverKey, toolName, args, signal === undefined ? options : { ...options, signal });
-      },
-    },
+    transport: createMcpTransport(client),
+    callOptions: call,
   });
   return { descriptor: registration.descriptor, apply: registration.apply as CommandApply<unknown, unknown> };
 }
@@ -648,8 +645,8 @@ export function createHarness(options: HarnessOptions): Harness {
   const index = (): IndexedTools => mcpClient?.indexedTools() ?? NO_SERVERS;
   // The MCP client's half of `mcp.invoke` exists only when there is a client. The storyboard module's half of the shot
   // commands is always wanted, since the planner they serve is always here (see completeRegistry).
-  let externalStop: AbortSignal | undefined;
-  const mcpInvoke = mcpClient === undefined ? undefined : mcpInvokeInjection(mcpClient, loaded, () => externalStop);
+  let externalCall: McpCallOptions | undefined;
+  const mcpInvoke = mcpClient === undefined ? undefined : mcpInvokeInjection(mcpClient, loaded, () => externalCall);
   const mcpReadResource = mcpClient === undefined ? undefined : mcpReadResourceInjection(mcpClient);
   const registry = completeRegistry(options.registry, clock, mcpInvoke, mcpReadResource);
   // The skills each turn has loaded, kept for that turn only (tools/skills.ts).
@@ -1222,8 +1219,8 @@ export function createHarness(options: HarnessOptions): Harness {
     // server's hash now, and a mismatch is refused, so a tool the server changed (even if re-approved) is not called
     // under a description this turn never read (extensibility §4 rule 3, §6 expectedPins).
     const shown = loaded.hashOf(call.name);
-    // Only a read can be stopped in flight: a write that has reached the server is left to finish (command-bus §5).
-    externalStop = tool.effectiveRisk === 'read-auto' ? turn.signal : undefined;
+    // Stop reaches the call in flight, a write included: the server is told, and it may already have acted (the step says so).
+    externalCall = { ...(turn.signal === undefined ? {} : { signal: turn.signal }), ...(turn.onProgress === undefined ? {} : { onProgress: turn.onProgress }) };
     // Whether the call reached the bus's apply is read from the log, which the apply's row grows: a call the bus
     // refused before the apply (not loaded, pin changed, a schema violation, a gate) wrote no row, and is not recorded.
     const before = log.length;
@@ -1240,7 +1237,7 @@ export function createHarness(options: HarnessOptions): Harness {
       busFor(confirmedOnly(turn)),
       registry,
     ).finally(() => {
-      externalStop = undefined;
+      externalCall = undefined;
     });
     let outcome: ToolOutcome;
     if (dispatched.ok) {
