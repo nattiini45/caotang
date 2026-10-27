@@ -30,7 +30,7 @@ export function landingNotice(outcome: AgentEditOutcome): string | null {
     case 'unsaved':
       return 'The agent’s edit replaced the text instead of marking it, because this scene had typing that was not saved yet.';
     case 'no-layer':
-      return 'The review marks could not be loaded, so the agent’s edit replaced the text. Nothing was lost; try again after reloading Caotang.';
+      return 'The review marks could not be loaded, so the agent’s edit replaced the text. Try again after reloading Caotang.';
     case 'diff':
     case 'mismatch':
       return 'The agent’s edit could not be marked for review, so it replaced the text. Nothing was lost: ‘Restore to before this turn’ is on that turn’s card in the agent panel.';

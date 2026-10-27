@@ -95,6 +95,8 @@ test.describe('the notice a reload owes for suggestions still marked (editor-eng
     }
     // A review layer that failed to load in review mode is not the same as a mode that is off.
     expect(landingNotice({ landed: 'replaced', reason: 'no-layer' })).toContain('The review marks could not be loaded');
+    expect(landingNotice({ landed: 'replaced', reason: 'no-layer' })).not.toContain('Nothing was lost');
+    expect(landingNotice({ landed: 'replaced', reason: 'unsaved' })).toContain('not saved yet');
   });
 
   test('a change that could not be resolved names the ways back', () => {

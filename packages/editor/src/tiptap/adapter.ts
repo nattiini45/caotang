@@ -903,9 +903,13 @@ const createInstance = (
    */
   const showAgentEdit = async (text: string, info: AgentEditInfo): Promise<AgentEditOutcome> => {
     const replaceOpts: SetContentOptions = { historyExcluded: true, discardUnsaved: true, revision: info.revision };
-    if (desk === undefined || unsaved()) {
+    // Read before the replacement: its reseat drops the unsaved typing, so afterwards the store reads clean. Typing that is
+    // dropped is reported as `unsaved` even when the layer is also missing, so the writer is told about the loss.
+    const dirty = unsaved();
+    if (desk === undefined || dirty) {
       await instance.setContent(text, replaceOpts);
-      return { landed: 'replaced', reason: desk !== undefined ? 'unsaved' : opts.agentEditMode === 'suggestions' ? 'no-layer' : 'off' };
+      const suggestions = opts.agentEditMode === 'suggestions';
+      return { landed: 'replaced', reason: suggestions && dirty ? 'unsaved' : desk !== undefined ? 'unsaved' : suggestions ? 'no-layer' : 'off' };
     }
     return (await loadBody(text, replaceOpts, (next) => desk.land(next, info.toolCallId))) ?? { landed: 'replaced', reason: 'superseded' };
   };

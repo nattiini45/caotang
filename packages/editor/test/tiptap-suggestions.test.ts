@@ -513,6 +513,24 @@ describe('when the marks are not trusted', () => {
     failure.mockRestore();
   });
 
+  it('reports unsaved typing as lost when the review layer cannot be loaded either', async () => {
+    const failure = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { autosave } = scheduler();
+    const { host, instance } = await mountReview(BEFORE, {
+      autosave,
+      revision: 1,
+      loadReviewLayer: async () => {
+        throw new Error('chunk failed');
+      },
+    });
+    const editor = tiptapOf(focusDom(host));
+    editor.view.dispatch(editor.state.tr.insertText('Typed. ', 1));
+    expect(instance.hasUnsavedEdits()).toBe(true);
+    expect(await instance.showAgentEdit(AFTER, info('call-1', 2))).toEqual({ landed: 'replaced', reason: 'unsaved' });
+    expect(instance.getContent()).toBe(AFTER);
+    failure.mockRestore();
+  });
+
   it('re-seats the store onto the stored body before the marks go in, so no write follows an apply', async () => {
     const { autosave, write } = scheduler();
     const { instance } = await mountReview(BEFORE, { autosave, revision: 1 });
