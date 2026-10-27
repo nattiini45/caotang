@@ -14,7 +14,8 @@ import {
   createProjectState,
   type ProjectState,
 } from '@caotang/store';
-import { createHarness, type Harness, type HarnessOptions } from '../src/index.js';
+import { withResultChecks } from '../src/testing.js';
+import { createHarness, type Harness, type HarnessOptions, type ToolOutcome } from '../src/index.js';
 
 export const OPENED = new Date('2026-10-08T09:00:00.000Z');
 
@@ -120,8 +121,9 @@ export function snapshotOf(state: ProjectState): string {
   return canonical({ manifest: state.manifest, documents, declinedCodexFiles: state.declinedCodexFiles });
 }
 
+/** A harness whose every successful result is checked against its row's declared schema (testing.ts). */
 export function makeHarness(overrides: Partial<HarnessOptions> = {}, state: ProjectState = makeState()): Harness {
-  return createHarness({ state, clock: clock.now, ...overrides });
+  return withResultChecks(createHarness({ state, clock: clock.now, ...overrides }));
 }
 
 /** A registry whose `export.compile` and `export.compileSelection` applies are fakes, for the real apply that is not built yet. */
@@ -170,13 +172,18 @@ export function run(harness: Harness, name: string, params: unknown, options: Ru
 }
 
 /** The value of a successful call. Fails the test, with the refusal printed, for anything else. */
-export function valueOf(outcome: ReturnType<Harness['call']>) {
+export function valueOf(outcome: ToolOutcome) {
   if (!outcome.ok) throw new Error(`expected success, got refusal: ${outcome.error.code}: ${outcome.error.message}`);
   return outcome.value;
 }
 
 /** The refusal of a failed call. Fails the test for a success. */
-export function refusalOf(outcome: ReturnType<Harness['call']>) {
+export function refusalOf(outcome: ToolOutcome) {
   if (outcome.ok) throw new Error(`expected a refusal, got success: ${JSON.stringify(outcome.value.data)}`);
   return outcome.error;
+}
+
+/** `createHarness`, with every successful result checked against its row's declared schema. For a test that builds its own options. */
+export function checkedHarness(options: HarnessOptions): Harness {
+  return withResultChecks(createHarness(options));
 }

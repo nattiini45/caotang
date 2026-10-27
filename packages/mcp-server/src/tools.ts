@@ -65,9 +65,8 @@ export interface ToolRuntime {
 /** A value the harness can return in the tool result, as the MCP `structuredContent` object. */
 export type Structured = Record<string, unknown>;
 
-/** The advertised Standard Schema: the harness's own JSON Schema, and a pass-through validate. */
-export function advertisedSchema(schema: JsonSchema): StandardSchemaWithJSON<Structured, Structured> {
-  const json: Record<string, unknown> = { ...schema };
+/** A Standard Schema that advertises `json` and passes every value through: the harness validates a call, and the tests validate a result. */
+function passThrough(json: Record<string, unknown>): StandardSchemaWithJSON<Structured, Structured> {
   return {
     '~standard': {
       version: 1,
@@ -79,6 +78,63 @@ export function advertisedSchema(schema: JsonSchema): StandardSchemaWithJSON<Str
       },
     },
   };
+}
+
+/** The advertised `inputSchema`: the harness's own JSON Schema for a row's params, and a pass-through validate. */
+export function advertisedInput(schema: JsonSchema): StandardSchemaWithJSON<Structured, Structured> {
+  return passThrough({ ...schema });
+}
+
+/**
+ * The JSON Schema of what `toCallResult` puts in `structuredContent` for a call that was made or declined, around a row's result
+ * schema: the envelope of a success, or the answer to a confirmation that was not given (`notWritten`). A refusal sets `isError`
+ * and carries `{ error }`, which the SDK does not check against an output schema, so it is not a branch. The root is an object
+ * under both protocol eras (2025-06-18 requires one).
+ */
+export function resultEnvelope(result: JsonSchema): JsonSchema {
+  return {
+    type: 'object',
+    oneOf: [
+      {
+        type: 'object',
+        description: 'The call ran: what it says, what it returned, and which nodes it touched.',
+        properties: {
+          summary: { type: 'string', description: 'One line: what changed, or what was read.' },
+          data: result,
+          affected: {
+            type: 'array',
+            description: 'The nodes the call touched, by title. Empty for a read.',
+            items: {
+              type: 'object',
+              properties: { nodeId: { type: 'string' }, title: { type: 'string' } },
+              required: ['nodeId', 'title'],
+              additionalProperties: false,
+            },
+          },
+          undoGroupId: { type: 'string', description: 'The undo group of the call, when it wrote anything.' },
+          notes: { type: 'array', description: 'Truncation and normalisation notes.', items: { type: 'string' } },
+        },
+        required: ['summary', 'data', 'affected'],
+        additionalProperties: false,
+      },
+      {
+        type: 'object',
+        description: 'The call asked for a confirmation that was declined, cancelled or not given: it completed, and nothing was written.',
+        properties: {
+          status: { type: 'string' },
+          written: { const: false },
+          tool: { type: 'string' },
+        },
+        required: ['status', 'written', 'tool'],
+        additionalProperties: false,
+      },
+    ],
+  };
+}
+
+/** The advertised `outputSchema`: the envelope around a row's result schema, and a pass-through validate. */
+export function advertisedOutput(result: JsonSchema): StandardSchemaWithJSON<Structured, Structured> {
+  return passThrough({ ...resultEnvelope(result) });
 }
 
 /** A harness outcome as a tool result: the value as text and as structured content, or the refusal with `isError` set. */
@@ -458,7 +514,8 @@ export function registerCaotangTools(server: McpServer, runtime: ToolRuntime, ro
       {
         description: exposure.description,
         annotations: exposure.annotations,
-        inputSchema: advertisedSchema(listing.schema),
+        inputSchema: advertisedInput(listing.schema),
+        ...(listing.resultSchema === undefined ? {} : { outputSchema: advertisedOutput(listing.resultSchema) }),
       },
       async (args: Structured, ctx: ServerContext): Promise<CallToolResult | InputRequiredResult> => {
         const params: Structured = args ?? {};

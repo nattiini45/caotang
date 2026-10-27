@@ -110,6 +110,8 @@ function fits(param: ParamSpec, target: ParamSpec): Fit {
       }
       return { ok: false, why: `the field takes one of ${target.values.join(', ')}, so declare the param as a choice with some of those values` };
     }
+    case 'number':
+      return param.kind === 'integer' || param.kind === 'number' ? { ok: true } : { ok: false, why: `the field takes a number and the param is ${describeKind(param)}` };
     case 'integer':
       return param.kind === 'integer' ? { ok: true } : { ok: false, why: `the field takes a whole number and the param is ${describeKind(param)}` };
     case 'boolean':

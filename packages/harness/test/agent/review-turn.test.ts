@@ -9,8 +9,8 @@ import { describe, expect, it } from 'vitest';
 import type { CoherenceModel } from '@caotang/coherence';
 import type { ProjectState } from '@caotang/store';
 
-import { createAgentPorts, createAgentSession, createContextPort, createHarness, type AgentEvent, type Decision, type PendingCard } from '../../src/index.js';
-import { STORM, clock, makeState } from '../fixtures.js';
+import { createAgentPorts, createAgentSession, createContextPort, type AgentEvent, type Decision, type PendingCard } from '../../src/index.js';
+import { checkedHarness, clock, makeState, STORM } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
 import { steps, transcript } from './scripts.js';
 
@@ -36,7 +36,7 @@ async function reviewTurn(state: ProjectState, decision: Decision, model: Cohere
   const gateway = await mockGateway([
     transcript(INTENT, [steps({ tool: 'coherence.review', params: { scope: { mode: 'doc', docIds: [STORM] } }, expect: 'the storm is reviewed' })]),
   ]);
-  const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now, coherence: { model: () => model } });
+  const harness = checkedHarness({ state, ports: createAgentPorts(), clock: clock.now, coherence: { model: () => model } });
   const pending: PendingCard[] = [];
   const events: AgentEvent[] = [];
   const session = createAgentSession({

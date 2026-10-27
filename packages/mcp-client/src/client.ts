@@ -104,6 +104,8 @@ export interface ExternalToolDescriptor {
   readonly toolName: string;
   readonly description: string;
   readonly inputSchema: unknown;
+  /** The JSON Schema of the tool's `structuredContent`, verbatim, when the server declares one. It is pinned with the rest. */
+  readonly outputSchema?: unknown;
   readonly annotations?: WireAnnotations;
   /** The hash of the listing as the server advertises it now. */
   readonly candidateHash: string;
@@ -162,6 +164,7 @@ export interface ReviewTool {
   readonly status: 'new' | 'changed' | 'unchanged';
   readonly description: string;
   readonly inputSchema: unknown;
+  readonly outputSchema?: unknown;
   readonly annotations?: WireAnnotations;
   readonly candidateHash: string;
   readonly previousHash?: string;
@@ -203,6 +206,8 @@ export interface ReviewCard {
 /** A successful call's result, verbatim, and not yet trusted. */
 export interface McpToolResult {
   readonly content: readonly unknown[];
+  /** The structured result, untrusted. When the tool declares an `outputSchema` and the call did not fail, `mcp.invoke` checks it. */
+  readonly structuredContent?: unknown;
   readonly isError: boolean;
 }
 
@@ -341,6 +346,7 @@ interface ListedTool {
   readonly qualifiedName: string;
   readonly description: string;
   readonly inputSchema: unknown;
+  readonly outputSchema?: unknown;
   readonly annotations?: WireAnnotations;
   readonly candidateHash: string;
   readonly usable: boolean;
@@ -610,6 +616,7 @@ class McpClientImpl implements McpClient {
         status: state === 'new' ? 'new' : state === 'changed' ? 'changed' : 'unchanged',
         description: tool.description,
         inputSchema: tool.inputSchema,
+        ...(tool.outputSchema === undefined ? {} : { outputSchema: tool.outputSchema }),
         ...(tool.annotations === undefined ? {} : { annotations: tool.annotations }),
         candidateHash: tool.candidateHash,
         ...(previousHash === undefined ? {} : { previousHash }),
@@ -889,7 +896,11 @@ class McpClientImpl implements McpClient {
       }
       throw new McpFailure(mapCallFailure(failure, server.name, toolName, this.callTimeoutMs, this.callMaxTotalMs));
     }
-    return { content: [...result.content], isError: result.isError === true };
+    return {
+      content: [...result.content],
+      isError: result.isError === true,
+      ...(result.structuredContent === undefined ? {} : { structuredContent: result.structuredContent }),
+    };
   }
 
   /**
@@ -1096,8 +1107,15 @@ class McpClientImpl implements McpClient {
         qualifiedName,
         description,
         inputSchema,
+        ...(tool.outputSchema === undefined ? {} : { outputSchema: tool.outputSchema }),
         ...(tool.annotations === undefined ? {} : { annotations: tool.annotations }),
-        candidateHash: await pinHash({ toolName: tool.name, description, inputSchema, ...(tool.annotations === undefined ? {} : { annotations: tool.annotations }) }),
+        candidateHash: await pinHash({
+          toolName: tool.name,
+          description,
+          inputSchema,
+          ...(tool.annotations === undefined ? {} : { annotations: tool.annotations }),
+          ...(tool.outputSchema === undefined ? {} : { outputSchema: tool.outputSchema }),
+        }),
         usable: USABLE_NAME.test(qualifiedName),
       });
     }
@@ -1132,6 +1150,7 @@ class McpClientImpl implements McpClient {
       toolName: tool.toolName,
       description: tool.description,
       inputSchema: tool.inputSchema,
+      ...(tool.outputSchema === undefined ? {} : { outputSchema: tool.outputSchema }),
       ...(tool.annotations === undefined ? {} : { annotations: tool.annotations }),
       candidateHash: tool.candidateHash,
       ...(pin === undefined ? {} : { pin }),

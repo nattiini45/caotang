@@ -18,7 +18,7 @@
  */
 
 import type { CommandError, Result } from '@caotang/bus';
-import { err, ok } from '@caotang/bus';
+import { err, ok, param, type ObjectSpec } from '@caotang/bus';
 
 import type { ExternalToolDescriptor, IndexedTools } from './client.js';
 import { clipChars, hasOwn, isRecord } from './util.js';
@@ -87,6 +87,9 @@ export interface ToolSearchEntry {
   readonly meta: ExtensionToolMeta;
   readonly params: ToolParamsObject;
   readonly port: typeof TOOL_SEARCH_NAME;
+  /** What `data` holds on success. Closed: the gateway's answer is the one result the model reads in every turn that searches. */
+  readonly result: ObjectSpec;
+  readonly resultClosed: true;
 }
 
 export const TOOL_SEARCH_PARAMS: ToolParamsObject = {
@@ -118,12 +121,39 @@ export const TOOL_SEARCH_PARAMS: ToolParamsObject = {
   required: ['query'],
 };
 
+/** What a search answers (`ToolSearchValue.data`): the matches, and the names the turn may now call. */
+export const TOOL_SEARCH_RESULT = param.object(
+  'The matches, and the names they surfaced.',
+  {
+    matches: param.list(
+      "The matches, Caotang's own tools first.",
+      param.object(
+        'One match.',
+        {
+          source: param.choice('Whether the match is a Caotang tool or an external one.', ['native', 'external']),
+          name: param.string('The registry name of a native match, the qualified name of an external one.'),
+          serverKey: param.string('The key of the external server.'),
+          serverName: param.string('The name of the external server.'),
+          toolName: param.string('The name of the tool on its server.'),
+          excerpt: param.string('A short excerpt of the description.'),
+          risk: param.choice('Whether a call runs without a confirmation (read) or asks the user (write).', ['read', 'write']),
+        },
+        ['source', 'name', 'excerpt', 'risk'],
+      ),
+    ),
+    surfaced: param.list('The names loaded for this turn.', param.string('A tool name.')),
+  },
+  ['matches', 'surfaced'],
+);
+
 /** The registry entry for `tool.search`, in the shape the harness reads. */
 export const TOOL_SEARCH_ENTRY: ToolSearchEntry = {
   kind: 'port',
   meta: TOOL_SEARCH_META,
   params: TOOL_SEARCH_PARAMS,
   port: TOOL_SEARCH_NAME,
+  result: TOOL_SEARCH_RESULT,
+  resultClosed: true,
 };
 
 /**

@@ -40,7 +40,7 @@ import {
 import type { CallToolResult, InputRequiredResult, McpServer, ServerContext } from '@modelcontextprotocol/server';
 
 import type { RoundRuntime, Structured } from './tools.js';
-import { advertisedSchema, confirmRound, refusal as refusalResult } from './tools.js';
+import { advertisedInput, confirmRound, refusal as refusalResult } from './tools.js';
 import { openProject, type OpenProjectOptions, type ProjectSession } from './session.js';
 
 /** Why the manifest did not load: it would not parse, or its fields failed the schema. */
@@ -561,7 +561,7 @@ export function registerRecoveryTools(server: McpServer, runtime: RecoveryRuntim
         'Returns the file a recovery would restore from (a snapshot of caotang.json) or that it would rebuild from the document and codex files, what a rebuild loses, ' +
         'and whether it needs its own confirmation. Writes nothing.',
       annotations: { readOnlyHint: true, destructiveHint: false },
-      inputSchema: advertisedSchema({ type: 'object', properties: {}, additionalProperties: false }),
+      inputSchema: advertisedInput({ type: 'object', properties: {}, additionalProperties: false }),
     },
     (): CallToolResult => {
       const unavailable = unavailableError(recovery, RECOVER_TOOL);
@@ -578,7 +578,7 @@ export function registerRecoveryTools(server: McpServer, runtime: RecoveryRuntim
           'The unreadable caotang.json is kept as caotang.json.corrupt-<timestamp>. A rebuild loses the folder structure and the vocabulary, so it needs rebuild: true and its own confirmation. ' +
           'Nothing is written unless the user accepts. Afterwards the server holds no project: restart or reconnect it to open the recovered one.',
         annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
-        inputSchema: advertisedSchema({
+        inputSchema: advertisedInput({
           type: 'object',
           properties: { rebuild: { type: 'boolean', description: 'Set to true to rebuild the project from its document and codex files. Only for a rebuild offer.' } },
           additionalProperties: false,

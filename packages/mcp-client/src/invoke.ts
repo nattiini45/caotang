@@ -33,7 +33,7 @@ import type { ApplyContext, CommandApply, CommandDescriptor, CommandError, Resul
 import { ApplyRefusal, err, ok } from '@caotang/bus';
 
 import type { McpCallOptions, McpClient, McpToolResult, McpTransport } from './client.js';
-import { McpFailure, PIN_MISMATCH_TEXT, schemaText, serverErrorText, toCommandError, unreachableText, unsupportedSchemaText, type McpError } from './errors.js';
+import { McpFailure, PIN_MISMATCH_TEXT, outputSchemaText, outputUncheckedText, schemaText, serverErrorText, toCommandError, unreachableText, unsupportedSchemaText, type McpError } from './errors.js';
 import type { EffectiveRisk } from './risk.js';
 import { validateArguments } from './schema.js';
 import type { LoadedTools } from './search.js';
@@ -91,8 +91,9 @@ export interface InvokeDeps extends ValidateDeps {
 export const EXTERNAL_RESULT_TOKEN_CAP = 8_000;
 
 /** The tokens an answer's content counts as, on the same estimate the harness uses for its own caps. */
-export function resultTokens(content: readonly unknown[]): number {
-  return Math.ceil(JSON.stringify(content).length / 4);
+export function resultTokens(content: readonly unknown[], structuredContent?: unknown): number {
+  const chars = JSON.stringify(content).length + (structuredContent === undefined ? 0 : (JSON.stringify(structuredContent) ?? '').length);
+  return Math.ceil(chars / 4);
 }
 
 /** The content a successful call returns, marked as the untrusted data it is (§4 rule 4). */
@@ -227,6 +228,9 @@ export async function applyMcpInvoke(deps: InvokeDeps, params: McpInvokeNormaliz
     return { ok: false, error: toCommandError({ code: 'pin_mismatch', message: PIN_MISMATCH_TEXT }, serverName, toolName) };
   }
 
+  // The output schema the pinned listing declared, read before the call so a relist during it cannot change what the answer is held to.
+  const outputSchema = deps.client.describe(serverKey, toolName)?.outputSchema;
+
   let result: McpToolResult;
   try {
     result = await deps.transport.callTool(serverKey, toolName, params.args, deps.callOptions?.());
@@ -262,7 +266,7 @@ export async function applyMcpInvoke(deps: InvokeDeps, params: McpInvokeNormaliz
   // The answer is returned whole or not at all. An answer over the cap is refused, and the cap is named, so the model
   // can ask for less; it is never cut down, because a cut answer would be a different answer the server did not give.
   const cap = deps.resultTokenCap ?? EXTERNAL_RESULT_TOKEN_CAP;
-  const tokens = resultTokens(result.content);
+  const tokens = resultTokens(result.content, result.structuredContent);
   if (tokens > cap) {
     context.report({ affected: [], summary: `called ${serverName} › ${toolName} (external) — the result was over the ${cap}-token cap, so it was not returned` });
     return {
@@ -274,6 +278,16 @@ export async function applyMcpInvoke(deps: InvokeDeps, params: McpInvokeNormaliz
         correctiveHint: 'call the tool again with narrower arguments so the answer is smaller, or drop this step',
       },
     };
+  }
+
+  // A tool that declared an output schema is held to it for an answer that is not an error (MCP: the server MUST conform, the client SHOULD
+  // check). The content blocks are what the model reads, so this is a check on the server's word and not a rewrite of the answer.
+  if (outputSchema !== undefined && !result.isError) {
+    const refused = outputRefusal(outputSchema, result.structuredContent, serverName, toolName);
+    if (refused !== undefined) {
+      context.report({ affected: [], summary: `called ${serverName} › ${toolName} (external) — the structured result did not match its output schema` });
+      return { ok: false, error: refused };
+    }
   }
 
   context.report({
@@ -289,6 +303,25 @@ export async function applyMcpInvoke(deps: InvokeDeps, params: McpInvokeNormaliz
       content: result.content,
     },
   };
+}
+
+/** The refusal for a structured result that does not match the output schema its tool declared, or undefined when it does. Any JSON value is accepted when the schema allows it (2026-07-28). */
+function outputRefusal(outputSchema: unknown, structuredContent: unknown, serverName: string, toolName: string): CommandError | undefined {
+  const refuse = (message: string): CommandError => ({
+    code: 'postcondition',
+    message,
+    target: toolName,
+    correctiveHint: 'drop this step, or tell the user the server answered in a shape it did not declare; the tool already ran, so check its effect before calling it again',
+  });
+  if (structuredContent === undefined) {
+    return refuse(outputUncheckedText(serverName, toolName, 'it declared an output schema but returned no structured content'));
+  }
+  const verdict = validateArguments(outputSchema, structuredContent);
+  if (verdict.ok) return undefined;
+  if ('unsupported' in verdict) {
+    return refuse(outputUncheckedText(serverName, toolName, `its output schema uses ${verdict.unsupported}, which Caotang cannot check`));
+  }
+  return refuse(outputSchemaText(serverName, toolName, verdict.failures));
 }
 
 /** How a failed call reads in its activity row. */

@@ -37,7 +37,8 @@ export interface PinnedAnnotations {
 /**
  * The pin hash of one advertised tool: SHA-256 over the canonical JSON of
  * `{ toolName, description, inputSchema }`, extended with the four hint keys when the server
- * advertises them (see {@link PinnedAnnotations}). A tool with no hints hashes exactly as the base rule says.
+ * advertises them (see {@link PinnedAnnotations}) and with the `outputSchema` when it declares one. A tool with neither
+ * hashes exactly as the base rule says.
  *
  * The description and the schema are the server's own text, taken verbatim. The caller normalises an
  * absent description to `''` and an absent schema to `{ type: 'object' }` before it reaches here, so the
@@ -48,9 +49,14 @@ export function pinHash(tool: {
   readonly description: string;
   readonly inputSchema: unknown;
   readonly annotations?: PinnedAnnotations;
+  readonly outputSchema?: unknown;
 }): Promise<string> {
   const annotations = tool.annotations === undefined ? undefined : pinnedHints(tool.annotations);
-  return sha256Hex(canonicalJson({ toolName: tool.toolName, description: tool.description, inputSchema: tool.inputSchema, annotations }));
+  // The output schema joins the hash only when the server advertises one (the rule annotations follow): a tool without one hashes as it
+  // always did, so no existing pin changes and none needs a second review. `canonicalJson` leaves an undefined key out.
+  return sha256Hex(
+    canonicalJson({ toolName: tool.toolName, description: tool.description, inputSchema: tool.inputSchema, annotations, outputSchema: tool.outputSchema }),
+  );
 }
 
 /** The four hint keys that are present, with their values. Absent when none is. */
@@ -77,7 +83,14 @@ export interface PinnedPromptArgument {
  * (`kind` is part of the canonical text), and its own map in the settings, so adding a kind changed no tool hash.
  */
 export type PinSubject =
-  | { readonly kind: 'tool'; readonly toolName: string; readonly description?: string; readonly inputSchema?: unknown; readonly annotations?: PinnedAnnotations }
+  | {
+      readonly kind: 'tool';
+      readonly toolName: string;
+      readonly description?: string;
+      readonly inputSchema?: unknown;
+      readonly annotations?: PinnedAnnotations;
+      readonly outputSchema?: unknown;
+    }
   | { readonly kind: 'prompt'; readonly name: string; readonly description?: string; readonly arguments?: readonly PinnedPromptArgument[] }
   | { readonly kind: 'resourceTemplate'; readonly uriTemplate: string; readonly description?: string; readonly mimeType?: string };
 
@@ -90,6 +103,7 @@ export function subjectHash(subject: PinSubject): Promise<string> {
         description: subject.description ?? '',
         inputSchema: subject.inputSchema ?? { type: 'object' },
         ...(subject.annotations === undefined ? {} : { annotations: subject.annotations }),
+        ...(subject.outputSchema === undefined ? {} : { outputSchema: subject.outputSchema }),
       });
     case 'prompt':
       return sha256Hex(

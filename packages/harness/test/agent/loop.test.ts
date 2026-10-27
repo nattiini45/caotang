@@ -15,19 +15,9 @@ import type { ChatRequest, Gateway } from '@caotang/gateway';
 import { DRAFT_PREFIX, PLANNER_PREFIX, fail, isDraftCall, isPlannerCall, userTextOf } from '@caotang/gateway/mock';
 import type { MockScript } from '@caotang/gateway/mock';
 
-import {
-  createAgentSession,
-  createContextPort,
-  createAgentPorts,
-  createHarness,
-  CHECKPOINT_LABEL,
-  type AgentEvent,
-  type ContextPort,
-  type Decision,
-  type StatusCard,
-} from '../../src/index.js';
+import { createAgentSession, createContextPort, createAgentPorts, CHECKPOINT_LABEL, type AgentEvent, type ContextPort, type Decision, type StatusCard } from '../../src/index.js';
 import { evaluate, type Scenario, type ScenarioRun } from '../../src/agent/eval.js';
-import { CHAPTER_TWO, FRIEND, LANDING, LANDING_BODY, OPENED, STORM, makeState } from '../fixtures.js';
+import { CHAPTER_TWO, checkedHarness, FRIEND, LANDING, LANDING_BODY, makeState, OPENED, STORM } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
 import { answer, prose, steps, transcript } from './scripts.js';
 
@@ -193,7 +183,7 @@ describe('streaming, and the ghost-preview handoff (agent-harness §8)', () => {
 
 describe('the checkpoint row and its restore (command-bus §5, agent-harness §5)', () => {
   it('names the turn’s undo group, and restoring it puts the project back as it was', async () => {
-    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const gateway = await mockGateway([
       transcript('Label The Friend and give The Storm a synopsis.', [
         steps(
@@ -226,7 +216,7 @@ describe('the checkpoint row and its restore (command-bus §5, agent-harness §5
   });
 
   it('a turn that wrote nothing has no checkpoint, and cannot be restored', async () => {
-    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const gateway = await mockGateway([transcript('What is in The Storm?', [answer('Rain, and a failed lamp.')])]);
     const session = createAgentSession({
       harness,
@@ -428,7 +418,7 @@ describe('the checkpoint row and its restore (command-bus §5, agent-harness §5
 
 describe('token accounting, per turn (provider-gateway §6)', () => {
   it('each turn’s tokens are its own, read from the ledger rows the turn’s requests wrote', async () => {
-    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const gateway = await mockGateway([
       transcript('Tag The Storm.', [steps({ tool: 'meta.set', params: { targets: [STORM], keywords_add: ['storm'] }, expect: 'tagged' })]),
       transcript('What is in The Storm?', [answer('Rain.')]),
@@ -455,7 +445,7 @@ describe('token accounting, per turn (provider-gateway §6)', () => {
       transcript('Tag The Storm.', [steps({ tool: 'meta.set', params: { targets: [STORM], keywords_add: ['storm'] }, expect: 'tagged' })]),
       transcript('What is in The Friend?', [answer('Nothing yet.')]),
     ]);
-    const first = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const first = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const sessionA = createAgentSession({
       harness: first,
       gateway,
@@ -464,7 +454,7 @@ describe('token accounting, per turn (provider-gateway §6)', () => {
     });
     const reportA = await sessionA.submit('Tag The Storm.');
 
-    const second = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const second = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const sessionB = createAgentSession({
       harness: second,
       gateway,
@@ -661,7 +651,7 @@ describe('a draft the provider cut or broke (provider-gateway §3)', () => {
 
 describe('the turns a session has run are L6 (context-assembly §2)', () => {
   it('a later turn’s drafting call carries the intents of the two turns before it, and not of an older one', async () => {
-    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const gateway = await mockGateway([
       transcript('Name the ferryman.', [answer('Named.')]),
       transcript('Name the lamp.', [answer('Named.')]),
@@ -724,7 +714,7 @@ describe('the outcome a turn leaves for L6 does not depend on the activity log (
   };
 
   it('a turn that only replied leaves its clipped answer as the outcome, since a reply writes no activity row', async () => {
-    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const { gateway, sent } = recording(await mockGateway([transcript('Who rows the ferry?', [answer('Oren rows the ferry.\n\nHe has done so for years.')]), ...draftScripts]));
     const session = createAgentSession({ harness, gateway, decide: async () => ({ action: 'approve' }) });
     for (const intent of ['Who rows the ferry?', draftIntent]) await session.submit(intent);
@@ -736,7 +726,7 @@ describe('the outcome a turn leaves for L6 does not depend on the activity log (
   });
 
   it('a long answer is held to one clipped line', async () => {
-    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const { gateway, sent } = recording(await mockGateway([transcript('Tell me everything.', [answer('word '.repeat(200))]), ...draftScripts]));
     const session = createAgentSession({ harness, gateway, decide: async () => ({ action: 'approve' }) });
     for (const intent of ['Tell me everything.', draftIntent]) await session.submit(intent);
@@ -750,7 +740,7 @@ describe('the outcome a turn leaves for L6 does not depend on the activity log (
   });
 
   it('turn ids follow the session id, in order', async () => {
-    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const gateway = await mockGateway([transcript('One.', [answer('A.')]), transcript('Two.', [answer('B.')])]);
     const session = createAgentSession({ harness, gateway, decide: async () => ({ action: 'approve' }), sessionId: 'panel' });
     const first = await session.submit('One.');
@@ -762,7 +752,7 @@ describe('the outcome a turn leaves for L6 does not depend on the activity log (
 
 describe('a turn’s own pins, over the session’s (agent-harness §2)', () => {
   it('each turn’s model calls carry that turn’s model and thinking level, and the session keeps its conversation across them', async () => {
-    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const gateway = await mockGateway([transcript('Name the ferryman.', [answer('Named.')]), transcript('Name the lamp.', [answer('Named.')]), transcript('Name the storm.', [answer('Named.')])]);
     const sent: ChatRequest[] = [];
     const recording: Gateway = {
@@ -1039,7 +1029,7 @@ describe('a step the turn cannot ground is refused back to the model, not thrown
 
   it('a context assembly that refuses a step is a refusal to the model too, and the turn goes on', async () => {
     const intent = 'Continue The Landing.';
-    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const real = createContextPort({ state: harness.state });
     let refused = false;
     // The assembly refuses the first scene.draft it is asked for. The step must come back to the model, not end the turn.

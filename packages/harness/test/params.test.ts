@@ -228,3 +228,45 @@ describe('the JSON Schema derived from the same declaration', () => {
     expect(checkParams('keys.tool', spec as Parameters<typeof checkParams>[1], { a: 'x', b: 'y' }).ok).toBe(true);
   });
 });
+
+describe('number and nullable', () => {
+  const spec = param.object(
+    'A result.',
+    {
+      score: param.number('A score.', { minimum: 0, maximum: 1 }),
+      count: param.integer('A count.'),
+      session: param.nullable(param.object('A session.', { words: param.integer('Words.') }, ['words'])),
+      label: param.nullable(param.choice('A label.', ['a', 'b'])),
+      parts: param.nullable(param.list('Parts.', param.string('One part.'))),
+      either: param.nullable(param.either('A or B.', [param.string('Text.'), param.boolean('Flag.')])),
+    },
+    [],
+  );
+
+  it('takes a finite number of any kind, within its bounds', () => {
+    expect(checkParams('t', spec, { score: 0.25 }).ok).toBe(true);
+    expect(checkParams('t', spec, { score: 1.5 }).ok).toBe(false);
+    expect(checkParams('t', spec, { score: Number.NaN }).ok).toBe(false);
+    expect(checkParams('t', spec, { score: '0.5' }).ok).toBe(false);
+    expect(checkParams('t', spec, { count: 0.5 }).ok).toBe(false);
+  });
+
+  it('accepts null only where a spec is nullable, at any depth', () => {
+    expect(checkParams('t', spec, { session: null, label: null, parts: null, either: null }).ok).toBe(true);
+    expect(checkParams('t', spec, { score: null }).ok).toBe(false);
+    expect(checkParams('t', spec, { count: null }).ok).toBe(false);
+    expect(checkParams('t', spec, { session: { words: null } }).ok).toBe(false);
+    expect(checkParams('t', spec, { session: { words: 3 } }).ok).toBe(true);
+  });
+
+  it('emits [type, "null"] for a nullable spec, adds null to an enum, and a null branch to a union', () => {
+    expect(toJsonSchema(param.nullable(param.string('S.')))).toEqual({ type: ['string', 'null'], description: 'S.' });
+    expect(toJsonSchema(param.number('N.', { minimum: 0 }))).toEqual({ type: 'number', description: 'N.', minimum: 0 });
+    expect(toJsonSchema(param.nullable(param.choice('C.', ['a', 'b'])))).toEqual({ type: ['string', 'null'], enum: ['a', 'b', null], description: 'C.' });
+    expect(toJsonSchema(param.nullable(param.either('U.', [param.string('S.')])))).toEqual({
+      description: 'U.',
+      anyOf: [{ type: 'string', description: 'S.' }, { type: 'null' }],
+    });
+    expect(toJsonSchema(param.nullable(param.freeObject('F.')))).toEqual({ type: ['object', 'null'], description: 'F.' });
+  });
+});

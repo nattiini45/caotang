@@ -12,26 +12,8 @@ import { addDocument, setBody, type ProjectState } from '@caotang/store';
 import type { MockScript } from '@caotang/gateway/mock';
 import type { Finding } from '@caotang/coherence';
 
-import {
-  ACCEPT_EDITS_TOOLS,
-  DEFAULT_TURN_BUDGET,
-  ModeError,
-  PERMISSION_MODES,
-  budgetHit,
-  createAgentPorts,
-  createAgentSession,
-  createContextPort,
-  createHarness,
-  modePolicy,
-  type AgentEvent,
-  type AgentSessionOptions,
-  type Decision,
-  type PendingCard,
-  type PermissionMode,
-  type PlanStep,
-  type TurnReport,
-} from '../../src/index.js';
-import { CHAPTER_TWO, FRIEND, LANDING, LANDING_BODY, OPENED, STORM, makeHarness, makeState } from '../fixtures.js';
+import { ACCEPT_EDITS_TOOLS, DEFAULT_TURN_BUDGET, ModeError, PERMISSION_MODES, budgetHit, createAgentPorts, createAgentSession, createContextPort, modePolicy, type AgentEvent, type AgentSessionOptions, type Decision, type PendingCard, type PermissionMode, type PlanStep, type TurnReport } from '../../src/index.js';
+import { CHAPTER_TWO, checkedHarness, FRIEND, LANDING, LANDING_BODY, makeHarness, makeState, OPENED, STORM } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
 import { answer, prose, steps, transcript } from './scripts.js';
 
@@ -54,7 +36,7 @@ interface Setup extends SessionExtras {
 /** One turn on a fresh project in a mode. A card the policy leaves to the writer takes the next decision, and is approved when none is left. */
 async function turn(intent: string, scripts: readonly MockScript[], setup: Setup = {}): Promise<Run> {
   const state = (setup.state ?? makeState)();
-  const harness = createHarness({ state, ports: createAgentPorts() });
+  const harness = checkedHarness({ state, ports: createAgentPorts() });
   const base = await mockGateway(scripts);
   let drafting = 0;
   const gateway = { ...base, complete: (request: Parameters<typeof base.complete>[0], signal?: AbortSignal) => {
@@ -166,7 +148,7 @@ describe('a switch in the middle of a turn', () => {
     ];
     // The first card is the writer's: they retry the draft, switching to Accept edits as they do.
     const state = makeState();
-    const harness = createHarness({ state, ports: createAgentPorts() });
+    const harness = checkedHarness({ state, ports: createAgentPorts() });
     const gateway = await mockGateway(scripts);
     const asked: PendingCard[] = [];
     const session = createAgentSession({
@@ -223,7 +205,7 @@ describe('plan-only', () => {
 
   it('runs the held steps through submitPlan once the writer is in ask', async () => {
     const state = makeState();
-    const harness = createHarness({ state, ports: createAgentPorts() });
+    const harness = checkedHarness({ state, ports: createAgentPorts() });
     const gateway = await mockGateway([transcript(intent, [steps(writes[0] as PlanStep), answer('Plan: label it.')])]);
     let mode: PermissionMode = 'plan-only';
     const asked: PendingCard[] = [];
@@ -478,7 +460,7 @@ describe('what no mode takes from the writer or the bus', () => {
       const file = (state.coherence ?? (state.coherence = { formatVersion: 1, findings: [], runs: [], sceneMeta: {}, worldRules: [], knowledge: [], reviewState: {} })) as unknown as { findings: Finding[] };
       file.findings.push(seeded);
       const intent = 'Dismiss the lamp finding.';
-      const harness = createHarness({ state, ports: createAgentPorts() });
+      const harness = checkedHarness({ state, ports: createAgentPorts() });
       const gateway = await mockGateway([
         transcript(intent, [steps({ tool: 'coherence.setFindingStatus', params: { findingId: finding, status: 'dismissed', note: 'Fine.' }, expect: 'dismissed' }), answer('It stays open.')]),
       ]);
@@ -575,7 +557,7 @@ describe('budgets, while a mode decides the cards', () => {
 
   it('holds the session to its own limits across turns', async () => {
     const state = makeState();
-    const harness = createHarness({ state, ports: createAgentPorts() });
+    const harness = checkedHarness({ state, ports: createAgentPorts() });
     const gateway = await mockGateway([
       transcript('First label.', [steps(label('act-1'))]),
       transcript('Second label.', [steps(label('act-2'))]),
