@@ -59,6 +59,7 @@ const TASKS: Readonly<Record<AssemblyTool, AgentTask>> = {
   meta: { tool: 'meta', instruction: 'Summarise the project.' },
   'dialogue.draft': DIALOGUE,
   delegate: { tool: 'delegate', instruction: 'Brief: who knows about the wall?', scope: [IDS.ch1, IDS.ch2] },
+  critic: { tool: 'critic', instruction: 'Brief: open the scene.\nThe draft to review:\nElena reached the harbor town.', focus: FOCUS_ID },
 };
 
 /** The project each tool is assembled over: the dialogue container for dialogue.draft, the fixture's manuscript for the rest. */
@@ -92,6 +93,17 @@ describe('the layers each tool assembles (§3)', () => {
     expect(layer(assembled, 'L6').included).toBe(false);
     // The fixture's turns are in the app and reach no part of the prompt.
     expect(assembled.messages.map((message) => message.content).join('\n')).not.toContain('Tighten the opening of chapter 3');
+  });
+
+  it('critic assembles the project, the codex the draft mentions and the task, with no structure, story, focus or turns (the draft review, agent-harness §8)', () => {
+    const assembled = assemble(TASKS.critic, buildApp());
+    expect(included(assembled)).toEqual(['L0', 'L1', 'L2', 'L7']);
+    for (const id of ['L3', 'L4', 'L5', 'L6'] as const) expect(layer(assembled, id).included, id).toBe(false);
+    const user = assembled.messages.map((message) => message.content).join('\n');
+    expect(user).toContain('The draft to review:');
+    expect(user).not.toContain('Tighten the opening of chapter 3');
+    expect(layer(assembled, 'L2').baseBudget).toBe(1_000);
+    expect(assembled.totalBudget).toBe(12_000);
   });
 
   it('synopsis.fill assembles the structure and the full document, without codex, story or turns', () => {

@@ -174,7 +174,12 @@ export interface PlanStepView {
   readonly cost?: StepCost;
   /** The delegated agent that proposed this step, when the step is the one it proposed as it was proposed (agent-harness §2). An edited step has none. */
   readonly proposedBy?: string;
+  /** What the draft review adds to the step's cost, in words, when the review is on for a scene draft (agent-harness §8). No dollar figure: only a coherence review's plan is priced. */
+  readonly review?: string;
 }
+
+/** What a scene draft's step says about the cost of the draft review. The review's one model call is the only one it adds. */
+export const REVIEW_CALL_NOTE = 'plus up to 1 review call';
 
 export interface PlanCardView {
   readonly id: string;
@@ -443,6 +448,8 @@ export function reviewCostAt(
 /** What a staged proposal shows a card: whether the provider cut it, the prompt behind it, and the step's cost when it has one. */
 export interface StagedView {
   readonly cut: boolean;
+  /** The step's review note (`REVIEW_CALL_NOTE`), when the draft review is on for it. Set by the loop, never read from a proposal. */
+  readonly review?: string;
   readonly context?: PromptPreview;
   readonly cost?: StepCost;
 }
@@ -491,6 +498,7 @@ export function planCardOf(args: {
     const origin = args.state.origins[index] ?? index;
     const context = staged[index]?.context;
     const cost = staged[index]?.cost;
+    const review = staged[index]?.review;
     const proposer = args.proposedBy?.[index];
     const shared = {
       index,
@@ -504,6 +512,7 @@ export function planCardOf(args: {
       cut: staged[index]?.cut === true,
       ...(context === undefined ? {} : { context }),
       ...(cost === undefined ? {} : { cost }),
+      ...(review === undefined ? {} : { review }),
       ...(proposer === undefined ? {} : { proposedBy: proposer }),
     };
     if (args.state.completed.includes(origin)) return { ...shared, status: 'done' };

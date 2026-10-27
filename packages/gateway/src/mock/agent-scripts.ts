@@ -9,13 +9,14 @@
  *
  * - the **planner** (`PLANNER_PREFIX`, a JSON schema hint): its reply is `{"steps": [...]}` or `{"reply": "..."}`;
  * - a **drafting** call (`DRAFT_PREFIX`): its reply is prose, a synopsis, or a JSON findings list;
- * - a **delegated agent's** call (`SUBAGENT_PREFIX`, agent-harness §2): it speaks the planner's reply protocol, `{"steps": [...]}` or `{"reply": "..."}`.
+ * - a **delegated agent's** call (`SUBAGENT_PREFIX`, agent-harness §2): it speaks the planner's reply protocol, `{"steps": [...]}` or `{"reply": "..."}`;
+ * - the **critic's** call of the draft review (`CRITIC_PREFIX`, agent-harness §8): its reply is one JSON object, `{"notes": [...]}`.
  *
  * Within the planner, a script decides from the transcript alone. A request with no earlier reply is a
  * first call; one after a "Tool results" message is a follow-up; one after a refused step is a retry.
  * So a script is a pure function of its request, and the same request always gets the same bytes.
  *
- * `PLANNER_PREFIX`, `DRAFT_PREFIX` and `SUBAGENT_PREFIX` are duplicated from `@caotang/harness` (agent/protocol.ts). The
+ * `PLANNER_PREFIX`, `DRAFT_PREFIX`, `SUBAGENT_PREFIX` and `CRITIC_PREFIX` are duplicated from `@caotang/harness` (agent/protocol.ts). The
  * gateway must not depend on the harness, and the harness's own test asserts the two copies agree.
  */
 
@@ -28,6 +29,8 @@ export const PLANNER_PREFIX = "You are Caotang's agent.";
 export const DRAFT_PREFIX = 'You are drafting prose for Caotang.';
 /** The first words of a delegated agent's system message. The harness's protocol.ts holds the same string. */
 export const SUBAGENT_PREFIX = 'You are a delegated agent for Caotang.';
+/** The first words of the draft review's critic call. The harness's protocol.ts holds the same string. */
+export const CRITIC_PREFIX = 'You are a critic reading a draft for Caotang.';
 /**
  * The first words of the coherence review's two model stages (coherence.md §5.3): Stage 1 extracts checkable statements from one
  * document, Stage 2 judges pairs of them. The coherence module's prompts.ts holds the same strings, and a harness test asserts they agree.
@@ -72,6 +75,11 @@ export function isSubagentCall(req: ChatRequest): boolean {
   return systemOf(req).startsWith(SUBAGENT_PREFIX);
 }
 
+/** Whether a request is the draft review's critic: its system message starts with the critic prefix. */
+export function isCriticCall(req: ChatRequest): boolean {
+  return systemOf(req).startsWith(CRITIC_PREFIX);
+}
+
 /** Whether a request is a drafting call for one tool's content. */
 export function isDraftCall(req: ChatRequest): boolean {
   return systemOf(req).startsWith(DRAFT_PREFIX);
@@ -106,6 +114,14 @@ export function subagentScript(reply: (req: ChatRequest) => string | MockRespons
       const answer = reply(req);
       return typeof answer === 'string' ? { content: answer } : (answer ?? { content: '' });
     },
+  };
+}
+
+/** A script that answers the critic's calls with `reply(req)`. The critic prefix is what selects it. */
+export function criticScript(reply: (req: ChatRequest) => string | undefined): MockScript {
+  return {
+    match: (req) => isCriticCall(req) && reply(req) !== undefined,
+    respond: (req): MockResponse => ({ content: reply(req) ?? '' }),
   };
 }
 
@@ -234,11 +250,31 @@ function streamedDraftScript(reply: (req: ChatRequest) => string | undefined): M
 }
 
 /** The prose a demo draft returns. Fixed, so the demo's end state is the same on every run. */
-const DEMO_PROSE =
+export const DEMO_PROSE =
   'The ferry came in on the evening tide, low in the water and slow to answer the rope. Elena was not on it. The friend stepped onto the wet stones with a folded letter in one hand and a lantern that had gone out long before the harbour wall.';
 
 /** Prose is asked for as `'text'`; a structured reply carries a schema hint. The two drafting scripts tell their calls apart by this. */
 const isProse = (req: ChatRequest): boolean => req.responseFormat === 'text';
+
+/**
+ * The critique of the demo's own draft, for a writer who turns the draft review on in the demo: one note on the sentence the brief's news of Elena
+ * leaves open. A draft of the writer's own scene is not scripted, so the demo refuses its critic call and the review says so.
+ */
+const demoCritique = criticScript((req) =>
+  userTextOf(req).includes(DEMO_PROSE)
+    ? JSON.stringify({
+        notes: [
+          {
+            category: 'brief',
+            severity: 'low',
+            quote: 'Elena was not on it.',
+            note: 'The brief says the friend brings news of Elena, but the draft only says she is not aboard.',
+            suggestion: 'Let the letter or the friend say what the news is.',
+          },
+        ],
+      })
+    : undefined,
+);
 
 const draftSceneDraft = streamedDraftScript((req) => (isProse(req) && userTextOf(req).includes('Brief: The friend arrives by boat') ? DEMO_PROSE : undefined));
 
@@ -404,6 +440,7 @@ export const demoScripts: readonly MockScript[] = [
   plannerScript(continuityReply),
   plannerScript(reviewReply),
   plannerScript(instructionsReply),
+  demoCritique,
   draftSceneDraft,
   rewriteDraft,
   fillSynopsesDraft,

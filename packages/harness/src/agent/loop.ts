@@ -56,7 +56,8 @@
  * and a replay cache (command-bus §6) never answers one step with another step's result.
  */
 
-import { preloadAnchorLibraries } from '@caotang/editor';
+import { preloadAnchorLibraries, type TextAnchor } from '@caotang/editor';
+import type { DeterministicCheckId } from '@caotang/coherence';
 import { entryOfCall, err, ok, type CommandError, type Result, type UndoOutcome } from '@caotang/bus';
 import { ContextError, type AgentTask, type PromptPreview, type RecentTurn, type SelectionSpan } from '@caotang/context';
 import { estimateTokens, usageFor, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
@@ -81,7 +82,7 @@ import { isMacroCommand } from '../macro.js';
 import { CONTINUITY_MAX_DOCS, SYNOPSIS_MAX_DOCS } from '../tools/ports.js';
 import type { DelegateParams } from '../tools/delegate.js';
 import { fitsCap } from '../tokens.js';
-import { LARGE_SCOPE_APPROVAL, LARGE_SCOPE_APPROVAL_KEY } from '../tools/coherence.js';
+import { excludedBy, heldFile, LARGE_SCOPE_APPROVAL, LARGE_SCOPE_APPROVAL_KEY } from '../tools/coherence.js';
 import {
   addUse,
   budgetHit,
@@ -107,6 +108,7 @@ import {
   canAdvance,
   MODEL_BACKED_TOOLS as MODEL_BACKED,
   planCardOf,
+  REVIEW_CALL_NOTE,
   reviewCostAt,
   stagedOf,
   type DelegationView,
@@ -174,12 +176,23 @@ import {
   stepsRefusalMessage,
   type Reply,
 } from './protocol.js';
-import { previewFor, sceneDraftPreflight, shotsDeriveScenePreflight } from './ports.js';
+import { placement, previewFor, sceneDraftPreflight, shotsDeriveScenePreflight } from './ports.js';
 import { cautionOf, type ApprovalCaution, type CardHit, type QuoteFinding, type TaintRef, type WireProgress } from '@caotang/mcp-client';
 import { quotedProjectText } from './egress-check.js';
 import { modelResult, outsideSources, readsOutsideText, scanForInjection, sourceName, turnNonce, type OutsideOf } from './untrusted.js';
-import { createContextPort, dropLinesOf, mergePreviews, type ContextPort } from './context.js';
+import { createContextPort, dropLinesOf, mergePreviews, type AssembledCall, type ContextPort } from './context.js';
 import { createSubagentRunner, framedResult, resultLine, SUBAGENT_SPECS, type ParentTurnHandle } from './subagent.js';
+import {
+  CRITIC,
+  CRITIQUE_HINT,
+  continuityReportOf,
+  createRolePipeline,
+  criticTask,
+  introducedFindings,
+  ReviewSkipped,
+  withBody,
+  type ReviewedDraft,
+} from './roles.js';
 import {
   BACKGROUND_OFFER_MIN_CALLS,
   backgroundEligibility,
@@ -300,6 +313,14 @@ export interface AgentSessionOptions {
    * ignored: the trace is a view of the turn, never part of it.
    */
   readonly trace?: TraceSink | (() => TraceSink | undefined);
+  /**
+   * Settings › "Review drafts before showing them" (agent-harness §8, "Draft review"), read at the start of each turn. On, a `scene.draft` is read by the
+   * critic and checked for continuity before its ghost is shown: up to one more model call, as the Background role, and a `review` event before the
+   * `ghost`. Off or absent, a draft takes the path it always took. A background task's staging never reviews: nobody is there to read the notes.
+   */
+  readonly review?: boolean | (() => boolean);
+  /** The deterministic checks the review's continuity pass runs (Settings › Coherence). Absent, every check a what-if scan can run. */
+  readonly reviewChecks?: () => readonly DeterministicCheckId[];
 }
 
 /** The plan a writer is asked about before it is staged. */
@@ -426,6 +447,11 @@ export interface AgentSession {
    * without delivering is reported undelivered (`TurnReport.steering`), for the caller to send as a turn of its own.
    */
   steer(turnId: string, text: string): Result<SteerReceipt, CommandError>;
+  /**
+   * Skips the draft review of a running turn (the writer's "Skip review", agent-harness §8): the critic's call in flight is aborted and the draft is
+   * shown with a notice. It reaches the review's own calls and never the turn. `false` for a turn that is not reviewing a draft.
+   */
+  skipReview(turnId: string): boolean;
   /**
    * Resumes a run the log says was cut short (agent-harness §5.1). The writer's click is what calls it: it can re-issue a paid planner call.
    * The log is checked against the project first (`planResume`). A write that did not land, a document that moved on, or an external step that
@@ -627,6 +653,10 @@ interface Turn {
   readonly hooks: HookRun[];
   /** What tainted the turn, once each, in the order it was read: the servers by name, and how a card names the read. */
   readonly taintedBy: TaintRef[];
+  /** The draft review is on for this turn's drafts (`AgentSessionOptions.review`, read when the turn began). A background task's staging turns it off. */
+  review: boolean;
+  /** Aborts the review's own calls while a draft is being reviewed (the writer's Skip review). */
+  reviewing: AbortController | undefined;
 }
 
 /** How the turn ended, before the report is built from it. */
@@ -992,6 +1022,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   };
   const configured = (): Partial<TurnBudget> | undefined => (typeof options.budget === 'function' ? options.budget() : options.budget);
   const boundNow = (): number => options.maxModelCalls ?? configured()?.maxModelCalls ?? DEFAULT_MAX_MODEL_CALLS;
+  /** Whether the draft review is on, read when a turn begins so a change in Settings applies to the next turn (`AgentSessionOptions.review`). */
+  const reviewNow = (): boolean => (typeof options.review === 'function' ? options.review() : options.review === true);
+  /** The review of each staged draft, by the proposal object it belongs to: a proposal that is drafted again is a new object, so a stale review never follows it. */
+  const reviews = new WeakMap<object, ReviewedDraft>();
   /** The model-call bound of the turn that started last, as `latestPins` is: read at each turn, so a change in Settings applies to the next one. */
   let maxModelCalls = boundNow();
   const maxRetries = options.maxRetries ?? 2;
@@ -1836,6 +1870,91 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return loaded.length === 0 ? task : { ...task, instruction: [skillBlock(loaded), '---', task.instruction].join('\n\n') };
   }
 
+
+  /**
+   * A scene draft with the review on (agent-harness §8, "Draft review"): the drafter's call exactly as it is without the review, then the
+   * critic (up to one more call, as the Background role) and the continuity pass on the unapplied draft. Nothing here writes: the draft
+   * is the proposal it always was, and the review rides beside it (`reviews`) until its card shows the ghost.
+   */
+  async function reviewedScene(
+    turn: Turn,
+    step: PlanStep,
+    input: { readonly node: TreeNode; readonly mode: 'draft' | 'continue' | 'rewrite_selection'; readonly docTitle: string; readonly revision: number; readonly instruction: string; readonly call: AssembledCall },
+  ): Promise<Drafted> {
+    const { node, mode, docTitle } = input;
+    const pipeline = createRolePipeline({
+      draft: () => draftScene(modelCall(turn, (delta) => emit({ type: 'draft.delta', turnId: turn.id, docTitle, delta })), input.call.messages),
+      critique: (draft) => criticReply(turn, node, mode, draft.payload),
+      continuity: (draft) => continuityOf(step, node, mode, draft.payload.text),
+    });
+    let reviewed: ReviewedDraft;
+    try {
+      reviewed = await pipeline.run(
+        { docId: node.id, brief: input.instruction, mode, revision: input.revision, turnId: turn.id },
+        {
+          review: true,
+          onReviewStart: () => {
+            turn.reviewing = new AbortController();
+            emit({ type: 'review.start', turnId: turn.id, docTitle });
+          },
+        },
+      );
+    } finally {
+      turn.reviewing = undefined;
+    }
+    const draft = reviewed.draft.payload;
+    if (draft.text.trim() === '') return refusedDraft('the model returned an empty draft for this scene');
+    const proposal: SceneProposal = { text: draft.text, words: draft.words, revision: input.revision, cut: draft.cut, context: input.call.preview };
+    reviews.set(proposal, reviewed);
+    return { ok: true, proposal };
+  }
+
+  /**
+   * The critic's call: one request as the Background role at temperature 0, through the turn's one budgeted call site, so it counts against the
+   * model-call bound and the run limits like any other. It has no tools, and its reply is the pipeline's to check. A turn with no call left, a
+   * run limit the call would pass and the writer's Skip review are `ReviewSkipped`: the draft is shown with a notice.
+   */
+  async function criticReply(turn: Turn, node: TreeNode, mode: 'draft' | 'continue' | 'rewrite_selection', draft: { readonly text: string; readonly brief: string }): Promise<string> {
+    if (callsLeft(turn) < 1) throw new ReviewSkipped('critic.budget', 'The review was skipped: this turn has no model call left for it.');
+    const call = context.assemble({
+      nonce: turn.nonce,
+      task: criticTask({ title: node.title, docId: node.id, mode, brief: draft.brief, synopsis: node.synopsis, notes: node.notes, draft: draft.text, nonce: turn.nonce }),
+      role: CRITIC.system ?? '',
+      // The critic reads what scene.draft may read: a document a rule withholds from the draft is not in its prompt.
+      rulesOf: 'scene.draft',
+    });
+    turn.dropped.push(...dropLinesOf(call.prompt));
+    // The critic's text and reasoning are not the panel's stream: its reply is JSON the panel never shows raw.
+    const { onReasoning: _reasoning, ...base } = modelCall(turn, () => undefined, CRITIC.role);
+    const skip = turn.reviewing?.signal;
+    const signal = skip === undefined ? turn.signal : turn.signal === undefined ? skip : anySignal([turn.signal, skip]);
+    const critic: ModelCall = { ...base, ...(CRITIC.temperature === undefined ? {} : { temperature: CRITIC.temperature }), ...(signal === undefined ? {} : { signal }) };
+    try {
+      return (await complete(critic, call.messages, { jsonSchemaHint: CRITIQUE_HINT })).text;
+    } catch (error) {
+      if (error instanceof BudgetExceeded) throw new ReviewSkipped('critic.budget', 'The review was skipped: its call would have passed a limit of this run.');
+      if (error instanceof TurnStopped && turn.signal?.aborted !== true && skip?.aborted === true) throw new ReviewSkipped('critic.skipped', 'The review was skipped.');
+      throw error;
+    }
+  }
+
+  /**
+   * The continuity pass (coherence.md, "Continuity role"): the deterministic checks on the project as it stands and on the project as it would
+   * be with the draft placed where the apply puts it, keeping what the draft introduces. Both are in-memory views; the store, the coherence
+   * file and the log are not touched. A document a read rule withholds from `scene.draft` is left out of both scans.
+   */
+  function continuityOf(step: PlanStep, node: TreeNode, mode: 'draft' | 'continue' | 'rewrite_selection', text: string): ReturnType<typeof continuityReportOf> {
+    const { state } = harness;
+    const body = getBody(state, node.id);
+    const placed = placement(mode, body, text, getRevision(state, node.id), step.params['selection'] as TextAnchor | undefined);
+    if (!placed.ok) throw new ReviewSkipped('continuity.skipped', `The continuity check was skipped: ${placed.error.message}`);
+    const { range } = placed.value;
+    const whatIf = withBody(state, node.id, body.slice(0, range.from) + placed.value.text + body.slice(range.to));
+    const excluded = excludedBy(harness.withheld('scene.draft'));
+    const checks = options.reviewChecks?.();
+    return continuityReportOf(introducedFindings(state, whatIf, heldFile(state), { ...(checks === undefined ? {} : { checks }), ...(excluded === undefined ? {} : { isExcluded: excluded }) }));
+  }
+
   /**
    * One step's draft. The revision is read before the model is asked, so the draft is staged against the
    * text the model was given, and a document the user changes while it is being written is a conflict.
@@ -1872,6 +1991,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // The draft streams into its scene's ghost region as the model writes it, and the first delta empties the region (§8).
       const docTitle = String(step.params['doc'] ?? '');
       emit({ type: 'draft.delta', turnId: turn.id, docTitle, delta: '', start: true });
+      if (turn.review) return reviewedScene(turn, step, { node: node.value, mode, docTitle, revision, instruction, call });
       const draft = await draftScene(modelCall(turn, (delta) => emit({ type: 'draft.delta', turnId: turn.id, docTitle, delta })), call.messages);
       if (draft.text.trim() === '') return refusedDraft('the model returned an empty draft for this scene');
       const proposal: SceneProposal = { text: draft.text, words: draft.words, revision, cut: draft.cut, context: call.preview };
@@ -2280,7 +2400,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       ),
     };
     const previews = editable.steps.map((step, index) => previewFor(harness.state, step.tool, step.params, editable.proposals[index]));
-    const staged = editable.proposals.map((proposal) => stagedOf(proposal));
+    const staged = editable.proposals.map((proposal, index) => {
+      const view = stagedOf(proposal);
+      return turn.review && editable.steps[index]?.tool === 'scene.draft' ? { ...view, review: REVIEW_CALL_NOTE } : view;
+    });
     // A step equal to one a delegated agent proposed carries its badge; an edited step is a different step and has none.
     const proposedBy = editable.steps.map((step) => {
       const key = canonicalJson({ tool: step.tool, params: step.params });
@@ -2364,6 +2487,18 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const proposal = editable.proposals[index] as SceneProposal | undefined;
       if (step.tool !== 'scene.draft' || ranAt(editable, index) || proposal === undefined) continue;
       const title = typeof step.params['doc'] === 'string' ? step.params['doc'] : '';
+      const reviewed = reviews.get(proposal);
+      if (reviewed !== undefined) {
+        emit({
+          type: 'review',
+          turnId: turn.id,
+          callId: callIdFor(kind, prefix, index),
+          docTitle: title,
+          ...(reviewed.critique === undefined ? {} : { critique: reviewed.critique }),
+          ...(reviewed.continuity === undefined ? {} : { continuity: reviewed.continuity }),
+          notices: reviewed.notices,
+        });
+      }
       emit({
         type: 'ghost',
         turnId: turn.id,
@@ -3388,6 +3523,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   async function stageSteps(stepsIn: readonly PlanStep[], turnOptions: TurnOptions): Promise<StageOnlyResult> {
     const parsed = parsePlan({ steps: stepsIn });
     const turn = newTurn(turnOptions, []);
+    // Staged on its own for a later card: nobody is there to read the notes, so no call is spent on them.
+    turn.review = false;
     const steps = parsed.ok ? parsed.value.steps : [];
     const proposals: unknown[] = stepsIn.map(() => undefined);
     const revisions: StepRevisions[] = stepsIn.map(() => ({}));
@@ -3483,6 +3620,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       tainted: false,
       hooks: [],
       taintedBy: [],
+      review: reviewNow(),
+      reviewing: undefined,
     };
   }
 
@@ -3772,6 +3911,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const note: NoteRecord = { noteId: `${turn.id}.note-${turn.notes.length + 1}`, text: trimmed };
       turn.notes.push(note);
       return ok({ noteId: note.noteId, lands: turn.deciding ? 'after-decision' : 'next-model-call' });
+    },
+
+    skipReview(turnId: string): boolean {
+      const control = running.get(turnId)?.reviewing;
+      if (control === undefined || control.signal.aborted) return false;
+      control.abort();
+      return true;
     },
 
     restore(turnId: string): Result<UndoOutcome, CommandError> {

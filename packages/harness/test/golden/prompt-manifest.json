@@ -94,6 +94,11 @@
     "descriptionVersion": 1
   },
   {
+    "id": "role.critic",
+    "sha256": "8216fc4a7c145cbcd195fce99db7aa03685c45ad8b7c00076b3450d56a85fe0f",
+    "descriptionVersion": 1
+  },
+  {
     "id": "tool.project.overview",
     "sha256": "e8e08f93fe802b99cd7b7afcae954d284d8314214c8aed5bea6277e1edacfd4d",
     "descriptionVersion": 2

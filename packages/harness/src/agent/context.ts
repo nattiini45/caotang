@@ -49,6 +49,11 @@ export interface ContextRequest {
   readonly activity?: readonly ActivityEntry[];
   /** The id of the call's untrusted envelopes: the turn's (`nonceFor`). Absent, the fixed one (context `untrusted.ts`). */
   readonly nonce?: string;
+  /**
+   * The tool whose read rules apply to the call, when it is made on that tool's behalf: the draft review's critic reads what `scene.draft`
+   * may read, so a document a rule withholds from `scene.draft` is not in the critic's prompt. Absent, the task's own tool.
+   */
+  readonly rulesOf?: string;
 }
 
 /** One model call, assembled: what it sends, and what the card shows of it. */
@@ -124,7 +129,7 @@ export function createContextPort(options: ContextPortOptions): ContextPort {
   const configOf: () => ContextConfig = typeof given === 'function' ? given : () => given ?? {};
   return {
     assemble(request: ContextRequest): AssembledCall {
-      const withheld = options.withheld?.(request.task.tool);
+      const withheld = options.withheld?.(request.rulesOf ?? request.task.tool);
       const app: AppSnapshot = {
         state: request.state ?? stateOf(),
         ...(withheld === undefined || withheld.size === 0 ? {} : { withheld }),

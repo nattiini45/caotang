@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import { ProviderError } from '../src/index.js';
 import type { ChatRequest } from '../src/types.js';
-import { DEMO_REFUSAL, DRAFT_PREFIX, PLANNER_PREFIX, createMockProvider, demoScripts, echo, plannerScript, userTextOf } from '../src/mock/index.js';
+import { CRITIC_PREFIX, DEMO_PROSE, DEMO_REFUSAL, DRAFT_PREFIX, PLANNER_PREFIX, createMockProvider, demoScripts, echo, isCriticCall, isDraftCall, plannerScript, userTextOf } from '../src/mock/index.js';
 import { collect } from './helpers.js';
 
 /** The app's script list for the demo provider, without the planner fallback the app puts after the demo scripts. */
@@ -217,5 +217,29 @@ describe('the zero-key demo draft, after the loop refuses its step', () => {
   it('keeps the wording of the refusal on the Settings page the writer uses, not the first-run card that can be dismissed', () => {
     expect(DEMO_REFUSAL).toContain('Settings > Providers');
     expect(DEMO_REFUSAL).not.toContain('first-run card');
+  });
+});
+
+describe('the draft review’s critic on the demo (agent-harness §8)', () => {
+  const criticCall = (draft: string): ChatRequest => ({
+    messages: [
+      { role: 'system', content: `${CRITIC_PREFIX} You read one drafted scene cold.` },
+      { role: 'user', content: `Document "The Friend":\nThe draft to review:\n${draft}` },
+    ],
+    responseFormat: { jsonSchemaHint: { title: 'Draft critique', description: 'A JSON object.' } },
+  });
+
+  it('answers the demo’s own draft with one scripted note, and no other', async () => {
+    const own = await collect(createMockProvider({ scripts: appScripts }).complete(criticCall(DEMO_PROSE)));
+    expect(own.error).toBeUndefined();
+    const notes = (JSON.parse(own.chunks.map((chunk) => chunk.delta ?? '').join('')) as { notes: { quote: string }[] }).notes;
+    expect(notes.map((note) => note.quote)).toEqual(['Elena was not on it.']);
+  });
+
+  it('refuses the critic call for a draft of the writer’s own, with the demo words, and never calls it a drafting call', async () => {
+    const other = await collect(createMockProvider({ scripts: appScripts }).complete(criticCall('Some other scene.')));
+    expect((other.error as ProviderError).message).toBe(DEMO_REFUSAL);
+    expect(isCriticCall(criticCall('x'))).toBe(true);
+    expect(isDraftCall(criticCall('x'))).toBe(false);
   });
 });
