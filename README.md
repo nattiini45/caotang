@@ -36,7 +36,7 @@ Not in this build yet: the desktop wrapper. [docs/USER-GUIDE.md](docs/USER-GUIDE
 - **Node.js.** The `engines` field of [package.json](package.json) allows Node 22.12 or later in the 22 line, 24.x, and 26 or later. Continuous integration tests the 22.12.0 floor and Node 24; Node 26 is allowed but not covered.
 - **pnpm** 12.9.1, pinned in `packageManager`. With Node 22.12.0, update Corepack first with `npm install --global corepack@0.34.3`; the bundled Corepack 0.29.4 cannot verify pnpm's current signing key. Then run `corepack enable`.
 - **A browser.** The app is written for current browsers. End-to-end tests gate every pull request in Chromium, Firefox and WebKit; the Firefox and WebKit suite also runs nightly and on demand. Opening and saving a project folder needs Chrome or Edge, or another Chromium-based browser. Bundles work in any browser.
-- **A window at least 960 px wide.** The layout is made for that width, and a narrower window scrolls rather than overlapping. Under 1100 px the toolbar wraps onto a second row and the side panels narrow.
+- **A window at least 960 px wide** for the desktop layout. Under 1100 px the toolbar wraps onto a second row and the side panels narrow. Under 960 px (a phone or a tablet held upright) Caotang uses a narrow layout: the binder is a drawer, the inspector a sheet, and the corkboard, storyboards, dialogue branch graphs, the screenplay Pages view, MCP & tools and compile formats other than Markdown and plain text say "Open on desktop". It is tested in an emulated Chromium, not on real phones, and there is no sync, so export a backup.
 
 ## Install and run
 

@@ -89,10 +89,41 @@ describe('the user guide’s reviewed claims match the code', () => {
   });
 
   it('says the window is at least 960 px wide and the toolbar wraps below 1100 px', () => {
-    expect(guide).toContain('The window needs at least 960 px of width. Under 1100 px the toolbar wraps onto a second row');
+    expect(guide).toContain('At 960 px and wider the layout is the desktop one: under 1100 px the toolbar wraps onto a second row');
     const css = read('apps/desktop/src/styles.css');
     expect(css).toContain('min-width: 960px');
     expect(css).toContain('@media (max-width: 1100px)');
+  });
+
+  it('names the narrow layout’s controls and the views it leaves to a desktop in the words the app shows', () => {
+    const section = guide.slice(guide.indexOf('## Using Caotang on a phone or tablet'), guide.indexOf('## Settings'));
+    expect(section.length).toBeGreaterThan(0);
+    // The narrow layout is the stylesheet's block below 960 px, and the guide says so.
+    expect(read('apps/desktop/src/styles.css')).toContain('@media (max-width: 959px)');
+    expect(section).toContain('under 960 px wide');
+    const workspace = read('apps/desktop/src/components/Workspace.tsx');
+    for (const label of ['Binder', 'Inspector', 'More']) {
+      expect(section).toContain(`**${label}**`);
+      expect(workspace.split('\n').some((row) => row.trim() === label)).toBe(true);
+    }
+    // The More menu's entries, each a label in the overflow list.
+    for (const label of ['Projects', 'Project details', 'Undo', 'Focus mode', 'Skills', 'Instructions', 'Compile…', 'Export bundle', 'Save to folder', 'Settings']) {
+      expect(section).toContain(`**${label}**`);
+      expect(workspace).toContain(`'${label}'`);
+    }
+    expect(read('apps/desktop/src/components/Binder.tsx')).toContain('aria-label={`Actions for ${title}`}');
+    expect(section).toContain('**Actions for …**');
+    // The views left to a desktop say "Open on desktop" and name themselves; the guide lists the same six.
+    const model = read('apps/desktop/src/app/narrow-model.ts');
+    expect(read('apps/desktop/src/components/narrow.tsx')).toContain('Open on desktop: {note.name}');
+    for (const name of ['the corkboard', 'the storyboard', 'the dialogue branch graph', 'the screenplay Pages view', 'MCP & tools', 'the other export formats']) {
+      expect(model).toContain(`name: '${name}'`);
+    }
+    expect(section).toContain('**Open on desktop**');
+    for (const view of ['the corkboard', 'a storyboard', 'a dialogue container', '**Pages** view', '**Settings › MCP & tools**', '**Compile…** as anything but Markdown or plain text']) {
+      expect(section).toContain(view);
+    }
+    expect(model).toContain("export const NARROW_EXPORT_FORMATS: readonly ExportFormat[] = ['md', 'txt'];");
   });
 
   it('says focus mode’s status line tells the writer when the panels stay', () => {
