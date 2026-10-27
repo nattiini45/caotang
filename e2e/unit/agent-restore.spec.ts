@@ -350,6 +350,37 @@ test('a later write to the same scene makes the plan with-later, and restoring o
   await f.close();
 });
 
+test('restoring only says an error in the check stopped it, not that the checkpoint is gone', async () => {
+  const f = await fixture();
+  const [first] = await f.run(1);
+  // A later change elsewhere, so the planner has to read the tree to compare the two footprints.
+  f.session.dispatch('doc.write', { docId: idOf(f, 'The Gale'), body: 'Elsewhere.' });
+  const ferry = f.session.state.manifest.tree.find((node) => node.title === 'The Ferry')!;
+  const parentId = ferry.parentId;
+  const errors: unknown[] = [];
+  const report = console.error;
+  console.error = (...args: unknown[]) => void errors.push(args);
+  Object.defineProperty(ferry, 'parentId', {
+    configurable: true,
+    get: () => {
+      throw new Error('the tree cannot be read');
+    },
+  });
+  try {
+    const outcome = await f.controller.restoreOnly(first!.turnId);
+    expect(outcome.ok).toBe(false);
+    expect(outcome.ok ? '' : outcome.message).toContain('hit an error while checking');
+    expect(outcome.ok ? '' : outcome.message).not.toContain('no longer be on the undo stack');
+    expect(errors.length).toBeGreaterThan(0);
+  } finally {
+    Object.defineProperty(ferry, 'parentId', { configurable: true, enumerable: true, writable: true, value: parentId });
+    console.error = report;
+  }
+  expect(f.bodyOf('The Ferry')).not.toBe('');
+  expect(f.bodyOf('The Gale')).toBe('Elsewhere.');
+  await f.close();
+});
+
 test('typing after the plan was made, in the same scene, is not lost to a restore that was proved before it', async () => {
   const f = await fixture();
   const [first] = await f.run(1);

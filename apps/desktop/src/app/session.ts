@@ -294,8 +294,8 @@ export type RestoreResult =
   | { readonly ok: false; readonly message: string; readonly undone: readonly string[] };
 
 /**
- * Why "restore only this" refused, in words that name the cause: a later change that meets this one, one the planner cannot read, or a
- * checkpoint it could not find. Nothing was restored in any of them.
+ * Why "restore only this" refused, in words that name the cause: a later change that meets this one, one the planner cannot read, a
+ * checkpoint it could not find, or an error in the check itself. Nothing was restored in any of them.
  */
 function refusalOf(plan: Extract<RestorePlan, { kind: 'with-later' }>, id: string): string {
   switch (plan.reason) {
@@ -305,7 +305,9 @@ function refusalOf(plan: Extract<RestorePlan, { kind: 'with-later' }>, id: strin
       return plan.blockedBy.includes(id)
         ? 'That change cannot be told apart from the ones made after it, so nothing was restored. The full restore takes every later change back too; everything is as it was.'
         : 'A change made after it cannot be told apart from it, so nothing was restored. The full restore takes every later change back too; everything is as it was.';
-    default:
+    case 'defect':
+      return 'Caotang hit an error while checking which later changes this one touches, so nothing was restored and everything is as it was. The full restore still takes every later change back too.';
+    case 'unknown':
       return 'That checkpoint could not be checked (it may no longer be on the undo stack), so nothing was restored and everything is as it was.';
   }
 }
