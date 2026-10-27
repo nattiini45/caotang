@@ -14,8 +14,6 @@ import type { AppDb } from './app-db.js';
 export interface ReviewRecord {
   readonly docId: string;
   readonly count: number;
-  /** The agent turn that made the suggestions, or `null` when the editor no longer knows it. */
-  readonly turnId: string | null;
 }
 
 export const reviewKey = (projectId: string, docId: string): string => `review-pending:${projectId}:${docId}`;
@@ -28,13 +26,12 @@ export async function recordPending(
   projectId: string,
   docId: string,
   count: number,
-  turnId: string | null,
   db: AppDb | null,
 ): Promise<void> {
   if (db === null) return;
   try {
     if (count <= 0) await db.delete(reviewKey(projectId, docId));
-    else await db.put(reviewKey(projectId, docId), { docId, count, turnId } satisfies ReviewRecord);
+    else await db.put(reviewKey(projectId, docId), { docId, count } satisfies ReviewRecord);
   } catch {
     // Best effort, as the undo journal is.
   }
