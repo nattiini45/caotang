@@ -23,6 +23,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 - **A narrow layout for phones and tablets.** Below 960 px the shell is one column: **Binder** opens the binder, Codex, Activity, Trace and Findings as a drawer, **Inspector** opens the inspector as a bottom sheet, and **More** holds the rest of the toolbar. Each panel closes by its **Close** button, a tap outside it or Escape, and takes focus when it opens. Buttons, tabs, rows and fields are at least 44 px square, each binder row has an **Actions for …** button where a touch screen has no right click, and the page does not scroll sideways at 375 or 768 px. The corkboard, storyboards, dialogue containers (the branch graph and the Ink text), the screenplay Pages view, **Settings › MCP & tools** and every compile format but Markdown and plain text say **Open on desktop** in place of the view. The storage banner words its warning for a phone. At 960 px and wider nothing changes.
 
+### Changed
+
+- **Content-Security-Policy.** The built app's policy now says `frame-src 'none'`, so it refuses every frame, as its comment and this changelog already said; before, it fell back to `default-src 'self'` and allowed frames from its own origin. Nothing in the app shows a frame. The README's Self-hosting policy carries the same directive; a host that sends the policy as a header should update its copy.
+
 ### Known limits
 
 - The narrow layout is tested in Chromium with touch input at phone and tablet sizes (a Pixel 7 and a 390 by 844 viewport), not in WebKit and not on a phone. Typing with the on-screen keyboard, selection handles, input methods, and an iPhone or Android browser clearing stored data are unchecked, so the build is not called iOS or Android supported. Nothing syncs and there is no installable app or offline mode beyond the browser's own copy, so a phone's browser is not a safe home for a book: export a bundle.

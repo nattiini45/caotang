@@ -15,7 +15,7 @@ import { binderTitle, createProject, firstChapter, waitForSaved } from './suppor
 
 /** The policy apps/desktop/index.html declares. The build must carry it unchanged: no nonce, nothing relaxed. */
 const POLICY =
-  "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src *; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'";
+  "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src *; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'";
 
 /** A 1×1 PNG, so the cover goes through the image paths (an object URL for the preview, the bytes into the EPUB). */
 const COVER_PNG = Buffer.from(

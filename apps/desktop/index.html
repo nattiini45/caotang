@@ -4,13 +4,13 @@
     <meta charset="UTF-8" />
     <!--
       The Content-Security-Policy of the built app. Scripts and styles come only from this origin, and no plugin, frame
-      or form submission is allowed. connect-src stays open on purpose: the writer points Caotang at any model provider
-      or MCP server they choose. The dev server adds a nonce for its own injected tags (vite.config.ts, devCsp).
+      (frame-src 'none') or form submission is allowed. connect-src stays open on purpose: the writer points Caotang at any
+      model provider or MCP server they choose. The dev server adds a nonce for its own injected tags (vite.config.ts, devCsp).
       A host that can send headers can send the same policy as a header (README, Self-hosting).
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src *; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src *; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Caotang</title>
