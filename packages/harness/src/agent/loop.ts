@@ -75,6 +75,7 @@ import type { CallParams, ToolCall, ToolOutcome } from '../types.js';
 import { canonicalJson, isRecord } from '../util.js';
 import type { TraceInput, TraceSink } from './trace.js';
 import { isCommandName } from '../commands/slash.js';
+import { isMacroCommand } from '../macro.js';
 import { CONTINUITY_MAX_DOCS, SYNOPSIS_MAX_DOCS } from '../tools/ports.js';
 import type { DelegateParams } from '../tools/delegate.js';
 import { fitsCap } from '../tokens.js';
@@ -343,15 +344,26 @@ export interface TurnOptions {
    * turn by, and it is logged with the turn. A name that is not a command name (`isCommandName`) is ignored.
    */
   readonly command?: string;
+  /**
+   * Shows a card even when a single reversible step would run at once (`/plan`, a macro). It only adds a card: the mode, the rules and the
+   * gate decide it as they decide any card, so it never lets a mode approve what the mode would not.
+   */
+  readonly forcePlan?: boolean;
+  /**
+   * For `submitPlan`: a plan whose steps are all reads runs at once with no card, as a planner's read-only steps do (a macro of reads,
+   * extensibility §10). Absent, `submitPlan` shows the card it always showed. A rule that asks about a read still asks.
+   */
+  readonly readsWithoutCard?: boolean;
+  /**
+   * Keeps the turn out of the planner's conversation memory (L6): its intent and its outcome are never sent to a model. A macro run sets it,
+   * because a macro's name and steps are project data a collaborator may have written, and only the writer runs it (extensibility §10).
+   * The turn is still in the activity list, the run log and the trace, and the writer can still rewind or restore it.
+   */
+  readonly hiddenFromPlanner?: boolean;
 }
 
 /** What a UI action can tell a planner turn before it starts. */
 export interface SubmitOptions extends TurnOptions {
-  /**
-   * Shows a card even when the planner proposes a single reversible step, which otherwise runs at once (`/plan`). It only adds a card: the
-   * mode, the rules and the gate decide it as they decide any card, so it never lets a mode approve what the mode would not.
-   */
-  readonly forcePlan?: boolean;
   /** Deferred native rows the turn is about, loaded before the first request as if the planner had searched for them. */
   readonly preload?: readonly ToolName[];
 }
@@ -597,6 +609,8 @@ interface Turn {
   readonly command: string | undefined;
   /** A single reversible step shows a card instead of running at once. */
   readonly forcePlan: boolean;
+  /** A plan the app built whose steps are all reads runs at once, with no card. */
+  readonly readsWithoutCard: boolean;
 }
 
 /** How the turn ended, before the report is built from it. */
@@ -3129,6 +3143,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const named = staged.refusals.map((refused) => `Step ${refused.index + 1} (${refused.tool}) was refused: ${refused.message}`).join(' ');
       return { status: 'failed', askBack: askBackFor(refusal('invalid-params', named, { correctiveHint: 'change the step before its draft can be made' })) };
     }
+    if (turn.readsWithoutCard && plan.steps.every((step) => riskOf(step.tool) === 'read')) {
+      const ended = await runReads(turn, plan.steps, staged.proposals);
+      if (ended !== undefined) return ended;
+      return { status: 'replied', text: turn.steps.map((step) => step.summary ?? step.tool).join('; ') };
+    }
     const written = await runWrites(turn, plan, staged);
     if (written === 'continue') {
       return { status: 'failed', askBack: askBackFor(refusal('invalid-params', 'the plan was refused before anything ran', { correctiveHint: 'correct the step and send it again' })) };
@@ -3267,6 +3286,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       carried: 0,
       command: isCommandName(turnOptions.command) ? turnOptions.command : undefined,
       forcePlan: turnOptions.forcePlan === true,
+      readsWithoutCard: turnOptions.readsWithoutCard === true,
     };
   }
 
@@ -3346,7 +3366,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const turn = newTurn(turnOptions, [...started]);
     if (logPlan.mode === 'resume') turn.modelCalls = (logPlan.replay.spend?.modelCalls ?? 0) + logPlan.replay.reservedCalls;
     turn.run = await openRun(turn, intent, logPlan);
-    const slot = started.push({ turnId: turn.id, intent }) - 1;
+    const slot = started.push({ turnId: turn.id, intent, ...(turnOptions.hiddenFromPlanner === true ? { hidden: true } : {}) }) - 1;
     running.set(turn.id, turn);
     trace({ kind: 'turn.start', at: now(), turnId: turn.id, intent });
     if (policyOf(turn).decides) takeBase(turn);
@@ -3504,7 +3524,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         });
       }
     }
-    return runTurn(intent, replay.command === undefined ? resumeOptions : { ...resumeOptions, command: replay.command }, (turn) => resumedTurn(turn, replay), { mode: 'resume', runId, replay, ...(verdict.rerun === undefined ? {} : { rerun: verdict.rerun }) });
+    // A resumed macro run stays the writer's: after a reload only the logged command says which turn it was.
+    const resumed: TurnOptions = replay.command === undefined ? resumeOptions : { ...resumeOptions, command: replay.command, ...(isMacroCommand(replay.command) ? { hiddenFromPlanner: true } : {}) };
+    return runTurn(intent, resumed, (turn) => resumedTurn(turn, replay), { mode: 'resume', runId, replay, ...(verdict.rerun === undefined ? {} : { rerun: verdict.rerun }) });
   }
 
   return {

@@ -89,6 +89,8 @@ export interface RecentTurn {
   readonly restoredFromStep?: number;
   /** The writer rewound the conversation past this turn: L6 leaves it out before the turn limit applies. */
   readonly rewound?: boolean;
+  /** A turn the planner is never told of (a macro run): L6 leaves it out, intent and outcome both, before the turn limit applies. */
+  readonly hidden?: boolean;
 }
 
 /** The app state assembly reads. Assembly never writes any of it. */

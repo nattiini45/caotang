@@ -48,6 +48,7 @@ import { scanTool, type CoherenceFile, type CoherenceModel, type DeterministicCh
 import { compileCodex, countMentions, type DocumentTerm } from '@caotang/codex';
 import {
   ApplyRefusal,
+  err,
   createIdempotencyCache,
   createViewState,
   execute,
@@ -62,6 +63,8 @@ import {
   type CommandRegistry,
   type DocWriteParams,
   type ExecutionOutcome,
+  type MacroDraft,
+  type ProjectMacro,
   type RestorePlan,
   type Result,
   type UndoGroup,
@@ -107,7 +110,7 @@ import { newId } from '@caotang/ids';
 import { assetRecordsOf, createExporter, exportMetadataOf, type EmitFailure, type ExporterService } from '@caotang/exporter';
 import { dropDanglingImages, shotCommandPort } from '@caotang/storyboard';
 import { InkCompilerNotLoaded } from '@caotang/dialogue';
-import { createProductHarness, dialogueFactsOf, excludedBy, withheldState, type Harness, type SourcedRule } from '@caotang/harness';
+import { checkMacro, createProductHarness, dialogueFactsOf, excludedBy, withheldState, type Harness, type SourcedRule } from '@caotang/harness';
 import type { McpClient } from '@caotang/mcp-client';
 import type { SkillFile } from '@caotang/skills';
 
@@ -768,6 +771,29 @@ export class ProjectSession {
     await this.skillReviews.approve(name, row.skill.pin);
     this.bump();
     return true;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * The writer's macros (extensibility.md §10): plan templates in the manifest
+   * ------------------------------------------------------------------ */
+
+  /** The project's macros, in the order it holds them. */
+  macros(): readonly ProjectMacro[] {
+    return this.state.manifest.macros ?? [];
+  }
+
+  /**
+   * Saves a macro (`macro.save`): a new one, or the one at `draft.id`. The harness's `checkMacro` runs first, which the bus cannot (it cannot
+   * see the tools), so a macro that names a tool this build lacks, or puts a param in a field it cannot fill, is refused here with the reason.
+   */
+  saveMacro(draft: MacroDraft): Result<ExecutionOutcome, CommandError> {
+    const checked = checkMacro({ ...draft, id: draft.id ?? 'm_0000000000' });
+    if (!checked.ok) return err(checked.error);
+    return this.dispatch('macro.save', { macro: draft });
+  }
+
+  deleteMacro(macroId: string): Result<ExecutionOutcome, CommandError> {
+    return this.dispatch('macro.delete', { macroId });
   }
 
   /* ------------------------------------------------------------------ *

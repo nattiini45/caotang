@@ -811,6 +811,12 @@ describe('§10 — the permission matrix, over the registry that implements the 
         state.skills.set('close-third', [{ path: 'SKILL.md', bytes: new Uint8Array([45, 45, 45]) }]);
         return name === 'skill.delete' ? { name: 'close-third' } : { name: 'close-third', enabled: false };
       // A memory note is the writer's to forget (hard-denied for an agent, like project.deleteNode).
+      // The macro commands are the writer's own, as the skill commands are.
+      case 'macro.save':
+        return { macro: { slug: 'tidy-notes', name: 'Tidy notes', description: '', params: { kind: 'object', description: 'p', properties: {}, required: [] }, steps: [{ tool: 'notes.append', params: { text: 'x' }, expect: 'Adds a note.' }] } };
+      case 'macro.delete':
+        state.manifest.macros = [{ id: 'm_GATE000001', slug: 'tidy-notes', name: 'Tidy notes', description: '', params: { kind: 'object', description: 'p', properties: {}, required: [] }, steps: [{ tool: 'notes.append', params: { text: 'x' }, expect: 'Adds a note.' }] }];
+        return { macroId: 'm_GATE000001' };
       case 'memory.forget':
         state.agentFiles = { memory: [{ slug: 'style-dialogue', type: 'style', title: 'Dialogue tags', body: 'Use said.', modified: '', origin: 'writer' }], declined: new Map(), unreadable: [] };
         return { slug: 'style-dialogue' };
@@ -825,6 +831,8 @@ describe('§10 — the permission matrix, over the registry that implements the 
     expect(NEVER).toEqual([
       'editor.insert',
       'editor.replaceRange',
+      'macro.delete',
+      'macro.save',
       'mcp.readResource',
       'memory.forget',
       'project.deleteNode',

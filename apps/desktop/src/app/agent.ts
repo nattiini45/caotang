@@ -69,10 +69,15 @@
 import type { GhostPreview } from '@caotang/editor/tiptap';
 import type { ProfileView, TaskRole } from '@caotang/gateway';
 import {
+  checkMacro,
   createAgentSession,
   createBudgetMeter,
   createContextPort,
   docResolverFor,
+  expandMacro,
+  isMacroCommand,
+  macroCommandName,
+  macroIntent,
   preloadFor,
   resolveSlash,
   RUN_LOG_VERSION,
@@ -138,6 +143,10 @@ export interface SubmitOptions {
   readonly maxModelCalls?: number;
   /** Shows a card even for a single reversible step (`/plan`). It adds a card and nothing else: the mode and the rules decide it as they decide any card. */
   readonly forcePlan?: boolean;
+  /** A plan the app built whose steps are all reads runs at once, with no card (a macro of reads). */
+  readonly readsWithoutCard?: boolean;
+  /** The turn's intent and outcome are never sent to a model (a macro run): the planner's conversation memory leaves it out. */
+  readonly hiddenFromPlanner?: boolean;
   /** The slash command that started the turn (`draft`), which the report and the run log name. */
   readonly command?: string;
 }
@@ -523,7 +532,37 @@ export class AgentController {
    * is the writer's. `options` carries the task's role, mode and call cap.
    */
   async submitPlan(intent: string, plan: { readonly steps: readonly PlanStep[] }, options: SubmitOptions = {}): Promise<TurnReport | null> {
-    return this.turnWith(intent, options, (agent, turn) => agent.submitPlan(intent, plan, turn));
+    return this.turnWith(intent, options, (agent, turn) =>
+      agent.submitPlan(intent, plan, {
+        ...turn,
+        ...(options.forcePlan === true ? { forcePlan: true } : {}),
+        ...(options.readsWithoutCard === true ? { readsWithoutCard: true } : {}),
+        ...(options.hiddenFromPlanner === true ? { hiddenFromPlanner: true } : {}),
+      }),
+    );
+  }
+
+  /**
+   * Runs a macro (extensibility.md §10): the writer's values go into its steps, and the plan that comes out is a turn of its own, named by
+   * the macro. It is checked again here (`expandMacro` runs `checkMacro`), so a macro that no longer fits the tools is refused in words
+   * and nothing starts. A macro that only reads runs at once; one that writes shows its card with every step, even a single reversible one, and
+   * the card is decided like any other: the mode, the rules and the gate see these steps as they see a planner's.
+   */
+  runMacro(macroId: string, values: Record<string, unknown>): { readonly started: true } | { readonly started: false; readonly problem: string } {
+    const macro = this.session.macros().find((candidate) => candidate.id === macroId);
+    if (macro === undefined) return { started: false, problem: 'That macro is not in the project any more.' };
+    if (this.busy) return { started: false, problem: 'A turn is running. Wait for it to end, or stop it, then run the macro.' };
+    const plan = expandMacro(macro, values);
+    if (!plan.ok) return { started: false, problem: plan.error.message };
+    const checked = checkMacro(macro);
+    if (!checked.ok) return { started: false, problem: checked.error.message };
+    void this.submitPlan(macroIntent(macro), plan.value, {
+      command: macroCommandName(macro.slug),
+      forcePlan: checked.value.risk !== 'read',
+      readsWithoutCard: true,
+      hiddenFromPlanner: true,
+    });
+    return { started: true };
   }
 
   /**
@@ -577,7 +616,12 @@ export class AgentController {
     this.heldRun.add(turnId);
     this.modeOverride = 'ask';
     this.bump();
-    return this.turnWith(turn.intent, {}, (agent, options) => agent.submitPlan(turn.intent, { steps: held }, options));
+    // A macro's held plan stays the writer's: the retry is logged under the macro's command, so it is kept from the planner live and, if it is
+    // interrupted, when it is resumed from the run log.
+    const macro = isMacroCommand(turn.command ?? undefined) ? turn.command : null;
+    return this.turnWith(turn.intent, macro === null ? {} : { command: macro }, (agent, options) =>
+      agent.submitPlan(turn.intent, { steps: held }, macro === null ? options : { ...options, hiddenFromPlanner: true }),
+    );
   }
 
   /** Saves the writer's typing. False when it could not be written: the flush reports a failed write or a conflict rather than rejecting. */

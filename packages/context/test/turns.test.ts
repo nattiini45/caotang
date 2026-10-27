@@ -40,6 +40,17 @@ describe('rewound turns', () => {
   });
 });
 
+describe('hidden turns', () => {
+  it('leave L6 whole, intent and outcome, before the turn limit applies', () => {
+    const text = turnsOf([turn(1), turn(2), turn(3, { hidden: true, intent: 'Run the macro SECRET', outcome: 'SECRET outcome' })]);
+    expect(text).toContain('- Turn t_1');
+    expect(text).toContain('- Turn t_2');
+    expect(text).not.toContain('t_3');
+    expect(text).not.toContain('SECRET');
+    expect(turnsBlock([turn(1), turn(2), turn(3, { hidden: true })], []).notes).toEqual([]);
+  });
+});
+
 describe('restored turns', () => {
   const at = Date.UTC(2026, 9, 22, 14, 2, 30);
 

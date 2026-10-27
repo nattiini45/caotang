@@ -48,6 +48,8 @@ export function makeSnapshot(overrides: {
   codex?: { id: string; name: string; aliases?: string[] }[];
   /** The saved export recipes (exporter.md §2), for the rows whose refusals read them. Absent means none. */
   recipes?: { name: string; includeRootIds?: string[] }[];
+  /** The writer's macros (extensibility.md §10), by id and slug, for the macro rows. Absent means none. */
+  macros?: { id: string; slug: string }[];
   /** The coherence file (coherence.md §3), for the rows whose refusals read its findings, scene declarations or runs. */
   coherence?: ValidationCoherence;
   /** The project's skills (extensibility.md §10) by folder, each file as its path and the length of its bytes, for the skill rows. Absent means none. */
@@ -92,6 +94,7 @@ export function makeSnapshot(overrides: {
       },
       codex: overrides.codex ?? [{ id: CODEX_ENTRY, name: 'Elena' }],
       ...(overrides.recipes === undefined ? {} : { recipes: overrides.recipes }),
+      ...(overrides.macros === undefined ? {} : { macros: overrides.macros }),
       ...(overrides.disabledSkills === undefined ? {} : { disabledSkills: overrides.disabledSkills }),
     },
     documents,
