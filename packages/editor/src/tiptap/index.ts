@@ -20,6 +20,7 @@ export type {
   TiptapEditorInstance,
   TiptapMountOptions,
 } from './adapter.js';
+export type { SuggestionLayer, SuggestionSpan } from './suggestions.js';
 export { createGhostPreview } from './ghost.js';
 export type { GhostCallbacks, GhostPreview } from './ghost.js';
 export { HISTORY_JOURNAL_VERSION, HISTORY_MAX_ENTRIES, schemaSignature } from './history-journal.js';

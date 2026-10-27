@@ -31,6 +31,7 @@ import {
   DEBOUNCE_MAX_MS,
   DEBOUNCE_MIN_MS,
   TARGET_MAX_WORDS,
+  type AgentEditMode,
   type RoleRef,
   type RoleSettings,
 } from '../app/settings.js';
@@ -1076,6 +1077,7 @@ function WritingSection({ services }: { services: AppServices }): ReactNode {
   const [target, setTarget] = useState(String(current.session.dailyTargetWords ?? 0));
   const [debounce, setDebounce] = useState(String(current.editor.autosaveDebounceMs));
   const [hideRails, setHideRails] = useState(current.editor.focusModeHideRails);
+  const [agentEditMode, setAgentEditMode] = useState<AgentEditMode>(current.editor.agentEditMode);
   const [message, setMessage] = useState<string | null>(null);
 
   const save = (event: FormEvent<HTMLFormElement>): void => {
@@ -1090,8 +1092,8 @@ function WritingSection({ services }: { services: AppServices }): ReactNode {
       setMessage(`The save delay is a whole number of milliseconds from ${DEBOUNCE_MIN_MS} to ${DEBOUNCE_MAX_MS}.`);
       return;
     }
-    void services.settings.update({ session: { dailyTargetWords: words }, editor: { autosaveDebounceMs: ms, focusModeHideRails: hideRails } }).then((error) => {
-      setMessage(error ?? 'Saved. The save delay applies to the projects you open from now on.');
+    void services.settings.update({ session: { dailyTargetWords: words }, editor: { autosaveDebounceMs: ms, focusModeHideRails: hideRails, agentEditMode } }).then((error) => {
+      setMessage(error ?? 'Saved. The save delay applies to the projects you open from now on, and the agent-edit choice to the next document you open.');
     });
   };
 
@@ -1118,6 +1120,23 @@ function WritingSection({ services }: { services: AppServices }): ReactNode {
           <input type="checkbox" checked={hideRails} onChange={(event) => setHideRails(event.target.checked)} />
           <span>In focus mode, hide the binder and the inspector</span>
         </label>
+        <label>
+          <span>When you apply an agent edit</span>
+          <select
+            value={agentEditMode}
+            aria-describedby="agent-edit-help"
+            onChange={(event) => setAgentEditMode(event.target.value === 'suggestions' ? 'suggestions' : 'ghost')}
+          >
+            <option value="ghost">Replace the text</option>
+            <option value="suggestions">Mark the changes for review</option>
+          </select>
+        </label>
+        <p className="muted" id="agent-edit-help">
+          Marking keeps the agent’s new text in the scene and underlines or strikes only the words that changed, so you can keep or put back
+          each change. The agent’s text is already saved when the marks appear, so other tools and git see the accepted version, and rejecting
+          a change is what edits the file. It covers prose scenes only, not Ink or Fountain. Closing the tab with changes still marked keeps
+          the agent’s text. A new agent edit accepts any earlier marks first. The choice applies the next time you open a document.
+        </p>
         <button type="submit" className="button is-primary">
           Save writing settings
         </button>

@@ -876,6 +876,7 @@ export function Workspace({
             agent={agent}
             target={target}
             onSetTarget={saveTarget}
+            agentEditMode={settingsNow.editor.agentEditMode}
           />
           {center === 'corkboard' && mediaView === null ? (
             <Corkboard
