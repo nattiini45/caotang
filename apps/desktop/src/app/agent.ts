@@ -67,7 +67,6 @@
  */
 
 import type { GhostPreview } from '@caotang/editor/tiptap';
-import type { ReviewApi } from '@caotang/editor';
 import type { ProfileView, TaskRole } from '@caotang/gateway';
 import {
   checkMacro,
@@ -259,6 +258,12 @@ export interface ReviewView {
   readonly pending: number;
 }
 
+/** What one open editor holds marked, and the call that keeps or puts back a turn's suggestions in it. */
+export interface ReviewHold {
+  readonly views: readonly ReviewView[];
+  resolve(turnId: string, mode: 'accept' | 'reject'): number;
+}
+
 /** An agent apply that landed in the store, as the editor pane is told about it so it can show the edit as marks. */
 export interface AgentApply {
   readonly docId: string;
@@ -341,12 +346,12 @@ export class AgentController {
   /** The text a scene's draft has streamed so far, by document, while the model writes it (agent-harness §8). */
   private readonly streams = new Map<string, string>();
   private message: string | null = null;
-  /** Documents with an approved draft whose store change has not reached their editor yet, by document (editor-engine §15). */
-  private readonly armed = new Map<string, { readonly callId: string; readonly turnId: string | null }>();
-  /** The turn each applied step belongs to, by step id. */
+  /** The step whose approved draft has not reached the editor of its document yet, by document (editor-engine §15). */
+  private readonly armed = new Map<string, string>();
+  /** The turn each approved step belongs to, by step id. */
   private readonly appliedIn = new Map<string, string | null>();
-  /** The open editors' review calls, by document. */
-  private readonly reviewers = new Map<string, { readonly review: ReviewApi; readonly stop: () => void }>();
+  /** What the open editors in review mode hold marked, by document (review-session.ts). */
+  private readonly reviewing = new Map<string, ReviewHold>();
   /** What the last slash command said under the Intent box. View state: never saved, never sent to a model. */
   private commandNote: CommandNote | null = null;
   private readonly listeners = new Set<() => void>();
@@ -438,7 +443,7 @@ export class AgentController {
       offer: this.offer?.view ?? null,
       tasks: this.tasks.snapshot().map((task) => viewOf(task, this.session.state)),
       command: this.commandNote,
-      reviews: this.reviewViews(),
+      reviews: [...this.reviewing.values()].flatMap((hold) => hold.views),
     };
   }
 
@@ -1118,7 +1123,9 @@ export class AgentController {
         }
         // The drafts about to land are remembered by scene, so the editor of each can tell this store change from an undo or a restore.
         for (const view of this.ghosts) {
-          if (view.docId !== null) this.armed.set(view.docId, { callId: view.callId, turnId: this.runningTurnId });
+          if (view.docId === null) continue;
+          this.armed.set(view.docId, view.callId);
+          this.appliedIn.set(view.callId, this.runningTurnId);
         }
         this.clearGhosts();
         // An approved compile lists the project's images again, as the export dialog's compile does (session.exportsReady): the
@@ -1644,11 +1651,10 @@ export class AgentController {
    * record is spent by the question, so an undo or a restore that follows is not mistaken for another apply.
    */
   consumeApply(docId: string, revision: number): AgentApply | null {
-    const armed = this.armed.get(docId);
-    if (armed === undefined) return null;
+    const toolCallId = this.armed.get(docId);
+    if (toolCallId === undefined) return null;
     this.armed.delete(docId);
-    this.appliedIn.set(armed.callId, armed.turnId);
-    return { docId, revision, toolCallId: armed.callId };
+    return { docId, revision, toolCallId };
   }
 
   /** The turn that made the step `toolCallId`, or `null` when the controller does not know it. */
@@ -1656,30 +1662,11 @@ export class AgentController {
     return this.appliedIn.get(toolCallId) ?? null;
   }
 
-  /** An open editor in review mode hands over its review calls, so a turn's card can show and resolve its suggestions. */
-  attachReview(docId: string, review: ReviewApi): void {
-    this.reviewers.get(docId)?.stop();
-    this.reviewers.set(docId, { review, stop: review.subscribe(() => this.bump()) });
+  /** An open editor in review mode says what it holds marked, so a turn's card can show and resolve it. `null` when it goes. */
+  setReview(docId: string, hold: ReviewHold | null): void {
+    if (hold === null) this.reviewing.delete(docId);
+    else this.reviewing.set(docId, hold);
     this.bump();
-  }
-
-  detachReview(docId: string, review: ReviewApi): void {
-    const held = this.reviewers.get(docId);
-    if (held === undefined || held.review !== review) return;
-    held.stop();
-    this.reviewers.delete(docId);
-    this.bump();
-  }
-
-  private reviewViews(): readonly ReviewView[] {
-    const pending = new Map<string, number>();
-    for (const { review } of this.reviewers.values()) {
-      for (const entry of review.state().byToolCall) {
-        const turnId = this.appliedIn.get(entry.toolCallId);
-        if (turnId !== undefined && turnId !== null) pending.set(turnId, (pending.get(turnId) ?? 0) + entry.pending);
-      }
-    }
-    return [...pending.entries()].map(([turnId, count]) => ({ turnId, pending: count }));
   }
 
   /**
@@ -1688,12 +1675,7 @@ export class AgentController {
    */
   resolveReview(turnId: string, mode: 'accept' | 'reject'): number {
     let resolved = 0;
-    for (const { review } of this.reviewers.values()) {
-      for (const entry of review.state().byToolCall) {
-        if (this.appliedIn.get(entry.toolCallId) !== turnId) continue;
-        resolved += mode === 'accept' ? review.acceptToolCall(entry.toolCallId) : review.rejectToolCall(entry.toolCallId);
-      }
-    }
+    for (const hold of this.reviewing.values()) resolved += hold.resolve(turnId, mode);
     return resolved;
   }
 

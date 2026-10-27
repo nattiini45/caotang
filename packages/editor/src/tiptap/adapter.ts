@@ -86,6 +86,7 @@ import type {
   ProjectionMap,
   ReviewApi,
   ReviewableEditorInstance,
+  ReviewState,
   TextAnchor,
 } from '../seam.js';
 import { caotangExtensions } from './extensions.js';
@@ -324,16 +325,17 @@ export interface TiptapEditorApi extends EditorApi {
 }
 
 /** The review calls of an editor that is not in review mode: nothing is ever pending. */
-const NONE = (): number => 0;
+const IDLE: ReviewState = { pending: 0, byToolCall: [], current: null, selected: 0, position: 0 };
+const none = (): number => 0;
 const INERT_REVIEW: ReviewApi = {
-  state: () => ({ pending: 0, byToolCall: [], current: null, selected: 0, position: 0 }),
+  state: () => IDLE,
   subscribe: () => () => {},
-  accept: NONE,
-  reject: NONE,
-  acceptToolCall: NONE,
-  rejectToolCall: NONE,
-  acceptAll: NONE,
-  rejectAll: NONE,
+  accept: none,
+  reject: none,
+  acceptToolCall: none,
+  rejectToolCall: none,
+  acceptAll: none,
+  rejectAll: none,
   next: () => false,
   previous: () => false,
 };
@@ -826,6 +828,13 @@ const createInstance = (
 
   let loadSeq = 0;
 
+  /** The body the editor now shows came from `next`: its diagnostics are the load's. */
+  const noteLoad = (next: ParseResult): void => {
+    load = { warnings: next.warnings, dialect: next.dialect };
+    opts.onLoadDiagnostics?.(load);
+    announce();
+  };
+
   /** Puts a parsed body in the place of the whole document: `setContent`'s last step, and the fallback of `showAgentEdit`. */
   const landReplacement = (next: ParseResult, setOpts?: SetContentOptions): void => {
     const replacement = editor.schema.nodeFromJSON(next.doc.toJSON());
@@ -835,9 +844,7 @@ const createInstance = (
     // replacement is itself an edit and the update event must be the one that sets the flag.
     if (laneOf(setOpts) === 'agent') setLocallyEdited(false);
     commit(tr);
-    load = { warnings: next.warnings, dialect: next.dialect };
-    opts.onLoadDiagnostics?.(load);
-    announce();
+    noteLoad(next);
   };
 
   // --- §15: the review marks and the calls that resolve them --------------------------
@@ -847,14 +854,45 @@ const createInstance = (
     commit,
     destroyed: () => destroyed,
     replace: (next) => landReplacement(next, { historyExcluded: true }),
-    markAgent: (tr) => void markLane(tr, { historyExcluded: true }),
+    markAgent: (tr) => markLane(tr, { historyExcluded: true }),
     matches: (doc, next) => serialize(caotangSchema.nodeFromJSON(doc.toJSON())) === serialize(next.doc),
-    loaded: (next) => {
-      load = { warnings: next.warnings, dialect: next.dialect };
-      opts.onLoadDiagnostics?.(load);
-      announce();
-    },
+    loaded: noteLoad,
   });
+
+  /**
+   * `setContent`'s road: parses `text`, rebases the store on it in the agent lane, and hands the parse to `land`. Gives `undefined`
+   * when a later load or a teardown superseded this one, which the newer load wins.
+   */
+  const loadBody = async <T>(text: string, setOpts: SetContentOptions | undefined, land: (next: ParseResult) => T): Promise<T | undefined> => {
+    const seq = (loadSeq += 1);
+    const next = await parseWithDiagnostics(text);
+    // A later call has superseded this one, or the editor is gone: the newer load wins.
+    if (destroyed || seq !== loadSeq) return undefined;
+    // The lane is read from the options by the one reader there is (`laneOf`), the same one `markLane` uses.
+    const agent = laneOf(setOpts) === 'agent';
+    if (agent && unsaved() && setOpts?.discardUnsaved !== true) {
+      // §8 and §9: an apply over the user's mid-keystroke body is a conflict. Nothing is
+      // replaced, so the keystrokes and the ghost both survive, and the apply can be made
+      // again once the edits are stored or the writer confirms the restore.
+      throw new UnsavedEditsError(docId);
+    }
+    if (agent && autosave !== undefined) {
+      // The store is rebased onto the body this apply puts in the editor, so the two agree. The
+      // rebase drops unsaved edits. A plain apply has none left to drop (the check above refused
+      // them), so only a restore with `discardUnsaved` changes anything here. It is awaited before
+      // the replacement, so an edit typed during the wait is replaced along with the rest. The base
+      // moves with the body when the caller names its revision. Without one, the base read here is
+      // the one the store reported when the replacement was made; a write in flight that settles during
+      // the wait has a newer revision, and `reseat` keeps that one, since it never moves the base back.
+      await autosave.reseat(docId, {
+        body: serialize(next.doc),
+        revision: setOpts?.revision ?? autosave.status(docId).revision,
+      });
+      // A later load, or a teardown, that began during the wait supersedes this one.
+      if (destroyed || seq !== loadSeq) return undefined;
+    }
+    return land(next);
+  };
 
   /**
    * §15's entry path. The store already holds `text`, so this only shows the difference. It falls back to `setContent` whenever
@@ -866,48 +904,14 @@ const createInstance = (
       await instance.setContent(text, replaceOpts);
       return { landed: 'replaced', reason: desk === undefined ? 'off' : 'unsaved' };
     }
-    const seq = (loadSeq += 1);
-    const next = await parseWithDiagnostics(text);
-    if (destroyed || seq !== loadSeq) return { landed: 'replaced', reason: 'superseded' };
-    if (autosave !== undefined) {
-      await autosave.reseat(docId, { body: serialize(next.doc), revision: info.revision });
-      if (destroyed || seq !== loadSeq) return { landed: 'replaced', reason: 'superseded' };
-    }
-    return desk.land(next, info.toolCallId);
+    return (await loadBody(text, replaceOpts, (next) => desk.land(next, info.toolCallId))) ?? { landed: 'replaced', reason: 'superseded' };
   };
 
   const instance: TiptapEditorInstance = {
     getContent: () => body(),
 
     setContent: async (text: string, setOpts?: SetContentOptions): Promise<void> => {
-      const seq = (loadSeq += 1);
-      const next = await parseWithDiagnostics(text);
-      // A later call has superseded this one, or the editor is gone: the newer load wins.
-      if (destroyed || seq !== loadSeq) return;
-      // The lane is read from the options by the one reader there is (`laneOf`), the same one `markLane` uses.
-      const agent = laneOf(setOpts) === 'agent';
-      if (agent && unsaved() && setOpts?.discardUnsaved !== true) {
-        // §8 and §9: an apply over the user's mid-keystroke body is a conflict. Nothing is
-        // replaced, so the keystrokes and the ghost both survive, and the apply can be made
-        // again once the edits are stored or the writer confirms the restore.
-        throw new UnsavedEditsError(docId);
-      }
-      if (agent && autosave !== undefined) {
-        // The store is rebased onto the body this apply puts in the editor, so the two agree. The
-        // rebase drops unsaved edits. A plain apply has none left to drop (the check above refused
-        // them), so only a restore with `discardUnsaved` changes anything here. It is awaited before
-        // the replacement, so an edit typed during the wait is replaced along with the rest. The base
-        // moves with the body when the caller names its revision. Without one, the base read here is
-        // the one the store reported when the replacement was made; a write in flight that settles during
-        // the wait has a newer revision, and `reseat` keeps that one, since it never moves the base back.
-        await autosave.reseat(docId, {
-          body: serialize(next.doc),
-          revision: setOpts?.revision ?? autosave.status(docId).revision,
-        });
-        // A later load, or a teardown, that began during the wait supersedes this one.
-        if (destroyed || seq !== loadSeq) return;
-      }
-      landReplacement(next, setOpts);
+      await loadBody(text, setOpts, (next) => landReplacement(next, setOpts));
     },
 
     showAgentEdit,

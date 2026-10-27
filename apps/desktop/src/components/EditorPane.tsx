@@ -47,8 +47,8 @@ import type { TargetProgress } from '../app/session-progress.js';
 import { EmptyState, useReport, useSession, wordsLabel } from './shared.js';
 import { TargetQuickSet } from './TargetQuickSet.js';
 
-/** The review bar is fetched only by an editor in review mode (Settings > Writing), so the default path does not carry it. */
-const ReviewBar = lazy(() => import('./ReviewBar.js').then((module) => ({ default: module.ReviewBar })));
+/** The review bar and the hold on the marks are fetched only by an editor in review mode (Settings > Writing), so the default path does not carry them. */
+const ReviewSide = lazy(() => import('./ReviewSide.js').then((module) => ({ default: module.ReviewSide })));
 
 /** One API for every mount: it holds no state of its own (the instance does). */
 const editorApi = createTiptapEditorApi();
@@ -181,8 +181,7 @@ function DocumentEditor({
   useSession(session);
   const report = useReport();
   // The mode this editor was opened with. The mount effect reads it once, so a change in Settings applies to the next document.
-  const modeAtOpen = useRef(agentEditMode);
-  const [reviewing, setReviewing] = useState(false);
+  const [modeAtOpen] = useState(agentEditMode);
   const snapshot = useSyncExternalStore(agent.subscribe, agent.snapshot);
   const host = useRef<HTMLDivElement>(null);
   // The ghost bar's own element, brought into view when a draft lands (the effect below).
@@ -208,7 +207,6 @@ function DocumentEditor({
     if (element === null) return;
     let alive = true;
     let mounted: TiptapEditorInstance | null = null;
-    let stopReview: (() => void) | null = null;
     // The undo the writer's last visit left (history-store.ts) is read first, and the body and revision after it, so the editor opens on
     // what the store holds at the moment it mounts. The editor rebuilds the undo only if it replays to that body.
     const saver = createHistorySaver(session.projectId, docId);
@@ -226,7 +224,7 @@ function DocumentEditor({
           injectCSS: false,
           placeholder: PLACEHOLDER,
           history: { journal, onChange: saver.onChange },
-          agentEditMode: modeAtOpen.current,
+          agentEditMode: modeAtOpen,
           ghost: {
             onApply: () => agent.answer({ action: 'approve' }),
             onRetry: () => agent.answer({ action: 'retry' }),
@@ -246,13 +244,6 @@ function DocumentEditor({
           // Once per load: the diagnostics of this parse. A later `setContent` does not bring the banner back.
           setLoad(instance.loadResult());
           agent.attachGhost(docId, instance.ghost);
-          // In review mode the pane's review side is fetched on use (review-session.ts) and ended with the editor.
-          if (modeAtOpen.current === 'suggestions') {
-            setReviewing(true);
-            void import('./review-session.js').then((module) => {
-              if (alive) stopReview = module.startReview(session.projectId, docId, agent, instance, report);
-            });
-          }
           setEditor(instance);
         },
         (error: unknown) => {
@@ -263,14 +254,11 @@ function DocumentEditor({
       alive = false;
       // Teardown flushes the document's pending edit through the autosave (editor-engine §9).
       if (mounted !== null) agent.detachGhost(docId, mounted.ghost);
-      stopReview?.();
       mounted?.destroy();
       // The undo journal is written one last time, from what the editor held.
       void saver.dispose();
     };
-    // `report` is read when a notice is due, not a reason to mount the editor again.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, docId, agent]);
+  }, [session, docId, agent, modeAtOpen]);
 
   // The store moved this document. Its own write is acknowledged to the editor; anything else replaces the body.
   useEffect(() => {
@@ -288,13 +276,8 @@ function DocumentEditor({
     // flushes before an approval), so the discard only ever drops text the store already holds.
     const apply = agent.consumeApply(docId, revision);
     const landing =
-      apply !== null && modeAtOpen.current === 'suggestions'
-        ? editor.showAgentEdit(stored, { toolCallId: apply.toolCallId, revision }).then((outcome) => {
-            if (outcome.landed === 'replaced' && outcome.reason !== 'off' && outcome.reason !== 'superseded') {
-              const reason = outcome.reason;
-              void import('./review-session.js').then((module) => report({ text: module.replacedNotice(reason), tone: 'info' }));
-            }
-          })
+      apply !== null && modeAtOpen === 'suggestions'
+        ? editor.showAgentEdit(stored, { toolCallId: apply.toolCallId, revision }).then((outcome) => import('./ReviewSide.js').then((module) => module.reportLanding(outcome, report)))
         : editor.setContent(stored, { historyExcluded: true, discardUnsaved: true });
     landing
       .then(() => editor.setRevision(revision))
@@ -304,7 +287,7 @@ function DocumentEditor({
           tone: 'error',
         });
       });
-  }, [editor, stored, revision, session, docId, report, agent]);
+  }, [editor, stored, revision, session, docId, report, agent, modeAtOpen]);
 
   // The scene's ghost region is on screen while this editor is shown. The controller counts a draft as shown only then.
   useEffect(() => {
@@ -360,9 +343,9 @@ function DocumentEditor({
 
         <div ref={host} className="editor-host" />
 
-        {editor !== null && reviewing ? (
+        {editor !== null && modeAtOpen === 'suggestions' ? (
           <Suspense fallback={null}>
-            <ReviewBar review={editor.review} />
+            <ReviewSide projectId={session.projectId} docId={docId} agent={agent} editor={editor} report={report} />
           </Suspense>
         ) : null}
 
