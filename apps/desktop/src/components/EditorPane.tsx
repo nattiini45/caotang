@@ -34,11 +34,14 @@ import {
 } from '@caotang/editor/tiptap';
 import { countBody, getBody, getRevision } from '@caotang/store';
 
+import { activeAppDb } from '../app/app-db.js';
 import { nodeById } from '../app/binder-model.js';
 import type { AgentController } from '../app/agent.js';
 import type { GhostView } from '../app/agent-model.js';
 import { describeLossGroup, reStyleSentence } from '../app/load-banner.js';
 import { isOwnWrite } from '../app/integrity-model.js';
+import { takePending } from '../app/review-notice.js';
+import { pendingNotice } from '../app/review-text.js';
 import type { ProjectSession } from '../app/session.js';
 import { createHistorySaver, loadHistoryJournal } from '../app/history-store.js';
 import type { AgentEditMode } from '../app/settings.js';
@@ -288,6 +291,18 @@ function DocumentEditor({
         });
       });
   }, [editor, stored, revision, session, docId, report, agent, modeAtOpen]);
+
+  // What an earlier visit left marked is said once, whichever mode this visit opened in: the row is taken on every open, so it cannot
+  // outlive the mode and be said later about a scene the writer has since edited another way (editor-engine §15).
+  useEffect(() => {
+    let live = true;
+    void takePending(session.projectId, docId, activeAppDb()).then((left) => {
+      if (left !== null && live) report({ text: pendingNotice(left.count), tone: 'info' });
+    });
+    return () => {
+      live = false;
+    };
+  }, [session.projectId, docId, report]);
 
   // The scene's ghost region is on screen while this editor is shown. The controller counts a draft as shown only then.
   useEffect(() => {

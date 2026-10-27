@@ -220,3 +220,25 @@ test('Accept edits records no apply for a draft whose card was held for the writ
   await running;
   await session.close();
 });
+
+test('a scene drafted by two steps of one card answers each store change with its own step, in order, and a question about another scene spends nothing', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const { session, controller } = await controllerOver(state, store);
+  const friend = state.manifest.tree.find((node) => node.title === 'The Friend')?.id ?? '';
+  const other = state.manifest.tree.find((node) => node.type === 'document' && node.id !== friend)?.id ?? '';
+  const inner = controller as unknown as { onEvent: (event: unknown) => void; armDrafts: () => void; runningTurnId: string | null };
+  const ghost = (callId: string) => ({ type: 'ghost', callId, docTitle: 'The Friend', text: `Draft ${callId}.`, words: 2 });
+  inner.onEvent(ghost('call-1'));
+  inner.onEvent(ghost('call-2'));
+  inner.runningTurnId = 'turn-1';
+  inner.armDrafts();
+  // The question is about the revision it was asked with; another scene's question neither answers nor spends this one's record.
+  expect(controller.consumeApply(other, 1)).toBeNull();
+  expect(controller.consumeApply(friend, 1)).toMatchObject({ docId: friend, revision: 1, toolCallId: 'call-1' });
+  expect(controller.consumeApply(friend, 2)).toMatchObject({ docId: friend, revision: 2, toolCallId: 'call-2' });
+  expect(controller.consumeApply(friend, 3)).toBeNull();
+  expect(controller.turnOf('call-1')).toBe('turn-1');
+  expect(controller.turnOf('call-2')).toBe('turn-1');
+  await session.close();
+});

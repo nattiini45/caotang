@@ -267,6 +267,7 @@ export interface ReviewHold {
 /** An agent apply that landed in the store, as the editor pane is told about it so it can show the edit as marks. */
 export interface AgentApply {
   readonly docId: string;
+  /** The revision the editor asked about. */
   readonly revision: number;
   /** The id of the plan step that made the edit. The editor keeps it in its own map; no mark carries it. */
   readonly toolCallId: string;
@@ -346,8 +347,8 @@ export class AgentController {
   /** The text a scene's draft has streamed so far, by document, while the model writes it (agent-harness §8). */
   private readonly streams = new Map<string, string>();
   private message: string | null = null;
-  /** The step whose approved draft has not reached the editor of its document yet, by document (editor-engine §15). */
-  private readonly armed = new Map<string, string>();
+  /** The steps whose approved drafts have not reached the editor of their document yet, by document, in the order they land (editor-engine §15). */
+  private readonly armed = new Map<string, string[]>();
   /** The turn each approved step belongs to, by step id. */
   private readonly appliedIn = new Map<string, string | null>();
   /** What the open editors in review mode hold marked, by document (ReviewSide.tsx). */
@@ -693,7 +694,7 @@ export class AgentController {
   private armDrafts(): void {
     for (const view of this.ghosts) {
       if (view.docId === null) continue;
-      this.armed.set(view.docId, view.callId);
+      this.armed.set(view.docId, [...(this.armed.get(view.docId) ?? []), view.callId]);
       this.appliedIn.set(view.callId, this.runningTurnId);
     }
   }
@@ -1657,12 +1658,15 @@ export class AgentController {
 
   /**
    * The editor of `docId` asks whether the store change it just saw is the landing of a draft the writer approved. It is, once: the
-   * record is spent by the question, so an undo or a restore that follows is not mistaken for another apply.
+   * record is spent by the question, so an undo or a restore that follows is not mistaken for another apply. A scene drafted by
+   * more than one step answers with those steps in order. The controller remembers only the step per document: `revision` is
+   * echoed back as the caller passed it, never matched.
    */
   consumeApply(docId: string, revision: number): AgentApply | null {
-    const toolCallId = this.armed.get(docId);
+    const waiting = this.armed.get(docId);
+    const toolCallId = waiting?.shift();
     if (toolCallId === undefined) return null;
-    this.armed.delete(docId);
+    if (waiting?.length === 0) this.armed.delete(docId);
     return { docId, revision, toolCallId };
   }
 
