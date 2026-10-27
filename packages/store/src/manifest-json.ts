@@ -375,9 +375,15 @@ function hookBlock(h: ProjectHook): string {
 
 const AGENT_KNOWN = new Set(['rules', 'hooks']);
 
-/** The keys under `agent` this build does not know, in the order they were read: written back as they were. */
+/**
+ * Keys a project never carries because the app's settings own them (agent-harness §4: a project carries no permission mode or budget). A
+ * file that names one is read and ignored, and a save leaves it out.
+ */
+const AGENT_SETTINGS_KEYS = new Set(['mode', 'defaultMode', 'lockAuto', 'budget', 'loadEveryTool', 'keepTraces']);
+
+/** The keys under `agent` this build does not know, in the order they were read: written back as they were, except the app's settings. */
 function agentExtras(agent: NonNullable<Manifest['agent']>): [string, unknown][] {
-  return Object.entries(agent).filter(([name, value]) => !AGENT_KNOWN.has(name) && value !== undefined);
+  return Object.entries(agent).filter(([name, value]) => !AGENT_KNOWN.has(name) && !AGENT_SETTINGS_KEYS.has(name) && value !== undefined);
 }
 
 function hasAgentBlock(agent: Manifest['agent']): agent is NonNullable<Manifest['agent']> {

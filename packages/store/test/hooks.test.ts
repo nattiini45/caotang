@@ -332,6 +332,13 @@ describe('agent.hooks round trip', () => {
     expect(JSON.parse(text).agent.hooks).toHaveLength(2);
   });
 
+  it("leaves out a key the app's settings own, such as a permission mode, which a project never carries", () => {
+    const manifest = createEmptyManifest('Plain', OPENED);
+    manifest.agent = { mode: 'auto', defaultMode: 'auto', lockAuto: false, budget: { maxModelCalls: 99 }, future: 1 };
+    const text = serializeManifest(manifest);
+    expect(JSON.parse(text).agent).toEqual({ future: 1 });
+  });
+
   it('writes no key for a project without hooks, rules or other agent keys', () => {
     const manifest = createEmptyManifest('Plain', OPENED);
     manifest.agent = {};
