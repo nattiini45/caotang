@@ -318,11 +318,6 @@ msgstr "{badge, plural, one {# open} other {# open}}"
 msgid "{bytes} bytes"
 msgstr "{bytes} bytes"
 
-#. Interpolated values: confirm, generation, label, name, path
-#: apps/desktop/src/components/RecoveryDialog.tsx
-msgid "{change, select, changed {changed} removed {removed} added {added} other {changed}} {label}"
-msgstr "{change, select, changed {changed} removed {removed} added {added} other {changed}} {label}"
-
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
 #: apps/desktop/src/components/Settings.tsx
 msgid "{checkpointCap, plural, one {# checkpoint} other {# checkpoints}}, kept {checkpointDays, plural, one {# day} other {# days}}"
@@ -514,6 +509,11 @@ msgstr "{file} has no knot to import. An Ink story makes one container for each 
 #: apps/desktop/src/components/ScriptImport.tsx
 msgid "{file} has no passage to import. A Twee story makes one knot for each passage."
 msgstr "{file} has no passage to import. A Twee story makes one knot for each passage."
+
+#. Interpolated values: confirm, file, files, generation, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "{file}: {change, select, changed {changed} removed {removed} added {added} other {changed}}"
+msgstr "{file}: {change, select, changed {changed} removed {removed} added {added} other {changed}}"
 
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
@@ -987,12 +987,7 @@ msgstr "Always, in every drafting call"
 msgid "An item cannot be moved into itself."
 msgstr "An item cannot be moved into itself."
 
-#. Interpolated values: confirm, generation, label, name, path
-#: apps/desktop/src/components/RecoveryDialog.tsx
-msgid "Another program {changes} after Caotang read the folder, so nothing was written. Close this, then open the folder again to see its current copy."
-msgstr "Another program {changes} after Caotang read the folder, so nothing was written. Close this, then open the folder again to see its current copy."
-
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "Another program changed a file in this folder after Caotang read the folder, so nothing was written. Close this, then open the folder again to see its current copy."
 msgstr "Another program changed a file in this folder after Caotang read the folder, so nothing was written. Close this, then open the folder again to see its current copy."
@@ -1007,12 +1002,17 @@ msgstr "Another program changed these files in the folder while Caotang was savi
 msgid "Another program changed these files in the folder while Caotang was saving. The save was written, and the folder now holds that program’s version of them:"
 msgstr "Another program changed these files in the folder while Caotang was saving. The save was written, and the folder now holds that program’s version of them:"
 
+#. Interpolated values: confirm, file, files, generation, name, path
+#: apps/desktop/src/components/RecoveryDialog.tsx
+msgid "Another program changed this folder after Caotang read it, so nothing was written: {files}. Close this, then open the folder again to see its current copy."
+msgstr "Another program changed this folder after Caotang read it, so nothing was written: {files}. Close this, then open the folder again to see its current copy."
+
 #. Interpolated values: backup, badge, descendants, documents, error, file, folder, folderName, kind, label, storageSentence, title, words
 #: apps/desktop/src/components/Workspace.tsx
 msgid "Another program may be using this folder"
 msgstr "Another program may be using this folder"
 
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "Another program may be using this folder: a lock file in it says so, and the Caotang MCP server may be writing this project too. Going ahead replaces caotang.json, so anything that program wrote could be lost. Go ahead anyway?"
 msgstr "Another program may be using this folder: a lock file in it says so, and the Caotang MCP server may be writing this project too. Going ahead replaces caotang.json, so anything that program wrote could be lost. Go ahead anyway?"
@@ -1178,7 +1178,7 @@ msgstr "Bundle file"
 #. Interpolated values: action, documents, error, file, folder, name, project, title, words
 #. Interpolated values: calls, cap
 #. Interpolated values: cap, done, omitted, tokens, total, used
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/BackgroundTasks.tsx
 #: apps/desktop/src/components/Home.tsx
 #: apps/desktop/src/components/PlanOfferCard.tsx
@@ -1209,7 +1209,7 @@ msgstr "Caotang"
 msgid "Caotang also noted {unsaid, plural, one {one smaller thing} other {# smaller things}} in the project’s files as it opened them."
 msgstr "Caotang also noted {unsaid, plural, one {one smaller thing} other {# smaller things}} in the project’s files as it opened them."
 
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "Caotang can read “{name}”."
 msgstr "Caotang can read “{name}”."
@@ -1253,22 +1253,22 @@ msgstr "Caotang was updated in another tab, so this tab cannot save to browser s
 msgid "Caotang was updated in another tab, so this tab cannot save. Export a backup, then reload this tab."
 msgstr "Caotang was updated in another tab, so this tab cannot save. Export a backup, then reload this tab."
 
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "caotang.json in “{name}” and every backup copy of it cannot be read. Caotang can rebuild the project from its document files. The rebuilt project is a new one."
 msgstr "caotang.json in “{name}” and every backup copy of it cannot be read. Caotang can rebuild the project from its document files. The rebuilt project is a new one."
 
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "caotang.json in “{name}” cannot be read. The newest backup that can be read is {path}, which is backup {generation} of 3 (1 is the newest). Caotang can open that copy instead."
 msgstr "caotang.json in “{name}” cannot be read. The newest backup that can be read is {path}, which is backup {generation} of 3 (1 is the newest). Caotang can open that copy instead."
 
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "caotang.json in “{name}” cannot be read. The single backup an older version kept, {path}, can be read. Caotang can open that copy instead."
 msgstr "caotang.json in “{name}” cannot be read. The single backup an older version kept, {path}, can be read. Caotang can open that copy instead."
 
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "caotang.json in this folder was changed by another program after Caotang read it, so nothing was written. Close this, then open the folder again to see its current copy."
 msgstr "caotang.json in this folder was changed by another program after Caotang read it, so nothing was written. Close this, then open the folder again to see its current copy."
@@ -1375,7 +1375,7 @@ msgid "Choose another folder…"
 msgstr "Choose another folder…"
 
 #. Interpolated values: DEBOUNCE_MAX_MS, DEBOUNCE_MIN_MS, DEMO_PROFILE_NAME, checkpointCap, checkpointDays, completion, entryCount, error, field, keptCount, keptDocuments, max, min, model, note, number, problem, product, profile, prompt, provider, requestsTotal, role, size
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #. Interpolated values: subject
 #: apps/desktop/src/components/lazy-view.tsx
 #: apps/desktop/src/components/RecoveryDialog.tsx
@@ -2807,8 +2807,8 @@ msgstr "Open a project to see its checkpoints."
 msgid "Open a scene to see the prompt the agent would send for it."
 msgstr "Open a scene to see the prompt the agent would send for it."
 
-#. Interpolated values: confirm, generation, label, name, path
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "Open an older copy of this project?"
 msgstr "Open an older copy of this project?"
@@ -2823,29 +2823,29 @@ msgstr "Open as a separate copy"
 msgid "Open its goals in the inspector"
 msgstr "Open its goals in the inspector"
 
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "Open the project"
 msgstr "Open the project"
 
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "Open the project anyway"
 msgstr "Open the project anyway"
 
-#. Interpolated values: confirm, generation, label, name, path
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "Open this copy"
 msgstr "Open this copy"
 
-#. Interpolated values: confirm, generation, label, name, path
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "Open this copy anyway"
 msgstr "Open this copy anyway"
 
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "Open this project?"
 msgstr "Open this project?"
@@ -3129,22 +3129,22 @@ msgstr "Ready to review: {staged} of {total} drafted"
 msgid "Ready to review: {staged} of {total} drafted, {outdated} out of date"
 msgstr "Ready to review: {staged} of {total} drafted, {outdated} out of date"
 
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "Rebuild the project"
 msgstr "Rebuild the project"
 
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "Rebuild the project anyway"
 msgstr "Rebuild the project anyway"
 
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "Rebuild this project from its documents?"
 msgstr "Rebuild this project from its documents?"
 
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "Rebuilding loses:"
 msgstr "Rebuilding loses:"
@@ -4101,7 +4101,7 @@ msgstr "The app settings could not be opened here, so they will not be kept: {er
 msgid "The bundle could not be made: {error}"
 msgstr "The bundle could not be made: {error}"
 
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "The bundle file itself is not changed. Its unreadable caotang.json is not kept, so keep the bundle file if you may need that copy."
 msgstr "The bundle file itself is not changed. Its unreadable caotang.json is not kept, so keep the bundle file if you may need that copy."
@@ -4498,7 +4498,7 @@ msgstr "The trim did not finish: {error}"
 msgid "The turn stopped unexpectedly: {error}"
 msgstr "The turn stopped unexpectedly: {error}"
 
-#. Interpolated values: confirm, generation, label, name, path
+#. Interpolated values: confirm, file, files, generation, name, path
 #: apps/desktop/src/components/RecoveryDialog.tsx
 msgid "The unreadable caotang.json is kept in the folder, under a name with the date, so nothing is lost."
 msgstr "The unreadable caotang.json is kept in the folder, under a name with the date, so nothing is lost."

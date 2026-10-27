@@ -12,7 +12,7 @@ import { joinWords } from '@caotang/store';
 
 import type { FolderFileChange, PendingRecovery, RecoveryRefusal } from '../app/lifecycle.js';
 
-/* lingui-set comment="Interpolated values: confirm, generation, label, name, path" */
+/* lingui-set comment="Interpolated values: confirm, file, files, generation, name, path" */
 
 export interface RecoveryDialogProps {
   readonly recovery: PendingRecovery;
@@ -86,21 +86,24 @@ export function RecoveryDialog({ recovery, busy, refusal, files, onConfirm, onCa
   );
 }
 
-/** One change as the sentence names it: a whole phrase, so no verb is spliced into a frame on its own. */
-function changeWords(change: string, label: string): string {
-  return t`${select(change, { changed: 'changed', removed: 'removed', added: 'added', other: 'changed' })} ${{ label: isolate(label) }}`;
+/**
+ * One file's line in a refusal: the file's name and what happened to it, in the same `name: kind` shape the folder
+ * question's list uses. The outer sentence lists these lines after a colon; it never carries a per-file verb itself.
+ */
+function changedFileLine(change: string, label: string): string {
+  return t`${{ file: isolate(label) }}: ${select(change, { changed: 'changed', removed: 'removed', added: 'added', other: 'changed' })}`;
 }
 
 /** What a refused accept says: the reason, and the one thing to do about it. Nothing was written in either case. */
-function refusalText(refusal: RecoveryRefusal, files: readonly FolderFileChange[]): string {
+export function refusalText(refusal: RecoveryRefusal, files: readonly FolderFileChange[]): string {
   if (refusal === 'locked') {
     return t`Another program may be using this folder: a lock file in it says so, and the Caotang MCP server may be writing this project too. Going ahead replaces caotang.json, so anything that program wrote could be lost. Go ahead anyway?`;
   }
   if (refusal === 'files') {
-    const changes = joinWords(files.map(({ change, label }) => changeWords(change, label)));
-    return changes === ''
+    const list = joinWords(files.map(({ change, label }) => changedFileLine(change, label)));
+    return list === ''
       ? t`Another program changed a file in this folder after Caotang read the folder, so nothing was written. Close this, then open the folder again to see its current copy.`
-      : t`Another program ${{ changes }} after Caotang read the folder, so nothing was written. Close this, then open the folder again to see its current copy.`;
+      : t`Another program changed this folder after Caotang read it, so nothing was written: ${{ files: list }}. Close this, then open the folder again to see its current copy.`;
   }
   return t`caotang.json in this folder was changed by another program after Caotang read it, so nothing was written. Close this, then open the folder again to see its current copy.`;
 }
