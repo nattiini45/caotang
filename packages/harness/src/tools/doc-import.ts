@@ -46,6 +46,7 @@ import {
   type TreeNode,
 } from '@caotang/store';
 
+import { importScanSentence, scanImport } from '../agent/untrusted.js';
 import { failure, invalidParams, refusal } from '../errors.js';
 import { CONTAINER, resolveNode } from '../resolve.js';
 import { param, type ObjectSpec } from '../schema.js';
@@ -169,10 +170,29 @@ export function prepareDocImport(params: CallParams, context: PrepareContext): R
   }
 
   const expected = { title, parentId: parent.value.id, body, synopsis, keywords, status, label };
+  // The text is stored as given; the scan only tells the writer, on the card and in the result, what in it reads like instructions to a model (issue #54).
+  const scan = scanImport([
+    { where: 'title', text: title },
+    { where: 'body', text: body },
+    ...(synopsis === undefined ? [] : [{ where: 'synopsis', text: synopsis }]),
+    ...(keywords ?? []).map((keyword, index) => ({ where: `keywords[${index}]`, text: keyword })),
+  ]);
   return ok({
     commands,
-    preview: { parent: parent.value.title, title, words: wordCount(body), synopsisLength: synopsis?.length ?? 0 },
-    finish: (done: readonly CommandDone[]) => verifyImport(state, done, expected, parent.value.title),
+    preview: { parent: parent.value.title, title, words: wordCount(body), synopsisLength: synopsis?.length ?? 0, ...(scan.total === 0 ? {} : { scan }) },
+    finish: (done: readonly CommandDone[]) => withScan(verifyImport(state, done, expected, parent.value.title), title, scan),
+  });
+}
+
+/** The import's result with the scan's findings added to its data, its notes and its summary, when there are any. */
+function withScan(result: Result<ToolValue, CommandError>, title: string, scan: ReturnType<typeof scanImport>): Result<ToolValue, CommandError> {
+  const sentence = importScanSentence(`“${title}”`, scan);
+  if (!result.ok || sentence === undefined) return result;
+  return ok({
+    ...result.value,
+    data: { ...result.value.data, scan },
+    summary: `${result.value.summary}; ${scan.total} ${scan.total === 1 ? 'passage reads' : 'passages read'} like instructions to a model`,
+    notes: [...(result.value.notes ?? []), sentence],
   });
 }
 

@@ -210,6 +210,16 @@ export {
 
 export { egressAllowed, egressAllowlistFor, type EgressAllowlist } from './egress.js';
 
-export { APPROVAL_NOTICE, approvalCardFor, type ApprovalCard } from './approval.js';
+export {
+  APPROVAL_NOTICE,
+  approvalCardFor,
+  cautionOf,
+  type ApprovalCard,
+  type ApprovalCaution,
+  type ApprovalContext,
+  type CardHit,
+  type QuoteFinding,
+  type TaintRef,
+} from './approval.js';
 
 export { createMockWire, createMockWireFactory, type MockMcpScript, type MockPhase } from './mock.js';

@@ -429,6 +429,8 @@ export {
   MORE_TOOLS_LINE,
   type Reply,
 } from './agent/protocol.js';
+export { importScanSentence, modelResult, outsideSources, scanForInjection, scanImport, turnNonce, UNTRUSTED_RULE, type ImportHit, type InjectionHit } from './agent/untrusted.js';
+export { QUOTE_MIN_WORDS, quotedProjectText, wordsOfText } from './agent/egress-check.js';
 export {
   draftScene,
   fillSynopses,

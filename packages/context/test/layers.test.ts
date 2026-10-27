@@ -36,7 +36,7 @@ describe('the message layout (§2)', () => {
   it('puts L0 alone in the system message, and L1 to L7 in one user message in fixed order', () => {
     const messages = assemble(CONTINUE, buildApp()).messages;
     expect(messages.map((m) => m.role)).toEqual(['system', 'user']);
-    expect(messages[0]?.content.startsWith('Caotang writing agent, system prompt v1.')).toBe(true);
+    expect(messages[0]?.content.startsWith('Caotang writing agent, system prompt v2.')).toBe(true);
 
     const text = messages[1]?.content ?? '';
     const headings = ['# Project', '# Codex', '# Structure', '# Story so far', '# Focus', '# Recent turns', '# Task'];

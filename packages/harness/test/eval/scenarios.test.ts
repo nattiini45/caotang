@@ -42,8 +42,9 @@ const scenarios: Scenario[] = [
       ],
       // The planner lists the core rows on each call and loads the deferred ones on demand (agent-harness §3), so the ceiling
       // tracks the core band: 13 rows and tool.search, with export.compile's recipeName parameter and codex.write's
-      // `visualRefs`. Measured at 4767, so the ceiling is 4800 (it was 8000 when every wired tool was listed).
-      maxTokens: 4800,
+      // `visualRefs`, and the outside-text rule that system prompt v2 adds. Measured at 4903, so the ceiling is 4950 (it
+      // was 8000 when every wired tool was listed).
+      maxTokens: 4950,
       state: (state) => (state.manifest.tree.find((node) => node.id === FRIEND)?.label === 'act-2' ? [] : ['The Friend is not labelled act-2']),
     },
   },
@@ -116,9 +117,10 @@ const scenarios: Scenario[] = [
         { content: `Fill the synopsis of ${quote(STORM)}`, state: 'done' },
       ],
       // Three model calls (a read's planner, a plan's planner, a synopsis), each carrying the core tool schemas; the deferred
-      // rows are not listed, so the planner calls are about 3000 tokens lighter than when every wired tool was. Measured at 9852,
-      // so the ceiling is 9900 (it was 16300 when every wired tool was listed).
-      maxTokens: 9900,
+      // rows are not listed, so the planner calls are about 3000 tokens lighter than when every wired tool was, and each carries the
+      // outside-text rule that system prompt v2 adds. Measured at 10126, so the ceiling is 10150 (it was 16300 when
+      // every wired tool was listed).
+      maxTokens: 10150,
       maxModelCalls: 3,
       state: (state) => {
         const node = state.manifest.tree.find((candidate) => candidate.id === STORM);

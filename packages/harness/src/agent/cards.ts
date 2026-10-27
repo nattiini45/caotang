@@ -16,6 +16,7 @@ import type { CallParams } from '../types.js';
 import { isRecord } from '../util.js';
 import { DEFAULT_MAX_OUTPUT_TOKENS, type ModelLimits, type PromptPreview } from '@caotang/context';
 import type { ThinkingLevel } from '@caotang/gateway';
+import type { ApprovalCaution } from '@caotang/mcp-client';
 import type { ReviewPlan } from '@caotang/coherence';
 import type { TraceEntry } from './events.js';
 
@@ -179,6 +180,11 @@ export interface PlanCardView {
   readonly cut: boolean;
   /** Why the last edit or draft was not applied, when one was refused. The card is shown as it was before it. */
   readonly notice?: string;
+  /**
+   * What the card says beside its steps (issue #54): the outside text the turn read before it, the project text an external step would send
+   * (with `step`, the step's number on the card), and whether Approve needs a second click. Absent when there is nothing to say.
+   */
+  readonly caution?: ApprovalCaution;
 }
 
 /** The text a dependent step carries after an edit moved something it reads (agent-harness §2). */
@@ -462,6 +468,7 @@ export function planCardOf(args: {
   /** The delegated agent each step was proposed by, aligned to the steps. */
   readonly proposedBy?: readonly (string | undefined)[];
   readonly notice?: string;
+  readonly caution?: ApprovalCaution;
 }): PlanCardView {
   const badges = dependencyBadges(args.state.steps, args.state.origins, args.state.superseded);
   const staged = args.staged ?? [];
@@ -514,5 +521,6 @@ export function planCardOf(args: {
     canAcceptCut: usable && cutAny,
     cut: cutAny,
     ...(args.notice === undefined ? {} : { notice: args.notice }),
+    ...(args.caution === undefined ? {} : { caution: args.caution }),
   };
 }
