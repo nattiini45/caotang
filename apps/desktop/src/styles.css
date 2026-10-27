@@ -21,6 +21,10 @@
   --danger-soft: #f6e6e3;
   --warn: #7d5f16;
   --focus: #2c5d8f;
+  --suggest-add-bg: #dcefdd;
+  --suggest-add-ink: #14301a;
+  --suggest-del-bg: #f7e0dc;
+  --suggest-del-ink: #5a1d14;
   --dot-empty: #bdb8ae;
   --shadow: 0 1px 2px rgba(31, 30, 27, 0.06), 0 4px 12px rgba(31, 30, 27, 0.05);
   --radius: 8px;
@@ -48,6 +52,10 @@
     --danger-soft: #3a2420;
     --warn: #d6b25e;
     --focus: #8fb6de;
+    --suggest-add-bg: #1f3b27;
+    --suggest-add-ink: #c6ebcd;
+    --suggest-del-bg: #472622;
+    --suggest-del-ink: #f4c2b8;
     --dot-empty: #55514a;
     --shadow: none;
   }
@@ -69,6 +77,10 @@
   --danger-soft: #3a2420;
   --warn: #d6b25e;
   --focus: #8fb6de;
+  --suggest-add-bg: #1f3b27;
+  --suggest-add-ink: #c6ebcd;
+  --suggest-del-bg: #472622;
+  --suggest-del-ink: #f4c2b8;
   --dot-empty: #55514a;
   --shadow: none;
 }
@@ -3746,4 +3758,71 @@ dialog.confirm:has(.folder-file-preview) {
   margin-bottom: 4px;
   font-size: 13px;
   font-weight: 600;
+}
+
+/* Apply-then-review (editor-engine §15). Insertion is underlined and tinted, deletion struck through and tinted, so colour is never
+   the only cue; the tints are tokens, checked for WCAG AA in both themes (e2e/unit/theme-contrast.spec.ts). The marks carry classes
+   and no inline style, because the CSP has no unsafe-inline. */
+.suggestion {
+  border-radius: 2px;
+}
+
+.suggestion-insertion {
+  background: var(--suggest-add-bg);
+  color: var(--suggest-add-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.suggestion-deletion {
+  background: var(--suggest-del-bg);
+  color: var(--suggest-del-ink);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+
+.suggestion-modification {
+  background: var(--accent-soft);
+  border-bottom: 2px dotted var(--accent);
+}
+
+/* A mark on a whole paragraph or list item wraps a block. */
+.suggestion[data-inline='false'] {
+  display: block;
+}
+
+.review-bar {
+  position: sticky;
+  bottom: 0;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--raised);
+  font-size: 13px;
+}
+
+.review-bar p {
+  margin: 0 0 4px;
+}
+
+.review-count {
+  font-weight: 600;
+}
+
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.agent-review {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  font-size: 13px;
 }

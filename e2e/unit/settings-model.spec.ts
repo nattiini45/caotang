@@ -95,6 +95,21 @@ test.describe('settings (ui-modules §5.1)', () => {
     expect(shown.editor.autosaveDebounceMs).toBe(800);
   });
 
+  test('an approved agent edit replaces the text unless the writer chose to mark it for review (editor-engine §15)', () => {
+    expect(DEFAULT_SETTINGS.editor.agentEditMode).toBe('ghost');
+    expect(normalizeSettings(undefined).editor.agentEditMode).toBe('ghost');
+    expect(normalizeSettings({ editor: { agentEditMode: 'suggestions' } }).editor.agentEditMode).toBe('suggestions');
+    // Anything else, including the right word in the wrong case, is the default.
+    expect(normalizeSettings({ editor: { agentEditMode: 'Suggestions' } }).editor.agentEditMode).toBe('ghost');
+    expect(normalizeSettings({ editor: { agentEditMode: true } }).editor.agentEditMode).toBe('ghost');
+    const marked = applyPatch(DEFAULT_SETTINGS, { editor: { agentEditMode: 'suggestions' } });
+    expect(marked.editor.agentEditMode).toBe('suggestions');
+    expect(marked.editor.autosaveDebounceMs).toBe(800);
+    expect(marked.editor.focusModeHideRails).toBe(true);
+    // A patch for another editor field leaves the choice alone.
+    expect(applyPatch(marked, { editor: { focusModeHideRails: false } }).editor.agentEditMode).toBe('suggestions');
+  });
+
   test('unknown keys are ignored, and a stored sample list keeps only ids', () => {
     const loaded = normalizeSettings({ theme: 'dark', sampleProjectIds: ['p_A', 3, '', 'p_B'], firstRun: { dismissed: 'yes' } });
     expect(loaded.sampleProjectIds).toEqual(['p_A', 'p_B']);

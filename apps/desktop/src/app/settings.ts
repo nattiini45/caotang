@@ -195,6 +195,12 @@ export interface AppSettings {
     readonly autosaveDebounceMs: number;
     /** Whether focus mode hides the binder and the inspector (ui-modules §5.2). On unless the writer turns it off. */
     readonly focusModeHideRails: boolean;
+    /**
+     * Where an approved agent edit lands (editor-engine §15). `ghost` replaces the text, as the draft preview showed it. `suggestions`
+     * keeps the new text but marks the changed words for review. App-wide, never a project field; a change applies to the next
+     * document the writer opens.
+     */
+    readonly agentEditMode: AgentEditMode;
   };
   readonly session: {
     /** The writer's daily target. Absent means no target is set (goals-progress §2.1). */
@@ -221,9 +227,13 @@ export interface AppSettings {
   readonly agent: AgentSettings;
 }
 
+/** The two places an approved agent edit can land (editor-engine §15). */
+export const AGENT_EDIT_MODES = ['ghost', 'suggestions'] as const;
+export type AgentEditMode = (typeof AGENT_EDIT_MODES)[number];
+
 export const DEFAULT_SETTINGS: AppSettings = Object.freeze({
   provider: Object.freeze({ activeProfileId: null }),
-  editor: Object.freeze({ autosaveDebounceMs: DEFAULT_DEBOUNCE_MS, focusModeHideRails: true }),
+  editor: Object.freeze({ autosaveDebounceMs: DEFAULT_DEBOUNCE_MS, focusModeHideRails: true, agentEditMode: 'ghost' as AgentEditMode }),
   session: Object.freeze({}),
   retention: DEFAULT_RETENTION,
   firstRun: Object.freeze({ dismissed: false }),
@@ -241,7 +251,7 @@ export interface SettingsPatch {
    * empty record) clears every assignment, so each role follows the chat/active choice.
    */
   readonly provider?: { readonly activeProfileId?: string | null; readonly roles?: RoleSettings | null };
-  readonly editor?: { readonly autosaveDebounceMs?: number; readonly focusModeHideRails?: boolean };
+  readonly editor?: { readonly autosaveDebounceMs?: number; readonly focusModeHideRails?: boolean; readonly agentEditMode?: AgentEditMode };
   readonly session?: { readonly dailyTargetWords?: number };
   readonly retention?: Partial<RetentionConfig>;
   readonly firstRun?: { readonly dismissed?: boolean };
@@ -362,6 +372,7 @@ export function normalizeSettings(raw: unknown): AppSettings {
     editor: {
       autosaveDebounceMs: clampInteger(editor['autosaveDebounceMs'], DEBOUNCE_MIN_MS, DEBOUNCE_MAX_MS, DEFAULT_DEBOUNCE_MS),
       focusModeHideRails: typeof editor['focusModeHideRails'] === 'boolean' ? editor['focusModeHideRails'] : true,
+      agentEditMode: editor['agentEditMode'] === 'suggestions' ? 'suggestions' : 'ghost',
     },
     session: target === undefined ? {} : { dailyTargetWords: target },
     retention: resolveRetentionConfig({ checkpointCap: cap, checkpointDays: days }),

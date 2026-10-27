@@ -48,6 +48,7 @@ import { TaskOffers } from './TaskOffers.js';
 import { InterruptedRuns } from './InterruptedRuns.js';
 import { TaskChecklist } from './TaskChecklist.js';
 import { TurnMenu } from './TurnMenu.js';
+import { pendingLabel } from '../app/review-text.js';
 
 export interface AgentPanelProps {
   readonly session: ProjectSession;
@@ -403,6 +404,8 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
                     onRestoreStep={(turnId, summary, stepId) => openRestore(restoreOf(agent, turnId, summary, false, stepId))}
                     onRewind={rewind}
                     onRunHeld={(turnId) => void agent.runHeldPlan(turnId)}
+                    pendingReview={snapshot.reviews.find((entry) => entry.turnId === turn.turnId)?.pending ?? 0}
+                    onResolveReview={(turnId, mode) => agent.resolveReview(turnId, mode)}
                   />
                 ));
                 return run.rewound ? (
@@ -552,6 +555,8 @@ function TurnBlock({
   onRestoreStep,
   onRewind,
   onRunHeld,
+  pendingReview,
+  onResolveReview,
 }: {
   turn: TurnView;
   snapshot: AgentSnapshot;
@@ -573,6 +578,9 @@ function TurnBlock({
   onRewind: (turnId: string) => void;
   /** Switches to Ask and runs the writes Plan only refused in the turn. */
   onRunHeld: (turnId: string) => void;
+  /** The suggestions this turn's edits still have marked in the editor (editor-engine §15). */
+  pendingReview: number;
+  onResolveReview: (turnId: string, mode: 'accept' | 'reject') => void;
 }): ReactNode {
   const live = snapshot.pending !== null && snapshot.pending.turnId === turn.turnId;
   const settled = isSettled(turn);
@@ -663,6 +671,18 @@ function TurnBlock({
               : undefined
           }
         />
+      ) : null}
+
+      {pendingReview > 0 ? (
+        <p className="agent-review" data-testid="turn-review">
+          <span>{pendingLabel(pendingReview)}</span>
+          <button type="button" className="button" onClick={() => onResolveReview(turn.turnId, 'accept')}>
+            Accept all
+          </button>
+          <button type="button" className="button is-quiet" onClick={() => onResolveReview(turn.turnId, 'reject')}>
+            Reject all
+          </button>
+        </p>
       ) : null}
 
       {turn.steering.length > 0 ? (
