@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { addDocument, getBody, MemoryIndexedDb, openRuntimeStore, type ProjectState } from '../../packages/store/src/index.js';
+import { addDocument, getBody, getRevision, MemoryIndexedDb, openRuntimeStore, type ProjectState } from '../../packages/store/src/index.js';
 import { createGateway, createKeyStore, createManualClock, createMemoryVaultPort, createProfileStore } from '../../packages/gateway/src/index.js';
 import { createMockProvider, isDraftCall, isPlannerCall, userTextOf, type MockScript } from '../../packages/gateway/src/mock/index.js';
 import type { Command } from '../../packages/bus/src/index.js';
@@ -418,5 +418,161 @@ test('typing the store refused to take is unproven: the plan is with-later and r
   expect(f.bodyOf('The Ferry')).toBe(stored);
   expect(f.bodyOf('The Gale')).toBe(gale);
   expect(f.controller.snapshot().turns[0]!.restoredAt).toBeNull();
+  await f.close();
+});
+
+/** A change of the writer's whose undo throws, put on the stack now. */
+function registerFailing(f: { session: ProjectSession }): void {
+  const failing = { issuedBy: 'user', name: 'doc.write' } as unknown as Command;
+  f.session.undo.register(f.session.undo.targetFor(failing, 0), {
+    kind: 'compensable',
+    commandId: 'cmd_failing',
+    name: 'doc.write',
+    label: 'a change that cannot be taken back',
+    restore: () => {
+      throw new Error('the stored text moved');
+    },
+  });
+}
+
+test('restoring only says why it refused: a later change that cannot be read, or a checkpoint that is gone', async () => {
+  const f = await fixture();
+  const [first] = await f.run(1);
+
+  // A change to the project's name is not a change to any one scene: the planner cannot tell it apart from the turn's.
+  expect(f.session.dispatch('project.rename', { title: 'The Keeper’s Year' }).ok).toBe(true);
+  const unclassified = await f.controller.restoreOnly(first!.turnId);
+  expect(unclassified.ok).toBe(false);
+  expect(unclassified.ok ? '' : unclassified.message).toContain('cannot be told apart');
+  expect(unclassified.ok ? '' : unclassified.message).not.toMatch(/overlap|touches the same part|your edits/i);
+  expect(unclassified.undone).toEqual([]);
+
+  // A checkpoint that is not on the stack.
+  const gone = await f.session.restoreExact('grp_missing');
+  expect(gone.ok).toBe(false);
+  expect(gone.ok ? '' : gone.message).toContain('could not be checked');
+  expect(gone.ok ? '' : gone.message).not.toMatch(/overlap|touches the same part|your edits/i);
+  expect(f.bodyOf('The Ferry')).not.toBe('');
+  await f.close();
+});
+
+test('restoring only names an overlap as a later change that touches the same part of the project', async () => {
+  const f = await fixture();
+  const [first] = await f.run(1);
+  f.session.dispatch('doc.write', { docId: idOf(f, 'The Ferry'), body: `${f.bodyOf('The Ferry')} More.` });
+
+  const outcome = await f.controller.restoreOnly(first!.turnId);
+
+  expect(outcome.ok).toBe(false);
+  expect(outcome.ok ? '' : outcome.message).toContain('touches the same part of the project');
+  expect(outcome.kept).toBe(0);
+  await f.close();
+});
+
+test('a restore that stops part way says how many later changes it had already taken back', async () => {
+  const f = await fixture();
+  const [first] = await f.run(1);
+  // Older to newer: the turn, a change that cannot be taken back, the second turn. The newest goes first, then the failing one stops it.
+  registerFailing(f);
+  await f.controller.submit(INTENTS[1]);
+
+  const some = await f.controller.restore(first!.turnId);
+  expect(some.ok).toBe(false);
+  expect(some.ok ? '' : some.message).toContain('1 later change was already taken back.');
+  expect(some.undone).toHaveLength(1);
+
+  // The failing change is now the newest one, so nothing could be taken back before it stopped.
+  const none = await f.controller.restore(first!.turnId);
+  expect(none.ok).toBe(false);
+  expect(none.ok ? '' : none.message).not.toContain('already taken back');
+  expect(none.ok ? '' : none.message).not.toContain('taken back too');
+  expect(none.undone).toEqual([]);
+  await f.close();
+});
+
+test('a step restore that fails inside its own steps marks the turn as restored from the step', async () => {
+  const f = await fixture();
+  const turn = await f.controller.submit(STATUSES);
+  const view = f.controller.snapshot().turns[0]!;
+  const cards = view.cards.map((card) => card.id);
+  const group = view.checkpoint!.undoGroupId;
+  // An entry at the end of the turn whose undo throws: restoring from step 2 takes steps 2 and 3 back, and this one stays.
+  f.session.undo.register(
+    { id: group, kind: 'agent-turn', turnId: turn!.turnId, at: 0, replay: false },
+    {
+      kind: 'compensable',
+      commandId: 'cmd_stuck',
+      name: 'doc.write',
+      label: 'a change that cannot be taken back',
+      restore: () => {
+        throw new Error('the stored text moved');
+      },
+    },
+  );
+  const before = f.session.undo.group(group)!.entries.length;
+
+  const outcome = await f.controller.restoreStep(turn!.turnId, cards[1]!);
+
+  expect(outcome.ok).toBe(false);
+  expect(f.session.undo.group(group)!.entries.length).toBeLessThan(before);
+  // The message says part of the step went, since nothing later had been taken back and the count alone would read as nothing.
+  expect(outcome.ok ? '' : outcome.message).toContain('Part of the step was taken back too.');
+  expect(outcome.ok ? '' : outcome.message).not.toContain('later change');
+  expect(f.statusOf('The Storm')).not.toBe('revised');
+  const marked = f.controller.snapshot().turns[0]!;
+  expect(marked.restoredFromStep).toBe(2);
+  expect(marked.restoredAt).not.toBeNull();
+
+  await f.controller.submit(INTENTS[0]);
+  await f.close();
+  expect(turnsIn(f.seen[f.seen.length - 1])).toMatch(/steps 2 onward restored by the writer/);
+});
+
+test('restoring only counts the typing it saved first among the later changes it kept, for a whole turn and for a step', async () => {
+  const f = await fixture();
+  const [first] = await f.run(1);
+  f.session.dispatch('doc.write', { docId: idOf(f, 'The Reef'), body: 'Committed after the turn.' });
+  const quay = idOf(f, 'The Quay');
+  f.session.autosave.open(quay, { body: getBody(f.session.state, quay), revision: getRevision(f.session.state, quay) });
+  f.session.autosave.noteEdit(quay, 'Typed and not yet saved.');
+
+  const whole = await f.controller.restoreOnly(first!.turnId);
+  expect(whole).toMatchObject({ ok: true, kept: 2 });
+  expect(f.bodyOf('The Quay')).toBe('Typed and not yet saved.');
+  await f.close();
+
+  const g = await fixture();
+  const turn = await g.controller.submit(STATUSES);
+  const cards = g.controller.snapshot().turns[0]!.cards.map((card) => card.id);
+  g.session.dispatch('doc.write', { docId: idOf(g, 'The Reef'), body: 'Committed after the turn.' });
+  const gQuay = idOf(g, 'The Quay');
+  g.session.autosave.open(gQuay, { body: getBody(g.session.state, gQuay), revision: getRevision(g.session.state, gQuay) });
+  g.session.autosave.noteEdit(gQuay, 'Typed and not yet saved.');
+
+  const step = await g.controller.restoreOnly(turn!.turnId, cards[1]);
+  expect(step).toMatchObject({ ok: true, kept: 2 });
+
+  // A restore that refuses keeps nothing to report.
+  const refused = await g.controller.restoreOnly('turn_unknown');
+  expect(refused.kept).toBe(0);
+  await g.close();
+});
+
+test('restore both says why the conversation was not rewound when no turn is running', async () => {
+  const f = await fixture();
+  const [first] = await f.run(1);
+  // The checkpoint is held but the session that ran the turn is not found, so there is nothing to rewind.
+  const lookup = f.controller as unknown as { sessionOf: (turnId: string) => undefined };
+  const real = lookup.sessionOf;
+  lookup.sessionOf = () => undefined;
+  const outcome = await f.controller.restoreBoth(first!.turnId);
+  lookup.sessionOf = real;
+
+  expect(outcome.ok).toBe(false);
+  if (!outcome.ok) {
+    expect(outcome.projectRestored).toBe(true);
+    expect(outcome.message).toContain('no longer in this session’s conversation');
+    expect(outcome.message).not.toContain('a turn is running');
+  }
   await f.close();
 });

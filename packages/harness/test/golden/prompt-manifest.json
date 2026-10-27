@@ -241,8 +241,8 @@
   },
   {
     "id": "tool.scene.apply",
-    "sha256": "945f7e71d6d29e84e898cff346045cfafa1b862435719baf59b3aff6d6b5b334",
-    "descriptionVersion": 1
+    "sha256": "b1429315dbf2c7b0aa7dbcdc0d04e6fa62c531b49d2d7884dfe4a9f3723ba4ca",
+    "descriptionVersion": 2
   },
   {
     "id": "tool.dialogue.brief",
@@ -251,8 +251,8 @@
   },
   {
     "id": "tool.dialogue.apply",
-    "sha256": "96fe96599ac2bff9afc3ff64e5334b93336c6f2d2b46f54b4754c2cde084004f",
-    "descriptionVersion": 1
+    "sha256": "3be4cd36e6e574460b99112a76d1d30273eae685ea967808fded55ebe3723779",
+    "descriptionVersion": 2
   },
   {
     "id": "tool.notes.replace",

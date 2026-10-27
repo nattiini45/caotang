@@ -10,6 +10,15 @@ import { fakeEndpoint, planThenAnswer, useFakeEndpoint, type FakeReply } from '.
 
 const FIRST = 'Mark The Landing as a draft.';
 const SECOND = 'Mark The Storm as final.';
+/** A three-step plan, which waits for the writer's approval: the turn stays running until it is answered. */
+const THIRD = 'Mark three scenes.';
+const LONG_PLAN = {
+  steps: [
+    { tool: 'meta.set', params: { targets: ['The Landing'], status: 'revised' }, expect: 'The Landing is revised' },
+    { tool: 'meta.set', params: { targets: ['The Storm'], status: 'revised' }, expect: 'The Storm is revised' },
+    { tool: 'meta.set', params: { targets: ['The Friend'], status: 'revised' }, expect: 'The Friend is revised' },
+  ],
+};
 
 const planFor = (doc: string, status: string) => ({
   steps: [{ tool: 'meta.set', params: { targets: [doc], status }, expect: `${doc} is ${status}` }],
@@ -17,6 +26,7 @@ const planFor = (doc: string, status: string) => ({
 
 /** The first intent gets its plan, the second gets its own: the fake picks by the request the planner was sent. */
 const reply: FakeReply = (request) => {
+  if (request.user.includes(`Request: ${THIRD}`)) return planThenAnswer(LONG_PLAN, 'Marked.')(request);
   const plan = request.user.includes(`Request: ${SECOND}`) ? planFor('The Storm', 'final') : planFor('The Landing', 'draft');
   return planThenAnswer(plan, 'Marked.')(request);
 };
@@ -135,4 +145,26 @@ test('the menu opens from the keyboard, closes with Escape and returns focus to 
   await page.keyboard.press('Escape');
   await expect(toggle).toHaveAttribute('aria-expanded', 'false');
   await expect(toggle).toBeFocused();
+});
+
+test('a rewind that is refused because a turn started since the menu was drawn says so', async ({ page }) => {
+  await sendIntent(page, FIRST);
+  await expect(page.getByTestId('checkpoint')).toHaveCount(1);
+  await sendIntent(page, THIRD);
+  await expect(page.getByTestId('plan-card')).toBeVisible();
+
+  await menuOfTurn(page, FIRST).getByRole('button', { name: /^Rewind options/ }).click();
+  const item = page.getByRole('button', { name: /Rewind conversation to before this turn/ });
+  await expect(item).toBeDisabled();
+  // The item was enabled when the menu was drawn, before the turn started. React ignores a click on a disabled button, so run the
+  // handler the earlier render gave it, as that click would have.
+  await item.evaluate((button) => {
+    const key = Object.keys(button).find((name) => name.startsWith('__reactProps$'));
+    const props = key === undefined ? undefined : (button as unknown as Record<string, { onClick?: () => void }>)[key];
+    if (props?.onClick === undefined) throw new Error('the item has no click handler');
+    props.onClick();
+  });
+
+  await expect(page.getByRole('alert').filter({ hasText: 'The conversation could not be rewound: a turn is running.' })).toBeVisible();
+  await expect(page.getByTestId('agent-rewound')).toHaveCount(0);
 });

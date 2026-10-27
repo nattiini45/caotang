@@ -271,11 +271,31 @@ describe('with-later: when it cannot be proved, it is never exact', () => {
     expect(plan({ groupId: 'g1' }, [made('g1', moveOf('a', 'ch1', 's.1')), made('g2', write('d'))], () => []).kind).toBe('with-later');
   });
 
-  it('is with-later, not a throw, when reading the tree fails', () => {
-    const result = plan({ groupId: 'g1' }, [made('g1', moveOf('a', 'ch1', 's.1')), made('g2', write('d'))], () => {
-      throw new Error('the tree is gone');
-    });
-    expect(result.kind).toBe('with-later');
+  it('is with-later, not a throw, when reading the tree fails, and names the defect', () => {
+    const parts = [made('g1', moveOf('a', 'ch1', 's.1')), made('g2', write('d'))];
+    const failure = new Error('the tree is gone');
+    const seen: unknown[] = [];
+    const result = restorePlan(parts.map((part) => part.group), parts.flatMap((part) => part.rows), { groupId: 'g1' }, () => {
+      throw failure;
+    }, (error) => seen.push(error));
+    expect(withLater(result).reason).toBe('defect');
+    expect(withLater(result).blockedBy).toEqual([]);
+    expect(seen).toEqual([failure]);
+    // Without a handler, and with one that throws, the plan is the same.
+    expect(plan({ groupId: 'g1' }, parts, () => { throw failure; }).kind).toBe('with-later');
+    const throwing = restorePlan(parts.map((part) => part.group), parts.flatMap((part) => part.rows), { groupId: 'g1' }, () => { throw failure; }, () => { throw new Error('handler'); });
+    expect(withLater(throwing).reason).toBe('defect');
+  });
+
+  it('does not call the defect handler for a target that left the stack or has no entries', () => {
+    const parts = [made('g1', write('a', 's.1'))];
+    const seen: unknown[] = [];
+    const run = (target: { groupId: string; fromCallId?: string }) => restorePlan(parts.map((part) => part.group), parts.flatMap((part) => part.rows), target, tree, (error) => seen.push(error));
+    expect(withLater(run({ groupId: 'g9' })).reason).toBe('unknown');
+    expect(withLater(run({ groupId: 'g1', fromCallId: 'no.such' })).reason).toBe('unknown');
+    const emptyGroup = { ...parts[0]!.group, entries: [] };
+    expect(withLater(restorePlan([emptyGroup], [], { groupId: 'g1' }, tree, (error) => seen.push(error))).reason).toBe('unknown');
+    expect(seen).toEqual([]);
   });
 });
 

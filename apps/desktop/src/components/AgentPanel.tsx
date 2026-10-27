@@ -177,7 +177,14 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
 
   const rewind = (turnId: string): void => {
     const result = agent.rewindConversation(turnId);
-    if (result === null) return;
+    if (result === null) {
+      // The menu is enabled from the last render; a turn may have started, or the turn may already be rewound, since.
+      report({
+        text: agent.snapshot().busy ? 'The conversation could not be rewound: a turn is running.' : 'The conversation could not be rewound: that turn is no longer available to rewind.',
+        tone: 'error',
+      });
+      return;
+    }
     report({ text: 'Rewound the conversation to before that turn. The project was not changed.', tone: 'info' });
     refill(result.intent);
   };
@@ -754,7 +761,7 @@ const STATUS_WORDS: Readonly<Record<StatusCard['status'], string>> = {
 
 function StatusCardRow({ card, steps }: { card: StatusCard; steps?: StepRestore }): ReactNode {
   const delegation = delegationViewOf(card);
-  // A step of a finished turn that changed the project can be restored to before it; a step that called an outside tool says its effects stay.
+  // A step of a finished turn, up to the last one that changed the project, can be restored to before it (a step that changed nothing starts the restore at the next one that did); a step that called an outside tool says its effects stay.
   const restorable = steps?.restorable.has(card.id) === true;
   const menu = stepMenuOf(card, restorable);
   return (

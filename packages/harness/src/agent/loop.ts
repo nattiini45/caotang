@@ -1115,10 +1115,6 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return 'unknown';
   };
 
-  /**
-   * Adds a call's row to the turn's trace and tells the trace sink the call and the result the model is handed back: the same
-   * value that goes into the results message or the native tool message. A call a delegated agent made has no body here.
-   */
   /** Records the call id a step's commands were dispatched under (`restoreStep`). Only ids this harness built reach it, never model or server text. */
   const recordStep = (turn: Turn, stepId: string, callId: string): void => {
     const calls = stepCalls.get(turn.id) ?? [];
@@ -1126,6 +1122,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     stepCalls.set(turn.id, calls);
   };
 
+  /**
+   * Adds a call's row to the turn's trace and tells the trace sink the call and the result the model is handed back: the same
+   * value that goes into the results message or the native tool message. A call a delegated agent made has no body here.
+   */
   const pushRow = (turn: Turn, row: TraceEntry, body?: unknown): void => {
     turn.trace.push(row);
     if (sinkNow() === undefined) return;

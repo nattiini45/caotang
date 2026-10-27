@@ -219,6 +219,18 @@ describe('step checkpoints', () => {
     expect(f.session.restorableSteps(f.report.turnId)).toEqual([]);
   });
 
+  it('records the id of a single directly approved call, so its step can be restored', async () => {
+    const f = await stepped(ONE_STEP, firstOnly);
+    expect(f.report.status).toBe('applied');
+    expect(f.cards).toHaveLength(1);
+    expect(f.session.restorableSteps(f.report.turnId)).toEqual(f.cards);
+
+    const outcome = f.session.restoreStep(f.report.turnId, f.cards[0]);
+
+    expect(outcome.ok).toBe(true);
+    expect(snapshotOf(f.harness.state)).toBe(snapshotOf(fixedState()));
+  });
+
   it('records no step for a call the model made up: the ids are the harness’s own', async () => {
     const f = await stepped(THREE_STEPS, threeSteps);
     expect(f.session.restoreStep(f.report.turnId, `${f.report.turnId}:p1.0:0`).ok).toBe(false);
