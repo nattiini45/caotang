@@ -52,6 +52,7 @@ import {
   createViewState,
   execute,
   executeAsync,
+  restorePlan,
   type ActivityLog,
   type BusContext,
   type Command,
@@ -61,8 +62,10 @@ import {
   type CommandRegistry,
   type DocWriteParams,
   type ExecutionOutcome,
+  type RestorePlan,
   type Result,
   type UndoGroup,
+  type UndoOutcome,
   type UndoStore,
   type ViewState,
 } from '@caotang/bus';
@@ -83,6 +86,7 @@ import {
   pruneRuns,
   getRevision,
   isBodyType,
+  nodeById,
   resolveRetentionConfig,
   systemCommandClock,
   writeBodySnapshot,
@@ -271,9 +275,12 @@ const ASSET_LISTING_LATCH_MS = 100;
 
 /**
  * What "restore to before this turn" reports: how many later changes went back with it, or why it stopped part way.
- * The session does not decide the words of the second case; the panel shows them as they are.
+ * The session does not decide the words of the second case; the panel shows them as they are. `undone` is the groups that
+ * were taken back whole, newest first, even when the restore stopped: the controller marks the turns they belong to.
  */
-export type RestoreResult = { readonly ok: true; readonly later: number } | { readonly ok: false; readonly message: string };
+export type RestoreResult =
+  | { readonly ok: true; readonly later: number; readonly undone: readonly string[] }
+  | { readonly ok: false; readonly message: string; readonly undone: readonly string[] };
 
 export class ProjectSession {
   readonly projectId: string;
@@ -1077,23 +1084,88 @@ export class ProjectSession {
    * binder change returns in the order it was made, which is the only order in which a body snapshot is exact (command-bus
    * §5). Pending typing is saved first, and typing made after the turn is taken back with it, as the confirmation says.
    * Nothing older than `id` is touched.
+   *
+   * With `step`, the group itself is not taken back whole: the later groups go first as above, and then `step` runs the group's own
+   * restore to before one step of it (`UndoStore.undoFrom`, through the agent session that knows the step), so the steps before it
+   * stay. The group is then not in `undone`: it is still on the stack, with those steps.
    */
-  async restoreBefore(id: string): Promise<RestoreResult> {
+  async restoreBefore(id: string, step?: () => Result<UndoOutcome, CommandError>): Promise<RestoreResult> {
     await this.autosave.flush();
     this.lastUndoMessage = null;
     const groups = this.undo.groups();
     const at = groups.findIndex((group) => group.id === id);
-    if (at === -1) return { ok: false, message: ALREADY_UNDONE };
+    if (at === -1) return { ok: false, message: ALREADY_UNDONE, undone: [] };
+    const undone: string[] = [];
     for (const group of groups.slice(at).reverse()) {
-      if (!this.undoNow(group.id)) {
+      const taken = step !== undefined && group.id === id ? this.settleUndo(step()) : this.undoNow(group.id);
+      if (!taken) {
         const reason = this.lastUndoMessage ?? 'a change could not be taken back';
+        const own = step !== undefined && group.id === id;
         return {
           ok: false,
-          message: `The restore stopped part way, because a later change could not be taken back: ${reason}. Changes made before that one were not touched.`,
+          message: own
+            ? `The restore stopped part way, because the step could not be taken back: ${reason}. Changes made before it were not touched.`
+            : `The restore stopped part way, because a later change could not be taken back: ${reason}. Changes made before that one were not touched.`,
+          undone,
         };
       }
+      if (step === undefined || group.id !== id) undone.push(group.id);
     }
-    return { ok: true, later: groups.length - 1 - at };
+    return { ok: true, later: groups.length - 1 - at, undone };
+  }
+
+  /**
+   * Whether the checkpoint `id` (from the step `fromCallId` on, when given) can be taken back without the changes made after it.
+   * Pending typing is saved first, so it is one of those changes; typing that could not be saved leaves nothing proved. The answer is `restorePlan`'s: `exact` only on a proof that the
+   * target and every later group touch different nodes, and `with-later` for everything else, including anything it cannot read.
+   */
+  async restorePlanFor(id: string, fromCallId?: string): Promise<RestorePlan> {
+    await this.autosave.flush();
+    return this.planNow(id, fromCallId);
+  }
+
+  private planNow(id: string, fromCallId?: string): RestorePlan {
+    const ancestorsOf = (nodeId: string): readonly string[] => {
+      const chain: string[] = [];
+      for (let at = nodeById(this.state, nodeId); at !== undefined && at.parentId !== null; at = nodeById(this.state, at.parentId)) chain.push(at.parentId);
+      return chain;
+    };
+    const groups = this.undo.groups();
+    const target = { groupId: id, ...(fromCallId === undefined ? {} : { fromCallId }) };
+    // The planner proves independence against the undo stack and the activity log only. Typing a flush could not store (a revision
+    // conflict, a failed write) is in neither, so while any document is still dirty the stack is not the whole truth and nothing is proved.
+    if (this.autosave.dirtyDocIds().length > 0) {
+      const at = groups.findIndex((group) => group.id === id);
+      return { kind: 'with-later', undo: target, later: at === -1 ? [] : groups.slice(at + 1).map((group) => group.id).reverse(), blockedBy: [], overlap: [], reason: 'unknown' };
+    }
+    return restorePlan(groups, this.log.entries(), target, ancestorsOf);
+  }
+
+  /**
+   * "Restore only this (keep your later edits)": takes back the checkpoint `id`, or its steps from `fromCallId` on, and nothing after it.
+   * The plan is made again here, after the typing is saved, because the writer's edits since the dialog opened may now meet the change; if
+   * it is no longer exact nothing is restored and the writer is told, since the full restore would take those edits back and they chose
+   * not to. A compensation that fails is reported and stops there, with what was done kept, as `restoreBefore` does.
+   */
+  async restoreExact(id: string, fromCallId?: string): Promise<RestoreResult> {
+    await this.autosave.flush();
+    this.lastUndoMessage = null;
+    if (this.planNow(id, fromCallId).kind !== 'exact') {
+      const unsaved = this.autosave.dirtyDocIds().length > 0;
+      return {
+        ok: false,
+        message: unsaved
+          ? 'Some of your typing could not be saved yet, so nothing was restored and your edits are as they were. Try again once it is saved.'
+          : 'Your edits since the dialog opened now overlap this change, so nothing was restored. The full restore takes them back too; your edits are as they were.',
+        undone: [],
+      };
+    }
+    const taken = fromCallId === undefined ? this.undoNow(id) : this.settleUndo(this.undo.undoFrom(id, fromCallId));
+    if (!taken) {
+      const reason = this.lastUndoMessage ?? 'a change could not be taken back';
+      return { ok: false, message: `The restore stopped part way, because the change could not be taken back: ${reason}. Your later edits were not touched.`, undone: [] };
+    }
+    return { ok: true, later: 0, undone: fromCallId === undefined ? [id] : [] };
   }
 
   /** The changes a restore to before `id` would also take back: each later group, oldest first, in the words the log gives it. */
@@ -1142,7 +1214,11 @@ export class ProjectSession {
   }
 
   private undoNow(id: string): boolean {
-    const outcome = this.undo.undo(id);
+    return this.settleUndo(this.undo.undo(id));
+  }
+
+  /** What follows an undo of any kind: stored text moved, so the session's own-write record is cleared, and the change is saved. */
+  private settleUndo(outcome: Result<UndoOutcome, CommandError>): boolean {
     // An undo moves stored text without going through `writeDocument`, so no write this session made describes the
     // stored body any more. The editor's own-write test must not match one of them against the undone text (EditorPane).
     this.written.clear();

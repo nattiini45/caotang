@@ -111,7 +111,7 @@ import {
   type SourcedRule,
 } from './rules.js';
 import { portPreflights } from './agent/ports.js';
-import { TOOL_METADATA, capOf, type ToolMetadata, type ToolName, type ToolRisk } from './metadata.js';
+import { TOOL_METADATA, capOf, metadataFor, type ToolMetadata, type ToolName, type ToolRisk } from './metadata.js';
 import { coherenceAsyncPorts, coherencePorts, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
 import { NO_SERVERS, toolSearchPort } from './tools/search.js';
 import { createSkillLoads, skillLoadPort, skillStatesOf, type LoadedSkill, type SkillsOption } from './tools/skills.js';
@@ -692,7 +692,11 @@ export function createHarness(options: HarnessOptions): Harness {
   };
   const withheldFor = (tool: string): ReadonlySet<string> => {
     const set = currentRules();
-    return set.rules.length === 0 ? NO_WITHHELD : withheldNodes(set, state, tool);
+    if (set.rules.length === 0) return NO_WITHHELD;
+    const own = withheldNodes(set, state, tool);
+    // A row that stands for an in-app tool keeps from its prompt what a read-deny keeps from that tool's (metadata `mirrors`).
+    const mirrored = metadataFor(tool)?.mirrors;
+    return mirrored === undefined ? own : new Set([...own, ...withheldNodes(set, state, mirrored)]);
   };
   /** The nodes a call names, or undefined when they cannot be worked out (and a scoped rule then fails closed). */
   const targetsOf = (meta: ToolMetadata, params: CallParams): CallTargets | undefined => {
@@ -705,7 +709,13 @@ export function createHarness(options: HarnessOptions): Harness {
     const set = currentRules();
     if (set.rules.length === 0 && set.unreadable !== true) return { verdict: NO_VERDICT };
     const targets = targetsOf(meta, params);
-    const verdict = evaluateRules(set, { tool: meta.name, external: false, writes: meta.risk !== 'read' && meta.risk !== 'meta' }, targets, state);
+    const writes = meta.risk !== 'read' && meta.risk !== 'meta';
+    let verdict = evaluateRules(set, { tool: meta.name, external: false, writes }, targets, state);
+    // A deny on the tool a row stands for denies the row (metadata `mirrors`): a rule written for scene.draft holds for scene.apply.
+    if (verdict.effect !== 'deny' && meta.mirrors !== undefined) {
+      const mirrored = evaluateRules(set, { tool: meta.mirrors, external: false, writes }, targets, state);
+      if (mirrored.effect === 'deny') verdict = mirrored;
+    }
     return { verdict, ...(targets === undefined ? {} : { targets }) };
   };
   /**
@@ -1118,7 +1128,7 @@ export function createHarness(options: HarnessOptions): Harness {
   /** The rows `tool.search` may load: deferred, callable and wired, in registry order, so a search never offers a tool that would be refused. */
   function deferredRows(): readonly NativeIndexRow[] {
     return listTools()
-      .filter((tool) => tool.load === 'deferred' && tool.callable && tool.wired)
+      .filter((tool) => tool.load === 'deferred' && tool.callable && tool.wired && tool.externalOnly !== true)
       .map((tool) => ({ source: 'native', name: tool.name, description: tool.description, keywords: tool.keywords ?? [], risk: tool.risk === 'read' ? 'read' : 'write' }));
   }
 
@@ -1322,10 +1332,10 @@ export function createHarness(options: HarnessOptions): Harness {
     loadedSkills: (turnId) => skillLoads.of(turnId),
     loadedNativeTools: () => {
       const names = new Set(loaded.nativeNames());
-      return listTools().filter((tool) => names.has(tool.name) && tool.callable && tool.wired);
+      return listTools().filter((tool) => names.has(tool.name) && tool.callable && tool.wired && tool.externalOnly !== true);
     },
     preload: (turnId, names) => {
-      const deferred = new Set(listTools().filter((tool) => tool.load === 'deferred').map((tool) => tool.name as string));
+      const deferred = new Set(listTools().filter((tool) => tool.load === 'deferred' && tool.externalOnly !== true).map((tool) => tool.name as string));
       syncLoadedTurn(turnId);
       loaded.load(names.filter((name) => deferred.has(name)).map((name) => ({ source: 'native', name })));
     },
