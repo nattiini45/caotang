@@ -11,7 +11,7 @@
  *  - **Memory only.** `createTraceStore` keeps records in the tab. Nothing here writes to IndexedDB, a project, a bundle or the
  *    network; the only way out is `toJsonl`, which the writer asks for.
  *  - **Bounded.** The newest 25 turns and 16 MB of JSON, whole turns dropped oldest first. The turn most recently started is never dropped,
- *    so the latest turn can always be read, and no record keeps more than 64 KB (the longest text in it is cut, and the record says by how much in `truncated`).
+ *    so the latest turn can always be read, and no record keeps more than 64 KB (the longest texts in it are cut, and the record says by how much in `truncated`).
  *  - **Scrubbed, best-effort.** The gateway scrubs a call's own secrets before it tells the observer; the store runs the bearer and
  *    `sk-` pattern pass over every string it keeps. Headers are never recorded, and a provider's opaque reasoning payload is kept as
  *    its byte length only. This lowers the chance of a credential in the file. It does not make the file safe to share.
@@ -238,6 +238,8 @@ export interface TraceStore extends TraceSink {
   message(id: string): TraceMessage | undefined;
   /** The characters cut from a message to keep its record within the cap, or 0 when none were (or the message is gone). */
   messageCut(id: string): number;
+  /** The characters cut from the content of a message alone, which a view adds back to the content it shows. 0 when none were (or the message is gone). */
+  messageContentCut(id: string): number;
   toJsonl(options?: TraceExportOptions): string;
   clear(): void;
   /** Serialised bytes held now. */
@@ -445,6 +447,8 @@ interface Stored {
   /** The canonical form it is found by. */
   readonly form: string;
   readonly bytes: number;
+  /** The characters cut from the content alone, not from tool-call arguments or reasoning. */
+  readonly contentCut: number;
   refs: number;
 }
 
@@ -537,10 +541,12 @@ export function createTraceStore(options: TraceStoreOptions): TraceStore {
       nextMessage += 1;
       seq += 1;
       const envelope = utf8({ v: TRACE_VERSION, seq, at, sessionId: options.sessionId, kind: 'message', id, message: {}, truncated: { chars: ENVELOPE_CHARS } });
+      const contentBefore = typeof clean.content === 'string' ? clean.content.length : 0;
       const cut = fit(clean as unknown as Record<string, unknown>, recordCap - envelope);
+      const contentCut = typeof clean.content === 'string' ? contentBefore - clean.content.length : 0;
       const record: MessageRecord = { v: TRACE_VERSION, seq, at, sessionId: options.sessionId, kind: 'message', id, message: clean, ...(cut > 0 ? { truncated: { chars: cut } } : {}) };
       const bytes = utf8(record);
-      messages.set(id, { record, form, bytes, refs: 0 });
+      messages.set(id, { record, form, bytes, contentCut, refs: 0 });
       idsByForm.set(form, id);
       total += bytes;
     }
@@ -635,6 +641,7 @@ export function createTraceStore(options: TraceStoreOptions): TraceStore {
     records,
     message: (id) => messages.get(id)?.record.message,
     messageCut: (id) => messages.get(id)?.record.truncated?.chars ?? 0,
+    messageContentCut: (id) => messages.get(id)?.contentCut ?? 0,
     toJsonl,
     clear: () => {
       buckets.clear();
