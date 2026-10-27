@@ -32,6 +32,7 @@ import {
   UnauthorizedError,
   UnsupportedProtocolVersionError,
   type FetchLike,
+  type jsonSchemaValidator as SchemaValidatorProvider,
 } from '@modelcontextprotocol/client';
 
 import { egressAllowed } from './egress.js';
@@ -57,11 +58,20 @@ export const MAX_ANSWER_BYTES = 16 * 1024 * 1024;
 /** The start of the SDK's message when the server's `initialize` answer names a revision the client does not offer. */
 const UNSUPPORTED_SERVER_REVISION = "Server's protocol version is not supported";
 
+/**
+ * The SDK client checks a result's `structuredContent` against the tool's `outputSchema` and throws before a caller sees the result, which
+ * would report a call that already ran as one that failed. The check is `mcp.invoke`'s instead (invoke.ts), with the paths listed and the
+ * effect named, so the SDK is given a validator that compiles nothing: with no compiled validator it checks nothing.
+ */
+const NO_OUTPUT_CHECK = { getValidator: () => undefined } as unknown as SchemaValidatorProvider;
+
 /** A tool as a server advertises it. Verbatim: the description and the schema are the server's own text. */
 export interface WireTool {
   readonly name: string;
   readonly description?: string;
   readonly inputSchema?: unknown;
+  /** The JSON Schema of the tool's `structuredContent`, verbatim, when the server declares one. Untrusted like the rest of the listing. */
+  readonly outputSchema?: unknown;
   readonly annotations?: WireAnnotations;
 }
 
@@ -136,6 +146,8 @@ export type WireCompletionRef = { readonly type: 'ref/prompt'; readonly name: st
 export interface WireCallResult {
   readonly content: readonly unknown[];
   readonly isError?: boolean;
+  /** The structured result, verbatim and untrusted. Any JSON value: a 2026-07-28 server may send a non-object. */
+  readonly structuredContent?: unknown;
 }
 
 export interface WireOptions {
@@ -197,6 +209,7 @@ class StreamableHttpWire implements McpWire {
         name: tool.name,
         description: tool.description,
         inputSchema: tool.inputSchema,
+        ...(tool.outputSchema === undefined ? {} : { outputSchema: tool.outputSchema }),
         annotations: tool.annotations === undefined ? undefined : {
           readOnlyHint: tool.annotations.readOnlyHint,
           destructiveHint: tool.annotations.destructiveHint,
@@ -235,7 +248,11 @@ class StreamableHttpWire implements McpWire {
           },
         },
       );
-      return { content: result.content, isError: result.isError === true };
+      return {
+        content: result.content,
+        isError: result.isError === true,
+        ...(result.structuredContent === undefined ? {} : { structuredContent: result.structuredContent }),
+      };
     } catch (error) {
       throw this.classify(error, options.signal, 'tools', wall.fired());
     } finally {
@@ -348,7 +365,7 @@ class StreamableHttpWire implements McpWire {
   private async open(timeoutMs: number, signal?: AbortSignal): Promise<Client> {
     if (this.client !== undefined) return this.client;
     // `auto`, not a pin: a pin refuses every 2025-era server (D17's amendment). The probe is the same either way.
-    const client = new Client({ name: CLIENT_NAME, version: CLIENT_VERSION }, { versionNegotiation: { mode: 'auto' } });
+    const client = new Client({ name: CLIENT_NAME, version: CLIENT_VERSION }, { versionNegotiation: { mode: 'auto' }, jsonSchemaValidator: NO_OUTPUT_CHECK });
     const auth = this.server.auth;
     const transport = new StreamableHTTPClientTransport(new URL(this.server.url), {
       ...(auth.kind === 'bearer' ? { authProvider: { token: () => this.deps.resolveBearer(auth.tokenRef) } } : {}),

@@ -7,8 +7,8 @@
 import { ok, err } from '@caotang/bus';
 import { describe, expect, it } from 'vitest';
 
-import { createHarness, type ToolPort } from '../src/index.js';
-import { LANDING, STORM, makeHarness, makeState, refusalOf, run, snapshotOf, valueOf } from './fixtures.js';
+import { type ToolPort } from '../src/index.js';
+import { checkedHarness, LANDING, makeHarness, makeState, refusalOf, run, snapshotOf, STORM, valueOf } from './fixtures.js';
 
 describe('a port tool with no implementation injected', () => {
   it('refuses codex.read as not wired, in the bus’s own words, and writes nothing', () => {
@@ -68,9 +68,9 @@ describe('a port tool with no implementation injected', () => {
 
 describe('a port tool with an implementation injected', () => {
   it('runs the injected implementation and returns what it returns', () => {
-    const codexRead: ToolPort = (params) => ok({ data: { echoed: params['query'] }, summary: 'read the codex', affected: [] });
+    const codexRead: ToolPort = (params) => ok({ data: { entries: [{ name: params['query'] }], total: 1, truncated: false }, summary: 'read the codex', affected: [] });
     const harness = makeHarness({ ports: { 'codex.read': codexRead } });
-    expect(valueOf(run(harness, 'codex.read', { query: 'Elena' })).data).toEqual({ echoed: 'Elena' });
+    expect(valueOf(run(harness, 'codex.read', { query: 'Elena' })).data).toEqual({ entries: [{ name: 'Elena' }], total: 1, truncated: false });
     expect(harness.tools().find((tool) => tool.name === 'codex.read')?.wired).toBe(true);
   });
 
@@ -91,9 +91,9 @@ describe('a port tool with an implementation injected', () => {
     const writeSynopsis: ToolPort = (params, context) => {
       const result = context.dispatch('binder.setSynopsis', { nodeId: String((params['docs'] as string[])[0]), synopsis: 'Drafted by a port.' });
       if (!result.ok) return err(result.error);
-      return ok({ data: { done: true }, summary: 'drafted', affected: [...result.value.affected], undoGroupId: result.value.undoGroupId });
+      return ok({ data: { rows: [{ doc: { id: LANDING, title: 'The Landing' }, action: 'replace', words: 4 }], count: 1 }, summary: 'drafted', affected: [...result.value.affected], undoGroupId: result.value.undoGroupId });
     };
-    const harness = createHarness({ state, ports: { 'synopsis.fill': writeSynopsis }, clock: () => 1 });
+    const harness = checkedHarness({ state, ports: { 'synopsis.fill': writeSynopsis }, clock: () => 1 });
     const before = snapshotOf(state);
     const outcome = valueOf(run(harness, 'synopsis.fill', { docs: [LANDING] }, { permission: { confirmed: true }, turnId: 'turn-port' }));
     expect(state.manifest.tree.find((node) => node.id === LANDING)?.synopsis).toBe('Drafted by a port.');
@@ -142,7 +142,7 @@ describe('a port that throws', () => {
       context.dispatch('binder.setSynopsis', { nodeId: LANDING, synopsis: 'Drafted before the throw.' });
       throw new Error('the model connection dropped');
     };
-    const harness = createHarness({ state, ports: { 'synopsis.fill': writeThenThrow }, clock: () => 1 });
+    const harness = checkedHarness({ state, ports: { 'synopsis.fill': writeThenThrow }, clock: () => 1 });
     const error = refusalOf(run(harness, 'synopsis.fill', { docs: [LANDING] }, { permission: { confirmed: true }, turnId: 'turn-port-throw' }));
     expect(error.code).toBe('internal');
     const group = error.details?.['undoGroupId'];
@@ -160,7 +160,7 @@ describe('a port that throws', () => {
       context.dispatch('binder.setSynopsis', { nodeId: LANDING, synopsis: 'Written once.' });
       throw new Error('late failure');
     };
-    const harness = createHarness({ state: makeState(), ports: { 'synopsis.fill': writeThenThrow }, clock: () => 1 });
+    const harness = checkedHarness({ state: makeState(), ports: { 'synopsis.fill': writeThenThrow }, clock: () => 1 });
     const options = { permission: { confirmed: true }, turnId: 'turn-port-replay', callId: 'port-replay' } as const;
     const first = run(harness, 'synopsis.fill', { docs: [LANDING] }, options);
     const replay = run(harness, 'synopsis.fill', { docs: [LANDING] }, options);
@@ -176,7 +176,7 @@ describe('a refusal a port returns', () => {
       context.dispatch('binder.setSynopsis', { nodeId: LANDING, synopsis: 'Written first.' });
       return err({ code: 'internal', message: 'the second half failed', correctiveHint: 'try again later' });
     };
-    const harness = createHarness({ state, ports: { 'synopsis.fill': writeThenRefuse }, clock: () => 1 });
+    const harness = checkedHarness({ state, ports: { 'synopsis.fill': writeThenRefuse }, clock: () => 1 });
     const error = refusalOf(run(harness, 'synopsis.fill', { docs: [LANDING] }, { permission: { confirmed: true }, turnId: 'turn-port-refuse' }));
     expect(error.message).toContain('ran 1 command before this one was refused');
     expect(error.message).toContain('registered in undo group');

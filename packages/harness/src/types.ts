@@ -208,12 +208,24 @@ interface EntryBase {
   readonly refine?: (params: CallParams) => CommandError | undefined;
 }
 
-export interface NativeEntry extends EntryBase {
+/**
+ * What a callable row's `ToolValue.data` holds (results.ts). Declared in the same vocabulary as `params`, and enforced in tests, not at
+ * runtime: a result is checked against `resultSchema` by `testing.ts`, and the MCP server advertises it as `outputSchema`.
+ */
+interface ResultDeclaration {
+  readonly result: ObjectSpec;
+  /** Derived from `result` by `toResultSchema`. Never written by hand. */
+  readonly resultSchema: JsonSchema;
+  /** false while the spec still allows unlisted keys (`additionalProperties: true`); the target is every row closed. */
+  readonly resultClosed: boolean;
+}
+
+export interface NativeEntry extends EntryBase, ResultDeclaration {
   readonly kind: 'native';
   readonly prepare: PrepareFn;
 }
 
-export interface PortEntry extends EntryBase {
+export interface PortEntry extends EntryBase, ResultDeclaration {
   readonly kind: 'port';
   readonly port: PortToolName;
 }

@@ -139,6 +139,7 @@ export {
   TOOL_SEARCH_META,
   TOOL_SEARCH_NAME,
   TOOL_SEARCH_PARAMS,
+  TOOL_SEARCH_RESULT,
   createLoadedTools,
   loadedAddendum,
   riskBadge,

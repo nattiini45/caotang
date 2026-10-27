@@ -14,14 +14,14 @@
  */
 
 import type { CommandError, CommandErrorCode, JsonSchema, ParamSpec, Result, ToolValue } from '@caotang/bus';
-import { err, ok, param, refusal, toJsonSchema } from '@caotang/bus';
+import { err, ok, param, refusal, toJsonSchema, toResultSchema } from '@caotang/bus';
 import { estimateTokens } from '@caotang/codex';
 import type { RandomBytes } from '@caotang/ids';
 import type { ProjectState } from '@caotang/store';
 
 import { compileInk, type InkMessage } from './compile.js';
 import { dialogueSourcesIn, resolveContainer } from './container.js';
-import { checkDraft, planDraft } from './draft.js';
+import { checkDraft, planDraft, type DraftMode } from './draft.js';
 import { beatIds, parseInk } from './ink-parse.js';
 import { readDialogueMeta, type DialogueContainerMeta } from './kinds.js';
 import { ensureLineIds, lineIdsOf, stripLineIdTags } from './line-ids.js';
@@ -71,6 +71,11 @@ export interface DialogueToolEntry {
   /** Derived from `params` by the harness's `toJsonSchema`. Never written by hand. */
   readonly schema: JsonSchema;
   readonly port: DialogueToolName;
+  /** What `data` holds on success, as the registry row answers it once the harness has applied a draft (agent-harness §3). */
+  readonly result: ObjectSpec;
+  readonly resultSchema: JsonSchema;
+  /** False while the spec still lets an unlisted key through. */
+  readonly resultClosed: boolean;
 }
 
 /** The Ink block the agent loop drafted for one `dialogue.draft` call. Staged by the loop, never by the model's params. */
@@ -93,6 +98,23 @@ export interface DialogueToolContext {
 }
 
 export type DialogueToolResult = Result<ToolValue, CommandError>;
+
+/**
+ * What `dialogueDraftTool` returns in `data`: the candidate body and what the check says about it. The registry row answers less, once
+ * the draft is written (`DIALOGUE_DRAFT_RESULT`), and the card shows more.
+ */
+export type DialogueDraftCheck = {
+  readonly containerId: string;
+  readonly title: string;
+  readonly mode: DraftMode;
+  readonly insertedAt: number;
+  readonly anchor: string | null;
+  readonly newBeats: readonly string[];
+  readonly body: string;
+  readonly warnings: readonly string[];
+  readonly requiresApproval: 'warnings' | 'none';
+  readonly findings: readonly string[];
+};
 
 const TABLE_TOKEN_CAP = 8000;
 
@@ -127,8 +149,36 @@ const TABLE_PARAMS: ObjectSpec = param.object(
   ['doc'],
 );
 
-function entryOf(meta: DialogueToolMeta, params: ObjectSpec): DialogueToolEntry {
-  return { kind: 'port', meta, params, schema: toJsonSchema(params), port: meta.name };
+/** `dialogue.draft`'s answer: the draft was written, and these are its new beats and what the writer approved despite. */
+export const DIALOGUE_DRAFT_RESULT = param.object(
+  'Where the Ink went, the beats it added, and the warnings the writer approved.',
+  {
+    container: param.string('The title of the container the Ink was written into.'),
+    newBeats: param.list('The knots and stitches the draft added.', param.string('A beat id.')),
+    warnings: param.list('What the compile check warned about.', param.string('One warning.')),
+  },
+  ['container', 'newBeats', 'warnings'],
+);
+
+/** `dialogue.table`'s answer: the rows of one container, as CSV text or as JSON rows. */
+export const DIALOGUE_TABLE_RESULT = param.object(
+  'The container, the form, and the table.',
+  {
+    containerId: param.string('The node id of the container.'),
+    title: param.string('The title of the container.'),
+    format: param.choice('The form the table is in.', ['csv', 'json']),
+    rows: param.integer('How many rows the table has.'),
+    missingLineIds: param.integer('How many spoken lines have no line id.'),
+    engineTarget: param.nullable(param.string('The engine the container exports for, when it names one.')),
+    locale: param.nullable(param.string('The locale of the lines, when the container or the project names one.')),
+    table: param.list('The rows, when the form is json.', param.freeObject('One row: line id, speaker, text, context, character limit and locale.')),
+    csv: param.string('The table as CSV text, when the form is csv.'),
+  },
+  ['containerId', 'title', 'format', 'rows', 'missingLineIds', 'engineTarget', 'locale'],
+);
+
+function entryOf(meta: DialogueToolMeta, params: ObjectSpec, result: ObjectSpec): DialogueToolEntry {
+  return { kind: 'port', meta, params, schema: toJsonSchema(params), port: meta.name, result, resultSchema: toResultSchema(result, false), resultClosed: false };
 }
 
 /** The two entries, in the harness's entry shape. Registration maps each `port` to its handler below. */
@@ -146,6 +196,7 @@ export const DIALOGUE_TOOL_ENTRIES: readonly DialogueToolEntry[] = [
       keywords: ['dialogue', 'cutscene', 'ink', 'interactive', 'narrative', 'branching'],
     },
     DRAFT_PARAMS,
+    DIALOGUE_DRAFT_RESULT,
   ),
   entryOf(
     {
@@ -160,6 +211,7 @@ export const DIALOGUE_TOOL_ENTRIES: readonly DialogueToolEntry[] = [
       keywords: ['dialogue', 'cutscene', 'ink', 'interactive', 'narrative', 'table'],
     },
     TABLE_PARAMS,
+    DIALOGUE_TABLE_RESULT,
   ),
 ];
 
@@ -256,7 +308,7 @@ export function dialogueTableTool(params: Readonly<Record<string, unknown>>, con
  * text a write would store once the writer approves; nothing is written here. A refusal names the compile
  * error, the beat that is missing, or the text that would not play.
  */
-export function dialogueDraftTool(params: Readonly<Record<string, unknown>>, context: DialogueToolContext): DialogueToolResult {
+export function dialogueDraftTool(params: Readonly<Record<string, unknown>>, context: DialogueToolContext): Result<ToolValue<DialogueDraftCheck>, CommandError> {
   const resolved = resolveContainer(context.state, textOf(params.doc));
   if (!resolved.ok) return err(resolved.error);
   const title = resolved.node.title;
@@ -320,7 +372,7 @@ export function dialogueDraftTool(params: Readonly<Record<string, unknown>>, con
     notes.push(`the draft has ${written} spoken line(s) against a target of ${target}.`);
   }
 
-  const data: Record<string, unknown> = {
+  const data: DialogueDraftCheck = {
     containerId: resolved.node.id,
     title,
     mode: planned.plan.mode,
@@ -336,7 +388,7 @@ export function dialogueDraftTool(params: Readonly<Record<string, unknown>>, con
     warnings.length > 0
       ? `Draft for "${title}" compiles with ${warnings.length} warning(s); approval is needed.`
       : `Draft for "${title}" compiles cleanly.`;
-  const value: ToolValue = { data, summary, affected: [], ...(notes.length > 0 ? { notes } : {}) };
+  const value: ToolValue<DialogueDraftCheck> = { data, summary, affected: [], ...(notes.length > 0 ? { notes } : {}) };
   return ok(value);
 }
 

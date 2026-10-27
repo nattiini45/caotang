@@ -71,6 +71,19 @@ export function schemaText(failures: readonly SchemaFailure[]): string {
   return `arguments do not match the tool's input schema: ${failures.map(describeFailure).join('; ')}`;
 }
 
+/**
+ * The sentence for a result that does not match the output schema its tool declared: every violation, each at its path. The tool ran, so
+ * the sentence says its effect is in place, as the cap refusal does.
+ */
+export function outputSchemaText(serverName: string, toolName: string, failures: readonly SchemaFailure[]): string {
+  return `server '${serverName}' answered '${toolName}' with structured content that does not match the output schema it declared: ${failures.map((failure) => `${failure.path === '' ? 'the structured content' : failure.path} ${failure.message}`).join('; ')}. The tool ran on the server, so any effect it had is already in place; Caotang does not pass on an answer it cannot trust to have the shape the server promised.`;
+}
+
+/** The sentence for an output schema the checker cannot read, or a declared one the answer did not carry. The tool ran, as above. */
+export function outputUncheckedText(serverName: string, toolName: string, why: string): string {
+  return `server '${serverName}' answered '${toolName}', and ${why}. The tool ran on the server, so any effect it had is already in place; Caotang does not pass on an answer it cannot check.`;
+}
+
 /** The sentence for a schema the checker cannot read. The call is refused, and the reason is the keyword. */
 export function unsupportedSchemaText(keyword: string): string {
   return `the tool's input schema uses ${keyword}, which Caotang cannot check, so the call is refused`;

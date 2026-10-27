@@ -9,8 +9,8 @@ import { describe, expect, it } from 'vitest';
 import { addDocument, type ProjectState } from '@caotang/store';
 import { setNodeKind } from '@caotang/storyboard';
 
-import { createAgentPorts, createHarness, previewFor, type Harness } from '../../src/index.js';
-import { CHAPTER_ONE, FRIEND, OPENED, makeState, snapshotOf } from '../fixtures.js';
+import { createAgentPorts, previewFor, type Harness } from '../../src/index.js';
+import { CHAPTER_ONE, checkedHarness, FRIEND, makeState, OPENED, snapshotOf } from '../fixtures.js';
 
 const SCENE = 'n_DERIVSCN01';
 const SCENE_TITLE = 'The Lamp Scene';
@@ -35,7 +35,7 @@ const PROPOSAL = {
 };
 
 function harnessFor(state: ProjectState): Harness {
-  return createHarness({ state, ports: createAgentPorts(), clock: () => 1 });
+  return checkedHarness({ state, ports: createAgentPorts(), clock: () => 1 });
 }
 
 describe('the preview a derive card shows (storyboard.md §4 row 18)', () => {

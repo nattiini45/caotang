@@ -14,6 +14,7 @@ export interface FixtureTool {
   readonly name: string;
   readonly description?: string;
   readonly inputSchema?: Record<string, unknown>;
+  readonly outputSchema?: Record<string, unknown>;
   readonly annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean; idempotentHint?: boolean; openWorldHint?: boolean };
 }
 
@@ -21,6 +22,7 @@ export interface FixtureTool {
 export interface FixtureResult {
   readonly content: readonly unknown[];
   readonly isError?: boolean;
+  readonly structuredContent?: unknown;
 }
 
 /** What a call can do while it runs: report progress to the caller, and learn that the caller went away. */
@@ -155,7 +157,11 @@ function buildServer(state: FixtureState, revisions: readonly string[]): Server 
       },
     };
     const result = await state.respond(request.params.name, args, call);
-    return { content: [...result.content] as never[], isError: result.isError === true };
+    return {
+      content: [...result.content] as never[],
+      isError: result.isError === true,
+      ...(result.structuredContent === undefined ? {} : { structuredContent: result.structuredContent as never }),
+    };
   });
   return server;
 }
@@ -165,6 +171,7 @@ function toSdkTool(tool: FixtureTool): Tool {
     name: tool.name,
     description: tool.description,
     inputSchema: (tool.inputSchema ?? { type: 'object' }) as Tool['inputSchema'],
+    ...(tool.outputSchema === undefined ? {} : { outputSchema: tool.outputSchema as Tool['outputSchema'] }),
     ...(tool.annotations === undefined ? {} : { annotations: tool.annotations }),
   };
 }

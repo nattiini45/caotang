@@ -316,21 +316,23 @@ export {
 
 // The shapes a tool package declares its tools with, so a media module needs no import of the harness
 // (which imports it). The harness re-exports each of them (schema.ts, errors.ts, types.ts).
-export { param, toJsonSchema } from './tool-schema.js';
+export { param, toJsonSchema, toResultSchema } from './tool-schema.js';
 export type {
   ArraySpec,
   BooleanSpec,
   EnumSpec,
   FreeObjectSpec,
   IntegerSpec,
+  NumberSpec,
   JsonSchema,
   ObjectSpec,
+  ObjectSpecOf,
   ParamSpec,
   StringSpec,
   TaggedSpec,
   UnionSpec,
 } from './tool-schema.js';
 export { refusal, type RefusalOptions } from './refusal.js';
-export type { ToolValue } from './tool-value.js';
+export type { ToolData, ToolValue } from './tool-value.js';
 // The name a project with no recipes key holds (exporter.md §4). The exporter names its default recipe with it.
 export { DEFAULT_RECIPE_NAME } from './recipe-names.js';

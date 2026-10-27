@@ -8,10 +8,10 @@ import { describe, expect, it } from 'vitest';
 
 import * as mock from '@caotang/gateway/mock';
 
-import { createAgentPorts, createHarness, DRAFT_SYSTEM_PREFIX, PLANNER_SYSTEM_PREFIX, SUBAGENT_SYSTEM_PREFIX, parseReply, plannerSystem, REPLY_SCHEMA_HINT } from '../../src/index.js';
+import { createAgentPorts, DRAFT_SYSTEM_PREFIX, PLANNER_SYSTEM_PREFIX, SUBAGENT_SYSTEM_PREFIX, parseReply, plannerSystem, REPLY_SCHEMA_HINT } from '../../src/index.js';
 import { errorSummary, refusalSentence } from '../../src/agent/protocol.js';
 import { PLAN_STEPS_MAX } from '../../src/plan.js';
-import { makeState } from '../fixtures.js';
+import { checkedHarness, makeState } from '../fixtures.js';
 
 describe('parseReply: the two reply shapes', () => {
   it('reads a list of steps as a plan, with each step’s tool, params and expectation', () => {
@@ -98,7 +98,7 @@ describe('parseReply: refusals name the shape the reply should have had', () => 
 
 describe('the planner’s system message', () => {
   it('lists the tools this build can call, with their risk and their schema, and never agent.plan', () => {
-    const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+    const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
     const system = plannerSystem(harness.tools());
     expect(system.startsWith(PLANNER_SYSTEM_PREFIX)).toBe(true);
     expect(system).toContain('scene.draft [write-confirm]');
@@ -108,9 +108,9 @@ describe('the planner’s system message', () => {
   });
 
   it('lists a port tool only when its implementation is injected', () => {
-    const bare = createHarness({ state: makeState() });
+    const bare = checkedHarness({ state: makeState() });
     expect(plannerSystem(bare.tools())).not.toContain('- scene.draft');
-    expect(plannerSystem(createHarness({ state: makeState(), ports: createAgentPorts() }).tools())).toContain('- scene.draft');
+    expect(plannerSystem(checkedHarness({ state: makeState(), ports: createAgentPorts() }).tools())).toContain('- scene.draft');
   });
 });
 

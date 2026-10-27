@@ -8,11 +8,11 @@ import { describe, expect, it } from 'vitest';
 
 import { setBody } from '@caotang/store';
 
-import { createAgentPorts, createHarness, type Harness } from '../../src/index.js';
-import { FRIEND, LANDING, LANDING_BODY, STORM, makeState, snapshotOf } from '../fixtures.js';
+import { createAgentPorts, type Harness } from '../../src/index.js';
+import { checkedHarness, FRIEND, LANDING, LANDING_BODY, makeState, snapshotOf, STORM } from '../fixtures.js';
 
 function harnessFor(state = makeState()): Harness {
-  return createHarness({ state, ports: createAgentPorts(), clock: () => 1 });
+  return checkedHarness({ state, ports: createAgentPorts(), clock: () => 1 });
 }
 
 let calls = 0;

@@ -100,7 +100,11 @@ export function createMockWire(script: MockMcpScript): McpWire {
       script.fail?.('call');
       const answer = (await slowCall(script, name, args, options)) ?? script.respond(name, args);
       if (isMcpError(answer)) throw new WireError(WIRE_KIND_OF[answer.code], answer.message);
-      return { content: answer.content, isError: answer.isError === true };
+      return {
+        content: answer.content,
+        isError: answer.isError === true,
+        ...(answer.structuredContent === undefined ? {} : { structuredContent: answer.structuredContent }),
+      };
     },
     async capabilities(_options: WireOptions): Promise<WireCapabilities> {
       open();

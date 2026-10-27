@@ -31,6 +31,7 @@ import { agentFileTexts, type ProjectState } from '@caotang/store';
 
 import { metadataFor, type ToolName } from '../metadata.js';
 import { createHarness } from '../runtime.js';
+import { withResultChecks } from '../testing.js';
 import type { SkillsOption } from '../tools/skills.js';
 import type { AskBackCode } from '../plan.js';
 import { canonicalJson } from '../util.js';
@@ -331,13 +332,14 @@ export async function runScenario(scenario: Scenario, options: { readonly trace?
         ) as typeof base;
       })()
     : undefined;
-  const harness = createHarness({
+  // Every result a scenario's tools return is checked against its row's declared schema, so a scenario fails where a tool broke its contract.
+  const harness = withResultChecks(createHarness({
     state,
     ports: createAgentPorts(),
     ...(registry === undefined ? {} : { registry }),
     ...(scenario.coherence === true ? { coherence: { model: () => reviewModelOf(gateway) } } : {}),
     ...(scenario.skills === undefined ? {} : { skills: scenario.skills }),
-  });
+  }));
   const before = projectBytes(state);
 
   const events: AgentEvent[] = [];

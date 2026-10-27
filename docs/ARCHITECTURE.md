@@ -164,9 +164,9 @@ Additive manifest arrays (`codex[]`, `recipes[]`, `filters[]`, `goals[]`, `macro
 
 ## 4. Explicit non-goals
 
-Collaboration and sync in the local version, a plugin system, a theme marketplace, version history beyond git, **embedding/RAG context retrieval** (keyed context is the design; revisit only with usage evidence), a **codex relations graph**. Screen and media formats were once on this list and are now built (§6).
+Collaboration and sync in the local version, a plugin system that **runs third-party code in the app**, a theme marketplace, version history beyond git, **embedding/RAG context retrieval** (keyed context is the design; revisit only with usage evidence), a **codex relations graph**. Screen and media formats were once on this list and are now built (§6).
 
-Macros (writer-authored plan templates over the app's own tools, [extensibility.md](architecture/extensibility.md) §10) are not a plugin system: a macro is JSON data with no code and no install path, and only the writer runs one.
+Macros (writer-authored plan templates over the app's own tools, [extensibility.md](architecture/extensibility.md) §10) are not a plugin system: a macro is JSON data with no code and no install path, and only the writer runs one. Nor are the planned declarative extension bundles ([extensions.md](architecture/extensions.md), specified, not built): Markdown and JSON that carry skills and suggested MCP servers, with no code, installed only by the writer from a local file. Sandboxed JS plugins are deferred, not rejected (decisions.md, MCP server and client).
 
 ## 5. Scope non-negotiables
 

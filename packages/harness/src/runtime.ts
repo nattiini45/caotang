@@ -113,6 +113,7 @@ import {
 } from './rules.js';
 import { portPreflights } from './agent/ports.js';
 import { TOOL_METADATA, capOf, metadataFor, type ToolMetadata, type ToolName, type ToolRisk } from './metadata.js';
+import type { ResultData } from './results.js';
 import { coherenceAsyncPorts, coherencePorts, stageReviewPlan, type CoherenceSource } from './tools/coherence.js';
 import { NO_SERVERS, toolSearchPort } from './tools/search.js';
 import { createSkillLoads, skillLoadPort, skillStatesOf, type LoadedSkill, type SkillsOption } from './tools/skills.js';
@@ -147,6 +148,7 @@ import type {
   SessionSnapshot,
   ToolCall,
   ToolOutcome,
+  ToolValue,
   ToolPort,
   TurnContext,
 } from './types.js';
@@ -224,6 +226,8 @@ export interface ToolListing extends ToolMetadata {
   /** True for a port tool that awaits a model, so it runs through `callAsync` after its plan is approved (coherence.review). */
   readonly async: boolean;
   readonly schema: JsonSchema;
+  /** The JSON Schema of the row's `ToolValue.data` (results.ts). Absent for `agent.plan`, which has no result to declare. */
+  readonly resultSchema?: JsonSchema;
 }
 
 /**
@@ -250,8 +254,8 @@ export interface Harness {
   readonly external: ExternalHarness;
   /** Every tool in the frozen surface and the extension, in table order. */
   tools(): readonly ToolListing[];
-  /** Runs one tool call under a turn. */
-  call(call: ToolCall, turn: TurnContext): ToolOutcome;
+  /** Runs one tool call under a turn. A call that names a tool by a literal gets that row's result type (results.ts). */
+  call<N extends string>(call: ToolCall & { readonly name: N }, turn: TurnContext): Result<ToolValue<ResultData<N>>, CommandError>;
   /** Checks a plan with no effect. Malformed plans come back as a refusal. */
   previewPlan(plan: unknown, options?: PlanOptions): Result<PlanPreflight, CommandError>;
   /**
@@ -1140,6 +1144,7 @@ export function createHarness(options: HarnessOptions): Harness {
         wired: entry.kind === 'native' || (entry.kind === 'port' && (ports[entry.port] !== undefined || asyncPorts[entry.port] !== undefined)),
         async: entry.kind === 'port' && ports[entry.port] === undefined && asyncPorts[entry.port] !== undefined,
         schema: entry.schema,
+        ...(entry.kind === 'protocol' ? {} : { resultSchema: entry.resultSchema }),
       };
     });
     return cachedTools;
@@ -1310,7 +1315,7 @@ export function createHarness(options: HarnessOptions): Harness {
     log,
     external,
     tools: listTools,
-    call: (call, turn) => callTool(call, turn),
+    call: ((call, turn) => callTool(call, turn)) as Harness['call'],
     previewPlan: (input, options = {}) => {
       const parsed = parsePlan(input);
       if (!parsed.ok) return failure(parsed.error) as Result<PlanPreflight, CommandError>;
