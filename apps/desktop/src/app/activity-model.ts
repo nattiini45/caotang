@@ -73,6 +73,9 @@ export const COMMAND_TITLES: Readonly<Record<CommandName, string>> = {
   // The writer's macros (extensibility.md §10).
   'macro.save': 'Macro saved',
   'macro.delete': 'Macro deleted',
+  // The writer's hooks (hooks.md).
+  'hook.save': 'Hook saved',
+  'hook.delete': 'Hook deleted',
   // The writer's instructions and the agent's memory (context-assembly.md §2, layer LI).
   'project.setInstructions': 'Instructions changed',
   'memory.write': 'Memory note saved',

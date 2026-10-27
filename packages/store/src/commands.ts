@@ -166,6 +166,7 @@ import type { CodexEntry, CodexIncludePolicy, TreeNode } from './manifest.js';
 import { projectCommandRegistrations, type ProjectAssetPort } from './commands-project.js';
 import { agentFileCommandRegistrations } from './commands-agent-files.js';
 import { skillCommandRegistrations, type SkillStaging } from './commands-skills.js';
+import { hookCommandRegistrations } from './commands-hooks.js';
 import { macroCommandRegistrations } from './commands-macros.js';
 import { shotImageCommandRegistrations } from './commands-shot-image.js';
 import { furnitureApplies } from './commands-furniture.js';
@@ -1834,6 +1835,8 @@ export function createProjectCommandRegistry(
   Object.assign(registry, agentFileCommandRegistrations({ clock }));
   // The writer's macros (extensibility.md §10): `macros[]` in the manifest (commands-macros.ts).
   Object.assign(registry, macroCommandRegistrations({ clock }));
+  // The writer's hooks (hooks.md): `agent.hooks` in the manifest (commands-hooks.ts).
+  Object.assign(registry, hookCommandRegistrations({ clock }));
   // Storyboard: the shot image import needs both the asset port and the storyboard port (commands-shot-image.ts).
   Object.assign(
     registry,

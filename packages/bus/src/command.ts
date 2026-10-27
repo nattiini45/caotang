@@ -22,6 +22,7 @@ import type {
   ScreenplayImportParams,
 } from './descriptors-script.js';
 import type { RecipeScriptFont, SceneNumbersOption } from './descriptors-project.js';
+import type { HookDraft } from './hook-rules.js';
 import type { MacroDraft } from './macro-rules.js';
 
 /**
@@ -147,6 +148,10 @@ export const COMMAND_NAMES = [
   // saves or deletes one. The applies are the store's (`commands-macros.ts`).
   'macro.save',
   'macro.delete',
+  // The writer's hooks (hooks.md): checks the harness runs at a point of the agent's turn, in the manifest's `agent.hooks`. Both are
+  // `agentRisk: 'never'`, so only the writer saves or deletes one. The applies are the store's (`commands-hooks.ts`).
+  'hook.save',
+  'hook.delete',
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
@@ -292,6 +297,8 @@ export interface ValidationSnapshot {
     readonly disabledSkills?: readonly string[];
     /** The writer's macros (extensibility.md §10). Additive, so absent means none. Only the id and slug are read, for the refusals `macro.save` and `macro.delete` make. */
     readonly macros?: readonly { readonly id: string; readonly slug: string }[];
+    /** The writer's hooks (hooks.md), under the `agent` object that also holds the rules. Additive; only the id is read, for the refusals `hook.save` and `hook.delete` make. */
+    readonly agent?: { readonly hooks?: readonly { readonly id: string }[] };
   };
   readonly documents: ReadonlyMap<string, ValidationDocument>;
   /** The coherence file, when one is open. Additive, like `codex` — absent means no file. */
@@ -621,6 +628,8 @@ export interface CommandParams {
   'memory.forget': MemoryForgetParams;
   'macro.save': MacroSaveParams;
   'macro.delete': MacroDeleteParams;
+  'hook.save': HookSaveParams;
+  'hook.delete': HookDeleteParams;
 }
 
 /**
@@ -982,6 +991,12 @@ export type MacroSaveParams = { macro: MacroDraft };
 
 /** `macro.delete`: remove one macro. The project's content is not touched. */
 export type MacroDeleteParams = { macroId: string };
+
+/** `hook.save` (hooks.md): create a hook, or replace the one with the same id. The store mints the id of a new one. */
+export type HookSaveParams = { hook: HookDraft };
+
+/** `hook.delete`: remove one hook. The project's content is not touched. */
+export type HookDeleteParams = { hookId: string };
 
 /** The two vocabularies (project-format.md §2). */
 export type VocabularyKind = 'status' | 'label';

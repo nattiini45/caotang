@@ -124,6 +124,8 @@ export const DECLARED_PARAMS: Readonly<Record<CommandName, readonly string[]>> =
   'memory.forget': ['slug'],
   'macro.save': ['macro'],
   'macro.delete': ['macroId'],
+  'hook.save': ['hook'],
+  'hook.delete': ['hookId'],
 };
 
 /** §9's three "various" rows, spelled out — asserted, not inferred. */
