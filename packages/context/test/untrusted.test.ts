@@ -132,6 +132,9 @@ describe('scanForInjection', () => {
     scanForInjection('](' .repeat(200_000));
     scanForInjection('ignore '.repeat(100_000));
     scanForInjection('\n'.repeat(200_000));
+    // A long unterminated target, and a long run of absolute ones, are not read in full at every `](`.
+    scanForInjection(`${'](x'.repeat(100_000)})`);
+    scanForInjection(`${'[a](http://a'.repeat(30_000)})`);
     expect(Date.now() - started).toBeLessThan(3000);
   });
 });

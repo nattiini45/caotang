@@ -261,9 +261,9 @@ function overridePhrases(words: readonly Word[]): { readonly at: number; readonl
   return hits;
 }
 
-/** Whether a link target is an absolute http(s) or protocol-relative address. */
-function absoluteTarget(target: string): boolean {
-  const lower = lowerAscii(target.trimStart());
+/** Whether the link target at `text[start..stop)` is an absolute http(s) or protocol-relative address. Only its first characters are read, so a long target costs nothing. */
+function absoluteTarget(text: string, start: number, stop: number): boolean {
+  const lower = lowerAscii(text.slice(start, Math.min(stop, start + 8)));
   return lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('//');
 }
 
@@ -280,7 +280,7 @@ function foreignLinks(text: string): { readonly at: number; readonly length: num
       stop = start;
       while (stop < text.length && text[stop] !== ')' && !/\s/.test(text[stop] as string)) stop += 1;
     }
-    if (stop > start && text[stop] === ')' && absoluteTarget(text.slice(start, stop))) hits.push({ at, length: stop + 1 - at });
+    if (stop > start && text[stop] === ')' && absoluteTarget(text, start, stop)) hits.push({ at, length: stop + 1 - at });
   }
   return hits;
 }

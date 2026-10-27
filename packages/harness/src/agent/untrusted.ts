@@ -10,7 +10,7 @@
  * by itself, and every card of the turn says what the turn read.
  */
 
-import { nonceFor, scanForInjection, spotlight, type InjectionHit } from '@caotang/context';
+import { nonceFor, scanForInjection, spotlight, UNTRUSTED_OPEN, type InjectionHit } from '@caotang/context';
 import type { TaintRef } from '@caotang/mcp-client';
 
 import { isRecord } from '../util.js';
@@ -54,6 +54,15 @@ function externalMatches(body: unknown): readonly Record<string, unknown>[] {
   return body['matches'].filter((match): match is Record<string, unknown> => isRecord(match) && match['source'] === 'external' && typeof match['serverName'] === 'string' && typeof match['toolName'] === 'string');
 }
 
+/** Which server and tool a tool name belongs to, when it is a loaded external tool; undefined for a native one. */
+export type OutsideOf = (tool: string) => { readonly serverName: string; readonly toolName: string } | undefined;
+
+/**
+ * Whether a model-facing message carries a connected server's text in an envelope (a result, an error or a description). The rule paragraph
+ * of system prompt v2 and a project file's envelope name the markers too, but only a server's source label starts with `mcp`.
+ */
+export const readsOutsideText = (content: string): boolean => content.includes(`${UNTRUSTED_OPEN} source="mcp`);
+
 /** How a source reads on a card and in a banner: `Notion › search`. */
 export const sourceName = (serverName: string, toolName: string): string => `${serverName} › ${toolName}`;
 
@@ -69,11 +78,17 @@ export function outsideSources(body: unknown): readonly TaintRef[] {
 /**
  * A result as the model reads it. A native result is the JSON it always was. An external call's is a JSON line that says where it came
  * from, then its content blocks in an envelope. A search keeps its JSON, with each external match's excerpt in an envelope of its own.
- * `named` puts the tool's name in the line (the JSON wire); the native wire answers a call by its id and leaves it out.
+ * `named` puts the tool's name in the line (the JSON wire); the native wire answers a call by its id and leaves it out. A failed call of a
+ * loaded external tool (`outside`) is outside text too: the server's own words sit in its error, so the error goes in an envelope.
  */
-export function modelResult(result: { readonly tool: string; readonly ok: boolean; readonly body: unknown }, nonce: string, named = true): string {
+export function modelResult(result: { readonly tool: string; readonly ok: boolean; readonly body: unknown }, nonce: string, named = true, outside?: OutsideOf): string {
   const head = named ? { tool: result.tool } : {};
-  if (!result.ok) return JSON.stringify({ ...head, ok: false, error: result.body });
+  if (!result.ok) {
+    const from = outside?.(result.tool);
+    if (from === undefined) return JSON.stringify({ ...head, ok: false, error: result.body });
+    const text = typeof result.body === 'string' ? result.body : (JSON.stringify(result.body) ?? '');
+    return `${JSON.stringify({ ...head, ok: false, error: 'in the untrusted block below' })}\n${spotlight(text, { kind: 'mcp-result', ...from }, nonce)}`;
+  }
   if (isExternalBody(result.body)) {
     const { content, ...rest } = result.body;
     const line = JSON.stringify({ ...head, ok: true, data: { ...rest, content: 'in the untrusted block below' } });

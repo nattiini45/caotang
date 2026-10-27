@@ -22,7 +22,7 @@ import type { ToolCall as WireToolCall, ToolDef } from '@caotang/gateway';
 import { clipChars, EXCERPT_CHARS, type ExternalToolDescriptor } from '@caotang/mcp-client';
 
 import { checkParams } from '../validate.js';
-import { modelResult, spotlight, STATIC_NONCE, UNTRUSTED_RULE } from './untrusted.js';
+import { modelResult, spotlight, STATIC_NONCE, UNTRUSTED_RULE, type OutsideOf } from './untrusted.js';
 import { PLAN_STEPS_MAX, planParams, type AskBack, type Plan, type PlanPreflight } from '../plan.js';
 import type { CallParams } from '../types.js';
 import type { ToolListing } from '../runtime.js';
@@ -300,16 +300,20 @@ export function steeringMessage(text: string): string {
 export const PLAN_CANCELLED_MESSAGE = 'The writer cancelled the plan you proposed, so the steps it had not run yet will not run.';
 
 /** A message that carries the results of the read steps that just ran. */
-export function resultsMessage(results: readonly { readonly tool: string; readonly ok: boolean; readonly body: unknown }[], nonce: string = STATIC_NONCE): string {
-  return ['Tool results:', ...results.map((result) => modelResult(result, nonce))].join('\n');
+export function resultsMessage(results: readonly { readonly tool: string; readonly ok: boolean; readonly body: unknown }[], nonce: string = STATIC_NONCE, outside?: OutsideOf): string {
+  return ['Tool results:', ...results.map((result) => modelResult(result, nonce, true, outside))].join('\n');
 }
 
-/** A message that says which steps were refused before anything ran, and why. */
-export function refusedStepsMessage(preflight: PlanPreflight): string {
+/** A message that says which steps were refused before anything ran, and why. The reason for a loaded external tool's step is outside text (`outside`). */
+export function refusedStepsMessage(preflight: PlanPreflight, nonce: string = STATIC_NONCE, outside?: OutsideOf): string {
   const refused = preflight.steps.filter((step) => step.status === 'refused');
   return [
     'These steps were refused before anything ran, so nothing was written:',
-    ...refused.map((step) => `- step ${step.index + 1} (${step.tool}): ${refusalSentence(step.error?.message ?? 'refused', step.error?.correctiveHint)}`),
+    ...refused.map((step) => {
+      const reason = refusalSentence(step.error?.message ?? 'refused', step.error?.correctiveHint);
+      const from = outside?.(step.tool);
+      return from === undefined ? `- step ${step.index + 1} (${step.tool}): ${reason}` : `- step ${step.index + 1} (${step.tool}):\n${spotlight(reason, { kind: 'mcp-result', ...from }, nonce)}`;
+    }),
     'Reply with the corrected steps.',
   ].join('\n');
 }
@@ -337,12 +341,15 @@ export function refusalSentence(message: string, hint: string | undefined): stri
  * The verify ladder's retry message (agent-harness §7): the failed step, and the ask-back payload
  * verbatim, which is also what the user is shown. One format serves the model and the card. The last
  * line names the correction in the wire's own words: a corrected step in the JSON envelope, or one
- * corrected call when the turn speaks native tool calls.
+ * corrected call when the turn speaks native tool calls. The ask-back of a loaded external tool's step quotes the server, so it goes in an
+ * envelope (`outside`).
  */
-export function retryMessage(index: number, tool: string, askBack: AskBack, native = false): string {
+export function retryMessage(index: number, tool: string, askBack: AskBack, native = false, outside?: OutsideOf, nonce: string = STATIC_NONCE): string {
+  const from = outside?.(tool);
+  const payload = JSON.stringify(askBack);
   return [
     `Step ${index + 1} (${tool}) did not apply, so nothing it would have written was written. The ask-back is:`,
-    JSON.stringify(askBack),
+    from === undefined ? payload : spotlight(payload, { kind: 'mcp-result', ...from }, nonce),
     native ? `Reply with one corrected call for ${tool} and nothing else.` : `Reply with {"steps": [one corrected step for ${tool}]} and nothing else.`,
   ].join('\n');
 }

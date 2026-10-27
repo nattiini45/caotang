@@ -174,7 +174,7 @@ import {
 import { previewFor, sceneDraftPreflight, shotsDeriveScenePreflight } from './ports.js';
 import { cautionOf, type ApprovalCaution, type CardHit, type QuoteFinding, type TaintRef } from '@caotang/mcp-client';
 import { quotedProjectText } from './egress-check.js';
-import { modelResult, outsideSources, scanForInjection, sourceName, turnNonce, UNTRUSTED_OPEN } from './untrusted.js';
+import { modelResult, outsideSources, readsOutsideText, scanForInjection, sourceName, turnNonce, type OutsideOf } from './untrusted.js';
 import { createContextPort, dropLinesOf, mergePreviews, type ContextPort } from './context.js';
 import { createSubagentRunner, framedResult, resultLine, SUBAGENT_SPECS, type ParentTurnHandle } from './subagent.js';
 import {
@@ -1113,6 +1113,18 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   /** The external tool a name is, when the turn has loaded it (extensibility §5). Undefined for a native name. */
   const loadedExternal = (tool: string) => harness.loadedExternalTools().find((candidate) => candidate.qualifiedName === tool);
 
+  /** Where a loaded external tool's text comes from, for the model-facing copy of its errors (`modelResult`). */
+  const outsideOf: OutsideOf = (tool) => {
+    const external = loadedExternal(tool);
+    return external === undefined ? undefined : { serverName: external.serverName, toolName: external.toolName };
+  };
+
+  /** What a failed step takes into the turn from outside: a loaded external tool's error quotes the server. */
+  const failedSources = (tool: string): readonly TaintRef[] => {
+    const from = outsideOf(tool);
+    return from === undefined ? [] : [{ serverName: from.serverName, label: sourceName(from.serverName, from.toolName) }];
+  };
+
   /**
    * A step the loop awaits instead of running inside an approved plan: a loaded external tool (extensibility §6), or a native
    * tool that awaits a model (coherence.md §7 tool 16, `ToolListing.async`). Both run after their card is approved.
@@ -1369,7 +1381,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         turn.messages.push({
           role: 'tool',
           toolCallId: call.id,
-          content: modelResult({ tool: call.name, ok: result.ok, body: result.body }, turn.nonce, false),
+          content: modelResult({ tool: call.name, ok: result.ok, body: result.body }, turn.nonce, false, outsideOf),
           ...(result.ok ? {} : { isError: true }),
         });
       }
@@ -2080,7 +2092,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         cardFor(turn, id, step.tool, step.params, 'running');
       }
       const result = settleRead(turn, index, step, callId, outcome);
-      if (result.ok) taint(turn, outsideSources(result.body));
+      taint(turn, result.ok ? outsideSources(result.body) : failedSources(step.tool));
       wireResult(turn, step, { ok: result.ok, body: result.body });
       results.push(result);
       if (step.tool === 'tool.search' && outcome.ok && Array.isArray(outcome.value.data['surfaced'])) {
@@ -2098,7 +2110,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       flushWire(turn);
       if (loadedAny) turn.messages.push({ role: 'user', content: loadedToolsMessage(nativeNow, loadedNow, turn.nonce) });
     } else {
-      const sections = [resultsMessage(results, turn.nonce), ...(loadedAny ? [loadedToolsMessage(nativeNow, loadedNow, turn.nonce)] : [])];
+      const sections = [resultsMessage(results, turn.nonce, outsideOf), ...(loadedAny ? [loadedToolsMessage(nativeNow, loadedNow, turn.nonce)] : [])];
       turn.messages.push({ role: 'user', content: sections.join('\n\n') });
     }
     // The descriptors just sent name every tool the search loaded, so the planner's one-line addendum for the same set is not
@@ -2469,6 +2481,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     pushRow(turn, { tool: step.tool, callId: id, outcome: 'refused', code: outcome.error.code, params: step.params }, reason);
     turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'failed', error: reason });
     moveCard(turn, id, 'failed', { error: reason });
+    taint(turn, failedSources(step.tool));
     wireResult(turn, step, { ok: false, body: reason });
     // A write that failed may have reached the server or the findings file, so it is never adjusted (`effect`).
     return { ok: false, failedAt: index, effect: write, askBack: askBackFor(outcome.error), completed: [] };
@@ -2829,7 +2842,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         refusedBeforeCard(turn, single, refusalSentence(refusedEntry?.error?.message ?? 'refused', refusedEntry?.error?.correctiveHint));
         // The call's own tool message goes first, so the refusal text that follows reads as its explanation.
         flushWire(turn);
-        turn.messages.push({ role: 'user', content: refusedStepsMessage(checked.preflight) });
+        turn.messages.push({ role: 'user', content: refusedStepsMessage(checked.preflight, turn.nonce, outsideOf) });
         return 'continue';
       }
       // A mode that decides cards holds this write to the budgets as it holds a card (agent-harness §4).
@@ -2912,7 +2925,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // The run's calls are answered first: the failed step's tool message carries its refusal, and the
       // corrective text that follows names what to correct, as the JSON wire's retry does.
       flushWire(turn);
-      turn.messages.push({ role: 'user', content: retryMessage(failedAt, failed.tool, askBack, turn.native) });
+      turn.messages.push({ role: 'user', content: retryMessage(failedAt, failed.tool, askBack, turn.native, outsideOf, turn.nonce) });
       const adjusted = await adjustStep(turn, failed.tool);
       if (adjusted === undefined) return settle(turn, executed);
 
@@ -3484,7 +3497,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     turn.carried = replay.applied.length;
     turn.messages.push(...replay.messages);
     // The log holds the conversation as the model read it, envelopes included: a turn that read outside text before the reload is still tainted.
-    if (replay.messages.some((message) => typeof message.content === 'string' && message.content.includes(UNTRUSTED_OPEN))) taint(turn, [{ serverName: '', label: 'outside text' }]);
+    if (replay.messages.some((message) => typeof message.content === 'string' && readsOutsideText(message.content))) taint(turn, [{ serverName: '', label: 'outside text' }]);
     turn.logged = turn.messages.length;
     turn.native = replay.native;
     const card = replay.card;
