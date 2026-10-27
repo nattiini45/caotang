@@ -79,6 +79,11 @@ export function macroCommandName(slug: string): string {
   return `macro-${slug}`.slice(0, 32);
 }
 
+/** Whether a logged command name is a macro's, so a turn resumed from the run log is kept out of the planner as the run that began it was. */
+export function isMacroCommand(command: string | undefined): boolean {
+  return command?.startsWith('macro-') === true;
+}
+
 /** The intent a macro's turn carries, which the panel, the activity list, the run log and the trace show. */
 export function macroIntent(macro: Pick<ProjectMacro, 'name'>): string {
   return `Run the macro “${macro.name}”`;

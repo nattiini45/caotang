@@ -75,6 +75,7 @@ import type { CallParams, ToolCall, ToolOutcome } from '../types.js';
 import { canonicalJson, isRecord } from '../util.js';
 import type { TraceInput, TraceSink } from './trace.js';
 import { isCommandName } from '../commands/slash.js';
+import { isMacroCommand } from '../macro.js';
 import { CONTINUITY_MAX_DOCS, SYNOPSIS_MAX_DOCS } from '../tools/ports.js';
 import type { DelegateParams } from '../tools/delegate.js';
 import { fitsCap } from '../tokens.js';
@@ -3523,7 +3524,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         });
       }
     }
-    return runTurn(intent, replay.command === undefined ? resumeOptions : { ...resumeOptions, command: replay.command }, (turn) => resumedTurn(turn, replay), { mode: 'resume', runId, replay, ...(verdict.rerun === undefined ? {} : { rerun: verdict.rerun }) });
+    // A resumed macro run stays the writer's: after a reload only the logged command says which turn it was.
+    const resumed: TurnOptions = replay.command === undefined ? resumeOptions : { ...resumeOptions, command: replay.command, ...(isMacroCommand(replay.command) ? { hiddenFromPlanner: true } : {}) };
+    return runTurn(intent, resumed, (turn) => resumedTurn(turn, replay), { mode: 'resume', runId, replay, ...(verdict.rerun === undefined ? {} : { rerun: verdict.rerun }) });
   }
 
   return {

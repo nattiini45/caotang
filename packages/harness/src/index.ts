@@ -75,6 +75,7 @@ export {
 export {
   checkMacro,
   expandMacro,
+  isMacroCommand,
   macroCommandName,
   macroFieldSpec,
   macroIntent,
