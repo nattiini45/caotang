@@ -56,9 +56,9 @@ describe('the envelope around a result schema', () => {
 
   it('is an object at its root, as the 2025-06-18 revision requires, and advertises the same JSON as input and output', () => {
     const advertised = advertisedOutput(RESULT)['~standard'].jsonSchema;
-    expect((advertised.output('draft-2020-12') as Json)['type']).toBe('object');
-    expect(advertised.input('draft-2020-12')).toEqual(advertised.output('draft-2020-12'));
-    expect(advertisedInput(RESULT)['~standard'].jsonSchema.input('draft-2020-12')).toEqual(RESULT);
+    expect((advertised.output({ target: 'draft-2020-12' }) as Json)['type']).toBe('object');
+    expect(advertised.input({ target: 'draft-2020-12' })).toEqual(advertised.output({ target: 'draft-2020-12' }));
+    expect(advertisedInput(RESULT)['~standard'].jsonSchema.input({ target: 'draft-2020-12' })).toEqual(RESULT);
   });
 });
 
