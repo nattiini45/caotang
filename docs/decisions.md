@@ -138,7 +138,7 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - Subscribers re-render from the store, never from command params. Why: one source of truth. [delegated]
 - Every executed command is logged with human titles, issuer, turn and undo group; the log exports as Markdown. Why: an auditable trail in the writer's words. [delegated]
 - Every agent write is named in the writer's words on the Undo button and in the activity log. Why: the writer can tell what will be undone. [delegated]
-- The registry is the single declaration seam: 50 command names, tabulated in command-bus §9. Why: one place to add a command, enforced by the compiler and a parity test. [delegated]
+- The registry is the single declaration seam: 56 command names, tabulated in command-bus §9. Why: one place to add a command, enforced by the compiler and a parity test. [delegated]
 - Whole-manuscript and partial compiles are two commands: `export.compile` (manuscript or a saved recipe) and `export.compileSelection` (named nodes). Why: an omitted scope must never silently mean "everything". [owner]
 - `project.deleteNode` is UI-only with a confirm dialog; codex deletion is UI-only too. Why: destructive operations stay with the writer. [delegated]
 - The fixed roots (root, manuscript, research) cannot be moved or deleted; the project root is refused as a parent; the manuscript and research roots cannot be renamed. Why: the binder shows them under fixed names. [delegated]

@@ -31,7 +31,7 @@ import {
   type AppliedMigration,
   type FormatContext,
 } from './migrations.js';
-import { CHAR_LIMIT_MAX, CRITERIA_KEYS, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, SCENE_STYLES, filterNameFits } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, CRITERIA_KEYS, MACROS_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, SCENE_STYLES, filterNameFits, readMacro } from '@caotang/bus';
 // The shapes the bus names for the furniture commands. The *values* the bus
 // refuses at the command boundary are restated below, for the load; the types
 // are the bus's own, so a value the bus does not know cannot be listed here.
@@ -647,6 +647,7 @@ function validateFields(
   }
   validateFilters(source, warn);
   validateGoals(source, nodeIds, warn);
+  validateMacros(source, warn);
   validateAgent(source, nodeIds, warn);
 
   // Step 3 — derived (rebuildable; absence is not an error)
@@ -1380,6 +1381,51 @@ function validateGoals(
     return true;
   });
   source['goals'] = kept;
+}
+
+/**
+ * Step 3's `macros[]` — [extensibility.md §10](docs/architecture/extensibility.md).
+ *
+ * The convention is the one `filters[]` sets: a macro that cannot be read is dropped with a warning that names it, and the load goes on. The
+ * check is the bus's own `readMacro`, the one `macro.save` runs, so a macro the load keeps is one the bus would accept: its shape, its
+ * caps, the tools it may never name, a placeholder it does not declare, and a `__proto__` key anywhere in it. Whether the tools it names
+ * exist is not checked here (the store has no registry); the harness checks that every time the macro runs.
+ *
+ * A second macro with a kept macro's id or slug is dropped, since the bus refuses to save either. With no macro left the key is removed, as
+ * a project that never had one.
+ */
+function validateMacros(source: Record<string, unknown>, warn: (path: string, message: string) => void): void {
+  const raw = source['macros'];
+  if (raw === undefined) return;
+  if (!Array.isArray(raw)) {
+    warn('macros', 'expected an array of macros; dropped');
+    delete source['macros'];
+    return;
+  }
+  const kept: unknown[] = [];
+  const ids = new Set<string>();
+  const slugs = new Set<string>();
+  for (const [i, item] of (raw as unknown[]).entries()) {
+    if (kept.length >= MACROS_MAX) {
+      warn(`macros[${i}]`, `more than ${MACROS_MAX} macros; the rest are dropped`);
+      break;
+    }
+    const read = readMacro(item, true);
+    if (!read.ok) {
+      warn(`macros[${i}]`, `${read.error.message} (${read.error.target ?? 'macro'}); macro dropped`);
+      continue;
+    }
+    const macro = read.value;
+    if (ids.has(macro.id as string) || slugs.has(macro.slug)) {
+      warn(`macros[${i}]`, `duplicate id or slug "${macro.slug}"; dropped, and the first macro keeps it`);
+      continue;
+    }
+    ids.add(macro.id as string);
+    slugs.add(macro.slug);
+    kept.push(macro);
+  }
+  if (kept.length === 0) delete source['macros'];
+  else source['macros'] = kept;
 }
 
 /** Step 4: referential integrity. */

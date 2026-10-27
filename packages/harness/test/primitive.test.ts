@@ -144,6 +144,10 @@ describe('never-exposed commands', () => {
       () => primitiveTool(specFor('skill.delete')),
       // @ts-expect-error a skill is an instruction the agent will read, so the agent never writes one
       () => primitiveTool(specFor('skill.setEnabled')),
+      // @ts-expect-error a macro is a plan the writer will run later, so the agent never writes one
+      () => primitiveTool(specFor('macro.save')),
+      // @ts-expect-error a macro is a plan the writer will run later, so the agent never writes one
+      () => primitiveTool(specFor('macro.delete')),
       // @ts-expect-error a memory note is the writer's to forget: hard-denied for an agent as a deletion
       () => primitiveTool(specFor('memory.forget')),
     ];

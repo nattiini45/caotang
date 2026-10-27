@@ -122,6 +122,8 @@ export const DECLARED_PARAMS: Readonly<Record<CommandName, readonly string[]>> =
   'project.setInstructions': ['text', 'expectedDigest'],
   'memory.write': ['slug', 'type', 'title', 'body', 'expectedDigest'],
   'memory.forget': ['slug'],
+  'macro.save': ['macro'],
+  'macro.delete': ['macroId'],
 };
 
 /** §9's three "various" rows, spelled out — asserted, not inferred. */
