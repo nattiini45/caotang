@@ -107,6 +107,18 @@ describe('the brief ledger', () => {
     expect(!wrong.ok && wrong.error.message).toContain('is a dialogue brief');
   });
 
+  it('quotes the lifetime it was given in its refusals, not the default', () => {
+    let at = 0;
+    const ledger = createBriefLedger({ now: () => at, ttlMs: 2 * 60_000 });
+    const record = ledger.mint({ kind: 'scene', focus: LANDING, revision: 0, digest: 'd' });
+    expect(record.expiresAt).toBe(2 * 60_000);
+    at = 2 * 60_000;
+    const expired = ledger.recall(record.id, 'scene');
+    expect(!expired.ok && expired.error.message).toContain('expired after 2 minutes');
+    const unknown = ledger.recall('b_0000000000', 'scene');
+    expect(!unknown.ok && unknown.error.message).toContain('held in memory for 2 minutes');
+  });
+
   it('holds at most its cap, letting the oldest go first, and drops expired briefs when it mints', () => {
     let at = 0;
     const ledger = createBriefLedger({ now: () => at, cap: 3 });
@@ -137,6 +149,13 @@ describe('the registry column', () => {
     for (const name of rows) expect(metadataFor(name), name).toMatchObject({ surface: 'extension', load: 'deferred' });
     expect(metadataFor('scene.brief')?.mirrors).toBe('scene.draft');
     expect(metadataFor('dialogue.apply')?.mirrors).toBe('dialogue.draft');
+  });
+
+  it('ties every external-only row to the in-app row it mirrors, which is itself in-app', () => {
+    for (const meta of TOOL_METADATA.filter((entry) => entry.externalOnly === true)) {
+      expect(meta.mirrors, meta.name).toBeDefined();
+      expect(metadataFor(meta.mirrors!)?.externalOnly, `${meta.name} mirrors ${meta.mirrors}`).toBeUndefined();
+    }
   });
 
   it('is not offered to the in-app planner, even with every tool loaded, and not found by tool.search', () => {
@@ -378,6 +397,36 @@ describe('dialogue.apply', () => {
     expect(snapshotOf(state)).toBe(before);
   });
 
+  it('places the Ink after the knot fromBeats names, and at the end of the body without it', () => {
+    const body = ['=== first ===', 'Hello.', '-> second', '=== second ===', 'Bye.', '-> END', ''].join('\n');
+    const make = (): ProjectState => {
+      const state = makeState();
+      addDocument(state, { id: TAVERN, parentId: 'manuscript', title: 'Tavern', type: 'dialogue', body, now: OPENED });
+      return state;
+    };
+    const positions = (state: ProjectState) => {
+      const text = getBody(state, TAVERN);
+      return { first: text.indexOf('=== first ==='), reply: text.indexOf('=== reply ==='), second: text.indexOf('=== second ===') };
+    };
+
+    const named = make();
+    const { harness } = hostOf(named);
+    const given = briefOf(brief(harness, 'dialogue.brief', { doc: TAVERN, instruction: 'x', fromBeats: ['first'] }).data);
+    expect(given.applyWith).toEqual({ doc: TAVERN, fromBeats: ['first'], briefId: given.briefId });
+    valueOf(apply(harness, 'dialogue.apply', { ...given.applyWith, ink: INK }));
+    const after = positions(named);
+    expect(after.reply).toBeGreaterThan(after.first);
+    expect(after.reply).toBeLessThan(after.second);
+
+    const bare = make();
+    const other = hostOf(bare);
+    const plain = briefOf(brief(other.harness, 'dialogue.brief', { doc: TAVERN, instruction: 'x' }).data);
+    expect(plain.applyWith).toEqual({ doc: TAVERN, briefId: plain.briefId });
+    valueOf(apply(other.harness, 'dialogue.apply', { ...plain.applyWith, ink: INK }));
+    const appended = positions(bare);
+    expect(appended.reply).toBeGreaterThan(appended.second);
+  });
+
   it('refuses Ink that does not compile with the dialogue module’s own words, and writes nothing', () => {
     const state = project();
     const { harness } = hostOf(state);
@@ -417,7 +466,11 @@ describe('the rules of the project hold for a brief and an apply as they hold fo
     const text = JSON.stringify(data);
     expect(text).not.toContain('third stone');
     expect(text).not.toContain('The Secret');
-    expect(data.droppedContext.join('\n')).toBeDefined();
+    // The drop list says how many items the rule kept out, and never which: the count is the layer's note, the names are gone.
+    const dropped = data.droppedContext.join('\n');
+    expect(dropped).toMatch(/\d+ items? (is|are) withheld by a read rule/);
+    expect(dropped).not.toContain('n_SECRET0001');
+    expect(dropped).not.toContain('Secret');
   });
 
   it('keeps it out of a rule written for the brief by name, and out of a dialogue brief', () => {

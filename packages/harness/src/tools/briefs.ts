@@ -99,7 +99,7 @@ export function createBriefLedger(options: BriefLedgerOptions = {}): BriefLedger
       const record = held.get(id);
       if (record === undefined) {
         return failure(
-          refusal('invalid-params', `briefId "${id}" is not one this server holds, so nothing was written. A brief is held in memory for ${BRIEF_TTL_MS / 60000} minutes, and the server keeps the last ${cap}`, {
+          refusal('invalid-params', `briefId "${id}" is not one this server holds, so nothing was written. A brief is held in memory for ${ttlMs / 60000} minutes, and the server keeps the last ${cap}`, {
             correctiveHint: `ask for a new brief with ${tool}, write from it, and apply with the briefId it returns`,
             target: 'params.briefId',
           }),
@@ -107,7 +107,7 @@ export function createBriefLedger(options: BriefLedgerOptions = {}): BriefLedger
       }
       if (record.expiresAt <= now()) {
         return failure(
-          refusal('invalid-params', `briefId "${id}" expired after ${BRIEF_TTL_MS / 60000} minutes, so nothing was written`, {
+          refusal('invalid-params', `briefId "${id}" expired after ${ttlMs / 60000} minutes, so nothing was written`, {
             correctiveHint: `ask for a new brief with ${tool}, which is made from the text as it is now`,
             target: 'params.briefId',
           }),

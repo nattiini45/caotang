@@ -132,7 +132,9 @@ export interface ToolMetadata {
   readonly load: ToolLoad;
   /**
    * Served to an external host and never to the in-app agent: the planner does not declare the row, `tool.search` does not offer it and
-   * the app wires no port for it. The host-model brief/apply pairs are these (agent-harness §3, "External-only rows").
+   * the app wires no port for it. The host-model brief/apply pairs are these (agent-harness §3, "External-only rows"). A row that sets
+   * this must set {@link ToolMetadata.mirrors} too, to an in-app row, because the withheld rule widens by `mirrors` alone;
+   * `test/briefs.test.ts` ("the registry column") enforces it.
    */
   readonly externalOnly?: true;
   /**
