@@ -9,6 +9,7 @@
  */
 
 import type { McpError } from './errors.js';
+import { cleanProgress, type WireProgress } from './progress.js';
 import { WireError } from './wire-error.js';
 import type {
   McpWire,
@@ -33,6 +34,11 @@ export interface MockMcpScript {
   listTools: WireTool[];
   /** The answer to a call: a result, or an error the server reports. */
   respond: (tool: string, args: Record<string, unknown>) => WireCallResult | McpError;
+  /**
+   * A call that takes time, in place of `respond` for the tools it answers (it returns `undefined` for the others, and `respond` answers them). The mock holds it to what the
+   * real wire holds a call to: the idle limit, which each `progress` report starts again; the wall-clock cap, which progress does not extend; and the caller's signal.
+   */
+  run?: (tool: string, args: Record<string, unknown>, call: MockCall) => Promise<WireCallResult | McpError> | undefined;
   /** Injected failures: throw from here to fail a phase. `handshake` is the first contact with the server. */
   fail?: (phase: MockPhase) => void;
   /** Observes the wire operations, for an eval that counts requests on the wire. `tool` names the tool, the prompt or the resource URI asked for. */
@@ -49,9 +55,18 @@ export interface MockMcpScript {
   capabilities?: Partial<WireCapabilities>;
 }
 
+/** What a scripted slow call may do while it runs. */
+export interface MockCall {
+  /** Reports progress to the caller, and starts the idle timer again. */
+  progress(report: WireProgress): void;
+  /** Waits `ms` of the clock the timers run on. It rejects when the call has already ended, so a script unwinds. */
+  wait(ms: number): Promise<void>;
+}
+
 const WIRE_KIND_OF: Readonly<Record<McpError['code'], WireError['kind']>> = {
   unreachable: 'network',
   timeout: 'timeout',
+  cancelled: 'abort',
   server_error: 'protocol',
   pin_mismatch: 'protocol',
   schema: 'protocol',
@@ -79,11 +94,11 @@ export function createMockWire(script: MockMcpScript): McpWire {
       script.fail?.('list');
       return script.listTools.map((tool) => ({ ...tool }));
     },
-    async callTool(name: string, args: Record<string, unknown>, _options: WireOptions): Promise<WireCallResult> {
+    async callTool(name: string, args: Record<string, unknown>, options: WireOptions): Promise<WireCallResult> {
       open();
       script.record?.({ phase: 'call', tool: name });
       script.fail?.('call');
-      const answer = script.respond(name, args);
+      const answer = (await slowCall(script, name, args, options)) ?? script.respond(name, args);
       if (isMcpError(answer)) throw new WireError(WIRE_KIND_OF[answer.code], answer.message);
       return { content: answer.content, isError: answer.isError === true };
     },
@@ -128,6 +143,68 @@ export function createMockWire(script: MockMcpScript): McpWire {
       opened = false;
     },
   };
+}
+
+/**
+ * A scripted slow call held to the limits of `options`, or `undefined` when the script has no slow answer for the tool. The limits are the real wire's:
+ * the idle limit (started again by progress), the wall-clock cap, and the signal. Their timers are the ones in scope, so a test can fake them.
+ */
+function slowCall(script: MockMcpScript, name: string, args: Record<string, unknown>, options: WireOptions): Promise<WireCallResult | McpError> | undefined {
+  if (script.run === undefined) return undefined;
+  let ended = false;
+  let idle: ReturnType<typeof setTimeout> | undefined;
+  let total: ReturnType<typeof setTimeout> | undefined;
+  const waiting = new Set<{ readonly timer: ReturnType<typeof setTimeout>; readonly stop: () => void }>();
+  let finish: (settle: () => void) => void = () => undefined;
+  const call: MockCall = {
+    progress(report) {
+      if (ended) return;
+      startIdle();
+      const clean = cleanProgress(report);
+      if (clean !== undefined) options.onProgress?.(clean);
+    },
+    wait(ms) {
+      return new Promise<void>((resolve, reject) => {
+        if (ended) return reject(new WireError('abort', 'the call has ended'));
+        const entry = { timer: setTimeout(() => (waiting.delete(entry), resolve()), ms), stop: () => reject(new WireError('abort', 'the call has ended')) };
+        waiting.add(entry);
+      });
+    },
+  };
+  const startIdle = (): void => {
+    clearTimeout(idle);
+    idle = setTimeout(() => finish(() => rejectWith(new WireError('timeout', 'request timed out', undefined, { limit: 'idle' }))), options.timeoutMs);
+  };
+  let rejectWith: (error: WireError) => void = () => undefined;
+  const slow = script.run(name, args, call);
+  if (slow === undefined) return undefined;
+  return new Promise((resolve, reject) => {
+    rejectWith = reject;
+    const onAbort = (): void => finish(() => reject(new WireError('abort', 'the call was aborted')));
+    finish = (settle) => {
+      if (ended) return;
+      ended = true;
+      clearTimeout(idle);
+      clearTimeout(total);
+      options.signal?.removeEventListener('abort', onAbort);
+      for (const entry of waiting) {
+        clearTimeout(entry.timer);
+        entry.stop();
+      }
+      waiting.clear();
+      settle();
+    };
+    if (options.signal?.aborted === true) return onAbort();
+    options.signal?.addEventListener('abort', onAbort, { once: true });
+    startIdle();
+    if (options.maxTotalMs !== undefined) {
+      total = setTimeout(() => finish(() => reject(new WireError('timeout', 'the call ran to its wall-clock limit', undefined, { limit: 'total' }))), options.maxTotalMs);
+    }
+    slow.then(
+      (answer) => finish(() => resolve(answer)),
+      (error: unknown) => finish(() => reject(error)),
+    );
+  });
 }
 
 /** A factory that gives each server its own script, by server key. A server with no script is unreachable. */

@@ -45,6 +45,8 @@ export interface StepRecord {
   readonly tool: string;
   readonly expect: string;
   readonly status: 'done' | 'failed' | 'cancelled';
+  /** An external call that was sent and then timed out or was cancelled: the server may already have done part of the work. Such a step counts as spent against the step limit. */
+  readonly mayHaveActed?: true;
   readonly summary?: string;
   readonly data?: Readonly<Record<string, unknown>>;
   readonly error?: string;

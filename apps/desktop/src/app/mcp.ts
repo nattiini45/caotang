@@ -30,6 +30,7 @@ import {
   type McpSettings,
   type WireFactory,
   type WirePrompt,
+  type WireProgress,
   type WireResource,
   type WireResourceTemplate,
   type WireTool,
@@ -191,6 +192,11 @@ interface FixtureServer {
   readonly prompts?: readonly WirePrompt[];
   /** When set, listing resources fails with this reason, and the tools stay listed. */
   readonly resourcesError?: string;
+  /**
+   * A tool whose call takes time: it reports each of `progress` (300 ms apart), then answers with `content`, or, with `hold`, stays running until the
+   * caller stops it. `globalThis.__caotangMcpFixtureCancelled` counts the calls that ended without an answer.
+   */
+  readonly slow?: { readonly tool: string; readonly progress?: readonly WireProgress[]; readonly hold?: boolean };
 }
 
 /**
@@ -226,6 +232,24 @@ export function fixtureWireFactory(): WireFactory | undefined {
             },
           }),
       respond: () => ({ content: [...(fixture.content ?? [])], isError: false }),
+      run: (tool, _args, call) => {
+        const slow = fixture.slow;
+        if (slow === undefined || slow.tool !== tool) return undefined;
+        return (async () => {
+          try {
+            for (const report of slow.progress ?? []) {
+              await call.wait(300);
+              call.progress(report);
+            }
+            if (slow.hold === true) await call.wait(60 * 60 * 1000);
+          } catch (error) {
+            const counter = globalThis as { __caotangMcpFixtureCancelled?: number };
+            counter.__caotangMcpFixtureCancelled = (counter.__caotangMcpFixtureCancelled ?? 0) + 1;
+            throw error;
+          }
+          return { content: [...(fixture.content ?? [])], isError: false };
+        })();
+      },
     });
   };
 }

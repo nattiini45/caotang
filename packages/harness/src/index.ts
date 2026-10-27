@@ -404,6 +404,7 @@ export {
   type Omitted,
   type Text as TraceText,
   type ToolCallRecord,
+  type ToolProgressRecord,
   type ToolResultRecord,
   type TraceExportOptions,
   type TraceInput,

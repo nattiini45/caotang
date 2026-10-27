@@ -23,10 +23,18 @@ export interface FixtureResult {
   readonly isError?: boolean;
 }
 
+/** What a call can do while it runs: report progress to the caller, and learn that the caller went away. */
+export interface FixtureCall {
+  /** Sends a `notifications/progress` for this call. */
+  progress(report: { readonly progress: number; readonly total?: number; readonly message?: string }): Promise<void>;
+  /** Aborted when the caller cancelled the request or closed its stream. */
+  readonly signal: AbortSignal;
+}
+
 /** The server's mutable state. A test changes `tools` to play a rug pull, and `respond` to change how a call is answered. */
 export interface FixtureState {
   tools: FixtureTool[];
-  respond: (name: string, args: Record<string, unknown>) => FixtureResult | Promise<FixtureResult>;
+  respond: (name: string, args: Record<string, unknown>, call: FixtureCall) => FixtureResult | Promise<FixtureResult>;
   /** Setting any of these makes the server advertise the feature; a server with none of them advertises tools alone. */
   resources?: { uri: string; name: string; description?: string; mimeType?: string }[];
   templates?: { uriTemplate: string; name: string; description?: string; mimeType?: string }[];
@@ -136,9 +144,17 @@ function buildServer(state: FixtureState, revisions: readonly string[]): Server 
     }));
   }
   server.setRequestHandler('tools/list', () => ({ tools: state.tools.map((tool) => toSdkTool(tool)) }));
-  server.setRequestHandler('tools/call', async (request) => {
+  server.setRequestHandler('tools/call', async (request, ctx) => {
     const args = (request.params.arguments ?? {}) as Record<string, unknown>;
-    const result = await state.respond(request.params.name, args);
+    const progressToken = ctx.mcpReq._meta?.progressToken;
+    const call: FixtureCall = {
+      signal: ctx.mcpReq.signal,
+      // A call the caller did not ask progress for (no token) sends nothing.
+      progress: async (report) => {
+        if (progressToken !== undefined) await ctx.mcpReq.notify({ method: 'notifications/progress', params: { progressToken, ...report } });
+      },
+    };
+    const result = await state.respond(request.params.name, args, call);
     return { content: [...result.content] as never[], isError: result.isError === true };
   });
   return server;

@@ -25,7 +25,7 @@ import {
 import type { ProjectState } from '@caotang/store';
 
 import { DEMO_CHOICES } from '../app/demo.js';
-import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, MODE_HINTS, phaseLabel, savesAsMacro, spendLine, stepMenuOf, type DelegationCardView, type TurnView } from '../app/agent-model.js';
+import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, MODE_HINTS, phaseLabel, progressViewOf, savesAsMacro, spendLine, stepMenuOf, type DelegationCardView, type TurnView } from '../app/agent-model.js';
 import { formatUsd, turnCostOf } from '../app/plan-preview.js';
 import { resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
@@ -784,6 +784,7 @@ function StatusCardRow({ card, steps }: { card: StatusCard; steps?: StepRestore 
   // A step of a finished turn, up to the last one that changed the project, can be restored to before it (a step that changed nothing starts the restore at the next one that did); a step that called an outside tool says its effects stay.
   const restorable = steps?.restorable.has(card.id) === true;
   const menu = stepMenuOf(card, restorable);
+  const progress = progressViewOf(card);
   return (
     <article className={`status-card is-${card.status}`} data-tool={card.tool} data-status={card.status}>
       <header className="status-card-head">
@@ -808,10 +809,23 @@ function StatusCardRow({ card, steps }: { card: StatusCard; steps?: StepRestore 
         ) : null}
       </header>
       {delegation === undefined ? null : <DelegationBlock view={delegation} />}
+      {progress === undefined ? null : (
+        // The server's report on a call that is still running. The message is its own text, shown as text and labelled as the server's.
+        <div className="status-card-progress" data-testid="call-progress">
+          {progress.fraction === undefined ? null : <progress max={1} value={progress.fraction} aria-label={`Progress of ${card.tool}`} />}
+          <span className="status-card-progress-count">{progress.label}</span>
+          {progress.message === undefined ? null : (
+            <p className="status-card-text status-card-progress-message">
+              <span className="muted">The server says: </span>
+              {progress.message}
+            </p>
+          )}
+        </div>
+      )}
       {card.summary !== undefined || card.error !== undefined ? (
         // The result is collapsed once the call is done, and open when it failed, so the reason is in front of the writer.
         <details className="status-card-result" open={card.error !== undefined}>
-          <summary>{card.error === undefined ? 'Result' : 'Why it did not run'}</summary>
+          <summary>{card.error === undefined ? 'Result' : card.mayHaveActed === true ? 'Why it did not finish' : 'Why it did not run'}</summary>
           <p className={card.error === undefined ? 'status-card-text' : 'status-card-text is-error'}>{card.error ?? card.summary}</p>
         </details>
       ) : null}

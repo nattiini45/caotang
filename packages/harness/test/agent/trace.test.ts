@@ -88,6 +88,7 @@ describe('the record format', () => {
     s.write(request('t.turn-1', 1, [system, user('hello')]));
     s.write(response('t.turn-1', 1, 'hi'));
     s.write({ kind: 'tool.call', at: 3, turnId: 't.turn-1', callId: 'c1', tool: 'doc.read', risk: 'read', params: { doc: 'Landing' } });
+    s.write({ kind: 'tool.progress', at: 3.5, turnId: 't.turn-1', callId: 'c1', progress: 1, total: 4, message: 'Reading the shelf' });
     s.write({ kind: 'tool.result', at: 4, turnId: 't.turn-1', callId: 'c1', outcome: 'ok', startedAt: 3, finishedAt: 4, body: { text: 'The ferry' } });
     s.write({ kind: 'card', at: 5, turnId: 't.turn-1', card: { kind: 'plan', tools: ['scene.draft'], decision: 'approved', edits: 0, retries: 0 } });
     s.write({ kind: 'ladder', at: 6, turnId: 't.turn-1', callId: 'c2', attempt: 1, reason: 'the title matched two documents' });
@@ -357,6 +358,7 @@ describe('an export that leaves out the manuscript text', () => {
     s.write(request('t.turn-1', 1, [{ role: 'system', content: `${MARK} system` }, { role: 'user', content: `${MARK} manuscript` }, { role: 'assistant', content: `${MARK} earlier`, toolCalls: [{ id: 'c', name: 'doc.read', argumentsJson: `{"doc":"${MARK}"}` }], reasoning: [{ text: `${MARK} thought`, raw: { sig: MARK } }] }]));
     s.write({ ...(response('t.turn-1', 1, `${MARK} reply`) as object), reasoningText: `${MARK} reasoning`, toolCalls: [{ id: 'c', name: 'doc.read', argumentsJson: `{"doc":"${MARK}"}` }] } as unknown as TraceInput);
     s.write({ kind: 'tool.call', at: 3, turnId: 't.turn-1', callId: 'c1', tool: 'doc.read', risk: 'read', params: { doc: MARK, nested: { a: MARK } } });
+    s.write({ kind: 'tool.progress', at: 3.5, turnId: 't.turn-1', callId: 'c1', progress: 1, total: 4, message: `${MARK} progress` });
     s.write({ kind: 'tool.result', at: 4, turnId: 't.turn-1', callId: 'c1', outcome: 'ok', finishedAt: 4, body: { text: `${MARK} body` } });
     s.write({ kind: 'ladder', at: 5, turnId: 't.turn-1', callId: 'c1', attempt: 1, reason: `${MARK} reason` });
     s.write({
@@ -392,6 +394,7 @@ describe('an export that leaves out the manuscript text', () => {
     expect(byKind('model.response')).toMatchObject({ 'gen_ai.response.finish_reasons': ['stop'], 'gen_ai.usage.input_tokens': 10, 'gen_ai.usage.output_tokens': 4, finishedAt: 2 });
     expect(byKind('tool.call')).toMatchObject({ tool: 'doc.read', risk: 'read', params: { doc: { omitted: { chars: MARK.length } } } });
     expect(byKind('tool.result')).toMatchObject({ outcome: 'ok', body: { omitted: { chars: expect.any(Number) } } });
+    expect(byKind('tool.progress')).toMatchObject({ progress: 1, total: 4, message: { omitted: { chars: `${MARK} progress`.length } } });
     expect(byKind('turn.end')).toMatchObject({ report: { status: 'replied', tokens: { promptTokens: 10 }, cards: [{ decision: 'approved', edits: 1 }], trace: [{ tool: 'doc.read', outcome: 'ok' }] } });
   });
 
