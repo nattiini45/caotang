@@ -14,7 +14,8 @@ import { HOOKS_MAX, HOOK_PATTERNS_MAX, HOOK_TEXT_MAX, type HookCheck, type HookE
 import { DETERMINISTIC_CHECK_IDS, SCAN_DOC_GUARD, scanTool, type DeterministicCheckId } from '@caotang/coherence';
 import { countBody, getBody, nodeById, type ProjectState, type TreeNode } from '@caotang/store';
 
-import { metadataFor } from './metadata.js';
+import { TOOL_NAMES, metadataFor } from './metadata.js';
+import { globMatches } from './rules.js';
 import { countIn, excludedBy, heldFile } from './tools/coherence.js';
 import type { CallParams } from './types.js';
 import { isRecord } from './util.js';
@@ -84,26 +85,107 @@ export type HookSource = readonly HookSpec[] | (() => readonly HookSpec[] | unde
  * Text
  * ------------------------------------------------------------------ */
 
-/** The params whose value is prose the call would write. */
+/** The top-level params whose value is prose, for a tool `WRITTEN_TEXT` has no row for (a read, which writes nothing). */
 const PROSE_PARAMS: readonly string[] = ['text', 'body', 'notes', 'synopsis', 'ink'];
 const LEAVES_MAX = 500;
 const DEPTH_MAX = 6;
 
+/**
+ * Where the text a native write tool puts in the project sits in its params, and which of its other strings a hook does not read. A
+ * path is a param name, `.` into an object and `[]` through a list (`entries[].aliases[]`). `read` is prose the call writes: a canon
+ * entry's name, aliases and description are canon text, and a document's title is the writer's. `skip` is every other free string: a
+ * reference to a node, a title used to find one, the brief a model drafts from (the draft itself is read from the staged proposal), a
+ * short label or a search term. A string in neither list is text the hook cannot read (`unreadText`), and `test/hooks.test.ts` holds
+ * that every free string of every write tool is in one of the two.
+ */
+interface WrittenText {
+  readonly read: readonly string[];
+  readonly skip: readonly string[];
+}
+
+export const WRITTEN_TEXT: Readonly<Record<string, WrittenText>> = {
+  'meta.set': { read: [], skip: ['targets[]', 'status', 'label', 'keywords_add[]', 'keywords_remove[]'] },
+  'notes.append': { read: ['text'], skip: ['doc'] },
+  'synopsis.fill': { read: [], skip: ['docs[]'] },
+  'scene.draft': { read: [], skip: ['doc', 'instruction', 'selection.exact', 'selection.prefix', 'selection.suffix'] },
+  'binder.restructure': { read: ['ops[].title'], skip: ['ops[].parent', 'ops[].node', 'ops[].newParent'] },
+  'export.compile': { read: [], skip: ['selection.root', 'template', 'recipeName'] },
+  'codex.write': {
+    read: ['entries[].name', 'entries[].aliases[]', 'entries[].description'],
+    skip: ['entries[].id', 'entries[].exclude[]', 'entries[].attachTo[]', 'entries[].detachFrom[]', 'entries[].visualRefs[]'],
+  },
+  'doc.import': { read: ['title', 'body', 'synopsis'], skip: ['parent', 'keywords[]', 'status', 'label'] },
+  'codex.import': { read: ['entries[].name', 'entries[].aliases[]', 'entries[].description'], skip: ['entries[].exclude[]', 'entries[].attachTo[]'] },
+  'coherence.review': { read: [], skip: ['scope.docIds[]'] },
+  'coherence.setFindingStatus': { read: ['note'], skip: ['findingId'] },
+  'shots.derive': { read: [], skip: ['doc', 'styleNote'] },
+  'shots.annotate': { read: ['action'], skip: ['shots[]', 'image.assetId', 'spec.lens'] },
+  'prompt.draft': { read: [], skip: ['shots[]', 'vendor', 'instruction'] },
+  'dialogue.draft': { read: [], skip: ['doc', 'instruction', 'fromBeats[]'] },
+  'scene.apply': { read: ['text'], skip: ['doc', 'selection.exact', 'selection.prefix', 'selection.suffix', 'briefId'] },
+  'dialogue.apply': { read: ['ink'], skip: ['doc', 'fromBeats[]', 'briefId'] },
+  'notes.replace': { read: ['notes'], skip: ['doc'] },
+  'synopsis.set': { read: ['synopsis'], skip: ['doc'] },
+  'vocabulary.upsert': { read: [], skip: ['id', 'name', 'color'] },
+  'filter.save': { read: [], skip: ['id', 'name', 'criteria.text', 'criteria.statusId', 'criteria.labelId', 'criteria.keywordsAll[]', 'criteria.keywordsAny[]'] },
+  'goal.save': { read: [], skip: ['id', 'node', 'deadline'] },
+  'memory.write': { read: ['title', 'body'], skip: ['slug', 'expectedDigest'] },
+  'instructions.propose': { read: ['text'], skip: ['expectedDigest'] },
+};
+
+/**
+ * Every string of an external tool's arguments. A walk that stops short would let a hook pass text it never read, so a limit throws
+ * (the runner turns that into "the hook could not run"). A number, a flag, and an empty list or object carry no prose and are not counted.
+ */
 function leavesOf(value: unknown, out: string[], depth = 0): void {
-  if (out.length >= LEAVES_MAX || depth > DEPTH_MAX) return;
-  if (typeof value === 'string') out.push(value);
-  else if (Array.isArray(value)) for (const item of value) leavesOf(item, out, depth + 1);
-  else if (isRecord(value)) for (const item of Object.values(value)) leavesOf(item, out, depth + 1);
+  const items: readonly unknown[] | undefined = Array.isArray(value) ? value : isRecord(value) ? Object.values(value) : undefined;
+  const carries = typeof value === 'string' || (items !== undefined && items.length > 0);
+  if (depth > DEPTH_MAX) {
+    if (carries) throw new Error(`the arguments are nested over ${DEPTH_MAX} levels deep`);
+    return;
+  }
+  if (typeof value === 'string') {
+    if (out.length >= LEAVES_MAX) throw new Error(`the arguments hold over ${LEAVES_MAX} strings`);
+    out.push(value);
+  } else if (items !== undefined) {
+    for (const item of items) leavesOf(item, out, depth + 1);
+  }
+}
+
+/** The strings at `path` (see `WrittenText`), whatever lists lie on the way. */
+function valuesAt(value: unknown, path: readonly string[], out: string[]): void {
+  const [head, ...rest] = path;
+  if (head === undefined) {
+    if (typeof value === 'string') out.push(value);
+    return;
+  }
+  const many = head.endsWith('[]');
+  const child = isRecord(value) ? value[many ? head.slice(0, -2) : head] : undefined;
+  if (!many) valuesAt(child, rest, out);
+  else if (Array.isArray(child)) for (const item of child) valuesAt(item, rest, out);
+}
+
+/** A write tool the hooks have no account of, called with text: nothing says which of its strings are prose, so the hook cannot say it read them. */
+function unreadText(tool: string, params: CallParams): void {
+  if (!(metadataFor(tool)?.risk ?? '').startsWith('write')) return;
+  const strings: string[] = [];
+  leavesOf(params, strings);
+  if (strings.some((text) => text.trim() !== '')) throw new Error(`the hook cannot read the text ${tool} writes`);
 }
 
 /**
- * The prose a call would write: the prose params of a native tool, every string of an external tool's arguments, and the draft the loop
- * staged (its text, its Ink, its synopses). The prompt behind a draft is not prose the call writes, so it is not read.
+ * The prose a call would write: the prose a native tool writes (`WRITTEN_TEXT`), every string of an external tool's arguments, and the
+ * draft the loop staged (its text, its Ink, its synopses). The prompt behind a draft is not prose the call writes, so it is not read.
+ * It throws when it cannot read all of it: an external tool's arguments past the walk's limits, or a write tool it has no account of.
  */
 export function proseOf(tool: string, params: CallParams, proposal?: unknown): string {
   const parts: string[] = [];
   if (tool.startsWith('mcp__')) leavesOf(params, parts);
-  else for (const key of PROSE_PARAMS) if (typeof params[key] === 'string') parts.push(params[key]);
+  else if (Object.hasOwn(WRITTEN_TEXT, tool)) for (const path of (WRITTEN_TEXT[tool] as WrittenText).read) valuesAt(params, path.split('.'), parts);
+  else {
+    unreadText(tool, params);
+    for (const key of PROSE_PARAMS) if (typeof params[key] === 'string') parts.push(params[key]);
+  }
   if (typeof proposal === 'string') parts.push(proposal);
   else if (isRecord(proposal)) {
     if (typeof proposal['text'] === 'string') parts.push(proposal['text']);
@@ -300,15 +382,50 @@ function runCheck(check: HookCheck, input: HookInput, deps: HookDeps): Failure |
 
 const AFTER_NOTE = ' The step has already run; the writer can undo it.';
 
+/** Whether a matcher name can stand for a tool of this build. `*` and the external tools (`mcp__…`, which come and go) are never flagged. */
+function namesATool(entry: string, toolNames: readonly string[]): boolean {
+  return entry === '*' || entry.startsWith('mcp__') || toolNames.some((name) => globMatches(entry, name));
+}
+
+/** The names in a hook's matcher that stand for no tool, when none of them does: the hook can never fire. Empty for any other hook. */
+function deadNames(spec: HookSpec, toolNames: readonly string[] = TOOL_NAMES): readonly string[] {
+  const tools = spec.matcher?.tools;
+  if (tools === undefined || tools.some((entry) => namesATool(entry, toolNames))) return [];
+  return tools;
+}
+
+/**
+ * One sentence for each name in an enabled hook's matcher that matches no tool, so the hook never fires: a misspelt name, or a glob
+ * that is not one a rule would take. `*` and the external tools are not flagged.
+ */
+export function hookWarnings(hooks: readonly HookSpec[], toolNames: readonly string[]): readonly string[] {
+  const out: string[] = [];
+  for (const hook of hooks) {
+    if (!hook.enabled) continue;
+    for (const entry of hook.matcher?.tools ?? []) {
+      if (!namesATool(entry, toolNames)) out.push(`Hook ${quote(hookLabel(hook.name))}: ${quote(entry)} matches no tool, so it never fires. Check the spelling`);
+    }
+  }
+  return out;
+}
+
+function isWriteCall(input: HookInput): boolean {
+  return (metadataFor(input.tool)?.risk ?? '').startsWith('write');
+}
+
 function matches(spec: HookSpec, input: HookInput): boolean {
   if (!spec.enabled || spec.event !== input.event) return false;
   // Every call the harness runs is the agent's. `user` is for the events a later build fires on the writer's own gestures.
   if (spec.matcher?.issuedBy === 'user') return false;
   const tools = spec.matcher?.tools;
-  if (tools === undefined || tools.includes(input.tool)) return true;
+  if (tools === undefined) return true;
+  // A hook whose names match no tool never fires on its own account. Before a call it speaks on every write instead, so it is not
+  // taken for a hook that found nothing to object to (see `evaluate`).
+  if (deadNames(spec).length > 0) return input.event === 'tool.before' && isWriteCall(input);
+  if (tools.some((name) => globMatches(name, input.tool))) return true;
   // A row that stands for an in-app tool is held by the hooks written for that tool, as it is by its rules (metadata `mirrors`).
   const mirrored = metadataFor(input.tool)?.mirrors;
-  return mirrored !== undefined && tools.includes(mirrored);
+  return mirrored !== undefined && tools.some((name) => globMatches(name, mirrored));
 }
 
 function decisionOf(spec: HookSpec, input: HookInput, failure: Failure): HookDecision {
@@ -336,8 +453,15 @@ export function createHookRunner(source: HookSource, deps: HookDeps): HookRunner
       let decision: HookDecision;
       let failed: string | undefined;
       try {
-        const failure = runCheck(spec.handler.check, input, deps);
-        decision = failure === undefined ? { action: 'allow' } : decisionOf(spec, input, failure);
+        const dead = deadNames(spec);
+        if (dead.length > 0) {
+          // A hook the writer meant to stop steps that can never fire is a hook that could not run, not a clean pass.
+          if (spec.failClosed === true && spec.onBlock === 'block') throw new Error(`no tool is named ${dead.map(quote).join(', ')}`);
+          decision = { action: 'warn', reason: `No tool is named ${dead.map(quote).join(', ')}, so this hook never fires. Check the spelling.` };
+        } else {
+          const failure = runCheck(spec.handler.check, input, deps);
+          decision = failure === undefined ? { action: 'allow' } : decisionOf(spec, input, failure);
+        }
       } catch (thrown) {
         failed = thrown instanceof Error ? thrown.message : String(thrown);
         const reason = `The hook could not run (${failed}), so the step was not checked.`;

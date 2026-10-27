@@ -79,6 +79,7 @@ export {
   createHookRunner,
   foldText,
   hookLabel,
+  hookWarnings,
   proseOf,
   type HookCheck,
   type HookDecision,

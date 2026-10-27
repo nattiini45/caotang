@@ -36,7 +36,7 @@ export const HOOK_ISSUERS = ['agent', 'user', 'any'] as const;
 export const HOOK_SEVERITIES = ['error', 'warning', 'info'] as const;
 
 export interface HookMatcher {
-  /** Registry or qualified external tool names. Absent means every call. */
+  /** Registry or qualified external tool names, or globs with `*` as a rule's tool takes (`notes.*`). Absent means every call. */
   readonly tools?: readonly string[];
   /** Absent means `agent` for a tool event. */
   readonly issuedBy?: (typeof HOOK_ISSUERS)[number];

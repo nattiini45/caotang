@@ -317,3 +317,29 @@ describe('a hook that cannot run', () => {
     expect(run.report.hooks?.[0]).toMatchObject({ decision: { action: 'warn', reason: expect.stringContaining('the step was not checked') }, failed: expect.stringContaining('not.a-check') });
   });
 });
+
+describe('a hook whose tool name is misspelt', () => {
+  const intent = 'Add a note to The Landing.';
+  const note = steps({ tool: 'notes.append', params: { doc: 'The Landing', text: 'Suddenly, a note.' }, expect: 'noted' });
+  const typo = (over: Partial<ProjectHook> = {}) => pattern(['suddenly'], { matcher: { tools: ['notes.apend'] }, onBlock: 'block', ...over });
+
+  it('blocks the step under failClosed instead of letting it through, and says the hook could not run', async () => {
+    const seen: ChatRequest[] = [];
+    const run = await turn(intent, [transcript(intent, [note, answer('The hook stopped it.')], seen)], [typo({ failClosed: true })], { mode: 'auto' });
+    expect(run.state.manifest.tree.find((n) => n.id === LANDING)?.notes ?? '').not.toContain('Suddenly');
+    expect(run.report.hooks?.[0]).toMatchObject({ tool: 'notes.append', decision: { action: 'block', reason: expect.stringContaining('The hook could not run (no tool is named “notes.apend”)') } });
+    expect(textOf(seen[1])).toContain('The hook “No “suddenly”” stopped notes.append');
+  });
+
+  it('warns without failClosed, and the step runs', async () => {
+    const run = await turn(intent, [transcript(intent, [note])], [typo()], { mode: 'auto' });
+    expect(run.report.status).toBe('applied');
+    expect(run.report.hooks?.[0]?.decision).toEqual({ action: 'warn', reason: 'No tool is named “notes.apend”, so this hook never fires. Check the spelling.' });
+  });
+
+  it('holds the step with the glob a rule would take', async () => {
+    const run = await turn(intent, [transcript(intent, [note, answer('Stopped.')])], [pattern(['suddenly'], { matcher: { tools: ['notes.*'] }, onBlock: 'block' })], { mode: 'auto' });
+    expect(run.report.hooks?.[0]).toMatchObject({ tool: 'notes.append', decision: { action: 'block' } });
+    expect(run.state.manifest.tree.find((n) => n.id === LANDING)?.notes ?? '').not.toContain('Suddenly');
+  });
+});
