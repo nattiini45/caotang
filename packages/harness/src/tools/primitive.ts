@@ -61,6 +61,9 @@ export const NEVER_EXPOSED = [
   // A macro is a plan the writer will run later, so the agent never saves or deletes one (extensibility §4 rule 7).
   'macro.save',
   'macro.delete',
+  // A hook is a rule the agent is held to, so the agent never saves or deletes one (extensibility §4 rule 7).
+  'hook.save',
+  'hook.delete',
   // A memory note is the writer's to forget: hard-denied for an agent as a deletion (command-bus §4).
   'memory.forget',
 ] as const satisfies readonly CommandName[];

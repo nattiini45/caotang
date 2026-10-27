@@ -10,6 +10,7 @@ import type { CommandError } from '@caotang/bus';
 
 import type { LayerReport } from '@caotang/context';
 
+import type { HookRun } from '../hooks.js';
 import type { AskBack, PlanStep } from '../plan.js';
 import type { PlanCardView, PlanEdit, StatusCard } from './cards.js';
 import type { BudgetSpend, BudgetStop, RunLimits } from './budget.js';
@@ -104,6 +105,8 @@ export interface TurnReport {
   readonly budgetUse: BudgetUse;
   /** The write steps plan-only refused, in order, for the writer to run later: `submitPlan` takes them as they are. Absent when none was refused. */
   readonly heldSteps?: readonly PlanStep[];
+  /** What the writer's hooks said on the turn's calls: a warning, a block or a note, in the order they spoke (hooks.md §7). Absent when none did. */
+  readonly hooks?: readonly HookRun[];
   /** The slash command that started the turn (`draft`, without the slash), so the panel and an eval can tell `/draft` from a request typed in words. Absent for any other turn. */
   readonly command?: string;
 }
@@ -158,6 +161,8 @@ export type AgentEvent =
   | { readonly type: 'checkpoint'; readonly turnId: string; readonly undoGroupId: string; readonly label: string; readonly note?: string; readonly mode: PermissionMode }
   /** The run's spend, after a model call was allowed and after it settled (agent-harness §7.1). Only a session with a meter emits it. */
   | { readonly type: 'budget'; readonly turnId: string; readonly spend: BudgetSpend; readonly limits: RunLimits }
+  /** A hook spoke on one of the turn's calls: it warned, it blocked the step, or it added a note for the model (hooks.md §7). The status card shows it as a row. */
+  | { readonly type: 'hook'; readonly turnId: string; readonly run: HookRun }
   /** A steering note reached the model: delivered with the request named in `note.deliveredAtCall`. */
   | { readonly type: 'steer'; readonly turnId: string; readonly note: SteeringNote }
   | { readonly type: 'report'; readonly turnId: string; readonly report: TurnReport };

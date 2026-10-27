@@ -817,6 +817,12 @@ describe('§10 — the permission matrix, over the registry that implements the 
       case 'macro.delete':
         state.manifest.macros = [{ id: 'm_GATE000001', slug: 'tidy-notes', name: 'Tidy notes', description: '', params: { kind: 'object', description: 'p', properties: {}, required: [] }, steps: [{ tool: 'notes.append', params: { text: 'x' }, expect: 'Adds a note.' }] }];
         return { macroId: 'm_GATE000001' };
+      // The hook commands are the writer's own, as the macro commands are.
+      case 'hook.save':
+        return { hook: { name: 'No suddenly', event: 'tool.before', handler: { kind: 'check', check: { kind: 'pattern', patterns: [{ match: 'suddenly', message: 'Show it.' }] } }, enabled: true } };
+      case 'hook.delete':
+        state.manifest.agent = { hooks: [{ id: 'h_GATE000001', name: 'No suddenly', event: 'tool.before', handler: { kind: 'check', check: { kind: 'pattern', patterns: [{ match: 'suddenly', message: 'Show it.' }] } }, enabled: true }] };
+        return { hookId: 'h_GATE000001' };
       case 'memory.forget':
         state.agentFiles = { memory: [{ slug: 'style-dialogue', type: 'style', title: 'Dialogue tags', body: 'Use said.', modified: '', origin: 'writer' }], declined: new Map(), unreadable: [] };
         return { slug: 'style-dialogue' };
@@ -831,6 +837,8 @@ describe('§10 — the permission matrix, over the registry that implements the 
     expect(NEVER).toEqual([
       'editor.insert',
       'editor.replaceRange',
+      'hook.delete',
+      'hook.save',
       'macro.delete',
       'macro.save',
       'mcp.readResource',

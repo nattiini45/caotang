@@ -295,3 +295,16 @@ test('a reply whose request was never recorded still gets a row, so the rows and
   expect(timeline.completionTokens).toBe(12);
   expect(timeline.rows[0]).toMatchObject({ kind: 'call', callId: 7, callIndex: 2, reply: 'a late reply', promptTokens: 30, completionTokens: 12, note: expect.stringContaining('without its request') });
 });
+
+test('a hook that stopped a step is a row of the timeline, in the hook’s words', () => {
+  const store = createTraceStore({ sessionId: 'test' });
+  store.write({ kind: 'turn.start', at: 0, turnId: 't.turn-1', intent: 'Draft it.' });
+  store.write({ kind: 'hook', at: 3, turnId: 't.turn-1', hookId: 'h_7K2QX9M4A1', name: 'No lanterns', event: 'tool.before', tool: 'scene.draft', action: 'block', text: '“lantern” appears: Say what the light is.', ms: 1 });
+  store.write({ kind: 'hook', at: 4, turnId: 't.turn-1', hookId: 'h_7K2QX9M4A1', name: 'No lanterns', event: 'tool.after', tool: 'doc.read', action: 'context', text: '1 finding.', ms: 1 });
+
+  const rows = turnTimeline(store, 't.turn-1').rows;
+  expect(rows.map((row) => [row.kind, 'text' in row ? row.text : ''])).toEqual([
+    ['hook', 'Hook “No lanterns” stopped scene.draft (tool.before): “lantern” appears: Say what the light is.'],
+    ['hook', 'Hook “No lanterns” added a note to doc.read (tool.after): 1 finding.'],
+  ]);
+});

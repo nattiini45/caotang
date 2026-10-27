@@ -31,7 +31,7 @@ import {
   type AppliedMigration,
   type FormatContext,
 } from './migrations.js';
-import { CHAR_LIMIT_MAX, CRITERIA_KEYS, MACROS_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, SCENE_STYLES, filterNameFits, readMacro } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, CRITERIA_KEYS, HOOKS_MAX, HOOK_EVENTS_RUN, MACROS_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, SCENE_STYLES, filterNameFits, readHook, readMacro } from '@caotang/bus';
 // The shapes the bus names for the furniture commands. The *values* the bus
 // refuses at the command boundary are restated below, for the load; the types
 // are the bus's own, so a value the bus does not know cannot be listed here.
@@ -1184,6 +1184,7 @@ function validateAgent(
     delete source['agent'];
     return;
   }
+  validateHooks(raw, warn);
   if (raw['rules'] === undefined) return;
   const parsed = parseRules(raw['rules'], { at: 'agent.rules' });
   for (const message of parsed.warnings) {
@@ -1196,6 +1197,53 @@ function validateAgent(
     }
   });
   raw['rules'] = parsed.rules.map((rule) => ({ ...rule }));
+}
+
+/**
+ * Step 3's `agent.hooks` — [hooks.md §5](docs/architecture/hooks.md).
+ *
+ * The convention is the one `macros[]` sets: a hook that cannot be read is dropped with a warning that names it, and the load goes on. The
+ * check is the bus's own `readHook`, the one `hook.save` runs, so a hook the load keeps is one the bus would accept. That includes the
+ * rule that a project file holds only the `check` handler: a hook of any other kind is dropped here, so a folder someone else shares
+ * can never carry a handler that runs anything. A dropped hook is a rule the agent is no longer held to, so the warning is the only
+ * place the writer learns of it. A hook for an event this build does not run yet is kept and flagged. A second hook with a kept hook's
+ * id is dropped. With no hook left the key is removed.
+ */
+function validateHooks(agent: Record<string, unknown>, warn: (path: string, message: string) => void): void {
+  const raw = agent['hooks'];
+  if (raw === undefined) return;
+  if (!Array.isArray(raw)) {
+    warn('agent.hooks', 'expected an array of hooks; dropped');
+    delete agent['hooks'];
+    return;
+  }
+  const kept: unknown[] = [];
+  const ids = new Set<string>();
+  for (const [i, item] of (raw as unknown[]).entries()) {
+    const at = `agent.hooks[${i}]`;
+    const called = isRecord(item) && typeof item['name'] === 'string' ? ` "${item['name'].slice(0, 60)}"` : '';
+    if (kept.length >= HOOKS_MAX) {
+      warn(at, `more than ${HOOKS_MAX} hooks; the rest are dropped`);
+      break;
+    }
+    const read = readHook(item, true);
+    if (!read.ok) {
+      warn(at, `hook${called} dropped: ${read.error.message} (${read.error.target ?? 'hook'})`);
+      continue;
+    }
+    const hook = read.value;
+    if (ids.has(hook.id as string)) {
+      warn(at, `hook${called} dropped: another hook has the same id, and the first keeps it`);
+      continue;
+    }
+    ids.add(hook.id as string);
+    if (!(HOOK_EVENTS_RUN as readonly string[]).includes(hook.event)) {
+      warn(at, `hook${called} runs at ${hook.event}, which this build does not run yet; it is kept and has no effect`);
+    }
+    kept.push(hook);
+  }
+  if (kept.length === 0) delete agent['hooks'];
+  else agent['hooks'] = kept;
 }
 
 /**
