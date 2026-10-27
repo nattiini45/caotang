@@ -985,6 +985,7 @@ export function Workspace({
             store={store}
             initialSection={settingsSection}
             onClose={() => setSettingsSection(null)}
+            onOpenAgent={() => setAgentOpen(true)}
             onProvidersChanged={() => agent.refresh()}
           />
         ) : null}
