@@ -12,10 +12,17 @@
  * (`additionalProperties: false` on the schema side, the bus's
  * `requireDeclaredParams` rule on the validator side).
  *
- * **Deliberately small.** The subset here is what the fourteen tools need:
- * strings, integers, booleans, enums, arrays, objects, a two-way union and a
- * tagged union on one key. It is not a general JSON Schema implementation, and
- * `validate.ts` (the harness) says exactly which keywords it enforces.
+ * **Deliberately small.** The subset here is what the tools need: strings,
+ * integers, numbers, booleans, enums, arrays, objects, a two-way union and a
+ * tagged union on one key, each of which may be `nullable`. It is not a general
+ * JSON Schema implementation, and `validate.ts` (the harness) says exactly which
+ * keywords it enforces.
+ *
+ * **One vocabulary for params and results.** A tool's result is declared with the
+ * same specs (`ToolEntry.result`). `nullable` is what results need and params do
+ * not: an input that omits a key says nothing with `null`, while
+ * `project.overview` answers `session: null` on purpose. The input validator
+ * refuses `null` wherever `nullable` is absent.
  *
  * **Why this file is in the bus.** A media module declares its
  * tools in the registry's entry shape, and that shape needs `param` and
@@ -28,6 +35,7 @@
 export type ParamSpec =
   | StringSpec
   | IntegerSpec
+  | NumberSpec
   | BooleanSpec
   | EnumSpec
   | ArraySpec
@@ -44,6 +52,7 @@ export type ParamSpec =
 export interface FreeObjectSpec {
   readonly kind: 'free-object';
   readonly description: string;
+  readonly nullable?: true;
 }
 
 export interface StringSpec {
@@ -56,6 +65,7 @@ export interface StringSpec {
   /** The corrective hint for an overflow, when the generic "shorten it" would send the caller the wrong way. */
   readonly overflowHint?: string;
   readonly default?: string;
+  readonly nullable?: true;
 }
 
 export interface IntegerSpec {
@@ -64,12 +74,24 @@ export interface IntegerSpec {
   readonly minimum?: number;
   readonly maximum?: number;
   readonly default?: number;
+  readonly nullable?: true;
+}
+
+/** Any finite number, as a similarity score or a pace is. An integer spec is the whole-number case. */
+export interface NumberSpec {
+  readonly kind: 'number';
+  readonly description: string;
+  readonly minimum?: number;
+  readonly maximum?: number;
+  readonly default?: number;
+  readonly nullable?: true;
 }
 
 export interface BooleanSpec {
   readonly kind: 'boolean';
   readonly description: string;
   readonly default?: boolean;
+  readonly nullable?: true;
 }
 
 export interface EnumSpec {
@@ -77,6 +99,7 @@ export interface EnumSpec {
   readonly description: string;
   readonly values: readonly string[];
   readonly default?: string;
+  readonly nullable?: true;
 }
 
 export interface ArraySpec {
@@ -87,6 +110,7 @@ export interface ArraySpec {
   readonly minItems?: number;
   readonly maxItems?: number;
   readonly unique?: boolean;
+  readonly nullable?: true;
 }
 
 export interface ObjectSpec {
@@ -94,6 +118,7 @@ export interface ObjectSpec {
   readonly description: string;
   readonly properties: Readonly<Record<string, ParamSpec>>;
   readonly required: readonly string[];
+  readonly nullable?: true;
 }
 
 /** `A | B` where the two options are told apart by JSON type, as `fields: [...] | "all"` is. */
@@ -101,6 +126,7 @@ export interface UnionSpec {
   readonly kind: 'union';
   readonly description: string;
   readonly options: readonly ParamSpec[];
+  readonly nullable?: true;
 }
 
 /** An object whose `tag` key selects which variant's closed key set applies, as `ops[].action` does. */
@@ -109,6 +135,7 @@ export interface TaggedSpec {
   readonly description: string;
   readonly tag: string;
   readonly variants: Readonly<Record<string, ObjectSpec>>;
+  readonly nullable?: true;
 }
 
 export type JsonSchema = { readonly [key: string]: unknown };
@@ -128,6 +155,9 @@ export const param = {
   integer(description: string, options: { minimum?: number; maximum?: number; default?: number } = {}): IntegerSpec {
     return { kind: 'integer', description, ...options };
   },
+  number(description: string, options: { minimum?: number; maximum?: number; default?: number } = {}): NumberSpec {
+    return { kind: 'number', description, ...options };
+  },
   boolean(description: string, options: { default?: boolean } = {}): BooleanSpec {
     return { kind: 'boolean', description, ...options };
   },
@@ -141,11 +171,12 @@ export const param = {
   ): ArraySpec {
     return { kind: 'array', description, items, ...options };
   },
-  object(
+  /** The keys stay literal in the return type, so a type test can compare a spec with the interface it stands for. */
+  object<const P extends Readonly<Record<string, ParamSpec>>, const R extends readonly string[] = readonly []>(
     description: string,
-    properties: Readonly<Record<string, ParamSpec>>,
-    required: readonly string[] = [],
-  ): ObjectSpec {
+    properties: P,
+    required: R = [] as unknown as R,
+  ): ObjectSpec & { readonly properties: P; readonly required: R } {
     return { kind: 'object', description, properties, required };
   },
   either(description: string, options: readonly ParamSpec[]): UnionSpec {
@@ -153,6 +184,10 @@ export const param = {
   },
   freeObject(description: string): FreeObjectSpec {
     return { kind: 'free-object', description };
+  },
+  /** The same spec, also accepting `null`: a result's way to say "none", where a param omits the key. */
+  nullable<S extends ParamSpec>(spec: S): S & { readonly nullable: true } {
+    return { ...spec, nullable: true };
   },
   /**
    * A tagged union. The tag key is added to every variant here, as a required
@@ -171,20 +206,26 @@ export const param = {
   },
 };
 
+/** `name`, or `[name, 'null']` when the spec also accepts null. */
+function typeOf(name: string, spec: { readonly nullable?: true }): string | string[] {
+  return spec.nullable === true ? [name, 'null'] : name;
+}
+
 /** The JSON Schema an MCP client receives for one spec. Derived, never written by hand. */
 export function toJsonSchema(spec: ParamSpec): JsonSchema {
   switch (spec.kind) {
     case 'string':
       return {
-        type: 'string',
+        type: typeOf('string', spec),
         description: spec.description,
         ...(spec.nonBlank === true ? { minLength: 1 } : {}),
         ...(spec.maxLength === undefined ? {} : { maxLength: spec.maxLength }),
         ...(spec.default === undefined ? {} : { default: spec.default }),
       };
     case 'integer':
+    case 'number':
       return {
-        type: 'integer',
+        type: typeOf(spec.kind, spec),
         description: spec.description,
         ...(spec.minimum === undefined ? {} : { minimum: spec.minimum }),
         ...(spec.maximum === undefined ? {} : { maximum: spec.maximum }),
@@ -192,20 +233,20 @@ export function toJsonSchema(spec: ParamSpec): JsonSchema {
       };
     case 'boolean':
       return {
-        type: 'boolean',
+        type: typeOf('boolean', spec),
         description: spec.description,
         ...(spec.default === undefined ? {} : { default: spec.default }),
       };
     case 'enum':
       return {
-        type: 'string',
-        enum: [...spec.values],
+        type: typeOf('string', spec),
+        enum: spec.nullable === true ? [...spec.values, null] : [...spec.values],
         description: spec.description,
         ...(spec.default === undefined ? {} : { default: spec.default }),
       };
     case 'array':
       return {
-        type: 'array',
+        type: typeOf('array', spec),
         description: spec.description,
         items: toJsonSchema(spec.items),
         ...(spec.minItems === undefined ? {} : { minItems: spec.minItems }),
@@ -216,7 +257,7 @@ export function toJsonSchema(spec: ParamSpec): JsonSchema {
       const properties: Record<string, JsonSchema> = {};
       for (const [key, child] of Object.entries(spec.properties)) properties[key] = toJsonSchema(child);
       return {
-        type: 'object',
+        type: typeOf('object', spec),
         description: spec.description,
         properties,
         required: [...spec.required],
@@ -224,13 +265,19 @@ export function toJsonSchema(spec: ParamSpec): JsonSchema {
       };
     }
     case 'free-object':
-      return { type: 'object', description: spec.description };
+      return { type: typeOf('object', spec), description: spec.description };
     case 'union':
-      return { description: spec.description, anyOf: spec.options.map((option) => toJsonSchema(option)) };
+      return {
+        description: spec.description,
+        anyOf: [...spec.options.map((option) => toJsonSchema(option)), ...(spec.nullable === true ? [{ type: 'null' }] : [])],
+      };
     case 'tagged':
       return {
         description: spec.description,
-        oneOf: Object.values(spec.variants).map((variant) => toJsonSchema(variant)),
+        oneOf: [
+          ...Object.values(spec.variants).map((variant) => toJsonSchema(variant)),
+          ...(spec.nullable === true ? [{ type: 'null' }] : []),
+        ],
       };
   }
 }

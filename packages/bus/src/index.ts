@@ -323,6 +323,7 @@ export type {
   EnumSpec,
   FreeObjectSpec,
   IntegerSpec,
+  NumberSpec,
   JsonSchema,
   ObjectSpec,
   ParamSpec,
