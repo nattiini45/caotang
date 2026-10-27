@@ -8,20 +8,25 @@
 
 import { COMMAND_REGISTRY, createIdempotencyCache, createViewState, execute, type CommandError, type ProjectHook } from '@caotang/bus';
 import { loadInkCompiler } from '@caotang/dialogue';
-import { createMcpClient, createMockWireFactory } from '@caotang/mcp-client';
-import { addDocument, getBody } from '@caotang/store';
+import { createMcpClient, createMockWireFactory, qualifiedNameOf, type McpServerConfig, type MockMcpScript, type WireTool } from '@caotang/mcp-client';
+import { addDocument, getBody, type ProjectState } from '@caotang/store';
+import { addShotNode, addStoryboardFolder, setNodeKind } from '@caotang/storyboard';
+import { VIDEO_TEMPLATE_IDS, type PromptDraftProposal } from '@caotang/video-prompt-pack';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
   HOOK_SLOW_MS,
   countWholeWord,
   createBriefLedger,
+  createAgentPorts,
   createBriefPorts,
+  createHarness,
   createHookRunner,
   createProductHarness,
   foldText,
   hookLabel,
   hookWarnings,
+  MODEL_BACKED_TOOLS,
   proseOf,
   TOOL_METADATA,
   TOOL_NAMES,
@@ -29,7 +34,7 @@ import {
   type HookRun,
   type HookSpec,
 } from '../src/index.js';
-import { WRITTEN_TEXT } from '../src/hooks.js';
+import { STAGED_PROSE, WRITTEN_TEXT } from '../src/hooks.js';
 import { CHAPTER_ONE, ENTRY, ENTRY_TWO, LANDING, OPENED, STORM, clock, makeHarness, makeState, refusalOf, run, snapshotOf, valueOf } from './fixtures.js';
 
 let ids = 0;
@@ -890,5 +895,206 @@ describe('what a run is', () => {
     run(harness, 'notes.append', { doc: 'The Landing', text: 'Suddenly.' }, { turnId: 't9' });
     const [spoke] = harness.takeHookRuns('t9') as HookRun[];
     expect(spoke).toMatchObject({ name: 'Quiet one', event: 'tool.before', tool: 'notes.append' });
+  });
+});
+
+describe('the draft a model stages for a shot tool', () => {
+  const SCENE = 'n_DERIVSCN01';
+  const BOARD = 'n_SBOARD0001';
+  const SHOT = 'n_SHOTONE001';
+  const VENDOR = VIDEO_TEMPLATE_IDS[0] as string;
+  const state = makeState();
+  const closed = (tool: string): HookSpec => pattern(['suddenly'], { onBlock: 'block', failClosed: true, matcher: { tools: [tool] } });
+  const stagedCall = (tool: string, params: Record<string, unknown>, proposal: unknown): HookInput => ({ event: 'tool.before', tool, params, proposal, affected: [] });
+
+  const derived = { shots: [{ shotSize: 'WS', action: 'Suddenly the lamp fails.', durationSec: 4, dialogueQuotes: ['The lamp fails.'] }] };
+  /** A prompt.draft proposal in the shape `PromptDraftProposal` has; the fields a hook does not read are filled in as the staging fills them. */
+  const drafted = (ref: Record<string, unknown>): PromptDraftProposal =>
+    ({
+      vendor: VENDOR,
+      displayName: 'A vendor',
+      model: 'a-model',
+      items: [{ shotId: SHOT, shotNumber: 1, ref: { vendor: VENDOR, mode: 'text-to-video', references: [], ...ref }, base: '[]', references: [], provenance: {}, issues: [], layers: [], ignored: [] }],
+      refusals: [],
+      spend: { promptTokens: 1, completionTokens: 1 },
+    }) as unknown as PromptDraftProposal;
+  const prompt = drafted({ prompt: { subject: 'A lamp', action: 'Suddenly the lamp fails.' } });
+
+  function sceneState(): ProjectState {
+    const project = makeState();
+    addDocument(project, { parentId: CHAPTER_ONE, title: 'The Lamp Scene', body: 'The lamp fails.\n\nThe keeper climbs the stair.', now: OPENED, id: SCENE });
+    const scene = project.manifest.tree.find((node) => node.id === SCENE);
+    if (scene === undefined) throw new Error('fixture');
+    setNodeKind(scene, 'screenplay');
+    return project;
+  }
+  function boardState(): ProjectState {
+    const project = makeState();
+    addStoryboardFolder(project, { parentId: CHAPTER_ONE, title: 'Lamp Shots', now: OPENED, id: BOARD });
+    addShotNode(project, { parentId: BOARD, title: 'The lamp fails', stored: {}, now: OPENED, id: SHOT });
+    return project;
+  }
+  const harnessFor = (project: ProjectState, hooks: readonly HookSpec[]) => createHarness({ state: project, ports: createAgentPorts(), clock: () => 1, hooks });
+
+  it('reads the action and the quotes of a derived shot', () => {
+    expect(proseOf('shots.derive', { doc: 'The Landing' }, derived)).toBe('Suddenly the lamp fails.\nThe lamp fails.');
+  });
+
+  it('reads the prompt, the audio cues, the negative prompt and the notes of a drafted video prompt, and not the vendor or the mode', () => {
+    expect(proseOf('prompt.draft', { shots: [SHOT], vendor: VENDOR }, prompt)).toBe('A lamp\nSuddenly the lamp fails.');
+    const more = drafted({ prompt: { action: 'It goes dark.' }, audio: { dialogue: 'Suddenly, who is there?' }, negativePrompt: 'no suddenly', notes: 'Keep it slow.' });
+    expect(proseOf('prompt.draft', { shots: [SHOT], vendor: VENDOR }, more)).toBe('It goes dark.\nSuddenly, who is there?\nno suddenly\nKeep it slow.');
+  });
+
+  it('stops a derive and a drafted prompt under failClosed, through the runner', () => {
+    const cases: readonly [string, Record<string, unknown>, unknown, unknown][] = [
+      ['shots.derive', { doc: 'The Landing' }, derived, { shots: [{ action: 'The lamp fails.' }] }],
+      ['prompt.draft', { shots: [SHOT], vendor: VENDOR }, prompt, drafted({ prompt: { action: 'The lamp fails.' } })],
+    ];
+    for (const [tool, params, proposal, clean] of cases) {
+      const runner = createHookRunner([closed(tool)], { state });
+      expect(runner.run(stagedCall(tool, params, proposal))[0]?.decision, tool).toEqual({ action: 'block', reason: '“suddenly” appears: Avoid suddenly.' });
+      expect(runner.preflight({ ...stagedCall(tool, params, proposal), event: 'tool.before' })[0]?.decision.action, tool).toBe('block');
+      expect(runner.run(stagedCall(tool, params, clean))[0]?.decision.action, tool).toBe('allow');
+    }
+  });
+
+  it('stops a derive at the plan card and as it runs, and leaves the project as it was', () => {
+    const project = sceneState();
+    const harness = harnessFor(project, [closed('shots.derive')]);
+    const before = snapshotOf(project);
+    const card = harness.previewPlan({ steps: [{ tool: 'shots.derive', params: { doc: SCENE }, expect: 'the scene has shots' }] }, { from: 0, proposals: [derived] });
+    if (!card.ok) throw new Error('refused');
+    expect(card.value.steps[0]).toMatchObject({ status: 'refused' });
+    expect(codeOf(card.value.steps[0]?.error as CommandError)).toBe('hook_blocked');
+    const outcome = harness.call({ name: 'shots.derive', callId: 'derive-hook-1', params: { doc: SCENE }, proposal: derived }, { turnId: 'derive-hook', permission: { confirmed: true } });
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(codeOf(outcome.error)).toBe('hook_blocked');
+    expect(snapshotOf(project)).toBe(before);
+  });
+
+  it('stops a drafted video prompt at the plan card and as it runs, and leaves the project as it was', () => {
+    const project = boardState();
+    const harness = harnessFor(project, [closed('prompt.draft')]);
+    const before = snapshotOf(project);
+    const params = { shots: [SHOT], vendor: VENDOR };
+    const card = harness.previewPlan({ steps: [{ tool: 'prompt.draft', params, expect: 'the shot has its prompt' }] }, { from: 0, proposals: [prompt] });
+    if (!card.ok) throw new Error('refused');
+    expect(card.value.steps[0]).toMatchObject({ status: 'refused' });
+    expect(codeOf(card.value.steps[0]?.error as CommandError)).toBe('hook_blocked');
+    const outcome = harness.call({ name: 'prompt.draft', callId: 'draft-hook-1', params, proposal: prompt }, { turnId: 'draft-hook', permission: { confirmed: true } });
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(codeOf(outcome.error)).toBe('hook_blocked');
+    expect(snapshotOf(project)).toBe(before);
+  });
+
+  /** A staged proposal in the shape each model-backed write tool stages, with one marker word in the prose it would write. */
+  const staged: Readonly<Record<string, unknown>> = {
+    'scene.draft': { text: 'Suddenly the lamp fails.', words: 4, revision: 0 },
+    'dialogue.draft': { ink: 'Suddenly, thanks.', revision: 0 },
+    'synopsis.fill': { items: [{ doc: SCENE, synopsis: 'Suddenly the lamp fails.' }] },
+    'shots.derive': derived,
+    'prompt.draft': prompt,
+  };
+
+  it('has a reader for the staged proposal of every model-backed write tool, so a new one cannot go unread', () => {
+    // coherence.review stages a plan (the documents, the cost, the first prompt), which holds no prose the call writes.
+    const writes = [...MODEL_BACKED_TOOLS].filter((name) => name !== 'coherence.review' && TOOL_METADATA.find((meta) => meta.name === name)?.risk.startsWith('write'));
+    expect(writes.length).toBeGreaterThan(3);
+    for (const tool of writes) {
+      expect(Object.keys(STAGED_PROSE), `${tool} has no row in STAGED_PROSE`).toContain(tool);
+      expect(Object.keys(staged), `${tool} has no staged example here`).toContain(tool);
+      expect(proseOf(tool, {}, staged[tool]), `${tool}: the staged prose is not read`).toMatch(/suddenly/i);
+    }
+    expect(Object.keys(STAGED_PROSE).filter((name) => !writes.includes(name))).toEqual([]);
+  });
+
+  it('fails the run, rather than allowing it, when the staged proposal has a shape the hooks have no reader for', () => {
+    for (const tool of Object.keys(STAGED_PROSE)) {
+      for (const odd of [{ nothing: 'Suddenly.' }, { shots: 'Suddenly.', items: 'Suddenly.', text: 3, ink: 3 }, ['Suddenly.'], 3]) {
+        expect(() => proseOf(tool, {}, odd), tool).toThrow(`the hook cannot read the text ${tool} writes`);
+        const [blocked] = createHookRunner([closed(tool)], { state }).run(stagedCall(tool, {}, odd));
+        expect(blocked?.decision.action, tool).toBe('block');
+        expect(blocked?.failed).toBe(`the hook cannot read the text ${tool} writes`);
+      }
+      // No proposal yet is not an odd one: the card is checked again once the draft is staged.
+      expect(createHookRunner([closed(tool)], { state }).run(stagedCall(tool, {}, undefined))[0]?.failed).toBeUndefined();
+    }
+  });
+});
+
+describe('a hook whose matcher names no tool, on an external write', () => {
+  const KEY = 's_STORYB0001';
+  const ADDED = '2026-10-08T09:00:00.000Z';
+  const WRITE = qualifiedNameOf(KEY, 'write_note');
+  const READ = qualifiedNameOf(KEY, 'search_lore');
+  const state = makeState();
+  const typo = (over: Partial<ProjectHook> = {}): HookSpec => pattern(['suddenly'], { name: 'No suddenly', matcher: { tools: ['notes.apend'] }, onBlock: 'block', failClosed: true, ...over });
+  const call = (over: Partial<HookInput> = {}): HookInput => ({ event: 'tool.before', tool: WRITE, params: { title: 'Suddenly' }, affected: [], ...over });
+
+  it('blocks when the caller says the call writes', () => {
+    const [blocked] = createHookRunner([typo()], { state }).run(call({ write: true }));
+    expect(blocked?.decision).toMatchObject({ action: 'block', reason: expect.stringContaining('no tool is named “notes.apend”') });
+    expect(blocked?.failed).toBe('no tool is named “notes.apend”');
+  });
+
+  it('says nothing when the caller says the call only reads', () => {
+    expect(createHookRunner([typo()], { state }).run(call({ write: false, tool: READ }))).toEqual([]);
+  });
+
+  it('counts an external call the caller did not place as a write', () => {
+    expect(createHookRunner([typo()], { state }).run(call())[0]?.decision.action).toBe('block');
+  });
+
+  it('leaves a native read alone and takes the write flag over the tool table', () => {
+    expect(createHookRunner([typo()], { state }).run(call({ tool: 'doc.read', params: { doc: 'x' } }))).toEqual([]);
+    expect(createHookRunner([typo()], { state }).run(call({ tool: 'doc.read', params: { doc: 'x' }, write: true }))[0]?.decision.action).toBe('block');
+  });
+
+  describe('through callExternal', () => {
+    const TOOLS: WireTool[] = [
+      { name: 'search_lore', description: 'Search the story bible.', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, additionalProperties: false }, annotations: { readOnlyHint: true } },
+      { name: 'write_note', description: 'Write a note.', inputSchema: { type: 'object', properties: { text: { type: 'string' } }, additionalProperties: false } },
+    ];
+    async function connected(calls: string[]) {
+      const server: McpServerConfig = {
+        key: KEY,
+        name: 'Story Bible',
+        transport: 'http',
+        url: 'https://s-storyb0001.fixture.test/mcp',
+        auth: { kind: 'none' },
+        enabled: true,
+        trustReads: true,
+        pinnedTools: {},
+        addedAt: ADDED,
+      };
+      const script: MockMcpScript = {
+        listTools: TOOLS,
+        respond: (tool) => {
+          calls.push(tool);
+          return { content: [{ type: 'text', text: `answer from ${tool}` }], isError: false };
+        },
+      };
+      const client = createMcpClient({ settings: { enabled: true, servers: [server] }, wire: createMockWireFactory({ [KEY]: script }), probe: async () => false, now: () => ADDED, listTimeoutMs: 2_000, callTimeoutMs: 2_000 });
+      await client.connect(KEY);
+      const card = client.review(KEY);
+      if (card !== undefined) client.approveReview(KEY, card.fingerprint);
+      return client;
+    }
+
+    it('stops the external write, and lets the external read through', async () => {
+      const calls: string[] = [];
+      const harness = makeHarness({ hooks: [typo()], mcp: { client: await connected(calls) } });
+      run(harness, 'tool.search', { query: 'lore' }, { turnId: 'dead-name' });
+      run(harness, 'tool.search', { query: 'write' }, { turnId: 'dead-name' });
+      const read = await harness.callExternal({ name: READ, callId: 'dead-read', params: { query: 'x' } }, { turnId: 'dead-name' });
+      expect(read.ok).toBe(true);
+      expect(calls).toEqual(['search_lore']);
+      const write = await harness.callExternal({ name: WRITE, callId: 'dead-write', params: { text: 'Suddenly.' } }, { turnId: 'dead-name', permission: { confirmed: true } });
+      expect(write.ok).toBe(false);
+      if (write.ok) return;
+      expect(codeOf(write.error)).toBe('hook_blocked');
+      expect(calls).toEqual(['search_lore']);
+    });
   });
 });

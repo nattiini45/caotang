@@ -780,7 +780,7 @@ export function createHarness(options: HarnessOptions): Harness {
    * runs asks the hooks again, against the project as it stands then. A block is a refusal the model and the card read as `hook_blocked`.
    */
   const hooksBefore = (
-    call: { readonly name: string; readonly callId?: string; readonly params: CallParams; readonly proposal?: unknown },
+    call: { readonly name: string; readonly callId?: string; readonly params: CallParams; readonly proposal?: unknown; readonly write?: boolean },
     meta: ToolMetadata | undefined,
     turnId: string | undefined,
     phase: 'preflight' | 'run',
@@ -794,6 +794,7 @@ export function createHarness(options: HarnessOptions): Harness {
       ...(call.callId === undefined ? {} : { callId: call.callId }),
       params: call.params,
       ...(call.proposal === undefined ? {} : { proposal: call.proposal }),
+      ...(call.write === undefined ? {} : { write: call.write }),
       affected: targets === undefined ? [] : [...targets.writes, ...targets.reads],
     };
     const runs = phase === 'preflight' ? hooks.preflight(input) : hooks.run(input);
@@ -1351,7 +1352,7 @@ export function createHarness(options: HarnessOptions): Harness {
     }
 
     // The writer's hooks, last, after the rules and before the bus is asked: an external tool has no nodes, so only its name and arguments are seen.
-    const hooked = hooksBefore({ name: call.name, callId: call.callId, params: call.params as CallParams }, undefined, turn.turnId, 'run');
+    const hooked = hooksBefore({ name: call.name, callId: call.callId, params: call.params as CallParams, write: tool.effectiveRisk !== 'read-auto' }, undefined, turn.turnId, 'run');
     if (hooked.error !== undefined) return failure(hooked.error) as ToolOutcome;
 
     // The definition the turn saw: the hash the search showed when it loaded the tool. The bus compares it with the

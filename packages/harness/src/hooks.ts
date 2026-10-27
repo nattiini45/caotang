@@ -61,6 +61,8 @@ export interface HookInput {
   readonly proposal?: unknown;
   /** The binder nodes the call touches: its targets before it runs, the nodes it changed after. */
   readonly affected: readonly string[];
+  /** Set by a caller that knows whether the call writes, as it does for an external tool (its server's risk). Otherwise the tool's metadata says. */
+  readonly write?: boolean;
 }
 
 export interface HookDeps {
@@ -174,9 +176,30 @@ function unreadText(tool: string, params: CallParams): void {
 }
 
 /**
+ * The tools a model drafts the text of, and the part of the staged proposal that holds it: a string (`text`, `ink`) or a list (`items`,
+ * `shots`). A proposal of one of these tools without that part is a shape the hook has no reader for (`proseOf`).
+ */
+export const STAGED_PROSE: Readonly<Record<string, { readonly key: string; readonly list: boolean }>> = {
+  'scene.draft': { key: 'text', list: false },
+  'dialogue.draft': { key: 'ink', list: false },
+  'synopsis.fill': { key: 'items', list: true },
+  'shots.derive': { key: 'shots', list: true },
+  'prompt.draft': { key: 'items', list: true },
+};
+
+/** The prose of a drafted video prompt (`ref`): the words of its prompt and its audio cues, its negative prompt and its notes. Never the vendor or the mode. */
+function promptProseOf(ref: unknown, out: string[]): void {
+  if (!isRecord(ref)) return;
+  leavesOf(ref['prompt'], out);
+  leavesOf(ref['audio'], out);
+  for (const key of ['negativePrompt', 'notes']) if (typeof ref[key] === 'string') out.push(ref[key]);
+}
+
+/**
  * The prose a call would write: the prose a native tool writes (`WRITTEN_TEXT`), every string of an external tool's arguments, and the
- * draft the loop staged (its text, its Ink, its synopses). The prompt behind a draft is not prose the call writes, so it is not read.
- * It throws when it cannot read all of it: an external tool's arguments past the walk's limits, or a write tool it has no account of.
+ * draft the loop staged (a scene's text, a dialogue's Ink, each synopsis, a derived shot's action and quotes, a drafted video prompt).
+ * The brief behind a draft is not prose the call writes, so it is not read. It throws when it cannot read all of it: an external
+ * tool's arguments past the walk's limits, a write tool it has no account of, or a staged draft of a shape it has no reader for.
  */
 export function proseOf(tool: string, params: CallParams, proposal?: unknown): string {
   const parts: string[] = [];
@@ -186,12 +209,28 @@ export function proseOf(tool: string, params: CallParams, proposal?: unknown): s
     unreadText(tool, params);
     for (const key of PROSE_PARAMS) if (typeof params[key] === 'string') parts.push(params[key]);
   }
+  const staged = Object.hasOwn(STAGED_PROSE, tool) ? (STAGED_PROSE[tool] as { readonly key: string; readonly list: boolean }) : undefined;
+  if (staged !== undefined && proposal !== undefined && typeof proposal !== 'string') {
+    const held = isRecord(proposal) ? proposal[staged.key] : undefined;
+    if (staged.list ? !Array.isArray(held) : typeof held !== 'string') throw new Error(`the hook cannot read the text ${tool} writes`);
+  }
   if (typeof proposal === 'string') parts.push(proposal);
   else if (isRecord(proposal)) {
     if (typeof proposal['text'] === 'string') parts.push(proposal['text']);
     if (typeof proposal['ink'] === 'string') parts.push(proposal['ink']);
     if (Array.isArray(proposal['items'])) {
-      for (const item of proposal['items']) if (isRecord(item) && typeof item['synopsis'] === 'string') parts.push(item['synopsis']);
+      for (const item of proposal['items']) {
+        if (!isRecord(item)) continue;
+        if (typeof item['synopsis'] === 'string') parts.push(item['synopsis']);
+        if (tool === 'prompt.draft') promptProseOf(item['ref'], parts);
+      }
+    }
+    if (tool === 'shots.derive' && Array.isArray(proposal['shots'])) {
+      for (const shot of proposal['shots']) {
+        if (!isRecord(shot)) continue;
+        if (typeof shot['action'] === 'string') parts.push(shot['action']);
+        if (Array.isArray(shot['dialogueQuotes'])) for (const quote of shot['dialogueQuotes']) if (typeof quote === 'string') parts.push(quote);
+      }
     }
   }
   return parts.join('\n');
@@ -410,6 +449,9 @@ export function hookWarnings(hooks: readonly HookSpec[], toolNames: readonly str
 }
 
 function isWriteCall(input: HookInput): boolean {
+  if (input.write !== undefined) return input.write;
+  // An external tool whose caller did not say counts as a write: it is not in the tool table, and a hook must not pass what it cannot place.
+  if (input.tool.startsWith('mcp__')) return true;
   return (metadataFor(input.tool)?.risk ?? '').startsWith('write');
 }
 
