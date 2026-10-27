@@ -155,7 +155,7 @@ describe('LI renders between L0 and L1', () => {
   it('takes the snapshot’s own fields over the project’s', () => {
     const app = withInstructions(buildApp());
     const user = userOf(assemble(META, { ...app, instructions: { source: 'AGENTS.md', text: 'Only this.' }, memoryIndex: '- [A](a.md) (style)' }));
-    expect(user).toContain('## AGENTS.md\nOnly this.');
+    expect(user).toContain('## AGENTS.md\n<<untrusted source="project:AGENTS.md" id="000000000000">>\nOnly this.\n<</untrusted id="000000000000">>');
     expect(user).toContain('- [A](a.md) (style)');
     expect(user).not.toContain('British spelling');
   });
