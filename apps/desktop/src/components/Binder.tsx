@@ -48,6 +48,7 @@ import { BinderFilterBar } from './BinderFilters.js';
 import { ACCESS_LABELS, ACCESS_MARKERS, accessOf, effectiveAccess } from '../app/agent-rules-model.js';
 import { mediaCreateItems, type MediaCreateSpec } from '../media/create-menu.js';
 import { openDialog } from './dialog-requests.js';
+import { useNarrow } from './narrow.js';
 import { EmptyState, InlineText, Menu, useReport, useSession, wordsLabel, type MenuAnchor, type MenuItem } from './shared.js';
 import { ScriptImportActions } from './ScriptImport.js';
 import {
@@ -71,6 +72,8 @@ export interface BinderProps {
   readonly onRename: (nodeId: string | null) => void;
   readonly onAskDelete: (nodeId: string) => void;
   readonly onShowCenter: (mode: CenterMode) => void;
+  /** A document was chosen to be written in, from a row or its menu (not made by "New document"). The narrow layout closes the drawer on it. */
+  readonly onOpened?: () => void;
   readonly onFocusSynopsis: () => void;
   /** Sends a plain-language request to the agent: the empty states' next step (ui-modules §0.3). Opens the agent panel. */
   readonly onAgentIntent: (intent: string) => void;
@@ -88,8 +91,9 @@ type Picker =
   | { readonly kind: 'label'; readonly nodeId: string; readonly anchor: MenuAnchor };
 
 export function Binder(props: BinderProps): ReactNode {
-  const { session, renaming, onRename, onAskDelete, onShowCenter, onFocusSynopsis, onAgentIntent } = props;
+  const { session, renaming, onRename, onAskDelete, onShowCenter, onOpened, onFocusSynopsis, onAgentIntent } = props;
   useSession(session);
+  const narrow = useNarrow();
   const report = useReport();
   const { state, view } = session;
   const furniture = furnitureFor(session);
@@ -399,6 +403,7 @@ export function Binder(props: BinderProps): ReactNode {
         onSelect: () => {
           session.dispatch('view.setActiveDoc', { docId: node.id });
           onShowCenter('editor');
+          onOpened?.();
         },
       });
     }
@@ -470,6 +475,17 @@ export function Binder(props: BinderProps): ReactNode {
     event.stopPropagation();
     const rect = event.currentTarget.getBoundingClientRect();
     setPicker({ kind, nodeId, anchor: { x: rect.left, y: rect.bottom + 4 } });
+  };
+
+  /**
+   * The row's Actions button, shown in the narrow layout: a touch screen has no right click, and a long press opens no menu on every
+   * browser. It opens the row's own menu under the button.
+   */
+  const actionsAt = (event: ReactMouseEvent<HTMLElement>, nodeId: string): void => {
+    event.stopPropagation();
+    const rect = event.currentTarget.getBoundingClientRect();
+    session.dispatch('view.setSelection', { nodeIds: [nodeId] });
+    setPicker({ kind: 'context', nodeId, anchor: { x: Math.max(8, rect.right - 220), y: rect.bottom + 4 } });
   };
 
   const contextMenuAt = (event: ReactMouseEvent<HTMLElement>, nodeId: string): void => {
@@ -547,7 +563,10 @@ export function Binder(props: BinderProps): ReactNode {
               focusable={row.node.id === tabStopId}
               renaming={isRenaming}
               hover={rowHover}
-              onSelect={() => choose(row.node.id)}
+              onSelect={() => {
+                choose(row.node.id);
+                if (row.node.type === 'document' || row.node.type === 'dialogue') onOpened?.();
+              }}
               onToggle={() => setExpanded(session, row.node.id, row.kind === 'node' ? !row.expanded : true)}
               onRenameStart={() => onRename(row.node.id)}
               onRenameCommit={(text) => commitRename(row.node.id, text)}
@@ -555,6 +574,7 @@ export function Binder(props: BinderProps): ReactNode {
               onStatusPicker={(event) => openPicker(event, 'status', row.node.id)}
               onLabelPicker={(event) => openPicker(event, 'label', row.node.id)}
               onContextMenu={(event) => contextMenuAt(event, row.node.id)}
+              onActions={narrow ? (event) => actionsAt(event, row.node.id) : undefined}
               agentAccess={agentAccessOf(row.node.id)}
               onDragStart={(event) => {
                 event.dataTransfer.effectAllowed = 'move';
@@ -646,6 +666,8 @@ interface RowViewProps {
   readonly onStatusPicker: (event: ReactMouseEvent<HTMLElement>) => void;
   readonly onLabelPicker: (event: ReactMouseEvent<HTMLElement>) => void;
   readonly onContextMenu: (event: ReactMouseEvent<HTMLElement>) => void;
+  /** Opens the row's menu from a button, where the narrow layout has no right click. Absent on a wide window. */
+  readonly onActions?: (event: ReactMouseEvent<HTMLElement>) => void;
   /** How far the agent may go here, when a rule limits it. */
   readonly agentAccess: 'read-only' | 'none' | null;
   readonly onDragStart: (event: DragEvent<HTMLElement>) => void;
@@ -691,6 +713,7 @@ function BinderRowView(props: RowViewProps): ReactNode {
           )}
           {itemsLabel(childrenOf(state, node.id).length)}
         </span>
+        <RowActions title={node.title} onActions={props.onActions} />
       </div>
     );
   }
@@ -789,6 +812,17 @@ function BinderRowView(props: RowViewProps): ReactNode {
         {node.type === 'document' ? <span className="row-count">{wordsLabel(wordCountOf(state, node.id))}</span> : null}
         {container ? <span className="row-count">{itemsLabel(count)}</span> : null}
       </span>
+      <RowActions title={node.title} onActions={props.onActions} />
     </div>
+  );
+}
+
+/** The Actions button of a row in the narrow layout. It is not a tab stop: the row's own menu key opens the same menu. */
+function RowActions({ title, onActions }: { title: string; onActions: ((event: ReactMouseEvent<HTMLElement>) => void) | undefined }): ReactNode {
+  if (onActions === undefined) return null;
+  return (
+    <button type="button" tabIndex={-1} className="row-actions" aria-haspopup="menu" aria-label={`Actions for ${title}`} onClick={onActions}>
+      <span aria-hidden="true">⋯</span>
+    </button>
   );
 }

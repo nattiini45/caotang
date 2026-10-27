@@ -14,6 +14,7 @@
 #     checks its manifest with the pinned MCPB CLI.
 #   - `pnpm test:e2e` runs the dev-server suite, and the production-preview project, which smoke-tests the build from the step
 #     above on its own port (e2e/prod-smoke.spec.ts).
+#     The two mobile projects run only e2e/mobile-shell.spec.ts, the narrow layout, in Chromium with touch (emulation, not WebKit).
 #   - `office-interop` writes the .xlsx corpus through the exporter (packages/exporter/test/xlsx-write-corpus.test.ts, which writes only
 #     when CAOTANG_XLSX_OUT is set, so `pnpm verify` is unchanged) and checks every file with tools/office-interop/check_xlsx.py: the
 #     package parts, openpyxl, then LibreOffice's CSV and its re-saved XLSX. LibreOffice (apt) and openpyxl (a venv) are installed for

@@ -111,7 +111,7 @@ Select a scene in the binder to write in it.
 - **Ctrl+Z** undoes your typing in the scene, one burst at a time, and still does after a reload. An agent's draft is never part of it. The **Undo** button in the toolbar takes back the last change Caotang made, such as a move or a deletion.
 - **Focus** in the toolbar, or Ctrl+Shift+F, hides the binder and the inspector and leaves the text. **Settings › Writing** has the setting **In focus mode, hide the binder and the inspector**. When it is off, focus mode leaves the panels shown. The status line says so when you turn focus on, and its **Settings › Writing** opens that setting. The Focus button stays on the toolbar, so you can leave focus mode from it.
 - When the agent drafts a scene, its words appear in the scene as they are written, and a draft preview bar offers **Apply**, **Retry** and **Discard**. See [The agent](#the-agent).
-- The window needs at least 960 px of width. Under 1100 px the toolbar wraps onto a second row, and the side panels narrow.
+- At 960 px and wider the layout is the desktop one: under 1100 px the toolbar wraps onto a second row, and the side panels narrow. Narrower windows get the phone layout, described in [Using Caotang on a phone or tablet](#using-caotang-on-a-phone-or-tablet).
 
 ## Writing a screenplay
 
@@ -420,6 +420,30 @@ With **Prompt pack (video)**, choose the **Vendor template** the pack is written
 
 **Export bundle** is not a compile. It is a full copy of the project, for backups. **Export as Markdown** in the Activity tab writes the activity log as a file.
 
+## Using Caotang on a phone or tablet
+
+When the window is under 960 px wide, a phone or a tablet held upright, Caotang uses a narrower layout. Your project is kept in this browser as on a desktop, and nothing syncs between devices.
+
+- **Binder** in the toolbar opens the binder, Codex, Activity, Trace and Findings as a panel over the left of the screen. Tap a scene to write in it, and the panel closes. **Close**, a tap outside the panel, or Escape closes it too.
+- **Inspector** opens the synopsis, notes, keywords, status and the rest as a sheet from the bottom of the screen, closed the same ways.
+- **More** holds the rest of the toolbar: **Projects**, **Project details**, **Undo**, **Focus mode**, **Skills**, **Instructions**, **Compile…**, **Export bundle**, **Save to folder** (where your browser can pick a folder), **Settings** and the theme.
+- Each row of the binder has an **Actions for …** button, **⋯**, where a desktop has the right-click menu: rename, move, delete, the agent's access, and new items inside it.
+- The agent is the drawer at the bottom of the page. Open it to type a request. Its **Mode** choice is inside the open drawer.
+- Buttons, tabs, rows and fields are at least 44 px square, so a fingertip reaches them.
+
+Some views are left to a desktop. In place of each, Caotang says **Open on desktop** and names the view, and nothing in your project changes:
+
+- the corkboard, where cards are dragged into order;
+- a storyboard;
+- a dialogue container, with its branch graph and its Ink text;
+- the **Pages** view of a screenplay (**Script** and **Source** work);
+- **Settings › MCP & tools**;
+- **Compile…** as anything but Markdown or plain text.
+
+A phone's browser may clear what it stores when it runs short of space, sooner than a computer's, and this build does not sync. Treat the copy in the browser as a draft: choose **Export bundle** in **More**, or **Export a backup** in the banner, now and then, and keep the file somewhere else.
+
+This layout has been tried in an emulated browser with touch input at phone and tablet sizes, not on an iPhone or an Android phone. Typing with the on-screen keyboard, selecting text with the handles, input methods for Chinese, Japanese and Korean, and how long a phone keeps stored data have not been checked, so Caotang does not call itself iOS or Android supported. There is no app to install.
+
 ## Settings
 
 Choose **Settings** on the projects screen or in the toolbar. It has nine sections: Providers, Context, Agent, Macros, Writing, Coherence, MCP & tools, Appearance and Data.
@@ -560,5 +584,6 @@ A developer can run the agent against a project folder from a Node script, a com
 - **Helper agents.** Only the Reader and General agents exist; you cannot write your own. A helper cannot start another helper, and helpers run one at a time.
 - **Background tasks.** A task is drafted only while the project is open in this tab: close the tab and it stops, and **Resume** finishes it when you open the project again. A coherence review cannot be queued yet; it runs now. A background call waits for the agent to be free, but one already sent still counts against a rate-limited key.
 - **Recurring tasks.** Only a scan starts by itself. A task that asks the agent is always offered, never started without you, and there is no setting to let it start by itself yet. Tasks do not run while the project is closed or the tab is hidden, there is no command line for them, and the agent cannot make one. A task's plan can be read from `tasks.json` but not written in the panel.
+- **Phones and tablets, beyond the narrow layout.** The layout under 960 px is tried in an emulated browser only (see [Using Caotang on a phone or tablet](#using-caotang-on-a-phone-or-tablet)). There is no app to install, no offline use beyond the browser's own copy, and no sync, so a phone's browser is not a safe home for a book. The corkboard, storyboards, dialogue containers, the screenplay Pages view, MCP & tools and the other compile formats are left to a desktop.
 - **The desktop app.** Caotang runs in the browser. A desktop wrapper is not in this build.
 - **The hosted instance.** Sign-up, synced end-to-end encrypted projects and the provider relay are planned and not in this build; Caotang stores everything in this browser or a folder you choose.

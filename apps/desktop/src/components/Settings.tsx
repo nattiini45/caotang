@@ -43,6 +43,7 @@ import { AgentRulesSettings } from './AgentRulesSettings.js';
 import { MacrosPanel } from './MacrosPanel.js';
 import { ContextSection } from './ContextSection.js';
 import { McpSection } from './McpSection.js';
+import { OpenOnDesktop, useNarrow } from './narrow.js';
 
 /** The origin of an address, or the text itself when it does not parse (a form being typed). */
 function originOf(address: string): string {
@@ -104,6 +105,7 @@ export function Settings({
 }: SettingsProps): ReactNode {
   const ref = useRef<HTMLDialogElement>(null);
   const [section, setSection] = useState<SettingsSection>(initialSection);
+  const narrow = useNarrow();
   // The control that opened the dialog takes focus back when it closes, so the keyboard is where it was (Menu and ExportDialog do
   // the same). It is read on the first render, before the dialog takes focus. While the dialog is modal the rest of the page is
   // inert, so the focus call made during a development double-mount is a no-op and the dialog keeps focus.
@@ -167,7 +169,7 @@ export function Settings({
             ) : null}
             {section === 'writing' ? <WritingSection services={services} /> : null}
             {section === 'coherence' ? <CoherenceSection services={services} /> : null}
-            {section === 'mcp' ? <McpSection mcp={services.mcp} /> : null}
+            {section === 'mcp' ? narrow ? <OpenOnDesktop feature="mcp" /> : <McpSection mcp={services.mcp} /> : null}
             {section === 'appearance' ? <AppearanceSection /> : null}
             {section === 'data' ? <DataSection services={services} session={session} store={store} storage={storage} /> : null}
           </div>
