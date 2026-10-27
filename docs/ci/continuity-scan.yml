@@ -21,8 +21,8 @@
 #   - The command comes from a release of Caotang, downloaded as one file and checked against the SHA-256 written below before it
 #     runs. A mismatch, or a value still left as the placeholder, stops the job. There is no `npx` line: a floating package name
 #     would run whatever it names tomorrow.
-#   - Before this template is usable, set CAOTANG_VERSION to a release tag and CAOTANG_SHA256 to the hash of caotang.mjs that the
-#     release lists in its SHA256SUMS file. Both are placeholders now, so the job fails closed until you do.
+#   - CAOTANG_VERSION and CAOTANG_SHA256 pin release v0.1.0 and the hash of its caotang.mjs. To move to a later release, set both
+#     from that release's SHA256SUMS file; a value that is not a tag or a 64-digit hash stops the job.
 name: continuity scan
 
 on:
@@ -44,9 +44,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      # PLACEHOLDERS: replace both from the release you choose (https://github.com/nattiini45/caotang/releases).
-      CAOTANG_VERSION: 'REPLACE-WITH-A-RELEASE-TAG-LIKE-v0.1.0'
-      CAOTANG_SHA256: 'REPLACE-WITH-THE-SHA-256-OF-caotang.mjs-FROM-THAT-RELEASE'
+      # The release this job runs, and the SHA-256 of its caotang.mjs from that release's SHA256SUMS
+      # (https://github.com/nattiini45/caotang/releases). Change both together.
+      CAOTANG_VERSION: 'v0.1.0'
+      CAOTANG_SHA256: '15d61db0a4b9100a92418b6366e9d012142f55c0a011161728ddcda98a9e95d5'
     steps:
       - uses: actions/checkout@v7
         with:
