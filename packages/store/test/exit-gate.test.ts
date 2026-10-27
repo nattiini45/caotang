@@ -613,7 +613,11 @@ describe('§10 — a scripted 20-command sequence leaves the state the script sa
     expect(view.scroll).toEqual({ [LANDING]: 480 });
     // And the project state carries none of it: §2's ephemeral clause, asserted
     // from the side that would break if an apply had written it into the manifest.
-    expect(canonical(h.state)).not.toContain('480');
+    // The scroll offset is looked for as a JSON number, not as three digits, which a
+    // generated id or a timestamp can hold by chance.
+    const stored = canonical(h.state);
+    expect(stored).not.toMatch(/[:,[]480[,\]}]/);
+    expect(stored).not.toMatch(/"(scroll|selection|activeDocId)"/);
   });
 
   it('satisfies the project-format schema, which is the one assertion that reads the spec', () => {
