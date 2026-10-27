@@ -21,6 +21,7 @@ import {
   type AgentSession,
   type Decision,
   type Harness,
+  type HookSpec,
   type RuleSet,
   type SourcedRule,
   type TurnReport,
@@ -62,6 +63,7 @@ async function cappedGateway(scripts: readonly MockScript[]): Promise<Gateway> {
 
 interface FixtureOptions {
   readonly capped?: boolean;
+  readonly hooks?: readonly HookSpec[];
   readonly review?: boolean;
   readonly rules?: readonly SourcedRule[];
   readonly decide?: (events: readonly AgentEvent[]) => Decision;
@@ -74,7 +76,7 @@ interface FixtureOptions {
 async function fixture(scripts: readonly MockScript[], options: FixtureOptions = {}): Promise<Fixture & { readonly submit: () => Promise<TurnReport> }> {
   const state = project();
   const set: RuleSet = { rules: options.rules ?? [] };
-  const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now, rules: () => set });
+  const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now, rules: () => set, ...(options.hooks === undefined ? {} : { hooks: options.hooks }) });
   const base = options.capped === true ? await cappedGateway(scripts) : await mockGateway(scripts);
   const requests: ChatRequest[] = [];
   const gateway = {
@@ -184,6 +186,31 @@ describe('a review counts', () => {
     await run.submit();
     expect(reviews(run.events)[0]?.critique?.notes).toHaveLength(1);
     expect(run.events.filter((event) => event.type === 'budget').length).toBeGreaterThan(0);
+  });
+});
+
+describe('a review does not go around a hook', () => {
+  const blocking: HookSpec = {
+    id: 'h_0000000001',
+    name: 'No ferries',
+    event: 'tool.before',
+    matcher: { tools: ['scene.draft'] },
+    handler: { kind: 'check', check: { kind: 'pattern', patterns: [{ match: 'ferry', message: 'Not the ferry again.' }] } },
+    enabled: true,
+    onBlock: 'block',
+  };
+
+  it('still blocks the step its words match: the review is shown, the card cannot be approved, and nothing is written', async () => {
+    const run = await fixture([planner, drafter, critic(CRITIQUE)], { review: true, hooks: [blocking], decide: () => ({ action: 'cancel' }) });
+    const report = await run.submit();
+    const [review] = reviews(run.events);
+    expect(review?.critique?.notes).toHaveLength(1);
+    const step = run.events.flatMap((event) => (event.type === 'plan' ? event.card.steps : []))[0];
+    expect(step?.status).toBe('refused');
+    expect(step?.error?.details?.['askBackCode']).toBe('hook_blocked');
+    expect(report.trace.some((entry) => entry.tool === 'scene.draft' && entry.outcome === 'ok')).toBe(false);
+    expect(getBody(run.state, FRIEND)).toBe('');
+    expect(run.harness.log.entries()).toEqual([]);
   });
 });
 
