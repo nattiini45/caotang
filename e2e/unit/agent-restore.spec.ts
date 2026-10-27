@@ -484,7 +484,8 @@ test('a restore that stops part way says how many later changes it had already t
   // The failing change is now the newest one, so nothing could be taken back before it stopped.
   const none = await f.controller.restore(first!.turnId);
   expect(none.ok).toBe(false);
-  expect(none.ok ? '' : none.message).toContain('Nothing had been taken back yet.');
+  expect(none.ok ? '' : none.message).not.toContain('already taken back');
+  expect(none.ok ? '' : none.message).not.toContain('taken back too');
   expect(none.undone).toEqual([]);
   await f.close();
 });
@@ -514,6 +515,9 @@ test('a step restore that fails inside its own steps marks the turn as restored 
 
   expect(outcome.ok).toBe(false);
   expect(f.session.undo.group(group)!.entries.length).toBeLessThan(before);
+  // The message says part of the step went, since nothing later had been taken back and the count alone would read as nothing.
+  expect(outcome.ok ? '' : outcome.message).toContain('Part of the step was taken back too.');
+  expect(outcome.ok ? '' : outcome.message).not.toContain('later change');
   expect(f.statusOf('The Storm')).not.toBe('revised');
   const marked = f.controller.snapshot().turns[0]!;
   expect(marked.restoredFromStep).toBe(2);

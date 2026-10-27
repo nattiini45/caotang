@@ -1114,16 +1114,20 @@ export class ProjectSession {
     if (at === -1) return { ok: false, message: ALREADY_UNDONE, undone: [] };
     const undone: string[] = [];
     for (const group of groups.slice(at).reverse()) {
+      const held = this.undo.group(group.id)?.entries.length ?? 0;
       const taken = step !== undefined && group.id === id ? this.settleUndo(step()) : this.undoNow(group.id);
       if (!taken) {
         const reason = this.lastUndoMessage ?? 'a change could not be taken back';
         const own = step !== undefined && group.id === id;
-        const gone = undone.length === 0 ? 'Nothing had been taken back yet.' : `${undone.length} later change${undone.length === 1 ? ' was' : 's were'} already taken back.`;
+        // A group that fails keeps only what failed, so one that lost entries had part of it taken back, whatever `undone` holds.
+        const partly = (this.undo.group(group.id)?.entries.length ?? 0) < held;
+        const later = undone.length === 0 ? '' : ` ${undone.length} later change${undone.length === 1 ? ' was' : 's were'} already taken back.`;
+        const some = partly ? (own ? ' Part of the step was taken back too.' : ' Part of that change was taken back too.') : '';
         return {
           ok: false,
           message: own
-            ? `The restore stopped part way, because the step could not be taken back: ${reason}. ${gone} Nothing before the step was touched.`
-            : `The restore stopped part way, because a later change could not be taken back: ${reason}. ${gone} Changes made before that one were not touched.`,
+            ? `The restore stopped part way, because the step could not be taken back: ${reason}.${later}${some} Nothing before the step was touched.`
+            : `The restore stopped part way, because a later change could not be taken back: ${reason}.${later}${some} Changes made before that one were not touched.`,
           undone,
         };
       }
