@@ -44,10 +44,11 @@ import {
   type McpSettings,
   type ToolPin,
 } from './config.js';
-import { inputRequiredText, McpFailure, notFoundText, PIN_MISMATCH_TEXT, readErrorText, serverErrorText, timeoutText, unreachableText, type McpError } from './errors.js';
+import { cancelledText, inputRequiredText, McpFailure, notFoundText, PIN_MISMATCH_TEXT, readErrorText, serverErrorText, timeoutText, totalTimeoutText, unreachableText, type McpError } from './errors.js';
 import { effectiveRiskOf, type EffectiveRisk } from './risk.js';
 import { diffPins, hasDelta, listingFingerprint, pinsAfterReview, pinStateOf, type PinDelta, type PinState } from './pins.js';
 import { createStreamableHttpWire } from './lazy-wire.js';
+import type { WireProgress } from './progress.js';
 import { corsProbe, WireError, WireLoadError } from './wire-error.js';
 import type { McpWire, WireAnnotations, WireCallResult, WireCapabilities, WireDeps, WireFactory, WireResourceContents, WireTool } from './wire.js';
 
@@ -64,8 +65,14 @@ export const REVISION_REFUSAL =
 /** §3.3: `tools/list` times out after 10 s. */
 export const LIST_TIMEOUT_MS = 10_000;
 
-/** §3.3 and A8: a tool call times out after 120 s, and no partial result is ever returned. */
+/**
+ * §3.3 and A8: a tool call times out after 120 s without a word from the server, and no partial result is ever returned. A progress report
+ * from the server starts the 120 s again, so this is the idle limit.
+ */
 export const CALL_TIMEOUT_MS = 120_000;
+
+/** §3.3 and A8: the longest any one tool call may run, 10 minutes, however much progress the server reports. */
+export const CALL_MAX_TOTAL_MS = 600_000;
 
 /**
  * The model API accepts tool names of this shape only. A server's tool name is given an alias of this shape (alias.ts), so
@@ -215,7 +222,10 @@ export interface McpClientOptions {
   /** Mints a server key that is not in the given set. Defaults to a random one. */
   readonly newKey?: (taken: ReadonlySet<string>) => string;
   readonly listTimeoutMs?: number;
+  /** The idle limit of a call: how long the server may say nothing. A progress report starts it again. Defaults to {@link CALL_TIMEOUT_MS}. */
   readonly callTimeoutMs?: number;
+  /** The wall-clock cap of a call, which progress does not extend. Defaults to {@link CALL_MAX_TOTAL_MS}. */
+  readonly callMaxTotalMs?: number;
   /** Called with the whole slice after every change to it, so the app can persist it. */
   readonly onChange?: (settings: McpSettings) => void;
   /**
@@ -284,15 +294,21 @@ export interface UpdateServerPatch {
   readonly enabledTools?: readonly string[];
 }
 
+/** What a caller may hand a call: the signal that ends it, and where the server's progress reports go. */
+export interface McpCallOptions {
+  readonly signal?: AbortSignal;
+  readonly onProgress?: (progress: WireProgress) => void;
+}
+
 /**
- * The one way to make a tool call: a single `tools/call`, with the 120 s limit and no retry. It is not on
+ * The one way to make a tool call: a single `tools/call`, with the 120 s idle limit and the 10 minute cap, and no retry. It is not on
  * {@link McpClient}, so the state surface a model or a panel reads cannot make a call (extensibility §4 rule 2).
  * {@link createMcpTransport} builds it, and only `mcp.invoke` (invoke.ts) holds it, and that command decides each
  * call before this step is reached. The transport checks what the client itself owns as well: the tool must be
  * listed with a verified pin, so a tool nobody reviewed cannot be called through it.
  */
 export interface McpTransport {
-  callTool(serverKey: string, toolName: string, args: Record<string, unknown>, options?: { readonly signal?: AbortSignal }): Promise<McpToolResult>;
+  callTool(serverKey: string, toolName: string, args: Record<string, unknown>, options?: McpCallOptions): Promise<McpToolResult>;
   /**
    * Lists the server again, bounded by the list timeout, so a call is checked against what the server advertises at the
    * moment it is made, not against a listing from validation (which can be minutes earlier, behind a confirmation). It never
@@ -367,6 +383,7 @@ class McpClientImpl implements McpClient {
   private readonly newKey: (taken: ReadonlySet<string>) => string;
   private readonly listTimeoutMs: number;
   private readonly callTimeoutMs: number;
+  private readonly callMaxTotalMs: number;
   private readonly onChange: ((settings: McpSettings) => void) | undefined;
   private readonly onTokenDropped: (tokenRef: string) => void | Promise<void>;
   /** The hand-back of a reference that is under way, so one reference is handed back once. */
@@ -382,6 +399,7 @@ class McpClientImpl implements McpClient {
     this.newKey = options.newKey ?? ((taken) => newServerKey(taken));
     this.listTimeoutMs = options.listTimeoutMs ?? LIST_TIMEOUT_MS;
     this.callTimeoutMs = options.callTimeoutMs ?? CALL_TIMEOUT_MS;
+    this.callMaxTotalMs = options.callMaxTotalMs ?? CALL_MAX_TOTAL_MS;
     this.onChange = options.onChange;
     this.onTokenDropped = options.onTokenDropped ?? (() => undefined);
     for (const server of this.config.servers) {
@@ -847,7 +865,7 @@ class McpClientImpl implements McpClient {
    * retry. Before it sends anything it checks what the client owns, a live connection and a listed tool with a verified
    * pin. The per-call gate (enabled state, trust, the loaded set) is `mcp.invoke`'s, and it runs before this step.
    */
-  async callWire(serverKey: string, toolName: string, args: Record<string, unknown>, options: { readonly signal?: AbortSignal } = {}): Promise<McpToolResult> {
+  async callWire(serverKey: string, toolName: string, args: Record<string, unknown>, options: McpCallOptions = {}): Promise<McpToolResult> {
     const server = this.config.servers.find((candidate) => candidate.key === serverKey);
     const rt = this.runtimes.get(serverKey);
     if (server === undefined || rt === undefined) throw new McpFailure({ code: 'unreachable', message: unreachableText(serverKey) });
@@ -860,14 +878,16 @@ class McpClientImpl implements McpClient {
       // The server receives the name it advertised, even when the caller named the tool by its alias (extensibility §3.3).
       result = await wire.callTool(tool.toolName, args, {
         timeoutMs: this.callTimeoutMs,
+        maxTotalMs: this.callMaxTotalMs,
         ...(options.signal === undefined ? {} : { signal: options.signal }),
+        ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
       });
     } catch (error) {
       const failure = asWireError(error);
       if (failure.kind === 'network' || failure.kind === 'cors' || failure.kind === 'auth') {
         await this.demote(serverKey, listFailureDetail(failure, this.listTimeoutMs));
       }
-      throw new McpFailure(mapCallFailure(failure, server.name, toolName, this.callTimeoutMs));
+      throw new McpFailure(mapCallFailure(failure, server.name, toolName, this.callTimeoutMs, this.callMaxTotalMs));
     }
     return { content: [...result.content], isError: result.isError === true };
   }
@@ -1360,14 +1380,15 @@ function revisionDetail(failure: WireError): string {
   return REVISION_REFUSAL;
 }
 
-function mapCallFailure(failure: WireError, serverName: string, toolName: string, timeoutMs: number): McpError {
+function mapCallFailure(failure: WireError, serverName: string, toolName: string, timeoutMs: number, totalMs: number): McpError {
   switch (failure.kind) {
     case 'network':
     case 'cors':
       return { code: 'unreachable', message: unreachableText(serverName) };
     case 'timeout':
+      return { code: 'timeout', message: failure.limit === 'total' ? totalTimeoutText(totalMs) : timeoutText(timeoutMs) };
     case 'abort':
-      return { code: 'timeout', message: timeoutText(timeoutMs) };
+      return { code: 'cancelled', message: cancelledText() };
     case 'auth':
       return { code: 'server_error', message: serverErrorText(serverName, toolName, 'it rejected the bearer token — re-enter it in the server card') };
     case 'http':

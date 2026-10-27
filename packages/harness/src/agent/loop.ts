@@ -173,7 +173,7 @@ import {
   type Reply,
 } from './protocol.js';
 import { previewFor, sceneDraftPreflight, shotsDeriveScenePreflight } from './ports.js';
-import { cautionOf, type ApprovalCaution, type CardHit, type QuoteFinding, type TaintRef } from '@caotang/mcp-client';
+import { cautionOf, type ApprovalCaution, type CardHit, type QuoteFinding, type TaintRef, type WireProgress } from '@caotang/mcp-client';
 import { quotedProjectText } from './egress-check.js';
 import { modelResult, outsideSources, readsOutsideText, scanForInjection, sourceName, turnNonce, type OutsideOf } from './untrusted.js';
 import { createContextPort, dropLinesOf, mergePreviews, type ContextPort } from './context.js';
@@ -716,6 +716,22 @@ const NOT_RUN = 'the call did not run: its step was cancelled or changed before 
 /** The reason a step reports when the writer's stop ended its wait. */
 const STOPPED_STEP = 'the writer stopped the turn before this step finished';
 
+/** The reason an external call reports when the writer's stop (or a run limit) ended it after it was sent: the server may already have acted. */
+const STOPPED_CALL = 'the writer stopped the turn while this call was running; the server may already have done part of the work';
+
+/** The most often a running card shows a server's progress. */
+const PROGRESS_EVERY_MS = 250;
+
+/** Whether a failed external call was sent and may have done part of its work (`mcp.invoke` says so in its error's details). */
+const mayHaveActedOf = (error: CommandError): boolean => error.details?.mayHaveActed === true;
+
+/** What a turn's summary adds when external calls were sent and did not finish: never a clean "nothing was written". */
+function unsureNote(steps: readonly StepRecord[]): string {
+  const names = steps.filter((step) => step.mayHaveActed === true).map((step) => step.tool);
+  if (names.length === 0) return '';
+  return ` ${names.join(', ')} ${names.length === 1 ? 'was' : 'were'} sent to the server and did not finish, so the server may already have done part of the work.`;
+}
+
 /**
  * A native reply's step expectation. The wire carries no `expect`, so the step takes the reply's own
  * text — what the model said the calls were for — as the expectation the card shows. A reply that
@@ -1056,7 +1072,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       ...(price === undefined ? {} : { costUsd: (totals.promptTokens * price.prompt + totals.completionTokens * price.completion) / 1000 }),
       wordsChanged: touched.words,
       documents: touched.ids.size,
-      steps: writesOf(turn).length,
+      steps: spentSteps(turn),
     };
   };
 
@@ -1218,11 +1234,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const writesOf = (turn: Turn): string[] =>
     turn.steps.filter((step) => step.status === 'done' && riskOf(step.tool) !== 'read').map((step) => step.summary ?? step.tool);
 
+  /** The steps the run limit counts: the writes applied, and the external calls that were sent and did not finish, which may have acted all the same. */
+  const spentSteps = (turn: Turn): number => writesOf(turn).length + turn.steps.filter((step) => step.mayHaveActed === true).length;
+
   /** Counts the write steps the turn has applied since the last count into the run's meter, and answers how many the run may still apply. */
   const syncSteps = (turn: Turn): number => {
     const { meter } = turn;
     if (meter === undefined) return Infinity;
-    const done = writesOf(turn).length;
+    const done = spentSteps(turn);
     if (done > turn.metered) {
       meter.countStep(done - turn.metered);
       turn.metered = done;
@@ -1450,7 +1469,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const spendOf = (turn: Turn): BudgetSpend => {
     if (turn.meter !== undefined) return loggable(turn.meter.spend());
     const totals = gateway.ledger.turnTotals(turn.id);
-    return loggable({ modelCalls: turn.modelCalls, promptTokens: totals.promptTokens, completionTokens: totals.completionTokens, estimatedTokens: 0, steps: writesOf(turn).length, activeMs: 0 });
+    return loggable({ modelCalls: turn.modelCalls, promptTokens: totals.promptTokens, completionTokens: totals.completionTokens, estimatedTokens: 0, steps: spentSteps(turn), activeMs: 0 });
   };
 
   /**
@@ -1621,6 +1640,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       ...(startedAt === undefined ? {} : { startedAt }),
       ...(existing?.finishedAt === undefined ? {} : { finishedAt: existing.finishedAt }),
       ...(existing?.delegation === undefined ? {} : { delegation: existing.delegation }),
+      ...(existing?.progress === undefined ? {} : { progress: existing.progress }),
+      ...(existing?.mayHaveActed === undefined ? {} : { mayHaveActed: existing.mayHaveActed }),
     };
     if (existing === undefined) {
       turn.statusCards.push(card);
@@ -1633,12 +1654,40 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   };
 
   /** Moves a card to its next state and reports it. The transition is checked, so a card cannot skip one. */
-  const moveCard = (turn: Turn, id: string, to: StatusState, detail: { summary?: string; error?: string } = {}): void => {
+  const moveCard = (turn: Turn, id: string, to: StatusState, detail: { summary?: string; error?: string; mayHaveActed?: true } = {}): void => {
     const card = turn.statusCards.find((entry) => entry.id === id);
     if (card === undefined || !canAdvance(card.status, to)) return;
     const next = advance(card, to, { ...detail, at: now() });
     turn.statusCards[turn.statusCards.indexOf(card)] = next;
     emit({ type: 'card', turnId: turn.id, card: next });
+  };
+
+  /**
+   * Where a server's progress report on an external call goes: onto the call's running card (made now when the call has none yet), and into the
+   * trace. It is the server's text and numbers, shown on the card as the server's words and never sent to the model. A burst of reports is shown
+   * at most four times a second; the card keeps the last one it showed.
+   */
+  const progressTo = (turn: Turn, call: ToolCall): ((progress: WireProgress) => void) => {
+    let shownAt = -Infinity;
+    return (progress) => {
+      const at = now();
+      if (at - shownAt < PROGRESS_EVERY_MS) return;
+      shownAt = at;
+      const card = cardFor(turn, call.callId, call.name, call.params as CallParams, 'running');
+      if (card.status !== 'running') return;
+      const next: StatusCard = { ...card, progress };
+      turn.statusCards[turn.statusCards.indexOf(card)] = next;
+      emit({ type: 'card', turnId: turn.id, card: next });
+      trace({
+        kind: 'tool.progress',
+        at,
+        turnId: turn.id,
+        callId: call.callId,
+        progress: progress.progress,
+        ...(progress.total === undefined ? {} : { total: progress.total }),
+        ...(progress.message === undefined ? {} : { message: progress.message }),
+      });
+    };
   };
 
   /**
@@ -1941,7 +1990,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * harness. Only a native read takes the writer's one-step confirmation.
    */
   async function invokeRead(turn: Turn, call: ToolCall, permission?: { readonly confirmed: true }): Promise<ToolOutcome> {
-    if (loadedExternal(call.name) !== undefined) return harness.callExternal(call, { turnId: turn.id, ...signalOf(turn) });
+    if (loadedExternal(call.name) !== undefined) return harness.callExternal(call, { turnId: turn.id, ...signalOf(turn), onProgress: progressTo(turn, call) });
     return harness.call(call, permission === undefined ? { turnId: turn.id } : { turnId: turn.id, permission });
   }
 
@@ -2072,8 +2121,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         : step.tool === 'agent.delegate'
           ? await runDelegate(turn, step, id)
           : await invokeRead(turn, { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) });
-      // A read the stop cut short is not a refusal the model should hear about.
-      if (!first.ok && turn.signal?.aborted === true) throw new TurnStopped();
+      // A read the stop cut short is not a refusal the model should hear about. Its card, if progress made one, is ended with it.
+      if (!first.ok && turn.signal?.aborted === true) {
+        moveCard(turn, id, 'failed', { error: STOPPED_STEP });
+        throw new TurnStopped();
+      }
       let callId = id;
       let outcome: ToolOutcome = first;
       if (!first.ok && (asked || needsWriterApproval(first.error))) {
@@ -2100,7 +2152,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
             approved.tool === 'agent.delegate'
               ? await runDelegate(turn, approved, callId)
               : await invokeRead(turn, { name: approved.tool, callId, params: approved.params, ...(proposal === undefined ? {} : { proposal }) }, { confirmed: true });
-          if (!outcome.ok && turn.signal?.aborted === true) throw new TurnStopped();
+          if (!outcome.ok && turn.signal?.aborted === true) {
+            moveCard(turn, callId, 'failed', { error: STOPPED_STEP });
+            throw new TurnStopped();
+          }
         }
       } else {
         cardFor(turn, id, step.tool, step.params, 'running');
@@ -2469,7 +2524,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const outcome =
       loadedExternal(step.tool) === undefined
         ? await harness.callAsync(call, grant === 'plan' ? { turnId: turn.id, permission: { approvedPlan: true }, ...signalOf(turn) } : { turnId: turn.id, permission: { confirmed: true }, ...signalOf(turn) })
-        : await harness.callExternal(call, grant === 'confirmed' ? { turnId: turn.id, permission: { confirmed: true }, ...signalOf(turn) } : { turnId: turn.id, ...signalOf(turn) });
+        : await harness.callExternal(
+            call,
+            grant === 'confirmed'
+              ? { turnId: turn.id, permission: { confirmed: true }, ...signalOf(turn), onProgress: progressTo(turn, call) }
+              : { turnId: turn.id, ...signalOf(turn), onProgress: progressTo(turn, call) },
+          );
+    // A call that was sent and did not finish (timed out, or cancelled) may have done part of its work on the server.
+    const unsure = !outcome.ok && mayHaveActedOf(outcome.error);
     // These tools write findings or call a server, not documents, and the wait is long: no document is claimed for the step.
     if (write) {
       if (outcome.ok) await logApplied(turn, id, index, step.tool, outcome.value.summary, undefined);
@@ -2477,10 +2539,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     }
     if (!outcome.ok && turn.signal?.aborted === true) {
       // The wait ended because the writer stopped the turn: the step did not finish, and that is not a refusal to adjust.
-      moveCard(turn, id, 'failed', { error: STOPPED_STEP });
-      pushRow(turn, { tool: step.tool, callId: id, outcome: 'not-run', params: step.params }, STOPPED_STEP);
-      turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'cancelled' });
-      wireResult(turn, step, { ok: false, body: STOPPED_STEP });
+      // A call that had been sent says so: the server may already have acted, so it is not reported as not run.
+      const reason = unsure ? STOPPED_CALL : STOPPED_STEP;
+      moveCard(turn, id, 'failed', { error: reason, ...(unsure ? { mayHaveActed: true as const } : {}) });
+      if (unsure && !outcome.ok) pushRow(turn, { tool: step.tool, callId: id, outcome: 'refused', code: outcome.error.code, params: step.params }, reason);
+      else pushRow(turn, { tool: step.tool, callId: id, outcome: 'not-run', params: step.params }, reason);
+      turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'cancelled', ...(unsure ? { mayHaveActed: true as const, error: reason } : {}) });
+      wireResult(turn, step, { ok: false, body: reason });
       return { ok: false, cancelled: true, effect: write, completed: [] };
     }
     if (outcome.ok) {
@@ -2493,8 +2558,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     }
     const reason = errorSummary(outcome.error);
     pushRow(turn, { tool: step.tool, callId: id, outcome: 'refused', code: outcome.error.code, params: step.params }, reason);
-    turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'failed', error: reason });
-    moveCard(turn, id, 'failed', { error: reason });
+    turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'failed', error: reason, ...(unsure ? { mayHaveActed: true as const } : {}) });
+    moveCard(turn, id, 'failed', { error: reason, ...(unsure ? { mayHaveActed: true as const } : {}) });
     taint(turn, failedSources(step.tool));
     wireResult(turn, step, { ok: false, body: reason });
     // A write that failed may have reached the server or the findings file, so it is never adjusted (`effect`).
@@ -3132,12 +3197,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           : settled.status === 'cancelled'
             ? settled.stop !== undefined
               ? writes.length === 0
-                ? 'Stopped by you. Nothing was written.'
-                : `Stopped by you. Written before the stop: ${writes.join('; ')}.`
+                ? `Stopped by you. Nothing was written.${unsureNote(turn.steps)}`
+                : `Stopped by you. Written before the stop: ${writes.join('; ')}.${unsureNote(turn.steps)}`
               : writes.length === 0
-                ? 'Cancelled. Nothing was written.'
-                : `Cancelled. Written before the cancel: ${writes.join('; ')}.`
-            : `Stopped: ${settled.askBack?.reason ?? 'the turn did not finish'}${writes.length === 0 ? '' : ` Written before the stop: ${writes.join('; ')}.`}`;
+                ? `Cancelled. Nothing was written.${unsureNote(turn.steps)}`
+                : `Cancelled. Written before the cancel: ${writes.join('; ')}.${unsureNote(turn.steps)}`
+            : `Stopped: ${settled.askBack?.reason ?? 'the turn did not finish'}${writes.length === 0 ? '' : ` Written before the stop: ${writes.join('; ')}.`}${unsureNote(turn.steps)}`;
     return {
       turnId: turn.id,
       status: settled.status,

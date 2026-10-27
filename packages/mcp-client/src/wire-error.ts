@@ -52,14 +52,22 @@ export class WireError extends Error {
   readonly answeredRevision: string | undefined;
   /** For a `revision` failure: the revisions the server listed as supported, when its refusal carried the list. */
   readonly supportedRevisions: readonly string[];
+  /** For a `timeout` of a call: `idle` when the server went quiet for the idle limit, `total` when the call ran past its wall-clock cap, progress or not. */
+  readonly limit: 'idle' | 'total' | undefined;
 
-  constructor(kind: WireErrorKind, message: string, status?: number, named: { readonly answered?: string; readonly supported?: readonly string[] } = {}) {
+  constructor(
+    kind: WireErrorKind,
+    message: string,
+    status?: number,
+    named: { readonly answered?: string; readonly supported?: readonly string[]; readonly limit?: 'idle' | 'total' } = {},
+  ) {
     super(message);
     this.name = 'WireError';
     this.kind = kind;
     this.status = status;
     this.answeredRevision = named.answered;
     this.supportedRevisions = named.supported ?? [];
+    this.limit = named.limit;
   }
 }
 

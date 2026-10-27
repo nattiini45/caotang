@@ -13,7 +13,7 @@ import type { SchemaFailure } from './schema.js';
 import { describeFailure } from './schema.js';
 
 /** §3.5's `McpError` codes. A call failure is one of these, and it is data: nothing throws past the boundary without one. */
-export type McpErrorCode = 'unreachable' | 'pin_mismatch' | 'schema' | 'timeout' | 'server_error' | 'not_found' | 'input_required';
+export type McpErrorCode = 'unreachable' | 'pin_mismatch' | 'schema' | 'timeout' | 'cancelled' | 'server_error' | 'not_found' | 'input_required';
 
 export interface McpError {
   readonly code: McpErrorCode;
@@ -44,6 +44,22 @@ export const PIN_MISMATCH_TEXT = 'server changed since review — re-approve in 
 /** §6: *"timeout/abort → external call timed out after 120 s — no partial results exist"*. The seconds come from the configured timeout. */
 export function timeoutText(timeoutMs: number): string {
   return `external call timed out after ${formatSeconds(timeoutMs)} s — no partial results exist`;
+}
+
+/**
+ * A call that ran to its wall-clock cap while the server was still reporting progress. The cap is named, and so is why progress did not
+ * extend it. The idle limit's text above is for a server that went quiet.
+ */
+export function totalTimeoutText(totalMs: number): string {
+  return `external call stopped after ${formatSeconds(totalMs)} s, the longest any call may run even while the server reports progress — no partial results exist`;
+}
+
+/**
+ * A call that was cancelled before the server answered: the writer pressed Stop, or a run limit ended the turn. The server was told to stop, and
+ * it may already have done part of the work: Caotang cannot know, and cannot undo what a server did.
+ */
+export function cancelledText(): string {
+  return 'external call cancelled before the server answered — the server may already have done part of the work';
 }
 
 function formatSeconds(ms: number): string {
@@ -121,6 +137,13 @@ export function toCommandError(error: McpError, serverName: string, toolName: st
         message: error.message,
         target: toolName,
         correctiveHint: 'drop this step or report it to the user; Caotang does not retry an external call',
+      };
+    case 'cancelled':
+      return {
+        code: 'io-error',
+        message: error.message,
+        target: toolName,
+        correctiveHint: 'the call was cancelled; do not retry it unless the user asks, and check whether the server already did part of the work',
       };
     case 'server_error':
       return {

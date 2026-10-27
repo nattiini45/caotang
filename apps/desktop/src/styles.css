@@ -2998,6 +2998,32 @@ dialog.confirm:has(.folder-file-preview) {
   color: var(--danger);
 }
 
+.status-card-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 6px;
+}
+
+.status-card-progress progress {
+  flex: 1 1 120px;
+  min-width: 80px;
+  max-width: 240px;
+  height: 8px;
+}
+
+.status-card-progress-count {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.status-card-progress-message {
+  flex-basis: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .status-card-args pre {
   font-size: 11.5px;
   white-space: pre-wrap;
@@ -3396,6 +3422,237 @@ dialog.confirm:has(.folder-file-preview) {
   .toolbar-end {
     flex-wrap: wrap;
     justify-content: flex-end;
+  }
+}
+
+/* The narrow layout (ui-modules §0.6, §1): below 960 px, a phone or a tablet in portrait. One centre column; the rail is a drawer and the
+   inspector a bottom sheet, both opened from the toolbar; the toolbar's other controls are in its overflow menu; and every shell target is
+   at least 44 px. 960 px and above is untouched. The width is repeated in app/narrow-model.ts, which the markup reads. */
+@media (max-width: 959px) {
+  .workspace {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    min-width: 0;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+  }
+
+  .workspace .toolbar {
+    flex: none;
+    height: auto;
+    min-height: 52px;
+    gap: 6px;
+    padding: 4px 8px;
+  }
+
+  .workspace .toolbar-start {
+    flex: 1 1 0;
+  }
+
+  .workspace .toolbar-end {
+    flex: none;
+    gap: 4px;
+  }
+
+  .workspace .center {
+    flex: 1 1 auto;
+  }
+
+  /* The drawer and the sheet are fixed over the centre. Closed, they are hidden, not just moved: a hidden panel is out of the tab order
+     and the reading order, so nothing behind the writer's page can take focus. */
+  .workspace .rail.is-drawer,
+  .workspace .sheet {
+    position: fixed;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    box-shadow: var(--shadow), 0 8px 32px rgba(0, 0, 0, 0.25);
+    visibility: hidden;
+    transition: transform 0.2s ease, visibility 0s linear 0.2s;
+  }
+
+  .workspace .rail.is-drawer {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(88vw, 360px);
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) env(safe-area-inset-left);
+    border-right: 1px solid var(--line);
+    transform: translateX(-100%);
+  }
+
+  .workspace .sheet {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 80vh;
+    max-height: 80dvh;
+    padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    border-top: 1px solid var(--line-strong);
+    border-radius: 14px 14px 0 0;
+    transform: translateY(100%);
+  }
+
+  .workspace .rail.is-drawer.is-open,
+  .workspace .sheet.is-open {
+    visibility: visible;
+    transform: none;
+    transition: transform 0.2s ease, visibility 0s;
+  }
+
+  .workspace .sheet .inspector {
+    flex: 1 1 auto;
+    border-left: none;
+    overflow-y: auto;
+  }
+
+  .workspace .panel-head {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 8px 4px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .workspace .panel-title {
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .workspace .scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 25;
+    background: rgba(0, 0, 0, 0.4);
+  }
+
+  .workspace .toolbar-title {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .workspace .toolbar-title .project-name {
+    margin: 0;
+  }
+
+  .workspace .toolbar-title .save-state {
+    padding: 0;
+    font-size: 11.5px;
+    white-space: normal;
+  }
+
+  /* The agent drawer keeps the writer's page in view while it is closed (its header is the toggle and the provider) and takes most of the
+     column when it is open. The Mode control is in the header on a desktop; here it is in the open drawer, where there is room for it. */
+  .workspace .agent.is-open {
+    max-height: 70%;
+  }
+
+  .workspace .agent-head {
+    flex-wrap: wrap;
+    gap: 0 8px;
+    padding: 4px 8px;
+  }
+
+  .workspace .agent-provider {
+    flex: 1 1 6rem;
+    min-width: 0;
+  }
+
+  .workspace .agent:not(.is-open) .agent-mode {
+    display: none;
+  }
+
+  .workspace .agent-mode {
+    flex: 1 1 100%;
+  }
+
+  .workspace .agent-body {
+    padding: 4px 8px 12px;
+  }
+
+  /* Touch targets: every control in the shell is at least 44 by 44 px (WCAG 2.5.5). A sentence's own inline link keeps its line. */
+  #root :is(button, select, summary, [role='tab'], [role='radio'], [role='menuitem'], [role='menuitemradio'], [role='treeitem'], textarea, input:not([type='checkbox'], [type='radio'], [type='hidden'], [type='file'])):not(.status-link) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  #root label:has(> input[type='checkbox'], > input[type='radio']) {
+    min-height: 44px;
+  }
+
+  /* A row's Actions button, where there is no right click. */
+  .row-actions {
+    flex: none;
+    margin: 0 -4px 0 0;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 18px;
+    line-height: 1;
+    letter-spacing: 0;
+    text-transform: none;
+    cursor: pointer;
+  }
+
+  /* What a desktop-only view says in its place (OpenOnDesktop). It is the empty state's look, with its words left-aligned to be read. */
+  .open-on-desktop {
+    text-align: start;
+  }
+
+  .open-on-desktop h2 {
+    font-size: 15px;
+  }
+
+  .open-on-desktop .empty-text {
+    margin: 0;
+  }
+
+  .workspace .center > .open-on-desktop {
+    flex: 1 1 auto;
+    align-content: center;
+  }
+
+  /* Settings fills the screen: its section list sits above the section, not beside it. */
+  dialog.settings {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+  }
+
+  dialog.settings .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  dialog.settings .settings-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+
+  dialog.settings .settings-body {
+    padding: 12px 12px 24px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .workspace .rail.is-drawer,
+    .workspace .sheet,
+    .workspace .rail.is-drawer.is-open,
+    .workspace .sheet.is-open {
+      transition: none;
+    }
   }
 }
 

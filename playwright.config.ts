@@ -19,19 +19,21 @@ const crossBrowser = process.env['CAOTANG_E2E_BROWSERS'] === 'all';
 const noServer = process.env['CAOTANG_E2E_NO_SERVER'] === '1';
 
 /** What Firefox and WebKit leave to Chromium: pure model specs (the same in any browser), the build smoke, and the specs that call real provider endpoints. */
-const chromiumOnlySpecs = [/[\\/]e2e[\\/]unit[\\/]/, /prod-smoke\.spec\.ts/, /providers-cors\.spec\.ts/, /provider-smoke\.spec\.ts/];
+const chromiumOnlySpecs = [/[\\/]e2e[\\/]unit[\\/]/, /prod-smoke\.spec\.ts/, /providers-cors\.spec\.ts/, /provider-smoke\.spec\.ts/, /mobile-shell\.spec\.ts/];
 
 /**
  * E2E wiring. Browsers are installed on demand with
  * `pnpm exec playwright install chromium` (add `firefox webkit` for those projects), once per machine, not every run.
  *
- * Four projects. `chromium` runs the suite against the dev server. `firefox` and `webkit` run it too, minus the specs that are
+ * Up to six projects. `chromium` runs the suite against the dev server, less the production smoke and the narrow-layout spec. `firefox` and `webkit` run it too, minus the specs that are
  * browser-independent or need Chromium (e2e/unit, the production smoke, the provider specs), so a writer in those browsers meets the
  * bundle-only storage path tested (File System Access is Chromium-only). They exist only with CAOTANG_E2E_BROWSERS=all, which the
  * cross-browser workflow .github/workflows/e2e-browsers.yml sets for pull requests, nightly and on-demand runs. `production-preview` runs only
  * e2e/prod-smoke.spec.ts against `vite preview` of a fresh build, so a build-only failure (a root-absolute asset path, a
  * DEV-only hook) is caught here and not by a writer. The preview server builds before it starts, so it tests the source
- * this checkout holds.
+ * this checkout holds. `mobile` and `mobile-iphone-size` run only e2e/mobile-shell.spec.ts, the narrow layout below 960 px, in
+ * Chromium with touch: the Pixel 7 device, and an iPhone-sized 390 by 844 viewport. They emulate a phone's size and touch input;
+ * they are not WebKit and not a device, so they say nothing about iOS Safari (decisions.md, End-to-end tests run in Chromium only).
  */
 export default defineConfig({
   testDir: './e2e',
@@ -46,8 +48,15 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      testIgnore: /prod-smoke\.spec\.ts/,
+      testIgnore: [/prod-smoke\.spec\.ts/, /mobile-shell\.spec\.ts/],
       use: { ...devices['Desktop Chrome'] },
+    },
+    { name: 'mobile', testMatch: /mobile-shell\.spec\.ts/, use: { ...devices['Pixel 7'] } },
+    {
+      name: 'mobile-iphone-size',
+      testMatch: /mobile-shell\.spec\.ts/,
+      // Chromium, not the iPhone device (which runs WebKit, not installed here and covered by #14): the viewport and touch of an iPhone 14.
+      use: { ...devices['Desktop Chrome'], viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3 },
     },
     ...(crossBrowser
       ? [

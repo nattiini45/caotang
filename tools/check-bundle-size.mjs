@@ -42,7 +42,8 @@ export const BUDGET = {
   // 1,481.1 kB measured with macros (#57), the prompt-injection guards (#54) and the export Preview (#106) together, on top of main's wave 20 review fixes; the cap is that plus about 1%.
   allow: {
     'fontkit.es': 750_000,
-    index: 1_495_000,
+    // 1,495.9 kB measured with the narrow layout (#18) and external-call progress (#79) together, on top of wave 22; the cap is that plus about 1%.
+    index: 1_511_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
   // 772.4 kB measured with Colour emoji, against 769.1 kB before it; 779.3 kB with Colour emoji and Agent rules together (Wave 14); 786.4 kB with the agent run log and resume.
@@ -58,7 +59,8 @@ export const BUDGET = {
   // 5,975.3 kB measured with the restore planner and the step and conversation rewind menus (#53) and the four host-model rows (#81) together; the
   // app carries the host-model rows' registry metadata, params and preflights and none of their ports, which only the MCP server builds.
   // 6,036.1 kB measured with those and macros (#57), the prompt-injection guards (#54) and the export Preview (#106) together; the ceiling is that plus about 0.6%.
-  totalJs: 6_075_000,
+  // 6,076.1 kB measured with the narrow layout (#18): its model, notice and hook, the drawer, sheet and More menu in the workspace, and the row Actions button; the ceiling is that plus about 1%.
+  totalJs: 6_140_000,
 };
 
 const KB = 1000;

@@ -166,6 +166,15 @@ export interface ToolResultRecord extends Base {
   readonly body?: unknown;
   readonly truncated?: { readonly chars: number };
 }
+/** A server's progress report on an external call that was running, cleaned (mcp-client progress.ts). The message is the server's text, so an `omitText` export leaves it out. */
+export interface ToolProgressRecord extends Base {
+  readonly kind: 'tool.progress';
+  readonly turnId: string;
+  readonly callId: string;
+  readonly progress: number;
+  readonly total?: number;
+  readonly message?: Text;
+}
 export interface CardTraceRecord extends Base {
   readonly kind: 'card';
   readonly turnId: string;
@@ -195,6 +204,7 @@ export type TraceRecord =
   | ContextRecord
   | ToolCallRecord
   | ToolResultRecord
+  | ToolProgressRecord
   | CardTraceRecord
   | LadderRecord
   | TurnEndRecord;
@@ -419,6 +429,8 @@ export function omitRecord(record: TraceRecord): TraceRecord {
       const { body, ...rest } = record;
       return body === undefined ? record : { ...rest, body: omitAny(body) };
     }
+    case 'tool.progress':
+      return record.message === undefined ? record : { ...record, message: omitText(record.message) };
     case 'ladder':
       return { ...record, reason: omitText(record.reason) };
     case 'turn.end':
@@ -744,7 +756,7 @@ export function traceGateway(sink: TraceSink): (event: GatewayTraceEvent) => voi
  * Reading a trace back
  * ------------------------------------------------------------------ */
 
-const KINDS: readonly TraceKind[] = ['header', 'turn.start', 'message', 'model.request', 'model.response', 'context', 'tool.call', 'tool.result', 'card', 'ladder', 'turn.end'];
+const KINDS: readonly TraceKind[] = ['header', 'turn.start', 'message', 'model.request', 'model.response', 'context', 'tool.call', 'tool.result', 'tool.progress', 'card', 'ladder', 'turn.end'];
 
 type FieldType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'text' | 'any';
 
@@ -768,6 +780,7 @@ export const REQUIRED_FIELDS: Readonly<Record<TraceKind, Readonly<Record<string,
   context: { turnId: 'string', callIndex: 'number', layers: 'array', dropped: 'array' },
   'tool.call': { turnId: 'string', callId: 'string', tool: 'string', risk: 'string', params: 'object' },
   'tool.result': { turnId: 'string', callId: 'string', outcome: 'string', finishedAt: 'number' },
+  'tool.progress': { turnId: 'string', callId: 'string', progress: 'number' },
   card: { turnId: 'string', card: 'object' },
   ladder: { turnId: 'string', callId: 'string', attempt: 'number', reason: 'text' },
   'turn.end': { turnId: 'string', report: 'object' },

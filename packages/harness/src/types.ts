@@ -29,6 +29,7 @@ import type {
   Result,
   ToolValue,
 } from '@caotang/bus';
+import type { WireProgress } from '@caotang/mcp-client';
 import type { ProjectState } from '@caotang/store';
 
 import type { ToolMetadata } from './metadata.js';
@@ -234,8 +235,10 @@ export interface TurnContext {
   readonly source?: ActivitySource;
   /** `approvedPlan` or `confirmed` — the flow facts the gate reads (command-bus §4). */
   readonly permission?: PermissionContext;
-  /** The writer's stop. Awaited calls (an async port, an external read) end their wait when it fires; a started bus command is never interrupted. */
+  /** The writer's stop. Awaited calls (an async port, an external call) end their wait when it fires; a started bus command is never interrupted, except an external call, which changes nothing in the project. */
   readonly signal?: AbortSignal;
+  /** Told of each progress report a server sends while an external call runs, cleaned (mcp-client progress.ts). Never sent to the model. */
+  readonly onProgress?: (progress: WireProgress) => void;
   /**
    * Set for a call made by a delegated agent (agent-harness §2, "Delegate"): `turn-3/reader#1`. The harness refuses every tool that is not a
    * read while it is present, behind the runner's own filter. Display and attribution otherwise; it grants nothing.

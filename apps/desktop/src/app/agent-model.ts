@@ -203,8 +203,9 @@ function reduceView(turn: TurnView, event: AgentEvent): TurnView {
  * The rewind menu of one step of a finished turn: shown for a step whose restore would take something back, and for a step that called
  * an outside tool, which carries the scope note on its own menu (extensibility §6): restoring puts back Caotang's own changes only.
  */
-export function stepMenuOf(card: Pick<StatusCard, 'tool' | 'status'>, restorable: boolean): { readonly show: boolean; readonly note?: string } {
-  const external = card.status === 'done' && card.tool.startsWith('mcp__');
+export function stepMenuOf(card: Pick<StatusCard, 'tool' | 'status' | 'mayHaveActed'>, restorable: boolean): { readonly show: boolean; readonly note?: string } {
+  // A call that was sent and then timed out or was cancelled counts too: the server may have acted, and a restore does not reach it.
+  const external = (card.status === 'done' || card.mayHaveActed === true) && card.tool.startsWith('mcp__');
   return { show: restorable || external, ...(external ? { note: STEP_EXTERNAL_CHECKPOINT_NOTE } : {}) };
 }
 
@@ -313,6 +314,31 @@ export function formatElapsed(milliseconds: number): string {
 export function elapsedOf(card: StatusCard, now: number): number | undefined {
   if (card.startedAt === undefined) return undefined;
   return (card.finishedAt ?? now) - card.startedAt;
+}
+
+/** How a running external call's progress reads on its card: a bar when the server gave a total, a counter when it did not, and its words. */
+export interface ProgressCardView {
+  /** 0 to 1 when the server gave a total; absent otherwise. */
+  readonly fraction?: number;
+  /** The same in words, so the bar is never the only signal. */
+  readonly label: string;
+  /** The server's own message, plain text, at most 200 characters (mcp-client progress.ts). Absent when it sent none. */
+  readonly message?: string;
+}
+
+const countOf = (value: number): string => String(Math.round(value * 100) / 100);
+
+/** The progress a running card shows, or `undefined` when it has none to show (a finished card shows none). */
+export function progressViewOf(card: Pick<StatusCard, 'status' | 'progress'>): ProgressCardView | undefined {
+  const { progress } = card;
+  if (card.status !== 'running' || progress === undefined) return undefined;
+  const message = progress.message === undefined ? {} : { message: progress.message };
+  if (progress.total === undefined) return { label: `Progress: ${countOf(progress.progress)}`, ...message };
+  return {
+    fraction: Math.min(1, Math.max(0, progress.progress / progress.total)),
+    label: `${countOf(progress.progress)} of ${countOf(progress.total)}`,
+    ...message,
+  };
 }
 
 /**

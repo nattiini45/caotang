@@ -16,6 +16,7 @@ import {
   useState,
   useSyncExternalStore,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react';
 import type { ProjectState, RuntimeStore } from '@caotang/store';
@@ -26,6 +27,7 @@ import { childrenOf, newDocumentRefusalText, newItemParent, nodeById, summarizeS
 import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, folderIsEmpty, pickDirectory, type DirectoryHandleLike } from '../app/fs-access.js';
 import { resolveKey } from '../app/keymap.js';
+import { narrowMediaFeature, togglePanel, type NarrowPanel } from '../app/narrow-model.js';
 import {
   exportBundle,
   folderOverwriteSnapshotFor,
@@ -79,7 +81,19 @@ import {
   liveSelection,
   selectNode,
 } from './actions.js';
-import { ChoiceDialog, ConfirmDialog, ReportContext, formatCount, useSession, wordsLabel, type StatusMessage } from './shared.js';
+import {
+  ChoiceDialog,
+  ConfirmDialog,
+  Menu,
+  ReportContext,
+  formatCount,
+  useSession,
+  wordsLabel,
+  type MenuAnchor,
+  type MenuItem,
+  type StatusMessage,
+} from './shared.js';
+import { OpenOnDesktop, useNarrow } from './narrow.js';
 
 type RailTab = 'binder' | 'codex' | 'activity' | 'trace' | 'findings';
 
@@ -146,6 +160,15 @@ export function Workspace({
   const { state, view } = session;
   const [rail, setRail] = useState<RailTab>('binder');
   const [center, setCenter] = useState<CenterMode>('editor');
+  // The narrow layout (ui-modules §1): which panel is open over the centre, and the toolbar's overflow menu. View state only; a wide
+  // window never reads it.
+  const narrow = useNarrow();
+  const [panel, setPanel] = useState<NarrowPanel | null>(null);
+  const [overflow, setOverflow] = useState<MenuAnchor | null>(null);
+  if (!narrow && (panel !== null || overflow !== null)) {
+    setPanel(null);
+    setOverflow(null);
+  }
   const [focusMode, setFocusMode] = useState(false);
   // The filter chord asks for the field to be focused. The request is a counter, so each chord press is a new request, and
   // the effect below focuses the field once the binder rail has rendered.
@@ -218,6 +241,7 @@ export function Workspace({
   const target = targetProgress(storedToday + session.sittingWords(), settingsNow.session.dailyTargetWords);
   // Focus mode hides the rails only when the writer's Writing setting says so (ui-modules §5.2). Off, focus mode leaves them shown.
   const hideRails = focusMode && settingsNow.editor.focusModeHideRails;
+  const openPanel = narrow && !hideRails ? panel : null;
   const durability = session.durability();
   const showStorageBanner = durability.persisted === false && !bannerDismissed;
   const sample = settingsNow.sampleProjectIds.includes(session.projectId);
@@ -296,9 +320,21 @@ export function Workspace({
       : shotBoard !== undefined && mediaKindOf(shotBoard) === 'storyboard'
         ? shotBoard
         : undefined;
+  // In the narrow layout a storyboard and a dialogue container say "Open on desktop" in place of their view (ui-modules §1).
+  const desktopOnly = narrow && mediaNode !== undefined ? narrowMediaFeature(mediaKindOf(mediaNode)) : null;
   const mediaView =
-    mediaNode !== undefined && (center === 'editor' || mediaKindOf(mediaNode) === 'storyboard')
-      ? mediaViewFor(mediaNode, {
+    mediaNode !== undefined && (center === 'editor' || mediaKindOf(mediaNode) === 'storyboard') ? (
+      desktopOnly !== null ? (
+        <OpenOnDesktop
+          feature={desktopOnly}
+          actions={
+            <button type="button" className="button" onClick={() => setPanel('rail')}>
+              Open the binder
+            </button>
+          }
+        />
+      ) : (
+        mediaViewFor(mediaNode, {
           session,
           ports: mediaPortsFor(session),
           reveal,
@@ -312,7 +348,8 @@ export function Workspace({
             void agent.submit(intent);
           },
         })
-      : null;
+      )
+    ) : null;
   const undoLabel = session.undoLabel();
   const saveState = session.saveState();
   // The export dialog compiles the item the binder has selected, unless that is a section (then it is the whole manuscript).
@@ -372,6 +409,7 @@ export function Workspace({
     (docId: string, offset?: number): void => {
       selectNode(session, docId);
       setCenter('editor');
+      setPanel(null);
       if (offset !== undefined) setReveal({ docId, from: offset, to: offset });
     },
     [session],
@@ -381,6 +419,7 @@ export function Workspace({
   const runAgentIntent = useCallback(
     (intent: string, options?: SubmitOptions): void => {
       setAgentOpen(true);
+      setPanel(null);
       void agent.submit(intent, options);
     },
     [agent],
@@ -389,6 +428,7 @@ export function Workspace({
   /** A mention chip's click: the codex tab shows the entry (codex.md §8). */
   const openCodexEntry = useCallback((entryId: string): void => {
     setRail('codex');
+    setPanel('rail');
     setCodexFocus((previous) => ({ entryId, serial: (previous?.serial ?? 0) + 1 }));
   }, []);
 
@@ -429,6 +469,7 @@ export function Workspace({
         event.preventDefault();
         setFocusMode(false);
         setRail('binder');
+        if (narrow) setPanel('rail');
         setFilterFocusRequest((count) => count + 1);
         return;
       case 'new-document':
@@ -448,6 +489,39 @@ export function Workspace({
   useEffect(() => {
     if (filterFocusRequest > 0) focusBinderFilter();
   }, [filterFocusRequest]);
+
+  /**
+   * The binder asks for a centre view as a row is chosen. In the narrow layout a folder leaves the centre alone: the corkboard is one
+   * switch away and says "Open on desktop", and a chapter chosen to add a scene under it should not swap the writer's page for that notice.
+   */
+  const showCenter = (mode: CenterMode): void => {
+    if (narrow && mode === 'corkboard') return;
+    setCenter(mode);
+  };
+
+  // Focus goes into a panel as it opens and back to its button as it closes, unless the writer's focus has already gone somewhere else
+  // (the editor, after a document was chosen). The toolbar and the centre are inert while a panel is open, so focus cannot wander behind it.
+  const shownPanel = useRef<NarrowPanel | null>(null);
+  useEffect(() => {
+    const before = shownPanel.current;
+    shownPanel.current = openPanel;
+    if (openPanel === 'rail') document.getElementById(railTabId(rail))?.focus();
+    else if (openPanel === 'inspector') document.getElementById('narrow-close-inspector')?.focus();
+    else if (before !== null) {
+      const active = document.activeElement;
+      const left = document.getElementById(before === 'rail' ? 'narrow-rail' : 'narrow-sheet');
+      if (active === null || active === document.body || left?.contains(active)) document.getElementById(`narrow-toggle-${before}`)?.focus();
+    }
+  }, [openPanel, rail]);
+  const onPanelKey = (event: ReactKeyboardEvent<HTMLElement>): void => {
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    event.preventDefault();
+    setPanel(null);
+  };
+  const openOverflow = (event: ReactMouseEvent<HTMLButtonElement>): void => {
+    const box = event.currentTarget.getBoundingClientRect();
+    setOverflow({ x: Math.max(8, box.right - 240), y: box.bottom + 4 });
+  };
 
   // The rail's tabs and the centre's radio group: arrows (and Home and End) move the selection and its focus together.
   const onRailTabKey = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
@@ -669,85 +743,157 @@ export function Workspace({
     })();
   };
 
+  // The toolbar's controls beyond the two panels, in the narrow layout. They are the wide toolbar's buttons, with the same handlers.
+  const overflowItems: readonly MenuItem[] = [
+    { key: 'projects', label: 'Projects', onSelect: leave },
+    { key: 'details', label: 'Project details', onSelect: () => openDialog({ kind: 'project' }) },
+    { key: 'undo', label: 'Undo', disabled: undoLabel === null, onSelect: undoNow },
+    { key: 'focus', label: focusMode ? 'Leave focus mode' : 'Focus mode', onSelect: toggleFocus },
+    { key: 'skills', label: 'Skills', separatorBefore: true, onSelect: () => openDialog({ kind: 'skills' }) },
+    { key: 'instructions', label: 'Instructions', onSelect: () => openDialog({ kind: 'agent-instructions' }) },
+    { key: 'compile', label: 'Compile…', separatorBefore: true, onSelect: () => setExporting(true) },
+    { key: 'bundle', label: 'Export bundle', onSelect: exportNow },
+    ...(folderAccessSupported() ? [{ key: 'folder', label: 'Save to folder', onSelect: saveToFolder }] : []),
+    { key: 'settings', label: 'Settings', separatorBefore: true, onSelect: () => setSettingsSection('providers') },
+    { key: 'theme', label: theme === 'dark' ? 'Light theme' : 'Dark theme', onSelect: toggleTheme },
+  ];
+
   return (
     <ReportContext.Provider value={report}>
       <div className={`workspace${hideRails ? ' is-focus' : ''}`}>
-        <header className="toolbar">
+        <header className="toolbar" inert={openPanel !== null}>
           <div className="toolbar-start">
-            <button type="button" className="button is-quiet" onClick={leave}>
-              Projects
-            </button>
-            <h1 className="project-name">
-              {/* The name opens the project panel, where the title, author, language, ISBN and cover are set. */}
+            {narrow ? (
+              hideRails ? null : (
+                <button
+                  type="button"
+                  id="narrow-toggle-rail"
+                  className="button"
+                  aria-expanded={openPanel === 'rail'}
+                  aria-controls="narrow-rail"
+                  onClick={() => setPanel(togglePanel(openPanel, 'rail'))}
+                >
+                  Binder
+                </button>
+              )
+            ) : (
+              <button type="button" className="button is-quiet" onClick={leave}>
+                Projects
+              </button>
+            )}
+            {narrow ? (
+              // The save state sits under the name: a toolbar of three buttons has no room for a sentence beside them.
+              <div className="toolbar-title">
+                <h1 className="project-name">{state.manifest.project.name}</h1>
+                <SaveIndicator state={saveState} onExport={exportNow} />
+              </div>
+            ) : (
+              <h1 className="project-name">
+                {/* The name opens the project panel, where the title, author, language, ISBN and cover are set. */}
+                <button
+                  type="button"
+                  className="project-name-button"
+                  title="Project details: title, author, language, ISBN and cover"
+                  onClick={() => openDialog({ kind: 'project' })}
+                >
+                  {state.manifest.project.name}
+                </button>
+              </h1>
+            )}
+          </div>
+          {narrow ? (
+            // Narrow: the rail and the inspector open from here, and every other control is in the overflow menu (ui-modules §1).
+            <div className="toolbar-end">
+              {hideRails ? null : (
+                <button
+                  type="button"
+                  id="narrow-toggle-inspector"
+                  className="button"
+                  aria-expanded={openPanel === 'inspector'}
+                  aria-controls="narrow-sheet"
+                  onClick={() => setPanel(togglePanel(openPanel, 'inspector'))}
+                >
+                  Inspector
+                </button>
+              )}
+              <button type="button" className="button" aria-haspopup="menu" aria-expanded={overflow !== null} onClick={openOverflow}>
+                More
+              </button>
+            </div>
+          ) : (
+            <div className="toolbar-end">
               <button
                 type="button"
-                className="project-name-button"
-                title="Project details: title, author, language, ISBN and cover"
-                onClick={() => openDialog({ kind: 'project' })}
+                className="button"
+                disabled={undoLabel === null}
+                title={undoLabel === null ? 'Nothing to undo' : `Undo: ${undoLabel}`}
+                onClick={undoNow}
               >
-                {state.manifest.project.name}
+                Undo
               </button>
-            </h1>
-          </div>
-          <div className="toolbar-end">
-            <button
-              type="button"
-              className="button"
-              disabled={undoLabel === null}
-              title={undoLabel === null ? 'Nothing to undo' : `Undo: ${undoLabel}`}
-              onClick={undoNow}
-            >
-              Undo
-            </button>
-            <button
-              type="button"
-              className="button"
-              aria-pressed={focusMode}
-              title="Focus mode (Ctrl+Shift+F)"
-              onClick={toggleFocus}
-            >
-              Focus
-            </button>
-            <button type="button" className="button" title="Reusable writing instructions for the agent" onClick={() => openDialog({ kind: 'skills' })}>
-              Skills
-            </button>
-            <button
-              type="button"
-              className="button"
-              title="CAOTANG.md, your standing instructions, and the notes the agent keeps"
-              onClick={() => openDialog({ kind: 'agent-instructions' })}
-            >
-              Instructions
-            </button>
-            <button type="button" className="button" onClick={() => setExporting(true)}>
-              Compile…
-            </button>
-            <button type="button" className="button" onClick={exportNow}>
-              Export bundle
-            </button>
-            {folderAccessSupported() ? (
-              <button type="button" className="button" onClick={saveToFolder}>
-                Save to folder
+              <button
+                type="button"
+                className="button"
+                aria-pressed={focusMode}
+                title="Focus mode (Ctrl+Shift+F)"
+                onClick={toggleFocus}
+              >
+                Focus
               </button>
-            ) : null}
-            <button type="button" className="button" onClick={() => setSettingsSection('providers')}>
-              Settings
-            </button>
-            <button
-              type="button"
-              className="button"
-              aria-label={theme === 'dark' ? 'Light theme' : 'Dark theme'}
-              title={theme === 'dark' ? 'Use the light theme' : 'Use the dark theme'}
-              onClick={toggleTheme}
-            >
-              {theme === 'dark' ? 'Light theme' : 'Dark theme'}
-            </button>
-            <SaveIndicator state={saveState} onExport={exportNow} />
-          </div>
+              <button type="button" className="button" title="Reusable writing instructions for the agent" onClick={() => openDialog({ kind: 'skills' })}>
+                Skills
+              </button>
+              <button
+                type="button"
+                className="button"
+                title="CAOTANG.md, your standing instructions, and the notes the agent keeps"
+                onClick={() => openDialog({ kind: 'agent-instructions' })}
+              >
+                Instructions
+              </button>
+              <button type="button" className="button" onClick={() => setExporting(true)}>
+                Compile…
+              </button>
+              <button type="button" className="button" onClick={exportNow}>
+                Export bundle
+              </button>
+              {folderAccessSupported() ? (
+                <button type="button" className="button" onClick={saveToFolder}>
+                  Save to folder
+                </button>
+              ) : null}
+              <button type="button" className="button" onClick={() => setSettingsSection('providers')}>
+                Settings
+              </button>
+              <button
+                type="button"
+                className="button"
+                aria-label={theme === 'dark' ? 'Light theme' : 'Dark theme'}
+                title={theme === 'dark' ? 'Use the light theme' : 'Use the dark theme'}
+                onClick={toggleTheme}
+              >
+                {theme === 'dark' ? 'Light theme' : 'Dark theme'}
+              </button>
+              <SaveIndicator state={saveState} onExport={exportNow} />
+            </div>
+          )}
         </header>
 
         {hideRails ? null : (
-          <nav className="rail" aria-label="Project panels">
+          <nav
+            id="narrow-rail"
+            className={`rail${narrow ? ' is-drawer' : ''}${openPanel === 'rail' ? ' is-open' : ''}`}
+            aria-label="Project panels"
+            onKeyDown={narrow ? onPanelKey : undefined}
+          >
+            {narrow ? (
+              <div className="panel-head">
+                <span className="panel-title">Project panels</span>
+                <button type="button" className="button" aria-label="Close panels" onClick={() => setPanel(null)}>
+                  Close
+                </button>
+              </div>
+            ) : null}
             <div role="tablist" aria-label="Panels" className="rail-tabs" onKeyDown={onRailTabKey}>
               <RailTabButton tab="binder" current={rail} label="Binder" onSelect={setRail} />
               <RailTabButton tab="codex" current={rail} label="Codex" onSelect={setRail} />
@@ -769,8 +915,12 @@ export function Workspace({
                     renaming={renaming?.surface === 'binder' ? renaming.nodeId : null}
                     onRename={renameOn('binder')}
                     onAskDelete={askDelete}
-                    onShowCenter={setCenter}
-                    onFocusSynopsis={() => focusSoon('#inspector-synopsis')}
+                    onShowCenter={showCenter}
+                    onOpened={() => setPanel(null)}
+                    onFocusSynopsis={() => {
+                      if (narrow) setPanel('inspector');
+                      focusSoon('#inspector-synopsis');
+                    }}
                     onAgentIntent={runAgentIntent}
                   />
                   <BinderFooter session={session} runtime={store} target={target} />
@@ -783,7 +933,10 @@ export function Workspace({
                   onReveal={revealPassage}
                   settings={settingsNow.coherence}
                   providers={services.providers}
-                  onOpenAgent={() => setAgentOpen(true)}
+                  onOpenAgent={() => {
+                    setAgentOpen(true);
+                    setPanel(null);
+                  }}
                   onOpenDocument={openDocument}
                 />
               ) : rail === 'trace' ? (
@@ -798,7 +951,7 @@ export function Workspace({
           </nav>
         )}
 
-        <main className="center">
+        <main className="center" inert={openPanel !== null}>
           <div role="radiogroup" aria-label="Centre view" className="center-switch" onKeyDown={onCenterKey}>
             <button
               type="button"
@@ -827,10 +980,18 @@ export function Workspace({
           {showStorageBanner ? (
             <div className="storage-banner" role="status" aria-label="Browser storage" data-testid="storage-banner">
               <div>
-                <p>
-                  Your words are kept in this browser, and the browser has not promised to keep them. Export a backup to keep a copy you
-                  can open anywhere.
-                </p>
+                {narrow ? (
+                  <p>
+                    Your words are kept in this browser, and the browser has not promised to keep them. A phone or tablet clears browser
+                    storage sooner than a computer when space runs short, and nothing syncs yet, so this copy is not your book&rsquo;s only
+                    home. Export a backup often and keep it somewhere else.
+                  </p>
+                ) : (
+                  <p>
+                    Your words are kept in this browser, and the browser has not promised to keep them. Export a backup to keep a copy you
+                    can open anywhere.
+                  </p>
+                )}
                 {explainStorage ? (
                   <p className="muted">
                     Browsers may remove stored data when a device runs short of space. Asking the browser to keep it lowers that risk, and
@@ -878,7 +1039,17 @@ export function Workspace({
             onSetTarget={saveTarget}
             agentEditMode={settingsNow.editor.agentEditMode}
           />
-          {center === 'corkboard' && mediaView === null ? (
+          {center === 'corkboard' && mediaView === null && narrow ? (
+            <OpenOnDesktop
+              feature="corkboard"
+              actions={
+                <button type="button" className="button" onClick={() => setCenter('editor')}>
+                  Back to the editor
+                </button>
+              }
+            />
+          ) : null}
+          {center === 'corkboard' && mediaView === null && !narrow ? (
             <Corkboard
               session={session}
               zoom={zoom}
@@ -901,9 +1072,21 @@ export function Workspace({
           )}
         </main>
 
-        {hideRails ? null : (
+        {hideRails ? null : narrow ? (
+          <div id="narrow-sheet" className={`sheet${openPanel === 'inspector' ? ' is-open' : ''}`} onKeyDown={onPanelKey}>
+            <div className="panel-head">
+              <span className="panel-title">Inspector</span>
+              <button type="button" id="narrow-close-inspector" className="button" aria-label="Close inspector" onClick={() => setPanel(null)}>
+                Close
+              </button>
+            </div>
+            <Inspector session={session} nodeId={selected} onOpenCodex={openCodexEntry} onAgentIntent={runAgentIntent} />
+          </div>
+        ) : (
           <Inspector session={session} nodeId={selected} onOpenCodex={openCodexEntry} onAgentIntent={runAgentIntent} />
         )}
+        {openPanel === null ? null : <div className="scrim" data-testid="panel-scrim" aria-hidden="true" onClick={() => setPanel(null)} />}
+        {overflow === null ? null : <Menu label="More" anchor={overflow} items={overflowItems} onClose={() => setOverflow(null)} />}
 
         {message ? (
           <div className={`status-line is-${message.tone}`} role={message.tone === 'error' ? 'alert' : 'status'}>
