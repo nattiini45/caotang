@@ -73,6 +73,38 @@ describe('quotedProjectText', () => {
     expect(Date.now() - started).toBeLessThan(3000);
   });
 
+  it('finds a quotation split across the items of an array, and says it is the arguments as a whole', () => {
+    const state = withBody(`Before. ${TWELVE} After.`);
+    const lines = TWELVE.split(' ');
+    expect(quotedProjectText({ words: lines }, state)).toEqual([{ nodeId: 'n_SOURCE0001', title: 'Source', words: 12, argPath: 'args' }]);
+    expect(quotedProjectText({ lines: [lines.slice(0, 6).join(' '), lines.slice(6).join(' ')] }, state)).toEqual([{ nodeId: 'n_SOURCE0001', title: 'Source', words: 12, argPath: 'args' }]);
+  });
+
+  it('finds a quotation used as an object key, and one split between a key and its value', () => {
+    const state = withBody(TWELVE);
+    const lines = TWELVE.split(' ');
+    expect(quotedProjectText({ [TWELVE]: 1 }, state)).toEqual([{ nodeId: 'n_SOURCE0001', title: 'Source', words: 12, argPath: `args (key "${TWELVE.slice(0, 40)}…")` }]);
+    expect(quotedProjectText({ [lines.slice(0, 5).join(' ')]: lines.slice(5).join(' ') }, state)).toMatchObject([{ words: 12, argPath: 'args' }]);
+  });
+
+  it('finds a quotation however deep in the arguments it is, and survives a very deep value', () => {
+    const state = withBody(TWELVE);
+    let nested: unknown = TWELVE;
+    for (let level = 0; level < 20; level += 1) nested = { inner: nested };
+    expect(quotedProjectText({ nested }, state)).toMatchObject([{ words: 12, argPath: `args.nested${'.inner'.repeat(20)}` }]);
+    let deep: unknown = TWELVE;
+    for (let level = 0; level < 50000; level += 1) deep = [deep];
+    expect(quotedProjectText({ deep }, state)).toHaveLength(1);
+  });
+
+  it('does not add an arguments-wide finding for what one string already shows, and stops at a cycle', () => {
+    const state = withBody(TWELVE);
+    expect(quotedProjectText({ a: TWELVE, b: 'something else entirely' }, state)).toEqual([{ nodeId: 'n_SOURCE0001', title: 'Source', words: 12, argPath: 'args.a' }]);
+    const loop: Record<string, unknown> = { text: TWELVE };
+    loop.self = loop;
+    expect(quotedProjectText(loop, state)).toHaveLength(1);
+  });
+
   it('uses twelve words by default', () => {
     expect(QUOTE_MIN_WORDS).toBe(12);
   });

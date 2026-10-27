@@ -59,12 +59,40 @@ export function wordsOfText(text: string): string[] {
   return words;
 }
 
-/** The text of an argument value at every depth, with the path that reaches it (`args.items[2].body`). */
-function stringsOf(value: unknown, path: string, out: { readonly path: string; readonly text: string }[], depth = 0): void {
-  if (depth > 12) return;
-  if (typeof value === 'string') out.push({ path, text: value });
-  else if (Array.isArray(value)) value.forEach((item, index) => stringsOf(item, `${path}[${index}]`, out, depth + 1));
-  else if (typeof value === 'object' && value !== null) for (const [key, item] of Object.entries(value)) stringsOf(item, `${path}.${key}`, out, depth + 1);
+/** A string of the arguments, with the path that reaches it (`args.items[2].body`; an object key reads `args.items[2] (key "…")`). */
+interface ArgString {
+  readonly path: string;
+  readonly text: string;
+}
+
+/**
+ * Every string of the arguments, object keys included, in the order they are met, at any depth. It walks with a stack, not recursion, so a
+ * deeply nested value cannot overflow the call stack, and it skips an object it has already seen. Nothing is left out: a text that hid in
+ * a key, or under many levels, is still compared.
+ */
+function stringsOf(root: unknown): ArgString[] {
+  const out: ArgString[] = [];
+  const seen = new Set<object>();
+  const stack: { readonly value: unknown; readonly path: string }[] = [{ value: root, path: 'args' }];
+  for (let next = stack.pop(); next !== undefined; next = stack.pop()) {
+    const { value, path } = next;
+    if (typeof value === 'string') out.push({ path, text: value });
+    else if (typeof value === 'object' && value !== null) {
+      if (seen.has(value)) continue;
+      seen.add(value);
+      // Pushed in reverse so the first item is read first.
+      if (Array.isArray(value)) for (let index = value.length - 1; index >= 0; index -= 1) stack.push({ value: value[index], path: `${path}[${index}]` });
+      else {
+        const entries = Object.entries(value);
+        for (let index = entries.length - 1; index >= 0; index -= 1) {
+          const [key, item] = entries[index] as [string, unknown];
+          stack.push({ value: item, path: `${path}.${key}` });
+          stack.push({ value: key, path: `${path} (key "${key.length > 40 ? `${key.slice(0, 40)}…` : key}")` });
+        }
+      }
+    }
+  }
+  return out;
 }
 
 interface Source {
@@ -121,21 +149,29 @@ function longestShared(argument: readonly string[], source: readonly string[], m
 
 /**
  * The project text a call's arguments quote: for each argument string and each document or codex entry that shares at least `minWords` words in
- * a row with it, the document, the length of the longest such run and where in the arguments it was. Documents come in project order,
- * so the same call gives the same findings.
+ * a row with it, the document, the length of the longest such run and where in the arguments it was. Object keys are argument text too.
+ * The words of all the strings, in the order they are met, are also compared as one text (`args`), so a quotation split across the items of
+ * an array, or across a key and its value, is found; that finding is added only when its run is longer than any single string's. Documents
+ * come in project order, so the same call gives the same findings.
  */
 export function quotedProjectText(args: Readonly<Record<string, unknown>>, state: ProjectState, minWords: number = QUOTE_MIN_WORDS): readonly QuoteFinding[] {
-  const strings: { readonly path: string; readonly text: string }[] = [];
-  stringsOf(args, 'args', strings);
-  const prepared = strings.map((item) => ({ path: item.path, words: wordsOfText(item.text) })).filter((item) => item.words.length >= minWords);
-  if (prepared.length === 0) return [];
+  const strings = stringsOf(args);
+  const prepared = strings.map((item) => ({ path: item.path, words: wordsOfText(item.text) }));
+  const combined = prepared.length > 1 ? prepared.flatMap((item) => item.words) : [];
   const findings: QuoteFinding[] = [];
   for (const source of sourcesOf(state)) {
     const words = wordsOfText(source.text);
+    let single = 0;
     for (const item of prepared) {
+      if (item.words.length < minWords) continue;
       const run = longestShared(item.words, words, minWords);
-      if (run >= minWords) findings.push({ nodeId: source.nodeId, title: source.title, words: run, argPath: item.path });
+      if (run >= minWords) {
+        findings.push({ nodeId: source.nodeId, title: source.title, words: run, argPath: item.path });
+        if (run > single) single = run;
+      }
     }
+    const together = longestShared(combined, words, minWords);
+    if (together >= minWords && together > single) findings.push({ nodeId: source.nodeId, title: source.title, words: together, argPath: 'args' });
   }
   return findings;
 }
