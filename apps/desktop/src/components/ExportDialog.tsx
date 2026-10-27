@@ -27,12 +27,14 @@ import { loadZipEngine } from '@caotang/store';
 import { CHAR_LIMIT_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type RecipeScriptFont, type SceneNumbersOption } from '@caotang/bus';
 
 import { downloadBytes } from '../app/download.js';
+import { narrowExportAllowed, narrowExportFormat } from '../app/narrow-model.js';
 import { PACK_TEMPLATES } from '../media/prompt-pack-model.js';
 import { recipeChoicesOf } from '../app/recipe-choices.js';
 import type { ProjectSession } from '../app/session.js';
 import { compileManuscript, compileSelection, explain, saveRecipe } from './actions.js';
 import { ExportPreviewPanel, type PreviewState } from './ExportPreviewPanel.js';
 import { holdsOf } from './export-preview-model.js';
+import { OpenOnDesktop, useNarrow } from './narrow.js';
 import { formatCount, useReport, useSession, type StatusMessage } from './shared.js';
 
 /** What the dialog compiles when the selection is a single item: its id and its title, for the scope's label. */
@@ -210,7 +212,11 @@ export function ExportDialog({
   const recipes = recipeChoicesOf(recipesOf(session.state));
   const [recipeName, setRecipeName] = useState<string | null>(recipes[0]?.name ?? null);
   const recipe = recipes.find((candidate) => candidate.name === recipeName);
-  const [format, setFormat] = useState<ExportFormat>(recipe?.format ?? 'docx');
+  const [chosenFormat, setFormat] = useState<ExportFormat>(recipe?.format ?? 'docx');
+  // A narrow window compiles Markdown and plain text; the rest say "Open on desktop" (ui-modules §1). Derived, so a rotation to a wide
+  // window gives the writer's own choice back.
+  const narrow = useNarrow();
+  const format = narrow ? narrowExportFormat(chosenFormat) : chosenFormat;
   // The vendor template a prompt pack is written for. Empty until chosen, and a compile of the pack without one is refused.
   const [vendor, setVendor] = useState(vendorOf(recipe));
   // The whole manuscript unless the writer chooses a part: a selection is a choice to make, not a default.
@@ -397,6 +403,11 @@ export function ExportDialog({
 
   // The recipe's options apply to a whole manuscript and to a single item alike, so they are on whenever a recipe is chosen.
   const optionsEnabled = recipe !== undefined;
+  const groups = narrow
+    ? FORMAT_GROUPS.map((group) => ({ ...group, formats: group.formats.filter((option) => narrowExportAllowed(option.format)) })).filter(
+        (group) => group.formats.length > 0,
+      )
+    : FORMAT_GROUPS;
 
   return (
     <dialog
@@ -436,7 +447,7 @@ export function ExportDialog({
           </select>
         </label>
 
-        {FORMAT_GROUPS.map((group) => (
+        {groups.map((group) => (
           <fieldset key={group.name} className="export-group">
             <legend className="field-label">{group.name}</legend>
             {group.formats.map((option) => (
@@ -459,6 +470,7 @@ export function ExportDialog({
             ))}
           </fieldset>
         ))}
+        {narrow ? <OpenOnDesktop feature="exports" /> : null}
 
         {format === 'promptpack' ? (
           <label className="export-field">
