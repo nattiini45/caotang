@@ -208,16 +208,17 @@ export interface AgentEditInfo {
 
 /**
  * §15: how `showAgentEdit` landed an edit. `suggestions` means the marks are on screen; `replaced` means the text was swapped in
- * as `setContent` does, with `reason` saying why (`off` when the editor was not mounted in review mode, so no notice is owed).
+ * as `setContent` does, with `reason` saying why. `off` means the editor was not mounted in review mode, so no notice is owed;
+ * `no-layer` means review mode was asked for but the review layer could not be loaded, so the writer is told.
  */
 export type AgentEditOutcome =
   | { landed: 'suggestions'; suggestions: number }
-  | { landed: 'replaced'; reason: 'off' | 'unsaved' | 'diff' | 'mismatch' | 'superseded' };
+  | { landed: 'replaced'; reason: 'off' | 'no-layer' | 'unsaved' | 'diff' | 'mismatch' | 'superseded' };
 
 /** One pending suggestion, as the review bar and the agent panel show it. */
 export interface ReviewSuggestion {
   id: string;
-  /** The tool call of the turn that made it, or `null` once the editor has forgotten the turn. */
+  /** The tool call of the turn that made it, or `null` for a span whose turn this editor never recorded. */
   toolCallId: string | null;
   kind: 'insert' | 'delete' | 'replace';
   /** The words added and the words removed, shortened. */

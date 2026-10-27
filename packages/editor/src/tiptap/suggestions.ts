@@ -105,8 +105,9 @@ const markIds = (node: PmNode): string[] => {
 };
 
 /**
- * The marks. They carry only an `id`, and render as `ins` and `del` with classes, never an inline `style` (the library's own
- * `toDOM` writes `style="display: block"` on a block mark, which the app's CSP refuses). A block mark's display is a rule in styles.css.
+ * The marks. They carry an `id` (a modification also carries the library's `type`, `attrName`, `previousValue` and `newValue`), and
+ * render as `ins`, `del` and `span` with classes, never an inline `style` (the library's own `toDOM` writes `style="display: block"`
+ * on a block mark, which the app's CSP refuses). A block mark's display is a rule in styles.css.
  */
 const markSpec = (tag: string, name: string): Pick<MarkSpec, 'toDOM'> => ({
   toDOM: (mark, inline) => [
@@ -678,8 +679,21 @@ export interface ReviewDesk {
   land(next: ParseResult, toolCallId: string): AgentEditOutcome;
 }
 
-/** The review state of one editor, and the calls that resolve its marks. */
-const createReview = (layer: Omit<SuggestionLayer, 'createReview'>, host: ReviewHost): ReviewDesk => {
+/**
+ * How many of the suggestions `among` (all of them when it is left out) a commit settled: those gone from the document, and those
+ * whose words changed because the library settled only part of them in one pass.
+ */
+const settledCount = (before: readonly SuggestionSpan[], after: readonly SuggestionSpan[], among?: ReadonlySet<string>): number => {
+  const left = new Map(after.map((span) => [span.id, span]));
+  return before.filter((span) => {
+    if (among !== undefined && !among.has(span.id)) return false;
+    const now = left.get(span.id);
+    return now === undefined || now.kind !== span.kind || now.added !== span.added || now.removed !== span.removed;
+  }).length;
+};
+
+/** The review state of one editor, and the calls that resolve its marks. Exported so a test can give it a stand-in layer. */
+export const createReview = (layer: Omit<SuggestionLayer, 'createReview'>, host: ReviewHost): ReviewDesk => {
   const { editor } = host;
   /** The turns this editor has shown, by their local number. A mark's id holds the number and never the tool call. */
   const turnTools = new Map<number, string>();
@@ -750,8 +764,9 @@ const createReview = (layer: Omit<SuggestionLayer, 'createReview'>, host: Review
     const tr = layer.resolve(editor.state, ids, mode);
     if (tr === null) return 0;
     if (mode === 'accept') tr.setMeta(REVIEW_ACCEPT, true);
+    const before = pendingSpans();
     host.commit(tr);
-    return ids.length;
+    return settledCount(before, pendingSpans(), new Set(ids));
   };
   const idsOfToolCall = (toolCallId: string): string[] => {
     const turns = new Set([...turnTools].filter(([, call]) => call === toolCallId).map(([turn]) => turn));
@@ -761,12 +776,12 @@ const createReview = (layer: Omit<SuggestionLayer, 'createReview'>, host: Review
   };
   const resolveAll = (mode: 'accept' | 'reject'): number => {
     if (host.destroyed()) return 0;
-    const count = pendingSpans().length;
     const tr = layer.resolveAll(editor.state, mode);
     if (tr === null) return 0;
     if (mode === 'accept') tr.setMeta(REVIEW_ACCEPT, true);
+    const before = pendingSpans();
     host.commit(tr);
-    return count;
+    return settledCount(before, pendingSpans());
   };
   const moveTo = (direction: 1 | -1): boolean => {
     const spans = pendingSpans();

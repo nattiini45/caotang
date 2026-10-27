@@ -457,7 +457,10 @@ export const createTiptapEditorApi = (): TiptapEditorApi => ({
     // editor in ghost mode, where `showAgentEdit` replaces the text.
     const layer =
       opts.agentEditMode === 'suggestions'
-        ? await (opts.loadReviewLayer ?? (() => import('./suggestions.js').then((module) => module.loadSuggestionLayer())))().catch(() => null)
+        ? await (opts.loadReviewLayer ?? (() => import('./suggestions.js').then((module) => module.loadSuggestionLayer())))().catch((error: unknown) => {
+            console.error('The review layer could not be loaded:', error);
+            return null;
+          })
         : null;
     return createInstance(element, opts, loaded, seed, historyBase, layer);
   },
@@ -902,7 +905,7 @@ const createInstance = (
     const replaceOpts: SetContentOptions = { historyExcluded: true, discardUnsaved: true, revision: info.revision };
     if (desk === undefined || unsaved()) {
       await instance.setContent(text, replaceOpts);
-      return { landed: 'replaced', reason: desk === undefined ? 'off' : 'unsaved' };
+      return { landed: 'replaced', reason: desk !== undefined ? 'unsaved' : opts.agentEditMode === 'suggestions' ? 'no-layer' : 'off' };
     }
     return (await loadBody(text, replaceOpts, (next) => desk.land(next, info.toolCallId))) ?? { landed: 'replaced', reason: 'superseded' };
   };

@@ -19,10 +19,10 @@ import type { Node as PmNode } from '@tiptap/pm/model';
 import { TextSelection } from '@tiptap/pm/state';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
-import { createAutosave, domFlushSignals } from '@caotang/store';
+import { countBody, createAutosave, domFlushSignals } from '@caotang/store';
 import type { Autosave, DocumentWriter } from '@caotang/store';
 import { caotangSchema, parseWithDiagnostics, serialize } from '../src/index.js';
-import { diffHunks, loadSuggestionLayer } from '../src/tiptap/suggestions.js';
+import { createReview, diffHunks, loadSuggestionLayer } from '../src/tiptap/suggestions.js';
 import type { DiffEngine } from '../src/tiptap/suggestions.js';
 import { focusDom, mountInto, pressUndo, tiptapOf } from './tiptap-harness.js';
 
@@ -232,7 +232,8 @@ describe('what the editor saves while marks are on screen (§15 save path)', () 
     const { host, instance } = await mountReview(BEFORE);
     await instance.showAgentEdit(AFTER, info());
     expect(instance.getContent()).not.toBe(allPending(liveDoc(host)));
-    expect(instance.wordCount().words).toBe(instance.wordCount().words);
+    expect(instance.wordCount()).toEqual(countBody(AFTER));
+    expect(instance.wordCount().chars).not.toBe(countBody(allPending(liveDoc(host))).chars);
     const accepted = await parseWithDiagnostics(AFTER);
     expect(instance.getContent()).toBe(serialize(accepted.doc));
   });
@@ -295,6 +296,17 @@ describe('what the editor saves while marks are on screen (§15 save path)', () 
     const at = body.indexOf('gone');
     instance.replaceRange({ from: at, to: at + 4 }, 'sailed');
     expect(instance.getContent()).toBe(body.replace('gone', 'sailed'));
+  });
+
+  it('revealRange and insertAtSelection name the accepted text’s offsets for text that follows the marks', async () => {
+    const { instance } = await mountReview(BEFORE);
+    await instance.showAgentEdit(AFTER, info());
+    const body = instance.getContent();
+    const at = body.indexOf('manifest');
+    instance.revealRange({ from: at, to: at + 'manifest'.length });
+    expect(instance.getSelection()).toEqual({ from: at, to: at + 'manifest'.length });
+    instance.insertAtSelection('!');
+    expect(instance.getContent()).toBe(`${body.slice(0, at + 'manifest'.length)}!${body.slice(at + 'manifest'.length)}`);
   });
 
   it('the undo journal keeps the accepted text as its base and never a mark', async () => {
@@ -469,14 +481,36 @@ describe('when the marks are not trusted', () => {
     expect(marksIn(liveDoc(host))).toEqual([]);
   });
 
+  it('reports how many suggestions a resolution settled: none when the layer cannot apply it, and the smaller number when only some are in the document', async () => {
+    const real = await loadSuggestionLayer();
+    // A layer whose library commands all fail.
+    const stuck = { ...real, resolve: () => null, resolveAll: () => null };
+    const first = await mountReview(BEFORE, { loadReviewLayer: async () => ({ ...stuck, createReview: (host) => createReview(stuck, host) }) });
+    await first.instance.showAgentEdit(AFTER, info());
+    expect(first.instance.review.acceptAll()).toBe(0);
+    expect(first.instance.review.rejectToolCall('call-1')).toBe(0);
+    expect(first.instance.review.state().pending).toBe(2);
+    // A layer that reports one suggestion more than the document holds, so one of the ids asked about cannot be settled.
+    const phantom = { id: '1.99', turn: 1, kind: 'insert' as const, from: 1, to: 1, added: '', removed: '' };
+    const extra = { ...real, spans: (doc: PmNode) => [...real.spans(doc), phantom] };
+    const second = await mountReview(BEFORE, { loadReviewLayer: async () => ({ ...extra, createReview: (host) => createReview(extra, host) }) });
+    await second.instance.showAgentEdit(AFTER, info());
+    expect(second.instance.review.state().pending).toBe(3);
+    expect(second.instance.review.acceptToolCall('call-1')).toBe(2);
+    expect(second.instance.review.state().pending).toBe(1);
+  });
+
   it('runs on the ghost path when the review layer cannot be loaded', async () => {
+    const failure = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { instance } = await mountReview(BEFORE, {
       loadReviewLayer: async () => {
         throw new Error('chunk failed');
       },
     });
-    expect((await instance.showAgentEdit(AFTER, info())).landed).toBe('replaced');
+    expect(await instance.showAgentEdit(AFTER, info())).toEqual({ landed: 'replaced', reason: 'no-layer' });
     expect(instance.getContent()).toBe(AFTER);
+    expect(failure).toHaveBeenCalled();
+    failure.mockRestore();
   });
 
   it('re-seats the store onto the stored body before the marks go in, so no write follows an apply', async () => {
