@@ -199,19 +199,50 @@ const padded = (doc: PmNode): EditorState => {
   return EditorState.create({ doc: pad === null || pad === undefined ? doc : doc.copy(doc.content.addToEnd(pad)) });
 };
 
+/** Passes of the library's accept or reject over one document; a deletion that crosses differently marked runs needs more than one. */
+const SWEEPS = 8;
+
+/**
+ * Runs the library's accept-all or reject-all on a scratch state until no mark is left, and returns the transaction of every step it made.
+ * One pass leaves part of a deleted range marked when the range starts on plain text and crosses runs whose other marks differ (0.1.8:
+ * 'a b *it* c d' becoming 'a d'), so a single pass is not the accepted text. The steps are in the positions of `doc`, because the padding
+ * sits after it.
+ */
+const sweep = (doc: PmNode, mode: 'accept' | 'reject'): Transaction => {
+  const command = mode === 'accept' ? applySuggestions : revertSuggestions;
+  let state = padded(doc);
+  const all = state.tr;
+  for (let pass = 0; pass < SWEEPS && hasMarks(state.doc); pass += 1) {
+    let made: Transaction | null = null;
+    command(state, (tr) => {
+      made = tr;
+    });
+    const step = made as Transaction | null;
+    if (step === null || step.steps.length === 0) break;
+    for (const each of step.steps) all.step(each);
+    state = EditorState.create({ doc: all.doc });
+  }
+  return all;
+};
+
+/** `doc` with any review mark `sweep` could not settle removed, so no document leaves here holding a mark the plain schema lacks. */
+const unmarked = (doc: PmNode): PmNode => {
+  if (!hasMarks(doc)) return doc;
+  const { insertion, deletion, modification } = doc.type.schema.marks;
+  const tr = EditorState.create({ doc }).tr;
+  for (const type of [insertion, deletion, modification]) if (type !== undefined) tr.removeMark(0, tr.doc.content.size, type);
+  return tr.doc;
+};
+
 const project = (doc: PmNode): Projection | null => {
   if (!hasMarks(doc)) return null;
-  let tr: Transaction | null = null;
-  // The public command, run on a scratch state: it removes the insertion marks and deletes what the deletion marks cover.
-  applySuggestions(padded(doc), (made) => {
-    tr = made;
-  });
-  const done = tr as Transaction | null;
-  if (done === null) return null;
+  const done = sweep(doc, 'accept');
+  // Marks the library would not touch at all still leave the document marked: strip them so the projection is always plain.
+  if (done.steps.length === 0) return { doc: unmarked(doc), mapping: done.mapping };
   // The padding goes, unless it is all that is left: a document the edit emptied reads as one empty paragraph, as an empty body parses.
   const last = done.doc.lastChild;
   const kept = last !== null && done.doc.childCount > 1 ? done.doc.copy(done.doc.content.cut(0, done.doc.content.size - last.nodeSize)) : done.doc;
-  return { doc: kept, mapping: done.mapping };
+  return { doc: unmarked(kept), mapping: done.mapping };
 };
 
 /* ------------------------------------------------------------------ *
@@ -851,9 +882,7 @@ export const loadSuggestionLayer = async (diff?: DiffEngine): Promise<Suggestion
     resolveAll: (state, mode) => {
       const tr = state.tr;
       let failed = false;
-      (mode === 'accept' ? applySuggestions : revertSuggestions)(padded(state.doc), (made) => {
-        for (const step of made.steps) failed = tr.maybeStep(step).failed !== null || failed;
-      });
+      for (const step of sweep(state.doc, mode).steps) failed = tr.maybeStep(step).failed !== null || failed;
       if (failed || tr.steps.length === 0) return null;
       tr.setMeta(suggestChangesKey, { skip: true });
       return tr;

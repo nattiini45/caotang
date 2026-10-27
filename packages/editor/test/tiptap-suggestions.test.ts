@@ -504,3 +504,49 @@ describe('the diff', () => {
     for (const hunk of hunks) expect(hunk.to - hunk.from).toBeLessThan(12);
   });
 });
+
+describe('a deletion that crosses differently marked text (the library leaves part of it marked after one pass)', () => {
+  const cases: Array<[string, string, string]> = [
+    ['plain, italic, plain', 'a b _it_ c d\n', 'a d\n'],
+    ['plain, bold, plain', 'a b **it** c d\n', 'a d\n'],
+    ['two marked runs in a longer line', 'The old _quiet_ harbour and the _slow_ ship\n', 'The ferry\n'],
+  ];
+
+  it.each(cases)('lands %s as marks over the stored text, and every way of resolving them settles', async (_name, before, after) => {
+    const { host, instance } = await mountReview(before);
+    const outcome = await instance.showAgentEdit(after, info());
+    expect(outcome.landed).toBe('suggestions');
+    expect(instance.getContent()).toBe(after);
+    expect(marksIn(liveDoc(host)).length).toBeGreaterThan(0);
+    expect(instance.review.acceptAll()).toBeGreaterThan(0);
+    expect(instance.getContent()).toBe(after);
+    expect(marksIn(liveDoc(host))).toEqual([]);
+
+    const again = await mountReview(before);
+    await again.instance.showAgentEdit(after, info());
+    expect(again.instance.review.rejectAll()).toBeGreaterThan(0);
+    expect(again.instance.getContent()).toBe(before);
+    expect(marksIn(liveDoc(again.host))).toEqual([]);
+  });
+
+  it('accepts and rejects the suggestions one at a time', async () => {
+    const before = 'a b _it_ c d\n';
+    const one = await mountReview(before);
+    await one.instance.showAgentEdit('a d\n', info());
+    while (one.instance.review.state().pending > 0) {
+      one.instance.review.next();
+      expect(one.instance.review.accept()).toBe(1);
+    }
+    expect(one.instance.getContent()).toBe('a d\n');
+    expect(marksIn(liveDoc(one.host))).toEqual([]);
+
+    const two = await mountReview(before);
+    await two.instance.showAgentEdit('a d\n', info());
+    while (two.instance.review.state().pending > 0) {
+      two.instance.review.next();
+      expect(two.instance.review.reject()).toBe(1);
+    }
+    expect(two.instance.getContent()).toBe(before);
+    expect(marksIn(liveDoc(two.host))).toEqual([]);
+  });
+});
