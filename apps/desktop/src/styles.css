@@ -2998,6 +2998,32 @@ dialog.confirm:has(.folder-file-preview) {
   color: var(--danger);
 }
 
+.status-card-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 6px;
+}
+
+.status-card-progress progress {
+  flex: 1 1 120px;
+  min-width: 80px;
+  max-width: 240px;
+  height: 8px;
+}
+
+.status-card-progress-count {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.status-card-progress-message {
+  flex-basis: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .status-card-args pre {
   font-size: 11.5px;
   white-space: pre-wrap;
