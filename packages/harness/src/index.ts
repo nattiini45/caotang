@@ -337,6 +337,7 @@ export {
   DEFAULT_MAX_MODEL_CALLS,
   EXTERNAL_CHECKPOINT_NOTE,
   RESUMED_CHECKPOINT_NOTE,
+  STEP_EXTERNAL_CHECKPOINT_NOTE,
   type AgentEvent,
   type CardRecord,
   type Decision,

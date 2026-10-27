@@ -39,7 +39,7 @@ export const BUDGET = {
   // The entry measured 1,419.9 kB with the agent trace store, the Trace tab and the trace export (Wave 19); its cap was 1,450 kB.
   // 1,458.6 kB measured with macros (#57): the bus's macro reader, the harness's checkMacro and expandMacro, the store's commands and loader, and the
   // Save as macro dialog with its model; the cap is that plus about 1%. The Macros panel is in the Settings chunk.
-  // 1,479.2 kB measured with macros (#57), the prompt-injection guards (#54) and the export Preview (#106) together; the cap is that plus about 1%.
+  // 1,481.1 kB measured with macros (#57), the prompt-injection guards (#54) and the export Preview (#106) together, on top of main's wave 20 review fixes; the cap is that plus about 1%.
   allow: {
     'fontkit.es': 750_000,
     index: 1_495_000,
@@ -48,16 +48,16 @@ export const BUDGET = {
   // 772.4 kB measured with Colour emoji, against 769.1 kB before it; 779.3 kB with Colour emoji and Agent rules together (Wave 14); 786.4 kB with the agent run log and resume.
   // 810.0 kB measured with the instructions layer, the agent files and recurring tasks (Wave 17).
   // 831.2 kB measured with the restore planner and rewind menus (#53) and the host-model rows (#81) together; the ceiling is that plus about 1%.
-  // 840.2 kB measured with macros (#57); the ceiling is that plus about 1%.
-  initialGzip: 848_000,
+  // 840.2 kB measured with macros (#57); 847.8 kB measured with macros, the injection guards and the export Preview together on top of wave 20's fixes,
+  // which left 0.2 kB under the old 848.0 kB ceiling, so it is raised to that plus about 1%.
+  initialGzip: 856_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
   // 5,902.2 kB measured with the instructions layer, the agent files and recurring tasks (Wave 17).
-  // 5,964.6 kB measured with the restore planner, the step and conversation rewind menus (#53); the ceiling is that plus about 0.6%.
-  // 5,954.2 kB measured with the four host-model rows (scene.brief and the rest, #81): the app carries their registry metadata, params and
-  // preflights and none of their ports, which only the MCP server builds.
-  // 6,013.6 kB measured with macros (#57), 40 kB over the 5,973.5 kB before them; the ceiling is that plus about 1%.
+  // 5,975.3 kB measured with the restore planner and the step and conversation rewind menus (#53) and the four host-model rows (#81) together; the
+  // app carries the host-model rows' registry metadata, params and preflights and none of their ports, which only the MCP server builds.
+  // 6,036.1 kB measured with those and macros (#57), the prompt-injection guards (#54) and the export Preview (#106) together; the ceiling is that plus about 0.6%.
   totalJs: 6_075_000,
 };
 

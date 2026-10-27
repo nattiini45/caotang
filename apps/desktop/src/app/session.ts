@@ -293,6 +293,23 @@ export type RestoreResult =
   | { readonly ok: true; readonly later: number; readonly undone: readonly string[] }
   | { readonly ok: false; readonly message: string; readonly undone: readonly string[] };
 
+/**
+ * Why "restore only this" refused, in words that name the cause: a later change that meets this one, one the planner cannot read, or a
+ * checkpoint it could not find. Nothing was restored in any of them.
+ */
+function refusalOf(plan: Extract<RestorePlan, { kind: 'with-later' }>, id: string): string {
+  switch (plan.reason) {
+    case 'overlap':
+      return 'A change made after it touches the same part of the project (your edits since the dialog opened may be one of them), so nothing was restored. The full restore takes every later change back too; everything is as it was.';
+    case 'unclassified':
+      return plan.blockedBy.includes(id)
+        ? 'That change cannot be told apart from the ones made after it, so nothing was restored. The full restore takes every later change back too; everything is as it was.'
+        : 'A change made after it cannot be told apart from it, so nothing was restored. The full restore takes every later change back too; everything is as it was.';
+    default:
+      return 'That checkpoint could not be checked (it may no longer be on the undo stack), so nothing was restored and everything is as it was.';
+  }
+}
+
 export class ProjectSession {
   readonly projectId: string;
   readonly state: ProjectState;
@@ -1140,15 +1157,20 @@ export class ProjectSession {
     if (at === -1) return { ok: false, message: ALREADY_UNDONE, undone: [] };
     const undone: string[] = [];
     for (const group of groups.slice(at).reverse()) {
+      const held = this.undo.group(group.id)?.entries.length ?? 0;
       const taken = step !== undefined && group.id === id ? this.settleUndo(step()) : this.undoNow(group.id);
       if (!taken) {
         const reason = this.lastUndoMessage ?? 'a change could not be taken back';
         const own = step !== undefined && group.id === id;
+        // A group that fails keeps only what failed, so one that lost entries had part of it taken back, whatever `undone` holds.
+        const partly = (this.undo.group(group.id)?.entries.length ?? 0) < held;
+        const later = undone.length === 0 ? '' : ` ${undone.length} later change${undone.length === 1 ? ' was' : 's were'} already taken back.`;
+        const some = partly ? (own ? ' Part of the step was taken back too.' : ' Part of that change was taken back too.') : '';
         return {
           ok: false,
           message: own
-            ? `The restore stopped part way, because the step could not be taken back: ${reason}. Changes made before it were not touched.`
-            : `The restore stopped part way, because a later change could not be taken back: ${reason}. Changes made before that one were not touched.`,
+            ? `The restore stopped part way, because the step could not be taken back: ${reason}.${later}${some} Nothing before the step was touched.`
+            : `The restore stopped part way, because a later change could not be taken back: ${reason}.${later}${some} Changes made before that one were not touched.`,
           undone,
         };
       }
@@ -1181,7 +1203,7 @@ export class ProjectSession {
       const at = groups.findIndex((group) => group.id === id);
       return { kind: 'with-later', undo: target, later: at === -1 ? [] : groups.slice(at + 1).map((group) => group.id).reverse(), blockedBy: [], overlap: [], reason: 'unknown' };
     }
-    return restorePlan(groups, this.log.entries(), target, ancestorsOf);
+    return restorePlan(groups, this.log.entries(), target, ancestorsOf, (error) => console.error('restorePlan defect', error));
   }
 
   /**
@@ -1190,25 +1212,29 @@ export class ProjectSession {
    * it is no longer exact nothing is restored and the writer is told, since the full restore would take those edits back and they chose
    * not to. A compensation that fails is reported and stops there, with what was done kept, as `restoreBefore` does.
    */
-  async restoreExact(id: string, fromCallId?: string): Promise<RestoreResult> {
+  async restoreExact(id: string, fromCallId?: string): Promise<RestoreResult & { readonly kept: number }> {
     await this.autosave.flush();
     this.lastUndoMessage = null;
-    if (this.planNow(id, fromCallId).kind !== 'exact') {
+    const plan = this.planNow(id, fromCallId);
+    if (plan.kind !== 'exact') {
       const unsaved = this.autosave.dirtyDocIds().length > 0;
       return {
         ok: false,
         message: unsaved
           ? 'Some of your typing could not be saved yet, so nothing was restored and your edits are as they were. Try again once it is saved.'
-          : 'Your edits since the dialog opened now overlap this change, so nothing was restored. The full restore takes them back too; your edits are as they were.',
+          : refusalOf(plan, id),
         undone: [],
+        kept: 0,
       };
     }
+    // Counted here, after the flush has saved any pending typing as a group of its own and before a whole-turn restore takes the group off the stack.
+    const kept = this.laterChangesAfter(id).length;
     const taken = fromCallId === undefined ? this.undoNow(id) : this.settleUndo(this.undo.undoFrom(id, fromCallId));
     if (!taken) {
       const reason = this.lastUndoMessage ?? 'a change could not be taken back';
-      return { ok: false, message: `The restore stopped part way, because the change could not be taken back: ${reason}. Your later edits were not touched.`, undone: [] };
+      return { ok: false, message: `The restore stopped part way, because the change could not be taken back: ${reason}. Your later edits were not touched.`, undone: [], kept: 0 };
     }
-    return { ok: true, later: 0, undone: fromCallId === undefined ? [id] : [] };
+    return { ok: true, later: 0, undone: fromCallId === undefined ? [id] : [], kept };
   }
 
   /** The changes a restore to before `id` would also take back: each later group, oldest first, in the words the log gives it. */

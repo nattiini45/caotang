@@ -1,5 +1,4 @@
 import { COHERENCE_TOOL_ENTRIES } from '@caotang/coherence';
-import { DEFAULT_MAX_OUTPUT_TOKENS } from '@caotang/context';
 import { DIALOGUE_TOOL_ENTRIES } from '@caotang/dialogue';
 import { TOOL_SEARCH_META } from '@caotang/mcp-client';
 import { STORYBOARD_TOOL_ENTRIES } from '@caotang/storyboard';
@@ -9,6 +8,7 @@ import { TOOL_TARGETS, type ToolTargets } from './targets.js';
 import { SUBAGENT_BLURBS } from './tools/delegate.js';
 import { PRIMITIVE_TOOLS } from './tools/primitive-tools.js';
 import { PRIMITIVE_TOOL_NAMES } from './tools/primitive.js';
+import { BRIEF_REPLY_MAX_CHARS } from './tools/ports.js';
 
 /**
  * The tool registry's metadata — [agent-harness.md §3](../../../docs/architecture/agent-harness.md),
@@ -132,7 +132,9 @@ export interface ToolMetadata {
   readonly load: ToolLoad;
   /**
    * Served to an external host and never to the in-app agent: the planner does not declare the row, `tool.search` does not offer it and
-   * the app wires no port for it. The host-model brief/apply pairs are these (agent-harness §3, "External-only rows").
+   * the app wires no port for it. The host-model brief/apply pairs are these (agent-harness §3, "External-only rows"). A row that sets
+   * this must set {@link ToolMetadata.mirrors} too, to an in-app row, because the withheld rule widens by `mirrors` alone;
+   * `test/briefs.test.ts` ("the registry column") enforces it.
    */
   readonly externalOnly?: true;
   /**
@@ -412,8 +414,8 @@ const ROWS: readonly ToolRow[] = [
     risk: 'write-confirm',
     undoable: true,
     response_token_cap: 1000,
-    descriptionVersion: 1,
-    description: `Write the text you wrote from a scene.brief into its document, under the mode rules of scene.draft: draft needs an empty body, continue appends, rewrite_selection replaces the selected passage. Pass the arguments in the brief's applyWith and your text. The briefId must come from a scene.brief for this document and mode, and the document must not have changed since. Requires user confirmation. The confirmation names the document and the change in words only: the text is this call's arguments. The text is stored as given, and a text over ${DEFAULT_MAX_OUTPUT_TOKENS} tokens is refused, never cut. Undo restores the prior text.`,
+    descriptionVersion: 2,
+    description: `Write the text you wrote from a scene.brief into its document, under the mode rules of scene.draft: draft needs an empty body, continue appends, rewrite_selection replaces the selected passage. Pass the arguments in the brief's applyWith and your text. The briefId must come from a scene.brief for this document and mode, and the document must not have changed since. Requires user confirmation. The confirmation names the document and the change in words only: the text is this call's arguments. Leading and trailing whitespace is trimmed, and a text over ${BRIEF_REPLY_MAX_CHARS} characters is refused, never cut. Undo restores the prior text.`,
     surface: 'extension',
     load: 'deferred',
     externalOnly: true,
@@ -439,8 +441,8 @@ const ROWS: readonly ToolRow[] = [
     risk: 'write-confirm',
     undoable: true,
     response_token_cap: 1000,
-    descriptionVersion: 1,
-    description: `Write the Ink you wrote from a dialogue.brief into its container, after the named knots or at the end. The Ink is compile-checked as dialogue.draft checks it: a compile error is refused, and nothing is written. Pass the arguments in the brief's applyWith and your Ink. The briefId must come from a dialogue.brief for this container, and the container must not have changed since. Requires user confirmation. The confirmation names the container and the change in words only: the Ink is this call's arguments. An Ink text over ${DEFAULT_MAX_OUTPUT_TOKENS} tokens is refused, never cut. Undo restores the prior Ink.`,
+    descriptionVersion: 2,
+    description: `Write the Ink you wrote from a dialogue.brief into its container, after the named knots or at the end. The Ink is compile-checked as dialogue.draft checks it: a compile error is refused, and nothing is written. Pass the arguments in the brief's applyWith and your Ink. The briefId must come from a dialogue.brief for this container, and the container must not have changed since. Requires user confirmation. The confirmation names the container and the change in words only: the Ink is this call's arguments. Leading and trailing whitespace is trimmed, and an Ink text over ${BRIEF_REPLY_MAX_CHARS} characters is refused, never cut. Undo restores the prior Ink.`,
     surface: 'extension',
     load: 'deferred',
     externalOnly: true,

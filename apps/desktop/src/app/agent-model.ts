@@ -6,7 +6,7 @@
 
 import {
   CHECKPOINT_LABEL,
-  EXTERNAL_CHECKPOINT_NOTE,
+  STEP_EXTERNAL_CHECKPOINT_NOTE,
   emptyTaskList,
   phraseFor,
   reduceTaskList,
@@ -205,7 +205,7 @@ function reduceView(turn: TurnView, event: AgentEvent): TurnView {
  */
 export function stepMenuOf(card: Pick<StatusCard, 'tool' | 'status'>, restorable: boolean): { readonly show: boolean; readonly note?: string } {
   const external = card.status === 'done' && card.tool.startsWith('mcp__');
-  return { show: restorable || external, ...(external ? { note: EXTERNAL_CHECKPOINT_NOTE } : {}) };
+  return { show: restorable || external, ...(external ? { note: STEP_EXTERNAL_CHECKPOINT_NOTE } : {}) };
 }
 
 /** The line that names a phase, for the panel's status. The turn is in one of these at any moment. */

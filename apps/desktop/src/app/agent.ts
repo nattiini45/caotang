@@ -1142,9 +1142,10 @@ export class AgentController {
     const group = this.checkpointOf(turnId);
     const agent = this.sessionOf(turnId);
     if (group === undefined || agent === undefined) return { ok: false, message: 'That turn wrote nothing, so there is nothing to restore.', undone: [] };
+    const held = this.entriesIn(group);
     const outcome = await this.session.restoreBefore(group, () => agent.restoreStep(turnId, stepId));
     const number = (this.turns.find((turn) => turn.turnId === turnId)?.cards.findIndex((card) => card.id === stepId) ?? -1) + 1;
-    this.noteRestored(outcome.undone, outcome.ok && number > 0 ? { turnId, step: number } : undefined);
+    this.noteRestored(outcome.undone, number > 0 && (outcome.ok || this.stepWentFrom(group, held)) ? { turnId, step: number } : undefined);
     this.bump();
     return outcome;
   }
@@ -1172,12 +1173,12 @@ export class AgentController {
     if (group === undefined || (stepId !== undefined && from === undefined)) {
       return { ok: false, message: 'That turn wrote nothing, so there is nothing to restore.', undone: [], kept: 0 };
     }
-    const kept = this.session.laterChangesAfter(group).length;
+    const held = this.entriesIn(group);
     const outcome = await this.session.restoreExact(group, from);
     const number = stepId === undefined ? 0 : (this.turns.find((turn) => turn.turnId === turnId)?.cards.findIndex((card) => card.id === stepId) ?? -1) + 1;
-    this.noteRestored(outcome.undone, outcome.ok && stepId !== undefined && number > 0 ? { turnId, step: number } : undefined);
+    this.noteRestored(outcome.undone, stepId !== undefined && number > 0 && (outcome.ok || this.stepWentFrom(group, held)) ? { turnId, step: number } : undefined);
     this.bump();
-    return { ...outcome, kept };
+    return outcome;
   }
 
   /** The steps of a turn a restore to before that step would take something back, by status-card id. Read from the undo stack each time. */
@@ -1197,7 +1198,8 @@ export class AgentController {
     // The restore awaits the autosave flush, so a turn may have started since the menu opened; the rewind is refused while one runs.
     const rewound = this.rewindConversation(turnId);
     if (rewound === null) {
-      return { ok: false, message: 'The project was restored, but a turn is running, so the conversation was not rewound.', projectRestored: true };
+      const why = this.busy ? 'a turn is running, so the conversation was not rewound' : 'that turn is no longer in this session’s conversation, so nothing was rewound';
+      return { ok: false, message: `The project was restored, but ${why}.`, projectRestored: true };
     }
     return { ok: true, later: outcome.later, intent: rewound.intent };
   }
@@ -1260,6 +1262,20 @@ export class AgentController {
   laterChanges(turnId: string): readonly string[] {
     const group = this.checkpointOf(turnId);
     return group === undefined ? [] : this.session.laterChangesAfter(group);
+  }
+
+  /** How many entries the undo group still holds, or `undefined` once it is off the stack. */
+  private entriesIn(group: string): number | undefined {
+    return this.session.undo.group(group)?.entries.length;
+  }
+
+  /**
+   * Whether a step restore that failed still took part of the turn's own steps back: the group holds fewer entries than before, or is
+   * gone. A failure in a later group, or one where no compensation ran, leaves the count as it was, and the turn is not marked.
+   */
+  private stepWentFrom(group: string, held: number | undefined): boolean {
+    const now = this.entriesIn(group);
+    return held !== undefined && (now === undefined || now < held);
   }
 
   private checkpointOf(turnId: string): string | undefined {
