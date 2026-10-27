@@ -12,30 +12,10 @@ import type { ChatRequest, Gateway } from '@caotang/gateway';
 import { isPlannerCall, plannerScript, userTextOf, type MockResponse, type MockScript } from '@caotang/gateway/mock';
 import type { ProjectState } from '@caotang/store';
 
-import {
-  PLANNER_SYSTEM_PREFIX,
-  createAgentPorts,
-  createAgentSession,
-  createBudgetMeter,
-  createContextPort,
-  createGoalRunner,
-  createHarness,
-  goalRules,
-  restoreGoal,
-  type CheckSpec,
-  type Decision,
-  type AgentSessionOptions,
-  type Goal,
-  type GoalOptions,
-  type GoalRun,
-  type PendingCard,
-  type RulesProvider,
-  type RunLimits,
-  type WriteScope,
-} from '../../src/index.js';
+import { PLANNER_SYSTEM_PREFIX, createAgentPorts, createAgentSession, createBudgetMeter, createContextPort, createGoalRunner, goalRules, restoreGoal, type CheckSpec, type Decision, type AgentSessionOptions, type Goal, type GoalOptions, type GoalRun, type PendingCard, type RulesProvider, type RunLimits, type WriteScope } from '../../src/index.js';
 import { mockGateway } from '../agent/gateway.js';
 import { answer, steps } from '../agent/scripts.js';
-import { FRIEND, LANDING, STORM, clock, makeState, snapshotOf } from '../fixtures.js';
+import { checkedHarness, clock, FRIEND, LANDING, makeState, snapshotOf, STORM } from '../fixtures.js';
 
 type Wire = 'json' | 'native';
 
@@ -118,7 +98,7 @@ async function rig(wire: Wire, plan: (iteration: number) => readonly Call[], lim
     },
   };
   const meter = createBudgetMeter(limits);
-  const harness = createHarness({
+  const harness = checkedHarness({
     state,
     ports: createAgentPorts(),
     clock: clock.now,

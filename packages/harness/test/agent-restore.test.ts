@@ -11,8 +11,8 @@ import { createMcpClient, createMockWireFactory, qualifiedNameOf, type McpClient
 import type { ChatRequest } from '@caotang/gateway';
 import { draftScript, userTextOf } from '@caotang/gateway/mock';
 
-import { TOOL_NAMES, createAgentPorts, createAgentSession, createContextPort, createHarness, type AgentEvent, type AgentSession } from '../src/index.js';
-import { FRIEND, LANDING, STORM, clock, makeHarness, makeState, snapshotOf } from './fixtures.js';
+import { TOOL_NAMES, createAgentPorts, createAgentSession, createContextPort, type AgentEvent, type AgentSession } from '../src/index.js';
+import { checkedHarness, clock, FRIEND, LANDING, makeHarness, makeState, snapshotOf, STORM } from './fixtures.js';
 import { mockGateway } from './agent/gateway.js';
 import { steps, transcript } from './agent/scripts.js';
 
@@ -24,7 +24,7 @@ const continuing = (brief: string) =>
   steps({ tool: 'scene.draft', params: { doc: 'The Landing', instruction: brief, mode: 'continue' }, expect: 'The Landing continues' });
 
 async function fixture(options: { formatTime?: (at: number) => string } = {}) {
-  const harness = createHarness({ state: makeState(), ports: createAgentPorts() });
+  const harness = checkedHarness({ state: makeState(), ports: createAgentPorts() });
   const seen: Record<string, ChatRequest[]> = { [ONE]: [], [TWO]: [], [THREE]: [] };
   const drafting = (brief: string, intent: string) =>
     draftScript((req) => {
@@ -151,7 +151,7 @@ function fixedState() {
 }
 
 async function stepped(intent: string, plan: string) {
-  const harness = createHarness({ state: fixedState(), ports: createAgentPorts(), clock: clock.now });
+  const harness = checkedHarness({ state: fixedState(), ports: createAgentPorts(), clock: clock.now });
   const gateway = await mockGateway([transcript(intent, [plan])]);
   const events: AgentEvent[] = [];
   const session = createAgentSession({

@@ -447,6 +447,7 @@ export {
   type SynopsisProposal,
 } from './agent/drafting.js';
 export { param, toJsonSchema, type JsonSchema, type ParamSpec } from './schema.js';
+export { RESULT_CLOSED, RESULT_SPECS, isResultOf, type CallableToolName, type ResultData, type ResultOf, type ToolResults } from './results.js';
 export { checkParams, checkValue } from './validate.js';
 export {
   annotationsFor,

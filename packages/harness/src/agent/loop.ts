@@ -70,6 +70,7 @@ import { limitExceeded, refusal } from '../errors.js';
 import { askBackFor, parsePlan, planStepCallId, type AskBack, type AskBackCode, type Plan, type PlanOptions, type PlanOutcome, type PlanPreflight, type PlanStep, type StepResult } from '../plan.js';
 import { DOCUMENT, descendantsOf, resolveNode } from '../resolve.js';
 import type { Harness, RuleCheck, ToolListing } from '../runtime.js';
+import { isResultOf } from '../results.js';
 import type { ToolName } from '../metadata.js';
 import type { CallParams, ToolCall, ToolOutcome } from '../types.js';
 import { canonicalJson, isRecord } from '../util.js';
@@ -2000,8 +2001,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       pushRow(turn, { tool: step.tool, callId, outcome: 'ok', params: step.params }, outcome.value.data);
       turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'done', summary: outcome.value.summary, data: outcome.value.data });
       moveCard(turn, callId, 'done', { summary: outcome.value.summary });
-      if (Array.isArray(outcome.value.data['findings'])) {
-        emit({ type: 'findings', turnId: turn.id, callId, findings: outcome.value.data['findings'] as FindingsProposal['findings'] });
+      if (isResultOf('continuity.scan', step.tool, outcome.value)) {
+        emit({ type: 'findings', turnId: turn.id, callId, findings: outcome.value.data.findings });
       }
       return { tool: step.tool, ok: true, body: outcome.value.data };
     }
@@ -2164,8 +2165,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       taint(turn, result.ok ? outsideSources(result.body) : failedSources(step.tool));
       wireResult(turn, step, { ok: result.ok, body: result.body });
       results.push(result);
-      if (step.tool === 'tool.search' && outcome.ok && Array.isArray(outcome.value.data['surfaced'])) {
-        for (const name of outcome.value.data['surfaced'] as string[]) surfaced.add(name);
+      if (outcome.ok && isResultOf('tool.search', step.tool, outcome.value)) {
+        for (const name of outcome.value.data.surfaced) surfaced.add(name);
       }
     }
     const loadedNow = harness.loadedExternalTools().filter((tool) => surfaced.has(tool.qualifiedName));

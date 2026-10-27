@@ -442,8 +442,7 @@ export const dialogueDraftPort: ToolPort = (params, context) => {
   if (proposal.cut === true) return failure(cutRefusal('dialogue.draft', 'Ink draft'));
   const checked = dialogueDraftTool(params, { state: context.state, proposal: { ink: proposal.ink } });
   if (!checked.ok) return failure(checked.error);
-  const docId = String(checked.value.data['containerId']);
-  const body = String(checked.value.data['body']);
+  const { containerId: docId, body } = checked.value.data;
   const result = context.dispatchInherited('doc.write', { docId, body, expectedRevision: proposal.revision });
   if (!result.ok) return failure(result.error);
   // Verify (agent-harness §7): the container now holds the Ink it was checked as.
@@ -456,7 +455,7 @@ export const dialogueDraftPort: ToolPort = (params, context) => {
     );
   }
   return ok({
-    data: { container: checked.value.data['title'], newBeats: checked.value.data['newBeats'], warnings: checked.value.data['warnings'] },
+    data: { container: checked.value.data.title, newBeats: checked.value.data.newBeats, warnings: checked.value.data.warnings },
     summary: checked.value.summary,
     affected: [...result.value.affected],
     ...(result.value.undoGroupId === undefined ? {} : { undoGroupId: result.value.undoGroupId }),
@@ -535,7 +534,8 @@ export function previewFor(state: ProjectState, tool: string, params: CallParams
     if (typeof drafted?.ink !== 'string') return undefined;
     const checked = dialogueDraftTool(params, { state, proposal: { ink: drafted.ink } });
     if (!checked.ok) return undefined;
-    return { container: checked.value.data['title'], ink: drafted.ink, newBeats: checked.value.data['newBeats'], warnings: checked.value.data['warnings'] };
+    const { title, newBeats, warnings } = checked.value.data;
+    return { container: title, ink: drafted.ink, newBeats, warnings };
   }
   if (tool === 'shots.derive') {
     // The shot list and the storyboard folder an approved derive creates (storyboard.md §4), planned from the staged proposal. A plan the

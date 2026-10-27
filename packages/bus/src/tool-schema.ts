@@ -121,6 +121,12 @@ export interface ObjectSpec {
   readonly nullable?: true;
 }
 
+/** An object spec that remembers its keys, as `param.object` returns it. It is an `ObjectSpec` wherever one is wanted. */
+export interface ObjectSpecOf<P extends Readonly<Record<string, ParamSpec>>, R extends readonly string[]> extends ObjectSpec {
+  readonly properties: P;
+  readonly required: R;
+}
+
 /** `A | B` where the two options are told apart by JSON type, as `fields: [...] | "all"` is. */
 export interface UnionSpec {
   readonly kind: 'union';
@@ -176,7 +182,7 @@ export const param = {
     description: string,
     properties: P,
     required: R = [] as unknown as R,
-  ): ObjectSpec & { readonly properties: P; readonly required: R } {
+  ): ObjectSpecOf<P, R> {
     return { kind: 'object', description, properties, required };
   },
   either(description: string, options: readonly ParamSpec[]): UnionSpec {
@@ -213,6 +219,20 @@ function typeOf(name: string, spec: { readonly nullable?: true }): string | stri
 
 /** The JSON Schema an MCP client receives for one spec. Derived, never written by hand. */
 export function toJsonSchema(spec: ParamSpec): JsonSchema {
+  return schemaOf(spec, false);
+}
+
+/**
+ * The JSON Schema of a tool's result. A closed row refuses a key its spec does not list, as a param schema does. An open row
+ * (`resultClosed: false`) lists what it declares and allows more at every level, so declaring a result never breaks a tool that
+ * has a key the spec has not caught up with.
+ */
+export function toResultSchema(spec: ObjectSpec, closed: boolean): JsonSchema {
+  return schemaOf(spec, !closed);
+}
+
+function schemaOf(spec: ParamSpec, open: boolean): JsonSchema {
+  const sub = (child: ParamSpec): JsonSchema => schemaOf(child, open);
   switch (spec.kind) {
     case 'string':
       return {
@@ -248,20 +268,20 @@ export function toJsonSchema(spec: ParamSpec): JsonSchema {
       return {
         type: typeOf('array', spec),
         description: spec.description,
-        items: toJsonSchema(spec.items),
+        items: sub(spec.items),
         ...(spec.minItems === undefined ? {} : { minItems: spec.minItems }),
         ...(spec.maxItems === undefined ? {} : { maxItems: spec.maxItems }),
         ...(spec.unique === true ? { uniqueItems: true } : {}),
       };
     case 'object': {
       const properties: Record<string, JsonSchema> = {};
-      for (const [key, child] of Object.entries(spec.properties)) properties[key] = toJsonSchema(child);
+      for (const [key, child] of Object.entries(spec.properties)) properties[key] = sub(child);
       return {
         type: typeOf('object', spec),
         description: spec.description,
         properties,
         required: [...spec.required],
-        additionalProperties: false,
+        additionalProperties: open,
       };
     }
     case 'free-object':
@@ -269,13 +289,13 @@ export function toJsonSchema(spec: ParamSpec): JsonSchema {
     case 'union':
       return {
         description: spec.description,
-        anyOf: [...spec.options.map((option) => toJsonSchema(option)), ...(spec.nullable === true ? [{ type: 'null' }] : [])],
+        anyOf: [...spec.options.map((option) => sub(option)), ...(spec.nullable === true ? [{ type: 'null' }] : [])],
       };
     case 'tagged':
       return {
         description: spec.description,
         oneOf: [
-          ...Object.values(spec.variants).map((variant) => toJsonSchema(variant)),
+          ...Object.values(spec.variants).map((variant) => sub(variant)),
           ...(spec.nullable === true ? [{ type: 'null' }] : []),
         ],
       };

@@ -11,28 +11,12 @@ import { describe, expect, it } from 'vitest';
 
 import { addDocument, getBody, getRevision, type ProjectState } from '@caotang/store';
 
-import {
-  BRIEF_CAP,
-  BRIEF_TTL_MS,
-  briefRefusal,
-  createAgentPorts,
-  createAgentSession,
-  createBriefLedger,
-  createBriefPorts,
-  createContextPort,
-  createHarness,
-  createProductHarness,
-  draftModeRefusal,
-  metadataFor,
-  plannerTools,
-  TOOL_METADATA,
-  type Harness,
-  type RulesProvider,
-} from '../src/index.js';
+import { BRIEF_CAP, BRIEF_TTL_MS, briefRefusal, createAgentPorts, createAgentSession, createBriefLedger, createBriefPorts, createContextPort, createProductHarness, draftModeRefusal, metadataFor, plannerTools, TOOL_METADATA, type Harness, type RulesProvider } from '../src/index.js';
 import { dialogueRole, sceneRole } from '../src/agent/drafting.js';
 import { heldBrief } from '../src/tools/briefs.js';
+import { withResultChecks } from '../src/testing.js';
 import { BRIEF_REPLY_MAX_CHARS } from '../src/tools/ports.js';
-import { OPENED, clock, FRIEND, LANDING, STORM, makeState, refusalOf, run, snapshotOf, valueOf } from './fixtures.js';
+import { checkedHarness, clock, FRIEND, LANDING, makeState, OPENED, refusalOf, run, snapshotOf, STORM, valueOf } from './fixtures.js';
 import { mockGateway } from './agent/gateway.js';
 import { steps, transcript } from './agent/scripts.js';
 
@@ -50,14 +34,14 @@ function project(): ProjectState {
 }
 
 function hostOf(state: ProjectState, rules?: RulesProvider, ledger = createBriefLedger({ now: () => clock.now() })) {
-  const harness = createProductHarness({
+  const harness = withResultChecks(createProductHarness({
     state,
     ports: 'external',
     externalWrites: true,
     externalPorts: createBriefPorts({ ledger }),
     clock: clock.now,
     ...(rules === undefined ? {} : { rules }),
-  });
+  }));
   return { harness, ledger };
 }
 
@@ -168,7 +152,7 @@ describe('the registry column', () => {
   });
 
   it('is not offered to the in-app planner, even with every tool loaded, and not found by tool.search', () => {
-    const app = createHarness({ state: project(), ports: createAgentPorts(), clock: clock.now });
+    const app = checkedHarness({ state: project(), ports: createAgentPorts(), clock: clock.now });
     expect(plannerTools(app.tools(), { all: true }).map((tool) => tool.name)).not.toEqual(expect.arrayContaining(['scene.brief']));
     for (const name of rows) expect(plannerTools(app.tools(), { all: true }).map((tool) => tool.name), name).not.toContain(name);
 
@@ -214,7 +198,7 @@ describe('a brief is what the in-app tool sends its model', () => {
         return undefined;
       }),
     ]);
-    const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now });
+    const harness = checkedHarness({ state, ports: createAgentPorts(), clock: clock.now });
     const session = createAgentSession({ harness, gateway, context: createContextPort({ state }), decide: async () => ({ action: 'approve' }), sessionId: 'golden' });
     await session.submit(intent);
     // The loop may ask again after a retry of the card; every call it made is the same message list.

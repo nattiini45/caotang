@@ -6,9 +6,12 @@
 
 import type { ActivityEntry } from './activity-log.js';
 
-export interface ToolValue {
+/** What `data` holds when a caller does not name the tool: any JSON object. A tool's own shape is `ToolResults` (harness `results.ts`). */
+export type ToolData = Readonly<Record<string, unknown>>;
+
+export interface ToolValue<D extends ToolData = ToolData> {
   /** JSON-serialisable payload for the model and the activity panel. */
-  readonly data: Readonly<Record<string, unknown>>;
+  readonly data: D;
   /** One line: what changed, or what was read. */
   readonly summary: string;
   /** §8's human titles for the nodes this call touched. Empty for a read. */
