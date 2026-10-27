@@ -323,6 +323,7 @@ Reading the agent's work:
 - **Small changes.** A single status, label, keyword or note change runs at once, with no card. Each turn that changes the project leaves a checkpoint row.
 - **Reads.** A check needs no approval. The agent's read-only answers appear in the panel.
 - **Macros.** Only you run a macro: the agent cannot find, run or save one, and the MCP server does not list them. A value in a macro is filled in whole: a macro cannot join a value into the middle of a text. A macro has no code, and macros that run a script, macros shared across projects and macros of an external server's tools are not in this build.
+- **Hooks.** A hook is a check you write for the agent, such as "never write *suddenly*" or "never touch a scene marked Final". It runs before and after each of the agent's calls. A step a hook stops is marked failed on the card, with the hook's reason beside a greyed-out **Approve**, and nothing is written; a hook that only warns puts a line on the step. Every hook that spoke is listed in the turn's report and in the **Trace** tab. A hook never approves anything: your rules, the mode and the cards decide as before, and the agent cannot add, change or remove a hook. See [Hooks](#hooks).
 - **Helper agents.** For a long reading job, such as who knows what across several chapters, the agent can hand the reading to a helper. The **Reader** agent reads the documents it is pointed at and reports; the **General** agent can also suggest changes. A helper sees only the brief it was given and those documents, not what you have said to the agent. In the panel its work is one call named **agent.delegate**, with the helper's name (Reader agent or General agent), the model calls reserved for it, where it stands in words (Working, Finished, Stopped before it finished or Failed) and a timer. Open **Brief**, **Notes** and **Transcript** to see what it was asked, what it found and what it looked at. A helper only reads. A change the General agent suggests is never applied by the helper: it happens only if the agent puts it in its own plan, where the step is marked **Proposed by the general agent**, and you approve or change the plan as usual, so the turn is still one checkpoint. A helper's calls count in **Model calls**, and if the turn cannot afford one the agent is told, and reads the documents itself.
 - **Notes, synopses, statuses, filters and goals.** The agent can rewrite a document's notes, set a synopsis, add or change a status or a label, save a binder filter and set a word goal. Setting a synopsis, saving a filter and setting a goal run at once, like a status change, and each can be undone. Rewriting the notes and changing the statuses and labels show a card with **Approve**. The notes card shows the old and the new notes word by word, with added words underlined and removed words struck through, so you read the change before the notes are replaced. **Undo** puts the old notes back exactly. A plan can add a status and then give it to a document in the same approval.
 - **Tools.** The agent starts each request with a short list of tools and finds the others with a search when a task needs them. With a dialogue container or a storyboard open, that module's tools are there from the start. **Settings › Agent** has **Load every tool on every request** for a model that searches poorly. It is off by default, and it makes every request longer.
@@ -378,6 +379,38 @@ A macro is a job you do again and again, saved as a list of steps with a few val
 - **A macro that no longer fits.** If a step names a tool this version does not have, or a tool changed so that a value no longer fits, the list says why the macro cannot run now. It stays there to edit or delete. A macro is checked again every time it runs, so a project file edited by hand cannot make one do more than its steps show.
 
 A macro is kept in the project, so a project folder and a `.caotang` bundle carry it, and so does a project file you share. It holds steps and values, never code, and it can use only the tools the agent has, never an external server's tool. A macro can hold at most 30 steps, a project at most 50 macros, and a description at most 600 characters, which is shown as plain text. A macro in a project file that cannot be read is left out when the project opens, with a notice.
+
+## Hooks
+
+A hook is a check you write for the agent. It looks at what a step is about to write, or at what it just did, and can warn you, stop the step or leave the agent a note. It is for rules that are yours: never write *suddenly*, never touch a scene marked *Final*, tell me when a draft breaks a codex alias.
+
+- **What a hook can check.** *Words*: a word or phrase must not appear in the text the step would write. The match is a whole word or phrase, in any capitals and any script, and it is not a pattern language. *Status*: the documents a step touches must have one of the statuses you name. *Length*: the text a step would write, or a touched document, must be within a minimum or maximum number of words. *Continuity*: the continuity checks you name must find nothing open in the documents the step touches. When the check fails, the hook warns (the default), or stops the step if you set it to, or, after the step, leaves the agent a note.
+- **What you see.** A hook that stops a step marks it failed on the card, with a message such as “The hook “No suddenly” stopped scene.draft: “suddenly” appears: Show the change instead.”, beside a greyed-out **Approve**. A warning is a line on the step and does not stop **Approve**. If you change the project while the card is open so that a hook would now stop the step, the plan stops at that step and nothing is written. Every hook that spoke is listed in the turn's report and has a row in the **Trace** tab.
+- **What a hook cannot do.** It never approves a step, never changes what a step asks for and never writes to the project. Your rules, the permission mode and the cards decide first and still decide: Auto does not get past a hook, and a hook does not get past a rule. The agent cannot add, change, turn off or remove a hook, and neither can a host connected through the MCP server. A hook that cannot run, for example one that names a continuity check this version does not have, warns that the step was not checked; set `failClosed` to stop the step instead.
+- **What the agent is told.** A note a hook leaves after a step is shown to the agent as text from the project, not as an instruction, and a turn that already read outside text still asks you before each change. A note after a change you approved reaches you, in the report and the Trace, and not the agent, because a change ends the turn. A note after a read reaches the agent.
+- **Where a hook is kept.** In the project, so a project folder, a `.caotang` bundle and a project file you share carry it. It holds a check and never code. A hook that would run a program or call a model is left out when the project opens, with a notice that names it.
+- **Write one.** There is no Settings › Hooks yet. Close the project, open `caotang.json` in a text editor, add the hook under `agent`, then open the project again:
+
+```json
+"agent": {
+  "hooks": [
+    {
+      "id": "h_7K2QX9M4A1",
+      "name": "No suddenly",
+      "event": "tool.before",
+      "matcher": { "tools": ["scene.draft", "notes.append"] },
+      "handler": { "kind": "check", "check": { "kind": "pattern", "patterns": [
+        { "match": "suddenly", "message": "Show the change instead." }
+      ] } },
+      "onBlock": "block",
+      "enabled": true
+    }
+  ]
+}
+```
+
+  `event` is `tool.before` (a step is about to run) or `tool.after` (it ran). `matcher.tools` names the tools the hook is for; leave `matcher` out to cover every call. A hook for `scene.draft` also covers applying the draft, and one for `dialogue.draft` covers `dialogue.apply`. `onBlock` is `warn` unless you write `block`. The `check` is one of `{ "kind": "pattern", "patterns": [{ "match": "…", "message": "…" }] }`, `{ "kind": "status", "allowed": ["Final"] }`, `{ "kind": "words", "min": 200, "max": 900 }` or `{ "kind": "coherence", "checks": ["codex.alias-collisions"] }`. The `id` is `h_` and ten capital letters and digits, without I, L, O and U, and each hook has its own. Set `"enabled": false` to turn a hook off without deleting it, and delete its entry to remove it. A hook the file spells wrongly, or a twenty-first hook, is left out when the project opens, with a notice that names it, and the rest of the project opens as usual.
+- **Limits.** A project holds at most 20 hooks, a check at most 50 patterns, and a pattern or a message at most 300 characters.
 
 ## Export
 
@@ -548,6 +581,7 @@ A developer can run the agent against a project folder from a Node script, a com
 - **Word contents.** How Word and LibreOffice handle the contents field in a `.docx` file has not been tested. A file without a contents list does not ask Word to update fields.
 - **The Pages view.** You cannot type on the Pages view of a screenplay yet; a line opens its element in the Source tab. It draws a dual-dialogue pair side by side, as the PDF does, but it closes up the blank lines and is not the page's exact height.
 - **Imported text.** Caotang does not mark a document, a script or a codex entry you imported, so the agent reads it as it reads your own writing. The import note lists what looks like an instruction to an AI, once, at import. Outside text from a connected tool is marked, as the agent section says, and no model can be made immune to text written to mislead it.
+- **Hooks.** There is no Settings › Hooks: you write a hook by hand in the project's `caotang.json`, and there is no way to try one out before it runs. Hooks run before and after the agent's calls only, not around a compile, a save or a turn, and not on your own changes. A hook runs no program and calls no model, and a word it looks for is a plain word or phrase, not a pattern. Caotang does not tell you when a project opens with hooks in it, except for one it left out.
 - **Agent traces.** A trace lasts for the open tab: a reload loses it, and there is no way to keep one with the project.
 - **Undo and reloads.** The toolbar's Undo and the Undo in Activity last for the open tab; checkpoints survive a reload, and an interrupted agent run can be resumed (see the agent section), but the undo of its already applied steps is lost. Undo on a screenplay's Source tab and in Ink text is the browser's own.
 - **Local models, checked.** The three local model servers have been tried against test servers that imitate their browser settings, not against the real Ollama, LM Studio and llama-server. Firefox has not been tried, and Safari is not verified. A server on another computer on your network is not supported: plain http is allowed only to this computer.
