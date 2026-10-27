@@ -11,10 +11,11 @@ export interface TraceMessageView {
   readonly id: string;
   readonly role: string;
   readonly text: string;
+  /** The content as it was sent: what the text shows plus what was cut from the content. */
   readonly chars: number;
   /** The tool calls the message carries, as `name(arguments)`. */
   readonly calls: readonly string[];
-  /** Characters cut from the message to keep the record within its cap. `chars` counts them, so it is what was sent. */
+  /** Characters cut from the whole message to keep the record within its cap, including tool-call arguments and reasoning. */
   readonly cut?: number;
 }
 
@@ -100,14 +101,14 @@ const jsonOf = (value: unknown): string => {
   }
 };
 
-function viewOf(id: string, message: TraceMessage | undefined, cut: number): TraceMessageView {
+function viewOf(id: string, message: TraceMessage | undefined, cut: number, contentCut: number): TraceMessageView {
   if (message === undefined) return { id, role: 'unknown', text: '', chars: 0, calls: [] };
   const text = textOf(message.content);
   return {
     id,
     role: message.role,
     text,
-    chars: text.length + cut,
+    chars: text.length + contentCut,
     calls: (message.toolCalls ?? []).map((call) => `${call.name}(${textOf(call.argumentsJson)})`),
     ...(cut > 0 ? { cut } : {}),
   };
@@ -151,7 +152,7 @@ export function turnTimeline(store: TraceStore, turnId: string): TraceTimeline {
           profileId: record.profileId,
           startMs: record.at - t0,
           tries: [],
-          messages: record.messages.map((id) => viewOf(id, store.message(id), store.messageCut(id))),
+          messages: record.messages.map((id) => viewOf(id, store.message(id), store.messageCut(id), store.messageContentCut(id))),
           tools: (record.tools ?? []).map((tool) => tool.name),
           replyCalls: [],
         });

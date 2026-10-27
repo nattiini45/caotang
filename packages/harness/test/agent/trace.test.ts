@@ -293,6 +293,17 @@ describe('the caps', () => {
     expect(record?.message?.content.length).toBeGreaterThan(400);
   });
 
+  it('counts what was cut from the content apart from what was cut from the tool-call arguments', () => {
+    const s = store({ recordCap: 2_000 });
+    s.write(start('t.turn-1'));
+    s.write(request('t.turn-1', 1, [{ role: 'assistant', content: 'hello', toolCalls: [{ id: 't1', name: 'doc.write', argumentsJson: 'x'.repeat(50_000) }] }, user('y'.repeat(50_000))]));
+    expect(s.messageCut('m1')).toBeGreaterThan(0);
+    expect(s.messageContentCut('m1')).toBe(0);
+    expect(s.messageContentCut('m2')).toBe(s.messageCut('m2'));
+    expect(s.messageContentCut('m2')).toBeGreaterThan(0);
+    expect(s.messageContentCut('m9')).toBe(0);
+  });
+
   it('empties on clear, and tells its listeners', () => {
     const s = store();
     let told = 0;

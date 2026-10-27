@@ -237,6 +237,39 @@ test('a prompt or a tool parameter cut to keep its record small says so in the t
   expect(tools[1]?.kind === 'tool' ? tools[1].paramsCut : 0).toBeUndefined();
 });
 
+test('a message cut in its tool-call arguments counts the characters of its content, not the arguments', () => {
+  const store = createTraceStore({ sessionId: 'test' });
+  const long = 'x'.repeat(100_000);
+  const args = (text: string): string => JSON.stringify({ text });
+  store.write({ kind: 'turn.start', at: 0, turnId: 't.turn-1', intent: 'cut arguments' });
+  store.write({
+    kind: 'model.request',
+    at: 1,
+    callId: 1,
+    turnId: 't.turn-1',
+    callIndex: 1,
+    profileId: 'prv_1',
+    'gen_ai.request.model': 'model-x',
+    messages: [
+      { role: 'assistant', content: 'hello', toolCalls: [{ id: 't1', name: 'doc.write', argumentsJson: args(long) }] },
+      { role: 'user', content: long, toolCalls: [{ id: 't2', name: 'doc.read', argumentsJson: args('Landing') }] },
+      { role: 'assistant', content: long, toolCalls: [{ id: 't3', name: 'doc.write', argumentsJson: args(long) }] },
+    ],
+  });
+
+  expect(store.messageCut('m1')).toBeGreaterThan(0);
+  expect(store.messageContentCut('m1')).toBe(0);
+  expect(store.messageContentCut('m9')).toBe(0);
+
+  const { rows } = turnTimeline(store, 't.turn-1');
+  const call = rows.find((row) => row.kind === 'call');
+  const [argsCut, contentCut, bothCut] = call?.kind === 'call' ? call.messages : [];
+  expect(argsCut?.cut).toBeGreaterThan(0);
+  expect(argsCut?.chars).toBe(5);
+  expect(contentCut?.chars).toBe(long.length);
+  expect(bothCut?.chars).toBe(long.length);
+});
+
 test('a reply whose request was never recorded still gets a row, so the rows and the header agree', () => {
   const store = createTraceStore({ sessionId: 'test' });
   store.write({
