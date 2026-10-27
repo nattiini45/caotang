@@ -35,6 +35,7 @@ No milestone is in progress right now. The next one is chosen from the list belo
 Each of these is its own milestone, designed when its turn comes.
 
 - **Saved prompts as commands.** Your own `/name` commands: a saved prompt kept in the project as a skill, with arguments, a plan template (macro) as a command, and the prompts of connected MCP servers in the same list. The nine built-in commands are in the first release's agent panel; these three are the part that waits.
+- **Extension bundles.** Skills, commands and suggested MCP servers from someone else, as plain Markdown and JSON in a `.caotang-ext` file you install yourself after reading all of it. They run no code. Specified, not built: see [extensions.md](architecture/extensions.md).
 - **Desktop app (Tauri).** For writers who would rather not run Caotang in a browser tab. Native folder storage, the operating system's keychain for keys, stdio MCP servers, and the providers a browser cannot reach.
 - **Hosted instance** at `caotang.pawcommit.com`. Sign up with email, Google or GitHub; projects stored end-to-end encrypted so the operator cannot read them; a relay for providers browsers cannot reach. The local-only version at `caotang.app` stays as it is. Specified, not built: see [hosted.md](architecture/hosted.md).
 - **Tasks with the window closed.** Recurring tasks run only while the project is open in a visible tab. Still to build: a model task that starts by itself once you have allowed it for that task, with its results waiting for your review; `caotang tasks` for a scheduler of your own; and runs from the desktop app's tray with the window closed.
@@ -52,6 +53,7 @@ Each of these is its own milestone, designed when its turn comes.
 
 - Accounts, subscriptions or credit meters in the local version. (Run limits the writer sets on their own key are not meters: Caotang counts nothing it charges for.)
 - Telemetry or analytics.
+- Third-party code running inside the app (a plugin system). Extension bundles carry text only; sandboxed plugins are deferred, not ruled out.
 - Video generation inside Caotang. It writes prompt packs; you generate video in your own tool with your own account.
 
 ## Suggest something
