@@ -503,9 +503,10 @@ describe('exporter.compile — the §4 API, which downloads and writes nothing',
     expect(result.blob.size).toBeGreaterThan(0);
   });
 
-  it('previews the block list the compile will use', () => {
+  it('previews the block list the compile will use, with the title page the template asks for', () => {
     const r = rig();
-    const blocks = r.exporter.previewFlatten({ includeRootIds: ['manuscript'] });
+    const preview = r.exporter.preview({ selection: { kind: 'manuscript' }, format: 'md' });
+    const blocks = preview.kind === 'draft' ? preview.blocks : [];
     expect(blocks[0]).toEqual({ kind: 'frontmatter', fmKind: 'titlepage' });
     expect(blocks.filter((block) => block.kind === 'chapter')).toHaveLength(2);
   });
