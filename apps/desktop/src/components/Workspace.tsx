@@ -206,6 +206,7 @@ export function Workspace({
         () => services.settings.current().agent.loadEveryTool,
         {},
         () => services.settings.current().agent,
+        () => services.settings.current().coherence.enabledChecks,
       ),
     [session, services.providers, services.settings],
   );

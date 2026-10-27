@@ -320,7 +320,7 @@ export interface AgentSessionOptions {
    */
   readonly review?: boolean | (() => boolean);
   /** The deterministic checks the review's continuity pass runs (Settings › Coherence). Absent, every check a what-if scan can run. */
-  readonly reviewChecks?: () => readonly DeterministicCheckId[];
+  readonly reviewChecks?: () => readonly DeterministicCheckId[] | undefined;
 }
 
 /** The plan a writer is asked about before it is staged. */

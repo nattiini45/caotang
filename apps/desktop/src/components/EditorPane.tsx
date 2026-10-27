@@ -36,7 +36,7 @@ import { countBody, getBody, getRevision } from '@caotang/store';
 
 import { nodeById } from '../app/binder-model.js';
 import type { AgentController } from '../app/agent.js';
-import type { GhostView } from '../app/agent-model.js';
+import { REVIEW_CATEGORY_LABELS, REVIEW_SEVERITY_LABELS, reviewSummary, type GhostView, type ReviewView } from '../app/agent-model.js';
 import { describeLossGroup, reStyleSentence } from '../app/load-banner.js';
 import { isOwnWrite } from '../app/integrity-model.js';
 import type { ProjectSession } from '../app/session.js';
@@ -403,6 +403,7 @@ function GhostBar({
         {draft.cut ? ', cut off at the model’s output limit' : ''}. Apply writes it into the scene. Retry drafts it again. Discard leaves the
         scene as it is.
       </p>
+      {draft.review === null ? null : <ReviewNotes review={draft.review} />}
       <div className="ghost-actions">
         <button type="button" className="button is-primary" disabled={!live || !approvable || !ghost.canApply()} onClick={() => ghost.apply()}>
           Apply
@@ -415,6 +416,56 @@ function GhostBar({
         </button>
       </div>
     </aside>
+  );
+}
+
+/**
+ * The draft review beside its ghost (agent-harness §8, "Draft review"): the critic's notes as a read-only list, each with its category and
+ * severity in words, the quote it names (marked in the draft above when the edit-anchor ladder found it, and said to be missing when it did
+ * not), and what applying the draft would introduce. Every string is the model's or the checks', rendered as a text node and never as HTML.
+ * The list has no controls: it advises, and Apply, Retry and Discard are the ghost's own.
+ */
+function ReviewNotes({ review }: { review: ReviewView }): ReactNode {
+  return (
+    <section className="ghost-review" aria-label="Draft review" data-testid="ghost-review">
+      <p className="ghost-review-summary" data-testid="ghost-review-summary">
+        {reviewSummary(review)}
+      </p>
+      {review.notices.map((notice) => (
+        <p key={notice.key} className="ghost-review-notice" role="status" data-testid="ghost-review-notice" data-key={notice.key}>
+          {notice.message}
+        </p>
+      ))}
+      {review.notes.length === 0 ? null : (
+        <ol className="ghost-review-notes" data-testid="ghost-review-notes">
+          {review.notes.map((note) => (
+            <li key={note.id} data-testid="ghost-review-note">
+              <span className="ghost-review-tag">
+                {REVIEW_CATEGORY_LABELS[note.category]} · {REVIEW_SEVERITY_LABELS[note.severity]} severity
+              </span>{' '}
+              <span>{note.note}</span>
+              {note.quote.trim() === '' ? null : (
+                <q className={`ghost-review-quote${note.range === null ? '' : ' is-marked'}`} data-marked={note.range === null ? 'false' : 'true'}>
+                  {note.quote}
+                </q>
+              )}
+              {note.quote.trim() === '' ? null : <span className="muted"> {note.range === null ? '(not found in the draft)' : '(marked in the draft)'}</span>}
+              {note.suggestion === undefined ? null : <span className="ghost-review-suggestion"> Suggestion: {note.suggestion}</span>}
+            </li>
+          ))}
+        </ol>
+      )}
+      {review.introduced === null || review.introduced.length === 0 ? null : (
+        <ul className="ghost-review-findings" data-testid="ghost-review-findings">
+          {review.introduced.map((finding, index) => (
+            <li key={`${finding.checkId}:${index}`}>
+              <span className="ghost-review-tag">Continuity · {finding.severity}</span> {finding.message}
+            </li>
+          ))}
+          {review.omitted > 0 ? <li>And {review.omitted} more.</li> : null}
+        </ul>
+      )}
+    </section>
   );
 }
 

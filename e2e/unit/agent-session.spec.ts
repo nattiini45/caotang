@@ -20,6 +20,7 @@ import { AgentController } from '../../apps/desktop/src/app/agent.js';
 import { DEMO_PROFILE_NAME, ProviderService } from '../../apps/desktop/src/app/providers.js';
 import { activityMarkdown } from '../../apps/desktop/src/app/activity-model.js';
 import { sampleProjectState } from '../../apps/desktop/src/app/demo.js';
+import { DEFAULT_AGENT_SETTINGS } from '../../apps/desktop/src/app/settings.js';
 
 /**
  * The agent controller and the session under it, run headless on the demo provider: the demo intents through the real loop,
@@ -77,18 +78,24 @@ async function until(predicate: () => boolean, label: string, ms = 4000): Promis
 }
 
 /** A ghost region that keeps what the controller writes into it, standing in for the editor's own ghost preview. */
-function recordingGhost(): GhostPreview & { written(): string } {
+function recordingGhost(): GhostPreview & { written(): string; marked(): readonly { from: number; to: number }[] } {
   let text = '';
+  let marks: readonly { from: number; to: number }[] = [];
   const region = {
     clear(): void {
       text = '';
+      marks = [];
     },
     append(delta: string): void {
       text += delta;
     },
+    highlight(ranges: readonly { from: number; to: number }[]): void {
+      marks = ranges;
+    },
     written: (): string => text,
+    marked: (): readonly { from: number; to: number }[] => marks,
   };
-  return region as unknown as GhostPreview & { written(): string };
+  return region as unknown as GhostPreview & { written(): string; marked(): readonly { from: number; to: number }[] };
 }
 
 test('the continuity demo is a read: its findings go to the Findings inbox, the reply counts them, and the turn carries none', async () => {
@@ -151,6 +158,60 @@ test('a drafted scene waits for the writer, is written on approval, and restores
   expect(markdown).toContain('## Agent turns');
   expect(markdown).toContain(`### ${DEMO_INTENTS.draftScene}`);
   expect(markdown).toContain('Text replaced');
+  await session.close();
+});
+
+test('with the draft review on, the demo draft carries the critic’s note, its quote is marked in the scene’s ghost, and the draft is applied as without it', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const session = await sessionOver(state, store);
+  const controller = new AgentController(session, await demoProviders(), () => ({}), () => false, {}, () => ({ ...DEFAULT_AGENT_SETTINGS, reviewDrafts: true }));
+  const friend = idOfTitle(state, FRIEND_TITLE);
+
+  const running = controller.submit(DEMO_INTENTS.draftScene);
+  await until(() => controller.snapshot().pending !== null, 'the draft to wait for a decision');
+
+  const ghost = controller.snapshot().ghosts[0];
+  expect(ghost?.review?.critiqued).toBe(true);
+  expect(ghost?.review?.notes.map((note) => [note.category, note.quote, note.range !== null])).toEqual([['brief', 'Elena was not on it.', true]]);
+  expect(controller.snapshot().draftReview).toBeNull();
+  // The plan card says what the review added to the step.
+  expect(controller.snapshot().pending?.card.steps[0]?.review).toBe('plus up to 1 review call');
+  expect(getBody(state, friend)).toBe('');
+
+  // The editor's ghost is handed the draft and then the spans its notes quote.
+  const region = recordingGhost();
+  controller.attachGhost(friend, region);
+  controller.setEditorVisible(friend, true);
+  const marked = region.marked();
+  expect(marked).toHaveLength(1);
+  expect(region.written().slice(marked[0]?.from, marked[0]?.to)).toBe('Elena was not on it.');
+
+  controller.answer({ action: 'approve' });
+  const report = await running;
+  expect(report?.status).toBe('applied');
+  expect(getBody(state, friend).startsWith('The ferry came in')).toBe(true);
+  expect(report?.modelCalls).toBe(3);
+  expect(controller.snapshot().ghosts).toEqual([]);
+  await session.close();
+});
+
+test('with the draft review off, a draft carries no review and the ghost is marked with nothing', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const session = await sessionOver(state, store);
+  const controller = new AgentController(session, await demoProviders());
+  const friend = idOfTitle(state, FRIEND_TITLE);
+
+  const running = controller.submit(DEMO_INTENTS.draftScene);
+  await until(() => controller.snapshot().pending !== null, 'the draft to wait for a decision');
+  expect(controller.snapshot().ghosts[0]?.review).toBeNull();
+  expect(controller.snapshot().pending?.card.steps[0]).not.toHaveProperty('review');
+  const region = recordingGhost();
+  controller.attachGhost(friend, region);
+  expect(region.marked()).toEqual([]);
+  controller.answer({ action: 'cancel' });
+  expect((await running)?.status).toBe('cancelled');
   await session.close();
 });
 

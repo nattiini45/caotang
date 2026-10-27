@@ -311,7 +311,7 @@ function keyHint(preset: PresetDef | undefined, form: FormState, view: ProfileVi
 const ROLE_NAMES: readonly { readonly id: TaskRole; readonly label: string; readonly hint: string }[] = [
   { id: 'chat', label: 'Chat', hint: 'the agent panel' },
   { id: 'drafting', label: 'Drafting', hint: 'the prompt pack’s generations' },
-  { id: 'background', label: 'Background', hint: 'checks, encoding work and plans sent to the background' },
+  { id: 'background', label: 'Background', hint: 'checks, encoding work, the draft review and plans sent to the background' },
 ];
 
 /** A role row as the form holds it: '' fields mean the role's defaults (follow chat; the profile's own model). */
@@ -779,6 +779,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
       <FormMessage message={message} />
 
       <RolesPanel services={services} models={models} onSaved={(text) => setMessage({ text, tone: 'info' })} />
+      <ReviewDraftsSetting services={services} />
       <UsagePanel services={services} />
       <RequestLogPanel services={services} />
       {active === undefined ? <p className="status-line is-error">No provider is active, so the agent cannot run.</p> : null}
@@ -909,6 +910,43 @@ function RolesPanel({ services, models, onSaved }: { services: AppServices; mode
           {message}
         </p>
       ) : null}
+    </section>
+  );
+}
+
+/**
+ * "Review drafts before showing them" (agent-harness §8, "Draft review"). It sits under the task roles because the review's call runs as the
+ * Background role: the copy names that role's model, since it can be a different provider from the one that drafted. The setting is the agent
+ * slice's, read at the start of each turn. Off unless the writer turns it on.
+ */
+function ReviewDraftsSetting({ services }: { services: AppServices }): ReactNode {
+  const settings = useSyncExternalStore(services.settings.subscribe, services.settings.current);
+  const [message, setMessage] = useState<{ readonly text: string; readonly tone: 'info' | 'error' } | null>(null);
+  const background = services.providers.resolveForRole?.('background');
+  const where = background === undefined ? 'the Background role’s model' : `${background.profile.name}, model ${background.model}`;
+  return (
+    <section aria-labelledby="settings-review-drafts">
+      <h4 id="settings-review-drafts">Draft review</h4>
+      <p className="muted">
+        Before a scene draft is shown, a second call reads it against your brief, the scene’s synopsis and notes, and the codex entries it
+        mentions, and the continuity checks run on what the project would be with the draft in it. It adds up to one more model call to each
+        scene draft, and a draft you retry is reviewed again. The draft and those codex entries are sent to the Background role’s model,{' '}
+        {where}. The review is advice only: it never edits, and the draft is shown whatever it finds.
+      </p>
+      <label className="settings-check">
+        <input
+          type="checkbox"
+          checked={settings.agent.reviewDrafts}
+          data-testid="agent-review-drafts"
+          onChange={(event) => {
+            void services.settings.update({ agent: { reviewDrafts: event.target.checked } }).then((error) => {
+              setMessage(error === null ? { text: 'Saved. It applies from the agent’s next turn.', tone: 'info' } : { text: error, tone: 'error' });
+            });
+          }}
+        />
+        <span>Review drafts before showing them</span>
+      </label>
+      <FormMessage message={message} />
     </section>
   );
 }

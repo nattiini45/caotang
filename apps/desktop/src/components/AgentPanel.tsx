@@ -283,6 +283,17 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
             {spend}
           </span>
         )}
+        {/* The draft review is reading a draft (agent-harness §8): it says so, and Skip review cuts only that call short; Stop is the turn's. */}
+        {snapshot.draftReview === null ? null : (
+          <>
+            <span className="agent-reviewing" role="status" aria-live="polite" data-testid="agent-reviewing">
+              Reviewing draft…
+            </span>
+            <button type="button" className="button is-quiet" data-testid="agent-skip-review" onClick={() => agent.skipReview()}>
+              Skip review
+            </button>
+          </>
+        )}
         {snapshot.stoppable ? (
           <button
             type="button"

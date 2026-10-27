@@ -13,8 +13,11 @@ import {
   type AgentEvent,
   type AskBack,
   type BudgetSpend,
+  type CritiqueCategory,
+  type CritiqueSeverity,
   type PreviewLayer,
   type Finding,
+  type ReviewNotice,
   type NameOf,
   type PermissionMode,
   type PlanCardView,
@@ -26,6 +29,8 @@ import {
   type TurnPhase,
   type TurnReport,
 } from '@caotang/harness';
+import { DETERMINISTIC_CHECK_LABELS } from '@caotang/coherence';
+import { resolveAnchor } from '@caotang/editor';
 import type { TreeNode } from '@caotang/store';
 
 /** How much of the streamed model text the panel keeps to show that work is happening. */
@@ -41,9 +46,115 @@ export interface DraftEvent {
   readonly cut: boolean;
 }
 
-/** A draft as the controller holds it: the event, and the document its reference names (`null` when it names none). */
+/** A draft as the controller holds it: the event, the document its reference names (`null` when it names none), and the review of it, when there is one. */
 export interface GhostView extends DraftEvent {
   readonly docId: string | null;
+  readonly review: ReviewView | null;
+}
+
+/** One note of the draft review, as the ghost lists it: the quote it names, and where the edit-anchor ladder found that quote in the draft. */
+export interface ReviewNoteView {
+  readonly id: string;
+  readonly category: CritiqueCategory;
+  readonly severity: CritiqueSeverity;
+  readonly quote: string;
+  readonly note: string;
+  readonly suggestion?: string;
+  /** The quote's range in the draft's text, or `null` when the quote is empty or the ladder did not find it: the note is listed unmarked. */
+  readonly range: { readonly from: number; readonly to: number } | null;
+}
+
+/** A finding the draft would introduce, in words. */
+export interface ReviewFindingView {
+  readonly checkId: string;
+  readonly label: string;
+  readonly severity: 'error' | 'warning' | 'info';
+  readonly message: string;
+}
+
+/** The draft review of one scene's draft (agent-harness §8): the critic's notes, what applying the draft would introduce, and why a half is missing. */
+export interface ReviewView {
+  readonly callId: string;
+  readonly docTitle: string;
+  /** Whether the critic's notes were read. A review with no notes and no critique ran into a notice instead. */
+  readonly critiqued: boolean;
+  readonly notes: readonly ReviewNoteView[];
+  /** `null` when the continuity pass did not run. */
+  readonly introduced: readonly ReviewFindingView[] | null;
+  /** How many more findings the draft introduces than are listed. */
+  readonly omitted: number;
+  readonly notices: readonly ReviewNotice[];
+}
+
+/**
+ * Where a critic's quote is in the draft: the edit-anchor ladder (edit-anchors §3) over the draft's text, with the quote as the exact text and
+ * its first occurrence as the offset it was "captured" at. The quote carries no context, so a quote that is not in the draft is not found by
+ * the fuzzy rungs, and a paraphrase is listed unmarked. `null` for an empty quote, which is a note about the whole scene.
+ */
+export function locateQuote(quote: string, body: string): { readonly from: number; readonly to: number } | null {
+  const exact = quote.trim();
+  if (exact === '') return null;
+  const at = Math.max(0, body.indexOf(exact));
+  const found = resolveAnchor({ from: at, to: at + exact.length, exact, prefix: '', suffix: '', capturedRevision: 0 }, body, 0);
+  return found.status === 'ok' ? { from: found.range.from, to: found.range.to } : null;
+}
+
+/** A `review` event as the ghost shows it. Every string stays a string: the panel renders them as text nodes and never as HTML. */
+export function reviewViewOf(event: Extract<AgentEvent, { type: 'review' }>, draft: string): ReviewView {
+  return {
+    callId: event.callId,
+    docTitle: event.docTitle,
+    critiqued: event.critique !== undefined,
+    notes: (event.critique?.notes ?? []).map((note) => ({
+      id: note.id,
+      category: note.category,
+      severity: note.severity,
+      quote: note.quote,
+      note: note.note,
+      ...(note.suggestion === undefined ? {} : { suggestion: note.suggestion }),
+      range: locateQuote(note.quote, draft),
+    })),
+    introduced:
+      event.continuity === undefined
+        ? null
+        : event.continuity.introduced.map((finding) => ({
+            checkId: finding.checkId,
+            label: DETERMINISTIC_CHECK_LABELS[finding.checkId],
+            severity: finding.severity,
+            message: finding.message,
+          })),
+    omitted: event.continuity?.omitted ?? 0,
+    notices: event.notices,
+  };
+}
+
+/** The words a note's category and severity are shown in. Both are text beside the note, so the note never relies on colour. */
+export const REVIEW_CATEGORY_LABELS: Readonly<Record<CritiqueCategory, string>> = Object.freeze({
+  brief: 'Brief',
+  pov: 'Point of view',
+  pacing: 'Pacing',
+  voice: 'Voice',
+  codex: 'Codex',
+  clarity: 'Clarity',
+});
+export const REVIEW_SEVERITY_LABELS: Readonly<Record<CritiqueSeverity, string>> = Object.freeze({ low: 'Low', medium: 'Medium', high: 'High' });
+
+/** The ranges the ghost marks for a review: each note whose quote was found. */
+export function highlightsOf(review: ReviewView | null): readonly { readonly from: number; readonly to: number }[] {
+  return review === null ? [] : review.notes.flatMap((note) => (note.range === null ? [] : [note.range]));
+}
+
+/** The line the ghost opens its review with, in words the writer reads: how many notes, how many findings, and what did not run. */
+export function reviewSummary(review: ReviewView): string {
+  const parts: string[] = [];
+  if (review.critiqued) parts.push(review.notes.length === 0 ? 'The critic found nothing to note' : `${review.notes.length} ${review.notes.length === 1 ? 'note' : 'notes'} from the critic`);
+  if (review.introduced !== null) {
+    const total = review.introduced.length + review.omitted;
+    parts.push(total === 0 ? 'applying it introduces no continuity finding' : `applying it introduces ${total} continuity ${total === 1 ? 'finding' : 'findings'}`);
+  }
+  if (parts.length === 0) return 'The review did not run.';
+  const line = parts.join('; ');
+  return `${line.charAt(0).toUpperCase()}${line.slice(1)}.`;
 }
 
 export interface LadderView {
@@ -79,6 +190,8 @@ export interface TurnView {
   /** The permission mode the turn is in: the mode it started in, and the one it ended in once it has reported. `null` before it has started. */
   readonly mode: PermissionMode | null;
   readonly ghost: DraftEvent | null;
+  /** The title of the scene whose draft the critic is reading, from the review's start to its `review` event or the card; else `null`. */
+  readonly reviewing: string | null;
   readonly ladder: readonly LadderView[];
   readonly findings: readonly Finding[];
   /** The checkpoint row, with its scope note when the turn called an external tool (extensibility §6). */
@@ -124,6 +237,7 @@ export function newTurnView(
     planAuto: false,
     mode: null,
     ghost: null,
+    reviewing: null,
     ladder: [],
     findings: [],
     checkpoint: null,
@@ -171,7 +285,11 @@ function reduceView(turn: TurnView, event: AgentEvent): TurnView {
       return { ...turn, cards };
     }
     case 'plan':
-      return { ...turn, plan: event.card, planSeq: turn.planSeq + 1, planAuto: event.auto === true, streamed: '' };
+      return { ...turn, plan: event.card, planSeq: turn.planSeq + 1, planAuto: event.auto === true, streamed: '', reviewing: null };
+    case 'review.start':
+      return { ...turn, reviewing: event.docTitle };
+    case 'review':
+      return { ...turn, reviewing: null };
     case 'ghost':
       return {
         ...turn,
@@ -193,7 +311,7 @@ function reduceView(turn: TurnView, event: AgentEvent): TurnView {
         checkpoint: { undoGroupId: event.undoGroupId, label: event.label, mode: event.mode, ...(event.note === undefined ? {} : { note: event.note }) },
       };
     case 'report':
-      return { ...turn, report: event.report, mode: event.report.mode, ghost: null, plan: turn.plan, streamed: '' };
+      return { ...turn, report: event.report, mode: event.report.mode, ghost: null, plan: turn.plan, streamed: '', reviewing: null };
     default:
       return turn;
   }

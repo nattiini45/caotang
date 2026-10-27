@@ -83,6 +83,12 @@ export interface ContextSettings {
 export interface AgentSettings {
   readonly loadEveryTool: boolean;
   /**
+   * Review drafts before showing them (agent-harness §8, "Draft review"): a scene draft is read by a critic and checked for continuity before
+   * its ghost is shown. Costs up to one more model call to each draft, sent to the Background role's model. Off unless the writer turns it on.
+   * The control is in Settings › Providers beside the Roles it routes through.
+   */
+  readonly reviewDrafts: boolean;
+  /**
    * Keep the agent's trace for this tab (agent-harness §5.2): the prompts, replies and tool results of each turn, in memory only, for the Trace
    * tab and its export. On unless turned off; off means nothing is gathered and what was is cleared. The trace itself is never saved.
    */
@@ -117,7 +123,7 @@ export interface AgentBudgetSettings {
   readonly maxSteps?: number;
 }
 
-export const DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false, defaultMode: 'ask', lockAuto: false, budget: Object.freeze({}), rules: Object.freeze([]), keepTraces: true });
+export const DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false, reviewDrafts: false, defaultMode: 'ask', lockAuto: false, budget: Object.freeze({}), rules: Object.freeze([]), keepTraces: true });
 
 /** The whole numbers a budget field may hold. A field outside them reads as unset. */
 export const AGENT_BUDGET_RANGES = {
@@ -145,6 +151,7 @@ export function normalizeAgent(raw: unknown): AgentSettings {
   if (typeof cost === 'number' && Number.isFinite(cost) && cost > 0 && cost <= 1_000_000) limits.maxCostUsd = cost;
   return {
     loadEveryTool: source['loadEveryTool'] === true,
+    reviewDrafts: source['reviewDrafts'] === true,
     keepTraces: source['keepTraces'] !== false,
     defaultMode: stored === 'auto' && lockAuto ? 'ask' : stored,
     lockAuto,

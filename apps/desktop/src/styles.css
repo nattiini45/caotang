@@ -3375,6 +3375,55 @@ dialog.confirm:has(.folder-file-preview) {
   margin: 0 0 8px;
 }
 
+/* The draft review beside its ghost (agent-harness §8): a read-only list. Category and severity are words; a marked quote also gets an
+   underline, so colour is never the only signal. */
+.ghost-review {
+  margin: 0 0 8px;
+  padding: 6px 0 0;
+  border-top: 1px solid var(--line-strong);
+}
+
+.ghost-review-notes,
+.ghost-review-findings {
+  margin: 0 0 6px;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.ghost-review-tag {
+  font-weight: 600;
+}
+
+.ghost-review-quote {
+  display: block;
+  margin: 2px 0 0;
+  padding-left: 8px;
+  border-left: 2px solid var(--line-strong);
+  font-style: italic;
+}
+
+.ghost-review-quote.is-marked {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.ghost-review-notice {
+  color: var(--warn);
+}
+
+.caotang-ghost-note {
+  background: var(--accent-soft);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
+.agent-reviewing {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
 .editor-target {
   display: inline-flex;
   align-items: center;
