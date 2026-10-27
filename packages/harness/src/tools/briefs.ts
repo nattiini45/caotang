@@ -2,8 +2,9 @@
  * The host-model pairs — [agent-harness.md §3](../../../docs/architecture/agent-harness.md), "External-only rows".
  *
  * An outside host has a model, and Caotang has the context and the validators. A `…brief` is a read that returns what the in-app tool
- * would send its model: the messages, byte for byte the ones the agent loop assembles for the same task and role. The host's own model
- * writes. A `…apply` takes that reply and runs it through the in-app port (`sceneDraftPort`, `dialogueDraftPort`), as the proposal the
+ * would send its model: the messages from the same `assemble()`, task and role as the agent loop, over the live project with the default context budgets
+ * and no earlier turns. They match the app's drafting call in the first turn of a session with default budgets; a later turn adds the
+ * earlier-turns layer (L6), and a loaded skill adds its block. The host's own model writes. A `…apply` takes that reply and runs it through the in-app port (`sceneDraftPort`, `dialogueDraftPort`), as the proposal the
  * in-app model call would have produced. The validators, the mode rules, the revision check and the undo group are the in-app ones,
  * because they are the same code. The server holds no provider key, makes no model call and uses no MCP Sampling.
  *

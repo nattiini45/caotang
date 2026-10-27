@@ -1,7 +1,8 @@
 /**
  * The host-model pairs (agent-harness §3, "External-only rows"): `scene.brief` and `dialogue.brief` return what the in-app tool would
- * send its model, byte for byte, and `scene.apply` and `dialogue.apply` run the host's reply through the in-app ports. The golden
- * half runs the agent loop on a mock provider and holds the brief to the messages that provider received.
+ * send its model, and `scene.apply` and `dialogue.apply` run the host's reply through the in-app ports. The golden half runs the agent
+ * loop on a mock provider and holds the brief to the messages that provider received. It pins the first-turn case: a fresh session, the
+ * default context budgets and no skill loaded. A later turn adds the earlier-turns layer and a loaded skill adds its block.
  */
 
 import { draftScript, userTextOf } from '@caotang/gateway/mock';
