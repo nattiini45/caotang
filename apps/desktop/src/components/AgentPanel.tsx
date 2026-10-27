@@ -177,7 +177,14 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
 
   const rewind = (turnId: string): void => {
     const result = agent.rewindConversation(turnId);
-    if (result === null) return;
+    if (result === null) {
+      // The menu is enabled from the last render; a turn may have started, or the turn may already be rewound, since.
+      report({
+        text: agent.snapshot().busy ? 'The conversation could not be rewound: a turn is running.' : 'The conversation could not be rewound: that turn is no longer available to rewind.',
+        tone: 'error',
+      });
+      return;
+    }
     report({ text: 'Rewound the conversation to before that turn. The project was not changed.', tone: 'info' });
     refill(result.intent);
   };
