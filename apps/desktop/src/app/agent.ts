@@ -350,7 +350,7 @@ export class AgentController {
   private readonly armed = new Map<string, string>();
   /** The turn each approved step belongs to, by step id. */
   private readonly appliedIn = new Map<string, string | null>();
-  /** What the open editors in review mode hold marked, by document (review-session.ts). */
+  /** What the open editors in review mode hold marked, by document (ReviewSide.tsx). */
   private readonly reviewing = new Map<string, ReviewHold>();
   /** What the last slash command said under the Intent box. View state: never saved, never sent to a model. */
   private commandNote: CommandNote | null = null;
