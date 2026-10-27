@@ -31,6 +31,7 @@ import {
 } from '../src/index.js';
 import { dialogueRole, sceneRole } from '../src/agent/drafting.js';
 import { heldBrief } from '../src/tools/briefs.js';
+import { BRIEF_REPLY_MAX_CHARS } from '../src/tools/ports.js';
 import { OPENED, clock, FRIEND, LANDING, STORM, makeState, refusalOf, run, snapshotOf, valueOf } from './fixtures.js';
 import { mockGateway } from './agent/gateway.js';
 import { steps, transcript } from './agent/scripts.js';
@@ -149,6 +150,14 @@ describe('the registry column', () => {
     for (const name of rows) expect(metadataFor(name), name).toMatchObject({ surface: 'extension', load: 'deferred' });
     expect(metadataFor('scene.brief')?.mirrors).toBe('scene.draft');
     expect(metadataFor('dialogue.apply')?.mirrors).toBe('dialogue.draft');
+  });
+
+  it('states the apply rows’ reply limit in characters, as the params and the refusal do', () => {
+    for (const name of ['scene.apply', 'dialogue.apply'] as const) {
+      const description = metadataFor(name)?.description ?? '';
+      expect(description, name).toContain(`${BRIEF_REPLY_MAX_CHARS} characters`);
+      expect(description, name).not.toContain('tokens is refused');
+    }
   });
 
   it('ties every external-only row to the in-app row it mirrors, which is itself in-app', () => {
