@@ -82,6 +82,11 @@ export interface ContextSettings {
  */
 export interface AgentSettings {
   readonly loadEveryTool: boolean;
+  /**
+   * Keep the agent's trace for this tab (agent-harness §5.2): the prompts, replies and tool results of each turn, in memory only, for the Trace
+   * tab and its export. On unless turned off; off means nothing is gathered and what was is cleared. The trace itself is never saved.
+   */
+  readonly keepTraces: boolean;
   /** The permission mode a session starts in (agent-harness §4). `auto` reads as `ask` while `lockAuto` is on. */
   readonly defaultMode: PermissionMode;
   /** Turns Auto mode off: the panel does not offer it and a stored `auto` reads as Ask. */
@@ -112,7 +117,7 @@ export interface AgentBudgetSettings {
   readonly maxSteps?: number;
 }
 
-export const DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false, defaultMode: 'ask', lockAuto: false, budget: Object.freeze({}), rules: Object.freeze([]) });
+export const DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false, defaultMode: 'ask', lockAuto: false, budget: Object.freeze({}), rules: Object.freeze([]), keepTraces: true });
 
 /** The whole numbers a budget field may hold. A field outside them reads as unset. */
 export const AGENT_BUDGET_RANGES = {
@@ -140,6 +145,7 @@ export function normalizeAgent(raw: unknown): AgentSettings {
   if (typeof cost === 'number' && Number.isFinite(cost) && cost > 0 && cost <= 1_000_000) limits.maxCostUsd = cost;
   return {
     loadEveryTool: source['loadEveryTool'] === true,
+    keepTraces: source['keepTraces'] !== false,
     defaultMode: stored === 'auto' && lockAuto ? 'ask' : stored,
     lockAuto,
     budget: limits,

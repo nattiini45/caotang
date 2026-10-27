@@ -4,6 +4,14 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ## Unreleased
 
+### Added
+
+- **Agent trace.** Every prompt, reply, tool call, tool result and timing of a turn, in a Trace view beside Activity, kept only in the open tab and exported on request as a JSONL file (`caotang.trace/1`, with OpenTelemetry’s GenAI field names). **Export trace** saves one turn or all of them, and **Leave out manuscript text** replaces every text with its length. The coherence and encoding reviews, which run outside a turn, are shown in their own group. Keys are removed on a best-effort basis; the trace is never saved in a project, a backup or the browser’s storage, and nothing is sent anywhere. **Keep agent traces for this tab** turns it off. A turn run in an eval can write the same trace, byte for byte the same each time (developers).
+
+### Known limits
+
+- Agent traces are kept in memory for the open tab and are gone after a reload. They hold your prompts and manuscript text, so the export is yours to keep safe, and the removal of keys from it is best-effort. A trace keeps the newest 25 turns and 16 MB, and cuts a record longer than 64 KB.
+
 ## 0.1.0
 
 The first public version: a free, local-first writing studio for novels, scripts and story worlds, with an agent that works through the app's own commands on the writer's own provider key. The version is 0.1.0 rather than 1.0 because the project file format may still change.

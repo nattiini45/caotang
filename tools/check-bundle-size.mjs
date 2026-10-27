@@ -36,9 +36,10 @@ export const BUDGET = {
    * (#31). The Ink compiler (`ink-full`, 244 kB) loads when a project holds a dialogue container, which took the shared `src` chunk
    * under the limit, so `src` has no entry any more.
    */
+  // The entry measured 1,419.9 kB with the agent trace store, the Trace tab and the trace export (Wave 19); its cap is 1,450 kB.
   allow: {
     'fontkit.es': 750_000,
-    index: 1_400_000,
+    index: 1_450_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
   // 772.4 kB measured with Colour emoji, against 769.1 kB before it; 779.3 kB with Colour emoji and Agent rules together (Wave 14); 786.4 kB with the agent run log and resume.

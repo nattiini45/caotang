@@ -90,6 +90,7 @@ import {
   type RunLimits,
   type RunLogPort,
   type ToolName,
+  type TraceSink,
   type TurnOptions,
   type TurnReport,
 } from '@caotang/harness';
@@ -1330,6 +1331,10 @@ export class AgentController {
     return this.tasks.idle();
   }
 
+  /** The sink and the clock the providers lend a session (agent-harness §5.2). A bare stand-in for the providers lends neither. */
+  private readonly traceSink = (): TraceSink | undefined => (this.providers as Partial<ProviderService>).trace?.sink();
+  private readonly clock = (): number => (this.providers as Partial<ProviderService>).now?.() ?? Date.now();
+
   /** The session of a task role, made on its first use (see `sessions`). */
   private sessionFor(role: TaskRole): AgentSession {
     const kept = this.sessions.get(role);
@@ -1342,6 +1347,8 @@ export class AgentController {
       emit: (event) => this.onEvent(event),
       role,
       sessionId: role === 'chat' ? this.sessionId : `${this.sessionId}.${role}`,
+      clock: this.clock,
+      trace: this.traceSink,
       loadEveryTool: this.loadEveryTool,
       beforeStage: (offer) => this.askOffer(offer),
       mode: () => this.mode(),
@@ -1384,6 +1391,8 @@ export class AgentController {
       role: 'background',
       sessionId,
       maxModelCalls,
+      clock: this.clock,
+      trace: this.traceSink,
       loadEveryTool: this.loadEveryTool,
       profileId: profile.id,
       ...(resolved?.model === undefined ? {} : { model: resolved.model }),

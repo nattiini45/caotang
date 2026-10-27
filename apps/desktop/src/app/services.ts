@@ -104,6 +104,10 @@ export async function openAppServices(factory: IDBFactory | null, options: OpenS
   const { service, notices: providerNotices } = await ProviderService.open({ db, vault: factory });
   notices.push(...providerNotices);
   const settings = new SettingsStore(db, initial);
+  // The agent trace follows its setting (agent-harness §5.2): on, the gateway is observed; off, nothing is gathered and what was is cleared.
+  const traceOn = (): void => service.trace.keep(settings.current().agent.keepTraces);
+  traceOn();
+  settings.subscribe(traceOn);
   // The active profile is mirrored into the settings record (ui-modules §5.1), so the record names the profile the agent uses.
   const active = service.active();
   if (active !== undefined && settings.current().provider.activeProfileId !== active.id) {

@@ -7,7 +7,7 @@
  * it concerns, never as a toast alone (context-assembly §6).
  */
 
-import { useEffect, useReducer, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useReducer, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
 import {
   PRESETS,
   isLocalBase,
@@ -1005,7 +1005,10 @@ function RequestLogPanel({ services }: { services: AppServices }): ReactNode {
 
 function AgentSection({ services, session }: { services: AppServices; session: ProjectSession | null }): ReactNode {
   const [loadEvery, setLoadEvery] = useState(services.settings.current().agent.loadEveryTool);
+  // Read live, so the Trace tab's own switch and this one never disagree.
+  const keepTraces = useSyncExternalStore(services.settings.subscribe, services.settings.current).agent.keepTraces;
   const [message, setMessage] = useState<string | null>(null);
+  const [traceMessage, setTraceMessage] = useState<{ readonly text: string; readonly tone: 'info' | 'error' } | null>(null);
 
   const change = (next: boolean): void => {
     setLoadEvery(next);
@@ -1026,6 +1029,24 @@ function AgentSection({ services, session }: { services: AppServices; session: P
         <span>Load every tool on every request</span>
       </label>
       <FormMessage message={message === null ? null : { text: message, tone: 'info' }} />
+      <p className="settings-note">
+        The Trace tab shows what each turn sent to the model and got back. It holds your prompts and manuscript text, only in this tab’s memory, and a
+        reload clears it. Turn it off to gather nothing.
+      </p>
+      <label className="settings-check">
+        <input
+          type="checkbox"
+          checked={keepTraces}
+          data-testid="agent-keep-traces"
+          onChange={(event) => {
+            void services.settings.update({ agent: { keepTraces: event.target.checked } }).then((error) => {
+              setTraceMessage(error === null ? { text: 'Saved. It applies to what the agent records next.', tone: 'info' } : { text: error, tone: 'error' });
+            });
+          }}
+        />
+        <span>Keep agent traces for this tab</span>
+      </label>
+      <FormMessage message={traceMessage} />
       <AgentModeSettings services={services} />
       <AgentRulesSettings services={services} session={session} />
     </section>
