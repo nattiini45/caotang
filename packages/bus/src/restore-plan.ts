@@ -47,7 +47,8 @@ export type RestorePlan =
       readonly blockedBy: readonly string[];
       /** The node ids both sides touch (or one side's structure puts in common). Empty when the reason is not an overlap. */
       readonly overlap: readonly string[];
-      readonly reason: 'overlap' | 'unclassified' | 'unknown';
+      /** `defect` is the planner failing on a tree it could not read: the plan is still safe (not exact), but the cause is a bug to find. */
+      readonly reason: 'overlap' | 'unclassified' | 'unknown' | 'defect';
     };
 
 /** The nodes one command touched. `moved` and `parents` are the structure: a move changes a node, and the child lists of two parents. */
@@ -227,9 +228,10 @@ export function restorePlan(
   activity: readonly ActivityEntry[],
   target: RestoreTarget,
   ancestorsOf: Ancestors,
+  onDefect?: (error: unknown) => void,
 ): RestorePlan {
   const at = groups.findIndex((group) => group.id === target.groupId);
-  const withLater = (reason: 'overlap' | 'unclassified' | 'unknown', blockedBy: readonly string[], overlap: readonly string[]): RestorePlan => ({
+  const withLater = (reason: 'overlap' | 'unclassified' | 'unknown' | 'defect', blockedBy: readonly string[], overlap: readonly string[]): RestorePlan => ({
     kind: 'with-later',
     undo: target,
     later: at === -1 ? [] : groups.slice(at + 1).map((group) => group.id).reverse(),
@@ -263,8 +265,14 @@ export function restorePlan(
     }
     if (blocked.length === 0) return { kind: 'exact', undo: target };
     return withLater(overlap.size > 0 ? 'overlap' : unclassified ? 'unclassified' : 'unknown', blocked.reverse(), [...overlap]);
-  } catch {
-    // A tree that cannot be read is not a tree that can be proved disjoint.
-    return withLater('unknown', [], []);
+  } catch (error) {
+    // A tree that cannot be read is not a tree that can be proved disjoint. The plan stays with-later; `onDefect` lets the caller
+    // record the error, since nothing else tells a bug here from a target that left the stack.
+    try {
+      onDefect?.(error);
+    } catch {
+      // A handler that throws must not turn a safe plan into an exception.
+    }
+    return withLater('defect', [], []);
   }
 }

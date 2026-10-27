@@ -1138,7 +1138,7 @@ export class ProjectSession {
       const at = groups.findIndex((group) => group.id === id);
       return { kind: 'with-later', undo: target, later: at === -1 ? [] : groups.slice(at + 1).map((group) => group.id).reverse(), blockedBy: [], overlap: [], reason: 'unknown' };
     }
-    return restorePlan(groups, this.log.entries(), target, ancestorsOf);
+    return restorePlan(groups, this.log.entries(), target, ancestorsOf, (error) => console.error('restorePlan defect', error));
   }
 
   /**
