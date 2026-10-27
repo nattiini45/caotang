@@ -23,7 +23,7 @@ A hook **never approves**. It runs after the gate has answered, so an `allow` is
 
 All seven names are declared (`HOOK_EVENTS`), so a project file written for a later build loads. A hook for an event this build does not run is **kept and flagged** at load ("runs at export.before, which this build does not run yet; it is kept and has no effect"), and nothing fires it. `HOOK_EVENTS_RUN` is the list that does.
 
-Every call the harness runs is an agent's, including a delegated agent's read and an external caller's (the MCP server and the SDK build their harness with the project's hooks). `matcher.issuedBy` defaults to `agent`; `user` is for the events a later build fires on the writer's own gestures, so a `user` hook matches nothing today.
+Every call the harness runs is an agent's, including a delegated agent's read and an external caller's (the MCP server and the SDK build their harness with the project's hooks). `matcher.issuedBy` defaults to `agent`; `user` is for the events a later build fires on the writer's own gestures, so a `user` hook matches nothing today. A matcher's `tools` names the tool a call is, and also the in-app tool a write row stands for (`mirrors`): a hook for `scene.draft` holds `scene.apply`, and one for `dialogue.draft` holds `dialogue.apply`, as a rule does.
 
 ## 3. Where a hook runs
 

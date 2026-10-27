@@ -7,14 +7,18 @@
  */
 
 import { COMMAND_REGISTRY, createIdempotencyCache, createViewState, execute, type CommandError, type ProjectHook } from '@caotang/bus';
+import { loadInkCompiler } from '@caotang/dialogue';
 import { createMcpClient, createMockWireFactory } from '@caotang/mcp-client';
-import { addDocument } from '@caotang/store';
-import { describe, expect, it, vi } from 'vitest';
+import { addDocument, getBody } from '@caotang/store';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
   HOOK_SLOW_MS,
   countWholeWord,
+  createBriefLedger,
+  createBriefPorts,
   createHookRunner,
+  createProductHarness,
   foldText,
   hookLabel,
   proseOf,
@@ -22,7 +26,7 @@ import {
   type HookRun,
   type HookSpec,
 } from '../src/index.js';
-import { CHAPTER_ONE, ENTRY_TWO, LANDING, OPENED, STORM, makeHarness, makeState, refusalOf, run, snapshotOf, valueOf } from './fixtures.js';
+import { CHAPTER_ONE, ENTRY_TWO, LANDING, OPENED, STORM, clock, makeHarness, makeState, refusalOf, run, snapshotOf, valueOf } from './fixtures.js';
 
 let ids = 0;
 const nextId = (): string => `h_${String(++ids).padStart(10, '0')}`;
@@ -576,6 +580,55 @@ describe('through the harness', () => {
     const harness = makeHarness({ hooks: [sudden()], externalWrites: true });
     const error = refusalOf(run(harness, 'notes.append', append, { source: 'mcp', turnId: 'ext' }));
     expect(codeOf(error)).toBe('hook_blocked');
+  });
+});
+
+describe('a hook scoped to a draft tool', () => {
+  const TAVERN = 'n_TAVERN0001';
+  beforeAll(loadInkCompiler);
+
+  /** An external host, as the MCP server builds it: the brief ports, writes on, and the writer's hooks. */
+  function host(hooks: readonly HookSpec[]) {
+    const state = makeState();
+    addDocument(state, { id: TAVERN, parentId: 'manuscript', title: 'Tavern', type: 'dialogue', body: '', now: OPENED });
+    const harness = createProductHarness({
+      state,
+      ports: 'external',
+      externalWrites: true,
+      externalPorts: createBriefPorts({ ledger: createBriefLedger({ now: () => clock.now() }) }),
+      clock: clock.now,
+      hooks,
+    });
+    const brief = (name: string, params: Record<string, unknown>) => {
+      const result = valueOf(harness.external.call({ name, callId: `brief-${ids++}`, params }, { turnId: 'mcp-turn' }));
+      return (result.data as { applyWith: Record<string, unknown> }).applyWith;
+    };
+    return { state, harness, brief };
+  }
+
+  it('also holds scene.apply, the row an external host writes prose through', () => {
+    const { state, harness, brief } = host([pattern(['suddenly'], { matcher: { tools: ['scene.draft'] }, onBlock: 'block' })]);
+    const before = getBody(state, LANDING);
+    const applyWith = brief('scene.brief', { doc: LANDING, instruction: 'Carry on.', mode: 'continue' });
+    const error = refusalOf(run(harness, 'scene.apply', { ...applyWith, text: 'Suddenly, the lamp failed.' }, { permission: { confirmed: true } }));
+    expect(codeOf(error)).toBe('hook_blocked');
+    expect(getBody(state, LANDING)).toBe(before);
+    expect(valueOf(run(harness, 'scene.apply', { ...applyWith, text: 'The lamp failed.' }, { permission: { confirmed: true } })).summary).toContain('continued');
+  });
+
+  it('also holds dialogue.apply', () => {
+    const { state, harness, brief } = host([pattern(['suddenly'], { matcher: { tools: ['dialogue.draft'] }, onBlock: 'block' })]);
+    const applyWith = brief('dialogue.brief', { doc: TAVERN, instruction: 'A thank-you.' });
+    const ink = ['=== reply ===', 'Suddenly, thanks.', '-> END'].join('\n');
+    const error = refusalOf(run(harness, 'dialogue.apply', { ...applyWith, ink }, { permission: { confirmed: true } }));
+    expect(codeOf(error)).toBe('hook_blocked');
+    expect(getBody(state, TAVERN)).toBe('');
+  });
+
+  it('does not reach a row whose mirrored tool the matcher leaves out', () => {
+    const { harness, brief } = host([pattern(['suddenly'], { matcher: { tools: ['notes.append'] }, onBlock: 'block' })]);
+    const applyWith = brief('scene.brief', { doc: LANDING, instruction: 'Carry on.', mode: 'continue' });
+    expect(run(harness, 'scene.apply', { ...applyWith, text: 'Suddenly, the lamp failed.' }, { permission: { confirmed: true } }).ok).toBe(true);
   });
 });
 

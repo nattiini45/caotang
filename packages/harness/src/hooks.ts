@@ -14,6 +14,7 @@ import { HOOKS_MAX, HOOK_PATTERNS_MAX, HOOK_TEXT_MAX, type HookCheck, type HookE
 import { DETERMINISTIC_CHECK_IDS, SCAN_DOC_GUARD, scanTool, type DeterministicCheckId } from '@caotang/coherence';
 import { countBody, getBody, nodeById, type ProjectState, type TreeNode } from '@caotang/store';
 
+import { metadataFor } from './metadata.js';
 import { countIn, excludedBy, heldFile } from './tools/coherence.js';
 import type { CallParams } from './types.js';
 import { isRecord } from './util.js';
@@ -301,7 +302,10 @@ function matches(spec: HookSpec, input: HookInput): boolean {
   // Every call the harness runs is the agent's. `user` is for the events a later build fires on the writer's own gestures.
   if (spec.matcher?.issuedBy === 'user') return false;
   const tools = spec.matcher?.tools;
-  return tools === undefined || tools.includes(input.tool);
+  if (tools === undefined || tools.includes(input.tool)) return true;
+  // A row that stands for an in-app tool is held by the hooks written for that tool, as it is by its rules (metadata `mirrors`).
+  const mirrored = metadataFor(input.tool)?.mirrors;
+  return mirrored !== undefined && tools.includes(mirrored);
 }
 
 function decisionOf(spec: HookSpec, input: HookInput, failure: Failure): HookDecision {
