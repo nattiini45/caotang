@@ -71,7 +71,8 @@ import { askBackFor, parsePlan, planStepCallId, type AskBack, type AskBackCode, 
 import { DOCUMENT, descendantsOf, resolveNode } from '../resolve.js';
 import type { Harness, RuleCheck, ToolListing } from '../runtime.js';
 import type { ToolName } from '../metadata.js';
-import type { CallParams, ToolCall, ToolOutcome } from '../types.js';
+import type { CallParams, ToolCall, ToolOutcome, ToolValue } from '../types.js';
+import type { HookRun } from '../hooks.js';
 import { canonicalJson, isRecord } from '../util.js';
 import type { TraceInput, TraceSink } from './trace.js';
 import { isCommandName } from '../commands/slash.js';
@@ -621,6 +622,8 @@ interface Turn {
    * (agent-harness §4, "Tainted turns"). It lasts to the end of the turn; the writer's next intent starts a turn that is not tainted.
    */
   tainted: boolean;
+  /** What the writer's hooks said on this turn's calls, in order (hooks.md §7). */
+  readonly hooks: HookRun[];
   /** What tainted the turn, once each, in the order it was read: the servers by name, and how a card names the read. */
   readonly taintedBy: TaintRef[];
 }
@@ -1168,7 +1171,48 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     stepCalls.set(turn.id, calls);
   };
 
+  /**
+   * The ask-back of a plan the harness refused when it came to run it. A hook that blocked a step says so in its own words; any other
+   * refusal is the generic one, since the card the writer approved no longer matches the project.
+   */
+  const refusedAskBack = (preflight: PlanPreflight): AskBack => {
+    const error = preflight.steps.find((entry) => entry.status === 'refused')?.error;
+    return askBackFor(
+      error?.details?.['askBackCode'] === 'hook_blocked'
+        ? error
+        : refusal('invalid-params', 'the plan was refused before anything ran', { correctiveHint: 'correct the refused steps and resend the plan' }),
+    );
+  };
+
+  /** A result as the model is handed it: its data, and the notes the writer's hooks added, which `modelResult` puts in envelopes (hooks.md §4). */
+  const bodyOf = (value: ToolValue): unknown => (value.hookNotes === undefined ? value.data : { ...value.data, hookNotes: value.hookNotes });
+
+  /** Drains what the writer's hooks said on this turn's calls into its report, its event stream and its trace (hooks.md §7). */
+  const flushHooks = (turn: Turn): void => {
+    for (const run of harness.takeHookRuns(turn.id)) {
+      turn.hooks.push(run);
+      emit({ type: 'hook', turnId: turn.id, run });
+      const said = run.decision.action === 'allow' ? '' : run.decision.action === 'context' ? run.decision.text : run.decision.reason;
+      if (run.decision.action === 'allow') continue;
+      trace({
+        kind: 'hook',
+        at: now(),
+        turnId: turn.id,
+        hookId: run.hookId,
+        name: run.name,
+        event: run.event,
+        tool: run.tool,
+        ...(run.callId === undefined ? {} : { callId: run.callId }),
+        action: run.decision.action,
+        text: said,
+        ms: run.ms,
+        ...(run.failed === undefined ? {} : { failed: run.failed }),
+      });
+    }
+  };
+
   const pushRow = (turn: Turn, row: TraceEntry, body?: unknown): void => {
+    flushHooks(turn);
     turn.trace.push(row);
     if (sinkNow() === undefined) return;
     const finishedAt = now();
@@ -1948,13 +1992,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   /** Records one read's outcome: its trace row, its step, its card's last move, and any findings it made. */
   function settleRead(turn: Turn, index: number, step: PlanStep, callId: string, outcome: ToolOutcome): { tool: string; ok: boolean; body: unknown } {
     if (outcome.ok) {
-      pushRow(turn, { tool: step.tool, callId, outcome: 'ok', params: step.params }, outcome.value.data);
+      pushRow(turn, { tool: step.tool, callId, outcome: 'ok', params: step.params }, bodyOf(outcome.value));
       turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'done', summary: outcome.value.summary, data: outcome.value.data });
       moveCard(turn, callId, 'done', { summary: outcome.value.summary });
       if (Array.isArray(outcome.value.data['findings'])) {
         emit({ type: 'findings', turnId: turn.id, callId, findings: outcome.value.data['findings'] as FindingsProposal['findings'] });
       }
-      return { tool: step.tool, ok: true, body: outcome.value.data };
+      return { tool: step.tool, ok: true, body: bodyOf(outcome.value) };
     }
     const reason = errorSummary(withLoadHint(step.tool, outcome.error));
     pushRow(turn, { tool: step.tool, callId, outcome: 'refused', code: outcome.error.code, params: step.params }, reason);
@@ -2156,9 +2200,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       nativeAt.length === 0
         ? ok({ ok: true, steps: [] })
         : harness.previewPlan({ steps: nativeAt.map((index) => editable.steps[index] as PlanStep) }, {
+            turnId: turn.id,
             from: nativeFrom,
             proposals: nativeAt.map((index) => editable.proposals[index]),
           });
+    // A hook that spoke while the card was checked is kept on the turn before the card is shown (hooks.md §7).
+    flushHooks(turn);
     if (!checked.ok) return { refused: checked.error };
     const external = editable.steps.flatMap((step, index) =>
       index < from || loadedExternal(step.tool) === undefined ? [] : [{ index, tool: step.tool, expect: step.expect, status: 'ready' as const }],
@@ -2485,10 +2532,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     }
     if (outcome.ok) {
       recordStep(turn, id, id);
-      pushRow(turn, { tool: step.tool, callId: id, outcome: 'ok', params: step.params }, outcome.value.data);
+      pushRow(turn, { tool: step.tool, callId: id, outcome: 'ok', params: step.params }, bodyOf(outcome.value));
       turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'done', summary: outcome.value.summary, data: outcome.value.data });
       moveCard(turn, id, 'done', { summary: outcome.value.summary });
-      wireResult(turn, step, { ok: true, body: outcome.value.data });
+      wireResult(turn, step, { ok: true, body: bodyOf(outcome.value) });
       return { ok: true, effect: true, completed: [index] };
     }
     const reason = errorSummary(outcome.error);
@@ -2619,7 +2666,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           failedAt: index,
           effect: false,
           completed,
-          askBack: askBackFor(refusal('invalid-params', 'the plan was refused before anything ran', { correctiveHint: 'correct the refused steps and resend the plan' })),
+          askBack: refusedAskBack(outcome.preflight),
         };
       }
       const finished = outcome.status === 'applied' ? outcome.steps : outcome.completed;
@@ -2629,10 +2676,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         recordStep(turn, doneId, planStepCallId(runCall, done.index));
         cardFor(turn, doneId, ran.tool, ran.params, 'pending-approval');
         moveCard(turn, doneId, 'running');
-        pushRow(turn, { tool: ran.tool, callId: doneId, outcome: 'ok', params: ran.params }, done.value.data);
+        pushRow(turn, { tool: ran.tool, callId: doneId, outcome: 'ok', params: ran.params }, bodyOf(done.value));
         turn.steps.push({ index: done.index, tool: ran.tool, expect: ran.expect, status: 'done', summary: done.value.summary, data: done.value.data });
         moveCard(turn, doneId, 'done', { summary: done.value.summary });
-        wireResult(turn, ran, { ok: true, body: done.value.data });
+        wireResult(turn, ran, { ok: true, body: bodyOf(done.value) });
         completed.push(done.index);
       }
       if (outcome.undoGroupId !== undefined) undoGroupId ??= outcome.undoGroupId;
@@ -2704,10 +2751,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       else await logFailed(turn, id, from, step.tool, outcome.error.message);
       if (outcome.ok) {
         recordStep(turn, id, id);
-        pushRow(turn, { tool: step.tool, callId: id, outcome: 'ok', params: step.params }, outcome.value.data);
+        pushRow(turn, { tool: step.tool, callId: id, outcome: 'ok', params: step.params }, bodyOf(outcome.value));
         turn.steps.push({ index: from, tool: step.tool, expect: step.expect, status: 'done', summary: outcome.value.summary, data: outcome.value.data });
         moveCard(turn, id, 'done', { summary: outcome.value.summary });
-        wireResult(turn, step, { ok: true, body: outcome.value.data });
+        wireResult(turn, step, { ok: true, body: bodyOf(outcome.value) });
         return { ok: true, ...(outcome.value.undoGroupId === undefined ? {} : { undoGroupId: outcome.value.undoGroupId }), effect: true, completed: [from] };
       }
       const reason = errorSummary(outcome.error);
@@ -2740,7 +2787,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         failedAt: from,
         effect: false,
         completed: [],
-        askBack: askBackFor(refusal('invalid-params', 'the plan was refused before anything ran', { correctiveHint: 'correct the refused steps and resend the plan' })),
+        askBack: refusedAskBack(outcome.preflight),
       };
     }
     const finished = outcome.status === 'applied' ? outcome.steps : outcome.completed;
@@ -2750,10 +2797,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       recordStep(turn, id, planStepCallId(prefix, done.index));
       cardFor(turn, id, step.tool, step.params, 'pending-approval');
       moveCard(turn, id, 'running');
-      pushRow(turn, { tool: step.tool, callId: id, outcome: 'ok', params: step.params }, done.value.data);
+      pushRow(turn, { tool: step.tool, callId: id, outcome: 'ok', params: step.params }, bodyOf(done.value));
       turn.steps.push({ index: done.index, tool: step.tool, expect: step.expect, status: 'done', summary: done.value.summary, data: done.value.data });
       moveCard(turn, id, 'done', { summary: done.value.summary });
-      wireResult(turn, step, { ok: true, body: done.value.data });
+      wireResult(turn, step, { ok: true, body: bodyOf(done.value) });
     }
     const completed = finished.map((done) => done.index);
     if (outcome.status === 'applied') {
@@ -3123,6 +3170,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * internal handle, and the checkpoint row (`CHECKPOINT_LABEL`) is where the writer restores the turn.
    */
   function reportOf(turn: Turn, settled: Settled, tokens: { promptTokens: number; completionTokens: number; requests: number }): TurnReport {
+    flushHooks(turn);
     const writes = writesOf(turn);
     const summary =
       settled.status === 'replied'
@@ -3158,6 +3206,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       mode: turn.mode,
       budgetUse: usageOf(turn),
       ...(turn.held.length === 0 ? {} : { heldSteps: turn.held }),
+      ...(turn.hooks.length === 0 ? {} : { hooks: [...turn.hooks] }),
       ...(turn.command === undefined ? {} : { command: turn.command }),
     };
   }
@@ -3366,6 +3415,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       readsWithoutCard: turnOptions.readsWithoutCard === true,
       nonce: turnNonce(id),
       tainted: false,
+      hooks: [],
       taintedBy: [],
     };
   }

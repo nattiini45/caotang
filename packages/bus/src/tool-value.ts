@@ -17,4 +17,16 @@ export interface ToolValue {
   readonly undoGroupId?: string;
   /** Truncation and normalisation notes, said aloud rather than applied silently. */
   readonly notes?: readonly string[];
+  /**
+   * What a hook reported about this call (hooks.md §4): a note a check made at `tool.before` that did not stop the step, and a note a
+   * check added at `tool.after`. The text can quote the project, so a model reads each note inside an untrusted envelope labelled with
+   * the hook's name, and the call's result in the activity log is unchanged.
+   */
+  readonly hookNotes?: readonly HookNote[];
+}
+
+/** One hook's note on a call: the hook's name, and the text it reported. */
+export interface HookNote {
+  readonly hook: string;
+  readonly text: string;
 }

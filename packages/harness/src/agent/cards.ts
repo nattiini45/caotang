@@ -10,6 +10,7 @@
 import type { CommandError, Result } from '@caotang/bus';
 import { err, ok } from '@caotang/bus';
 
+import type { HookRun } from '../hooks.js';
 import type { PlanPreflight, PlanStep } from '../plan.js';
 import type { SubagentName } from '../tools/delegate.js';
 import type { CallParams } from '../types.js';
@@ -147,6 +148,8 @@ export interface PlanStepView {
   readonly status: 'ready' | 'deferred' | 'refused' | 'done';
   readonly preview?: unknown;
   readonly error?: CommandError;
+  /** What the writer's hooks said about this step at preflight: a warning shown on the step, or the block beside the disabled Approve (hooks.md §3). */
+  readonly hooks?: readonly HookRun[];
   /** agent-harness §2: a flag on a step whose inputs an edit has moved. */
   readonly badges: readonly string[];
   /** The draft was written against a revision the document has since left. It cannot be approved until it is drafted again. */
@@ -502,6 +505,7 @@ export function planCardOf(args: {
       status,
       ...(preview === undefined ? {} : { preview }),
       ...(checked?.error === undefined ? {} : { error: checked.error }),
+      ...(checked?.hooks === undefined ? {} : { hooks: checked.hooks }),
     };
   });
   const pending = steps.filter((step) => step.status !== 'done');

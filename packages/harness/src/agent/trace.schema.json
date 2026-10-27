@@ -10,7 +10,7 @@
     "seq": { "type": "integer", "minimum": 0, "description": "Increases down the file." },
     "at": { "type": "number", "description": "Milliseconds on the clock the session was given." },
     "sessionId": { "type": "string" },
-    "kind": { "enum": ["header", "turn.start", "message", "model.request", "model.response", "context", "tool.call", "tool.result", "card", "ladder", "turn.end"] },
+    "kind": { "enum": ["header", "turn.start", "message", "model.request", "model.response", "context", "tool.call", "tool.result", "card", "ladder", "hook", "turn.end"] },
     "truncated": { "type": "object", "required": ["chars"], "properties": { "chars": { "type": "integer", "minimum": 1 } }, "description": "Present when the record was cut to the 64 KB record cap: the characters left out." }
   },
   "oneOf": [
@@ -24,6 +24,7 @@
     { "$ref": "#/$defs/tool.result" },
     { "$ref": "#/$defs/card" },
     { "$ref": "#/$defs/ladder" },
+    { "$ref": "#/$defs/hook" },
     { "$ref": "#/$defs/turn.end" }
   ],
   "$defs": {
@@ -137,6 +138,23 @@
     "ladder": {
       "properties": { "kind": { "const": "ladder" }, "turnId": { "type": "string" }, "callId": { "type": "string" }, "attempt": { "type": "integer" }, "reason": { "$ref": "#/$defs/text" } },
       "required": ["turnId", "callId", "attempt", "reason"]
+    },
+    "hook": {
+      "description": "A hook the writer set spoke on a call: it warned, blocked the step, or added a note for the model. A hook that only allowed writes nothing.",
+      "properties": {
+        "kind": { "const": "hook" },
+        "turnId": { "type": "string" },
+        "hookId": { "type": "string" },
+        "name": { "$ref": "#/$defs/text" },
+        "event": { "enum": ["tool.before", "tool.after"] },
+        "tool": { "type": "string" },
+        "callId": { "type": "string" },
+        "action": { "enum": ["warn", "block", "context"] },
+        "text": { "$ref": "#/$defs/text", "description": "The reason a warning or a block gave, or the note the model was handed." },
+        "ms": { "type": "number" },
+        "failed": { "$ref": "#/$defs/text", "description": "Present when the check threw: the decision is then the hook's failure and not a finding." }
+      },
+      "required": ["turnId", "hookId", "name", "event", "tool", "action", "text", "ms"]
     },
     "turn.end": {
       "properties": { "kind": { "const": "turn.end" }, "turnId": { "type": "string" }, "report": { "type": "object", "description": "The TurnReport the turn returned." } },

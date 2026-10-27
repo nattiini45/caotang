@@ -84,13 +84,15 @@ export function advertisedSchema(schema: JsonSchema): StandardSchemaWithJSON<Str
 /** A harness outcome as a tool result: the value as text and as structured content, or the refusal with `isError` set. */
 export function toCallResult(outcome: ToolOutcome): CallToolResult {
   if (outcome.ok) {
-    const { summary, data, affected, undoGroupId, notes } = outcome.value;
+    const { summary, data, affected, undoGroupId, notes, hookNotes } = outcome.value;
     const body: Structured = {
       summary,
       data,
       affected,
       ...(undoGroupId === undefined ? {} : { undoGroupId }),
       ...(notes === undefined ? {} : { notes }),
+      // What the project's hooks reported about this call. The text can quote the project, so a host reads it as data.
+      ...(hookNotes === undefined ? {} : { hookNotes }),
     };
     return { content: [{ type: 'text', text: JSON.stringify(body) }], structuredContent: body };
   }

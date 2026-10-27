@@ -276,6 +276,15 @@ function StepRow({
 
       {step.error !== undefined ? <p className="plan-step-error">{refusalSentence(step.error.message, step.error.correctiveHint)}</p> : null}
 
+      {/* A hook that warned about the step (hooks.md §3): the step can still be approved, and the hook's words are here. */}
+      {(step.hooks ?? []).map((run) =>
+        run.decision.action === 'warn' ? (
+          <p key={`${run.hookId}:${run.event}`} className="plan-step-hook">
+            Hook “{run.name}”: {run.decision.reason}
+          </p>
+        ) : null,
+      )}
+
       {!done ? <ParamFields step={step} live={live} onEdit={onEdit} /> : null}
 
       {preview !== undefined ? <StepPreviewBlock view={preview} cost={step.cost} /> : null}

@@ -178,6 +178,22 @@ export interface LadderRecord extends Base {
   readonly attempt: number;
   readonly reason: Text;
 }
+/** A hook spoke on a call (hooks.md §7): it warned, it blocked the step, or it added a note for the model. A hook that only allowed writes nothing. */
+export interface HookTraceRecord extends Base {
+  readonly kind: 'hook';
+  readonly turnId: string;
+  readonly hookId: string;
+  readonly name: Text;
+  readonly event: string;
+  readonly tool: string;
+  readonly callId?: string;
+  readonly action: 'warn' | 'block' | 'context';
+  /** The reason a warning or a block gave, or the note the model was handed. */
+  readonly text: Text;
+  readonly ms: number;
+  /** The check threw, so the decision is the hook's failure and not a finding. */
+  readonly failed?: Text;
+}
 export interface TurnEndRecord extends Base {
   readonly kind: 'turn.end';
   readonly turnId: string;
@@ -197,6 +213,7 @@ export type TraceRecord =
   | ToolResultRecord
   | CardTraceRecord
   | LadderRecord
+  | HookTraceRecord
   | TurnEndRecord;
 
 export type TraceKind = TraceRecord['kind'];
@@ -389,6 +406,9 @@ function omitReport(report: TurnReport): Record<string, unknown> {
     mode: report.mode,
     budgetUse: report.budgetUse,
     ...(report.heldSteps === undefined ? {} : { heldSteps: report.heldSteps.length }),
+    ...(report.hooks === undefined
+      ? {}
+      : { hooks: report.hooks.map((run) => ({ hookId: run.hookId, event: run.event, tool: run.tool, action: run.decision.action, ms: run.ms })) }),
     ...(report.command === undefined ? {} : { command: report.command }),
   };
 }
@@ -421,6 +441,8 @@ export function omitRecord(record: TraceRecord): TraceRecord {
     }
     case 'ladder':
       return { ...record, reason: omitText(record.reason) };
+    case 'hook':
+      return { ...record, name: omitText(record.name), text: omitText(record.text), ...(record.failed === undefined ? {} : { failed: omitText(record.failed) }) };
     case 'turn.end':
       return { ...record, report: omitReport(record.report as TurnReport) };
     default:
@@ -744,7 +766,7 @@ export function traceGateway(sink: TraceSink): (event: GatewayTraceEvent) => voi
  * Reading a trace back
  * ------------------------------------------------------------------ */
 
-const KINDS: readonly TraceKind[] = ['header', 'turn.start', 'message', 'model.request', 'model.response', 'context', 'tool.call', 'tool.result', 'card', 'ladder', 'turn.end'];
+const KINDS: readonly TraceKind[] = ['header', 'turn.start', 'message', 'model.request', 'model.response', 'context', 'tool.call', 'tool.result', 'card', 'ladder', 'hook', 'turn.end'];
 
 type FieldType = 'string' | 'number' | 'boolean' | 'object' | 'array' | 'text' | 'any';
 
@@ -770,6 +792,7 @@ export const REQUIRED_FIELDS: Readonly<Record<TraceKind, Readonly<Record<string,
   'tool.result': { turnId: 'string', callId: 'string', outcome: 'string', finishedAt: 'number' },
   card: { turnId: 'string', card: 'object' },
   ladder: { turnId: 'string', callId: 'string', attempt: 'number', reason: 'text' },
+  hook: { turnId: 'string', hookId: 'string', name: 'text', event: 'string', tool: 'string', action: 'string', text: 'text', ms: 'number' },
   'turn.end': { turnId: 'string', report: 'object' },
 };
 

@@ -862,6 +862,7 @@ const ASKBACK_TITLES: Readonly<Record<AskBack['code'], string>> = {
   verify_failed: 'The change did not check out',
   anchor_unresolvable: 'The selected text could not be found',
   budget_exhausted: 'The run reached a limit',
+  hook_blocked: 'A hook stopped the step',
 };
 
 /** The ask-back envelope (agent-harness §2): why the turn stopped and the next actions it offers, as a card. */

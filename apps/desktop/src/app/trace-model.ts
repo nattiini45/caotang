@@ -70,7 +70,7 @@ export interface TraceToolRow {
 }
 
 export interface TraceNoteRow {
-  readonly kind: 'card' | 'context' | 'ladder';
+  readonly kind: 'card' | 'context' | 'ladder' | 'hook';
   readonly key: string;
   readonly startMs: number;
   readonly text: string;
@@ -241,6 +241,14 @@ export function turnTimeline(store: TraceStore, turnId: string): TraceTimeline {
       }
       case 'ladder':
         rows.push({ kind: 'ladder', key: `ladder-${record.seq}`, startMs: record.at - t0, text: `Verify ladder, attempt ${record.attempt}: ${textOf(record.reason)}` });
+        break;
+      case 'hook':
+        rows.push({
+          kind: 'hook',
+          key: `hook-${record.seq}`,
+          startMs: record.at - t0,
+          text: `Hook “${textOf(record.name)}” ${record.action === 'block' ? 'stopped' : record.action === 'warn' ? 'warned about' : 'added a note to'} ${record.tool} (${record.event}): ${textOf(record.text)}`,
+        });
         break;
       case 'turn.end':
         status = (record.report as { status?: string }).status;

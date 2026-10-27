@@ -91,6 +91,7 @@ describe('the record format', () => {
     s.write({ kind: 'tool.result', at: 4, turnId: 't.turn-1', callId: 'c1', outcome: 'ok', startedAt: 3, finishedAt: 4, body: { text: 'The ferry' } });
     s.write({ kind: 'card', at: 5, turnId: 't.turn-1', card: { kind: 'plan', tools: ['scene.draft'], decision: 'approved', edits: 0, retries: 0 } });
     s.write({ kind: 'ladder', at: 6, turnId: 't.turn-1', callId: 'c2', attempt: 1, reason: 'the title matched two documents' });
+    s.write({ kind: 'hook', at: 6, turnId: 't.turn-1', hookId: 'h_7K2QX9M4A1', name: 'No suddenly', event: 'tool.before', tool: 'scene.draft', callId: 'c2', action: 'block', text: '“suddenly” appears: show the change.', ms: 0 });
     s.write({ kind: 'turn.end', at: 7, turnId: 't.turn-1', report: bareReport() });
 
     const records = parsed(s.toJsonl());
@@ -359,6 +360,7 @@ describe('an export that leaves out the manuscript text', () => {
     s.write({ kind: 'tool.call', at: 3, turnId: 't.turn-1', callId: 'c1', tool: 'doc.read', risk: 'read', params: { doc: MARK, nested: { a: MARK } } });
     s.write({ kind: 'tool.result', at: 4, turnId: 't.turn-1', callId: 'c1', outcome: 'ok', finishedAt: 4, body: { text: `${MARK} body` } });
     s.write({ kind: 'ladder', at: 5, turnId: 't.turn-1', callId: 'c1', attempt: 1, reason: `${MARK} reason` });
+    s.write({ kind: 'hook', at: 5, turnId: 't.turn-1', hookId: 'h_7K2QX9M4A1', name: `${MARK} hook`, event: 'tool.after', tool: 'doc.read', action: 'context', text: `${MARK} finding`, ms: 3, failed: `${MARK} failure` });
     s.write({
       kind: 'turn.end',
       at: 6,
@@ -369,6 +371,7 @@ describe('an export that leaves out the manuscript text', () => {
         steps: [{ index: 0, tool: 'doc.read', expect: MARK, status: 'done', summary: MARK, data: { x: MARK } }],
         cards: [{ kind: 'plan', tools: ['doc.read'], decision: 'approved', edits: 1, retries: 0 }],
         trace: [{ tool: 'doc.read', callId: 'c1', outcome: 'ok', params: { doc: MARK } }],
+        hooks: [{ hookId: 'h_7K2QX9M4A1', name: `${MARK} hook`, event: 'tool.after', tool: 'doc.read', decision: { action: 'context', text: `${MARK} finding` }, ms: 3 }],
         tokens: { promptTokens: 10, completionTokens: 4, requests: 1 },
         dropped: [MARK],
         modelCalls: 1,
@@ -393,6 +396,9 @@ describe('an export that leaves out the manuscript text', () => {
     expect(byKind('tool.call')).toMatchObject({ tool: 'doc.read', risk: 'read', params: { doc: { omitted: { chars: MARK.length } } } });
     expect(byKind('tool.result')).toMatchObject({ outcome: 'ok', body: { omitted: { chars: expect.any(Number) } } });
     expect(byKind('turn.end')).toMatchObject({ report: { status: 'replied', tokens: { promptTokens: 10 }, cards: [{ decision: 'approved', edits: 1 }], trace: [{ tool: 'doc.read', outcome: 'ok' }] } });
+    // A hook keeps its id, event, tool, what it did and how long it took; its name and the text it reported are stubs.
+    expect(byKind('hook')).toMatchObject({ hookId: 'h_7K2QX9M4A1', event: 'tool.after', tool: 'doc.read', action: 'context', ms: 3, name: { omitted: { chars: expect.any(Number) } }, text: { omitted: { chars: expect.any(Number) } } });
+    expect(byKind('turn.end')).toMatchObject({ report: { hooks: [{ hookId: 'h_7K2QX9M4A1', action: 'context', ms: 3 }] } });
   });
 
   it('stubs the message of a provider error, which quotes the start of the body the provider sent', () => {
