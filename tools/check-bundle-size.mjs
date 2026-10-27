@@ -44,7 +44,8 @@ export const BUDGET = {
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
   // 772.4 kB measured with Colour emoji, against 769.1 kB before it; 779.3 kB with Colour emoji and Agent rules together (Wave 14); 786.4 kB with the agent run log and resume.
   // 810.0 kB measured with the instructions layer, the agent files and recurring tasks (Wave 17).
-  initialGzip: 830_000,
+  // 831.2 kB measured with the restore planner and rewind menus (#53) and the host-model rows (#81) together; the ceiling is that plus about 1%.
+  initialGzip: 840_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
