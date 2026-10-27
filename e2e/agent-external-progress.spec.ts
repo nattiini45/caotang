@@ -114,6 +114,10 @@ test('a read shows the server’s progress on its running card, and Stop ends th
   // The progress is gone with the running state, and the server was told to stop.
   await expect(stopped.getByTestId('call-progress')).toHaveCount(0);
   await expect.poll(() => cancelledCalls(page)).toBe(1);
+
+  // The reports are in the trace, as the server's words.
+  await page.getByRole('tab', { name: 'Trace' }).click();
+  await expect(page.getByTestId('trace-panel')).toContainText('the server says: Cross-checking the entries');
 });
 
 test('a write that was stopped says the server may already have done part of the work', async ({ page }) => {
