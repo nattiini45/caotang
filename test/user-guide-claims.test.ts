@@ -439,11 +439,30 @@ describe('the user guide’s reviewed claims match the code', () => {
     const section = read('apps/desktop/src/components/Settings.tsx');
     expect(section).toContain("{ id: 'agent', label: 'Agent' }");
     expect(section).toContain('<span>Load every tool on every request</span>');
-    expect(read('apps/desktop/src/app/settings.ts')).toContain("DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false, defaultMode: 'ask'");
+    expect(read('apps/desktop/src/app/settings.ts')).toContain("DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false, reviewDrafts: false, defaultMode: 'ask'");
     expect(guide).toContain('**Settings › Agent** has **Load every tool on every request** for a model that searches poorly. It is off by default, and it makes every request longer.');
     expect(guide).toContain('- **Agent.** **Load every tool on every request**, off by default.');
     expect(guide).toContain('It has nine sections: Providers, Context, Agent, Macros, Writing, Coherence, MCP & tools, Appearance and Data.');
     expect(changelog).toContain('**Settings › Agent** has **Load every tool on every request**, off by default');
+  });
+
+  it('names the draft review in the words the app shows, says it is off by default, and lists what it does not do', () => {
+    const settings = read('apps/desktop/src/components/Settings.tsx');
+    expect(settings).toContain('<span>Review drafts before showing them</span>');
+    expect(settings).toContain('<h4 id="settings-review-drafts">Draft review</h4>');
+    expect(read('apps/desktop/src/app/settings.ts')).toContain('reviewDrafts: false');
+    const panel = read('apps/desktop/src/components/AgentPanel.tsx');
+    expect(panel).toContain('Reviewing draft…');
+    expect(panel).toContain('Skip review');
+    expect(read('packages/harness/src/agent/cards.ts')).toContain("REVIEW_CALL_NOTE = 'plus up to 1 review call'");
+    expect(read('packages/harness/src/agent/roles.ts')).toContain('export const CRITIQUE_MAX_NOTES = 8;');
+    expect(guide).toContain('With **Review drafts before showing them** turned on (**Settings › Providers**, off by default)');
+    expect(guide).toContain('**Reviewing draft…** shows while the second call runs, with **Skip review**');
+    expect(guide).toContain('the card says "plus up to 1 review call"');
+    expect(guide).toContain('- **Draft review.** In **Providers**, under **Task roles**, **Review drafts before showing them** is off by default.');
+    expect(guide.slice(guide.indexOf('## What is not in this build yet'))).toContain('there is no **Revise with notes**');
+    expect(changelog).toContain('**Settings › Providers › Review drafts before showing them**, off by default');
+    expect(read('docs/decisions.md')).toContain('"Review drafts before showing them" on (off by default)');
   });
 
   it('names the permission modes and their controls in the words the panel and Settings show', () => {
