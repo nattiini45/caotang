@@ -344,9 +344,9 @@ export const PRESETS: readonly PresetDef[] = [
     defaultModel: 'glm-5.3',
     quirks: {},
     // The BYOK base is the general paas/v4 host; Coding Plan bases are excluded.
-    // Only GET /models answers a preflight; the chat route (POST) is refused, so the page cannot talk to it (sweep, 2026-10-26).
-    cors: 'blocked',
-    corsNote: 'The chat route refuses the browser preflight (only the model list answers it), so a web page cannot chat with it.',
+    // The 2026-10-26 sweep found the chat route refusing the preflight; on 2026-10-30 it answered a browser POST (401 without a key),
+    // so it is no longer blocked. Z.ai documents no browser access, so it is 'unknown', not 'ok'.
+    cors: 'unknown',
     docsUrl: 'https://docs.z.ai',
     models: [
       // glm-5.3 family cannot disable thinking; medium is unsupported (send high).

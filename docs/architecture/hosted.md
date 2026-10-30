@@ -98,7 +98,7 @@ In code, `RemoteBlobStore` (`get`, `put` with a precondition, `delete`, `list`) 
 
 ## 8. Provider relay — deferred
 
-Not specified for build. A relay would let a browser reach a provider that blocks CORS. Whether it is built waits for the CORS sweep to be run and recorded (today 2 `ok` — Anthropic and the mock —, 23 `unknown`, 2 `blocked` — Z.ai and OpenCode, whose chat routes refuse the browser preflight; the desktop app already reaches blocked providers). If it is built:
+Not specified for build. A relay would let a browser reach a provider that blocks CORS. Whether it is built waits for the CORS sweep to be run and recorded (today 2 `ok` — Anthropic and the mock —, 24 `unknown`, 1 `blocked` — OpenCode, whose chat route refuses the browser preflight; the desktop app already reaches blocked providers). If it is built:
 
 - opt-in per provider profile, with a warning at the switch that the relay sees the key and the prompt in transit, because end-to-end encryption does not cover a relayed call;
 - a server-side allowlist generated from `presets/registry.ts`, only for presets recorded as CORS-blocked, never a URL from the client, so it is a forwarder and not the bundled CORS proxy that `docs/decisions.md` rules out;

@@ -5,7 +5,9 @@
 
 ## 0. Product thesis
 
-Scrivener's successful cousin: the structure-first writing environment novelists actually need — binder → corkboard → editor → compile — with an AI that **drives the app like a harness**: an operator holding tools over binder, editor, corkboard, notes and export. Not a chat sidebar.
+Scrivener's successful cousin: the structure-first writing environment long-form makers actually need — novelists, screenwriters, comic writers, podcasters, video essayists and newsletter writers alike — binder → corkboard → editor → compile, with an AI that **drives the app like a harness**: an operator holding tools over binder, editor, corkboard, notes and export. Not a chat sidebar.
+
+The forms differ; the spine does not. Each of them is long, structured, revised and compiled, and each is a binder of plain-text documents an agent can work in under approval. What changes per form is the document kind, its metadata and its compile targets — never the binder, the command bus, the codex or the approval model.
 
 Two promises:
 
@@ -128,6 +130,16 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 - **Owns:** `packages/i18n` (locale resolution, `Intl` formatters, collation, bidi isolation, the `MessageRef` type), the desktop catalogs under `apps/desktop/src/i18n/`, the interface-language app setting. Specified, not built.
 - **Spec:** [architecture/i18n.md](architecture/i18n.md).
 
+### 2.21 `script` 🧭
+- **Responsibility:** one linear timed script for podcasts, radio and audio drama, and narrated video: a show folder and an episode document, segments and speaker turns parsed from Markdown, audio cues, per-line durations declared or estimated from a speech rate, episode runtime totals, and the compile targets a serial needs — a VO script, show notes, a transcript, a teleprompter, chapters and a feed.
+- **Owns:** `packages/script` (the parser, the segment and line model, runtime totals, the VO table), the `av-script` document kind and the `show` folder kind. The script body stays `docs/<id>.md`; the episode's timings are derived, never a second copy of the text. Specified, not built.
+- **Spec:** [architecture/av-script.md](architecture/av-script.md).
+
+### 2.22 `web-publishing` 🧭
+- **Responsibility:** the per-document publish metadata a serial or a newsletter needs — slug, publish date (its absence makes a draft), tags, canonical address, description — and three compile targets over the prose pipeline: a self-contained HTML article, an RSS 2.0 feed and an Atom feed. No hosting, no deploy, no analytics.
+- **Owns:** no new package. `tree[].publish` in the manifest and three entries in the exporter's closed format enum, rendered over the mdast stage the EPUB emitter already uses. Specified, not built.
+- **Spec:** [architecture/web-publishing.md](architecture/web-publishing.md).
+
 ## 3. Data model (sketch)
 
 ```
@@ -151,6 +163,10 @@ AssetRecord    { id, file, mime, sha256, bytes, width?, height?, caption?, alt?,
 AssetLink      { id, assetId, target: project|node|paragraph, role: reference|card|source, order, note?, when? }        // pictures.md §2.1 (planned)
 TimelineOp     { op: meta|move|shift|picture-when, …, expect }                                                         // timeline.md §4.3 (planned)
 MessageRef     { id, values?, message }                                                                          // i18n.md §3.2 (planned)
+ScriptLine     { id, kind: speech|narration|text, speaker?, text, durationSec?, declared }                        // av-script.md §2 (planned)
+ScriptCue      { id, kind, text, atSec?, forSec?, under? }                                                       // av-script.md §2, segment-owned (planned)
+ScriptTotals   { seconds, timedCount, untimed[] }                                                                 // av-script.md §4, the AnimaticTotals shape (planned)
+PublishMeta    { slug?, publishedAt?, tags[], canonical?, description?, layout? }                                 // web-publishing.md §2 (planned)
 Command        { id, name, params, issuedBy: user|agent, turnId?, callId?, createdAt }  // command-bus.md §2
 ActivityEntry  { at, command, issuedBy, turnId?, callId?, undoGroupId?, source?: native|mcp, affected[], tokensSpent?, summary, defect? } // command-bus.md §8
 AskBack        { code, reason, candidates?, revisionDrift?, options[] }           // agent-harness.md §2
@@ -180,7 +196,7 @@ Any change that breaks one of these needs a strong case:
 
 ## 6. Screen & media track 📐
 
-Caotang covers games, video and film as well as prose. The full inventory lives in [architecture/media-track.md](architecture/media-track.md); the summary:
+Caotang covers games, video, film and audio as well as prose. The full inventory lives in [architecture/media-track.md](architecture/media-track.md); the summary:
 
 | Capability | One-line scope | Attaches to | Spec |
 |---|---|---|---|
@@ -190,4 +206,5 @@ Caotang covers games, video and film as well as prose. The full inventory lives 
 | **AI video prompt packs** | per-shot prompt packs for several video models. **Caotang writes prompts; it does not render video** — generation stays in the writer's own tool with their own account | `context-assembly`, `codex`, `exporter` (vendor templates), harness tools | [video-prompt-pack.md](architecture/video-prompt-pack.md) |
 | **Plot coherence & continuity** | deterministic checks (structure + codex, no model call) and model-judged findings (evidence-cited reports, never silent edits) | `coherence` module over `codex` + `context-assembly` | [coherence.md](architecture/coherence.md) |
 | **Comics** 🧭 | comic books, pages, panels and balloons; comic scripts (full script or Marvel method); lettering rules; comic PDF, CBZ and fixed-layout EPUB. Specified, not built | `comic` node kind, `comic-page` nodes, picture registry, `exporter` | [comics.md](architecture/comics.md) |
+| **AV scripts** 🧭 | podcasts, radio and audio drama, and narrated video: one linear timed script with segments, speakers, audio cues and per-line durations; VO script, show notes, transcript, teleprompter, chapters and feed exports. Specified, not built | `av-script` document kind, `show` folder kind, `exporter` | [av-script.md](architecture/av-script.md) |
 | **One story, many outputs** | a single narrative source compiled to prose, screenplay, game dialogue, storyboard, prompt pack and report targets — media targets are **export recipes**, not separate apps | the `exporter` contract and per-kind renderers | [media-track.md](architecture/media-track.md) §1 |

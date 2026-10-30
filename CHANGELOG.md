@@ -29,6 +29,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 
 ### Changed
 
+- **Z.ai in the browser.** Z.ai is no longer greyed out as unreachable from a web page: its chat route now answers a browser request. It is marked as untested rather than supported, because Z.ai does not document browser access.
 - **Continuity scan in CI.** The `continuity-scan.yml` template is pinned to release v0.1.0 and the SHA-256 of its `caotang.mjs`, so it works as copied instead of stopping on placeholders. `server.json` carries the SHA-256 of the v0.1.0 `.mcpb`, for the MCP Registry entry.
 - **Content-Security-Policy.** The built app's policy now says `frame-src 'none'`, so it refuses every frame, as its comment and this changelog already said; before, it fell back to `default-src 'self'` and allowed frames from its own origin. Nothing in the app shows a frame. The README's Self-hosting policy carries the same directive; a host that sends the policy as a header should update its copy.
 - **Releases list themselves in the MCP Registry.** The release workflow now lists each release in the MCP Registry after it creates it, signing in with GitHub OIDC, so the maintainer no longer signs in or runs `mcp-publisher` by hand. It takes the `.mcpb` hash from the release's `SHA256SUMS`, and an existing release such as v0.1.0 can be listed by running the workflow by hand with its tag.

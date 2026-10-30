@@ -85,14 +85,13 @@ describe('the registry', () => {
     const cors = new Map(PRESETS.map((p) => [p.id, p.cors]));
     expect(cors.get('anthropic')).toBe('ok'); // documents the browser-access header
     expect(cors.get('mock')).toBe('ok'); // the local seam is not a network call
-    // The sweep asks the chat route (POST) a browser would need, not just the model list: both of these answer the list's preflight
-    // and refuse the chat route's, so a page cannot use them (e2e/providers-cors.spec.ts, providers-browser-cors.md §2).
-    expect(cors.get('zhipu-zai')).toBe('blocked');
+    // The sweep asks the chat route (POST) a browser would need, not just the model list: this one answers the list's preflight
+    // and refuses the chat route's, so a page cannot use it (e2e/providers-cors.spec.ts, providers-browser-cors.md §2).
     expect(cors.get('opencode')).toBe('blocked');
     for (const id of ['ollama', 'lmstudio', 'llamacpp']) expect(cors.get(id), id).toBe('local'); // the server's own setting decides
     // Everything else is 'unknown' — never claimed reachable without documentation.
     for (const preset of PRESETS) {
-      if (!['anthropic', 'mock', 'zhipu-zai', 'opencode', 'ollama', 'lmstudio', 'llamacpp'].includes(preset.id)) {
+      if (!['anthropic', 'mock', 'opencode', 'ollama', 'lmstudio', 'llamacpp'].includes(preset.id)) {
         expect(preset.cors, preset.id).toBe('unknown');
       }
       if (preset.cors === 'blocked') expect(preset.corsNote, preset.id).toBeTruthy();
