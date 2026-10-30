@@ -4,7 +4,9 @@
  * the system's region (D3): `en-GB` on a British system, `en-US` on an American one.
  *
  * Model files are plain functions with no React, so the locale is module state rather than a hook. The setting (#194) calls
- * {@link setInterfaceLanguage}; unit specs call {@link pinFormatLocale} so their expectations do not follow the machine.
+ * {@link setInterfaceLanguage}; unit specs call {@link pinFormatLocale} so their expectations do not follow the machine. The
+ * browser's `languagechange` event re-resolves both, so a system language changed mid-session shows on the next render, as the
+ * `toLocaleString(undefined)` calls this replaced did.
  */
 
 import {
@@ -27,6 +29,13 @@ function systemLanguages(): readonly string[] {
   if (nav === undefined) return [];
   if (nav.languages !== undefined && nav.languages.length > 0) return nav.languages;
   return nav.language === undefined ? [] : [nav.language];
+}
+
+const events = globalThis as { addEventListener?: (type: string, listener: () => void) => void };
+if (typeof events.addEventListener === 'function') {
+  events.addEventListener('languagechange', () => {
+    resolved = undefined;
+  });
 }
 
 function current(): { readonly ui: string; readonly format: string } {
@@ -65,8 +74,11 @@ export function formatCount(value: number, options?: Intl.NumberFormatOptions): 
   return numberFormat(appFormatLocale(), options).format(value);
 }
 
-/** A provider price in US dollars, up to six decimals and no padding ("$3", "$0.0025" in en-US; "US$3" in en-GB). */
-export function formatUsd(value: number): string {
+/**
+ * A provider's price per 1,000 tokens in US dollars, up to six decimals and no padding ("$3", "$0.0025" in en-US; "US$3" in
+ * en-GB), for Settings. Not the cost lines of a plan (`plan-preview.ts` `formatUsd`), which stay fixed-decimal.
+ */
+export function formatUsdPrice(value: number): string {
   return numberFormat(appFormatLocale(), { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 6 }).format(value);
 }
 
@@ -81,7 +93,7 @@ export function formatDateTime(value: Date | number, options?: Intl.DateTimeForm
 }
 
 /** What `Date#toLocaleString()` shows with no options, numeric date and time with seconds, in the formatter locale. */
-export const DATE_AND_TIME: Intl.DateTimeFormatOptions = {
+export const DATE_AND_TIME: Readonly<Intl.DateTimeFormatOptions> = {
   year: 'numeric',
   month: 'numeric',
   day: 'numeric',
@@ -91,7 +103,7 @@ export const DATE_AND_TIME: Intl.DateTimeFormatOptions = {
 };
 
 /** What `Date#toLocaleTimeString()` shows with no options, in the formatter locale. */
-export const TIME_OF_DAY: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: 'numeric', second: 'numeric' };
+export const TIME_OF_DAY: Readonly<Intl.DateTimeFormatOptions> = { hour: 'numeric', minute: 'numeric', second: 'numeric' };
 
 /**
  * The collator for the writer's own names (D9, i18n.md §4.3): codex names, characters, keywords. They are content, so they

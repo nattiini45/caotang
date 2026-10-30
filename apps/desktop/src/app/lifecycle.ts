@@ -397,9 +397,16 @@ export async function listProjects(store: RuntimeStore): Promise<ProjectSummary[
       words: Object.values(state.manifest.derived.wordCounts).reduce((sum, count) => sum + count, 0),
     });
   }
-  // Projects can each be in a different language, so Home orders their names by the interface's collation, then by id.
+  return orderProjects(summaries);
+}
+
+/**
+ * The order of the projects on Home. Projects can each be in a different language, so their names compare by the formatter
+ * locale (`interfaceCollator()`), without case or accents and with numbers by value, then by id.
+ */
+export function orderProjects<T extends { readonly name: string; readonly id: string }>(summaries: T[]): T[] {
   const names = interfaceCollator();
-  return summaries.sort((a, b) => names.compare(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return summaries.sort((a, b) => names.compare(a.name, b.name) || a.id.localeCompare(b.id));
 }
 
 /** A new project: the three fixed roots and nothing else (ui-modules §2.4 — the empty state carries the next step). */

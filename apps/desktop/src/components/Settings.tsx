@@ -44,7 +44,7 @@ import { MacrosPanel } from './MacrosPanel.js';
 import { ContextSection } from './ContextSection.js';
 import { McpSection } from './McpSection.js';
 import { OpenOnDesktop, useNarrow } from './narrow.js';
-import { TIME_OF_DAY, formatCount, formatDateTime, formatUsd } from '../i18n/locale.js';
+import { TIME_OF_DAY, formatCount, formatDateTime, formatUsdPrice } from '../i18n/locale.js';
 
 /** The origin of an address, or the text itself when it does not parse (a form being typed). */
 function originOf(address: string): string {
@@ -261,7 +261,7 @@ function modelDetails(model: ModelInfo): string {
   if (model.contextWindow !== undefined) parts.push(`${formatCount(model.contextWindow)} tokens`);
   if (model.pricePer1k !== undefined) {
     const { prompt, completion } = model.pricePer1k;
-    parts.push(`${formatUsd(prompt)} in, ${formatUsd(completion)} out per ${formatCount(1000)} tokens`);
+    parts.push(`${formatUsdPrice(prompt)} in, ${formatUsdPrice(completion)} out per ${formatCount(1000)} tokens`);
   }
   return parts.join(' · ');
 }
