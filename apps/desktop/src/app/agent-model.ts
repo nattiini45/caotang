@@ -506,3 +506,21 @@ function blockedBy(steps: readonly DraftedStep[], card: PlanCardView): string | 
   }
   return null;
 }
+
+/**
+ * What a turn read from the provider's prompt cache, in sentences (agent-harness §5, "Prompt cache"): the share of input served
+ * from the cache, then each planner call that should have read it and did not, with the likely cause. Nothing when no call of
+ * the turn reported a cache breakdown, which is every provider that does not cache and every turn on the demo provider.
+ */
+export function promptCacheLines(report: Pick<TurnReport, 'cache'>): string[] {
+  const cache = report.cache;
+  if (cache === undefined) return [];
+  const count = (n: number): string => formatCount(n);
+  const lines = [
+    cache.cachedPromptTokens > 0
+      ? `Prompt cache: ${count(cache.cachedPromptTokens)} of ${count(cache.promptTokens)} input tokens were read from the provider's cache.`
+      : 'Prompt cache: no input was read from the provider\'s cache this turn.',
+  ];
+  for (const miss of cache.misses) lines.push(`Call ${miss.call} read nothing from the cache: ${miss.cause}.`);
+  return lines;
+}

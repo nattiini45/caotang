@@ -2,13 +2,15 @@
 
 a metadata tool on a project with instructions: LI is in the metadata profile too.
 
-Prompt: 588 tokens against a total budget of 12000; over budget: no.
+Prompt: 590 tokens against a total budget of 12000; over budget: no.
+
+User parts: LI, L1 (cache boundary), L7, status.
 
 | layer | included | base | budget | tokens | kept | dropped |
 |---|---|---|---|---|---|---|
 | L0 | yes | - | - | 295 | 0 | 0 |
 | LI | yes | 1500 | 1500 | 194 | 2 | 0 |
-| L1 | yes | 1500 | 1500 | 79 | 0 | 0 |
+| L1 | yes | 1500 | 1500 | 82 | 0 | 0 |
 | L2 | no | - | - | 0 | 0 | 0 |
 | L3 | no | - | - | 0 | 0 | 0 |
 | L4 | no | - | - | 0 | 0 | 0 |
@@ -58,8 +60,6 @@ Notes saved from earlier work, one line each. memory.read opens a note by its sl
 
 # Project
 Title: Harbor Notes
-Documents: 6. Words: 930.
-Session: 412 words today, target 1,000.
 Statuses: draft (Draft), revised (Revised), final (Final).
 Labels: none.
 Saved filters: 0. Goals: 0.
@@ -76,4 +76,8 @@ Summarise the project in two sentences.
 
 Tool: meta
 Parameters: {}
+
+# Status
+Documents: 6. Words: 930.
+Session: 412 words today, target 1,000.
 ```
