@@ -3,7 +3,7 @@
  * would make the dialog slow, and the words for the formats that have no Proof. Pure, so the cut and the words are tested without a page.
  */
 
-/** The characters the Proof shows. A longer file says how much of it is shown; the compile writes it all. */
+/** The most characters a Proof shows. A cut may end earlier, at a line end; a longer file says how much of it is shown, and the compile writes it all. */
 export const PROOF_CHAR_CAP = 60_000;
 
 export interface ProofExcerpt {

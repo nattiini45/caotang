@@ -155,13 +155,21 @@ test('the Proof shows the file the compile writes for a text format, and says a 
   await file.focus();
   await expect(file).toBeFocused();
 
+  // A change to the project (here the recipe's title page, saved by recipe.save) makes the Proof again for the same request.
+  await expect(file).toContainText('# Proof Preview');
+  await dialog.getByRole('checkbox', { name: 'Title page' }).uncheck();
+  await expect(file).not.toContainText('# Proof Preview');
+  await expect(file).toContainText('Light, at last.');
+  const afterSave = await projectTrace(page);
+
   // A binary format has no Proof, and the dialog says so in words.
   await dialog.getByRole('radio', { name: /^Word \(\.docx\)/ }).check();
   await expect(preview(dialog)).toContainText('There is no Proof of Word (.docx) in Caotang.');
   await expect(proofRegion(dialog)).toHaveCount(0);
 
-  // A look is not a compile.
-  expect(await projectTrace(page)).toEqual(before);
+  // A look is not a compile: nothing ran but the recipe's own save.
+  expect(before).not.toEqual(afterSave);
+  expect(await projectTrace(page)).toEqual(afterSave);
   expect((await traceNames(page)).some((name) => name.startsWith('export.'))).toBe(false);
 
   // The Proof is the file the compile then writes.

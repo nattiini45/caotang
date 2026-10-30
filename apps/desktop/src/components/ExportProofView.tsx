@@ -53,9 +53,17 @@ export function ExportProofView({
   const shown: ProofState = state !== null && state.key === key ? state.proof : { kind: 'waiting' };
   switch (shown.kind) {
     case 'waiting':
-      return <p className="export-note">Preparing the Proof…</p>;
+      return (
+        <p className="export-note" role="status">
+          Preparing the Proof…
+        </p>
+      );
     case 'failed':
-      return <p className="form-message is-error">The Proof could not be made: {shown.message}</p>;
+      return (
+        <p className="form-message is-error" role="alert">
+          The Proof could not be made: {shown.message}
+        </p>
+      );
     case 'ready':
       return <ProofResult proof={shown.proof} formatLabel={formatLabel} />;
   }
@@ -92,11 +100,6 @@ function ProofResult({ proof, formatLabel }: { proof: ExportProof; formatLabel: 
             Showing the first {countPhrase(excerpt.shownChars, 'character')} of {countPhrase(excerpt.totalChars, 'character')}. The compile writes them all.
           </p>
         ) : null}
-        {proof.notes.map((note, index) => (
-          <p key={index} className="export-note">
-            {note}
-          </p>
-        ))}
       </div>
       <div className="export-preview" role="region" aria-label="The file the compile will write" tabIndex={0}>
         <pre className="export-proof-text">{excerpt.text}</pre>

@@ -62,15 +62,37 @@ export function ExportPreviewPanel({
           <span className="export-option-help">the file it makes</span>
         </label>
       </div>
-      {view === 'proof' && state.kind === 'ready' ? (
+      {view === 'draft' ? (
+        <PreviewBody state={state} />
+      ) : state.kind === 'ready' ? (
         <LazyBoundary label="the Proof">
           <ExportProofView session={session} request={request} version={version} formatLabel={formatLabel} />
         </LazyBoundary>
       ) : (
-        <PreviewBody state={state} />
+        <ProofNotReady state={state} />
       )}
     </fieldset>
   );
+}
+
+/** The Proof waits on what the Draft waits on (the exporter's readiness, a prompt pack's vendor), and says so in its own words. */
+function ProofNotReady({ state }: { state: Exclude<PreviewState, { readonly kind: 'ready' }> }): ReactNode {
+  switch (state.kind) {
+    case 'waiting':
+      return (
+        <p className="export-note" role="status">
+          Preparing the Proof…
+        </p>
+      );
+    case 'needs-vendor':
+      return <p className="export-note">Choose a vendor template to see the Proof of the prompt pack.</p>;
+    case 'failed':
+      return (
+        <p className="form-message is-error" role="alert">
+          The Proof could not be made: {state.message}
+        </p>
+      );
+  }
 }
 
 function PreviewBody({ state }: { state: PreviewState }): ReactNode {

@@ -502,23 +502,24 @@ export function createExporter(options: ExporterOptions): ExporterService {
     async proof(request) {
       const state = options.readState();
       try {
-        // A binary container has no Proof here; an unknown format is refused below, as the compile refuses it.
-        if (isExportFormat(request.format) && !hasTextProof(request.format)) return { kind: 'none', format: request.format };
-        // The compile's own plan and renderer, with the bus's resolution of the recipe: the Proof is the file the compile would write.
+        // The request resolves as the compile's does, so a request the compile would refuse is refused here too, whatever its format.
         const resolved = resolveRequest(state, request);
+        // A binary container has no Proof here, and nothing is rendered for it.
+        if (!hasTextProof(resolved.format)) return { kind: 'none', format: resolved.format };
+        // The compile's own plan and renderer: the Proof is the file the compile would write.
         const compiled = plan(state, { ...resolved.plan, at: clock.now() });
         const [first, ...rest] = filesOf(compiled, `${resolved.base}.${EXTENSION[resolved.format]}`);
         if (first === undefined) throw new Error(`the ${resolved.format} compile produced no file`);
         const rendered = splitRendered(await first.render());
-        const text = typeof rendered.contents === 'string' ? rendered.contents : new TextDecoder().decode(rendered.contents);
+        // The compile refuses to write a text format that rendered as bytes (emit.ts), so the Proof does not show it as text either.
+        if (typeof rendered.contents !== 'string') throw new Error(`${resolved.format} rendered as bytes, which is a renderer defect`);
         return {
           kind: 'text',
           format: resolved.format,
           fileName: first.name,
           mimeType: first.mimeType,
-          text,
+          text: rendered.contents,
           otherFiles: rest.map((file) => file.name),
-          notes: [...rendered.notes],
         };
       } catch (error) {
         if (error instanceof ApplyRefusal) return { kind: 'refused', error: error.error };

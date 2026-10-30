@@ -19,7 +19,16 @@ import {
 } from '@caotang/bus';
 import { createProjectCommandRegistry, MemoryArtifactFs, type ExportRecipe, type ProjectState } from '@caotang/store';
 
-import { BINARY_FORMATS, createExporter, hasTextProof, EXPORT_FORMATS, type ExporterService, type ExportProof, type ExportPreviewRequest } from '../src/index.js';
+import {
+  BINARY_FORMATS,
+  EXPORT_FORMATS,
+  TEXT_PROOF_FORMATS,
+  createExporter,
+  hasTextProof,
+  type ExporterService,
+  type ExportProof,
+  type ExportPreviewRequest,
+} from '../src/index.js';
 import { COMPILED_AT, IDS, makeProject } from './fixture.js';
 import { ASSETS, makeMediaProject } from './media-fixture.js';
 
@@ -134,7 +143,20 @@ describe('exporter.proof — the formats it has none for, and refusals', () => {
       expect(hasTextProof(format)).toBe(false);
       expect(await r.exporter.proof({ selection: WHOLE, format })).toEqual({ kind: 'none', format });
     }
-    expect(EXPORT_FORMATS.filter(hasTextProof)).toEqual(EXPORT_FORMATS.filter((format) => !BINARY_FORMATS.includes(format)));
+  });
+
+  it('lists every format once: each has a Proof or is a binary container, never both and never neither', () => {
+    for (const format of EXPORT_FORMATS) {
+      expect([hasTextProof(format), BINARY_FORMATS.includes(format)].filter(Boolean)).toHaveLength(1);
+    }
+    expect(new Set(TEXT_PROOF_FORMATS).size + BINARY_FORMATS.length).toBe(EXPORT_FORMATS.length);
+  });
+
+  it('refuses a binary-format request the compile would refuse, as the Draft does, before saying it has no Proof', async () => {
+    const r = rig();
+    const proof = await r.exporter.proof({ selection: WHOLE, format: 'docx', recipeName: 'Missing' });
+    expect(proof.kind === 'refused' && proof.error.code).toBe('not-found');
+    expect(r.exporter.preview({ selection: WHOLE, format: 'docx', recipeName: 'Missing' }).kind).toBe('refused');
   });
 
   it('reports the refusal a compile would get, and does not throw', async () => {

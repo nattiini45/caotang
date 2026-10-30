@@ -19,6 +19,7 @@ export {
   BINARY_FORMATS,
   EXPORT_FORMATS,
   MEDIA_FORMATS,
+  TEXT_PROOF_FORMATS,
   hasTextProof,
   isBinaryFormat,
   isExportFormat,
