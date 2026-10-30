@@ -70,7 +70,9 @@ export const BUDGET = {
   // app carries the host-model rows' registry metadata, params and preflights and none of their ports, which only the MCP server builds.
   // 6,036.1 kB measured with those and macros (#57), the prompt-injection guards (#54) and the export Preview (#106) together; the ceiling is that plus about 0.6%.
   // 6,076.1 kB measured with the narrow layout (#18): its model, notice and hook, the drawer, sheet and More menu in the workspace, and the row Actions button; the ceiling is that plus about 1%.
-  totalJs: 6_140_000,
+  // 6,137.5 kB measured on main at #252, 2.5 kB under that ceiling, with eight feature PRs in flight (#175, #209, #86, #69, #106, #152, #192, #253)
+  // that each add a few kB of app code; the ceiling is raised once to the measured size plus about 1% so each PR is not trimmed to fit.
+  totalJs: 6_200_000,
 };
 
 const KB = 1000;
