@@ -73,6 +73,54 @@ test('a scene draft’s step preview carries the model’s window and its cost a
   await session.close();
 });
 
+test('a turn’s prompts read the profile that turn resolved, not the one active now: a demo turn carries the demo profile’s limits', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const session = new ProjectSession({ store, projectId: state.manifest.project.id, state, shadow: null });
+  const { providers } = await pricedProviders();
+  const controller = new AgentController(session, providers, () => ({}), () => false);
+
+  // The priced profile is active, but a demo intent runs on the unpriced demo profile; a prompt read from the active profile would
+  // carry its window and a cost.
+  const running = controller.submit(DEMO_INTENTS.draftScene, { demo: true });
+  await until(() => controller.snapshot().pending !== null, 'the draft card');
+  const step = controller.snapshot().pending?.card.steps.find((candidate) => candidate.tool === 'scene.draft');
+  expect(step?.context).toBeDefined();
+  expect(step?.context?.cost).toBeUndefined();
+  expect(step?.context?.window).toBeUndefined();
+  expect(step?.context?.completionTokens).toBe(4_096);
+  controller.answer({ action: 'cancel' });
+  await running;
+  await session.close();
+});
+
+test('the next turn reads the profile it resolves to, so a profile switched between turns gives its own reply cap and price', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const session = new ProjectSession({ store, projectId: state.manifest.project.id, state, shadow: null });
+  const { providers } = await pricedProviders();
+  const controller = new AgentController(session, providers, () => ({}), () => false);
+  const draftStep = () => controller.snapshot().pending?.card.steps.find((candidate) => candidate.tool === 'scene.draft');
+
+  const first = controller.submit(DEMO_INTENTS.draftScene);
+  await until(() => controller.snapshot().pending !== null, 'the first draft card');
+  expect(draftStep()?.context?.completionTokens).toBe(1_000);
+  controller.answer({ action: 'cancel' });
+  await first;
+
+  const other = await providers.addProfile({ name: 'Dearer mock', kind: 'mock', isActive: true, defaultModel: 'mock/echo-1', pricePer1k: { prompt: 3, completion: 5 }, maxOutputTokens: 2_000 });
+  await providers.activate(other.view.id);
+  await providers.gateway.listModels(other.view.id);
+  const second = controller.submit(DEMO_INTENTS.draftScene);
+  await until(() => controller.snapshot().pending !== null, 'the second draft card');
+  expect(draftStep()?.context?.completionTokens).toBe(2_000);
+  expect(draftStep()?.context?.window?.contextWindow).toBe(128_000);
+  expect(draftStep()?.context?.cost?.completionUsd).toBeCloseTo(10, 6);
+  controller.answer({ action: 'cancel' });
+  await second;
+  await session.close();
+});
+
 test('the Settings prompt preview carries the limits it is given, and none without them', async () => {
   const state = sampleProjectState();
   const { providers } = await pricedProviders();

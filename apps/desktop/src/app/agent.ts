@@ -67,7 +67,7 @@
  */
 
 import type { GhostPreview } from '@caotang/editor/tiptap';
-import type { ModelLimits, ProfileView, TaskRole, ThinkingLevel } from '@caotang/gateway';
+import type { ProfileView, TaskRole, ThinkingLevel } from '@caotang/gateway';
 import {
   checkMacro,
   createAgentSession,
@@ -789,7 +789,8 @@ export class AgentController {
       // settlement, so a cancelled/refused/failed turn cannot leave its state behind in the shared session.
       const model = resolved?.model;
       const thinking = resolved?.thinking;
-      this.limitPins.set(role, { profileId: profile.id, ...(model === undefined ? {} : { model }), ...(thinking === undefined ? {} : { thinking }) });
+      // A demo turn resolves no role, so its pins are the demo profile's alone.
+      this.limitPins.set(role, pinsOf(resolved) ?? { profileId: profile.id });
       pinnedRole = role;
       // A session is kept for each role, so a turn under another role never carries the chat conversation or stamps its requests as chat.
       const agent = this.sessionFor(role);
@@ -1608,7 +1609,7 @@ export class AgentController {
     return () => {
       const pinned = pins();
       const gateway = (this.providers as Partial<ProviderService>).gateway;
-      const model: ModelLimits | undefined = pinned === undefined || gateway === undefined ? undefined : gateway.modelLimits(pinned.profileId, pinned.model, pinned.thinking);
+      const model: ContextConfig['model'] = pinned === undefined || gateway === undefined ? undefined : gateway.modelLimits(pinned.profileId, pinned.model, pinned.thinking);
       return { formatTime: localClockTime, ...(model === undefined ? {} : { model }), ...this.contextConfig() };
     };
   }

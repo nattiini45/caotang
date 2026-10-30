@@ -4,8 +4,7 @@
  * budgets, so the section can show what the next draft would send without a model call.
  */
 
-import type { ModelLimits } from '@caotang/gateway';
-import { scenePromptPreview, type PromptPreview } from '@caotang/harness';
+import { scenePromptPreview, type ContextConfig, type PromptPreview } from '@caotang/harness';
 import type { ProjectState } from '@caotang/store';
 
 import { contextConfigOf, type ContextSettings } from './settings.js';
@@ -21,7 +20,7 @@ export type ContextPreviewView = { readonly kind: 'prompt'; readonly preview: Pr
  * does not draft a scene of, the view says so in words rather than showing a prompt for something else. `model` is the limits of
  * the model the active Chat role runs on, so the preview carries its window warning and its cost as the plan card does.
  */
-export function contextPreviewOf(state: ProjectState, docId: string | null | undefined, budgets: ContextSettings, model?: ModelLimits): ContextPreviewView {
+export function contextPreviewOf(state: ProjectState, docId: string | null | undefined, budgets: ContextSettings, model?: ContextConfig['model']): ContextPreviewView {
   if (docId === undefined || docId === null) {
     return { kind: 'none', message: 'Open a scene to see the prompt the agent would send for it.' };
   }
