@@ -855,7 +855,8 @@ describe('the registration refusal is never reached, because the captures are co
     // The agent's files add `project.setInstructions`, `memory.write` and `memory.forget`: 40 + 3 = 43.
     // The macros add `macro.save` and `macro.delete`: 43 + 2 = 45.
     // The hooks add `hook.save` and `hook.delete`: 45 + 2 = 47.
-    expect(implemented).toHaveLength(47);
+    // The AV script adds `script.setShowMeta` and `script.setEpisodeMeta`: 47 + 2 = 49.
+    expect(implemented).toHaveLength(49);
   });
 
   it('the sink is not consulted for notes, and a notes undo needs no store', () => {

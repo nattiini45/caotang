@@ -1611,8 +1611,9 @@ describe('the bus/store split these applies depend on', () => {
     // The agent's files add three names with applies of the store's own: 51 + 3 = 54 names, 40 + 3 = 43 implemented.
     // The macros add two names with applies of the store's own: 54 + 2 = 56 names, 43 + 2 = 45 implemented.
     // The hooks add two names with applies of the store's own: 56 + 2 = 58 names, 45 + 2 = 47 implemented.
-    expect(Object.keys(registry)).toHaveLength(58);
-    expect(implemented).toHaveLength(47);
+    // The AV script's show and episode settings add two names with applies of the store's own: 58 + 2 = 60 names, 47 + 2 = 49 implemented.
+    expect(Object.keys(registry)).toHaveLength(60);
+    expect(implemented).toHaveLength(49);
   });
 });
 

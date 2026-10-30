@@ -104,8 +104,8 @@ export interface TreeNode {
   /** additive — app-owned; structure ops deliberately do not bump it */
   updatedAt?: string;
   /**
-   * The media-track kind marker (project-format.md §2, media note): `screenplay` on a document, `storyboard` on a
-   * folder, `branching` on a dialogue container. Absent on a plain node. Typed as a string because a later kind must
+   * The media-track kind marker (project-format.md §2, media note): `screenplay` or `av-script` on a document,
+   * `storyboard` or `show` on a folder, `branching` on a dialogue container. Absent on a plain node. Typed as a string because a later kind must
    * load as a kept, unknown value, not a refused one.
    */
   kind?: string;
@@ -121,6 +121,13 @@ export interface TreeNode {
   shot?: Record<string, unknown>;
   /** A dialogue container's metadata (dialogue-narrative.md §2.1): speaker, locBaseline, engineTarget, autoLineIds. */
   dialogue?: Record<string, unknown>;
+  /**
+   * A show folder's settings (av-script.md §2): feed title, description, default speaker, speech rate, cue vocabulary and
+   * the feed's channel fields. The store carries it as an object and does not read its fields: `@caotang/script` does.
+   */
+  showMeta?: Record<string, unknown>;
+  /** An episode document's settings (av-script.md §2): the enclosure, episode and season numbers, and two feed URLs. */
+  episodeMeta?: Record<string, unknown>;
 }
 
 export interface VocabularyTerm {
