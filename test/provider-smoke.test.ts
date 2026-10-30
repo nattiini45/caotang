@@ -117,6 +117,7 @@ describe('SmokeReport', () => {
       '| deepseek | streamed completion | pass |',
       '| deepseek | native tools | not claimed |',
       '| deepseek | thinking | fail (HTTP 400) |',
+      '| deepseek | prompt cache | not reached |',
       '| deepseek | key redaction | not reached |',
       '',
     ]);
