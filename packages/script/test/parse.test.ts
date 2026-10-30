@@ -208,3 +208,16 @@ describe('a cue offset is declared or derived from the timed lines before it', (
     expect(cue?.atSec).toBe(6);
   });
 });
+
+describe('long runs of spaces and tabs cost one pass', () => {
+  it('parses and mints over lines of 50,000 tabs in well under a second', async () => {
+    const { ensureScriptLineIds } = await import('../src/index.js');
+    const tabs = '\t'.repeat(50_000);
+    const body = [`## A${tabs}x`, `HOST:${tabs}hi${tabs}<!--${tabs}x`, `SFX: [at${tabs}`, `${tabs}:${tabs}`, `HOST: x${tabs}`, `HOST: ${'<!-- lineId:'.repeat(20_000)} -->`].join('\n');
+    const started = Date.now();
+    const episode = parseEpisode(body);
+    ensureScriptLineIds(body);
+    expect(Date.now() - started).toBeLessThan(1000);
+    expect(episode.segments).toHaveLength(1);
+  });
+});

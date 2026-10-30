@@ -26,14 +26,99 @@ import { resolveScriptSpeaker } from './speakers.js';
 import { readTiming } from './timing.js';
 import { roundSeconds, scriptTotals, segmentTiming } from './totals.js';
 
-/** The id tag at the end of a line, with the id as written (possibly malformed). */
-const TAG = /[ \t]*<!--[ \t]*lineId:[ \t]*(\S*?)[ \t]*-->[ \t]*$/;
+/** True for a space or a tab. */
+const isBlank = (ch: string | undefined): boolean => ch === ' ' || ch === '\t';
 
-/** An ATX heading: up to three spaces, one to six `#`, then the text, with any closing `#`s taken off. */
-const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/;
+/** The text without the spaces and tabs at either end. Loops rather than regular expressions, so no input can make them slow. */
+function trimSpaces(text: string): string {
+  let start = 0;
+  let end = text.length;
+  while (start < end && isBlank(text[start])) start += 1;
+  while (end > start && isBlank(text[end - 1])) end -= 1;
+  return text.slice(start, end);
+}
+
+/** True for any whitespace character, the set `\s` matches. */
+const isSpace = (ch: string | undefined): boolean => ch !== undefined && /\s/.test(ch);
+
+/**
+ * Where `<!--`, then blanks, ends at `end` (the start of what follows), as the leftmost index the tag can start at,
+ * blanks before the `<!--` included; undefined when no `<!--` sits there.
+ */
+function tagStartBefore(words: string, end: number): number | undefined {
+  let i = end;
+  while (i > 0 && isBlank(words[i - 1])) i -= 1;
+  if (i < 4 || words.slice(i - 4, i) !== '<!--') return undefined;
+  let start = i - 4;
+  while (start > 0 && isBlank(words[start - 1])) start -= 1;
+  return start;
+}
+
+/**
+ * The id tag at the end of a line (`<!-- lineId: … -->`): where it starts, and the id as written (possibly malformed,
+ * but never holding whitespace). It reads exactly what `/[ \t]*<!--[ \t]*lineId:[ \t]*(\S*?)[ \t]*-->[ \t]*$/` did,
+ * leftmost start included, in linear time.
+ */
+function idTagOf(words: string): { readonly index: number; readonly id: string } | undefined {
+  let close = words.length;
+  while (close > 0 && isBlank(words[close - 1])) close -= 1;
+  close -= 3;
+  if (close < 0 || words.slice(close, close + 3) !== '-->') return undefined;
+  // The id ends where the blanks before `-->` begin, and starts no earlier than the run of non-space before that.
+  let idEnd = close;
+  while (idEnd > 0 && isBlank(words[idEnd - 1])) idEnd -= 1;
+  let run = idEnd;
+  while (run > 0 && !isSpace(words[run - 1])) run -= 1;
+  const KEY = 'lineId:';
+  let best: { index: number; id: string } | undefined;
+  const consider = (keyStart: number, idStart: number): void => {
+    const index = tagStartBefore(words, keyStart);
+    if (index !== undefined && (best === undefined || index < best.index)) best = { index, id: words.slice(idStart, idEnd) };
+  };
+  // `lineId:` inside the run, the id being the rest of it.
+  for (let at = words.indexOf(KEY, run); at >= 0 && at + KEY.length <= idEnd; at = words.indexOf(KEY, at + 1)) {
+    consider(at, at + KEY.length);
+  }
+  // `lineId:` ending just before the blanks in front of the run, the id being the whole run.
+  let keyEnd = run;
+  while (keyEnd > 0 && isBlank(words[keyEnd - 1])) keyEnd -= 1;
+  if (keyEnd < run && keyEnd >= KEY.length && words.slice(keyEnd - KEY.length, keyEnd) === KEY) {
+    consider(keyEnd - KEY.length, run);
+  }
+  return best;
+}
+
+/** An ATX heading: up to three spaces, one to six `#`, then a space or the end, the text, with any closing `#`s taken off. */
+function headingOf(text: string): { readonly level: number; readonly title: string } | undefined {
+  let i = 0;
+  while (i < 3 && text[i] === ' ') i += 1;
+  let level = 0;
+  while (text[i + level] === '#') level += 1;
+  if (level < 1 || level > 6) return undefined;
+  const after = text.slice(i + level);
+  if (after !== '' && !isBlank(after[0])) return undefined;
+  let title = trimSpaces(after);
+  // A closing sequence of `#`s, set off by a space, is not part of the title.
+  let end = title.length;
+  while (end > 0 && title[end - 1] === '#') end -= 1;
+  if (end === 0) title = '';
+  else if (end < title.length && isBlank(title[end - 1])) title = trimSpaces(title.slice(0, end));
+  return { level, title: title.trim() };
+}
 
 /** A label: the text before the first colon, when the colon is followed by a space, a tab or the end of the line. */
-const LABELLED = /^[ \t]*([^:]+?)[ \t]*:(?=[ \t]|$)[ \t]*(.*)$/;
+function labelledOf(text: string): { readonly label: string; readonly words: string } | undefined {
+  const colon = text.indexOf(':');
+  if (colon < 0) return undefined;
+  const next = text[colon + 1];
+  if (next !== undefined && !isBlank(next)) return undefined;
+  const label = text.slice(0, colon).trim();
+  if (label === '') return undefined;
+  // Only the blanks after the colon go; trailing ones stay with the words, as they always have.
+  let start = colon + 1;
+  while (isBlank(text[start])) start += 1;
+  return { label, words: text.slice(start) };
+}
 
 export type BodyLineRole = 'cue' | 'speech' | 'narration' | 'text';
 
@@ -68,10 +153,9 @@ function vocabularyIndex(vocabulary: readonly string[]): Map<string, string> {
 }
 
 function classify(text: string, line: number, vocabulary: ReadonlyMap<string, string>): ClassifiedLine {
-  const labelled = LABELLED.exec(text);
+  const labelled = labelledOf(text);
   if (labelled) {
-    const label = (labelled[1] ?? '').trim();
-    const words = labelled[2] ?? '';
+    const { label, words } = labelled;
     const key = caseFold(label);
     const cueKind = vocabulary.get(key);
     const role: BodyLineRole | undefined =
@@ -83,7 +167,7 @@ function classify(text: string, line: number, vocabulary: ReadonlyMap<string, st
             ? 'speech'
             : undefined;
     if (role !== undefined) {
-      const tag = TAG.exec(words);
+      const tag = idTagOf(words);
       const rest = tag ? words.slice(0, tag.index) : words;
       return {
         line,
@@ -91,7 +175,7 @@ function classify(text: string, line: number, vocabulary: ReadonlyMap<string, st
         label,
         ...(cueKind === undefined ? {} : { cueKind }),
         rest,
-        ...(tag ? { tag: tag[1] ?? '' } : {}),
+        ...(tag ? { tag: tag.id } : {}),
       };
     }
   }
@@ -107,10 +191,9 @@ function scan(body: string, vocabulary: readonly string[]): Scanned[] {
     const text = raw.endsWith('\r') ? raw.slice(0, -1) : raw;
     if (text.trim() === '') return;
     const line = i + 1;
-    const heading = HEADING.exec(text);
+    const heading = headingOf(text);
     if (heading) {
-      const level = (heading[1] ?? '').length;
-      const title = (heading[2] ?? '').trim();
+      const { level, title } = heading;
       if (level === 2) {
         sawSegment = true;
         out.push({ kind: 'segment', line, text: title });

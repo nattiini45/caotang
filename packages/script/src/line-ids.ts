@@ -55,6 +55,13 @@ function defaultRandomBytes(n: number): Uint8Array {
   return out;
 }
 
+/** The text without the spaces and tabs at its end. A loop, not a regular expression, so a long run of tabs costs one pass. */
+function trimSpacesEnd(text: string): string {
+  let end = text.length;
+  while (end > 0 && (text[end - 1] === ' ' || text[end - 1] === '\t')) end -= 1;
+  return text.slice(0, end);
+}
+
 /** One id: `sl_` for a line, `sc_` for a cue. `byte & 31` is an unbiased draw from the 32-symbol alphabet. */
 export function mintScriptId(kind: 'line' | 'cue', options: ScriptMintOptions = {}): string {
   const randomBytes = options.randomBytes ?? defaultRandomBytes;
@@ -88,7 +95,7 @@ export function ensureScriptLineIds(body: string, options: ScriptMintOptions = {
     const index = entry.line - 1;
     const raw = lines[index] ?? '';
     const cr = raw.endsWith('\r') ? '\r' : '';
-    const content = (cr === '' ? raw : raw.slice(0, -1)).replace(/[ \t]+$/, '');
+    const content = trimSpacesEnd(cr === '' ? raw : raw.slice(0, -1));
     lines[index] = `${content} <!-- lineId: ${id} -->${cr}`;
     minted.push({ line: entry.line, id });
   }

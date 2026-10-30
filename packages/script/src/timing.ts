@@ -66,7 +66,7 @@ function looksLikeTiming(inner: string): boolean {
 /** What one bracket's inside says (§3). */
 export function readBracket(inner: string): BracketReading {
   const t = inner.trim();
-  const offset = /^at\s+(.+)$/i.exec(t);
+  const offset = /^at\s+(\S.*)$/i.exec(t);
   if (offset) {
     const value = (offset[1] ?? '').trim();
     if (value.startsWith('-')) return { kind: 'invalid', reason: 'an offset cannot be negative' };
@@ -103,7 +103,7 @@ function bracketsIn(text: string): { readonly bracket: string; readonly reading:
  * offset and one duration, and `line` for a speech or narration line, which takes one duration and no offset.
  */
 export function readTiming(words: string, role: 'line' | 'cue'): TimingRead {
-  let rest = words.replace(/\s+$/u, '');
+  let rest = words.trimEnd();
   let durationSec: number | undefined;
   let offsetSec: number | undefined;
   const notices: TimingNotice[] = [];
@@ -174,7 +174,7 @@ export function readTiming(words: string, role: 'line' | 'cue'): TimingRead {
     }
     if (reading.kind === 'duration') durationSec = reading.seconds;
     else if (reading.kind === 'offset') offsetSec = reading.seconds;
-    rest = rest.slice(0, open).replace(/\s+$/u, '');
+    rest = rest.slice(0, open).trimEnd();
   }
 
   return {
