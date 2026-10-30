@@ -192,6 +192,7 @@ import { previewFor, sceneDraftPreflight, shotsDeriveScenePreflight } from './po
 import { cautionOf, type ApprovalCaution, type CardHit, type QuoteFinding, type TaintRef, type WireProgress } from '@caotang/mcp-client';
 import { quotedProjectText } from './egress-check.js';
 import { modelResult, outsideSources, readsOutsideText, scanForInjection, sourceName, turnNonce, type OutsideOf } from './untrusted.js';
+import { CacheWatch, stableToolOrder, watched, type TurnCacheUse } from './cache-watch.js';
 import { createContextPort, dropLinesOf, mergePreviews, type ContextPort } from './context.js';
 import { createSubagentRunner, framedResult, resultLine, SUBAGENT_SPECS, type ParentTurnHandle } from './subagent.js';
 import {
@@ -522,6 +523,9 @@ class BudgetExceeded extends Error {
   }
 }
 
+/** The report's `cache` field: present only when a call of the turn reported a prompt-cache breakdown. */
+const cacheField = (use: TurnCacheUse | undefined): { readonly cache?: TurnCacheUse } => (use === undefined ? {} : { cache: use });
+
 const modelCallBound = (limit: number): BudgetExceeded => new BudgetExceeded(budgetStop({ dimension: 'model-calls', used: limit, limit, scope: 'turn' }));
 
 /**
@@ -609,6 +613,10 @@ interface Turn {
   delegations: number;
   /** The planner replies the provider ended with `length` this turn, parsed or not, at the cap or short of it: the report's `cutReplies`. */
   cutReplies: number;
+  /** What the turn's calls got from the provider's prompt cache, and the planner calls that missed it (cache-watch.ts). */
+  readonly cache: CacheWatch;
+  /** The tools the planner declared on its last call, in the order the turn first declared them (`stableToolOrder`). */
+  declaredTools?: ToolDef[];
   /** The planner replies that were cut and could not be read. A second one ends the turn (the retry is once, not a loop). */
   unreadCuts: number;
   /** The cap an unreadable cut reply of this turn reached, when one reached the cap it was sent with: what the ask-back names. */
@@ -1393,7 +1401,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * included, and is counted against the turn's bound before it is sent. The session's role is stamped on the
    * request here too (provider-gateway §6); the prompt-pack's calls pass 'drafting' for it instead.
    */
-  const modelCall = (turn: Turn, onDelta?: (delta: string) => void, role: TaskRole | undefined = options.role): ModelCall => ({
+  const modelCall = (turn: Turn, onDelta?: (delta: string) => void, role: TaskRole | undefined = options.role, planner = false): ModelCall => ({
     gateway: {
       complete: (request, signal) => {
         if (turn.modelCalls >= maxModelCalls) throw modelCallBound(maxModelCalls);
@@ -1408,7 +1416,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         turn.calls += 1;
         const sent = sinkNow() === undefined ? asked : { ...asked, callIndex: turn.calls };
         emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
-        return settling(turn, reservation, gateway.complete(sent, signal));
+        return watched(turn.cache, turn.calls, sent, planner, settling(turn, reservation, gateway.complete(sent, signal)));
       },
     },
     turnId: turn.id,
@@ -1471,9 +1479,14 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * loaded is declared on the very next request.
    */
   const plannerCall = (turn: Turn, maxOutputTokens?: number): ModelCall => {
-    const call = maxOutputTokens === undefined ? modelCall(turn) : { ...modelCall(turn), maxOutputTokens };
+    const base = modelCall(turn, undefined, options.role, true);
+    const call = maxOutputTokens === undefined ? base : { ...base, maxOutputTokens };
     if (!turn.native) return call;
-    const tools = plannerToolDefs(harness.tools(), harness.loadedNativeTools(), harness.loadedExternalTools(), loadEvery(), undefined, turn.nonce);
+    // The declarations keep the turn's first order, and a tool loaded mid-turn joins at the end: the prompt cache keys on the
+    // tools first, so re-sorting them would cost every later call its cached prefix (provider-gateway §3).
+    const fresh = plannerToolDefs(harness.tools(), harness.loadedNativeTools(), harness.loadedExternalTools(), loadEvery(), undefined, turn.nonce);
+    const tools = stableToolOrder(turn.declaredTools, fresh);
+    turn.declaredTools = tools;
     return tools.length === 0 ? call : { ...call, tools };
   };
 
@@ -3366,6 +3379,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       dropped: turn.dropped,
       modelCalls: turn.modelCalls,
       ...(turn.cutReplies === 0 ? {} : { cutReplies: turn.cutReplies }),
+      ...cacheField(turn.cache.report()),
       ...(settled.stop === undefined ? {} : { stop: settled.stop }),
       ...(settled.budgetStop === undefined ? {} : { budgetStop: settled.budgetStop }),
       ...(turn.meter === undefined ? {} : { spend: turn.meter.spend() }),
@@ -3572,6 +3586,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       wireReplies: [],
       delegations: 0,
       cutReplies: 0,
+      cache: new CacheWatch(),
       unreadCuts: 0,
       replyCut: false,
       proposals: [],

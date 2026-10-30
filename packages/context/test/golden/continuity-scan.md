@@ -2,13 +2,15 @@
 
 continuity.scan over Act I, every document of the scope in order.
 
-Prompt: 1715 tokens against a total budget of 33000; over budget: no.
+Prompt: 1718 tokens against a total budget of 33000; over budget: no.
+
+User parts: L1, L2 (cache boundary), L4, L5, L7, status.
 
 | layer | included | base | budget | tokens | kept | dropped |
 |---|---|---|---|---|---|---|
 | L0 | yes | - | - | 295 | 0 | 0 |
 | LI | no | 1500 | - | 0 | 0 | 0 |
-| L1 | yes | 1500 | 1500 | 79 | 0 | 0 |
+| L1 | yes | 1500 | 1500 | 82 | 0 | 0 |
 | L2 | yes | 2500 | 2500 | 109 | 5 | 3 |
 | L3 | no | - | - | 0 | 0 | 0 |
 | L4 | yes | 6000 | 6000 | 9 | 0 | 0 |
@@ -41,8 +43,6 @@ Tools:
 ```text
 # Project
 Title: Harbor Notes
-Documents: 6. Words: 930.
-Session: 412 words today, target 1,000.
 Statuses: draft (Draft), revised (Revised), final (Final).
 Labels: none.
 Saved filters: 0. Goals: 0.
@@ -136,4 +136,8 @@ Find continuity drift between these chapters.
 
 Tool: continuity.scan
 Parameters: {}
+
+# Status
+Documents: 6. Words: 930.
+Session: 412 words today, target 1,000.
 ```

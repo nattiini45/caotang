@@ -319,6 +319,7 @@ export class ProviderService {
             ...(record.temperature === undefined ? {} : { temperature: record.temperature }),
             ...(record.maxOutputTokens === undefined ? {} : { maxOutputTokens: record.maxOutputTokens }),
             ...(record.pricePer1k === undefined ? {} : { pricePer1k: record.pricePer1k }),
+            ...(record.promptCache === undefined ? {} : { promptCache: record.promptCache }),
           });
           if (view.id !== record.id) {
             notices.push(`“${record.name}” came back under a new id, so its saved usage is not attached to it.`);

@@ -11,7 +11,7 @@
 export const ONLY_PRESETS_VAR = 'CAOTANG_ONLY_PRESETS';
 
 /** The stages the spec runs, in order. The summary lists only these. */
-export const SMOKE_STAGES = ['model list', 'streamed completion', 'native tools', 'thinking', 'key redaction'] as const;
+export const SMOKE_STAGES = ['model list', 'streamed completion', 'native tools', 'thinking', 'prompt cache', 'key redaction'] as const;
 export type SmokeStage = (typeof SMOKE_STAGES)[number];
 
 /**

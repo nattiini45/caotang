@@ -38,6 +38,7 @@ import {
 } from './transport.js';
 import { DEFAULT_MAX_OUTPUT_TOKENS } from './profiles.js';
 import { usageFor } from './tokens.js';
+import { cacheSettingsFor, policyOf } from './adapters/cache.js';
 import { adapterFor } from './adapters/index.js';
 import { effectiveOutput, nominalThinkingTokens } from './adapters/effort.js';
 import { modelRowFor, presetFor, resolveRoute } from './presets/index.js';
@@ -276,12 +277,15 @@ export function createGateway(options: GatewayOptions): Gateway {
       ...(ctx.modelMaxOutput === undefined ? {} : { modelMaxOutput: ctx.modelMaxOutput }),
       ...(adapter.id === 'anthropic-messages' ? { style: ctx.caps.effortStyle ?? 'anthropic' } : {}),
     });
+    // Prompt caching (§3): the request's policy, else the profile's, against what the model's row says the route does.
+    const cache = cacheSettingsFor(policyOf(req.cache, profile.promptCache), ctx.caps, profile.id, req);
     const body = adapter.buildBody({
       req,
       ctx,
       temperature: req.temperature ?? profile.temperature ?? 0.7,
       effective,
       jsonObject,
+      ...(cache === undefined ? {} : { cache }),
     });
     const path = adapter.completePath(ctx.model);
     return {
@@ -552,12 +556,30 @@ export function createGateway(options: GatewayOptions): Gateway {
       });
       if (settled.level !== undefined && settled.level !== 'off') thinkingTokens = settled.budget ?? nominalThinkingTokens(settled.level);
     }
+    // The forecast's cache terms (§3, "Prompt caching"): only when this profile caches and the row says how a read is priced.
+    const route = row === undefined ? undefined : resolveRoute({ preset: profile.preset, baseUrl: profile.baseUrl }, modelId);
+    const policy = policyOf(undefined, profile.promptCache);
+    const caching =
+      route !== undefined && policy.mode === 'auto' && (route.caps.cache === 'explicit' || route.caps.cache === 'automatic')
+        ? route.caps
+        : undefined;
+    // Anthropic's hour-long lifetime writes at twice the prompt price, not the row's 1.25.
+    const writeMultiplier = policy.ttl === '1h' && route?.adapter === 'anthropic-messages' ? 2 : caching?.cacheWriteMultiplier;
+    const cache =
+      caching?.cacheReadMultiplier === undefined
+        ? undefined
+        : {
+            readMultiplier: caching.cacheReadMultiplier,
+            ...(writeMultiplier === undefined ? {} : { writeMultiplier }),
+            ...(caching.cacheMinTokens === undefined ? {} : { minTokens: caching.cacheMinTokens }),
+          };
     return {
       ...(contextWindow === undefined ? {} : { contextWindow }),
       maxOutputTokens,
       ...(modelMaxOutputTokens === undefined ? {} : { modelMaxOutputTokens }),
       ...(thinkingTokens === undefined ? {} : { thinkingTokens }),
       ...(price === undefined ? {} : { pricePer1k: { prompt: price.prompt, completion: price.completion } }),
+      ...(cache === undefined ? {} : { cache }),
     };
   }
 

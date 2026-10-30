@@ -16,6 +16,7 @@ import type { PlanCardView, PlanEdit, StatusCard } from './cards.js';
 import type { BudgetSpend, BudgetStop, RunLimits } from './budget.js';
 import type { Finding } from './drafting.js';
 import type { BudgetUse, PermissionMode } from './mode.js';
+import type { TurnCacheUse } from './cache-watch.js';
 
 /** One tool call as it ran, in order. An eval's trace matcher reads these (agent-harness §9). */
 export interface TraceEntry {
@@ -93,6 +94,11 @@ export interface TurnReport {
   readonly modelCalls: number;
   /** The planner replies the provider ended with `length`, parsed or not, at the request's cap or short of it (issue #97). Absent when none was. */
   readonly cutReplies?: number;
+  /**
+   * What the turn's calls read from the provider's prompt cache, and each planner call that should have read it and did not, with
+   * the likely cause (agent-harness §5, "Prompt cache"). Absent when no call reported a cache breakdown.
+   */
+  readonly cache?: TurnCacheUse;
   /** Present when the writer stopped the turn. `status` is then `cancelled`, and whatever was applied before the stop stays in the undo group. */
   readonly stop?: TurnStop;
   /** Present when the turn ended on a run limit (agent-harness §7.1): the limit, and for a refused call what it would have needed. `status` is `failed`, never `cancelled`. */
