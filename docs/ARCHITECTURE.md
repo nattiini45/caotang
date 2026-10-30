@@ -136,7 +136,7 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 - **Spec:** [architecture/av-script.md](architecture/av-script.md).
 
 ### 2.22 `web-publishing` 🧭
-- **Responsibility:** the per-document publish metadata a serial or a newsletter needs — slug, publish date, draft flag, tags, canonical address, description — and three compile targets over the prose pipeline: a self-contained HTML article, an RSS 2.0 feed and an Atom feed. No hosting, no deploy, no analytics.
+- **Responsibility:** the per-document publish metadata a serial or a newsletter needs — slug, publish date (its absence makes a draft), tags, canonical address, description — and three compile targets over the prose pipeline: a self-contained HTML article, an RSS 2.0 feed and an Atom feed. No hosting, no deploy, no analytics.
 - **Owns:** no new package. `tree[].publish` in the manifest and three entries in the exporter's closed format enum, rendered over the mdast stage the EPUB emitter already uses. Specified, not built.
 - **Spec:** [architecture/web-publishing.md](architecture/web-publishing.md).
 
@@ -163,9 +163,10 @@ AssetRecord    { id, file, mime, sha256, bytes, width?, height?, caption?, alt?,
 AssetLink      { id, assetId, target: project|node|paragraph, role: reference|card|source, order, note?, when? }        // pictures.md §2.1 (planned)
 TimelineOp     { op: meta|move|shift|picture-when, …, expect }                                                         // timeline.md §4.3 (planned)
 MessageRef     { id, values?, message }                                                                          // i18n.md §3.2 (planned)
-ScriptLine     { id, kind: speech|cue|narration|text, speaker?, text, durationSec?, cue? }                        // av-script.md §2 (planned)
+ScriptLine     { id, kind: speech|narration|text, speaker?, text, durationSec?, declared }                        // av-script.md §2 (planned)
+ScriptCue      { id, kind, text, atSec?, forSec?, under? }                                                       // av-script.md §2, segment-owned (planned)
 ScriptTotals   { seconds, timedCount, untimed[] }                                                                 // av-script.md §4, the AnimaticTotals shape (planned)
-PublishMeta    { slug?, publishedAt?, draft?, tags[], canonical?, description?, layout? }                         // web-publishing.md §2 (planned)
+PublishMeta    { slug?, publishedAt?, tags[], canonical?, description?, layout? }                                 // web-publishing.md §2 (planned)
 Command        { id, name, params, issuedBy: user|agent, turnId?, callId?, createdAt }  // command-bus.md §2
 ActivityEntry  { at, command, issuedBy, turnId?, callId?, undoGroupId?, source?: native|mcp, affected[], tokensSpent?, summary, defect? } // command-bus.md §8
 AskBack        { code, reason, candidates?, revisionDrift?, options[] }           // agent-harness.md §2
