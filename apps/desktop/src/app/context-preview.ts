@@ -4,7 +4,7 @@
  * budgets, so the section can show what the next draft would send without a model call.
  */
 
-import { scenePromptPreview, type PromptPreview } from '@caotang/harness';
+import { scenePromptPreview, type ContextConfig, type PromptPreview } from '@caotang/harness';
 import type { ProjectState } from '@caotang/store';
 
 import { contextConfigOf, type ContextSettings } from './settings.js';
@@ -17,13 +17,14 @@ export type ContextPreviewView = { readonly kind: 'prompt'; readonly preview: Pr
 
 /**
  * The preview of a scene draft of `docId` under `budgets`. `docId` is the open document. With no document open, or one the agent
- * does not draft a scene of, the view says so in words rather than showing a prompt for something else.
+ * does not draft a scene of, the view says so in words rather than showing a prompt for something else. `model` is the limits of
+ * the model the active Chat role runs on, so the preview carries its window warning and its cost as the plan card does.
  */
-export function contextPreviewOf(state: ProjectState, docId: string | null | undefined, budgets: ContextSettings): ContextPreviewView {
+export function contextPreviewOf(state: ProjectState, docId: string | null | undefined, budgets: ContextSettings, model?: ContextConfig['model']): ContextPreviewView {
   if (docId === undefined || docId === null) {
     return { kind: 'none', message: 'Open a scene to see the prompt the agent would send for it.' };
   }
-  const preview = scenePromptPreview(state, docId, { mode: 'continue', instruction: SAMPLE_BRIEF, config: contextConfigOf(budgets) });
+  const preview = scenePromptPreview(state, docId, { mode: 'continue', instruction: SAMPLE_BRIEF, config: { ...contextConfigOf(budgets), ...(model === undefined ? {} : { model }) } });
   if (preview === undefined) {
     return { kind: 'none', message: 'The open document is not a scene the agent drafts. Open a scene to see the prompt it would send.' };
   }
