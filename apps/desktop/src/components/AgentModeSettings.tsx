@@ -12,6 +12,7 @@ import { DEFAULT_ACTIVE_MS, DEFAULT_TURN_BUDGET, MODE_LABELS, PERMISSION_MODES, 
 import { MODE_HINTS } from '../app/agent-model.js';
 import type { AppServices } from '../app/services.js';
 import { AGENT_BUDGET_RANGES, type AgentBudgetSettings } from '../app/settings.js';
+import { formatCount } from '../i18n/locale.js';
 
 /** The run limits: held in every mode, each model call's worst case reserved before it is sent (agent-harness §7.1). */
 const RUN_FIELDS = [
@@ -76,7 +77,7 @@ export function AgentModeSettings({ services }: { services: AppServices }): Reac
       const value = readLimit(limits[field.key], field.key);
       if (value === undefined) {
         const [min, max] = AGENT_BUDGET_RANGES[field.key];
-        setMessage({ text: `${field.label} is a whole number from ${min.toLocaleString('en-US')} to ${max.toLocaleString('en-US')}, or empty for the default.`, tone: 'error' });
+        setMessage({ text: `${field.label} is a whole number from ${formatCount(min)} to ${formatCount(max)}, or empty for the default.`, tone: 'error' });
         return;
       }
       if (value !== null) budget[field.key] = value;
@@ -119,7 +120,7 @@ export function AgentModeSettings({ services }: { services: AppServices }): Reac
       <p className="settings-note">
         Limits you set on your own key. A turn is held to them in every mode: it stops on a question before a model call that could pass
         one, and a turn that works for its minutes is ended mid-call. Leave a field empty for its default, or for no limit. The cost
-        limit needs prices on the active profile (Settings › Providers). In Accept edits and Auto, a turn is also held to {(DEFAULT_TURN_BUDGET.maxTokens ?? 0).toLocaleString('en-US')} tokens
+        limit needs prices on the active profile (Settings › Providers). In Accept edits and Auto, a turn is also held to {formatCount(DEFAULT_TURN_BUDGET.maxTokens ?? 0)} tokens
         and {DEFAULT_TURN_BUDGET.maxSteps ?? 0} steps when those are empty.
       </p>
       <form className="settings-form" noValidate onSubmit={saveLimits}>

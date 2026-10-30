@@ -27,6 +27,7 @@ import {
   type TurnReport,
 } from '@caotang/harness';
 import type { TreeNode } from '@caotang/store';
+import { formatCount } from '../i18n/locale.js';
 
 /** How much of the streamed model text the panel keeps to show that work is happening. */
 export const STREAM_TAIL_CHARS = 240;
@@ -282,7 +283,7 @@ export function spendLine(run: TurnView['run']): string | undefined {
   const { spend, limits } = run;
   const of = (used: string, limit: string | undefined): string => (limit === undefined ? used : `${used} of ${limit}`);
   const tokens = spend.promptTokens + spend.completionTokens;
-  const parts = [`${of(tokens.toLocaleString('en-US'), limits.maxTokens?.toLocaleString('en-US'))} tokens`];
+  const parts = [`${of(formatCount(tokens), limits.maxTokens === undefined ? undefined : formatCount(limits.maxTokens))} tokens`];
   if (spend.costUsd !== undefined || limits.maxCostUsd !== undefined) {
     parts.push(of(`$${(spend.costUsd ?? 0).toFixed(4)}`, limits.maxCostUsd === undefined ? undefined : `$${limits.maxCostUsd.toFixed(4)}`));
   }

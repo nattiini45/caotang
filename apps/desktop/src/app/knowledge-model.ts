@@ -10,6 +10,7 @@ import { effectiveMode, knowledgeTreatmentOf, type CoherenceFile, type Knowledge
 import type { CodexEntry, ProjectState, TreeNode } from '@caotang/store';
 
 import { childrenOf } from './binder-model.js';
+import { namesCollator } from '../i18n/locale.js';
 
 /** A document in binder order: the depth-first walk, siblings by their order. */
 export interface BinderScene {
@@ -71,9 +72,10 @@ export function knowledgeRows(state: ProjectState, file: CoherenceFile | undefin
   });
 }
 
-/** The characters a Learns or Knows row may name: codex entries of type character, by name. */
-export function characterCandidates(entries: readonly CodexEntry[]): CodexEntry[] {
-  return entries.filter((entry) => entry.type === 'character').sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+/** The characters a Learns or Knows row may name: codex entries of type character, by name in the project language (D9). */
+export function characterCandidates(entries: readonly CodexEntry[], projectLanguage?: string): CodexEntry[] {
+  const names = namesCollator(projectLanguage);
+  return entries.filter((entry) => entry.type === 'character').sort((a, b) => names.compare(a.name, b.name));
 }
 
 /** A declared pair in words, for a list in the Inspector: the character and the fact, each by name. */

@@ -26,6 +26,7 @@ import {
 import type { ProjectSession } from '../app/session.js';
 import { createdNodeId, explain } from './actions.js';
 import { useSession } from './shared.js';
+import { DATE_AND_TIME, formatDateTime } from '../i18n/locale.js';
 import './unsent-words.css';
 
 export function UnsentWords({ session }: { session: ProjectSession }): ReactNode {
@@ -120,7 +121,7 @@ export function UnsentWords({ session }: { session: ProjectSession }): ReactNode
     <section className="footer-section unsent-words" aria-label="Words kept from a stopped tab" data-testid="unsent-words" data-answered={answered}>
       {entries.map((entry) => {
         const count = entry.documents.length;
-        const when = Number.isNaN(Date.parse(entry.savedAt)) ? '' : ` from ${new Date(entry.savedAt).toLocaleString()}`;
+        const when = Number.isNaN(Date.parse(entry.savedAt)) ? '' : ` from ${formatDateTime(new Date(entry.savedAt), DATE_AND_TIME)}`;
         const reload = entry.origin === 'reload';
         return (
           <div key={entry.stopId} className="unsent-entry" data-stop={entry.stopId}>

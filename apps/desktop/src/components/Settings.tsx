@@ -44,6 +44,7 @@ import { MacrosPanel } from './MacrosPanel.js';
 import { ContextSection } from './ContextSection.js';
 import { McpSection } from './McpSection.js';
 import { OpenOnDesktop, useNarrow } from './narrow.js';
+import { TIME_OF_DAY, formatCount, formatDateTime, formatUsd } from '../i18n/locale.js';
 
 /** The origin of an address, or the text itself when it does not parse (a form being typed). */
 function originOf(address: string): string {
@@ -257,10 +258,10 @@ function fieldDefaults(preset: PresetDef | undefined): Record<string, string> {
 /** A listed model's context window and price in one line, for the picker. Empty when the endpoint tells neither. */
 function modelDetails(model: ModelInfo): string {
   const parts: string[] = [];
-  if (model.contextWindow !== undefined) parts.push(`${model.contextWindow.toLocaleString('en-US')} tokens`);
+  if (model.contextWindow !== undefined) parts.push(`${formatCount(model.contextWindow)} tokens`);
   if (model.pricePer1k !== undefined) {
     const { prompt, completion } = model.pricePer1k;
-    parts.push(`$${prompt.toLocaleString('en-US', { maximumFractionDigits: 6 })} in, $${completion.toLocaleString('en-US', { maximumFractionDigits: 6 })} out per 1,000 tokens`);
+    parts.push(`${formatUsd(prompt)} in, ${formatUsd(completion)} out per ${formatCount(1000)} tokens`);
   }
   return parts.join(' · ');
 }
@@ -274,14 +275,14 @@ function capsLine(preset: PresetDef, model: string): string {
   // A local server's models are whatever the person pulled, so the row is a fallback and not a statement about this model.
   if (preset.local !== undefined) {
     const window = modelRowFor(preset, model.trim())?.contextWindow;
-    return `Until the server says more: ${window === undefined ? 'a small' : `${window.toLocaleString('en-US')}-token`} window, no native tools, no image input.`;
+    return `Until the server says more: ${window === undefined ? 'a small' : `${formatCount(window)}-token`} window, no native tools, no image input.`;
   }
   const row = modelRowFor(preset, model.trim());
   if (row === undefined) {
     return 'Not a documented model for this provider — it is called with conservative defaults (no tools, no thinking level).';
   }
   const parts: string[] = [];
-  if (row.contextWindow !== undefined) parts.push(`${row.contextWindow.toLocaleString('en-US')}-token window`);
+  if (row.contextWindow !== undefined) parts.push(`${formatCount(row.contextWindow)}-token window`);
   if (row.caps.tools === true) parts.push('native tools');
   if (row.caps.vision === true) parts.push('image input');
   if (row.caps.jsonSchema === true) parts.push('JSON-schema replies');
@@ -999,7 +1000,7 @@ function RequestLogPanel({ services }: { services: AppServices }): ReactNode {
           <tbody>
             {entries.map((entry, index) => (
               <tr key={`${entry.at}:${index}`} data-outcome={entry.outcome}>
-                <td>{new Date(entry.at).toLocaleTimeString()}</td>
+                <td>{formatDateTime(entry.at, TIME_OF_DAY)}</td>
                 <td>{names.get(entry.profileId) ?? entry.profileId}</td>
                 <td>{entry.attempt}</td>
                 <td>{entry.outcome}</td>
@@ -1087,7 +1088,7 @@ function WritingSection({ services }: { services: AppServices }): ReactNode {
     const words = Number(target);
     const ms = Number(debounce);
     if (!Number.isFinite(words) || words < 0 || words > TARGET_MAX_WORDS || !Number.isInteger(words)) {
-      setMessage(`The daily target is a whole number of words from 0 to ${TARGET_MAX_WORDS.toLocaleString('en-US')}; 0 means no target.`);
+      setMessage(`The daily target is a whole number of words from 0 to ${formatCount(TARGET_MAX_WORDS)}; 0 means no target.`);
       return;
     }
     if (!Number.isFinite(ms) || ms < DEBOUNCE_MIN_MS || ms > DEBOUNCE_MAX_MS || !Number.isInteger(ms)) {
@@ -1252,7 +1253,7 @@ function DataSection({
     const nextCap = Number(cap);
     const nextDays = Number(days);
     if (!Number.isInteger(nextCap) || nextCap < 1 || nextCap > CHECKPOINT_CAP_MAX) {
-      setMessage(`The checkpoint limit is a whole number from 1 to ${CHECKPOINT_CAP_MAX.toLocaleString('en-US')}.`);
+      setMessage(`The checkpoint limit is a whole number from 1 to ${formatCount(CHECKPOINT_CAP_MAX)}.`);
       return;
     }
     if (!Number.isInteger(nextDays) || nextDays < 1 || nextDays > CHECKPOINT_DAYS_MAX) {

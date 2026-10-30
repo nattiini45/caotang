@@ -17,6 +17,7 @@ import type { ThinkingLevel } from '@caotang/gateway';
 import { isPermissionMode, type ContextConfig, type PermissionMode } from '@caotang/harness';
 import { DEFAULT_RETENTION, parseRules, resolveRetentionConfig, type PermissionRule, type RetentionConfig } from '@caotang/store';
 import { EMPTY_MCP_SETTINGS, loadMcpSettings, type McpSettings } from '@caotang/mcp-client';
+import { formatCount } from '../i18n/locale.js';
 
 /** The scopes a review or a scan can start with (coherence.md §6.2): one document, what changed since the last pass, the whole manuscript. */
 export const REVIEW_SCOPES = ['doc', 'changed', 'full'] as const;
@@ -424,7 +425,7 @@ export function contextWarningOf(context: ContextSettings): string | undefined {
   if (context.totalBudgetTokens === undefined) return undefined;
   const caps = Object.values(context.layerBudgets).reduce<number>((sum, value) => sum + (value ?? 0), 0);
   if (caps === 0 || context.totalBudgetTokens >= caps) return undefined;
-  return `The total (${context.totalBudgetTokens.toLocaleString('en-US')} tokens) is below the layer caps together (${caps.toLocaleString('en-US')} tokens), so a layer can be cut before it reaches its own cap.`;
+  return `The total (${formatCount(context.totalBudgetTokens)} tokens) is below the layer caps together (${formatCount(caps)} tokens), so a layer can be cut before it reaches its own cap.`;
 }
 
 /** Applies a patch to settings and normalises the result, so a patch cannot leave the record outside its clamps. */

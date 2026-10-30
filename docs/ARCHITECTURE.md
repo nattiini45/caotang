@@ -127,7 +127,7 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 
 ### 2.20 `i18n` 🧭
 - **Responsibility:** one interface language, kept apart from the project (content) language: compiled message catalogs with a per-message English fallback, locale-aware formatting and sorting, a mirrored right-to-left interface, the agent writing to the writer in the interface language, translatable finding and notice text, and export boilerplate in the project language.
-- **Owns:** `packages/i18n` (locale resolution, `Intl` formatters, collation, bidi isolation, the `MessageRef` type), the desktop catalogs under `apps/desktop/src/i18n/`, the interface-language app setting. Specified, not built.
+- **Owns:** `packages/i18n` (locale resolution, `Intl` formatters, collation, bidi isolation, the `MessageRef` type; built, #192), the desktop formatter locale in `apps/desktop/src/i18n/locale.ts` (built), the desktop catalogs under `apps/desktop/src/i18n/` and the interface-language app setting (specified, not built).
 - **Spec:** [architecture/i18n.md](architecture/i18n.md).
 
 ### 2.21 `script` 🧭
@@ -162,7 +162,7 @@ TextAnchor     { from, to, exact, prefix, suffix, capturedRevision }            
 AssetRecord    { id, file, mime, sha256, bytes, width?, height?, caption?, alt?, decorative?, tags?, source?, transcription? }  // pictures.md §2.1 (planned)
 AssetLink      { id, assetId, target: project|node|paragraph, role: reference|card|source, order, note?, when? }        // pictures.md §2.1 (planned)
 TimelineOp     { op: meta|move|shift|picture-when, …, expect }                                                         // timeline.md §4.3 (planned)
-MessageRef     { id, values?, message }                                                                          // i18n.md §3.2 (planned)
+MessageRef     { id, values?, message }                                                                          // i18n.md §3.2 (type in @caotang/i18n; not yet emitted)
 ScriptLine     { id, kind: speech|narration|text, speaker?, text, durationSec?, declared }                        // av-script.md §2 (planned)
 ScriptCue      { id, kind, text, atSec?, forSec?, under? }                                                       // av-script.md §2, segment-owned (planned)
 ScriptTotals   { seconds, timedCount, untimed[] }                                                                 // av-script.md §4, the AnimaticTotals shape (planned)

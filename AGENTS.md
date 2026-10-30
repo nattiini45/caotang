@@ -75,6 +75,7 @@ packages/furniture/      binder / corkboard furniture
 packages/gateway/        provider gateway (profiles, roles, endpoints)
 packages/harness/        the agent harness — its tools and its registry
 packages/ids/           id helpers
+packages/i18n/          interface locale, formatter locale, cached Intl formatters, collation, bidi isolation, MessageRef (no React, no Lingui)
 packages/mcp-client/     MCP client (Streamable HTTP)
 packages/mcp-server/     Caotang as an MCP server (@caotang/mcp-server)
 packages/pdf-fonts/      what both PDFs share for their fallback fonts (byte checks, fontkit, CID writer, emoji)

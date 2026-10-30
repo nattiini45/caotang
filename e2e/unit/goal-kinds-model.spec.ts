@@ -17,6 +17,7 @@ import { goalSentence, paceCountOf, resetSentence, unitOf } from '../../apps/des
 import { FurnitureStore, goalProbeOf } from '../../apps/desktop/src/app/furniture-store.js';
 import type { ProjectSession } from '../../apps/desktop/src/app/session.js';
 import { project } from './fixtures.js';
+import { pinFormatLocale } from '../../apps/desktop/src/i18n/locale.js';
 
 /**
  * The goal kinds and metrics a writer sees in the binder footer (goals-progress §9.2, §9.3): the sentence a goal reads as, the unit it
@@ -62,6 +63,10 @@ function sessionOver(state: ProjectState, sittingWords = 0): ProjectSession {
 }
 
 test.describe('the sentence and the unit a goal reads in (goals-progress §2.2, §9.2, §9.3)', () => {
+  // The dates below are British: the formatter locale (D3) is pinned to en-GB, so they read the same on every machine.
+  test.beforeAll(() => pinFormatLocale('en-GB'));
+  test.afterAll(() => pinFormatLocale(undefined));
+
   test('a characters goal reads in characters, on the node it attaches to, and keeps its date', () => {
     expect(goalSentence({ comparator: 'at-least', target: 12_000, metric: 'chars', deadline: '2026-10-31' }, 'The Manuscript')).toBe(
       'at least 12,000 characters on The Manuscript by 31 Oct 2026',
