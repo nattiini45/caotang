@@ -43,6 +43,7 @@ import { renderMarkdown, renderText } from './render-text.js';
 import type { RenderInput } from './render-input.js';
 import { DEFAULT_TEMPLATE_ID, fileStem, resolveTemplate, type ExportTemplate } from './template.js';
 import {
+  hasTextProof,
   isBinaryFormat,
   isExportFormat,
   isMediaFormat,
@@ -491,6 +492,33 @@ export function createExporter(options: ExporterOptions): ExporterService {
           blocks: flat.blocks,
           titlePage,
           ...factsOf(resolved.format, { ...flat, blockCount: flat.blocks.length, tocIncluded, notes }),
+        };
+      } catch (error) {
+        if (error instanceof ApplyRefusal) return { kind: 'refused', error: error.error };
+        throw error;
+      }
+    },
+
+    async proof(request) {
+      const state = options.readState();
+      try {
+        // A binary container has no Proof here; an unknown format is refused below, as the compile refuses it.
+        if (isExportFormat(request.format) && !hasTextProof(request.format)) return { kind: 'none', format: request.format };
+        // The compile's own plan and renderer, with the bus's resolution of the recipe: the Proof is the file the compile would write.
+        const resolved = resolveRequest(state, request);
+        const compiled = plan(state, { ...resolved.plan, at: clock.now() });
+        const [first, ...rest] = filesOf(compiled, `${resolved.base}.${EXTENSION[resolved.format]}`);
+        if (first === undefined) throw new Error(`the ${resolved.format} compile produced no file`);
+        const rendered = splitRendered(await first.render());
+        const text = typeof rendered.contents === 'string' ? rendered.contents : new TextDecoder().decode(rendered.contents);
+        return {
+          kind: 'text',
+          format: resolved.format,
+          fileName: first.name,
+          mimeType: first.mimeType,
+          text,
+          otherFiles: rest.map((file) => file.name),
+          notes: [...rendered.notes],
         };
       } catch (error) {
         if (error instanceof ApplyRefusal) return { kind: 'refused', error: error.error };

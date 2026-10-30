@@ -259,6 +259,7 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - The Export dialog compiles a prompt pack as the bus does, three files in one zip, and the Prompt pack tab keeps its one file per click. Why: the dialog adds a path without changing the tab; one path for both is a separate change. [delegated]
 - The dialogue table's `charLimit` is a recipe option from 1 to 10,000. Why: localisation length budgets. [delegated]
 - The Export dialog groups formats as Prose, Media and Review. Why: findable formats. [delegated]
+- The Export dialog's Proof is the file the compile writes, from the compile's own plan and renderer, for the text formats only; a binary format (DOCX, EPUB, XLSX, the PDFs) says it has no Proof, and no format gets a CSS look-alike. A PDF Proof waits on the `frame-src 'none'` policy. Why: a proof that differs from the file is worse than none (#106). [delegated]
 
 ## MCP server and client
 
