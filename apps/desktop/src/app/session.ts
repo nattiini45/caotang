@@ -116,6 +116,7 @@ import {
   type EmitFailure,
   type ExportPreview,
   type ExportPreviewRequest,
+  type ExportProof,
   type ExporterService,
 } from '@caotang/exporter';
 import { dropDanglingImages, shotCommandPort } from '@caotang/storyboard';
@@ -1033,6 +1034,15 @@ export class ProjectSession {
    */
   previewExport(request: ExportPreviewRequest): ExportPreview {
     return this.exporterService.preview(request);
+  }
+
+  /**
+   * The Proof of a compile (exporter.md §4): the file the same request would write, made by the compile's own plan and renderer, for a format
+   * whose file is text; a binary format has none. A read, like `previewExport`: no bus command, gate, activity row or undo entry, and nothing is
+   * written to `exports/` or the compile log.
+   */
+  proofExport(request: ExportPreviewRequest): Promise<ExportProof> {
+    return this.exporterService.proof(request);
   }
 
   /** Resolves when every queued export write has settled, so the bytes of a finished compile are in the store. */

@@ -21,6 +21,7 @@ import {
   recipesOf,
   type ExportCommandDigest,
   type ExportFormat,
+  type ExportPreviewRequest,
   type ExportRecipe,
 } from '@caotang/exporter';
 import { loadZipEngine } from '@caotang/store';
@@ -92,6 +93,15 @@ const FORMAT_GROUPS: readonly { readonly name: string; readonly formats: readonl
     ],
   },
 ];
+
+/** A format's name as the dialog's format list gives it, for a sentence about it: "Word (.docx)". */
+function formatLabelOf(format: ExportFormat): string {
+  for (const group of FORMAT_GROUPS) {
+    const found = group.formats.find((option) => option.format === format);
+    if (found !== undefined) return found.label;
+  }
+  return format;
+}
 
 /** The recipe's options as the dialog shows them. An unset option shows the template's default. */
 interface ShownOptions {
@@ -274,6 +284,13 @@ export function ExportDialog({
       return { kind: 'failed', message: error instanceof Error ? error.message : String(error) };
     }
   }, [session, ready, readyFailure, version, format, pack, vendor, recipeFor, templateId, partId]);
+  // The same request, for the Proof, which is made in its own view (ExportProofView) when the writer asks for it.
+  const proofRequest: ExportPreviewRequest = {
+    selection: partId === null ? { kind: 'manuscript' } : { kind: 'nodes', includeRootIds: [partId] },
+    format,
+    ...(recipeFor === undefined ? {} : { recipeName: recipeFor }),
+    ...(templateId === undefined ? {} : { templateId }),
+  };
 
   // The control that opened the dialog takes focus back when it closes, so the keyboard is where it was. It is read on
   // the first render, before any effect runs: an effect that runs twice (React's development double run) would
@@ -643,7 +660,7 @@ export function ExportDialog({
           Empty documents are left out and listed in the compile log. Undo removes the file again.
         </p>
 
-        <ExportPreviewPanel state={preview} />
+        <ExportPreviewPanel state={preview} session={session} request={proofRequest} version={version} formatLabel={formatLabelOf(format)} />
 
         <div className="export-footer">
           {notice === null ? null : (
