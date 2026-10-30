@@ -24,6 +24,8 @@ export interface SourceFieldProps {
   /** The view's own classes for the input, kept so its existing styling still applies. */
   readonly inputClassName: string;
   readonly rows?: number;
+  /** The input's `aria-keyshortcuts`: the chords it takes beyond typing. Absent: none is announced. */
+  readonly keyShortcuts?: string;
 }
 
 export function SourceField({
@@ -36,6 +38,7 @@ export function SourceField({
   inputRef,
   inputClassName,
   rows,
+  keyShortcuts,
 }: SourceFieldProps): ReactNode {
   const layer = useRef<HTMLDivElement>(null);
   return (
@@ -59,6 +62,7 @@ export function SourceField({
         ref={inputRef}
         className={`src-input ${inputClassName}`}
         aria-label={label}
+        aria-keyshortcuts={keyShortcuts}
         value={value}
         rows={rows}
         spellCheck={false}

@@ -395,10 +395,16 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(read('apps/desktop/src/app/keymap.ts')).toMatch(/return facts\.ctrl \|\| facts\.meta;/);
     expect(keyboard).toMatch(/\| Ctrl\+E \| On a screenplay's Source tab, open the element menu for the caret's line\. \|/);
     expect(keyboard).not.toContain('Cmd+E');
-    // The element chords are the one row that names its Mac spelling, because Cmd+Shift+digit is not free on a Mac.
-    expect(keyboard).toContain('The element chords are the one exception: they use Cmd+Alt');
+    // The screenplay chords are the rows that name their Mac spelling, because Cmd+Shift+digit is not free on a Mac.
+    expect(keyboard).toContain('The screenplay chords are the one exception: the element, section and synopsis chords use Cmd+Alt');
     expect(keyboard).toContain('| Ctrl+Shift+1 to 9 (Cmd+Alt+1 to 9 on a Mac) |');
     expect(screenplay).toContain('**Ctrl+Shift+1** to **9** (**Cmd+Alt+1** to **9** on a Mac)');
+    // The route chords: the guide's letters are the ones element-menu.ts binds, in the same family.
+    expect(keyboard).toContain('| Ctrl+Shift+S (Cmd+Alt+S on a Mac) |');
+    expect(keyboard).toContain('| Ctrl+Shift+Y (Cmd+Alt+Y on a Mac) |');
+    expect(screenplay).toContain('**Ctrl+Shift+S** (**Cmd+Alt+S** on a Mac)');
+    expect(screenplay).toContain('**Ctrl+Shift+Y** (**Cmd+Alt+Y** on a Mac)');
+    expect(menu).toContain("const ROUTE_KEY: Readonly<Record<SourceRoute, string>> = { section: 's', synopsis: 'y' };");
     expect(menu).toContain("other: { ctrl: true, meta: false, alt: false, shift: true, label: 'Ctrl+Shift'");
     expect(menu).toContain("mac: { ctrl: false, meta: true, alt: true, shift: false, label: 'Cmd+Alt'");
   });

@@ -23,7 +23,20 @@ import { fountainSegments } from './source-decor.js';
 import { cueCompletion, cueNames, enterAfterCue, enterOnEmptyDialogue, type KeyEdit } from './screenplay-keys.js';
 import { OpenOnDesktop, useNarrow } from '../components/narrow.js';
 import { ScreenplayPreview } from './ScreenplayPreview.js';
-import { ELEMENT_MENU_LABEL, chordAria, chordPlatform, chordRange, elementChord, elementEntries, opensElementMenu, type ElementEntry } from './element-menu.js';
+import {
+  ELEMENT_MENU_LABEL,
+  SOURCE_ROUTES,
+  chordAria,
+  chordPlatform,
+  chordRange,
+  elementChord,
+  elementEntries,
+  opensElementMenu,
+  routeAria,
+  routeChord,
+  type ElementEntry,
+  type SourceRoute,
+} from './element-menu.js';
 import { isImeEnter } from '../app/ime.js';
 
 export interface ScreenplayViewProps {
@@ -34,6 +47,11 @@ export interface ScreenplayViewProps {
   readonly onRevealHandled?: () => void;
   /** Sends a request to the agent. Absent: the scene does not offer to derive its shots (storyboard.md §4). */
   readonly onAgentIntent?: (intent: string) => void;
+  /**
+   * The Source tab's two routes to the binder (screenplay.md §3): the section chord shows the folder the scene is in, and the synopsis
+   * chord focuses the scene's synopsis in the inspector. Absent: that chord is not taken, and the key keeps its meaning.
+   */
+  readonly onRoute?: (route: SourceRoute) => void;
 }
 
 type Mode = 'script' | 'source' | 'pages';
@@ -59,7 +77,7 @@ interface OpenElementMenu {
   readonly entries: readonly ElementEntry[];
 }
 
-export function ScreenplayView({ session, node, reveal = null, onRevealHandled = NOOP, onAgentIntent }: ScreenplayViewProps): ReactNode {
+export function ScreenplayView({ session, node, reveal = null, onRevealHandled = NOOP, onAgentIntent, onRoute }: ScreenplayViewProps): ReactNode {
   useSession(session);
   const report = useReport();
   // The cleanup below runs after the view is gone, so it calls the report it last saw, and the effect does not restart for it.
@@ -139,7 +157,8 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
 
   /**
    * The Source tab's keys (screenplay.md §3): Ctrl+E (Cmd+E) opens the element menu, the element chords (Ctrl+Shift+1..9, or
-   * Cmd+Alt+1..9 on a Mac) rewrite the caret's line, Enter works after a cue and on empty dialogue, and Tab on a half-typed cue.
+   * Cmd+Alt+1..9 on a Mac) rewrite the caret's line, the route chords (Ctrl+Shift+S and Ctrl+Shift+Y, or Cmd+Alt+S and Cmd+Alt+Y)
+   * show the scene's section and synopsis, Enter works after a cue and on empty dialogue, and Tab on a half-typed cue.
    * Any other key with a modifier, or one that is not one of these, keeps its meaning, and so does Enter or Tab with a selection.
    */
   const onSourceKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -152,6 +171,12 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
     if (chosen !== null) {
       event.preventDefault();
       changeElement(event.currentTarget, chosen);
+      return;
+    }
+    const route = onRoute === undefined ? null : routeChord(event.nativeEvent, platform);
+    if (route !== null) {
+      event.preventDefault();
+      onRoute?.(route);
       return;
     }
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
@@ -355,6 +380,7 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
                 segments={segments}
                 onChange={onSourceChange}
                 onKeyDown={onSourceKeyDown}
+                keyShortcuts={onRoute === undefined ? undefined : SOURCE_ROUTES.map((route) => routeAria(route, platform)).join(' ')}
                 onBlur={(event) => {
                   lastSourceCaret.current = event.currentTarget.selectionStart;
                 }}

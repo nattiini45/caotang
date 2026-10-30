@@ -68,6 +68,25 @@ export function childrenOf(state: ProjectState, parentId: string | null): TreeNo
 }
 
 /**
+ * The folders a node sits in, nearest first: its parent folder, that folder's parent folder, and so on up to the manuscript or
+ * research. A Fountain section is a binder folder (screenplay.md §2.2), so a screenplay scene's section is the first of these. The
+ * manuscript and research are the binder's own sections, not Fountain ones, so they are never listed: a node directly under one has none.
+ */
+export function enclosingFolders(state: ProjectState, nodeId: string): TreeNode[] {
+  const folders: TreeNode[] = [];
+  const seen = new Set<string>([nodeId]);
+  let parentId = nodeById(state, nodeId)?.parentId ?? null;
+  while (parentId !== null && !seen.has(parentId)) {
+    seen.add(parentId);
+    const parent = nodeById(state, parentId);
+    if (parent === undefined || parent.type !== 'folder' || isSectionId(parent.id)) break;
+    folders.push(parent);
+    parentId = parent.parentId;
+  }
+  return folders;
+}
+
+/**
  * The binder's default expansion (ui-modules §2.1: "expanded one level"): a folder
  * directly under a section is open, and anything deeper starts closed. An explicit
  * `view.setExpanded` override always wins over this default.

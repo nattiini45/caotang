@@ -23,7 +23,7 @@ import type { ProjectState, RuntimeStore } from '@caotang/store';
 
 import { activityMarkdown } from '../app/activity-model.js';
 import { AgentController, type SubmitOptions } from '../app/agent.js';
-import { childrenOf, newDocumentRefusalText, newItemParent, nodeById, summarizeSubtree } from '../app/binder-model.js';
+import { childrenOf, enclosingFolders, newDocumentRefusalText, newItemParent, nodeById, summarizeSubtree } from '../app/binder-model.js';
 import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, folderIsEmpty, pickDirectory, type DirectoryHandleLike } from '../app/fs-access.js';
 import { keyFacts, resolveKey } from '../app/keymap.js';
@@ -58,6 +58,7 @@ import { CodexPanel } from './CodexPanel.js';
 import { ActivityPanel } from './ActivityPanel.js';
 import { TracePanel } from './TracePanel.js';
 import { mediaKindOf, mediaPortsFor, mediaViewFor } from '../media/index.js';
+import type { SourceRoute } from '../media/element-menu.js';
 
 import { Corkboard } from './Corkboard.js';
 import { EditorPane, type RevealRequest } from './EditorPane.js';
@@ -81,6 +82,7 @@ import {
   explain,
   liveSelection,
   selectNode,
+  setExpanded,
 } from './actions.js';
 import {
   ChoiceDialog,
@@ -321,6 +323,54 @@ export function Workspace({
       : shotBoard !== undefined && mediaKindOf(shotBoard) === 'storyboard'
         ? shotBoard
         : undefined;
+  /**
+   * The screenplay Source tab's section route (screenplay.md §3): the binder selects the folder the scene is in, its Fountain section,
+   * and focuses its row, as Left does in the tree. The folders above it are opened so the row is on screen, and the rails come back
+   * if focus mode hid them. A scene directly under the manuscript has no section, and the status line says so.
+   */
+  const showSceneSection = (sceneId: string): void => {
+    const [section, ...above] = enclosingFolders(state, sceneId);
+    if (section === undefined) {
+      report({ text: 'This scene is in no folder, so it has no section. Make a folder in the binder and move the scene into it.', tone: 'info' });
+      return;
+    }
+    if (hideRails) setFocusMode(false);
+    setRail('binder');
+    if (narrow) setPanel('rail');
+    for (const folder of above) setExpanded(session, folder.id, true);
+    selectNode(session, section.id);
+    if (!narrow) setCenter('corkboard');
+    requestAnimationFrame(() => {
+      const row = document.querySelector<HTMLElement>(`.binder-tree [data-node-id="${CSS.escape(section.id)}"]`);
+      if (row !== null) row.focus();
+      // A missing row is a filter that hides it, unless the folder went in the frame since the key (an agent's delete).
+      else if (nodeById(session.state, section.id) === undefined) report({ text: `"${section.title}" is no longer in the binder.`, tone: 'info' });
+      else report({ text: `The binder filter hides "${section.title}". Clear the filter to see it.`, tone: 'info' });
+    });
+  };
+
+  /**
+   * The Source tab's synopsis route (screenplay.md §3): the scene's synopsis field in the inspector takes the focus, as the binder's
+   * Edit synopsis does. The field edits the manifest's synopsis, which is the one truth (§2.2), never a `=` line in the text.
+   */
+  const focusSceneSynopsis = (sceneId: string): void => {
+    if (hideRails) setFocusMode(false);
+    if (selected !== sceneId) selectNode(session, sceneId);
+    if (narrow) setPanel('inspector');
+    // Unlike the binder's Edit synopsis, a miss is said: the chord was pressed in the text, and nothing else would show it failed.
+    requestAnimationFrame(() => {
+      const field = document.querySelector<HTMLElement>('#inspector-synopsis');
+      if (field !== null) field.focus();
+      else report({ text: 'The scene’s synopsis is not showing, so the chord could not open it.', tone: 'info' });
+    });
+  };
+
+  /** The Source tab's routes, one handler each, so a route added to `SourceRoute` without a handler does not compile. */
+  const sceneRoutes: Readonly<Record<SourceRoute, (sceneId: string) => void>> = {
+    section: showSceneSection,
+    synopsis: focusSceneSynopsis,
+  };
+
   // In the narrow layout a storyboard and a dialogue container say "Open on desktop" in place of their view (ui-modules §1).
   const desktopOnly = narrow && mediaNode !== undefined ? narrowMediaFeature(mediaKindOf(mediaNode)) : null;
   const mediaView =
@@ -348,6 +398,7 @@ export function Workspace({
             setAgentOpen(true);
             void agent.submit(intent);
           },
+          onSourceRoute: (route, scene) => sceneRoutes[route](scene.id),
         })
       )
     ) : null;
