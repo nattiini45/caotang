@@ -209,6 +209,9 @@ test.describe('the element menu lists the elements and marks the line’s own', 
     expect(key({ ctrlKey: true, shiftKey: true })).toBe(false);
     expect(key({ ctrlKey: true, altKey: true })).toBe(false);
     expect(key({ ctrlKey: true, key: 'r' })).toBe(false);
+    // On a Russian layout the physical E types у, and still opens it; on a Latin layout the key wins over the physical key.
+    expect(opensElementMenu({ key: 'у', code: 'KeyE', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })).toBe(true);
+    expect(opensElementMenu({ key: 'r', code: 'KeyE', ctrlKey: true, metaKey: false, altKey: false, shiftKey: false })).toBe(false);
   });
 });
 

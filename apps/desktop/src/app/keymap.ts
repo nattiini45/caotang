@@ -36,6 +36,13 @@ export type KeyAction =
 export interface KeyFacts {
   /** `KeyboardEvent.key`, e.g. `'n'`, `'Enter'`, `'F2'`, `'ArrowUp'`. */
   readonly key: string;
+  /**
+   * `KeyboardEvent.code`, the physical key, e.g. `'KeyZ'`, `'Digit1'`. A chord falls back to it when `key` is a character outside
+   * ASCII, so Ctrl+Z is undo on a Russian, Greek, Hebrew or Arabic layout too (ui-modules §2.5). Empty when unknown.
+   */
+  readonly code: string;
+  /** `event.getModifierState('AltGraph')`: the layout's AltGr is down, which Windows also reports as Ctrl+Alt. */
+  readonly altGraph: boolean;
   readonly ctrl: boolean;
   readonly meta: boolean;
   readonly shift: boolean;
@@ -57,6 +64,44 @@ export interface KeyContext {
   readonly inAgentIntent?: boolean;
 }
 
+/** The parts of a DOM or React keyboard event that `keyFacts` reads. */
+export interface KeyEventLike {
+  readonly key: string;
+  readonly code: string;
+  readonly ctrlKey: boolean;
+  readonly metaKey: boolean;
+  readonly shiftKey: boolean;
+  readonly altKey: boolean;
+  getModifierState?(key: string): boolean;
+}
+
+/** The facts `resolveKey` reads, taken from a key event. */
+export function keyFacts(event: KeyEventLike): KeyFacts {
+  return {
+    key: event.key,
+    code: event.code,
+    altGraph: event.getModifierState?.('AltGraph') === true,
+    ctrl: event.ctrlKey,
+    meta: event.metaKey,
+    shift: event.shiftKey,
+    alt: event.altKey,
+  };
+}
+
+/**
+ * The key a chord compares, lower-cased when it is one character. `key` wins, so the key labelled Z is undo on QWERTY, QWERTZ
+ * and AZERTY alike. Only a character outside ASCII (`'я'`, `'ζ'`, `'ז'`, `'ئ'`) falls back to the physical key: `KeyZ` reads
+ * as `'z'` and `Digit1` as `'1'`. ASCII punctuation keeps its own key, so a layout that types `;` or `[` on a letter key
+ * (Dvorak, AltGr on Hungarian) never borrows that letter's chord.
+ */
+export function chordKey(key: string, code: string): string {
+  if ([...key].length !== 1) return key;
+  if (key.charCodeAt(0) < 0x80) return key.toLowerCase();
+  const physical = /^(?:Key([A-Z])|Digit([0-9]))$/.exec(code);
+  if (physical !== null) return (physical[1] ?? physical[2] ?? '').toLowerCase();
+  return key.toLowerCase();
+}
+
 /** Ctrl on Windows and Linux, Cmd on macOS — either counts as the command modifier. */
 function command(facts: KeyFacts): boolean {
   return facts.ctrl || facts.meta;
@@ -70,7 +115,9 @@ function command(facts: KeyFacts): boolean {
  */
 export function resolveKey(facts: KeyFacts, context: KeyContext): KeyAction | null {
   const cmd = command(facts);
-  const key = facts.key.length === 1 ? facts.key.toLowerCase() : facts.key;
+  const key = chordKey(facts.key, facts.code);
+  // AltGr types a layout's characters (`@`, `{`, `€` on German) and Windows reports it as Ctrl+Alt, so it is never a Ctrl+Alt chord.
+  if (facts.altGraph && cmd && facts.alt) return null;
 
   if (cmd && !facts.alt && key === 'n' && !facts.shift) return 'new-document';
   if (cmd && !facts.alt && key === 'z' && !facts.shift) return context.inTextField ? null : 'undo';
