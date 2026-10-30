@@ -6,10 +6,12 @@ import type { FlatBlock } from '../../packages/exporter/src/index.js';
 import { ProjectSession } from '../../apps/desktop/src/app/session.js';
 import { sampleProjectState } from '../../apps/desktop/src/app/demo.js';
 import { PREVIEW_SCENE_CAP, countPhrase, draftListing, holdsOf } from '../../apps/desktop/src/components/export-preview-model.js';
+import { PROOF_CHAR_CAP, proofExcerpt } from '../../apps/desktop/src/components/export-proof-model.js';
 
 /**
- * The export dialog's Preview (exporter.md §4, the Draft): the rows it lists and its cap (components/export-preview-model.ts), and the
- * session's `previewExport`, which is a read: it writes nothing, runs no command and leaves no undo entry.
+ * The export dialog's Preview (exporter.md §4, the Draft and the Proof): the rows the Draft lists and its cap
+ * (components/export-preview-model.ts), the Proof's cut (components/export-proof-model.ts), and the session's `previewExport` and
+ * `proofExport`, which are reads: they write nothing, run no command and leave no undo entry.
  */
 
 const globals = globalThis as unknown as Record<string, unknown>;
@@ -105,6 +107,47 @@ test('session.previewExport reads the project and writes nothing: no file, no co
 
   expect(draft.kind).toBe('draft');
   expect(draft.kind === 'draft' && draft.sceneCount).toBeGreaterThan(0);
+  expect(session.log.length).toBe(logged);
+  expect(session.undo.groups().length).toBe(groups);
+  expect(session.getVersion()).toBe(version);
+  expect(session.exportFailures()).toEqual([]);
+  expect(await session.readExport('exports/compile-log.json')).toBeNull();
+  expect(await session.readExport(`exports/${state.manifest.project.name}.md`)).toBeNull();
+});
+
+test('a Proof shows a short file whole, and cuts a long one at a line end near the cap, saying how much it shows', () => {
+  expect(PROOF_CHAR_CAP).toBe(60_000);
+  expect(proofExcerpt('# Title\n\nText.\n')).toEqual({ text: '# Title\n\nText.\n', shownChars: 15, totalChars: 15 });
+
+  const line = `${'a'.repeat(99)}\n`;
+  const long = line.repeat(1000);
+  const cut = proofExcerpt(long, 1050);
+  expect(cut.text).toBe(line.repeat(10));
+  expect([cut.shownChars, cut.totalChars]).toEqual([1000, 100_000]);
+
+  // No line end in reach: the cut is at the cap, and never between the two halves of an emoji.
+  const emoji = `${'b'.repeat(9)}😀tail`;
+  expect(proofExcerpt(emoji, 10).text).toBe('b'.repeat(9));
+  expect(proofExcerpt(emoji, 11).text).toBe(`${'b'.repeat(9)}😀`);
+});
+
+test('session.proofExport is the file the compile would write for a text format, none for a binary one, and writes nothing', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const session = new ProjectSession({ store, projectId: state.manifest.project.id, state, shadow: null });
+  await session.exportsReady();
+  const logged = session.log.length;
+  const groups = session.undo.groups().length;
+  const version = session.getVersion();
+
+  const proof = await session.proofExport({ selection: { kind: 'manuscript' }, format: 'md' });
+  const word = await session.proofExport({ selection: { kind: 'manuscript' }, format: 'docx' });
+  await session.exportsIdle();
+
+  expect(proof.kind).toBe('text');
+  expect(proof.kind === 'text' && proof.fileName).toBe(`${state.manifest.project.name}.md`);
+  expect(proof.kind === 'text' && proof.text).toContain(`# ${state.manifest.project.name}`);
+  expect(word).toEqual({ kind: 'none', format: 'docx' });
   expect(session.log.length).toBe(logged);
   expect(session.undo.groups().length).toBe(groups);
   expect(session.getVersion()).toBe(version);
