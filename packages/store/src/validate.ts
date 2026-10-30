@@ -42,6 +42,7 @@ import type {
   GoalMetricParam,
 } from '@caotang/bus';
 import { isGeneratedId, isIdWithPrefix } from '@caotang/ids';
+import { readAssetRecord, unknownRecordKeys } from '@caotang/pictures';
 import { parseRules } from './agent-rules.js';
 import { bodyNamesOf, isBodyType } from './paths.js';
 import { isJsonNumber, jsonValueProblem } from './json-value.js';
@@ -649,6 +650,7 @@ function validateFields(
   validateGoals(source, nodeIds, warn);
   validateMacros(source, warn);
   validateAgent(source, nodeIds, warn);
+  validateAssetRecords(source, warn);
 
   // Step 3 — derived (rebuildable; absence is not an error)
   if (source.derived !== undefined && !isRecord(source.derived)) {
@@ -1474,6 +1476,43 @@ function validateMacros(source: Record<string, unknown>, warn: (path: string, me
   }
   if (kept.length === 0) delete source['macros'];
   else source['macros'] = kept;
+}
+
+/**
+ * Step 3's `assets[]` — [pictures.md §2.1](docs/architecture/pictures.md).
+ *
+ * The `macros[]` convention: a record that cannot be read is dropped with a warning that names it, and the load goes on. A second
+ * record with a kept record's id is dropped. A record whose file is missing is **kept** (it carries the writer's caption and alt);
+ * that is a listing question, not a manifest one, so nothing here looks at `assets/`. A key this build does not know is named in a
+ * warning and left out, as an unknown node key is. With no record left the key is removed, as a project that never had one.
+ */
+function validateAssetRecords(source: Record<string, unknown>, warn: (path: string, message: string) => void): void {
+  const raw = source['assets'];
+  if (raw === undefined) return;
+  if (!Array.isArray(raw)) {
+    warn('assets', 'expected an array of picture records; dropped, and the open makes them again from the files in assets/');
+    delete source['assets'];
+    return;
+  }
+  const kept: unknown[] = [];
+  const ids = new Set<string>();
+  for (const [i, item] of (raw as unknown[]).entries()) {
+    const read = readAssetRecord(item);
+    if (!read.ok) {
+      warn(`assets[${i}]`, `${read.reason}; picture record dropped (the file in assets/ is untouched)`);
+      continue;
+    }
+    if (ids.has(read.record.id)) {
+      warn(`assets[${i}]`, `duplicate id "${read.record.id}"; dropped, and the first record keeps it`);
+      continue;
+    }
+    const unknown = isRecord(item) ? unknownRecordKeys(item) : [];
+    if (unknown.length > 0) warn(`assets[${i}]`, `unknown ${unknown.length === 1 ? 'key' : 'keys'} ${unknown.join(', ')}; dropped on next save`);
+    ids.add(read.record.id);
+    kept.push(read.record);
+  }
+  if (kept.length === 0) delete source['assets'];
+  else source['assets'] = kept;
 }
 
 /** Step 4: referential integrity. */

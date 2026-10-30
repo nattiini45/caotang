@@ -452,7 +452,10 @@ export {
   type ProjectAssetPort,
 } from './commands-project.js';
 export { loadZipEngine } from './zip.js';
-export type { ExportRecipe, ExportRecipeOptions } from './manifest.js';
+export type { AssetRecord, ExportRecipe, ExportRecipeOptions } from './manifest.js';
+// The picture registry (pictures.md): the commands' registrations and the open's backfill of a record for every used file.
+export { pictureCommandRegistrations } from './commands-pictures.js';
+export { backfillAssetRecords, type AssetBackfillSource } from './asset-backfill.js';
 
 // Storyboard: the browser's copy of the project's images, in its own IndexedDB database (storyboard.md §2.2).
 export {

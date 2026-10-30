@@ -80,10 +80,18 @@ export type {
   ShotImportImageParams,
   ShotImportImagesParams,
   ShotSetMetaCommandParams,
+  AssetImportBatchParams,
+  AssetImportParams,
+  AssetImportSource,
+  AssetLargePhotos,
+  AssetMetaPatch,
+  AssetSetMetaParams,
   StoryboardCreateCommandParams,
 } from './command.js';
 // Storyboard: the shot image import's descriptor, by name, for the store's registration.
 export * as shotImageCommands from './descriptors-shot-image.js';
+// The picture registry's descriptors (pictures.md §2.4), by name, for the store's registration.
+export * as pictureCommands from './descriptors-pictures.js';
 export * as commands from './descriptors.js';
 // Project export: the project, recipe, vocabulary and cover-import descriptors, by name. The store reads them here.
 export * as projectCommands from './descriptors-project.js';

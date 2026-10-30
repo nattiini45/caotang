@@ -50,6 +50,9 @@ export const NEVER_EXPOSED = [
   'project.importAsset',
   'shot.importImage',
   'shot.importImages',
+  // The picture registry's imports take bytes the host staged (pictures.md §2.4); the agent's pictures arrive through its own tools (§8).
+  'asset.import',
+  'asset.importBatch',
   'mcp.invoke',
   // A resource is read when the writer picks it, so no tool stands for the read (extensibility §4 rule 8).
   'mcp.readResource',

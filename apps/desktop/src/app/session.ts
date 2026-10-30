@@ -72,12 +72,14 @@ import {
   type UndoStore,
   type ViewState,
 } from '@caotang/bus';
+import { isLargePhoto, type LargePhotoChoice, type PictureDecoder } from '@caotang/pictures';
 import {
   AUTOSAVE_DEBOUNCE_MS,
   DEFAULT_RETENTION,
   RevisionConflictError,
   appendSession,
   createAutosave,
+  backfillAssetRecords,
   backfillProjectIdentity,
   readSessions,
   createAssetStaging,
@@ -130,6 +132,7 @@ import { CodexMentions } from './codex-model.js';
 import { ExportStore } from './exports.js';
 import { inkCompilerStatus, requestInkCompiler, requestInkCompilerFor } from './ink-compiler.js';
 import { ProjectAssets, coverFileHeld } from './project-assets.js';
+import { browserPictureDecoder } from './picture-decoder.js';
 import { SkillReviews } from './skill-reviews.js';
 import { skillsView, type SkillsView } from './skills-model.js';
 import type { DirectoryHandleLike } from './fs-access.js';
@@ -338,6 +341,14 @@ export class ProjectSession {
   readonly assets: ProjectAssets;
   /** The images the writer has chosen and the next `project.importAsset` will take: held in memory, and single-use. */
   private readonly assetStaging: AssetStaging = createAssetStaging();
+  /** The browser's picture decoder (picture-decoder.ts), or none in a headless run. */
+  private readonly pictureDecoder: PictureDecoder | undefined = browserPictureDecoder();
+  /** Whether the open's backfill of the picture registry has run (pictures.md §6.2). Once per session, after the image check. */
+  private picturesBackfilled = false;
+  /** The backfill in flight, so two calls that find the listing authoritative run it once. */
+  private picturesBackfill: Promise<void> | null = null;
+  /** The large-photo question's answer, asked once and remembered while this project is open (pictures.md §6.4, D6). */
+  private largePhotoAnswer: LargePhotoChoice | undefined;
   /** The skill folders the writer has chosen and the next `skill.import` will take: held in memory, and single-use. */
   private readonly skillStaging: SkillStaging = createSkillStaging();
   /** The writer's reviews of this project's skills. A skill the writer has not read is not offered to the agent (extensibility.md §10). */
@@ -448,7 +459,14 @@ export class ProjectSession {
       shots: shotCommandPort(),
       // The cover image's bytes go to the project's asset store, which writes them through to the project folder when one
       // is open. The exporter reads the cover back from the same store (epub-metadata.md).
-      assets: { staging: this.assetStaging, writeBytes: (path, bytes) => this.assets.writeBytes(path, bytes) },
+      // The same port carries the browser's decoder (pictures.md §6.4): HEIC where the browser reads it, and working copies of large
+      // photos. Every picture import (the cover, a shot, `asset.import`) runs the registry's pipeline through it.
+      assets: {
+        staging: this.assetStaging,
+        writeBytes: (path, bytes) => this.assets.writeBytes(path, bytes),
+        has: (path) => this.assets.has(path),
+        ...(this.pictureDecoder === undefined ? {} : { decoder: this.pictureDecoder }),
+      },
       // The skills the writer imports are staged here, and the command names them (extensibility.md §10).
       skillStaging: this.skillStaging,
     });
@@ -1560,15 +1578,91 @@ export class ProjectSession {
    * a listing that failed) drops nothing and leaves the check to run when a later listing is (`attachFolder`).
    */
   async checkImageReferences(): Promise<void> {
-    if (this.imagesChecked) return;
+    // After the check, a call only retries a backfill that failed (a later authoritative listing); one that ran is a no-op.
+    if (this.imagesChecked) return this.backfillPictureRecords();
     await this.assets.ready();
     if (this.imagesChecked || !this.assets.listingAuthoritative()) return;
     this.imagesChecked = true;
     const notices = dropDanglingImages(this.state, this.assets.presentIds());
-    if (notices.length === 0) return;
-    this.imageDropNotes = notices;
+    if (notices.length > 0) {
+      this.imageDropNotes = notices;
+      this.persistence.schedule();
+      this.bump();
+    }
+    await this.backfillPictureRecords();
+  }
+
+  /**
+   * The open's backfill of the picture registry (pictures.md §6.2): every used picture whose file the listing holds gets a record in
+   * `assets[]`, with its hash and size, written with the next save, the way the identifier and the language were back-filled. It runs
+   * once per session, after the image check, against the same authoritative listing, so a dropped reference is never given a record.
+   * A listing or read that fails costs the backfill, never the open: it is skipped, and the next call that finds the listing
+   * authoritative (a settle, the storyboard opening, a folder attached) tries it again. It is marked done only when it has run.
+   */
+  private backfillPictureRecords(): Promise<void> {
+    if (this.picturesBackfilled) return Promise.resolve();
+    this.picturesBackfill ??= this.runPictureBackfill().finally(() => {
+      this.picturesBackfill = null;
+    });
+    return this.picturesBackfill;
+  }
+
+  private async runPictureBackfill(): Promise<void> {
+    let added: readonly unknown[];
+    try {
+      await this.assets.ready();
+      if (!this.assets.listingAuthoritative()) return;
+      const fs = this.assets.artifactFs();
+      added = await backfillAssetRecords(this.state, {
+        list: () => fs.listFiles('assets'),
+        read: async (path) => (await this.assets.readBytes(path)) ?? undefined,
+      });
+    } catch {
+      // Nothing is lost: a picture without a record is still shown and exported, and the records are filled in by a later try.
+      return;
+    }
+    this.picturesBackfilled = true;
+    if (added.length === 0) return;
     this.persistence.schedule();
     this.bump();
+  }
+
+  /**
+   * Imports pictures into the project's pictures (`asset.importBatch`, pictures.md §2.4) as one undo step. The large-photo question
+   * (above 24 megapixels or 8 MB) is asked once per batch, through `ask`, and the answer is kept for the rest of the session; without
+   * `ask`, or when no photo is large, the originals are kept. A refusal is kept for the status line, as every dispatch's is.
+   */
+  async importPictures(
+    files: readonly { readonly bytes: Uint8Array; readonly label?: string; readonly kind?: 'import' | 'paste' }[],
+    ask?: (largeCount: number) => Promise<LargePhotoChoice | undefined>,
+  ): Promise<Result<ExecutionOutcome, CommandError>> {
+    const large = files.filter((file) => isLargePhoto(file.bytes)).length;
+    let largePhotos: LargePhotoChoice = 'keep';
+    if (large > 0) {
+      const answer = this.largePhotoAnswer ?? (ask === undefined ? undefined : await ask(large));
+      if (answer !== undefined) {
+        this.largePhotoAnswer = answer;
+        largePhotos = answer;
+      }
+    }
+    const command: Command<CommandParams['asset.importBatch']> = {
+      id: newId('cmd'),
+      name: 'asset.importBatch',
+      params: {
+        items: files.map((file) => ({
+          stagingId: this.assetStaging.stage(file.bytes),
+          source: { kind: file.kind ?? 'import', ...(file.label === undefined ? {} : { label: file.label.slice(0, 200) }) },
+        })),
+        largePhotos,
+      },
+      issuedBy: 'user',
+      createdAt: Date.now(),
+    };
+    const result = await executeAsync(command, this.bus, this.registry);
+    if (!result.ok) this.rejections.push({ command: command.name, issuedBy: command.issuedBy, code: result.error.code });
+    await this.refreshAssetRecords();
+    this.afterCommand();
+    return result;
   }
 
   /**
