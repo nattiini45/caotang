@@ -18,7 +18,7 @@ import { hasDivider, splitNotes } from '../app/notes-model.js';
 import { InspectorGoals } from './InspectorGoals.js';
 import { SynopsisField } from './SynopsisField.js';
 import { openDialog } from './dialog-requests.js';
-import { CodexSection, SceneMetaSection, SceneStyleSection } from './InspectorSections.js';
+import { CodexSection, FolderStoryPartSection, SceneMetaSection, SceneStyleSection } from './InspectorSections.js';
 import { DialogueMetaSection } from './InspectorDialogue.js';
 import { addKeyword, explain, removeKeyword, setLabel, setNotes, setStatus } from './actions.js';
 import {
@@ -126,6 +126,7 @@ function InspectorContent({
 
       <CodexSection session={session} node={node} onOpenCodex={onOpenCodex} />
       {node.type === 'document' ? <SceneMetaSection session={session} node={node} /> : null}
+      {node.type === 'folder' ? <FolderStoryPartSection session={session} node={node} /> : null}
       {node.type === 'dialogue' ? <DialogueMetaSection session={session} node={node} /> : null}
     </>
   );

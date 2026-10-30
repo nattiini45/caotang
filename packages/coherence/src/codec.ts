@@ -15,6 +15,7 @@
 import { isCoherenceId } from './ids.js';
 import {
   COHERENCE_FORMAT_VERSION,
+  DAY_OFFSET_LIMIT,
   DETERMINISTIC_CHECK_IDS,
   EVIDENCE_QUOTE_LIMIT,
   FINDING_CLASSES,
@@ -25,6 +26,7 @@ import {
   NOTE_LIMIT,
   RUN_KINDS,
   RUN_STATUSES,
+  STORY_PARTS,
   TIMELINE_MODES,
   WORLD_RULE_ORIGINS,
   WORLD_RULE_TEXT_LIMIT,
@@ -40,6 +42,7 @@ import {
   type ReviewStateEntry,
   type SceneMeta,
   type SceneThread,
+  type StoryPart,
   type TimelineMode,
   type WorldRule,
 } from './model.js';
@@ -48,6 +51,7 @@ import { codePointLength } from './text.js';
 export type LoadNoticeCode =
   | 'unknown-field'
   | 'unknown-timeline-mode'
+  | 'unknown-story-part'
   | 'dropped-finding'
   | 'dropped-run'
   | 'dropped-scene-meta'
@@ -84,7 +88,7 @@ const FINDING_KEYS = [
 const RUN_KEYS = [
   'id', 'at', 'kind', 'checkIds', 'scope', 'findingsUpserted', 'tokens', 'model', 'status', 'notes',
 ] as const;
-const SCENE_META_KEYS = ['pov', 'dayOffset', 'durationDays', 'after', 'expectedPresent', 'timelineMode', 'threads', 'learns', 'knows', 'dialogueContainer'] as const;
+const SCENE_META_KEYS = ['pov', 'dayOffset', 'durationDays', 'after', 'expectedPresent', 'timelineMode', 'threads', 'learns', 'knows', 'dialogueContainer', 'storyPart'] as const;
 const KNOWLEDGE_LINK_KEYS = ['entryId', 'factId'] as const;
 const KNOWLEDGE_KEYS = ['id', 'text', 'ruleId', 'entryId', 'createdAt', 'updatedAt'] as const;
 const THREAD_KEYS = ['id', 'payoff', 'note'] as const;
@@ -93,6 +97,11 @@ const TOP_KEYS = ['formatVersion', 'findings', 'runs', 'sceneMeta', 'worldRules'
 
 function isRecord(value: unknown): value is Obj {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** §5.2.2: a whole number of days from −{@link DAY_OFFSET_LIMIT} to {@link DAY_OFFSET_LIMIT}. */
+function isDayOffset(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && Math.abs(value) <= DAY_OFFSET_LIMIT;
 }
 
 function isNonNegInt(value: unknown): value is number {
@@ -335,7 +344,13 @@ export function readReviewState(raw: unknown): Read<ReviewStateEntry> {
  * failure, because a declaration with one bad field keeps its good fields: the
  * writer loses the bad one, and the report says which.
  */
-export function readSceneMeta(raw: unknown, notices: LoadNotice[], key: string, modes: Set<string>): SceneMeta | undefined {
+export function readSceneMeta(
+  raw: unknown,
+  notices: LoadNotice[],
+  key: string,
+  modes: Set<string>,
+  parts: Set<string> = new Set(),
+): SceneMeta | undefined {
   if (!isRecord(raw)) {
     notices.push({ code: 'dropped-scene-meta', message: `The scene declarations for "${key}" are not an object and were dropped.` });
     return undefined;
@@ -352,7 +367,8 @@ export function readSceneMeta(raw: unknown, notices: LoadNotice[], key: string, 
     else dropped('pov');
   }
   if (raw.dayOffset !== undefined) {
-    if (isNonNegInt(raw.dayOffset)) meta.dayOffset = raw.dayOffset;
+    // §5.2.2: a day before day 0 is a day like any other; out of range or not whole is malformed.
+    if (isDayOffset(raw.dayOffset)) meta.dayOffset = raw.dayOffset;
     else dropped('dayOffset');
   }
   if (raw.durationDays !== undefined) {
@@ -391,6 +407,12 @@ export function readSceneMeta(raw: unknown, notices: LoadNotice[], key: string, 
   if (raw.dialogueContainer !== undefined) {
     if (isNonEmptyString(raw.dialogueContainer)) meta.dialogueContainer = raw.dialogueContainer;
     else dropped('dialogueContainer');
+  }
+  // §5.2.2: an unknown part is read as the main story and named once in the load report, as an unknown mode is.
+  if (raw.storyPart !== undefined) {
+    const part = raw.storyPart;
+    if (typeof part === 'string' && (STORY_PARTS as readonly string[]).includes(part)) meta.storyPart = part as StoryPart;
+    else parts.add(typeof part === 'string' ? part : JSON.stringify(part) ?? String(part));
   }
   return meta;
 }
@@ -547,9 +569,16 @@ export function parseCoherenceFile(text: string): ParseOutcome {
     else notices.push({ code: 'dropped-run', message: `A run in coherence.json could not be read (${read.reason}) and was dropped.` });
   }
   const modes = new Set<string>();
+  const parts = new Set<string>();
   for (const key of Object.keys(raw.sceneMeta).sort()) {
-    const meta = readSceneMeta(raw.sceneMeta[key], notices, key, modes);
+    const meta = readSceneMeta(raw.sceneMeta[key], notices, key, modes, parts);
     if (meta !== undefined) file.sceneMeta[key] = meta;
+  }
+  if (parts.size > 0) {
+    notices.push({
+      code: 'unknown-story-part',
+      message: `Unknown story part${parts.size > 1 ? 's' : ''} ${[...parts].map((p) => `"${p}"`).join(', ')} read as the main story. The parts are prologue and epilogue.`,
+    });
   }
   if (modes.size > 0) {
     notices.push({

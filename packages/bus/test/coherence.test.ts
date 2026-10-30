@@ -57,11 +57,55 @@ describe('the scene-metadata patch rule (coherence.md §5.2, §5.2.1)', () => {
     expect(cleared.ok && cleared.meta).toEqual({ durationDays: 2, timelineMode: 'flashback' });
   });
 
-  it('refuses a day offset that is not a whole number of days, zero or more', () => {
-    for (const bad of [-1, 1.5, '3' as unknown as number]) {
+  it('accepts a day offset before day 0, down to −10,000,000 (§5.2.2)', () => {
+    for (const day of [-1, -3650, -10_000_000, 10_000_000, 0]) {
+      const result = applySceneMetaPatch(SCENE, undefined, { dayOffset: day }, context);
+      expect(result.ok && result.meta, String(day)).toEqual({ dayOffset: day });
+    }
+  });
+
+  it('refuses a day offset out of range or not a whole number, naming the range (§5.2.2)', () => {
+    for (const bad of [-10_000_001, 10_000_001, 1.5, Number.NaN, Number.NEGATIVE_INFINITY, '3' as unknown as number, '-3' as unknown as number, '\u22123' as unknown as number]) {
       const result = applySceneMetaPatch(SCENE, undefined, { dayOffset: bad }, context);
       expect(result.ok, String(bad)).toBe(false);
+      if (!result.ok) expect(result.error).toContain('a whole number of days between −10,000,000 and 10,000,000');
     }
+    const quoted = applySceneMetaPatch(SCENE, undefined, { dayOffset: '-3' as unknown as number }, context);
+    expect(quoted.ok === false && quoted.error).toContain('got "-3"');
+  });
+
+  it('still refuses a negative duration (§5.2.2 keeps durationDays ≥ 0)', () => {
+    for (const bad of [-1, -3650, 1.5]) {
+      const result = applySceneMetaPatch(SCENE, undefined, { durationDays: bad }, context);
+      expect(result.ok, String(bad)).toBe(false);
+      if (!result.ok) expect(result.error).toContain('zero or more');
+    }
+  });
+
+  it('declares a story part, clears it with null, and refuses an unknown part listing the valid ones (§5.2.2)', () => {
+    const prologue = applySceneMetaPatch(SCENE, { dayOffset: -14 }, { storyPart: 'prologue' }, context);
+    expect(prologue.ok && prologue.meta).toEqual({ dayOffset: -14, storyPart: 'prologue' });
+    const epilogue = applySceneMetaPatch(SCENE, { storyPart: 'prologue' }, { storyPart: 'epilogue' }, context);
+    expect(epilogue.ok && epilogue.meta).toEqual({ storyPart: 'epilogue' });
+    const cleared = applySceneMetaPatch(SCENE, { storyPart: 'epilogue', dayOffset: 4000 }, { storyPart: null }, context);
+    expect(cleared.ok && cleared.meta).toEqual({ dayOffset: 4000 });
+    for (const bad of ['coda', 'main', 'Prologue', '', 3 as unknown as string]) {
+      const result = applySceneMetaPatch(SCENE, undefined, { storyPart: bad }, context);
+      expect(result.ok, String(bad)).toBe(false);
+      if (!result.ok) expect(result.error).toContain('valid parts are prologue, epilogue, or null for the main story');
+    }
+  });
+
+  it('inverts a story part and a negative day back to what they were (§5.2.2)', () => {
+    const before = { dayOffset: 3 };
+    const forward = { dayOffset: -3650, storyPart: 'prologue' };
+    const applied = applySceneMetaPatch(SCENE, before, forward, context);
+    expect(applied.ok).toBe(true);
+    if (!applied.ok) return;
+    const inverse = inverseScenePatch(before, forward, applied.meta);
+    expect(inverse).toEqual({ dayOffset: 3, storyPart: null });
+    const restored = applySceneMetaPatch(SCENE, applied.meta, inverse, context);
+    expect(restored.ok && restored.meta).toEqual(before);
   });
 
   it('keeps linear as absence, and refuses a timeline mode outside the §5.2.1 enum', () => {

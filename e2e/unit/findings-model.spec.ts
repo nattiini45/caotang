@@ -11,6 +11,9 @@ import {
   povCandidates,
   afterCandidates,
   dialogueContainerChoices,
+  dayLabel,
+  inheritedStoryPart,
+  STORY_PART_CHOICES,
   modeLabel,
   sceneMetaOf,
   severitySections,
@@ -275,6 +278,20 @@ test.describe('the scene declarations model (coherence.md §5.2, §8)', () => {
     expect(dialogueContainerChoices(state, 'd_OLD0000001').missing).toBe(true);
     expect(dialogueContainerChoices(state, 'd_NOTE000001').missing).toBe(true);
     expect(dialogueContainerChoices(state, 'n_GONE000000').missing).toBe(true);
+  });
+
+  test('a story part is inherited from the nearest folder that declares one, and a day before day 0 reads with a minus sign (§5.2.2)', () => {
+    const state = project();
+    const file: CoherenceFile = { ...emptyCoherenceFile(), sceneMeta: { [IDS.chapterOne]: { storyPart: 'epilogue' }, [IDS.deep]: { storyPart: 'prologue' } } };
+    expect(inheritedStoryPart(state, file, IDS.sceneA)).toEqual({ part: 'epilogue', folderTitle: 'Chapter 1' });
+    expect(inheritedStoryPart(state, file, IDS.deepScene)).toEqual({ part: 'prologue', folderTitle: 'Deep' });
+    expect(inheritedStoryPart(state, file, IDS.deep)).toEqual({ part: 'epilogue', folderTitle: 'Chapter 1' });
+    expect(inheritedStoryPart(state, file, IDS.sceneD)).toBeUndefined();
+    expect(inheritedStoryPart(state, undefined, IDS.sceneA)).toBeUndefined();
+    expect(STORY_PART_CHOICES.map((choice) => choice.label)).toEqual(['Main story', 'Prologue', 'Epilogue']);
+    expect(dayLabel(-14)).toBe('Day \u221214');
+    expect(dayLabel(0)).toBe('Day 0');
+    expect(dayLabel(12)).toBe('Day 12');
   });
 
   test('timeline modes read in words, and linear is the default', () => {

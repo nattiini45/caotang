@@ -32,6 +32,22 @@ export const TIMELINE_MODES = [
 export type TimelineModeName = (typeof TIMELINE_MODES)[number];
 
 /**
+ * §5.2.2's `storyPart`: the parts of the book a scene or a folder can be declared to belong to. Absent is the main story,
+ * which is stored as absence, so there is no `main` value to write.
+ */
+export const STORY_PARTS = ['prologue', 'epilogue'] as const;
+
+export type StoryPartName = (typeof STORY_PARTS)[number];
+
+/** §5.2.2: `dayOffset` is a whole number of days from −this to +this (about 27,000 years either way). */
+export const DAY_OFFSET_LIMIT = 10_000_000;
+
+/** Whether a value is a day offset §5.2.2 allows: a whole number from −{@link DAY_OFFSET_LIMIT} to {@link DAY_OFFSET_LIMIT}. */
+export function isDayOffset(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= -DAY_OFFSET_LIMIT && value <= DAY_OFFSET_LIMIT;
+}
+
+/**
  * §6.3's dismissal picker, by id. The labels and tooltips live in the coherence module
  * (`DISMISSAL_REASONS`); the bus needs only the ids to validate a reason.
  */
@@ -85,6 +101,8 @@ export interface SceneMetaRecord {
   knows?: KnowledgeLinkRecord[];
   /** §5.1 `medium.speaker-parity`: the dialogue container (a `dialogue` node id) this scene's speakers are compared with. */
   dialogueContainer?: string;
+  /** §5.2.2: the part of the book this scene, or every scene under this folder, belongs to. Absent is the main story. */
+  storyPart?: string;
 }
 
 /** §7.1's `patch`. `null` on a scalar clears it; `timelineMode` has no clear form (`linear` is the clear). */
@@ -110,6 +128,8 @@ export interface ScenePatch {
   knows_remove?: KnowledgeLinkRecord[];
   /** §5.1: the dialogue container to compare this scene's speakers with. `null` clears the link. */
   dialogueContainer?: string | null;
+  /** §5.2.2: `prologue` or `epilogue`. `null` clears it, back to the main story. */
+  storyPart?: string | null;
 }
 
 /** The closed set of `patch` keys (§7.1). A key outside it is refused with the list of keys that are valid. */
@@ -129,6 +149,7 @@ export const SCENE_PATCH_KEYS = [
   'knows_add',
   'knows_remove',
   'dialogueContainer',
+  'storyPart',
 ] as const;
 
 /** What a patch is checked against: the codex entries by id, and the documents a dependency may name. */
@@ -150,6 +171,11 @@ export type ScenePatchResult =
 function listEntries(entries: SceneMetaContext['entries']): string {
   if (entries.length === 0) return 'the codex is empty; create the entry first';
   return `valid codex entries are ${entries.map((e) => `${e.name} (${e.id})`).join(', ')}`;
+}
+
+/** A refused value as the error shows it: a string is quoted, so `"-3"` reads as text and not as the number it looks like. */
+function showPatchValue(value: unknown): string {
+  return typeof value === 'string' ? JSON.stringify(value) : String(value);
 }
 
 function isNonNegativeInteger(value: unknown): value is number {
@@ -184,12 +210,27 @@ export function applySceneMetaPatch(
     } else next.pov = patch.pov;
   }
 
-  for (const field of ['dayOffset', 'durationDays'] as const) {
-    const value = patch[field];
-    if (value === undefined) continue;
-    if (value === null) delete next[field];
-    else if (isNonNegativeInteger(value)) next[field] = value;
-    else return { ok: false, error: `${field} must be a whole number of days, zero or more; got ${String(value)}` };
+  // §5.2.2: a day may be before day 0 (a prologue years earlier); a duration may not be negative.
+  if (patch.dayOffset !== undefined) {
+    const value = patch.dayOffset;
+    if (value === null) delete next.dayOffset;
+    else if (isDayOffset(value)) next.dayOffset = value;
+    else return { ok: false, error: `dayOffset must be a whole number of days between −10,000,000 and 10,000,000; got ${showPatchValue(value)}` };
+  }
+  if (patch.durationDays !== undefined) {
+    const value = patch.durationDays;
+    if (value === null) delete next.durationDays;
+    else if (isNonNegativeInteger(value)) next.durationDays = value;
+    else return { ok: false, error: `durationDays must be a whole number of days, zero or more; got ${showPatchValue(value)}` };
+  }
+
+  if (patch.storyPart !== undefined) {
+    const part = patch.storyPart;
+    if (part === null) delete next.storyPart;
+    else if (typeof part === 'string' && (STORY_PARTS as readonly string[]).includes(part)) next.storyPart = part;
+    else {
+      return { ok: false, error: `storyPart ${showPatchValue(part)} is not a part; valid parts are ${STORY_PARTS.join(', ')}, or null for the main story` };
+    }
   }
 
   if (patch.after_add !== undefined || patch.after_remove !== undefined) {
@@ -405,6 +446,7 @@ export function inverseScenePatch(before: SceneMetaRecord | undefined, forward: 
   if (forward.durationDays !== undefined) inverse.durationDays = prior.durationDays ?? null;
   if (forward.timelineMode !== undefined) inverse.timelineMode = prior.timelineMode ?? 'linear';
   if (forward.dialogueContainer !== undefined) inverse.dialogueContainer = prior.dialogueContainer ?? null;
+  if (forward.storyPart !== undefined) inverse.storyPart = prior.storyPart ?? null;
   if (forward.after_add !== undefined || forward.after_remove !== undefined) {
     const { added, removed } = membershipChange(prior.after ?? [], after.after ?? []);
     inverse.after_add = removed;

@@ -10,6 +10,7 @@
 
 import { GAP_THRESHOLD_DAYS, treatmentOf, windowInside, windowOf, windowsOverlap, type DayWindow } from '../timeline.js';
 import { headEvidence, type ScannedScene } from '../scope.js';
+import { effectiveStoryPart, type EffectiveStoryPart } from '../scene-meta.js';
 import { groupKey, modeOf, pairKey, type CheckInput, type CheckOutput, type DraftFinding } from './common.js';
 
 function dayOf(scene: ScannedScene): number | undefined {
@@ -108,12 +109,31 @@ export function checkGap(input: CheckInput): CheckOutput {
   const unscheduled = input.scenes.length - scheduled.length;
   if (unscheduled > 0) notes.push(`${unscheduled} scene(s) unscheduled (no day offset); they are not compared`);
 
-  const main = scheduled.filter((scene) => modeOf(scene) !== 'parallel' && modeOf(scene) !== 'frame');
-  const drafts = gapsIn(main, undefined);
-  for (const mode of ['parallel', 'frame'] as const) {
-    drafts.push(...gapsIn(scheduled.filter((scene) => modeOf(scene) === mode), mode));
+  // §5.2.2: scenes are compared only within their own part, so a pair across a part boundary (prologue → main, main →
+  // epilogue, prologue → epilogue) is never formed. Crossing into the epilogue is the declared intent, as `time-skip` is.
+  const partOf = storyPartsOf(input);
+  const drafts: DraftFinding[] = [];
+  for (const part of PART_ORDER) {
+    const inPart = scheduled.filter((scene) => partOf(scene) === part);
+    const main = inPart.filter((scene) => modeOf(scene) !== 'parallel' && modeOf(scene) !== 'frame');
+    drafts.push(...gapsIn(main, undefined));
+    for (const mode of ['parallel', 'frame'] as const) {
+      drafts.push(...gapsIn(inPart.filter((scene) => modeOf(scene) === mode), mode));
+    }
   }
   return { drafts, notes };
+}
+
+const PART_ORDER: readonly EffectiveStoryPart[] = ['prologue', 'main', 'epilogue'];
+
+/** §5.2.2: each scene's part, read from its own declaration and the folders above it (nearest wins). */
+function storyPartsOf(input: CheckInput): (scene: ScannedScene) => EffectiveStoryPart {
+  const folderMeta = new Map(input.folders.map((folder) => [folder.id, folder.meta] as const));
+  return (scene) =>
+    effectiveStoryPart(
+      scene.meta,
+      scene.ancestorIds.map((id) => folderMeta.get(id)),
+    );
 }
 
 /**

@@ -8,6 +8,7 @@ import {
   DISMISSAL_REASONS,
   MODE_CROSS_LINK_COPY,
   RUN_KIND_LABELS,
+  STORY_PARTS,
   TIMELINE_MODES,
   findingTypeLabel,
   locateQuote,
@@ -20,6 +21,7 @@ import {
   type FindingStatus,
   type SceneMeta,
   type ScopeSpec,
+  type StoryPart,
 } from '@caotang/coherence';
 import { captureTextAnchor } from '@caotang/storyboard';
 import { getBody, getRevision, type CodexEntry, type ProjectState } from '@caotang/store';
@@ -373,6 +375,45 @@ export const NOTE_LIMIT = 500;
  */
 export function sceneMetaOf(file: CoherenceFile | undefined, docId: string): SceneMeta {
   return file?.sceneMeta[docId] ?? {};
+}
+
+/** §5.2.2: the part select's choices, the main story first. The main story is stored as no part, so its value is empty. */
+export const STORY_PART_CHOICES: readonly { readonly value: '' | StoryPart; readonly label: string }[] = [
+  { value: '', label: 'Main story' },
+  ...STORY_PARTS.map((part) => ({ value: part, label: storyPartLabel(part) })),
+];
+
+/** A part as the writer reads it: `Prologue`, `Epilogue`. */
+export function storyPartLabel(part: StoryPart): string {
+  return part === 'prologue' ? 'Prologue' : 'Epilogue';
+}
+
+/**
+ * §5.2.2: the part the nearest folder above a node declares, with that folder's title. It is what covers the node while the node
+ * declares no part of its own. `undefined` when no folder above declares one.
+ */
+export function inheritedStoryPart(
+  state: ProjectState,
+  file: CoherenceFile | undefined,
+  nodeId: string,
+): { readonly part: StoryPart; readonly folderTitle: string } | undefined {
+  const byId = new Map(state.manifest.tree.map((node) => [node.id, node] as const));
+  const seen = new Set<string>([nodeId]);
+  let parentId = byId.get(nodeId)?.parentId ?? null;
+  while (parentId !== null && !seen.has(parentId)) {
+    seen.add(parentId);
+    const parent = byId.get(parentId);
+    if (parent === undefined) return undefined;
+    const part = parent.type === 'folder' ? file?.sceneMeta[parent.id]?.storyPart : undefined;
+    if (part !== undefined) return { part, folderTitle: parent.title || parent.id };
+    parentId = parent.parentId;
+  }
+  return undefined;
+}
+
+/** §5.2.2: a day as the writer reads it, with a true minus sign before day 0: `Day 12`, `Day −14`. */
+export function dayLabel(day: number): string {
+  return day < 0 ? `Day \u2212${-day}` : `Day ${day}`;
 }
 
 /**
