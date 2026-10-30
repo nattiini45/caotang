@@ -865,6 +865,21 @@ importers:
         specifier: 1.1.1
         version: 1.1.1
 
+  packages/script:
+    dependencies:
+      '@caotang/bus':
+        specifier: workspace:*
+        version: link:../bus
+      '@caotang/codex':
+        specifier: workspace:*
+        version: link:../codex
+      '@caotang/ids':
+        specifier: workspace:*
+        version: link:../ids
+      '@caotang/store':
+        specifier: workspace:*
+        version: link:../store
+
   packages/sdk:
     dependencies:
       '@caotang/bus':

@@ -175,6 +175,8 @@ export const OPTIONAL_NODE_FIELDS: readonly OptionalNodeField[] = [
   { key: 'kind', value: (node: TreeNode) => node.kind, write: (value) => str(value as string, 'node.kind') },
   { key: 'shot', value: (node: TreeNode) => node.shot, write: (value) => criterion(value, 'node.shot') },
   { key: 'dialogue', value: (node: TreeNode) => node.dialogue, write: (value) => criterion(value, 'node.dialogue') },
+  { key: 'showMeta', value: (node: TreeNode) => node.showMeta, write: (value) => criterion(value, 'node.showMeta') },
+  { key: 'episodeMeta', value: (node: TreeNode) => node.episodeMeta, write: (value) => criterion(value, 'node.episodeMeta') },
   { key: 'style', value: (node: TreeNode) => node.style, write: (value) => str(value as string, 'node.style') },
   { key: 'createdAt', value: (node: TreeNode) => node.createdAt, write: (value) => str(value as string, 'node.createdAt') },
   { key: 'updatedAt', value: (node: TreeNode) => node.updatedAt, write: (value) => str(value as string, 'node.updatedAt') },
@@ -183,7 +185,7 @@ export const OPTIONAL_NODE_FIELDS: readonly OptionalNodeField[] = [
 /** One optional node field: where its value is, and how it is written. */
 interface OptionalNodeField {
   /** The manifest key it is written under. */
-  readonly key: 'kind' | 'shot' | 'dialogue' | 'style' | 'createdAt' | 'updatedAt';
+  readonly key: 'kind' | 'shot' | 'dialogue' | 'showMeta' | 'episodeMeta' | 'style' | 'createdAt' | 'updatedAt';
   /** The node's value for it, or `undefined` when the node does not carry it. */
   readonly value: (node: TreeNode) => unknown;
   /** The text the serializer writes for it. */
