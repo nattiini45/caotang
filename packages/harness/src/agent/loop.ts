@@ -40,6 +40,19 @@
  * refused back to the model with a corrective hint, and a retry the turn cannot afford is a notice on
  * the card. The call site refuses anything past the bound as a backstop.
  *
+ * ## A planner reply the provider cut
+ *
+ * The planner's reply is read with its finish reason, as a draft is. A cut reply that still parses is
+ * planned as it is: the parse decides whether there is a problem, and the finish reason only how it is
+ * described. A cut reply that does not parse (a half JSON object, or a native call whose arguments
+ * stop mid-way) is answered with words that name the cut and ask for a shorter reply, not with a syntax
+ * error, and the next planner request may ask for twice the output cap, never above the model's
+ * advertised cap, and only when the reply reached the cap it was sent with. A second such reply ends the
+ * turn on an ask-back, as one that leaves no model call for the retry does: it names the output limit when
+ * a cut reached its request's cap, and otherwise says only that the reply was cut before it ended.
+ * A native reply that was cut but whose calls all parsed may be missing steps: its card carries the
+ * `replyCut` flag and is approved only with `acceptTruncated`.
+ *
  * ## The wire
  *
  * The planner's calls go over one of two protocols, chosen per turn by what the gateway's `modelCaps`
@@ -150,6 +163,7 @@ import {
   scanContinuity,
   synopsisRole,
   wordsOf,
+  type Completion,
   type FindingsProposal,
   type ModelCall,
   type SceneProposal,
@@ -593,6 +607,16 @@ interface Turn {
   readonly wireReplies: WireReply[];
   /** The delegated agents this turn has started, so each has a path of its own (`turn-3/reader#1`). */
   delegations: number;
+  /** The planner replies the provider ended with `length` this turn, parsed or not, at the cap or short of it: the report's `cutReplies`. */
+  cutReplies: number;
+  /** The planner replies that were cut and could not be read. A second one ends the turn (the retry is once, not a loop). */
+  unreadCuts: number;
+  /** The cap an unreadable cut reply of this turn reached, when one reached the cap it was sent with: what the ask-back names. */
+  cutCap?: number;
+  /** The output cap the next planner request asks for: set after an unreadable cut reply, and spent by that one request. */
+  plannerCap?: number;
+  /** The planner reply this turn's card stands for was cut, but its native calls all parsed: the card may be missing steps. */
+  replyCut: boolean;
   /** What the turn's delegated agents proposed, as `canonicalJson({ tool, params })` keys with the agent that did: a plan step equal to one carries its badge. */
   readonly proposals: { readonly agent: string; readonly key: string }[];
   /**
@@ -859,6 +883,25 @@ function budgetAskBack(limit: number): AskBack {
   return askBackOf(modelCallBound(limit).stop);
 }
 
+/**
+ * The words the model reads after a planner reply the provider cut and that could not be read. `atCap` says the reply reached the output
+ * cap the request was sent with; otherwise the provider said `length` for a reason of its own, and the words say only that it was cut.
+ */
+function cutReplyWords(atCap: boolean): string {
+  const how = atCap ? 'was cut off at the model’s output limit' : 'was cut off before it ended';
+  return `Your reply ${how}, so it arrived incomplete and was not run. Send a shorter reply: fewer steps, and shorter parameters and expectations.`;
+}
+
+/** The ask-back for a turn whose planner reply was cut and could not be retried: a second cut, or no model call left for the retry. */
+function cutAskBack(atCap: boolean, cap: number | undefined): AskBack {
+  const limit = atCap && cap !== undefined ? `at the model’s output limit (${cap} tokens)` : atCap ? 'at the model’s output limit' : 'before it ended';
+  return {
+    code: 'needs_input',
+    reason: `the model’s reply was cut off ${limit}, so it could not be read and the turn stopped before anything ran`,
+    options: ['ask for less in one request, such as fewer steps or scenes', 'raise the profile’s output cap in Settings › Providers, then send the request again'],
+  };
+}
+
 function askBackOf(stop: { readonly reason: string; readonly options: readonly string[]; readonly code?: AskBackCode }): AskBack {
   return { code: stop.code ?? 'needs_input', reason: stop.reason, options: stop.options };
 }
@@ -869,6 +912,12 @@ function askBackOf(stop: { readonly reason: string; readonly options: readonly s
  * draft it.
  */
 function noticeFor(card: PlanCardView): string {
+  if (card.replyCut === true) {
+    const draftCut = card.steps.some((step) => step.cut && step.status !== 'done');
+    return draftCut
+      ? 'the model’s reply was cut off, so this plan may be missing steps, and a draft in it was cut off at the model’s output limit: retry the draft, approve with acceptTruncated to run the plan and keep the cut text, or cancel and ask for less'
+      : 'the model’s reply was cut off, so this plan may be missing steps: approve with acceptTruncated to run it as it is, or cancel and ask for less';
+  }
   const stale = card.steps.find((step) => step.stale && step.status !== 'done');
   if (stale !== undefined) {
     const named = `step ${stale.index + 1} (${stale.tool})`;
@@ -1421,8 +1470,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * native wire. The list is rebuilt here, on the call itself, so a tool a mid-turn `tool.search`
    * loaded is declared on the very next request.
    */
-  const plannerCall = (turn: Turn): ModelCall => {
-    const call = modelCall(turn);
+  const plannerCall = (turn: Turn, maxOutputTokens?: number): ModelCall => {
+    const call = maxOutputTokens === undefined ? modelCall(turn) : { ...modelCall(turn), maxOutputTokens };
     if (!turn.native) return call;
     const tools = plannerToolDefs(harness.tools(), harness.loadedNativeTools(), harness.loadedExternalTools(), loadEvery(), undefined, turn.nonce);
     return tools.length === 0 ? call : { ...call, tools };
@@ -2299,6 +2348,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       previews,
       risks: editable.steps.map((step) => riskOf(step.tool)),
       staged,
+      ...(turn.replyCut ? { replyCut: true } : {}),
       ...(proposedBy.some((agent) => agent !== undefined) ? { proposedBy } : {}),
       ...(notice === undefined ? {} : { notice }),
       ...(caution === undefined ? {} : { caution }),
@@ -2944,7 +2994,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const kind: 'plan' | 'confirm' = restore?.kind ?? (single !== undefined && (riskOf(single.tool) === 'write-confirm' || asked) ? 'confirm' : 'plan');
     // A single write-auto call runs at once: a reversible op skips the plan (agent-harness §2), unless the writer asked for a plan card (`/plan`).
     // A card restored from a log is shown, not run.
-    const auto = restore === undefined && single !== undefined && !asked && !turn.forcePlan && riskOf(single.tool) !== 'write-confirm' && staged.stale?.some(Boolean) !== true;
+    const auto = restore === undefined && single !== undefined && !asked && !turn.forcePlan && !turn.replyCut && riskOf(single.tool) !== 'write-confirm' && staged.stale?.some(Boolean) !== true;
     if (plan.steps.some((step) => step.params['selection'] !== undefined)) await preloadAnchorLibraries();
 
     let editable: EditableSteps = {
@@ -3138,6 +3188,31 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     }
   }
 
+  /**
+   * How a cut planner reply that could not be read is described: whether it reached the output cap its request was sent with (the
+   * provider's reported completion tokens against that cap), and the cap. Without the provider's count it is not said to have reached it.
+   */
+  function cutOf(turn: Turn, reply: Completion, asked: number | undefined): { readonly atCap: boolean; readonly cap: number; readonly advertised?: number } {
+    const limits = gateway.modelLimits(turn.pins.profileId, turn.pins.model, turn.pins.thinking);
+    const cap = asked ?? limits.maxOutputTokens;
+    const atCap = reply.completionTokens !== undefined && reply.completionTokens >= cap;
+    return { atCap, cap, ...(limits.modelMaxOutputTokens === undefined ? {} : { advertised: limits.modelMaxOutputTokens }) };
+  }
+
+  /**
+   * After an unreadable cut reply: the retry is once. A second such reply, or no model call left for the retry, ends the turn on an
+   * ask-back about the cut, naming the output limit when a cut reached its request's cap. Otherwise the next request asks for twice the cap, never above the model's advertised cap,
+   * when the reply reached the cap it was sent with; a reply cut for another reason (the context, the provider's own) keeps its cap.
+   */
+  function afterCut(turn: Turn, cut: { readonly atCap: boolean; readonly cap: number; readonly advertised?: number }): Settled | undefined {
+    turn.unreadCuts += 1;
+    if (cut.atCap) turn.cutCap = cut.cap;
+    // A retry that was cut short of its raised cap still follows a reply that reached the output limit: the ask-back names that limit.
+    if (turn.unreadCuts > 1 || callsLeft(turn) < 1) return { status: 'failed', askBack: cutAskBack(turn.cutCap !== undefined, turn.cutCap) };
+    if (cut.atCap && cut.advertised !== undefined && cut.advertised > cut.cap) turn.plannerCap = Math.min(cut.advertised, cut.cap * 2);
+    return undefined;
+  }
+
   /** The model conversation of one turn: a reply, parsed, with a bad one answered by the words it needs. */
   async function converse(turn: Turn): Promise<Settled> {
     for (;;) {
@@ -3153,8 +3228,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
       deliverNotes(turn);
       await syncRun(turn, 1, 'running');
-      const reply = await complete(plannerCall(turn), turn.messages, turn.native ? undefined : { jsonSchemaHint: REPLY_SCHEMA_HINT });
+      // A raised cap is for the one request after an unreadable cut reply, and is spent by it.
+      const cap = turn.plannerCap;
+      turn.plannerCap = undefined;
+      const reply = await complete(plannerCall(turn, cap), turn.messages, turn.native ? undefined : { jsonSchemaHint: REPLY_SCHEMA_HINT });
       turn.messages.push(assistantOf(reply));
+      turn.replyCut = false;
+      if (reply.cut) turn.cutReplies += 1;
 
       let plan: Plan;
       if (turn.native) {
@@ -3178,11 +3258,23 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           }
         }
         if (malformed.length > 0) {
+          // A cut reply's last call is the one that stops mid-way: its refusal names the cut, not its arguments, and keeps its step number.
+          // An earlier call that failed to parse was whole when it arrived, so it keeps its own refusal.
+          const truncated = reply.cut ? malformed.find((refused) => refused.index === calls.length - 1) : undefined;
+          const cut = truncated === undefined ? undefined : cutOf(turn, reply, cap);
+          if (truncated !== undefined && cut !== undefined) {
+            truncated.message = cutReplyWords(cut.atCap);
+            pending.results.set((calls[truncated.index] as WireToolCall).id, { ok: false, body: truncated.message });
+          }
           flushWire(turn);
           turn.messages.push({
             role: 'user',
             content: malformed.map((refused) => `Step ${refused.index + 1} (${refused.tool}) was refused: ${refused.message}`).join('\n'),
           });
+          if (cut !== undefined) {
+            const ended = afterCut(turn, cut);
+            if (ended !== undefined) return ended;
+          }
           continue;
         }
         // The native reply is bound by the same plan schema as the JSON reply (plan.ts `PLAN_STEPS_MAX`):
@@ -3198,10 +3290,18 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           continue;
         }
         plan = { steps };
+        // Every call parsed, but the reply was cut: the plan may be missing the steps after its last call. Its card says so.
+        turn.replyCut = reply.cut;
       } else {
         const parsed: Result<Reply, string> = parseReply(reply.text);
         if (!parsed.ok) {
-          turn.messages.push({ role: 'user', content: parsed.error });
+          // The parse decides whether there is a problem; the finish reason decides how it is described (issue #97).
+          const cut = reply.cut ? cutOf(turn, reply, cap) : undefined;
+          turn.messages.push({ role: 'user', content: cut === undefined ? parsed.error : cutReplyWords(cut.atCap) });
+          if (cut !== undefined) {
+            const ended = afterCut(turn, cut);
+            if (ended !== undefined) return ended;
+          }
           continue;
         }
         if (parsed.value.kind === 'reply') return { status: 'replied', text: parsed.value.text };
@@ -3265,6 +3365,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       tokens,
       dropped: turn.dropped,
       modelCalls: turn.modelCalls,
+      ...(turn.cutReplies === 0 ? {} : { cutReplies: turn.cutReplies }),
       ...(settled.stop === undefined ? {} : { stop: settled.stop }),
       ...(settled.budgetStop === undefined ? {} : { budgetStop: settled.budgetStop }),
       ...(turn.meter === undefined ? {} : { spend: turn.meter.spend() }),
@@ -3470,6 +3571,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       native: false,
       wireReplies: [],
       delegations: 0,
+      cutReplies: 0,
+      unreadCuts: 0,
+      replyCut: false,
       proposals: [],
       wireSteps: new Map(),
       logged: 0,

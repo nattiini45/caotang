@@ -1069,3 +1069,156 @@ function draftScriptFindings(): MockScript {
     respond: () => ({ content: JSON.stringify({ findings: [] }) }),
   };
 }
+
+/* ------------------------------------------------------------------ *
+ * A planner reply the provider cut (issue #97), on the JSON wire.
+ * ------------------------------------------------------------------ */
+
+interface PlannerReply {
+  readonly content: string;
+  readonly finishReason?: 'stop' | 'length';
+}
+
+/** A half JSON object, as a provider that stopped at its cap sends it: 56 characters, so 14 tokens on the mock's count. */
+const CUT_REPLY = '{"steps": [{"tool": "meta.set", "params": {"targets": ["';
+
+/**
+ * A gateway whose planner answers one intent with `replies` in turn (the last repeats), recording each planner request, and whose
+ * `modelLimits` reports the given caps: the cap a request is sent with, and the cap the model advertises.
+ */
+function cutGateway(intent: string, replies: readonly PlannerReply[], seen: ChatRequest[], limits: { readonly maxOutputTokens: number; readonly modelMaxOutputTokens?: number }) {
+  return async (): Promise<Gateway> => {
+    const base = await mockGateway([
+      {
+        match: (req) => isPlannerCall(req) && userTextOf(req).includes(`Request: ${intent}`),
+        respond: (req) => {
+          seen.push(req);
+          const calls = req.messages.filter((message) => message.role === 'assistant').length;
+          return replies[Math.min(calls, replies.length - 1)] ?? { content: '' };
+        },
+      },
+    ]);
+    return {
+      ...base,
+      modelLimits: (profileId, model, thinking) => {
+        const { modelMaxOutputTokens: _drop, ...rest } = base.modelLimits(profileId, model, thinking);
+        return { ...rest, ...limits };
+      },
+    };
+  };
+}
+
+/** The last user message a request carries: what the model reads before it replies. */
+const lastUserOf = (req: ChatRequest | undefined): string => [...(req?.messages ?? [])].reverse().find((message) => message.role === 'user')?.content ?? '';
+
+describe('a planner reply the provider cut (issue #97)', () => {
+  const intent = 'Label The Friend act-2.';
+
+  it('a cut reply that does not parse is answered with words that name the cut, not a JSON syntax error, and asked again with more room', async () => {
+    const seen: ChatRequest[] = [];
+    const run = await checked(
+      scenario('cut planner reply: named and retried', intent, [], {
+        gateway: cutGateway(intent, [{ content: CUT_REPLY, finishReason: 'length' }, { content: answer('Labelled nothing yet.') }], seen, { maxOutputTokens: 10, modelMaxOutputTokens: 40 }),
+        expect: { status: 'replied', maxModelCalls: 2 },
+      }),
+    );
+    expect(seen).toHaveLength(2);
+    const words = lastUserOf(seen[1]);
+    expect(words).toContain('cut off at the model’s output limit');
+    expect(words).toContain('Send a shorter reply');
+    expect(words).not.toContain('not valid JSON');
+    // The first request went with the profile's cap; the retry asks for twice it, inside the model's advertised cap.
+    expect(seen[0]?.maxOutputTokens).toBeUndefined();
+    expect(seen[1]?.maxOutputTokens).toBe(20);
+    expect(run.report.cutReplies).toBe(1);
+  });
+
+  it('a cut reply that parses is planned as it is: a cut is not a failure on its own', async () => {
+    const seen: ChatRequest[] = [];
+    const run = await checked(
+      scenario('cut planner reply: parses', intent, [], {
+        gateway: cutGateway(intent, [{ content: answer('Nothing to label.'), finishReason: 'length' }], seen, { maxOutputTokens: 10, modelMaxOutputTokens: 40 }),
+        expect: { status: 'replied', maxModelCalls: 1 },
+      }),
+    );
+    expect(seen).toHaveLength(1);
+    expect(run.report.text).toBe('Nothing to label.');
+    expect(run.report.cutReplies).toBe(1);
+  });
+
+  it('the retry’s cap never passes the model’s advertised cap, and is not raised without one', async () => {
+    const bounded: ChatRequest[] = [];
+    await checked(
+      scenario('cut planner reply: bounded cap', intent, [], {
+        gateway: cutGateway(intent, [{ content: CUT_REPLY, finishReason: 'length' }, { content: answer('ok') }], bounded, { maxOutputTokens: 10, modelMaxOutputTokens: 15 }),
+        expect: { status: 'replied' },
+      }),
+    );
+    expect(bounded[1]?.maxOutputTokens).toBe(15);
+
+    const unknown: ChatRequest[] = [];
+    await checked(
+      scenario('cut planner reply: no advertised cap', intent, [], {
+        gateway: cutGateway(intent, [{ content: CUT_REPLY, finishReason: 'length' }, { content: answer('ok') }], unknown, { maxOutputTokens: 10 }),
+        expect: { status: 'replied' },
+      }),
+    );
+    expect(unknown[1]?.maxOutputTokens).toBeUndefined();
+    expect(lastUserOf(unknown[1])).toContain('cut off at the model’s output limit');
+  });
+
+  it('a reply cut short of its request’s cap is said to be cut, not to have hit the output limit, and keeps its cap', async () => {
+    const seen: ChatRequest[] = [];
+    await checked(
+      scenario('cut planner reply: below the cap', intent, [], {
+        gateway: cutGateway(intent, [{ content: CUT_REPLY, finishReason: 'length' }, { content: answer('ok') }], seen, { maxOutputTokens: 4_096, modelMaxOutputTokens: 32_000 }),
+        expect: { status: 'replied' },
+      }),
+    );
+    const words = lastUserOf(seen[1]);
+    expect(words).toContain('cut off before it ended');
+    expect(words).not.toContain('output limit');
+    expect(seen[1]?.maxOutputTokens).toBeUndefined();
+  });
+
+  it('a second cut ends the turn on an ask-back that names the output limit, not the budget', async () => {
+    const seen: ChatRequest[] = [];
+    const run = await checked(
+      scenario('cut planner reply: cut twice', intent, [], {
+        gateway: cutGateway(intent, [{ content: CUT_REPLY, finishReason: 'length' }], seen, { maxOutputTokens: 10, modelMaxOutputTokens: 40 }),
+        expect: { status: 'failed', askBack: 'needs_input', summaryIncludes: ['output limit'], maxModelCalls: 2 },
+      }),
+    );
+    expect(seen).toHaveLength(2);
+    // The retry was cut short of its raised cap, but it followed a reply that reached the profile's: that is the limit named.
+    expect(run.report.askBack?.reason).toContain('output limit (10 tokens)');
+    expect(run.report.askBack?.reason).not.toContain('model calls');
+    expect(run.report.cutReplies).toBe(2);
+  });
+
+  it('a cut with no model call left for the retry ends on the output limit too, and never passes the model-call bound', async () => {
+    const seen: ChatRequest[] = [];
+    const run = await checked(
+      scenario('cut planner reply: no call left', intent, [], {
+        gateway: cutGateway(intent, [{ content: CUT_REPLY, finishReason: 'length' }, { content: answer('ok') }], seen, { maxOutputTokens: 10, modelMaxOutputTokens: 40 }),
+        modelCallBound: 1,
+        expect: { status: 'failed', askBack: 'needs_input', summaryIncludes: ['output limit'], maxModelCalls: 1 },
+      }),
+    );
+    expect(seen).toHaveLength(1);
+    expect(run.report.askBack?.reason).not.toContain('model calls');
+  });
+
+  it('a malformed reply the provider did not cut still reads as malformed', async () => {
+    const seen: ChatRequest[] = [];
+    const run = await checked(
+      scenario('malformed planner reply', intent, [], {
+        gateway: cutGateway(intent, [{ content: CUT_REPLY }, { content: answer('ok') }], seen, { maxOutputTokens: 10, modelMaxOutputTokens: 40 }),
+        expect: { status: 'replied' },
+      }),
+    );
+    expect(lastUserOf(seen[1])).toContain('not valid JSON');
+    expect(seen[1]?.maxOutputTokens).toBeUndefined();
+    expect(run.report.cutReplies).toBeUndefined();
+  });
+});

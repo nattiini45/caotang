@@ -62,6 +62,15 @@ describe('parseReply: refusals name the shape the reply should have had', () => 
     if (!parsed.ok) expect(parsed.error).toContain('not valid JSON');
   });
 
+  it('knows nothing of a cut: a reply the provider cut mid-object reads as malformed, and the loop words the cut (issue #97)', () => {
+    const parsed = parseReply('{"steps": [{"tool": "meta.set", "params": {"targets": ["');
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.error).toContain('not valid JSON');
+      expect(parsed.error).not.toContain('cut');
+    }
+  });
+
   it('refuses a JSON value that is not an object', () => {
     const parsed = parseReply('[1,2,3]');
     expect(parsed.ok).toBe(false);

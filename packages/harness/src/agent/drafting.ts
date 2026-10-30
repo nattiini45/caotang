@@ -52,6 +52,11 @@ export interface ModelCall {
   readonly toolChoice?: 'auto' | 'none';
   /** The session's effort level, when it pins one — passed to the request as `thinking`. */
   readonly thinking?: ThinkingLevel;
+  /**
+   * The output cap this one request asks for, over the profile's. Set only on the planner's retry after a reply the provider cut at
+   * its output limit, and never above the model's advertised cap (provider-gateway §2).
+   */
+  readonly maxOutputTokens?: number;
   readonly onDelta?: (text: string) => void;
   /**
    * The call's reasoning deltas as they stream (provider-gateway §3). The panel folds them into its "Thinking" block;
@@ -91,6 +96,8 @@ export class GenerationStopped extends Error {
 export interface Completion {
   readonly text: string;
   readonly cut: boolean;
+  /** The completion tokens the provider reported for the reply, when its terminal chunk carried usage: how a cut is told to have reached the request's cap. */
+  readonly completionTokens?: number;
   readonly toolCalls?: readonly ToolCall[];
   readonly reasoning?: readonly ReasoningBlock[];
 }
@@ -123,6 +130,7 @@ export async function complete(call: ModelCall, messages: readonly ChatMessage[]
   let finish: ChatChunk['finishReason'];
   let toolCalls: readonly ToolCall[] | undefined;
   let reasoning: readonly ReasoningBlock[] | undefined;
+  let completionTokens: number | undefined;
   const request: ChatRequest = {
     messages: [...messages],
     turnId: call.turnId,
@@ -132,6 +140,7 @@ export async function complete(call: ModelCall, messages: readonly ChatMessage[]
     ...(responseFormat === undefined ? {} : { responseFormat }),
     ...(call.tools === undefined || call.tools.length === 0 ? {} : { tools: call.tools, toolChoice: call.toolChoice ?? 'auto' }),
     ...(call.thinking === undefined ? {} : { thinking: call.thinking }),
+    ...(call.maxOutputTokens === undefined ? {} : { maxOutputTokens: call.maxOutputTokens }),
   };
   const { signal } = call;
   const stopped = (): boolean => signal?.aborted === true;
@@ -151,6 +160,7 @@ export async function complete(call: ModelCall, messages: readonly ChatMessage[]
       if (chunk.toolCalls !== undefined) toolCalls = chunk.toolCalls;
       if (chunk.reasoning !== undefined) reasoning = chunk.reasoning;
       if (chunk.finishReason !== undefined) finish = chunk.finishReason;
+      if (chunk.usage !== undefined) completionTokens = chunk.usage.completionTokens;
     }
   } catch (error) {
     if (stopped()) throw new TurnStopped();
@@ -161,6 +171,7 @@ export async function complete(call: ModelCall, messages: readonly ChatMessage[]
   return {
     text,
     cut: finish === 'length',
+    ...(completionTokens === undefined ? {} : { completionTokens }),
     ...(toolCalls === undefined ? {} : { toolCalls }),
     ...(reasoning === undefined ? {} : { reasoning }),
   };
