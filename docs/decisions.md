@@ -167,11 +167,11 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - Context is a fixed nine-layer stack (system, the writer's instructions, project summary, codex, structural synopses, prior-scene synopses, focus text, conversation memory, task), assembled as a pure function. The instructions layer (LI) holds `CAOTANG.md` and the memory index in the user message, capped at 1,500 tokens (Settings › Context), is in every profile, and is absent for a project with neither file, so such a project's prompt is unchanged. Why: same inputs, same prompt bytes, and a writer's standing rules need a home that is neither fixed harness text nor a codex entry. [delegated]
 - Over its cap, the instructions layer sends whole lines and says so in the drop, the layer note, the preview and Settings ("CAOTANG.md is N tokens; the first M were sent"); the total-budget pass never drops it. Why: other tools truncate their instructions file silently, which is a recurring complaint; a writer's rules must not vanish because a codex grew. [delegated]
 - Context uses synopses and mention-keyed codex entries, zero embeddings. Why: market evidence favours keyed context; no retrieval nondeterminism. [delegated]
-- Default budgets: 12k tokens total, 3,000-character focus tail, 2k story-so-far, 1k codex; configurable; a total below the layer sum is a warning and the total wins. Why: calibrated defaults, writer control. [delegated]
+- Default budgets: 12k tokens total, 3,000-character focus tail, 2k story-so-far, 1k codex; configurable, every capped layer (LI, L1 to L6) in Settings › Context; a total below the layer sum is a warning and the total wins. Why: calibrated defaults, writer control. [delegated]
 - Truncation drops whole entries and whole layers bottom-up, never mid-entry; unused budget flows upward. Why: eval-stable and preview-readable. [delegated]
 - Codex entries sort always → type → name. Why: deterministic, unlike insertion order. [delegated]
 - The forward outline is excluded by default, with a per-call opt-in. Why: no spoilers in drafts. [delegated]
-- Every confirm card previews the assembled context with reasons for each inclusion and drop, plus a token and cost estimate. Why: the writer sees what is sent before approving. [delegated]
+- Every confirm card previews the assembled context with reasons for each inclusion and drop, plus a token and cost estimate and the window check, measured against the limits of the profile and model the turn runs on (the app's context port carries the gateway's `modelLimits`, issue #69). Why: the writer sees what is sent before approving. [delegated]
 - Cost shows four decimals under a dollar, two above, "under $0.0001" below that; only for a priced profile. Why: honest small numbers. [delegated]
 - The built-in demo provider is the first-run default and makes no network request; it answers its own intents and refuses everything else in words, writing nothing. Why: the agent is useful before a key, and the demo never writes into real work. [delegated]
 - An external tool call needs its own one-step confirm card unless trusted for reads; a turn that called an external tool says on its checkpoint that external effects are not reversible. Why: Caotang can only undo its own state. [delegated]
@@ -259,6 +259,7 @@ Superseded decisions, research notes and history are not listed. The specs in [a
 - The Export dialog compiles a prompt pack as the bus does, three files in one zip, and the Prompt pack tab keeps its one file per click. Why: the dialog adds a path without changing the tab; one path for both is a separate change. [delegated]
 - The dialogue table's `charLimit` is a recipe option from 1 to 10,000. Why: localisation length budgets. [delegated]
 - The Export dialog groups formats as Prose, Media and Review. Why: findable formats. [delegated]
+- The Export dialog's Proof is the file the compile writes, from the compile's own plan and renderer, for the text formats only; a binary format (DOCX, EPUB, XLSX, the PDFs) says it has no Proof, and no format gets a CSS look-alike. A PDF Proof waits on the `frame-src 'none'` policy. Why: a proof that differs from the file is worse than none (#106). [delegated]
 
 ## MCP server and client
 
