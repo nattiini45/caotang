@@ -1,7 +1,7 @@
 /**
- * The Context section of Settings (ui-modules §5.2, context-assembly §3): the prompt's whole budget, and the caps of the three
- * layers the spec names as config-exposed. An empty field keeps the spec's own default. A typed value is checked on save and
- * stored clamped into its range, the same way it loads, and the warn line names a total that is below the layer caps together.
+ * The Context section of Settings (ui-modules §5.2, context-assembly §3): the prompt's whole budget, and the cap of every layer that
+ * has one (LI and L1 to L6), with the reply's reserve shown read-only from the Chat role's model. An empty field keeps the spec's own
+ * default. A typed value is checked on save and stored clamped into its range, the same way it loads, and the warn line names a total that is below the layer caps together.
  * The preview bar links to the prompt a scene draft would send under the typed budgets (context-assembly §5), when a project is open.
  */
 
@@ -14,6 +14,7 @@ import { contextPreviewOf, type ContextPreviewView } from '../app/context-previe
 import type { AppServices } from '../app/services.js';
 import type { ProjectSession } from '../app/session.js';
 import {
+  CONTEXT_LAYERS,
   CONTEXT_LAYER_MAX,
   CONTEXT_LAYER_MIN,
   CONTEXT_TOTAL_MAX,
@@ -24,13 +25,19 @@ import {
 } from '../app/settings.js';
 import { PromptPreview } from './PlanCard.js';
 
-/** Each layer's label and the default the spec gives it for a scene draft (context-assembly §2). */
-const LAYERS: readonly { readonly id: ContextLayerId; readonly label: string; readonly fallback: number }[] = [
-  { id: 'LI', label: 'Instructions (CAOTANG.md and memory)', fallback: DEFAULT_INSTRUCTIONS_BUDGET },
-  { id: 'L2', label: 'Codex entries', fallback: 1_000 },
-  { id: 'L4', label: 'Story so far, from the synopses', fallback: 2_000 },
-  { id: 'L5', label: 'Focus document text', fallback: 2_000 },
-];
+/** Each layer's label and the default the spec gives it for a scene draft (context-assembly §2). Total over `ContextLayerId`, so a new layer is a compile error here until it has a row. */
+const LAYER_META: Readonly<Record<ContextLayerId, { readonly label: string; readonly fallback: number }>> = {
+  LI: { label: 'Instructions (CAOTANG.md and memory)', fallback: DEFAULT_INSTRUCTIONS_BUDGET },
+  L1: { label: 'Project summary', fallback: 1_500 },
+  L2: { label: 'Codex entries', fallback: 1_000 },
+  L3: { label: 'Structure around the focus document', fallback: 1_200 },
+  L4: { label: 'Story so far, from the synopses', fallback: 2_000 },
+  L5: { label: 'Focus document text', fallback: 2_000 },
+  L6: { label: 'Recent turns of the conversation', fallback: 1_500 },
+};
+
+/** The layers in the stack's order, as `CONTEXT_LAYERS` lists them. */
+const LAYERS: readonly { readonly id: ContextLayerId; readonly label: string; readonly fallback: number }[] = CONTEXT_LAYERS.map((id) => ({ id, ...LAYER_META[id] }));
 
 const WORDS_OF = (value: number): string => value.toLocaleString('en-US');
 
@@ -106,18 +113,41 @@ function ContextPromptPreview({ view }: { view: ContextPreviewView }): ReactNode
 }
 
 /**
+ * The room a request keeps for the reply, read-only (context-assembly §5): the output cap the Chat role's profile sends with (its own, or
+ * the gateway's default when it sets none), plus the thinking budget the role's level adds. It is not part of the prompt's budget.
+ */
+function ReplyReserve({ services }: { services: AppServices }): ReactNode {
+  const resolved = services.providers.resolveForRole('chat');
+  const limits = services.providers.limitsForRole('chat');
+  if (resolved === undefined || limits === undefined) return null;
+  const name = resolved.profile.name;
+  const cap = limits.maxOutputTokens;
+  const thinking = limits.thinkingTokens ?? 0;
+  const capWords = resolved.profile.maxOutputTokens === undefined ? `Caotang’s default reply cap, since “${name}” sets none` : `the reply cap of “${name}”`;
+  const parts = thinking > 0 ? `: ${WORDS_OF(cap)} for the answer (${capWords}) and ${WORDS_OF(thinking)} for thinking at the Chat role’s thinking level` : `, ${capWords}`;
+  const windowNote = limits.contextWindow === undefined ? '' : ` The model’s window is ${WORDS_OF(limits.contextWindow)} tokens.`;
+  return (
+    <p className="muted" data-testid="context-reserve">
+      Kept for the reply: {WORDS_OF(cap + thinking)} tokens{parts}. The Chat role runs on “{name}”, and the reply is not part of these
+      budgets.{windowNote}
+    </p>
+  );
+}
+
+/**
  * `session` is the project in view, when there is one. The preview link needs it, because the prompt is assembled from the
  * project's own text and codex. Absent or null, the section shows the budgets without the link.
  */
 export function ContextSection({ services, session = null }: { services: AppServices; session?: ProjectSession | null }): ReactNode {
   const current = services.settings.current().context;
   const [total, setTotal] = useState(current.totalBudgetTokens === undefined ? '' : String(current.totalBudgetTokens));
-  const [layers, setLayers] = useState<Record<ContextLayerId, string>>(() => ({
-    LI: current.layerBudgets.LI === undefined ? '' : String(current.layerBudgets.LI),
-    L2: current.layerBudgets.L2 === undefined ? '' : String(current.layerBudgets.L2),
-    L4: current.layerBudgets.L4 === undefined ? '' : String(current.layerBudgets.L4),
-    L5: current.layerBudgets.L5 === undefined ? '' : String(current.layerBudgets.L5),
-  }));
+  const [layers, setLayers] = useState<Record<ContextLayerId, string>>(() => {
+    const typed = (id: ContextLayerId): string => {
+      const value = current.layerBudgets[id];
+      return value === undefined ? '' : String(value);
+    };
+    return { LI: typed('LI'), L1: typed('L1'), L2: typed('L2'), L3: typed('L3'), L4: typed('L4'), L5: typed('L5'), L6: typed('L6') };
+  });
   const [message, setMessage] = useState<string | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
   const warning = contextWarningOf(draftOf(total, layers));
@@ -189,12 +219,13 @@ export function ContextSection({ services, session = null }: { services: AppServ
         ) : null}
         {instructions === null ? null : <InstructionsCap view={instructions} />}
         <BudgetPreview draft={draftOf(total, layers)} />
+        <ReplyReserve services={services} />
         {session === null ? null : (
           <div className="context-prompt">
             <button type="button" className="button is-quiet" aria-expanded={showPrompt} onClick={() => setShowPrompt((open) => !open)}>
               {showPrompt ? 'Hide the prompt for a scene' : 'See the prompt for a scene'}
             </button>
-            {showPrompt ? <ContextPromptPreview view={contextPreviewOf(session.state, session.view.activeDocId, draftOf(total, layers))} /> : null}
+            {showPrompt ? <ContextPromptPreview view={contextPreviewOf(session.state, session.view.activeDocId, draftOf(total, layers), services.providers.limitsForRole('chat'))} /> : null}
           </div>
         )}
         <div className="profile-form-actions">
