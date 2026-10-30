@@ -67,7 +67,9 @@ export const BUDGET = {
   // app carries the host-model rows' registry metadata, params and preflights and none of their ports, which only the MCP server builds.
   // 6,036.1 kB measured with those and macros (#57), the prompt-injection guards (#54) and the export Preview (#106) together; the ceiling is that plus about 0.6%.
   // 6,076.1 kB measured with the narrow layout (#18): its model, notice and hook, the drawer, sheet and More menu in the workspace, and the row Actions button; the ceiling is that plus about 1%.
-  totalJs: 6_140_000,
+  // 6,141.5 kB measured with the real Bold CJK face (#253: the contact sheet's Bold port, its loader and two on-use `?url` modules,
+  // 2.2 kB) on top of the context limits (#254), which left the old 6,140.0 kB ceiling 1.5 kB short; the ceiling is that plus about 1%.
+  totalJs: 6_200_000,
 };
 
 const KB = 1000;
