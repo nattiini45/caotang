@@ -47,6 +47,8 @@ export interface ProviderProfile {
   maxOutputTokens?: number;
   /** optional, USD; powers context-assembly cost estimates (display-only) */
   pricePer1k?: { prompt: number; completion: number };
+  /** prompt caching for this profile's requests; absent means on, with the provider's default lifetime */
+  promptCache?: CachePolicy;
   /** exactly one profile is active whenever any profile exists */
   isActive: boolean;
 }
@@ -86,6 +88,8 @@ export interface NewProfile {
   temperature?: number;
   maxOutputTokens?: number;
   pricePer1k?: { prompt: number; completion: number };
+  /** prompt caching for the profile's requests; absent means on, with the provider's default lifetime */
+  promptCache?: CachePolicy;
   /** activates the new profile; without it, the first profile ever created is active */
   isActive?: boolean;
 }
@@ -105,6 +109,8 @@ export interface ProfilePatch {
   maxOutputTokens?: number;
   /** A new price replaces the saved one. `null` clears it, so the profile is unpriced again; an absent field keeps the saved price. */
   pricePer1k?: { prompt: number; completion: number } | null;
+  /** A new caching policy replaces the saved one; an absent field keeps it. */
+  promptCache?: CachePolicy;
 }
 
 export type ChatRole = 'system' | 'user' | 'assistant' | 'tool';
@@ -149,9 +155,23 @@ export interface ReasoningBlock {
   raw?: unknown;
 }
 
+/**
+ * One ordered piece of a message's text (provider-gateway §3, "Prompt caching"). A part marked `cacheBoundary` says that
+ * everything up to and including it is a prefix worth caching: the adapters that cache place a breakpoint there, and the
+ * ones that do not join the parts and ignore the mark.
+ */
+export interface ContentPart {
+  readonly text: string;
+  /** Everything up to and including this part is a prefix worth caching. */
+  readonly cacheBoundary?: boolean;
+}
+
 export interface ChatMessage {
   role: ChatRole;
+  /** Always set. When `parts` are given it is their texts joined with a blank line, and an adapter that ignores parts sends it. */
   content: string;
+  /** Optional ordered parts of `content`; adapters that cache place breakpoints from their marks. Absent means `content` is one part. */
+  parts?: readonly ContentPart[];
   /** assistant only: the calls it asked for. May accompany empty content on a tools-only reply. */
   toolCalls?: readonly ToolCall[];
   /** tool role only: the call this message answers. */
@@ -162,9 +182,30 @@ export interface ChatMessage {
   reasoning?: readonly ReasoningBlock[];
 }
 
+/**
+ * What one call used. `promptTokens` is every input token the provider billed, cache reads and writes included (Anthropic
+ * reports those outside its `input_tokens`; the adapter adds them back), and `completionTokens` every output token, reasoning
+ * included. The breakdown fields are subsets of those two, present only when the provider reported them (issue #78, step 2).
+ */
 export interface Usage {
   promptTokens: number;
   completionTokens: number;
+  /** The part of `promptTokens` served from the provider's prompt cache. */
+  cachedPromptTokens?: number;
+  /** The part of `promptTokens` written to the provider's prompt cache on this call. */
+  cacheWritePromptTokens?: number;
+  /** The part of `completionTokens` spent on reasoning. */
+  reasoningTokens?: number;
+}
+
+/**
+ * Whether a request asks the provider to cache its prompt prefix (provider-gateway §3, "Prompt caching"). `auto` places
+ * breakpoints where the model's capability row says the route takes them; `off` sends no cache field at all.
+ */
+export interface CachePolicy {
+  readonly mode: 'off' | 'auto';
+  /** How long Anthropic keeps a cached prefix: 5 minutes (the default) or an hour, which costs more to write. Ignored elsewhere. */
+  readonly ttl?: '5m' | '1h';
 }
 
 export interface ChatChunk {
@@ -216,6 +257,11 @@ export interface ModelLimits {
   readonly thinkingTokens?: number;
   /** The price in USD per 1,000 tokens: the profile's, else the provider's. Display-only (provider-gateway §6, D4). */
   readonly pricePer1k?: { readonly prompt: number; readonly completion: number };
+  /**
+   * How the model's prompt cache prices a reused prefix, for the forecast: present only when the profile's caching is on and
+   * the row says the route caches and names a read multiplier. Display-only.
+   */
+  readonly cache?: { readonly readMultiplier: number; readonly writeMultiplier?: number; readonly minTokens?: number };
 }
 
 export interface ChatRequest {
@@ -243,6 +289,8 @@ export interface ChatRequest {
   reasoningBudget?: number;
   /** default: the profile that resolved for the request's role, else the active profile */
   profileId?: string;
+  /** Prompt caching for this call. Default: the profile's policy, else `auto`. */
+  cache?: CachePolicy;
   /** the agent turn this request belongs to; keys the per-turn ledger row (§6) */
   turnId?: string;
   /** the task role this request runs under; recorded on the ledger row (§6) */
@@ -290,6 +338,19 @@ export interface ModelCaps {
   readonly streamRequired?: boolean;
   /** Request fields this route rejects and the adapter must omit (e.g. 'temperature'). */
   readonly denylist?: readonly string[];
+  /**
+   * How the route caches a prompt prefix for this model (provider-gateway §3, "Prompt caching"): `explicit` takes breakpoints
+   * the adapter places (Anthropic `cache_control`, OpenAI Responses `prompt_cache_breakpoint`); `automatic` caches on its own
+   * and the adapter only keeps the prefix stable (and sends a `prompt_cache_key` on OpenAI Responses); absent or `none` sends
+   * no cache field, so the body is what it was before caching existed.
+   */
+  readonly cache?: 'explicit' | 'automatic' | 'none';
+  /** The smallest prefix the provider caches, in tokens. A breakpoint before a shorter prefix is not sent. */
+  readonly cacheMinTokens?: number;
+  /** A cache read's price against the prompt price, for the forecast (0.1 = a tenth). */
+  readonly cacheReadMultiplier?: number;
+  /** A cache write's price against the prompt price at the default lifetime, for the forecast. */
+  readonly cacheWriteMultiplier?: number;
 }
 
 /** Who a unit of usage is attributed to. `at` defaults to the gateway clock. */

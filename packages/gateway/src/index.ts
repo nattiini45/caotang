@@ -17,6 +17,8 @@ export type {
   ProviderGateway,
   ChatRequest,
   ChatMessage,
+  ContentPart,
+  CachePolicy,
   ChatChunk,
   ChatRole,
   FinishReason,

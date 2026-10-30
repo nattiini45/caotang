@@ -96,7 +96,7 @@ describe('failure text', () => {
 
 describe('SmokeReport', () => {
   it('lists every stage the spec runs, and only those', () => {
-    expect(SMOKE_STAGES).toEqual(['model list', 'streamed completion', 'native tools', 'thinking', 'key redaction']);
+    expect(SMOKE_STAGES).toEqual(['model list', 'streamed completion', 'native tools', 'thinking', 'prompt cache', 'key redaction']);
     const rows = new SmokeReport('groq').markdown().split('\n').filter((line) => line.startsWith('| groq'));
     expect(rows).toHaveLength(SMOKE_STAGES.length);
   });

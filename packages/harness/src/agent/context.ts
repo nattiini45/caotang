@@ -139,6 +139,26 @@ export function createContextPort(options: ContextPortOptions): ContextPort {
 }
 
 /**
+ * Each call's cost with the cache forecast applied (context-assembly §5, "Cache forecast"): a call whose reusable prefix an
+ * earlier call of the batch already sent (the same `cache.key`) is priced at the model's read multiplier for that prefix,
+ * since the earlier call wrote it. The first call of a prefix is priced in full. A call with no priced cache is unchanged.
+ */
+export function forecastReads(previews: readonly PromptPreview[]): (PromptPreview['cost'] | undefined)[] {
+  const written = new Set<string>();
+  return previews.map((preview) => {
+    const { cost, cache } = preview;
+    if (cache === undefined) return cost;
+    const seen = written.has(cache.key);
+    written.add(cache.key);
+    if (!seen || cost === undefined || preview.promptTokens <= 0) return cost;
+    const perToken = cost.promptUsd / preview.promptTokens;
+    const cachedTokens = Math.min(cache.prefixTokens, preview.promptTokens);
+    const promptUsd = cost.promptUsd - cachedTokens * perToken * (1 - cache.readMultiplier);
+    return { ...cost, promptUsd, totalUsd: promptUsd + cost.completionUsd, cachedTokens };
+  });
+}
+
+/**
  * Several calls shown as one card entry. The synopsis batch is one call per document (drafting.ts), and the
  * card shows what the whole batch sends: tokens and drops summed, the messages of each call in order.
  * `undefined` for no calls. A single call is returned as it is.
@@ -168,7 +188,7 @@ export function mergePreviews(previews: readonly PromptPreview[]): PromptPreview
   }
 
   const sum = (values: readonly number[]): number => values.reduce((total, value) => total + value, 0);
-  const costs = previews.map((preview) => preview.cost);
+  const costs = forecastReads(previews);
   const cost =
     costs.every((item) => item !== undefined)
       ? {
@@ -176,6 +196,7 @@ export function mergePreviews(previews: readonly PromptPreview[]): PromptPreview
           completionUsd: sum(costs.map((item) => item?.completionUsd ?? 0)),
           totalUsd: sum(costs.map((item) => item?.totalUsd ?? 0)),
           ...(costs.some((item) => item?.includesThinking === true) ? { includesThinking: true as const } : {}),
+          ...(costs.some((item) => item?.cachedTokens !== undefined) ? { cachedTokens: sum(costs.map((item) => item?.cachedTokens ?? 0)) } : {}),
         }
       : undefined;
 

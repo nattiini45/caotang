@@ -61,6 +61,7 @@ export {
   LAYER_NAMES,
   type AgentTask,
   type AppSnapshot,
+  type AssembledPart,
   type AssembledPrompt,
   type AssemblyTool,
   type ContextConfig,

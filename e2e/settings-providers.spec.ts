@@ -285,3 +285,38 @@ test('a generic endpoint still refuses plain http to loopback: the exemption is 
   await expect(settings.getByRole('alert')).toContainText('must start with https://');
   await expect(settings.locator('[data-profile="Sneaky"]')).toHaveCount(0);
 });
+
+test('prompt caching is a per-profile switch, on by default, with a lifetime choice for Anthropic only, and it survives a reload', async ({
+  page,
+}) => {
+  await fakeEndpoint(page, planThenAnswer({ reply: 'unused' }));
+  const settings = await openSettings(page);
+  await settings.getByRole('button', { name: 'Add a provider' }).click();
+  const form = settings.getByRole('form', { name: 'New provider' });
+  const caching = form.getByRole('group', { name: 'Prompt caching' });
+
+  // Anthropic offers the lifetime: five minutes by default, an hour at a dearer write.
+  await form.getByRole('combobox', { name: 'Provider' }).selectOption('anthropic');
+  await expect(caching.getByRole('checkbox')).toBeChecked();
+  await expect(caching.getByLabel('Keep a cached prompt for')).toHaveValue('5m');
+  await expect(caching.getByRole('option', { name: '1 hour (costs more to write)' })).toBeAttached();
+
+  // Any other provider has the switch alone.
+  await form.getByRole('combobox', { name: 'Provider' }).selectOption('generic');
+  await expect(caching.getByLabel('Keep a cached prompt for')).toHaveCount(0);
+  await form.getByLabel('Name').fill('No cache');
+  await form.getByLabel('Endpoint (the base URL, ending in /v1)').fill(FAKE_ENDPOINT);
+  await form.getByLabel('Model', { exact: true }).fill('test-model');
+  await caching.getByRole('checkbox').uncheck();
+  await form.getByRole('button', { name: 'Save profile' }).click();
+  await expect(settings.getByText('Saved “No cache”.')).toBeVisible();
+
+  await settings.locator('[data-profile="No cache"]').getByRole('button', { name: 'Edit' }).click();
+  await expect(settings.getByRole('form', { name: 'Edit provider' }).getByRole('group', { name: 'Prompt caching' }).getByRole('checkbox')).not.toBeChecked();
+
+  // Saved with the profile record: a reload brings the choice back.
+  await page.reload();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByTestId('settings').locator('[data-profile="No cache"]').getByRole('button', { name: 'Edit' }).click();
+  await expect(page.getByRole('form', { name: 'Edit provider' }).getByRole('group', { name: 'Prompt caching' }).getByRole('checkbox')).not.toBeChecked();
+});
