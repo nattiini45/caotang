@@ -394,7 +394,9 @@ export function InlineText({
       maxLength={120}
       onChange={(event) => setValue(event.target.value)}
       onKeyDown={(event) => {
-        if (event.key === 'Enter' && !isImeEnter(event)) {
+        // The Enter that confirms an input method's candidate, and the Escape that cancels one, are the input method's (#188).
+        if (isImeEnter(event)) return;
+        if (event.key === 'Enter') {
           event.preventDefault();
           event.stopPropagation();
           finish(true);

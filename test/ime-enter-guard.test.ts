@@ -37,10 +37,11 @@ describe('Enter handlers leave a composing input method alone (#188)', () => {
     expect(checks).toBeGreaterThanOrEqual(20);
   });
 
-  it('every file that checks for Enter calls isImeEnter', () => {
+  it('every Enter check has its own isImeEnter call, so a second handler in a guarded file is not covered by the first', () => {
+    const count = (text: string, pattern: RegExp): number => text.match(new RegExp(pattern.source, 'g'))?.length ?? 0;
     const unguarded = files
-      .filter((file) => file.path !== KEYMAP && ENTER_CHECK.test(file.text) && !file.text.includes('isImeEnter('))
-      .map((file) => file.path);
+      .filter((file) => file.path !== KEYMAP && count(file.text, /\bisImeEnter\(/) < count(file.text, ENTER_CHECK))
+      .map((file) => `${file.path}: ${count(file.text, ENTER_CHECK)} Enter checks, ${count(file.text, /\bisImeEnter\(/)} isImeEnter calls`);
     expect(unguarded).toEqual([]);
   });
 

@@ -45,7 +45,14 @@ export function CommandComposer({ value, onChange, onRun, placeholder, disabled,
   };
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>): void => {
-    if (isImeEnter(event) || !visible || active === undefined) return;
+    if (isImeEnter(event)) {
+      // The Intent box is in a form, and an Enter left to its default submits the form. The key the input method owns is cancelled
+      // (the input method has already handled it), or the Enter that confirms a candidate would send the half-typed line; Safari's
+      // comes after compositionend with only keyCode 229 (#188).
+      event.preventDefault();
+      return;
+    }
+    if (!visible || active === undefined) return;
     if (event.key === 'Escape') {
       event.preventDefault();
       setClosedFor(value);

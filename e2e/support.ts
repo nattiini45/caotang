@@ -202,3 +202,33 @@ export async function selectionOf(page: Page): Promise<{ docId: string; from: nu
     return caotang?.selection() ?? null;
   });
 }
+
+export type ImeBelt = 'isComposing' | 'keyCode';
+
+/**
+ * Compose `text` into a text field and confirm it with Enter, the way an input method does (#188): `compositionstart`, the candidate
+ * typed in, the confirming Enter (`isComposing`, or only `keyCode` 229 as Safari reports the last one), then `compositionend`.
+ * Resolves to whether a handler cancelled the Enter (`preventDefault`). A field leaves it alone; the agent's Intent box, which is in
+ * a form, cancels it so the form is not submitted.
+ */
+export async function composeAndConfirm(field: Locator, text: string, belt: ImeBelt = 'isComposing'): Promise<boolean> {
+  await field.focus();
+  return field.evaluate(
+    (element, { text, belt }) => {
+      const input = element as HTMLInputElement;
+      input.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true, data: '' }));
+      // React tracks a field's value through the prototype's setter, so the candidate goes in the way the browser puts it in.
+      const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      setValue?.call(input, text);
+      input.dispatchEvent(new CompositionEvent('compositionupdate', { bubbles: true, data: text }));
+      input.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertCompositionText', isComposing: true }));
+      // Each belt alone: Chromium and Firefox say isComposing; Safari's last Enter says only keyCode 229.
+      const enter = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true, isComposing: belt === 'isComposing' });
+      if (belt === 'keyCode') Object.defineProperty(enter, 'keyCode', { value: 229 });
+      input.dispatchEvent(enter);
+      input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: text }));
+      return enter.defaultPrevented;
+    },
+    { text, belt },
+  );
+}

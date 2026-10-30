@@ -1,44 +1,16 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { binderRow, binderTitle, createProject, trace } from './support.js';
+import { binderRow, binderTitle, composeAndConfirm, createProject, trace } from './support.js';
 
 /**
  * i18n §7.3, issue #188: a writer typing Chinese, Japanese or Korean confirms a candidate with Enter, and that Enter reaches the
  * page as a `keydown` while the composition is still active. It is the input method's: a field must not commit, save, add or
  * blur on it. Only the Enter pressed after the composition ends does that.
  *
- * Playwright cannot drive a real input method, so the spec plays one: `compositionstart`, the candidate typed in
- * (`input` while composing), the confirming Enter (`isComposing`, or only `keyCode` 229 as Safari reports the last one), then
- * `compositionend`.
+ * Playwright cannot drive a real input method, so the spec plays one (`composeAndConfirm` in support.ts): `compositionstart`, the
+ * candidate typed in (`input` while composing), the confirming Enter (`isComposing`, or only `keyCode` 229 as Safari reports the
+ * last one), then `compositionend`. The agent's Intent box and a queued message's edit field are in agent-stop-queue.spec.ts.
  */
-
-type Belt = 'isComposing' | 'keyCode';
-
-/**
- * Compose `text` into a focused text field and confirm it with Enter, the way an input method does. Resolves to whether any
- * handler took the Enter (called `preventDefault`), which it must not: the key belongs to the input method.
- */
-async function composeAndConfirm(field: Locator, text: string, belt: Belt = 'isComposing'): Promise<boolean> {
-  await field.focus();
-  return field.evaluate(
-    (element, { text, belt }) => {
-      const input = element as HTMLInputElement;
-      input.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true, data: '' }));
-      // React tracks a field's value through the prototype's setter, so the candidate goes in the way the browser puts it in.
-      const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-      setValue?.call(input, text);
-      input.dispatchEvent(new CompositionEvent('compositionupdate', { bubbles: true, data: text }));
-      input.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertCompositionText', isComposing: true }));
-      // Each belt alone: Chromium and Firefox say isComposing; Safari's last Enter says only keyCode 229.
-      const enter = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true, cancelable: true, isComposing: belt === 'isComposing' });
-      if (belt === 'keyCode') Object.defineProperty(enter, 'keyCode', { value: 229 });
-      input.dispatchEvent(enter);
-      input.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: text }));
-      return enter.defaultPrevented;
-    },
-    { text, belt },
-  );
-}
 
 function inspector(page: Page): Locator {
   return page.getByRole('complementary', { name: 'Inspector' });
@@ -102,6 +74,7 @@ test('a candidate confirmed in the inspector’s keyword field is not added, and
   const metas = (await trace(page)).filter((row) => row.command === 'binder.setMeta').length;
 
   expect(await composeAndConfirm(input, '海')).toBe(false);
+  expect(await composeAndConfirm(input, '海', 'keyCode')).toBe(false);
   await expect(input).toBeFocused();
   await expect(input).toHaveValue('海');
   await expect(inspector(page).getByRole('listitem').filter({ hasText: '海' })).toHaveCount(0);
