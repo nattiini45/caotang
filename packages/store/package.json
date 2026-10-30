@@ -13,6 +13,7 @@
   "dependencies": {
     "@caotang/bus": "workspace:*",
     "@caotang/ids": "workspace:*",
+    "@caotang/pictures": "workspace:*",
     "@caotang/screenplay": "workspace:*",
     "@caotang/skills": "workspace:*",
     "fflate": "0.8.3"
