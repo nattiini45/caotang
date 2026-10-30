@@ -181,12 +181,14 @@ export interface ExportFile {
 }
 
 /**
- * exporter.md §4, except for the format enum, which now carries `epub`, and `preview`, which replaces `previewFlatten` (the Draft).
+ * exporter.md §4, except for the format enum, which now carries `epub`, `preview`, which replaces `previewFlatten` (the Draft), and `proof`
+ * (the Proof of a text format).
  * `saveRecipe` is gone: a recipe is written by the bus's `recipe.save` (an undoable command on the manifest), so there is one way to save one.
  */
 export interface Exporter {
   compile(selection: ExportSelection, format: ExportFormat, templateId?: string): Promise<ExportResult>;
   preview(request: ExportPreviewRequest): ExportPreview;
+  proof(request: ExportPreviewRequest): Promise<ExportProof>;
   listRecipes(): ExportRecipe[];
 }
 
@@ -284,3 +286,47 @@ export interface ExportMetadataInput {
   /** The cover image's asset id, when the writer chose one. The bytes are read from the project's `assets/` at compile. */
   readonly coverAssetId?: string | null;
 }
+
+/**
+ * The formats whose Proof is the file itself, shown as text: the compile's own renderer runs and its text is returned. Every format not
+ * listed has no Proof: today that is the binary containers (DOCX, EPUB, the spreadsheets, the PDFs), which the dialog has no renderer
+ * for (exporter.md §7 E5). A test holds this list and `BINARY_FORMATS` to cover `EXPORT_FORMATS` between them.
+ */
+export const TEXT_PROOF_FORMATS = [
+  'md',
+  'txt',
+  'fountain',
+  'fdx',
+  'ink-json',
+  'dialogue-csv',
+  'shot-list-csv',
+  'promptpack',
+  'coherence-md',
+  'coherence-json',
+] as const satisfies readonly ExportFormat[];
+
+/** Whether a format has a Proof: it is listed in {@link TEXT_PROOF_FORMATS}. A format added without being listed has none. */
+export function hasTextProof(format: ExportFormat): boolean {
+  return (TEXT_PROOF_FORMATS as readonly string[]).includes(format);
+}
+
+/**
+ * exporter.md §4, the Proof half of the Draft/Proof duality: the file the compile would write, made by the compile's own plan and renderer,
+ * for a format whose file is text. Nothing is reserved, written, gated or logged, and no command runs.
+ *
+ * - `text`: the first file the compile would write, as text, with its name and the names of any further files the compile writes with it.
+ *   The compile log's notes are the Draft's: no text renderer adds one of its own.
+ * - `none`: a binary format. There is no Proof in the browser; the Draft is what goes in.
+ * - `refused`: the compile would be refused, with the refusal it would get.
+ */
+export type ExportProof =
+  | {
+      readonly kind: 'text';
+      readonly format: ExportFormat;
+      readonly fileName: string;
+      readonly mimeType: string;
+      readonly text: string;
+      readonly otherFiles: readonly string[];
+    }
+  | { readonly kind: 'none'; readonly format: ExportFormat }
+  | { readonly kind: 'refused'; readonly error: CommandError };
