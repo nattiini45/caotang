@@ -57,16 +57,32 @@ export class CjkFace {
   }
 }
 
-/** The CJK font as it is embedded in one PDF (cid-embedding.ts): the Regular, or with `bold` the Bold, each a font of its own. */
+/** The weight class (OS/2 `usWeightClass`) a font states: 400 for the Regular, 700 for the Bold; 0 when it states none. */
+export function weightOf(font: FontkitFont): number {
+  return (font as unknown as { readonly 'OS/2'?: { readonly usWeightClass?: number } })['OS/2']?.usWeightClass ?? 0;
+}
+
+/** The least weight class a font must state to be embedded as the Bold: semibold (600) and up. */
+const BOLD_WEIGHT = 600;
+
+/**
+ * The CJK font as it is embedded in one PDF (cid-embedding.ts): the Regular, or the Bold, each a font of its own. The Bold must be a
+ * bold face: a font that states a lighter weight (the Regular passed as the Bold's loader) is refused here, so the writer falls back to
+ * the stroke and says so rather than printing regular glyphs under the Bold's name.
+ */
 export class CjkEmbedding extends CidEmbedding {
-  constructor(lib: typeof PdfLib, doc: PdfLib.PDFDocument, readonly face: CjkFace, bold = false) {
+  constructor(lib: typeof PdfLib, doc: PdfLib.PDFDocument, readonly face: CjkFace, weight: 'regular' | 'bold' = 'regular') {
+    const name = face.font.postscriptName;
+    if (weight === 'bold' && weightOf(face.font) < BOLD_WEIGHT) {
+      throw new Error(`${name ?? 'the font'} is not a bold face (weight ${weightOf(face.font)})`);
+    }
     super(
       lib,
       doc,
       face.font,
-      bold
-        ? { resource: 'NotoCjkBold', tag: 'CAOTCB', postscriptName: face.font.postscriptName ?? 'NotoSansMonoCJKsc-Bold' }
-        : { resource: 'NotoCjk', tag: 'CAOTCJ', postscriptName: face.font.postscriptName ?? 'NotoSansMonoCJKsc-Regular' },
+      weight === 'bold'
+        ? { resource: 'NotoCjkBold', tag: 'CAOTCB', postscriptName: name ?? 'NotoSansMonoCJKsc-Bold' }
+        : { resource: 'NotoCjk', tag: 'CAOTCJ', postscriptName: name ?? 'NotoSansMonoCJKsc-Regular' },
     );
   }
 }

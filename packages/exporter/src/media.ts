@@ -136,7 +136,7 @@ export interface MediaRequest {
   readonly at?: number;
   /** Reads the fallback font for text outside Latin script (`@caotang/font-noto-cjk`). The screenplay PDF and the contact sheet read it, and only when the file holds such text. */
   readonly loadFallbackFont?: FontLoader;
-  /** Reads the Bold of the fallback font (`@caotang/font-noto-cjk`). The contact sheet reads it, and only when a bold place (the title, the page label, a number chip) holds text outside Latin script; the screenplay PDF draws no bold. */
+  /** Reads the Bold of the fallback font (`@caotang/font-noto-cjk`). The contact sheet reads it, and only when a bold place (the title, the page label, a number chip) holds text the CJK font sets; the screenplay PDF draws no bold. */
   readonly loadBoldFallbackFont?: FontLoader;
   /** Reads the emoji font (`@caotang/font-noto-emoji`). The screenplay PDF and the contact sheet read it, and only when the file holds an emoji. */
   readonly loadEmojiFont?: FontLoader;

@@ -37,7 +37,7 @@ SHA256SUMS holds the SHA-256 of each weight's source file and of its two built f
 
 ## How the file is built
 
-`python3 build.py NotoSansMonoCJKsc-Regular.otf NotoSansMonoCJKsc-Bold.otf` (either or both), with fontTools 4.61.1 (use a virtual
+`python3 build.py NotoSansMonoCJKsc-Regular.otf NotoSansMonoCJKsc-Bold.otf` (either or both; the common step that follows cuts both weights' common files, so both full files must be beside the script), with fontTools 4.61.1 (use a virtual
 environment: the script refuses any other version). The script tells the weight by the source's SHA-256 (`WEIGHTS` in build.py), and
 refuses a file that is neither, then builds that weight's full file:
 

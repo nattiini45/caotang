@@ -190,7 +190,7 @@ def build_common(weight: Weight = REGULAR) -> int:
             print(f"{HERE / 'SHA256SUMS'} has no SHA-256 for {name}, so the output could not be checked", file=sys.stderr)
             return 1
     if not full.is_file() or sha256(full) != pinned_digest(weight.output):
-        print(f"{full} is not the file SHA256SUMS pins, so the common file would not follow from it", file=sys.stderr)
+        print(f"{full} ({weight.name}) is missing or not the file SHA256SUMS pins, so its common file would not follow from it", file=sys.stderr)
         return 1
     wanted = charset(HERE / COMMON_CHARSET)
     # The head, hhea and maxp tables keep the full font's numbers, so a PDF holds the same font program from either file.

@@ -262,8 +262,11 @@ describe('bold CJK in the Bold face (#253)', () => {
     await draw(planWith({ title: '第一场' }), { loadBoldFallbackFont: tracking });
     // 龘 is only in the full file, in an action line (a regular place): the Bold is still read from its common file.
     await draw(planWith({ title: '第一场', action: '龘' }), { loadBoldFallbackFont: tracking });
-    await draw(planWith({ title: '龘' }), { loadBoldFallbackFont: tracking });
+    const rare = await draw(planWith({ title: '龘' }), { loadBoldFallbackFont: tracking });
     expect(read).toEqual(['common', 'common', 'full']);
+    // The full file drew it: one run in the Bold, which copies back as 龘.
+    expect(cjkRuns(rare.lines, 'NotoCjkBold')).toHaveLength(1);
+    expect(copied(rare.pdf)).toContain('龘');
   }, 60_000);
 
   it('falls back to the stroked Regular when the Bold cannot be read, and says so', async () => {
@@ -277,6 +280,40 @@ describe('bold CJK in the Bold face (#253)', () => {
     expect(notes).toContain('contact sheet: the bold fallback font could not be read (offline), so bold text outside Latin script is the regular weight thickened by a stroke');
     // The drawing is the stroked sheet's; only the log differs.
     expect(Buffer.from(contents).equals(Buffer.from((await draw(plan)).contents))).toBe(true);
+  });
+
+  it('says in the log when the compile has no Bold, and draws the stroke', async () => {
+    const { lines, notes } = await draw(planWith({ title: '第一场' }));
+    expect(strokedRuns(lines)).toHaveLength(1);
+    expect(notes).toContain('contact sheet: this compile has no bold fallback font, so bold text outside Latin script is the regular weight thickened by a stroke');
+    // A sheet with no CJK in a bold place says nothing about the Bold.
+    expect((await draw(planWith({ action: '草堂' }))).notes.some((note) => note.includes('bold fallback font'))).toBe(false);
+  });
+
+  it('refuses a loader that gives the Regular in the Bold’s place: the stroke, and a note that names it', async () => {
+    const plan = planWith({ title: '第一场', chip: '一' });
+    const { lines, notes, pdf } = await draw(plan, { loadBoldFallbackFont: loadCjkFontInNode });
+    expect(cjkRuns(lines, 'NotoCjkBold')).toHaveLength(0);
+    expect(strokedRuns(lines)).toHaveLength(2);
+    expect(type0Fonts(pdf)).toEqual(['/CAOTCJ+NotoSansMonoCJKsc-Regular']);
+    expect(notes).toContain(
+      'contact sheet: the bold fallback font could not be read (NotoSansMonoCJKsc-Regular is not a bold face (weight 400)), so bold text outside Latin script is the regular weight thickened by a stroke',
+    );
+  });
+
+  it('does not fetch the Bold for a bold title in a script the CJK font has no glyph for', async () => {
+    let calls = 0;
+    const counting = Object.assign(async () => {
+      calls += 1;
+      return loadCjkBoldFontInNode();
+    }, { common: async () => {
+      calls += 1;
+      return loadCjkBoldFontInNode.common();
+    } });
+    // Tamil: no font has it, so it prints as "?" either way.
+    const { notes } = await draw(planWith({ title: 'தமிழ்' }), { loadBoldFallbackFont: counting });
+    expect(calls).toBe(0);
+    expect(notes.some((note) => note.includes('drawn as "?"'))).toBe(true);
   });
 
   it('measures what it draws: a long CJK title is cut with an ellipsis inside its box, at the Bold’s advance and no spacing', async () => {

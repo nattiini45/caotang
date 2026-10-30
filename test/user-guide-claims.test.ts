@@ -273,7 +273,8 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(guide).not.toMatch(/Chinese, Japanese and Korean text and black-and-white emoji there are bold by thickening their strokes/);
     const render = read('packages/exporter/src/render-contact-sheet.ts');
     expect(render).toContain('const load = cjkLoaderFor(input.loadBoldFallbackFont, boldFontNeeds());');
-    expect(render).toContain("if (input.loadBoldFallbackFont === undefined) return boldFallback;");
+    expect(render).toContain("boldFallbackError = 'this compile has no bold fallback font';");
+    expect(render).toContain("boldFallback = new CjkEmbedding(lib, pdf, face, 'bold');");
     // The app fetches the Bold through a dynamic `?url` import inside its loader, so the first load is unchanged.
     const fonts = read('apps/desktop/src/app/fallback-fonts.ts');
     expect(fonts).toContain("await import('@caotang/font-noto-cjk/NotoSansMonoCJKsc-Bold.woff?url')");
