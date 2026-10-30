@@ -58,6 +58,7 @@ import { CodexPanel } from './CodexPanel.js';
 import { ActivityPanel } from './ActivityPanel.js';
 import { TracePanel } from './TracePanel.js';
 import { mediaKindOf, mediaPortsFor, mediaViewFor } from '../media/index.js';
+import type { SourceRoute } from '../media/element-menu.js';
 
 import { Corkboard } from './Corkboard.js';
 import { EditorPane, type RevealRequest } from './EditorPane.js';
@@ -342,6 +343,8 @@ export function Workspace({
     requestAnimationFrame(() => {
       const row = document.querySelector<HTMLElement>(`.binder-tree [data-node-id="${CSS.escape(section.id)}"]`);
       if (row !== null) row.focus();
+      // A missing row is a filter that hides it, unless the folder went in the frame since the key (an agent's delete).
+      else if (nodeById(session.state, section.id) === undefined) report({ text: `"${section.title}" is no longer in the binder.`, tone: 'info' });
       else report({ text: `The binder filter hides "${section.title}". Clear the filter to see it.`, tone: 'info' });
     });
   };
@@ -354,7 +357,18 @@ export function Workspace({
     if (hideRails) setFocusMode(false);
     if (selected !== sceneId) selectNode(session, sceneId);
     if (narrow) setPanel('inspector');
-    focusSoon('#inspector-synopsis');
+    // Unlike the binder's Edit synopsis, a miss is said: the chord was pressed in the text, and nothing else would show it failed.
+    requestAnimationFrame(() => {
+      const field = document.querySelector<HTMLElement>('#inspector-synopsis');
+      if (field !== null) field.focus();
+      else report({ text: 'The scene’s synopsis is not showing, so the chord could not open it.', tone: 'info' });
+    });
+  };
+
+  /** The Source tab's routes, one handler each, so a route added to `SourceRoute` without a handler does not compile. */
+  const sceneRoutes: Readonly<Record<SourceRoute, (sceneId: string) => void>> = {
+    section: showSceneSection,
+    synopsis: focusSceneSynopsis,
   };
 
   // In the narrow layout a storyboard and a dialogue container say "Open on desktop" in place of their view (ui-modules §1).
@@ -384,7 +398,7 @@ export function Workspace({
             setAgentOpen(true);
             void agent.submit(intent);
           },
-          onSourceRoute: (route, scene) => (route === 'section' ? showSceneSection(scene.id) : focusSceneSynopsis(scene.id)),
+          onSourceRoute: (route, scene) => sceneRoutes[route](scene.id),
         })
       )
     ) : null;
