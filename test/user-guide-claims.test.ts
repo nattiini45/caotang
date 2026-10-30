@@ -267,6 +267,25 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(changelog).not.toMatch(/A character the font does not cover, such as Chinese, prints as a question mark/);
   });
 
+  it('says the contact sheet prints bold CJK in a bold font fetched on use, with the stroke as its fallback (#253)', () => {
+    expect(guide).toContain('Chinese, Japanese and Korean text there prints in a bold font, which Caotang fetches only for such a sheet');
+    expect(guide).toContain('if it cannot be fetched, that text and black-and-white emoji there are bold by thickening their strokes.');
+    expect(guide).not.toMatch(/Chinese, Japanese and Korean text and black-and-white emoji there are bold by thickening their strokes/);
+    const render = read('packages/exporter/src/render-contact-sheet.ts');
+    expect(render).toContain('const load = cjkLoaderFor(input.loadBoldFallbackFont, boldFontNeeds());');
+    expect(render).toContain("boldFallbackError = 'this compile has no bold fallback font';");
+    expect(render).toContain("boldFallback = new CjkEmbedding(lib, pdf, face, 'bold');");
+    // The app fetches the Bold through a dynamic `?url` import inside its loader, so the first load is unchanged.
+    const fonts = read('apps/desktop/src/app/fallback-fonts.ts');
+    expect(fonts).toContain("await import('@caotang/font-noto-cjk/NotoSansMonoCJKsc-Bold.woff?url')");
+    expect(fonts).toContain("await import('@caotang/font-noto-cjk/NotoSansMonoCJKsc-Bold-common.woff?url')");
+    expect(read('apps/desktop/src/app/session.ts')).toContain('loadBoldFallbackFont: loadCjkBoldFontOverHttp,');
+    // The docs no longer say the Bold is not built.
+    expect(read('docs/architecture/storyboard.md')).not.toMatch(/real Bold weight of Noto Sans Mono CJK SC is not built/);
+    expect(read('packages/pdf-fonts/src/embolden.ts')).not.toMatch(/it is not built/);
+    expect(read('docs/decisions.md')).not.toContain('the 16 MB CJK font');
+  });
+
   it('states the screenplay PDF’s margins, page numbering and recipe controls as the layout and the dialog have them', () => {
     const pdfSection = guide.slice(guide.indexOf('### The screenplay PDF'), guide.indexOf('## Writing dialogue'));
     const paginate = read('packages/screenplay/src/paginate.ts');

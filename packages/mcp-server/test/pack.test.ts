@@ -11,6 +11,8 @@ import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   ARABIC_FONT_FILE,
+  CJK_BOLD_COMMON_FONT_FILE,
+  CJK_BOLD_FONT_FILE,
   CJK_COMMON_FONT_FILE,
   CJK_FONT_FILE,
   COLOUR_EMOJI_FILE,
@@ -241,20 +243,22 @@ describe('staging and packing', () => {
     expect(statSync(wasm).size).toBe(137960);
   });
 
-  it('has the CJK and emoji fonts with their common files, and one Arabic, one Hebrew and one Devanagari font to stage, from their packages, 13.9 MB together', () => {
+  it('has the CJK font in Regular and Bold and the emoji font, each with its common file, and one Arabic, one Hebrew and one Devanagari font to stage, from their packages, 26.6 MB together', () => {
     const require = createRequire(import.meta.url);
     const sizes = [
       `@caotang/font-noto-cjk/${CJK_FONT_FILE}`,
       `@caotang/font-noto-cjk/${CJK_COMMON_FONT_FILE}`,
+      `@caotang/font-noto-cjk/${CJK_BOLD_FONT_FILE}`,
+      `@caotang/font-noto-cjk/${CJK_BOLD_COMMON_FONT_FILE}`,
       `@caotang/font-noto-emoji/${EMOJI_FONT_FILE}`,
       `@caotang/font-noto-emoji/${EMOJI_COMMON_FONT_FILE}`,
       `@caotang/font-noto-arabic/${ARABIC_FONT_FILE}`,
       `@caotang/font-noto-hebrew/${HEBREW_FONT_FILE}`,
       `@caotang/font-noto-devanagari/${DEVANAGARI_FONT_FILE}`,
     ].map((specifier) => statSync(require.resolve(specifier)).size);
-    expect(sizes).toEqual([10692940, 1956568, 579236, 298992, 142140, 16836, 184228]);
-    // Against 25,065,212 bytes of four font files before the two PDFs shared one of each.
-    expect(sizes.reduce((sum, size) => sum + size, 0)).toBeLessThan(14_000_000);
+    expect(sizes).toEqual([10692940, 1956568, 10786312, 1968608, 579236, 298992, 142140, 16836, 184228]);
+    // 13.9 MB without the CJK Bold (#253), which adds 12.8 MB; against 25,065,212 bytes of four font files before the two PDFs shared one of each.
+    expect(sizes.reduce((sum, size) => sum + size, 0)).toBeLessThan(26_700_000);
   });
 
   it('has the colour emoji file to stage, from its package: the 8 MB budget and the pinned size', () => {

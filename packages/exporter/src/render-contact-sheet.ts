@@ -45,9 +45,12 @@
  * line is cut to its box between grapheme clusters, a conjunct whole, and the ellipsis follows a cluster. The font is read through
  * the input's `loadDevanagariFont`, and only when a sheet holds Devanagari.
  *
- * A bold run (the title, the page label, the chip) of CJK or monochrome emoji is drawn with a synthetic stroke (`@caotang/pdf-fonts`,
- * embolden.ts), since those fonts have no Bold: `runWidth` adds its character spacing, so `fitPieces` cuts to the width that is
- * drawn. A colour emoji takes none.
+ * A bold run (the title, the page label, the chip) of CJK is set in Noto Sans Mono CJK SC Bold (`@caotang/font-noto-cjk`), read through
+ * the input's `loadBoldFallbackFont` only when a bold place holds CJK, from its common file when every CJK character of the bold places
+ * is in it. A sheet with no CJK in a bold place never reads the Bold, and its bytes do not change. Without the loader, or when the Bold
+ * cannot be read, the bold CJK run is the Regular drawn with a synthetic stroke (`@caotang/pdf-fonts`, embolden.ts), as a monochrome
+ * emoji in a bold place always is (Noto Emoji has no Bold): `runWidth` adds the stroke's character spacing, so `fitPieces` cuts to the
+ * width that is drawn. A colour emoji takes none.
  *
  * A character no font has (another Indic script, a reserved pictograph) is drawn as `?`, and the compile log names each
  * one. So is every character a font would have drawn when that font cannot be read, and the log says why.
@@ -68,6 +71,7 @@
 
 import {
   ARABIC_FONT_NAME,
+  CJK_BOLD_FONT_NAME,
   CJK_FONT_NAME,
   COLOUR_EMOJI_NAME,
   DEVANAGARI_FONT_NAME,
@@ -134,6 +138,15 @@ export interface ContactSheetPdfInput {
    */
   readonly loadFallbackFont?: FontLoader;
   /**
+   * Reads the Bold of the fallback font (Noto Sans Mono CJK SC Bold, `@caotang/font-noto-cjk`) for text the CJK font sets (Han, kana,
+   * Hangul, Greek, Cyrillic) in a bold place: the header title, the page label and the number chip; Arabic, Hebrew, Devanagari and
+   * emoji there keep their own fonts. Called at most once, and only when such a place holds such text. A loader with a `common` file
+   * reads it when every such character of the bold places is in it; a loader without one reads the full file. The font must be a bold
+   * face (weight 600 or more). When the loader is absent, cannot be read or is not bold, that text is the Regular with a synthetic stroke
+   * (`@caotang/pdf-fonts` embolden.ts), drawn as before the Bold existed, and the log says why.
+   */
+  readonly loadBoldFallbackFont?: FontLoader;
+  /**
    * Reads the emoji font (Noto Emoji, `./emoji-font.ts`). Called at most once, and only when the sheet holds an emoji; a `common`
    * file is read when all its emoji are in it. Without it, emoji are drawn as `?` and the log says so.
    */
@@ -182,8 +195,8 @@ const FRAME_RULE: Shade = { r: 0.3, g: 0.3, b: 0.3 };
 const CHIP_FILL: Shade = { r: 0.15, g: 0.15, b: 0.15 };
 const PAPER: Shade = { r: 1, g: 1, b: 1 };
 
-/** The fonts a piece of text can be set in: Helvetica (or Helvetica-Bold), Noto Sans Mono CJK, Noto Emoji, Noto Color Emoji, Noto Sans Arabic, Noto Sans Hebrew, Noto Sans Devanagari. */
-type Face = 'base' | 'cjk' | 'emoji' | 'colour' | 'devanagari' | RtlScript;
+/** The fonts a piece of text can be set in: Helvetica (or Helvetica-Bold), Noto Sans Mono CJK (or its Bold), Noto Emoji, Noto Color Emoji, Noto Sans Arabic, Noto Sans Hebrew, Noto Sans Devanagari. */
+type Face = 'base' | 'cjk' | 'cjk-bold' | 'emoji' | 'colour' | 'devanagari' | RtlScript;
 
 /**
  * One grapheme cluster of a line, resolved to the font that draws it. An emoji carries the glyphs its layout gave. A letter of
@@ -207,6 +220,20 @@ function isJoinerOrSelector(code: number): boolean {
 
 function isControl(code: number): boolean {
   return code < 0x20 || (code >= 0x7f && code < 0xa0);
+}
+
+/**
+ * The text a plan draws in bold (Helvetica-Bold is its base font): the header title, the page label and the number chip. It must name
+ * exactly the texts the emitter draws with `bold` as the base font (`drawText` and the page label below), since it decides which file of
+ * the Bold is read; a bold place left out of it reads the common file for a character only the full file has.
+ */
+function boldTexts(plan: SheetPlan): string[] {
+  const texts: string[] = [];
+  for (const sheet of plan.pages) {
+    texts.push(sheet.title.text, sheet.pageLabel.text);
+    for (const card of sheet.cards) texts.push(card.chipText.text);
+  }
+  return texts;
 }
 
 /** The text a plan draws. It takes every string the emitter may set, the caption of a card whose picture is drawn included. */
@@ -297,6 +324,9 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
   // which of a font's two files is read.
   let needs: ReturnType<typeof fallbackNeeds> | undefined;
   const fontNeeds = (): ReturnType<typeof fallbackNeeds> => (needs ??= fallbackNeeds(planTexts(input.plan), builtIn));
+  // What the sheet sets in the CJK font in its bold places: it decides which file of the Bold is read.
+  let boldNeeds: Set<string> | undefined;
+  const boldFontNeeds = (): Set<string> => (boldNeeds ??= fallbackNeeds(boldTexts(input.plan), builtIn).cjk);
 
   // The fallback font, embedded the first time a run needs it. `null` once it is known to be unavailable, with the reason.
   let fallback: CjkEmbedding | null | undefined;
@@ -316,6 +346,30 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
       fallbackError = `the fallback font could not be read (${error instanceof Error ? error.message : String(error)})`;
     }
     return fallback;
+  };
+
+  // The Bold of the fallback font, embedded the first time a bold run of CJK needs it. `null` once it is known to be unavailable,
+  // with the reason: the bold run is then the Regular with the synthetic stroke, as before the Bold existed.
+  let boldFallback: CjkEmbedding | null | undefined;
+  let boldFallbackError = '';
+  const boldFallbackFont = async (): Promise<CjkEmbedding | null> => {
+    if (boldFallback !== undefined) return boldFallback;
+    boldFallback = null;
+    if (input.loadBoldFallbackFont === undefined) {
+      boldFallbackError = 'this compile has no bold fallback font';
+      return boldFallback;
+    }
+    try {
+      const { cjkLoaderFor } = await import('@caotang/pdf-fonts/common');
+      // The Bold maps the characters the Regular maps, in both files (vendor/noto-sans-cjk), so the Regular's tables choose its file.
+      const load = cjkLoaderFor(input.loadBoldFallbackFont, boldFontNeeds());
+      const face = new CjkFace((await loadFont(load, 'the bold fallback font')) as unknown as FontkitFont, input.language);
+      // A face that is not bold is refused (cjk-font.ts), and the run falls back to the stroke with the reason in the log.
+      boldFallback = new CjkEmbedding(lib, pdf, face, 'bold');
+    } catch (error) {
+      boldFallbackError = `the bold fallback font could not be read (${error instanceof Error ? error.message : String(error)})`;
+    }
+    return boldFallback;
   };
 
   // The emoji font, read and laid out the first time a cluster needs it, and embedded by hand (./emoji-font.ts). `null` once it
@@ -430,9 +484,11 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
    * The text as pieces, one per grapheme cluster, each resolved to its font (see the header). A cluster in emoji presentation
    * is set in the emoji font. Any other cluster WinAnsi encodes is set in Helvetica; then in the CJK font when it has every
    * character of the cluster; then, for a pictograph, in the emoji font; and is `?` otherwise, counted in {@link missing}.
-   * Control characters become spaces. Each fallback font is loaded here, the first time a cluster needs it.
+   * Control characters become spaces. Each fallback font is loaded here, the first time a cluster needs it. In a bold place
+   * (`base` is Helvetica-Bold), a cluster the CJK font has is set in its Bold when the Bold is there and has every character of it.
    */
-  const piecesOf = async (text: string): Promise<Piece[]> => {
+  const piecesOf = async (text: string, base: PdfLib.PDFFont): Promise<Piece[]> => {
+    const strong = base === bold;
     const pieces: Piece[] = [];
     for (const cluster of clustersOf(text.normalize('NFC'))) {
       const codes = [...cluster].map((char) => char.codePointAt(0) ?? 0);
@@ -487,12 +543,21 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
         pieces.push({ text: '?', face: 'base' });
         continue;
       }
+      // The Bold is tried only for a cluster the CJK font has (the Bold maps the same characters), so a bold title in a script no
+      // font has never fetches it.
+      if (strong && textCodes.every((code) => fallbackCovers(String.fromCodePoint(code)) || isJoinerOrSelector(code))) {
+        const boldLoaded = await boldFallbackFont();
+        const piece = boldLoaded === null ? null : cjkPiece(boldLoaded, textCodes, 'cjk-bold');
+        if (piece !== null) {
+          pieces.push(piece);
+          continue;
+        }
+      }
       const loaded = await fallbackFont();
       if (loaded !== null) {
-        const kept = textCodes.filter((code) => loaded.face.covers(code) || !isJoinerOrSelector(code));
-        const glyphs = kept.length > 0 && kept.every((code) => loaded.face.covers(code)) ? loaded.face.glyphsOf(String.fromCodePoint(...kept)) : null;
-        if (glyphs !== null) {
-          pieces.push({ text: String.fromCodePoint(...kept), face: 'cjk', glyphs });
+        const piece = cjkPiece(loaded, textCodes, 'cjk');
+        if (piece !== null) {
+          pieces.push(piece);
           continue;
         }
       } else {
@@ -511,6 +576,16 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
     }
     return pieces;
   };
+
+  /**
+   * A cluster as one piece of a CJK font (the Regular or the Bold), when the font has every character of it: a joiner or a variation
+   * selector the font lacks is dropped first. `null` when it lacks any other character.
+   */
+  function cjkPiece(loaded: CjkEmbedding, textCodes: readonly number[], face: 'cjk' | 'cjk-bold'): Piece | null {
+    const kept = textCodes.filter((code) => loaded.face.covers(code) || !isJoinerOrSelector(code));
+    const glyphs = kept.length > 0 && kept.every((code) => loaded.face.covers(code)) ? loaded.face.glyphsOf(String.fromCodePoint(...kept)) : null;
+    return glyphs === null ? null : { text: String.fromCodePoint(...kept), face, glyphs };
+  }
 
   /** Pieces grouped into runs of one font each, in order: what one `Tj` draws. */
   const runsOf = (pieces: readonly Piece[]): Piece[][] => {
@@ -606,8 +681,10 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
   const runWidth = (run: readonly Piece[], base: PdfLib.PDFFont, size: number): number => {
     const face = run[0]?.face ?? 'base';
     const glyphs = run.flatMap((piece) => piece.glyphs ?? []);
-    // A bold run (Helvetica-Bold is the base) of CJK or monochrome emoji is stroked and spaced (embolden.ts): the spacing is in its width.
+    // A bold run (Helvetica-Bold is the base) of the Regular CJK font or monochrome emoji is stroked and spaced (embolden.ts): the
+    // spacing is in its width. A run in the Bold CJK font is drawn as it is.
     const extra = base === bold ? emboldenedExtra(glyphs.length, size) : 0;
+    if (face === 'cjk-bold') return boldFallback ? boldFallback.face.widthOf(glyphs, size) : 0;
     if (face === 'emoji') return emoji ? emoji.face.widthOf(glyphs, size) + extra : 0;
     if (face === 'colour') {
       const drawn = colour;
@@ -680,6 +757,7 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
         }
       } else if (face === 'emoji' && emoji) emoji.draw(page, glyphs, at, y, size, ink, base === bold);
       else if (face === 'cjk' && fallback) fallback.draw(page, glyphs, at, y, size, ink, base === bold);
+      else if (face === 'cjk-bold' && boldFallback) boldFallback.draw(page, glyphs, at, y, size, ink);
       else page.drawText(run.map((piece) => piece.text).join(''), { x: at, y, size, font: base, color: color(ink) });
       at += runWidth(run, base, size);
     }
@@ -739,7 +817,7 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
   const flip = (y: number): number => pageHeight - y;
 
   const drawText = async (page: PdfLib.PDFPage, placed: PlacedText, font: PdfLib.PDFFont, maxWidth: number, ink: Shade = INK): Promise<void> => {
-    const fitted = fitPieces(await piecesOf(placed.text), font, placed.fontSize, maxWidth);
+    const fitted = fitPieces(await piecesOf(placed.text, font), font, placed.fontSize, maxWidth);
     if (fitted.length === 0) return;
     // A line with Arabic or Hebrew is put in visual order after it is cut. A paragraph that runs right to left ends at the right
     // edge of its box (its direction is that of its first strong character).
@@ -789,7 +867,7 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
 
   for (const sheet of input.plan.pages) {
     const page = pdf.addPage([pageWidth, pageHeight]);
-    const label = await piecesOf(sheet.pageLabel.text);
+    const label = await piecesOf(sheet.pageLabel.text, bold);
     const labelWidth = widthOf(label, bold, sheet.pageLabel.fontSize);
     await drawText(page, sheet.title, bold, Math.max(0, contentWidth - labelWidth - 12));
     drawPieces(page, label, pageWidth - margin - labelWidth, flip(sheet.pageLabel.y), sheet.pageLabel.fontSize, bold, MUTED);
@@ -806,10 +884,13 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
   if (emoji?.used === true) await emoji.finish();
   if (colour?.used === true) await colour.finish();
   if (fallback?.used === true) await fallback.finish();
+  if (boldFallback?.used === true) await boldFallback.finish();
   for (const embedding of rtl.values()) if (embedding?.used === true) await embedding.finish();
   if (devanagari?.used === true) await devanagari.finish();
 
   if (fallback) notes.push(`contact sheet: text outside Latin script is set in ${CJK_FONT_NAME}, embedded with only the glyphs it uses`);
+  if (boldFallback?.used === true) notes.push(`contact sheet: bold text outside Latin script is set in ${CJK_BOLD_FONT_NAME}, embedded with only the glyphs it uses`);
+  if (boldFallbackError !== '') notes.push(`contact sheet: ${boldFallbackError}, so bold text outside Latin script is the regular weight thickened by a stroke`);
   if (emoji?.used === true) notes.push(`contact sheet: emoji are set in ${EMOJI_FONT_NAME}, in monochrome, embedded with only the glyphs they use`);
   if (colour?.used === true) notes.push(`contact sheet: emoji are set in ${COLOUR_EMOJI_NAME}, in colour, as vector pictures with only the emoji they use`);
   if (colourLeftOut.size > 0) {
