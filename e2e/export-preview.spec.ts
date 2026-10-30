@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { createProject, projectTrace, rejected, traceNames, waitForSaved } from './support.js';
@@ -132,4 +134,50 @@ test('a media format that passes its gates shows the compile’s counts and says
   await expect(preview(dialog)).toContainText('The compile will hold the coherence report');
   await expect(preview(dialog)).toContainText('not built from a block list');
   await expect(dialog.getByRole('button', { name: 'Compile', exact: true })).toBeEnabled();
+});
+
+const proofRegion = (dialog: Locator): Locator => dialog.getByRole('region', { name: 'The file the compile will write' });
+
+test('the Proof shows the file the compile writes for a text format, and says a binary format has none, writing nothing', async ({ page }) => {
+  await createProject(page, 'Proof Preview');
+  await manuscript(page);
+  const before = await projectTrace(page);
+
+  const dialog = await openDialog(page);
+  await dialog.getByRole('radio', { name: /^Markdown \(\.md\)/ }).check();
+  await dialog.getByRole('radio', { name: /^Proof/ }).check();
+  const file = proofRegion(dialog);
+  await expect(file).toContainText('The boat came in with the tide. Nobody was on it.');
+  await expect(file).toContainText('Light, at last.');
+  await expect(preview(dialog)).toContainText('The compile will write Proof Preview.md');
+  // The Draft's list is not shown beside it: one half at a time.
+  await expect(region(dialog)).toHaveCount(0);
+  await file.focus();
+  await expect(file).toBeFocused();
+
+  // A change to the project (here the recipe's title page, saved by recipe.save) makes the Proof again for the same request.
+  await expect(file).toContainText('# Proof Preview');
+  await dialog.getByRole('checkbox', { name: 'Title page' }).uncheck();
+  await expect(file).not.toContainText('# Proof Preview');
+  await expect(file).toContainText('Light, at last.');
+  const afterSave = await projectTrace(page);
+
+  // A binary format has no Proof, and the dialog says so in words.
+  await dialog.getByRole('radio', { name: /^Word \(\.docx\)/ }).check();
+  await expect(preview(dialog)).toContainText('There is no Proof of Word (.docx) in Caotang.');
+  await expect(proofRegion(dialog)).toHaveCount(0);
+
+  // A look is not a compile: nothing ran but the recipe's own save.
+  expect(before).not.toEqual(afterSave);
+  expect(await projectTrace(page)).toEqual(afterSave);
+  expect((await traceNames(page)).some((name) => name.startsWith('export.'))).toBe(false);
+
+  // The Proof is the file the compile then writes.
+  await dialog.getByRole('radio', { name: /^Plain text \(\.txt\)/ }).check();
+  await expect(proofRegion(dialog)).toContainText('Light, at last.');
+  const shown = await proofRegion(dialog).locator('pre').textContent();
+  const [download] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Compile', exact: true }).click()]);
+  const path = await download.path();
+  expect(path).not.toBeNull();
+  expect(readFileSync(path, 'utf8')).toBe(shown);
 });
