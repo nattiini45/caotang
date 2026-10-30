@@ -56,9 +56,11 @@ export {
   notFoundText,
   readErrorText,
   schemaText,
+  cancelledText,
   serverErrorText,
   timeoutText,
   toCommandError,
+  totalTimeoutText,
   unreachableText,
   unsupportedSchemaText,
   type McpError,
@@ -66,6 +68,7 @@ export {
 } from './errors.js';
 
 export {
+  CALL_MAX_TOTAL_MS,
   CALL_TIMEOUT_MS,
   CORS_REFUSAL,
   LIST_TIMEOUT_MS,
@@ -84,6 +87,7 @@ export {
   type McpClientOptions,
   type McpServerHealth,
   type McpToolResult,
+  type McpCallOptions,
   type McpTransport,
   type ReviewCard,
   type ReviewPrompt,
@@ -101,6 +105,8 @@ export {
   corsProbe,
   type WireErrorKind,
 } from './wire-error.js';
+
+export { PROGRESS_MESSAGE_CAP, cleanProgress, cleanProgressMessage, type WireProgress } from './progress.js';
 
 // Only types come from wire.ts: it holds the MCP SDK, which `lazy-wire.ts` loads on first connect.
 export type {
@@ -133,6 +139,7 @@ export {
   TOOL_SEARCH_META,
   TOOL_SEARCH_NAME,
   TOOL_SEARCH_PARAMS,
+  TOOL_SEARCH_RESULT,
   createLoadedTools,
   loadedAddendum,
   riskBadge,
@@ -210,6 +217,16 @@ export {
 
 export { egressAllowed, egressAllowlistFor, type EgressAllowlist } from './egress.js';
 
-export { APPROVAL_NOTICE, approvalCardFor, type ApprovalCard } from './approval.js';
+export {
+  APPROVAL_NOTICE,
+  approvalCardFor,
+  cautionOf,
+  type ApprovalCard,
+  type ApprovalCaution,
+  type ApprovalContext,
+  type CardHit,
+  type QuoteFinding,
+  type TaintRef,
+} from './approval.js';
 
-export { createMockWire, createMockWireFactory, type MockMcpScript, type MockPhase } from './mock.js';
+export { createMockWire, createMockWireFactory, type MockCall, type MockMcpScript, type MockPhase } from './mock.js';

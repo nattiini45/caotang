@@ -34,7 +34,7 @@ export type EncodingGuess = 'utf-16le' | 'utf-16be' | 'windows-1252' | 'unknown'
 export type DecodedEncoding = 'utf-8' | EncodingGuess;
 
 /** What a reported file is to the project. `'unknown'` covers a file the layout does not name. */
-export type EncodingIssueKind = 'document' | 'codex' | 'unknown';
+export type EncodingIssueKind = 'document' | 'codex' | 'agent' | 'unknown';
 
 /**
  * One file the load found that is not UTF-8 text — the structured companion to

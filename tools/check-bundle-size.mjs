@@ -36,16 +36,35 @@ export const BUDGET = {
    * (#31). The Ink compiler (`ink-full`, 244 kB) loads when a project holds a dialogue container, which took the shared `src` chunk
    * under the limit, so `src` has no entry any more.
    */
+  // The entry measured 1,419.9 kB with the agent trace store, the Trace tab and the trace export (Wave 19); its cap was 1,450 kB.
+  // 1,458.6 kB measured with macros (#57): the bus's macro reader, the harness's checkMacro and expandMacro, the store's commands and loader, and the
+  // Save as macro dialog with its model; the cap is that plus about 1%. The Macros panel is in the Settings chunk.
+  // 1,481.1 kB measured with macros (#57), the prompt-injection guards (#54) and the export Preview (#106) together, on top of main's wave 20 review fixes; the cap is that plus about 1%.
   allow: {
     'fontkit.es': 750_000,
-    index: 1_270_000,
+    // 1,495.9 kB measured with the narrow layout (#18) and external-call progress (#79) together, on top of wave 22; the cap is that plus about 1%.
+    // 1,516.6 kB measured with the result schemas of every callable row (#58), whose specs the registry builds at start; the cap is that plus about 1%.
+    // 1,532.9 kB measured with those and hooks (#59) together: the bus's hook reader and commands, the store's loader and serializer, the harness's runner and
+    // its checks, and the plan card's hook line, which put the entry 0.9 kB over the old cap; the cap is that plus about 1%.
+    index: 1_549_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
-  initialGzip: 770_000,
+  // 772.4 kB measured with Colour emoji, against 769.1 kB before it; 779.3 kB with Colour emoji and Agent rules together (Wave 14); 786.4 kB with the agent run log and resume.
+  // 810.0 kB measured with the instructions layer, the agent files and recurring tasks (Wave 17).
+  // 831.2 kB measured with the restore planner and rewind menus (#53) and the host-model rows (#81) together; the ceiling is that plus about 1%.
+  // 840.2 kB measured with macros (#57); 847.8 kB measured with macros, the injection guards and the export Preview together on top of wave 20's fixes,
+  // which left 0.2 kB under the old 848.0 kB ceiling, so it is raised to that plus about 1%.
+  // 858.2 kB measured with the result schemas (#58); the ceiling is that plus about 1%.
+  initialGzip: 867_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
-  // about 280 kB of it; the ceiling is that plus about 5%.
-  totalJs: 5_430_000,
+  // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
+  // 5,902.2 kB measured with the instructions layer, the agent files and recurring tasks (Wave 17).
+  // 5,975.3 kB measured with the restore planner and the step and conversation rewind menus (#53) and the four host-model rows (#81) together; the
+  // app carries the host-model rows' registry metadata, params and preflights and none of their ports, which only the MCP server builds.
+  // 6,036.1 kB measured with those and macros (#57), the prompt-injection guards (#54) and the export Preview (#106) together; the ceiling is that plus about 0.6%.
+  // 6,076.1 kB measured with the narrow layout (#18): its model, notice and hook, the drawer, sheet and More menu in the workspace, and the row Actions button; the ceiling is that plus about 1%.
+  totalJs: 6_140_000,
 };
 
 const KB = 1000;

@@ -6,6 +6,7 @@
 
 import {
   CHECKPOINT_LABEL,
+  STEP_EXTERNAL_CHECKPOINT_NOTE,
   emptyTaskList,
   phraseFor,
   reduceTaskList,
@@ -59,6 +60,8 @@ export interface ContextView {
 export interface TurnView {
   readonly turnId: string;
   readonly intent: string;
+  /** The slash command that started the turn (`draft`), or `null`. It is known when the turn starts; the report names it too. */
+  readonly command: string | null;
   /** The name of the provider the turn runs on, or `null` before the turn has started. */
   readonly provider: string | null;
   /** The price per 1,000 tokens of the profile the turn runs on, when it has one (provider-gateway §2). The report prices its tokens with it. */
@@ -92,6 +95,12 @@ export interface TurnView {
   readonly steering: readonly SteeringNote[];
   /** The run's spend and its limits after the last model call, for the live spend line (agent-harness §7.1). `null` before the first call. */
   readonly run: { readonly spend: BudgetSpend; readonly limits: RunLimits } | null;
+  /** The writer rewound the conversation past this turn: the model is not sent it (context-assembly §2, L6). It stays in the panel, collapsed. */
+  readonly rewound: boolean;
+  /** When the writer took this turn's project changes back while keeping the conversation (epoch ms), or `null`. L6 says so too. */
+  readonly restoredAt: number | null;
+  /** With `restoredAt`: the 1-based step the restore began at, when it took back that step and the later ones only. */
+  readonly restoredFromStep: number | null;
 }
 
 /** A turn that has been submitted and has not yet reported its id. */
@@ -100,10 +109,12 @@ export function newTurnView(
   intent: string,
   provider: string | null = null,
   price: { readonly prompt: number; readonly completion: number } | null = null,
+  command: string | null = null,
 ): TurnView {
   return {
     turnId,
     intent,
+    command,
     provider,
     price,
     phase: 'idle',
@@ -123,6 +134,9 @@ export function newTurnView(
     tasks: emptyTaskList(turnId),
     steering: [],
     run: null,
+    rewound: false,
+    restoredAt: null,
+    restoredFromStep: null,
   };
 }
 
@@ -185,6 +199,16 @@ function reduceView(turn: TurnView, event: AgentEvent): TurnView {
   }
 }
 
+/**
+ * The rewind menu of one step of a finished turn: shown for a step whose restore would take something back, and for a step that called
+ * an outside tool, which carries the scope note on its own menu (extensibility §6): restoring puts back Caotang's own changes only.
+ */
+export function stepMenuOf(card: Pick<StatusCard, 'tool' | 'status' | 'mayHaveActed'>, restorable: boolean): { readonly show: boolean; readonly note?: string } {
+  // A call that was sent and then timed out or was cancelled counts too: the server may have acted, and a restore does not reach it.
+  const external = (card.status === 'done' || card.mayHaveActed === true) && card.tool.startsWith('mcp__');
+  return { show: restorable || external, ...(external ? { note: STEP_EXTERNAL_CHECKPOINT_NOTE } : {}) };
+}
+
 /** The line that names a phase, for the panel's status. The turn is in one of these at any moment. */
 export function phaseLabel(phase: TurnPhase | 'idle'): string {
   switch (phase) {
@@ -212,6 +236,19 @@ export function phaseLabel(phase: TurnPhase | 'idle'): string {
 /** A turn that has settled: its report is in, and nothing more will arrive for it. */
 export function isSettled(turn: TurnView): boolean {
   return turn.report !== null;
+}
+
+/**
+ * Whether "Save as macro…" is offered under a turn (extensibility.md §10): the turn applied a plan card the writer approved, and the card
+ * has steps. A card the mode approved was not the writer's decision, a plan that did not run is not one to repeat, and a turn that ran a
+ * macro already is one.
+ */
+export function savesAsMacro(turn: TurnView): boolean {
+  const report = turn.report;
+  if (report === null || report.status !== 'applied' || report.stop !== undefined) return false;
+  if (turn.command?.startsWith('macro-') === true) return false;
+  if (turn.plan === null || turn.plan.steps.length === 0 || turn.plan.steps.some((step) => step.status === 'refused')) return false;
+  return report.cards.some((card) => (card.kind === 'plan' || card.kind === 'confirm') && card.decision === 'approved');
 }
 
 /** What each permission mode does, in the words the mode control carries as its hint (agent-harness §4). */
@@ -277,6 +314,31 @@ export function formatElapsed(milliseconds: number): string {
 export function elapsedOf(card: StatusCard, now: number): number | undefined {
   if (card.startedAt === undefined) return undefined;
   return (card.finishedAt ?? now) - card.startedAt;
+}
+
+/** How a running external call's progress reads on its card: a bar when the server gave a total, a counter when it did not, and its words. */
+export interface ProgressCardView {
+  /** 0 to 1 when the server gave a total; absent otherwise. */
+  readonly fraction?: number;
+  /** The same in words, so the bar is never the only signal. */
+  readonly label: string;
+  /** The server's own message, plain text, at most 200 characters (mcp-client progress.ts). Absent when it sent none. */
+  readonly message?: string;
+}
+
+const countOf = (value: number): string => String(Math.round(value * 100) / 100);
+
+/** The progress a running card shows, or `undefined` when it has none to show (a finished card shows none). */
+export function progressViewOf(card: Pick<StatusCard, 'status' | 'progress'>): ProgressCardView | undefined {
+  const { progress } = card;
+  if (card.status !== 'running' || progress === undefined) return undefined;
+  const message = progress.message === undefined ? {} : { message: progress.message };
+  if (progress.total === undefined) return { label: `Progress: ${countOf(progress.progress)}`, ...message };
+  return {
+    fraction: Math.min(1, Math.max(0, progress.progress / progress.total)),
+    label: `${countOf(progress.progress)} of ${countOf(progress.total)}`,
+    ...message,
+  };
 }
 
 /**

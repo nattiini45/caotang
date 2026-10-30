@@ -37,7 +37,7 @@ const LICENSE_FILE = /^(licen[cs]e|copying|notice)([.-][\w.-]*)?$/i;
 /**
  * Third-party files that ship inside a Caotang package rather than as a dependency, so the lockfile does not list them. Each
  * names the file it ships as, its license, its source, and the license text kept beside it in the repository (a path from the
- * repository root), which is reproduced in full. The screenplay PDF embeds Courier Prime. The Noto fonts both PDFs fall
+ * repository root), which is reproduced in full. The screenplay PDF embeds Courier Prime, or Cousine when the recipe asks for it. The Noto fonts both PDFs fall
  * back to are vendored workspace packages (VENDORED_WORKSPACE_PACKAGES below), so each is listed once (docs/architecture/screenplay.md §5.3).
  */
 export const BUNDLED_ASSETS = Object.freeze([
@@ -48,6 +48,14 @@ export const BUNDLED_ASSETS = Object.freeze([
     repository: 'https://github.com/quoteunquoteapps/CourierPrime',
     shippedAs: 'packages/screenplay/src/fonts/courier-prime-regular.ts',
     licenseFile: 'packages/screenplay/src/fonts/OFL.txt',
+  }),
+  Object.freeze({
+    name: 'Cousine Regular (font)',
+    version: '1.241',
+    license: 'OFL-1.1',
+    repository: 'https://github.com/googlefonts/cousine',
+    shippedAs: 'packages/screenplay/src/fonts/cousine-regular.ts',
+    licenseFile: 'packages/screenplay/src/fonts/OFL-Cousine.txt',
   }),
 ]);
 
@@ -63,13 +71,14 @@ export const ELECTED_LICENSES = Object.freeze({
 /**
  * Workspace packages that vendor third-party work: they are linked like Caotang's own packages, but carry their own license,
  * so they are listed with it. `@caotang/font-noto-cjk` is Noto Sans Mono CJK SC (OFL-1.1), in vendor/noto-sans-cjk,
- * `@caotang/font-noto-emoji` is Noto Emoji (OFL-1.1), in vendor/noto-emoji, `@caotang/font-noto-arabic` is Noto Sans Arabic (OFL-1.1), in
+ * `@caotang/font-noto-emoji` is Noto Emoji (OFL-1.1), in vendor/noto-emoji, `@caotang/font-noto-color-emoji` is Noto Color Emoji compiled to PDF operators (OFL-1.1), in vendor/noto-color-emoji, `@caotang/font-noto-arabic` is Noto Sans Arabic (OFL-1.1), in
  * vendor/noto-sans-arabic, `@caotang/font-noto-hebrew` is Noto Sans Hebrew (OFL-1.1), in vendor/noto-sans-hebrew, and
  * `@caotang/font-noto-devanagari` is Noto Sans Devanagari (OFL-1.1), in vendor/noto-sans-devanagari.
  */
 export const VENDORED_WORKSPACE_PACKAGES = Object.freeze([
   '@caotang/font-noto-cjk',
   '@caotang/font-noto-emoji',
+  '@caotang/font-noto-color-emoji',
   '@caotang/font-noto-arabic',
   '@caotang/font-noto-hebrew',
   '@caotang/font-noto-devanagari',

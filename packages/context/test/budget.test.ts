@@ -21,7 +21,7 @@ import {
   type ContextConfig,
   type LayerId,
 } from '../src/index.js';
-import { LONG_FOCUS, buildApp, FOCUS_ID, IDS, heavyAlwaysApp, longApp, scopeApp } from './fixtures.js';
+import { LONG_FOCUS, buildApp, FOCUS_ID, IDS, heavyAlwaysApp, longApp, scopeApp, withInstructions } from './fixtures.js';
 
 const CONTINUE: AgentTask = {
   tool: 'scene.draft',
@@ -77,8 +77,9 @@ function included(assembled: AssembledPrompt): LayerId[] {
 }
 
 describe('the layers each tool assembles (§3)', () => {
-  it('scene.draft assembles the full stack', () => {
-    expect(included(assemble(TASKS['scene.draft'], buildApp()))).toEqual([...LAYER_IDS]);
+  it('scene.draft assembles the full stack, with LI when the project has instructions', () => {
+    expect(included(assemble(TASKS['scene.draft'], withInstructions(buildApp())))).toEqual([...LAYER_IDS]);
+    expect(included(assemble(TASKS['scene.draft'], buildApp()))).toEqual(LAYER_IDS.filter((id) => id !== 'LI'));
   });
 
   it('continuity.scan assembles L2 expanded, L4 expanded and the scope tails, without structure or turns', () => {
@@ -105,6 +106,7 @@ describe('the layers each tool assembles (§3)', () => {
     const scene = assemble(TASKS['scene.draft'], buildApp());
     expect(scene.layers.map((report) => report.baseBudget)).toEqual([
       undefined,
+      1_500,
       1_500,
       1_000,
       1_200,
@@ -135,8 +137,11 @@ describe('the layers each tool assembles (§3)', () => {
   it('keeps the profile tables and the assembled reports in agreement', () => {
     for (const tool of Object.keys(TASKS) as AssemblyTool[]) {
       const profile = profileFor(tool);
-      const assembled = assemble(TASKS[tool], appFor(tool));
+      const assembled = assemble(TASKS[tool], withInstructions(appFor(tool)));
       expect(included(assembled)).toEqual(LAYER_IDS.filter((id) => profile.layers.includes(id)));
+      // LI is in every profile, the metadata tools' included, and a project with no instructions has no such layer.
+      expect(profile.layers).toContain('LI');
+      expect(included(assemble(TASKS[tool], appFor(tool)))).toEqual(LAYER_IDS.filter((id) => id !== 'LI' && profile.layers.includes(id)));
     }
   });
 });

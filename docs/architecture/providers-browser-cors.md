@@ -8,18 +8,24 @@ A `fetch` from `caotang.app` (or a self-hosted origin) is a cross-origin browser
 
 ## 2. The support sweep
 
-`e2e/providers-cors.spec.ts` is the sweep. It runs in the Playwright browser (a real page, a real preflight) and, for every registered preset, tries:
+`e2e/providers-cors.spec.ts` is the sweep. It runs in the Playwright browser (a real page, a real preflight) and, for every registered preset, makes the two requests the app makes from a page, each with the headers a real call carries (the adapter the default model routes to, a placeholder credential, a JSON body on the POST) so the browser runs the preflight those headers demand:
 
-1. `OPTIONS` preflight equivalent — a `fetch` with the preset's auth/protocol headers against `{baseUrl}/models`, observing whether the browser exposes the response;
-2. the same for the complete path the preset's adapter uses.
+1. the **chat route** — `POST {baseUrl}{complete path}`, what the agent sends. This decides the registry's `cors` field;
+2. the **models route** — `GET {baseUrl}{models path}`, what Settings sends when a profile is saved. A preset with no listing route (`noModelsRoute`) is not asked.
 
-It writes a JSON report of `ok` / `blocked` / `preflight-fails` / `error` per preset. Run it with:
+Each result is `ok` (2xx readable), `http-error` (a non-2xx status the page could read, the normal answer to a placeholder key), `blocked` (the browser withheld the answer) or `error` (timeout); the report is the `cors-sweep` JSON attachment of the test run. For a `blocked` result the report also says why, from a Node-side `OPTIONS` carrying the page's origin and the request's headers: a **refused preflight** (no `Access-Control-Allow-Origin`, or the method not allowed) which no key can change, or a preflight that passed while the answer itself carried no allow-origin header (a placeholder key's rejection can do that where a real key's answer would read). That diagnosis is for the maintainer; the verdict is the browser's.
+
+What the sweep asserts:
+
+- `cors: 'ok'` — the chat route is readable, or the row is stale and the sweep fails. If the models route is not readable while chat is, the row stands and the test records a `cors-models-route` annotation naming both results. (Anthropic since 2026-10-26: `GET /v1/models` answers a bad key's 401 with no `Access-Control-Allow-Origin`, `POST /v1/messages` answers its 401 with one. The app then says the model list could not be read from the browser and chat may still work; see provider-gateway §9.)
+- `cors: 'blocked'` — the chat route really is blocked, so the disabled badge is the truth. The model list may be readable; it does not make the preset usable.
+- `cors: 'unknown'` — recorded only.
+
+A key does not appear anywhere in this: a refused preflight fails before auth is consulted, and one that passes yields a 401/200 the sweep can read either way. What a keyless sweep cannot tell is whether a *valid* key's answer reads where the placeholder's does not (the Anthropic list is the live example, and Cerebras' and BytePlus' chat routes read as blocked for the same reason); the real-key round (§3) runs in Node and does not answer it, so that case is a manual check in a browser with a key. Run the sweep with:
 
 ```sh
 pnpm exec playwright test e2e/providers-cors.spec.ts
 ```
-
-The sweep needs no keys — a preflight that fails fails before auth is consulted, and one that succeeds yields a 401/200 the sweep can read either way.
 
 The registry's `cors` field records the swept answer; presets that cannot answer a browser request are shown disabled in Settings as **"Desktop app or hosted only"** rather than pretending to work. The local model presets (`cors: 'local'`) are not swept: they are on this computer, and §4 covers them.
 
@@ -77,4 +83,5 @@ These defaults are transcribed from the vendors' documentation as of 2026-10 and
 
 - Reading each local server's own model details (context window, tool support) is not built, so the local presets stay on conservative capabilities.
 - Rate limits, quota exhaustion, and regional endpoint variants are live-account checks, not the sweep's.
+- Only the default model's route is swept: a preset that sends some models down another route (OpenCode's Claude ids) is asked on the default model's route.
 - A provider that passes the sweep can still fail a real account — the row's `cors` field says what the sweep found, not a guarantee.

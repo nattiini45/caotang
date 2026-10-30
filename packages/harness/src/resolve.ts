@@ -43,8 +43,33 @@ function normal(text: string): string {
   return text.trim().toLowerCase();
 }
 
-function candidateLine(node: TreeNode): string {
+function candidateLine(node: Pick<TreeNode, 'id' | 'title'>): string {
   return `"${node.title}" (${node.id})`;
+}
+
+/** The refusal for a reference that names several nodes: every candidate listed, by id too, so a caller can pick one without parsing the sentence. */
+export function ambiguity(ref: string, noun: string, target: string, matches: readonly Pick<TreeNode, 'id' | 'title' | 'type'>[]): CommandError {
+  return refusal('invalid-params', `"${ref}" matches ${plural(matches.length, noun)}: ${matches.map(candidateLine).join(', ')}. Pass one of their ids.`, {
+    correctiveHint: `use binder.read_tree to list the ids, then pass the id of the ${noun} you mean`,
+    target,
+    details: { ref, noun, candidates: matches.map((node) => ({ id: node.id, title: node.title, type: node.type })) },
+  });
+}
+
+/**
+ * An ambiguity refusal as the agent may see it: the candidates a read rule withholds are dropped, and a reference that matches
+ * none of the rest is answered as a name that matches nothing, so no title or id of a withheld node leaves in an error. Any other
+ * error is returned as it is.
+ */
+export function withoutWithheld(error: CommandError, withheld: ReadonlySet<string>): CommandError {
+  const details = error.details as { ref?: unknown; noun?: unknown; candidates?: unknown } | undefined;
+  if (withheld.size === 0 || details === undefined || !Array.isArray(details.candidates) || typeof details.ref !== 'string' || typeof details.noun !== 'string') return error;
+  const candidates = details.candidates as { id: string; title: string; type: TreeNode['type'] }[];
+  const visible = candidates.filter((candidate) => !withheld.has(candidate.id));
+  if (visible.length === candidates.length) return error;
+  const target = error.target ?? 'params.doc';
+  if (visible.length === 0) return notFound(`no ${details.noun} is titled or identified by "${details.ref}"`, HINT_READ_TREE, target);
+  return ambiguity(details.ref, details.noun, target, visible);
 }
 
 export function resolveNode(
@@ -78,20 +103,7 @@ export function resolveNode(
   const matches = exact.length > 0 ? exact : candidates.filter((node) => normal(node.title).startsWith(wanted));
 
   if (matches.length === 1) return ok(matches[0] as TreeNode);
-  if (matches.length > 1) {
-    return failure(
-      refusal(
-        'invalid-params',
-        `"${ref}" matches ${plural(matches.length, noun)}: ${matches.map(candidateLine).join(', ')}. Pass one of their ids.`,
-        {
-          correctiveHint: `use binder.read_tree to list the ids, then pass the id of the ${noun} you mean`,
-          target,
-          // The candidates travel as data too, so a caller can pick one without parsing the sentence.
-          details: { candidates: matches.map((node) => ({ id: node.id, title: node.title, type: node.type })) },
-        },
-      ),
-    );
-  }
+  if (matches.length > 1) return failure(ambiguity(ref, noun, target, matches));
   return failure(notFound(`no ${noun} is titled or identified by "${ref}"`, HINT_READ_TREE, target));
 }
 

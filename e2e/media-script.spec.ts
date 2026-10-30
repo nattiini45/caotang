@@ -73,6 +73,34 @@ test('a whole Fountain file imports as sections and scenes, and the import is on
   await expect.poll(() => bodyOf(page, house?.id ?? '')).toBe('INT. HOUSE - DAY\n\nAlice waves.');
 });
 
+test('a Final Draft file imports with its scene numbers, and the notice says the title page was read but not stored', async ({ page }) => {
+  await createProject(page, PROJECT);
+  // A byte order mark and Windows line ends, as a Windows editor saves the file.
+  const fdx = [
+    '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>',
+    '<FinalDraft DocumentType="Script" Template="No" Version="3">',
+    '  <TitlePage><Content><Paragraph><Text>Title: Night Watch</Text></Paragraph></Content></TitlePage>',
+    '  <Content>',
+    '    <Paragraph Type="Scene Heading" Number="2A"><Text>INT. HOUSE - DAY</Text></Paragraph>',
+    '    <Paragraph Type="Action"><Text>Alice waves.</Text></Paragraph>',
+    '  </Content>',
+    '</FinalDraft>',
+  ].join('\r\n');
+  await page.locator('input[type="file"][aria-label="Script file"]').setInputFiles({
+    name: 'night.fdx',
+    mimeType: 'application/xml',
+    buffer: Buffer.from(`\uFEFF${fdx}`, 'utf8'),
+  });
+
+  await expect(page.getByText(/Imported 1 scene and .* from night\.fdx/)).toBeVisible();
+  await expect(page.getByText(/The title page was read but not stored/)).toBeVisible();
+  await waitForSaved(page);
+
+  const house = (await treeOf(page)).find((node) => node.title === 'INT. HOUSE - DAY');
+  expect(house).toBeDefined();
+  await expect.poll(() => bodyOf(page, house?.id ?? '')).toBe('INT. HOUSE - DAY #2A#\n\nAlice waves.');
+});
+
 test('the Source tab draws a scene heading and a cue, and Tab completes a cue from the cues already in the scene', async ({ page }) => {
   await createProject(page, PROJECT);
   await makeScene(page);
@@ -128,9 +156,19 @@ test('the element menu turns the caret\'s line into the element chosen, from the
   await expect(source(page)).toBeFocused();
   await expect(source(page)).toHaveValue(['INT. HOUSE - DAY', '', '@marcus', 'Hi.'].join('\n'));
 
-  // The caret is after the cue, so the next line down is the dialogue. The Element button opens the menu too, and a digit chooses.
+  // Start at the converted cue's end, then keep the vertical navigation under test after the edit.
+  const converted = ['INT. HOUSE - DAY', '', '@marcus', 'Hi.'].join('\n');
+  const cueCaret = converted.indexOf('@marcus') + '@marcus'.length;
+  const dialogueCaret = converted.indexOf('Hi.') + 'Hi.'.length;
+  await source(page).evaluate((field, at) => {
+    const input = field as HTMLTextAreaElement;
+    input.focus();
+    input.setSelectionRange(at, at);
+  }, cueCaret);
   await source(page).press('ArrowDown');
   await source(page).press('End');
+  expect(await caretOf(page)).toEqual([dialogueCaret, dialogueCaret]);
+  // The Element button opens the menu too, and a digit chooses.
   await page.getByRole('button', { name: 'Element', exact: true }).click();
   await expect(menu.getByRole('menuitemradio', { name: 'Dialogue' })).toHaveAttribute('aria-checked', 'true');
   await page.keyboard.press('4');
@@ -447,6 +485,8 @@ test('Ctrl+Z after a chord leaves the text a menu choice leaves', async ({ page 
       await page.keyboard.press(await chord(page, 7));
     }
     await expect(source(page)).toHaveValue('> Anna waits. <');
+    // Menu selection restores the editor focus asynchronously; send Undo only after the same control is active.
+    await expect(source(page)).toBeFocused();
     await page.keyboard.press('ControlOrMeta+z');
     afterUndo[route] = await source(page).inputValue();
   }

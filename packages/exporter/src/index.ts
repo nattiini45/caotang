@@ -31,6 +31,9 @@ export {
   type ExportFile,
   type ExportFormat,
   type ExportMetadataInput,
+  type ExportPreview,
+  type ExportPreviewFacts,
+  type ExportPreviewRequest,
   type ExportRecipe,
   type ExportRecipeOptions,
   type ExportResult,
@@ -42,6 +45,7 @@ export {
   type MediaFormat,
 } from './types.js';
 
+export { COLOUR_EMOJI_FORMATS, COLOUR_EMOJI_HINT, COLOUR_EMOJI_LABEL, colourEmojiDefault } from './colour-emoji-option.js';
 export { createExporter, EXPORT_MIME, recipesOf, type ExportDispatch, type ExporterOptions, type ExporterService } from './exporter.js';
 // The metadata and the stored images an export reads, the same for every host that compiles (epub-metadata.md).
 export { assetRecordsOf, exportMetadataOf } from './export-metadata.js';

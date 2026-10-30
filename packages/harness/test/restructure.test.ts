@@ -5,8 +5,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { CHAPTER_ONE, CHAPTER_TWO, FRIEND, LANDING, STORM, makeHarness, makeState, refusalOf, run, snapshotOf, valueOf } from './fixtures.js';
-import { createHarness } from '../src/index.js';
+import { CHAPTER_ONE, CHAPTER_TWO, checkedHarness, FRIEND, LANDING, makeHarness, makeState, refusalOf, run, snapshotOf, STORM, valueOf } from './fixtures.js';
+
 import { createProjectCommandRegistry } from '@caotang/store';
 
 const CONFIRMED = { permission: { confirmed: true } } as const;
@@ -216,7 +216,7 @@ describe('binder.restructure', () => {
       ...registry,
       'binder.create': { descriptor: { ...registry['binder.create'].descriptor, agentRisk: 'never' as const }, apply: registry['binder.create'].apply },
     } as typeof registry;
-    const harness = createHarness({ state, registry: restricted, clock: () => 1 });
+    const harness = checkedHarness({ state, registry: restricted, clock: () => 1 });
     const before = snapshotOf(state);
     const error = refusalOf(
       run(harness, 'binder.restructure', { ops: [{ action: 'create', parent: 'manuscript', type: 'folder', title: 'Act 9' }] }, CONFIRMED),

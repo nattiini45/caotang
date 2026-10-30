@@ -138,7 +138,7 @@ test('a drafted scene waits for the writer, is written on approval, and restores
   expect(region.written()).toBe('');
 
   // The checkpoint takes the turn back: nothing was written after it, so nothing else goes back with it.
-  expect(await controller.restore(report!.turnId)).toEqual({ ok: true, later: 0 });
+  expect(await controller.restore(report!.turnId)).toMatchObject({ ok: true, later: 0 });
   expect(getBody(state, friend)).toBe('');
 
   // The activity export names the turn and the change it made, in the order they happened.
@@ -208,7 +208,7 @@ test('restoring to before a turn takes back the changes made after it, and says 
   expect(controller.laterChanges(report!.turnId)).toHaveLength(1);
 
   // The restore takes the typing back too, so the scene is as it was before the turn, and the result says so.
-  expect(await controller.restore(report!.turnId)).toEqual({ ok: true, later: 1 });
+  expect(await controller.restore(report!.turnId)).toMatchObject({ ok: true, later: 1 });
   expect(getBody(state, friend)).toBe('');
   await session.close();
 });
@@ -485,5 +485,100 @@ test('approving a compile lists the project’s images again before it compiles,
 
   // The listing was taken once, before the approved compile ran, so the compile names the images as they are now.
   expect(order).toEqual(['list', 'compile']);
+  await session.close();
+});
+
+test('an approved compile waits for the writer again when the project’s images could not be listed again, as the export dialog does not compile then', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const session = await sessionOver(state, store);
+  const compile = planOf({ tool: 'export.compile', params: { selection: { root: 'manuscript' }, format: 'md' }, expect: 'the manuscript is compiled' });
+  const controller = new AgentController(
+    session,
+    await scriptedProviders([{ match: (req) => isPlannerCall(req) && userTextOf(req).includes('Request: Compile the manuscript.'), respond: () => ({ content: compile }) }]),
+  );
+  const exported = (): boolean => session.harness.log.entries().some((entry) => entry.command.startsWith('export.'));
+  const listing = session.exportsReady.bind(session);
+  let fail = true;
+  session.exportsReady = async () => {
+    if (fail) throw new Error('the listing failed');
+    await listing();
+  };
+
+  const running = controller.submit('Compile the manuscript.');
+  await until(() => controller.snapshot().approvable, 'the compile card');
+  controller.answer({ action: 'approve' });
+  await until(() => controller.snapshot().message !== null, 'the listing refusal');
+  const held = controller.snapshot();
+  expect(held.message).toContain('images could not be listed again (the listing failed)');
+  expect(held.message).toContain('the export was not applied');
+  expect(held.pending).not.toBeNull();
+  expect(exported()).toBe(false);
+
+  // Once the listing works, approving again compiles.
+  fail = false;
+  controller.answer({ action: 'approve' });
+  await running;
+  expect(exported()).toBe(true);
+  await session.close();
+});
+
+test('an approved compile whose image listing fails after Stop is cancelled, not parked again, and nothing is exported', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const session = await sessionOver(state, store);
+  const compile = planOf({ tool: 'export.compile', params: { selection: { root: 'manuscript' }, format: 'md' }, expect: 'the manuscript is compiled' });
+  const controller = new AgentController(
+    session,
+    await scriptedProviders([{ match: (req) => isPlannerCall(req) && userTextOf(req).includes('Request: Compile the manuscript.'), respond: () => ({ content: compile }) }]),
+  );
+  let listing = false;
+  let fail: (error: Error) => void = () => undefined;
+  session.exportsReady = () =>
+    new Promise<void>((_, reject) => {
+      listing = true;
+      fail = reject;
+    });
+
+  const running = controller.submit('Compile the manuscript.');
+  await until(() => controller.snapshot().approvable, 'the compile card');
+  controller.answer({ action: 'approve' });
+  await until(() => listing, 'the image listing');
+  controller.stop();
+  fail(new Error('the listing failed'));
+  const report = await running;
+
+  expect(report?.status).toBe('cancelled');
+  expect(controller.snapshot().message).toContain('images could not be listed again (the listing failed)');
+  expect(controller.snapshot().pending).toBeNull();
+  expect(controller.snapshot().busy).toBe(false);
+  expect(session.harness.log.entries().some((entry) => entry.command.startsWith('export.'))).toBe(false);
+  await session.close();
+});
+
+test('a compile the mode approves is held for the writer when the project’s images could not be listed again, and nothing is exported', async () => {
+  const state = sampleProjectState();
+  const store = await openRuntimeStore(new MemoryIndexedDb());
+  const session = await sessionOver(state, store);
+  const compile = planOf({ tool: 'export.compile', params: { selection: { root: 'manuscript' }, format: 'md' }, expect: 'the manuscript is compiled' });
+  const controller = new AgentController(
+    session,
+    await scriptedProviders([{ match: (req) => isPlannerCall(req) && userTextOf(req).includes('Request: Compile the manuscript.'), respond: () => ({ content: compile }) }]),
+  );
+  session.exportsReady = async () => {
+    throw new Error('the listing failed');
+  };
+  controller.setMode('auto');
+
+  const running = controller.submit('Compile the manuscript.');
+  await until(() => controller.snapshot().pending !== null, 'the held compile card');
+  const held = controller.snapshot();
+  expect(held.message).toContain('images could not be listed again');
+  expect(held.message).toContain('this export was not applied automatically');
+  expect(session.harness.log.entries().some((entry) => entry.command.startsWith('export.'))).toBe(false);
+
+  controller.answer({ action: 'cancel' });
+  await running;
+  expect(session.harness.log.entries().some((entry) => entry.command.startsWith('export.'))).toBe(false);
   await session.close();
 });

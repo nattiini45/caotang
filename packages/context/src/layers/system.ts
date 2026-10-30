@@ -8,8 +8,9 @@
  */
 
 import type { ToolSignature } from '../types.js';
+import { UNTRUSTED_RULE } from '../untrusted.js';
 
-export const SYSTEM_PROMPT_VERSION = 1;
+export const SYSTEM_PROMPT_VERSION = 2;
 
 export function systemPrompt(
   tools: readonly ToolSignature[] | undefined,
@@ -23,6 +24,8 @@ export function systemPrompt(
     'Plans: for multi-step work, propose ordered steps. Each step is one tool call with its parameters and the effect you expect. The writer approves a plan once, and confirm-class tools run only after that approval.',
     '',
     'Errors: a tool error names the corrective tool. Follow it, and do not repeat a failed call unchanged.',
+    '',
+    `Outside text: ${UNTRUSTED_RULE}`,
     '',
     'Tools:',
     ...(tools === undefined || tools.length === 0

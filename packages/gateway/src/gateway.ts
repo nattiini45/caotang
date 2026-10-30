@@ -23,7 +23,8 @@ import type { KeyStore } from './keys/key-store.js';
 import { UsageLedger } from './ledger.js';
 import { createMockProvider, type MockProvider } from './mock/mock-provider.js';
 import { collectOnce } from './once.js';
-import { RequestLog } from './request-log.js';
+import { redactDeep } from './redact.js';
+import { RequestLog, type RequestLogEntry, type RequestOutcome } from './request-log.js';
 import { DEFAULT_RETRY, DEFAULT_TIMEOUTS, type RetryPolicy, type TransportTimeouts } from './retry.js';
 import {
   assertEgress,
@@ -44,6 +45,9 @@ import type { AdapterContext, CallSecrets, ProviderAdapter } from './adapters/ty
 import type {
   ChatChunk,
   ChatRequest,
+  FinishReason,
+  ReasoningBlock,
+  ToolCall,
   ModelCaps,
   ModelInfo,
   ModelLimits,
@@ -88,7 +92,40 @@ export interface Gateway extends ProviderGateway {
    * not it is the active one (§4).
    */
   probeResponseFormat(profileId?: string): Promise<boolean>;
+  /**
+   * Attaches the trace observer (`GatewayOptions.observe`) from the next call on, or detaches it with `undefined`. A call with no
+   * observer gathers nothing: the app detaches it when the writer turns traces off.
+   */
+  setObserver(observe: ((event: GatewayTraceEvent) => void) | undefined): void;
 }
+
+/**
+ * One provider call's lifecycle, as the in-tab trace sees it (agent-harness §5.2). `id` is the gateway's own counter and joins the
+ * events of one call; `req.turnId` and `req.callIndex` join them to the harness's records. Every string in an event has the call's
+ * secrets scrubbed before the observer is told, and the events carry no header.
+ */
+export type GatewayTraceEvent =
+  /** The request after role routing, so the resolved profile, model and thinking level are known. */
+  | { readonly type: 'request'; readonly id: number; readonly req: ChatRequest; readonly profileId: string; readonly preset?: string; readonly model: string; readonly at: number }
+  /** The first delta of text or reasoning reached the caller. */
+  | { readonly type: 'first-token'; readonly id: number; readonly at: number }
+  /** One attempt ended, with the outcome its request-log line carries. A retry is an attempt of its own. */
+  | { readonly type: 'attempt'; readonly id: number; readonly attempt: number; readonly outcome: RequestOutcome; readonly status?: number; readonly errorKind?: string; readonly note?: string; readonly at: number }
+  /** The call ended: what it delivered, or why it failed. `usageSource` says whether the usage is the provider's or the local estimate. */
+  | {
+      readonly type: 'response';
+      readonly id: number;
+      readonly finishReason: FinishReason;
+      readonly content: string;
+      readonly reasoningText: string;
+      readonly reasoning?: readonly ReasoningBlock[];
+      readonly toolCalls?: readonly ToolCall[];
+      readonly usage: Usage;
+      readonly usageSource: 'provider' | 'estimate';
+      readonly attempts: number;
+      readonly error?: { readonly kind: string; readonly message: string };
+      readonly at: number;
+    };
 
 export interface GatewayOptions {
   profiles: ProfileStore;
@@ -113,6 +150,12 @@ export interface GatewayOptions {
    * that names neither keeps the active-profile rule. Absent means no routing: roles ride the ledger only.
    */
   roles?: RoleResolver;
+  /**
+   * Told of each provider call's lifecycle (see {@link GatewayTraceEvent}). It sees bodies, which the request log never holds, so
+   * its consumer must keep them in memory only. Display and debugging: whatever it throws is swallowed, and a call behaves the
+   * same with or without it. Absent, nothing is gathered.
+   */
+  observe?: (event: GatewayTraceEvent) => void;
 }
 
 const ZERO: Usage = { promptTokens: 0, completionTokens: 0 };
@@ -127,6 +170,8 @@ export function createGateway(options: GatewayOptions): Gateway {
   const requestLog = options.requestLog ?? new RequestLog();
   const mock = options.mock ?? createMockProvider();
   const fetchImpl: FetchLike = options.fetch ?? ((url, init) => globalThis.fetch(url, init));
+  let calls = 0;
+  let observer = options.observe;
 
   const deps: TransportDeps = {
     fetch: fetchImpl,
@@ -220,6 +265,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     route: { adapter: ProviderAdapter; ctx: AdapterContext },
     jsonObject: boolean,
     revealed: { secrets: CallSecrets; redact: string[] },
+    onAttempt?: (entry: RequestLogEntry) => void,
   ): CallSpec => {
     const { adapter, ctx } = route;
     const effective = effectiveOutput({
@@ -253,9 +299,103 @@ export function createGateway(options: GatewayOptions): Gateway {
       secrets: revealed.redact,
       createParser: () => adapter.createStreamParser(ctx),
       promptTokens: usageFor(req.messages, '').promptTokens,
+      ...(onAttempt === undefined ? {} : { onAttempt }),
       ...localCall(profile),
     };
   };
+
+  /**
+   * The observer's view of one call (`GatewayOptions.observe`). Every event is scrubbed with the secrets known when it is told,
+   * and a throwing observer is swallowed, so nothing here can change what the caller gets. `request` is told once the key
+   * is revealed, so a call refused before that still reports a request, with nothing to scrub.
+   */
+  function startTrace(observe: (event: GatewayTraceEvent) => void, req: ChatRequest, profile: ProfileView, model: string) {
+    calls += 1;
+    const id = calls;
+    let secrets: readonly string[] = [];
+    let requested = false;
+    let first = false;
+    let responded = false;
+    let content = '';
+    let reasoningText = '';
+    let failure: { kind: string; message: string } | undefined;
+    const tell = (event: GatewayTraceEvent): void => {
+      try {
+        observe(redactDeep(event, secrets));
+      } catch {
+        // display only: the call is the writer's, the trace is not
+      }
+    };
+    const request = (revealed: readonly string[]): void => {
+      if (requested) return;
+      requested = true;
+      secrets = revealed;
+      tell({ type: 'request', id, req, profileId: profile.id, ...(profile.preset === undefined ? {} : { preset: profile.preset }), model, at: clock.now() });
+    };
+    const respond = (stats: StreamStats, terminal: ChatChunk | undefined, signal: AbortSignal | undefined): void => {
+      if (responded) return;
+      responded = true;
+      request([]);
+      const finishReason: FinishReason = terminal?.finishReason ?? 'error';
+      if (profile.kind === 'mock') {
+        const outcome: RequestOutcome = finishReason !== 'error' ? 'ok' : signal?.aborted === true ? 'cancelled' : 'failed';
+        tell({ type: 'attempt', id, attempt: 0, outcome, at: clock.now() });
+      }
+      if (failure === undefined && finishReason === 'error') {
+        failure =
+          signal?.aborted === true
+            ? { kind: 'cancelled', message: 'The call was stopped.' }
+            : terminal === undefined
+              ? { kind: 'abandoned', message: 'The caller stopped reading before the reply finished.' }
+              : { kind: 'error', message: 'The reply ended with an error.' };
+      }
+      tell({
+        type: 'response',
+        id,
+        finishReason,
+        content,
+        reasoningText,
+        ...(terminal?.reasoning === undefined ? {} : { reasoning: terminal.reasoning }),
+        ...(terminal?.toolCalls === undefined ? {} : { toolCalls: terminal.toolCalls }),
+        usage: terminal?.usage ?? stats.usage ?? ZERO,
+        usageSource: stats.usageSource ?? 'estimate',
+        attempts: stats.attempts,
+        ...(failure === undefined ? {} : { error: failure }),
+        at: clock.now(),
+      });
+    };
+    return {
+      request,
+      attempt: (entry: RequestLogEntry): void =>
+        tell({
+          type: 'attempt',
+          id,
+          attempt: entry.attempt,
+          outcome: entry.outcome,
+          ...(entry.status === undefined ? {} : { status: entry.status }),
+          ...(entry.errorKind === undefined ? {} : { errorKind: entry.errorKind }),
+          ...(entry.note === undefined ? {} : { note: entry.note }),
+          at: entry.at,
+        }),
+      chunk: (chunk: ChatChunk, stats: StreamStats, signal: AbortSignal | undefined): void => {
+        const text = (chunk.delta ?? '') + (chunk.reasoningDelta ?? '');
+        if (!first && text !== '') {
+          first = true;
+          tell({ type: 'first-token', id, at: clock.now() });
+        }
+        content += chunk.delta ?? '';
+        reasoningText += chunk.reasoningDelta ?? '';
+        if (chunk.finishReason !== undefined) respond(stats, chunk, signal);
+      },
+      fail: (error: unknown): void => {
+        failure = {
+          kind: error instanceof ProviderError ? error.kind : error instanceof Error ? error.name : 'error',
+          message: error instanceof Error ? error.message : String(error),
+        };
+      },
+      end: (stats: StreamStats, signal: AbortSignal | undefined): void => respond(stats, undefined, signal),
+    };
+  }
 
   async function* complete(req: ChatRequest, signal?: AbortSignal): AsyncGenerator<ChatChunk, void, undefined> {
     // §6: a request that names a role and no profile resolves through the injected router. The answer is the
@@ -276,12 +416,18 @@ export function createGateway(options: GatewayOptions): Gateway {
       req.thinking === undefined && routed?.thinking !== undefined ? { ...req, thinking: routed.thinking } : req;
     const startedAt = clock.now();
     const stats: StreamStats = { attempts: 0, usage: undefined };
+    const trace = observer === undefined ? undefined : startTrace(observer, sent, profile, model);
 
     try {
       if (profile.kind === 'mock') {
         stats.attempts = 1;
+        trace?.request([]);
         for await (const chunk of mock.complete(sent, signal)) {
-          if (chunk.usage !== undefined) stats.usage = chunk.usage;
+          if (chunk.usage !== undefined) {
+            stats.usage = chunk.usage;
+            stats.usageSource = 'estimate';
+          }
+          trace?.chunk(chunk, stats, signal);
           yield chunk;
         }
         return;
@@ -297,9 +443,17 @@ export function createGateway(options: GatewayOptions): Gateway {
         route.ctx.caps.jsonObject !== false;
       assertEgress(deps, `${profile.baseUrl}${route.adapter.completePath(model)}`, profile.id);
       const revealed = await secretsFor(profile);
-      const spec = { ...chatSpec(profile, sent, route, jsonObject, revealed), signal };
-      yield* streamChat(deps, spec, stats);
+      trace?.request(revealed.redact);
+      const spec = { ...chatSpec(profile, sent, route, jsonObject, revealed, trace?.attempt), signal };
+      for await (const chunk of streamChat(deps, spec, stats)) {
+        trace?.chunk(chunk, stats, signal);
+        yield chunk;
+      }
+    } catch (error) {
+      trace?.fail(error);
+      throw error;
     } finally {
+      trace?.end(stats, signal);
       if (stats.attempts > 0) {
         ledger.record(
           { profileId: profile.id, model, turnId: req.turnId, agentPath: req.agentPath, role: req.role, at: startedAt },
@@ -355,6 +509,16 @@ export function createGateway(options: GatewayOptions): Gateway {
       secrets: revealed.redact,
       promptTokens: 0,
       ...localCall(profile),
+    }).catch((error: unknown) => {
+      // A preset the sweep found reachable from a browser can still have one route the page may not read (provider-gateway §9).
+      // "Could not reach the host, check your connection" would be false for that route and send the writer to the wrong setting.
+      if (error instanceof ProviderError && error.rejected && preset?.cors === 'ok') {
+        throw new ProviderError('network', providerMessages.modelListUnreadable(hostOf(profile.baseUrl)), {
+          ...(error.detail === undefined ? {} : { detail: error.detail }),
+          rejected: true,
+        });
+      }
+      throw error;
     });
     const models = adapter.parseModels(json);
     if (models === undefined) {
@@ -469,5 +633,8 @@ export function createGateway(options: GatewayOptions): Gateway {
     modelCaps,
     accountTokens,
     probeResponseFormat,
+    setObserver: (observe) => {
+      observer = observe;
+    },
   };
 }

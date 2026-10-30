@@ -12,6 +12,7 @@
     "./tiptap": "./src/tiptap/index.ts"
   },
   "dependencies": {
+    "@handlewithcare/prosemirror-suggest-changes": "0.1.8",
     "@handlewithcare/remark-prosemirror": "0.1.5",
     "@caotang/store": "workspace:*",
     "@tiptap/core": "3.31.4",
@@ -46,7 +47,7 @@
     "@caotang/bus": "workspace:*",
     "@caotang/editor-audit": "workspace:*",
     "@types/mdast": "4.0.4",
-    "jsdom": "29.1.1"
+    "jsdom": "28.1.0"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"

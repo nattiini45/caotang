@@ -119,6 +119,13 @@ export const DECLARED_PARAMS: Readonly<Record<CommandName, readonly string[]>> =
   'skill.write': ['name', 'path', 'text'],
   'skill.delete': ['name'],
   'skill.setEnabled': ['name', 'enabled'],
+  'project.setInstructions': ['text', 'expectedDigest'],
+  'memory.write': ['slug', 'type', 'title', 'body', 'expectedDigest'],
+  'memory.forget': ['slug'],
+  'macro.save': ['macro'],
+  'macro.delete': ['macroId'],
+  'hook.save': ['hook'],
+  'hook.delete': ['hookId'],
 };
 
 /** §9's three "various" rows, spelled out — asserted, not inferred. */

@@ -46,53 +46,125 @@
  * The mode (agent-harness §4) is the app's `agent.defaultMode` setting until the writer picks another for this panel; that pick is
  * the session override, held here and never saved. The loop reads it at each card, so a switch in the middle of a turn applies from
  * the next card. A card the mode approves never reaches `decide`: the loop applies it, and `beforeAutoApply` saves the writer's typing
- * first, as an approval here does. Plan-only keeps the writes it refused, and "Switch to Ask and run this plan" sends them as a plan.
+ * first, as an approval here does. If the typing cannot be saved, the card is not applied: it is put to the writer with the reason, as a stale card is. Plan-only keeps the writes it refused, and "Switch to Ask and run this plan" sends them as a plan.
+ *
+ * ## Interrupted runs
+ *
+ * Every turn is logged ahead of its work in the runtime database (agent-harness §5.1). A run a reload, a crash or a closed tab left
+ * unfinished is found marked interrupted when the project opens (lifecycle.ts), and the panel offers it as a card: Resume and Discard log.
+ * Resume is the writer's click and nothing else: it can re-issue a paid model call. The log is checked against the project first, and a
+ * write that did not land or a document that moved on is said by name instead of resuming. Discard log deletes the log and keeps the writes.
  *
  * ## Restore
  *
  * "Restore to before this turn" is the session's `restoreBefore`. It takes back every change made after the turn as well, so
  * the document ends where it was before the turn, and the confirmation says so.
+ *
+ * A turn has two axes. The project is restored as above, and every turn whose changes went with it is marked restored in the
+ * agent's conversation, so the next prompt does not assume that work is there. The conversation is rewound apart from the project:
+ * the turn and the ones after it stay in the panel, collapsed, and are no longer sent to the model. Both are the writer's action;
+ * the agent has no tool for either, and nothing here is saved: a reload starts both again.
  */
 
 import type { GhostPreview } from '@caotang/editor/tiptap';
-import type { ProfileView } from '@caotang/gateway';
+import type { ProfileView, TaskRole } from '@caotang/gateway';
 import {
+  checkMacro,
   createAgentSession,
   createBudgetMeter,
   createContextPort,
+  docResolverFor,
+  expandMacro,
+  isMacroCommand,
+  macroCommandName,
+  macroIntent,
   preloadFor,
+  resolveSlash,
+  RUN_LOG_VERSION,
+  structureDigest,
+  summarizeRun,
   DEFAULT_ACTIVE_MS,
   PERMISSION_MODES,
   type BudgetMeter,
   type ContextConfig,
   type AgentEvent,
   type AgentSession,
+  type BudgetSpend,
   type Decision,
   type OfferAnswer,
   type PendingCard,
   type PermissionMode,
+  type PlanStep,
   type PlanCardView,
   type PlanOffer,
   type RunLimits,
+  type RunLogPort,
+  type ToolName,
+  type TraceSink,
   type TurnOptions,
   type TurnReport,
 } from '@caotang/harness';
 import { newId } from '@caotang/ids';
-import { nodeById } from '@caotang/store';
+import { createRunLogPort, nodeById } from '@caotang/store';
 
-import { documentIdFor, draftCheckOf, newTurnView, reduceTurn, type DraftCheck, type GhostView, type TurnView } from './agent-model.js';
+import { documentIdFor, draftCheckOf, newTurnView, reduceTurn, spendLine, type DraftCheck, type GhostView, type TurnView } from './agent-model.js';
 import { fixPlanFor } from './findings-model.js';
 import { DEFAULT_AGENT_SETTINGS, type AgentSettings } from './settings.js';
 import { requestInkCompilerFor } from './ink-compiler.js';
 import type { ProviderService } from './providers.js';
 import type { ProjectSession, RestoreResult } from './session.js';
+import type { RestorePlan } from '@caotang/bus';
 import { TaskQueue, type TaskAgent } from './task-queue.js';
 import { announcementFor, viewOf, type TaskView } from './task-model.js';
 import { TaskStore, type TaskRecord } from './task-store.js';
+import { contextNote, helpNote, restoreTarget, type CommandNote, type LineOutcome } from './slash-model.js';
+
+/** How L6 words the time of a restore: the writer's own clock, as `HH:MM`. */
+function localClockTime(epochMs: number): string {
+  const at = new Date(epochMs);
+  return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+}
 
 /** Where a turn runs. The demo intents run on the built-in demo profile, whatever is active (context-assembly §6). */
 export interface SubmitOptions {
   readonly demo?: boolean;
+  /** Deferred rows loaded for this turn before the planner's first request, besides the ones the active document preloads. */
+  readonly preload?: readonly ToolName[];
+  /** The spend an interrupted run had when it stopped: a resumed turn's meter starts from it, so the run's limits count what it already used. */
+  readonly restoredSpend?: BudgetSpend;
+  /** The task role the turn's model calls run under (provider-gateway §6). Default `chat`; a recurring task's turn runs under `background`. */
+  readonly role?: TaskRole;
+  /**
+   * The permission mode this turn runs under in place of the panel's, for the cards it shows. The caller has already taken the lowest
+   * of the modes in play (`effectiveMode`), so this only ever lowers a turn; the panel's pick is not changed.
+   */
+  readonly mode?: PermissionMode;
+  /** The most model calls this turn may make. A recurring task's `maxModelCalls`; it can only lower the setting's limit, never raise it. */
+  readonly maxModelCalls?: number;
+  /** Shows a card even for a single reversible step (`/plan`). It adds a card and nothing else: the mode and the rules decide it as they decide any card. */
+  readonly forcePlan?: boolean;
+  /** A plan the app built whose steps are all reads runs at once, with no card (a macro of reads). */
+  readonly readsWithoutCard?: boolean;
+  /** The turn's intent and outcome are never sent to a model (a macro run): the planner's conversation memory leaves it out. */
+  readonly hiddenFromPlanner?: boolean;
+  /** The slash command that started the turn (`draft`), which the report and the run log name. */
+  readonly command?: string;
+}
+
+/** A run the project was left with, as the panel's interrupted-run card shows it (agent-harness §5.1). */
+export interface InterruptedRunView {
+  readonly runId: string;
+  /** What the writer asked for. */
+  readonly intent: string;
+  /** Steps applied, and the steps of the plan the run was on. */
+  readonly applied: number;
+  readonly total: number;
+  /** The run's spend in the words the panel's spend line uses, or `null` when the log holds none. */
+  readonly spend: string | null;
+  /** Whether Resume is offered. */
+  readonly resumable: boolean;
+  /** Why it is not, or what to know before resuming, as a sentence. */
+  readonly note: string | null;
 }
 
 /** A message the writer typed while a turn ran. It is a future turn: it starts once the turn before it has settled. */
@@ -142,6 +214,8 @@ export interface AgentSnapshot {
   readonly stoppable: boolean;
   /** Stop was pressed and the turn has not settled yet. */
   readonly stopping: boolean;
+  /** The runs this project was left with unfinished, oldest first. */
+  readonly interrupted: readonly InterruptedRunView[];
   /** The messages typed while a turn ran, in the order they will run. */
   readonly queue: readonly QueuedMessage[];
   /** The queue waits instead of running, after a turn that stopped on a question or never ran. */
@@ -172,6 +246,31 @@ export interface AgentSnapshot {
   readonly offer: OfferView | null;
   /** The project's background tasks, oldest first, as the project stood when the snapshot was made (`taskViews` reads it now). */
   readonly tasks: readonly TaskView[];
+  /** What the last slash command said under the Intent box (help, a missing argument, the context), or `null`. */
+  readonly command: CommandNote | null;
+  /** The turns whose approved edits are still marked for review, with how many suggestions each has left (editor-engine §15). */
+  readonly reviews: readonly ReviewView[];
+}
+
+/** One turn's suggestions that wait for the writer to keep or put back. */
+export interface ReviewView {
+  readonly turnId: string;
+  readonly pending: number;
+}
+
+/** What one open editor holds marked, and the call that keeps or puts back a turn's suggestions in it. */
+export interface ReviewHold {
+  readonly views: readonly ReviewView[];
+  resolve(turnId: string, mode: 'accept' | 'reject'): number;
+}
+
+/** An agent apply that landed in the store, as the editor pane is told about it so it can show the edit as marks. */
+export interface AgentApply {
+  readonly docId: string;
+  /** The revision the editor asked about. */
+  readonly revision: number;
+  /** The id of the plan step that made the edit. The editor keeps it in its own map; no mark carries it. */
+  readonly toolCallId: string;
 }
 
 /** What the panel says when the queue waits after a turn that stopped on a question. */
@@ -209,21 +308,30 @@ export class AgentController {
   private queueSeq = 0;
   private pendingNotes: PendingNote[] = [];
   private announcement = '';
+  /** The runs found interrupted, read from the run log when the panel attaches and after each turn. */
+  private interrupted: InterruptedRunView[] = [];
+  private readonly runLog: RunLogPort;
   private intentForNextTurn: string | null = null;
+  private commandForNextTurn: string | null = null;
   private providerForNextTurn: string | null = null;
   private priceForNextTurn: { readonly prompt: number; readonly completion: number } | null = null;
   /**
-   * The agent session one open panel keeps across turns (context-assembly §2, L6): the loop's
+   * The agent session one open panel keeps across turns (context-assembly §2, L6), one for each task role a turn has run under
+   * (`SubmitOptions.role`; the chat conversation is the `chat` one): the loop's
    * `started` RecentTurn array lives in this session's closure, so two turns through one controller
    * share the prior turns and the next turn's assembled prompt carries them as L6. It is created on the
-   * first turn and never rebuilt: the profile, model and thinking level are the turn's own
+   * first turn of its role and never rebuilt: the profile, model and thinking level are the turn's own
    * (`TurnOptions`), so a provider switch keeps the conversation. The conversation ends with the
    * controller itself, a project switch or a reload, and the app has no other affordance that clears it
    * within a visit. Per-turn state is cleared by `harness.endTurn` on every settlement, so a
    * cancelled/refused/failed turn never leaves its per-turn state behind. The conversation is in memory
    * only: a reload starts it over.
    */
-  private session_: AgentSession | null = null;
+  private readonly sessions = new Map<TaskRole, AgentSession>();
+  /** The mode a running turn was given in place of the panel's (`SubmitOptions.mode`). */
+  private runMode: PermissionMode | null = null;
+  /** The model-call cap a running turn was given (`SubmitOptions.maxModelCalls`). */
+  private runCalls: number | null = null;
   /** Names the session's turns `<id>.turn-<n>`; fixed for the controller's life, and unique among the controllers of one harness. */
   private readonly sessionId = newId('cmd').slice('cmd_'.length);
   /** The mode the writer picked for this panel over the setting's default. Not saved: a reload starts from the setting again. */
@@ -239,10 +347,25 @@ export class AgentController {
   /** The text a scene's draft has streamed so far, by document, while the model writes it (agent-harness §8). */
   private readonly streams = new Map<string, string>();
   private message: string | null = null;
+  /** The steps whose approved drafts have not reached the editor of their document yet, by document, in the order they land (editor-engine §15). */
+  private readonly armed = new Map<string, string[]>();
+  /** The turn each approved step belongs to, by step id. */
+  private readonly appliedIn = new Map<string, string | null>();
+  /** What the open editors in review mode hold marked, by document (ReviewSide.tsx). */
+  private readonly reviewing = new Map<string, ReviewHold>();
+  /** What the last slash command said under the Intent box. View state: never saved, never sent to a model. */
+  private commandNote: CommandNote | null = null;
   private readonly listeners = new Set<() => void>();
   private snapshotValue: AgentSnapshot;
   /** Whether the panel that shows this controller has gone. A detached controller refuses to park a decision. */
   private detached = false;
+  /**
+   * Whether the writer was told that the interrupted runs could not be checked; the check runs after every turn, so once is enough
+   * until a check works again, which tells again if the log later stops being readable.
+   */
+  private runLogUnreadableTold = false;
+  /** The number of the latest check of the interrupted runs, so a check that finishes after a newer one has started is dropped. */
+  private loadSeq = 0;
   /** The offer the loop is waiting on, with the way to answer it. */
   private offer: { view: OfferView; resolve: (answer: OfferAnswer) => void } | null = null;
   private readonly tasks: TaskQueue;
@@ -270,6 +393,7 @@ export class AgentController {
       ...(background.locksAvailable === undefined ? {} : { locksAvailable: background.locksAvailable }),
       ...(background.sleep === undefined ? {} : { sleep: background.sleep }),
     });
+    this.runLog = createRunLogPort(session.runtimeStore());
     this.tasks.subscribe(() => this.onTasksChanged());
     this.snapshotValue = this.buildSnapshot();
   }
@@ -303,6 +427,7 @@ export class AgentController {
       busy: this.busy,
       stoppable: this.busy || this.pending !== null,
       stopping: this.stopping,
+      interrupted: this.interrupted,
       queue: this.queue,
       queuePaused: this.queuePaused,
       notes: this.pendingNotes,
@@ -318,6 +443,8 @@ export class AgentController {
       message: this.message,
       offer: this.offer?.view ?? null,
       tasks: this.tasks.snapshot().map((task) => viewOf(task, this.session.state)),
+      command: this.commandNote,
+      reviews: [...this.reviewing.values()].flatMap((hold) => hold.views),
     };
   }
 
@@ -334,8 +461,138 @@ export class AgentController {
     if (trimmed === '') return null;
     // A turn about a dialogue container or a storyboard starts with that module's tools loaded (PRELOAD_BY_CONTEXT), so it
     // costs no search. The node is the one the writer has selected, which is the document the centre pane shows.
-    const preload = preloadFor(this.activeNode());
-    return this.turnWith(trimmed, options, (agent, turn) => agent.submit(trimmed, { preload, ...turn }));
+    const preload = [...new Set([...preloadFor(this.activeNode()), ...(options.preload ?? [])])];
+    return this.turnWith(trimmed, options, (agent, turn) => agent.submit(trimmed, { preload, ...turn, ...(options.forcePlan === true ? { forcePlan: true } : {}) }));
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Slash commands
+   * ------------------------------------------------------------------ */
+
+  /**
+   * Runs a line the Intent box sent (agent-harness §2, "Slash commands"). A line that is not a command is a request, queued while a turn
+   * runs. A command is resolved here, before any model call: it becomes the plan it names (a turn of its own, whose card is decided like
+   * any other), a request the panel forced to a card (`/plan`), an answer shown under the box (help, a missing or ambiguous argument,
+   * the context), or the restore the panel confirms. While a turn runs, the commands that would start a turn or restore one wait for it
+   * to end, and the text is kept; help and the context are answered at once.
+   */
+  sendLine(text: string): LineOutcome {
+    const line = text.trim();
+    if (line === '') return { kind: 'shown' };
+    this.commandNote = null;
+    const resolved = resolveSlash(line, this.slashContext());
+    const starts = resolved.kind === 'plan' || (resolved.kind === 'intent' && resolved.command !== undefined) || (resolved.kind === 'session' && resolved.action === 'restore');
+    if (this.busy && starts) {
+      this.commandNote = { kind: 'info', title: 'A turn is running', lines: ['Commands that start or restore a turn run between turns. Wait for this one to end or stop it, then send the line again.'] };
+      this.bump();
+      return { kind: 'kept' };
+    }
+    switch (resolved.kind) {
+      case 'intent': {
+        if (resolved.note !== undefined) this.commandNote = { kind: 'info', title: 'Sent as a request', lines: [resolved.note] };
+        const options: SubmitOptions = { ...(resolved.command === undefined ? {} : { command: resolved.command }), ...(resolved.forcePlan === true ? { forcePlan: true } : {}) };
+        if (this.busy) this.enqueue(resolved.intent, options);
+        else void this.submit(resolved.intent, options);
+        this.bump();
+        return { kind: 'sent' };
+      }
+      case 'plan':
+        void this.submitPlan(resolved.intent, resolved.plan, { command: resolved.command });
+        return { kind: 'sent' };
+      case 'ask':
+        this.commandNote = { kind: 'ask', title: resolved.message, lines: resolved.candidates ?? [] };
+        this.bump();
+        return { kind: 'kept' };
+      case 'session': {
+        if (resolved.action === 'help') {
+          this.commandNote = helpNote(resolved.arg);
+          this.bump();
+          return { kind: 'shown' };
+        }
+        if (resolved.action === 'context') {
+          const pinned = this.providers.resolveForRole?.('chat');
+          const profile = pinned?.profile ?? this.providers.active();
+          const preview = this.sessionFor('chat').contextPreview({
+            ...(profile === undefined ? {} : { profileId: profile.id }),
+            ...(pinned?.model === undefined ? {} : { model: pinned.model }),
+            ...(pinned?.thinking === undefined ? {} : { thinking: pinned.thinking }),
+          });
+          this.commandNote = contextNote(preview);
+          this.bump();
+          return { kind: 'shown' };
+        }
+        const target = restoreTarget(
+          this.turns.map((turn) => ({
+            turnId: turn.turnId,
+            report: turn.report,
+            checkpoint: turn.checkpoint !== null,
+            stands: turn.checkpoint !== null && this.session.undo.group(turn.checkpoint.undoGroupId) !== undefined,
+          })),
+          resolved.arg,
+        );
+        if ('says' in target) {
+          this.commandNote = { kind: 'info', title: target.says, lines: [] };
+          this.bump();
+          return { kind: 'kept' };
+        }
+        this.bump();
+        return { kind: 'restore', turnId: target.turn.turnId, summary: target.turn.report?.summary ?? '' };
+      }
+    }
+  }
+
+  /** Clears what the last slash command said under the Intent box. */
+  dismissCommandNote(): void {
+    if (this.commandNote === null) return;
+    this.commandNote = null;
+    this.bump();
+  }
+
+  /** What a slash command reads of the project: the documents the agent may see, by title, and the saved export recipes. */
+  private slashContext() {
+    const state = this.session.state;
+    return {
+      resolve: docResolverFor(state, this.session.harness.withheldAnywhere()),
+      recipes: (state.manifest.recipes ?? []).map((recipe) => ({ name: recipe.name, format: recipe.format })),
+    };
+  }
+
+  /**
+   * A recurring task's plan as the plan of a turn of its own (agent-harness §12): checked and drafted as a planner's is, and its card
+   * is the writer's. `options` carries the task's role, mode and call cap.
+   */
+  async submitPlan(intent: string, plan: { readonly steps: readonly PlanStep[] }, options: SubmitOptions = {}): Promise<TurnReport | null> {
+    return this.turnWith(intent, options, (agent, turn) =>
+      agent.submitPlan(intent, plan, {
+        ...turn,
+        ...(options.forcePlan === true ? { forcePlan: true } : {}),
+        ...(options.readsWithoutCard === true ? { readsWithoutCard: true } : {}),
+        ...(options.hiddenFromPlanner === true ? { hiddenFromPlanner: true } : {}),
+      }),
+    );
+  }
+
+  /**
+   * Runs a macro (extensibility.md §10): the writer's values go into its steps, and the plan that comes out is a turn of its own, named by
+   * the macro. It is checked again here (`expandMacro` runs `checkMacro`), so a macro that no longer fits the tools is refused in words
+   * and nothing starts. A macro that only reads runs at once; one that writes shows its card with every step, even a single reversible one, and
+   * the card is decided like any other: the mode, the rules and the gate see these steps as they see a planner's.
+   */
+  runMacro(macroId: string, values: Record<string, unknown>): { readonly started: true } | { readonly started: false; readonly problem: string } {
+    const macro = this.session.macros().find((candidate) => candidate.id === macroId);
+    if (macro === undefined) return { started: false, problem: 'That macro is not in the project any more.' };
+    if (this.busy) return { started: false, problem: 'A turn is running. Wait for it to end, or stop it, then run the macro.' };
+    const plan = expandMacro(macro, values);
+    if (!plan.ok) return { started: false, problem: plan.error.message };
+    const checked = checkMacro(macro);
+    if (!checked.ok) return { started: false, problem: checked.error.message };
+    void this.submitPlan(macroIntent(macro), plan.value, {
+      command: macroCommandName(macro.slug),
+      forcePlan: checked.value.risk !== 'read',
+      readsWithoutCard: true,
+      hiddenFromPlanner: true,
+    });
+    return { started: true };
   }
 
   /**
@@ -352,11 +609,18 @@ export class AgentController {
     };
   }
 
-  /** The permission mode in force: the writer's pick for this panel, else the setting's default. A locked `auto` reads as Ask. */
+  /** The permission mode in force. During a recurring-task turn this is the task's own effective mode (`runMode`); otherwise the writer's pick for this panel, or the setting's default. A locked `auto` reads as Ask. */
   mode(): PermissionMode {
+    if (this.runMode !== null) return this.runMode;
     const settings = this.agentSettings();
     const mode = this.modeOverride ?? settings.defaultMode;
     return mode === 'auto' && settings.lockAuto ? 'ask' : mode;
+  }
+
+  /** The mode the app setting names, a locked `auto` read as Ask: the most a run that is not the writer's own pick may be given. */
+  settingMode(): PermissionMode {
+    const settings = this.agentSettings();
+    return settings.defaultMode === 'auto' && settings.lockAuto ? 'ask' : settings.defaultMode;
   }
 
   /** Picks the mode for this panel. It applies from the next card, also in a turn that is running. Auto is refused while Settings has it off. */
@@ -382,13 +646,57 @@ export class AgentController {
     this.heldRun.add(turnId);
     this.modeOverride = 'ask';
     this.bump();
-    return this.turnWith(turn.intent, {}, (agent, options) => agent.submitPlan(turn.intent, { steps: held }, options));
+    // A macro's held plan stays the writer's: the retry is logged under the macro's command, so it is kept from the planner live and, if it is
+    // interrupted, when it is resumed from the run log.
+    const macro = isMacroCommand(turn.command ?? undefined) ? turn.command : null;
+    return this.turnWith(turn.intent, macro === null ? {} : { command: macro }, (agent, options) =>
+      agent.submitPlan(turn.intent, { steps: held }, macro === null ? options : { ...options, hiddenFromPlanner: true }),
+    );
   }
 
-  /** Saves the writer's typing before a card the mode approved applies, and lists the images again before a compile, as an approval does. */
-  private async beforeAutoApply(card: PlanCardView): Promise<void> {
-    await this.session.autosave.flush().catch(() => undefined);
-    if (card.steps.some((step) => step.tool.startsWith('export.compile'))) await this.session.exportsReady().catch(() => undefined);
+  /** Saves the writer's typing. False when it could not be written: the flush reports a failed write or a conflict rather than rejecting. */
+  private async typingSaved(): Promise<boolean> {
+    try {
+      const reports = await this.session.autosave.flush();
+      return !reports.some((report) => report.outcome === 'failed' || report.outcome === 'conflict');
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Saves the writer's typing before a card the mode approved applies, and lists the images again before a compile, as an approval does.
+   * When either fails the card is not applied unattended: the reason is said here and returned, and the loop puts the card to the writer.
+   */
+  private async beforeAutoApply(card: PlanCardView): Promise<string | void> {
+    let held: string | undefined;
+    if (!(await this.typingSaved())) {
+      held = 'Your typing could not be saved, so this card was not applied automatically. Approve it once your words are saved.';
+    } else if (card.steps.some((step) => step.tool.startsWith('export.compile'))) {
+      try {
+        await this.session.exportsReady();
+      } catch {
+        held = 'The project’s images could not be listed again, so this export was not applied automatically. Approve it to try again.';
+      }
+    }
+    if (held === undefined) {
+      // A card the mode approved lands as an approved one does: its drafts are remembered by scene, so review marks can show it.
+      this.armDrafts();
+      this.clearGhosts();
+      return;
+    }
+    this.message = held;
+    this.bump();
+    return held;
+  }
+
+  /** The drafts about to land are remembered by scene, so the editor of each can tell this store change from an undo or a restore. */
+  private armDrafts(): void {
+    for (const view of this.ghosts) {
+      if (view.docId === null) continue;
+      this.armed.set(view.docId, [...(this.armed.get(view.docId) ?? []), view.callId]);
+      this.appliedIn.set(view.callId, this.runningTurnId);
+    }
   }
 
   /** How many turns this controller has started. A queued message counts once it starts, never while it waits. */
@@ -437,10 +745,11 @@ export class AgentController {
     let report: TurnReport | null = null;
     try {
       // The demo intents run on the built-in demo profile, whichever profile is active (context-assembly §6).
-      // Every other turn runs under the 'chat' role (provider-gateway §6). The role's profile, model and thinking
-      // resolve once here and pin the session: a turn cannot change provider mid-flight, and the pinned id is what
+      // Every other turn runs under the 'chat' role unless the caller names one (provider-gateway §6). The role's profile, model and
+      // thinking resolve once here and pin the session: a turn cannot change provider mid-flight, and the pinned id is what
       // the loop's capability reads (modelCaps/modelLimits) must see.
-      const resolved = options.demo === true ? undefined : this.providers.resolveForRole?.('chat');
+      const role = options.role ?? 'chat';
+      const resolved = options.demo === true ? undefined : this.providers.resolveForRole?.(role);
       const profile: ProfileView | undefined =
         options.demo === true ? await this.providers.demoProfile() : (resolved?.profile ?? this.providers.active());
       if (profile === undefined) {
@@ -451,6 +760,7 @@ export class AgentController {
       await requestInkCompilerFor(this.session.state);
       this.turnOwner = owner;
       this.intentForNextTurn = intent;
+      this.commandForNextTurn = options.command ?? null;
       this.providerForNextTurn = profile.name;
       this.priceForNextTurn = profile.pricePer1k ?? null;
       // One agent session per controller keeps `started` RecentTurn list across turns (context-assembly §2, L6).
@@ -459,36 +769,18 @@ export class AgentController {
       // settlement, so a cancelled/refused/failed turn cannot leave its state behind in the shared session.
       const model = resolved?.model;
       const thinking = resolved?.thinking;
-      const agent: AgentSession =
-        this.session_ ??
-        (this.session_ = createAgentSession({
-          harness: this.session.harness,
-          gateway: this.providers.gateway,
-          context: createContextPort({ state: this.session.state, config: this.contextConfig }),
-          decide: (pending) => this.decide(pending),
-          emit: (event) => this.onEvent(event),
-          role: 'chat',
-          sessionId: this.sessionId,
-          loadEveryTool: this.loadEveryTool,
-          beforeStage: (offer) => this.askOffer(offer),
-          mode: () => this.mode(),
-          lockAuto: () => this.agentSettings().lockAuto,
-          budget: () => {
-            // The model-call bound is read at each turn; the time limit is the meter's, not a turn budget.
-            const { maxActiveMinutes: _minutes, ...budget } = this.agentSettings().budget;
-            return budget;
-          },
-          meter: () => this.meter ?? undefined,
-          price: () => this.priceForNextTurn ?? undefined,
-          beforeAutoApply: (card) => this.beforeAutoApply(card),
-        }));
+      // A session is kept for each role, so a turn under another role never carries the chat conversation or stamps its requests as chat.
+      const agent = this.sessionFor(role);
       this.runningAgent = agent;
-      this.meter = createBudgetMeter(this.runLimits());
+      this.runMode = options.mode ?? null;
+      this.runCalls = options.maxModelCalls ?? null;
+      this.meter = createBudgetMeter(this.runLimits(), options.restoredSpend === undefined ? {} : { restored: options.restoredSpend });
       report = await start(agent, {
         signal: abort.signal,
         profileId: profile.id,
         ...(model === undefined ? {} : { model }),
         ...(thinking === undefined ? {} : { thinking }),
+        ...(options.command === undefined ? {} : { command: options.command }),
       });
       return report;
     } catch (error) {
@@ -502,10 +794,13 @@ export class AgentController {
       this.meter?.dispose();
       this.meter = null;
       this.runningAgent = null;
+      this.runMode = null;
+      this.runCalls = null;
       this.runningTurnId = null;
       if (this.turnOwner === owner) {
         this.turnOwner = 0;
         this.intentForNextTurn = null;
+        this.commandForNextTurn = null;
         this.providerForNextTurn = null;
         this.priceForNextTurn = null;
       }
@@ -514,6 +809,7 @@ export class AgentController {
       // Usage and the request log are kept after every turn, so a closed tab loses at most the turn in flight.
       void this.providers.persist();
       this.afterTurn(report);
+      void this.loadInterrupted();
       this.bump();
     }
   }
@@ -542,6 +838,125 @@ export class AgentController {
   private nextQueueId(): string {
     this.queueSeq += 1;
     return `queued-${this.queueSeq}`;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Interrupted runs
+   * ------------------------------------------------------------------ */
+
+  /**
+   * Reads the project's unfinished runs from the run log and checks each against the project as it stands. A run whose log could not be
+   * written is not offered: it does not describe the run. A log this build cannot read is offered for discarding only.
+   */
+  async loadInterrupted(): Promise<void> {
+    if (this.busy) return;
+    const turns = this.turnsStarted;
+    const seq = (this.loadSeq += 1);
+    // A turn that has started since, a newer check, or a panel that has gone: what this check found is no longer the list to show.
+    const superseded = (): boolean => this.busy || this.turnsStarted !== turns || this.loadSeq !== seq || this.detached;
+    let rows: Awaited<ReturnType<RunLogPort['open']>>;
+    try {
+      rows = await this.runLog.open(this.session.projectId);
+    } catch (error) {
+      // Said once, and never over a message the writer has not read yet, such as a turn's own result, nor over a turn that has begun.
+      if (!superseded() && !this.runLogUnreadableTold && this.message === null) {
+        this.runLogUnreadableTold = true;
+        this.message = `Interrupted agent runs could not be checked: ${error instanceof Error ? error.message : String(error)}`;
+        this.bump();
+      }
+      return;
+    }
+    // The log can be read again: a later failure is worth saying again.
+    this.runLogUnreadableTold = false;
+    const views: InterruptedRunView[] = [];
+    for (const run of rows) {
+      if (run.status !== 'interrupted' || run.cannotResume === true) continue;
+      let summary: ReturnType<typeof summarizeRun>;
+      try {
+        summary = await this.summarizeLogged(run.runId);
+      } catch {
+        // A read that failed, or a document the project could not give: the run stays listed, and only the writer discards it.
+        views.push({ runId: run.runId, intent: run.intent, applied: 0, total: 0, spend: null, resumable: false, note: 'This run’s log could not be read just now. It has not been changed; reopen the project to try again, or discard it.' });
+        continue;
+      }
+      if (run.schema !== RUN_LOG_VERSION || summary === undefined) {
+        views.push({ runId: run.runId, intent: run.intent, applied: 0, total: 0, spend: null, resumable: false, note: 'This run’s log is damaged or was written by another version of Caotang, so it cannot be resumed.' });
+        continue;
+      }
+      views.push({
+        runId: run.runId,
+        intent: summary.intent,
+        applied: summary.applied,
+        total: summary.total,
+        spend: summary.spend === undefined ? null : (spendLine({ spend: summary.spend, limits: this.runLimits() }) ?? null),
+        resumable: summary.resumable,
+        note: summary.note ?? null,
+      });
+    }
+    if (superseded()) return;
+    const same = JSON.stringify(views) === JSON.stringify(this.interrupted);
+    this.interrupted = views;
+    if (!same) this.bump();
+  }
+
+  /** A run's log read and checked against the project as it stands. Rejects when the log cannot be read. */
+  private async summarizeLogged(runId: string): Promise<ReturnType<typeof summarizeRun>> {
+    const tree = this.session.state.manifest.tree;
+    return summarizeRun(await this.runLog.events(runId), (id) => this.session.state.documents.get(id)?.revision, {
+      nameOf: (id) => tree.find((node) => node.id === id)?.title ?? id,
+      structure: () => structureDigest(this.session.state.manifest),
+    });
+  }
+
+  /**
+   * Resumes an interrupted run. The writer's click calls it, and nothing else does. A card the run was showing comes back needing its own
+   * Approve; a run that was waiting on the model asks it again, and the call the stop lost counts as spent against the run's limits.
+   */
+  async resumeRun(runId: string): Promise<TurnReport | null> {
+    if (this.busy) {
+      this.message = 'The agent is working on another turn. Resume the run when it has finished.';
+      this.bump();
+      return null;
+    }
+    const view = this.interrupted.find((entry) => entry.runId === runId);
+    if (view === undefined || !view.resumable) {
+      this.message = 'That run can no longer be resumed.';
+      this.bump();
+      return null;
+    }
+    // The resumed meter starts from the logged spend. A log that cannot be read gives no spend to start from, so the run is not resumed.
+    let restoredSpend: BudgetSpend | undefined;
+    let readError: string | undefined;
+    try {
+      restoredSpend = (await this.summarizeLogged(runId))?.restoredSpend;
+    } catch (error) {
+      readError = error instanceof Error ? error.message : String(error);
+    }
+    if (restoredSpend === undefined) {
+      // A read that failed may work next time; a log that was read and cannot be summarized will not.
+      this.message =
+        readError !== undefined
+          ? `The run log could not be read: ${readError}. The run was not resumed. Try again, or discard the log.`
+          : 'This run’s log is damaged or was written by another version of Caotang, so the run was not resumed. You can discard the log.';
+      this.bump();
+      return null;
+    }
+    this.announcement = 'Resuming the run.';
+    return this.turnWith(view.intent, { restoredSpend }, (agent, turn) => agent.resume(runId, turn));
+  }
+
+  /** "Discard log": deletes the run's log and nothing else. What the run wrote stays in the project. */
+  async discardRun(runId: string): Promise<void> {
+    try {
+      await this.runLog.discard(runId);
+    } catch (error) {
+      this.message = `The run log could not be discarded: ${error instanceof Error ? error.message : String(error)}`;
+      this.bump();
+      return;
+    }
+    this.announcement = 'Run log discarded. What the agent wrote stays in the project.';
+    await this.loadInterrupted();
+    this.bump();
   }
 
   /* ------------------------------------------------------------------ *
@@ -657,7 +1072,6 @@ export class AgentController {
     if (next === undefined) return;
     this.queue = this.queue.slice(1);
     this.bump();
-    // The entry is submitted as the writer typed it, so anything the intent box parses (a slash command) is read now, when it runs.
     await this.submit(next.intent, next.options);
   }
 
@@ -697,26 +1111,54 @@ export class AgentController {
       }
     }
     // The card the decision answers, read before it leaves the screen: an approved compile needs its images listed again first.
-    const card = this.pending?.card ?? null;
+    const parked = this.pending;
+    const card = parked?.card ?? null;
     this.resolveDecision = null;
     this.pending = null;
-    if (decision.action !== 'edit') this.clearGhosts();
+    // An approval keeps the drafts on screen until the typing is saved, so a card that has to wait again still has them.
+    if (decision.action !== 'edit' && decision.action !== 'approve') this.clearGhosts();
     this.message = null;
     this.bump();
     if (decision.action === 'approve') {
       // The turn is still running: the loop applies the approved steps under it, and an adjust call may follow. `busy` stays set
       // until the turn settles (turnWith), so the panel shows Working and no second turn starts meanwhile.
       const compiles = card?.steps.some((step) => step.tool.startsWith('export.compile')) ?? false;
-      void this.session.autosave
-        .flush()
-        .catch(() => undefined)
-        // An approved compile lists the project's images again, as the export dialog's compile does (session.exportsReady): the
-        // compile reads the listing it last made, and an image added since would be missing from the shot list.
-        .then(() => (compiles ? this.session.exportsReady().catch(() => undefined) : undefined))
-        .then(() => {
-          resolve(decision);
+      void (async () => {
+        if (!(await this.typingSaved())) {
+          // Nothing is applied on top of typing that did not reach the store: the card waits for the writer again.
+          this.message = 'Your typing could not be saved, so the card was not applied. Approve it again once your words are saved.';
+          if (parked !== null && !this.stopping && !this.detached && this.resolveDecision === null) {
+            this.pending = parked;
+            this.resolveDecision = resolve;
+          } else {
+            resolve({ action: 'cancel' });
+          }
           this.bump();
-        });
+          return;
+        }
+        this.armDrafts();
+        this.clearGhosts();
+        // An approved compile lists the project's images again, as the export dialog's compile does (session.exportsReady): the
+        // compile reads the listing it last made, and an image added since would be missing from the shot list. When the listing
+        // fails the dialog does not compile, and neither does the card: it waits for the writer again, as for unsaved typing.
+        if (compiles) {
+          try {
+            await this.session.exportsReady();
+          } catch (error) {
+            this.message = `The project’s images could not be listed again (${error instanceof Error ? error.message : String(error)}), so the export was not applied. Approve it again to try once more.`;
+            if (parked !== null && !this.stopping && !this.detached && this.resolveDecision === null) {
+              this.pending = parked;
+              this.resolveDecision = resolve;
+            } else {
+              resolve({ action: 'cancel' });
+            }
+            this.bump();
+            return;
+          }
+        }
+        resolve(decision);
+        this.bump();
+      })();
       return;
     }
     resolve(decision);
@@ -728,16 +1170,157 @@ export class AgentController {
    */
   async restore(turnId: string): Promise<RestoreResult> {
     const group = this.checkpointOf(turnId);
-    if (group === undefined) return { ok: false, message: 'That turn wrote nothing, so there is nothing to restore.' };
+    if (group === undefined) return { ok: false, message: 'That turn wrote nothing, so there is nothing to restore.', undone: [] };
     const outcome = await this.session.restoreBefore(group);
+    // The restore takes every later group back too, so every turn whose group went is told to the planner as restored, not only this one.
+    this.noteRestored(outcome.undone);
     this.bump();
     return outcome;
+  }
+
+  /**
+   * Restores the project to before one step of a turn (`stepId` is the step's status-card id). The turns after it are taken back
+   * first, as `restore` does, and then the turn's own steps from that one onward; the steps before stay. Every turn that was taken
+   * back whole is marked restored for the agent, and this one is marked as restored from this step.
+   */
+  async restoreStep(turnId: string, stepId: string): Promise<RestoreResult> {
+    const group = this.checkpointOf(turnId);
+    const agent = this.sessionOf(turnId);
+    if (group === undefined || agent === undefined) return { ok: false, message: 'That turn wrote nothing, so there is nothing to restore.', undone: [] };
+    const held = this.entriesIn(group);
+    const outcome = await this.session.restoreBefore(group, () => agent.restoreStep(turnId, stepId));
+    const number = (this.turns.find((turn) => turn.turnId === turnId)?.cards.findIndex((card) => card.id === stepId) ?? -1) + 1;
+    this.noteRestored(outcome.undone, number > 0 && (outcome.ok || this.stepWentFrom(group, held)) ? { turnId, step: number } : undefined);
+    this.bump();
+    return outcome;
+  }
+
+  /**
+   * Whether the turn (or its steps from `stepId` on) can be taken back without the changes made after it: the planner's answer for
+   * the dialog, after pending typing is saved. `null` when the turn or the step has nothing to restore.
+   */
+  async restorePlan(turnId: string, stepId?: string): Promise<RestorePlan | null> {
+    const group = this.checkpointOf(turnId);
+    if (group === undefined) return null;
+    const from = stepId === undefined ? undefined : this.sessionOf(turnId)?.stepStart(turnId, stepId);
+    if (stepId !== undefined && from === undefined) return null;
+    return this.session.restorePlanFor(group, from);
+  }
+
+  /**
+   * "Restore only this (keep your later edits)": the turn, or its steps from `stepId` on, are taken back and the changes after it stay.
+   * The plan is proved again first (`ProjectSession.restoreExact`), so edits typed since the dialog opened cannot be taken back by
+   * mistake. `kept` is how many later changes stayed.
+   */
+  async restoreOnly(turnId: string, stepId?: string): Promise<RestoreResult & { readonly kept: number }> {
+    const group = this.checkpointOf(turnId);
+    const from = stepId === undefined ? undefined : this.sessionOf(turnId)?.stepStart(turnId, stepId);
+    if (group === undefined || (stepId !== undefined && from === undefined)) {
+      return { ok: false, message: 'That turn wrote nothing, so there is nothing to restore.', undone: [], kept: 0 };
+    }
+    const held = this.entriesIn(group);
+    const outcome = await this.session.restoreExact(group, from);
+    const number = stepId === undefined ? 0 : (this.turns.find((turn) => turn.turnId === turnId)?.cards.findIndex((card) => card.id === stepId) ?? -1) + 1;
+    this.noteRestored(outcome.undone, stepId !== undefined && number > 0 && (outcome.ok || this.stepWentFrom(group, held)) ? { turnId, step: number } : undefined);
+    this.bump();
+    return outcome;
+  }
+
+  /** The steps of a turn a restore to before that step would take something back, by status-card id. Read from the undo stack each time. */
+  restorableSteps(turnId: string): ReadonlySet<string> {
+    return new Set(this.sessionOf(turnId)?.restorableSteps(turnId) ?? []);
+  }
+
+  /**
+   * "Restore both": the project first, then the conversation. If the project restore stops part way, or a turn started meanwhile, the conversation is left as it is,
+   * the turns that were taken back are still marked restored, and the reason is returned.
+   */
+  async restoreBoth(
+    turnId: string,
+  ): Promise<{ readonly ok: true; readonly later: number; readonly intent: string } | { readonly ok: false; readonly message: string; readonly projectRestored: boolean }> {
+    const outcome = await this.restore(turnId);
+    if (!outcome.ok) return { ok: false, message: outcome.message, projectRestored: false };
+    // The restore awaits the autosave flush, so a turn may have started since the menu opened; the rewind is refused while one runs.
+    const rewound = this.rewindConversation(turnId);
+    if (rewound === null) {
+      const why = this.busy ? 'a turn is running, so the conversation was not rewound' : 'that turn is no longer in this session’s conversation, so nothing was rewound';
+      return { ok: false, message: `The project was restored, but ${why}.`, projectRestored: true };
+    }
+    return { ok: true, later: outcome.later, intent: rewound.intent };
+  }
+
+  /**
+   * Rewinds the conversation to before this turn: the turn and every later one of its session leave what the model is sent (L6) and show
+   * collapsed in the panel. The project is not touched. Returns the turn's instruction, for the Intent box; `null` when the turn is not
+   * held here or a turn is running.
+   */
+  rewindConversation(turnId: string): { readonly intent: string; readonly rewound: readonly string[] } | null {
+    if (this.busy) return null;
+    const agent = this.sessionOf(turnId);
+    if (agent === undefined) return null;
+    const result = agent.rewindConversation(turnId);
+    if (result.rewound.length === 0) return null;
+    this.turns = this.turns.map((turn) => (result.rewound.includes(turn.turnId) ? { ...turn, rewound: true } : turn));
+    this.announcement = 'Conversation rewound. The agent no longer sees that turn or the ones after it.';
+    this.bump();
+    return result;
+  }
+
+  /** Whether the conversation can be rewound to before this turn: nothing is running and the turn is still sent to the model. */
+  canRewind(turnId: string): boolean {
+    const turn = this.turns.find((entry) => entry.turnId === turnId);
+    return !this.busy && turn !== undefined && !turn.rewound && this.sessionOf(turnId) !== undefined;
+  }
+
+  /** The session that ran this turn: a turn belongs to the session of the role it ran under. */
+  private sessionOf(turnId: string): AgentSession | undefined {
+    return [...this.sessions.values()].find((agent) => agent.reports().some((report) => report.turnId === turnId));
+  }
+
+  /**
+   * Tells each session which of its turns the writer took back, so the next prompt says so. `groups` are the undo groups taken back
+   * whole; `partial` is the turn whose steps from `step` (1-based) onward were taken back, and it comes first among the turns of its session.
+   */
+  private noteRestored(groups: readonly string[], partial?: { readonly turnId: string; readonly step: number }): void {
+    const whole = this.turns.filter((turn) => groups.includes(turn.checkpoint?.undoGroupId ?? turn.report?.undoGroupId ?? ''));
+    const taken = partial === undefined ? whole : [...this.turns.filter((turn) => turn.turnId === partial.turnId), ...whole];
+    if (taken.length === 0) return;
+    const at = this.clock();
+    for (const agent of this.sessions.values()) {
+      const ids = taken.filter((turn) => this.sessionOf(turn.turnId) === agent).map((turn) => turn.turnId);
+      if (ids.length > 0) agent.markRestored(ids, at, partial !== undefined && ids[0] === partial.turnId ? partial.step : undefined);
+    }
+    const ids = new Set(taken.map((turn) => turn.turnId));
+    this.turns = this.turns.map((turn) =>
+      ids.has(turn.turnId) && !turn.rewound
+        ? { ...turn, restoredAt: at, restoredFromStep: partial !== undefined && turn.turnId === partial.turnId ? partial.step : null }
+        : turn,
+    );
+  }
+
+  /** Whether a restore to before this turn can be offered: the turn is still held here and wrote something. */
+  canRestore(turnId: string): boolean {
+    return this.checkpointOf(turnId) !== undefined;
   }
 
   /** The changes a restore to before this turn would also take back, oldest first, as the activity log words them. */
   laterChanges(turnId: string): readonly string[] {
     const group = this.checkpointOf(turnId);
     return group === undefined ? [] : this.session.laterChangesAfter(group);
+  }
+
+  /** How many entries the undo group still holds, or `undefined` once it is off the stack. */
+  private entriesIn(group: string): number | undefined {
+    return this.session.undo.group(group)?.entries.length;
+  }
+
+  /**
+   * Whether a step restore that failed still took part of the turn's own steps back: the group holds fewer entries than before, or is
+   * gone. A failure in a later group, or one where no compensation ran, leaves the count as it was, and the turn is not marked.
+   */
+  private stepWentFrom(group: string, held: number | undefined): boolean {
+    const now = this.entriesIn(group);
+    return held !== undefined && (now === undefined || now < held);
   }
 
   private checkpointOf(turnId: string): string | undefined {
@@ -752,7 +1335,7 @@ export class AgentController {
   private onEvent(event: AgentEvent): void {
     if (event.type === 'turn' && event.phase === 'started' && this.intentForNextTurn !== null) {
       this.runningTurnId = event.turnId;
-      this.turns = [...this.turns, newTurnView(event.turnId, this.intentForNextTurn, this.providerForNextTurn, this.priceForNextTurn)];
+      this.turns = [...this.turns, newTurnView(event.turnId, this.intentForNextTurn, this.providerForNextTurn, this.priceForNextTurn, this.commandForNextTurn)];
     }
     // A note has reached the model: it is no longer waiting.
     if (event.type === 'steer') this.pendingNotes = this.pendingNotes.filter((note) => note.noteId !== event.note.noteId);
@@ -763,7 +1346,10 @@ export class AgentController {
     this.turns = this.turns.map((turn) => reduceTurn(turn, event, nameOf));
     if (event.type === 'ghost') this.addGhost(event);
     if (event.type === 'draft.delta') this.streamDraft(event);
-    if (event.type === 'report') this.clearGhosts();
+    if (event.type === 'report') {
+      this.clearGhosts();
+      this.armed.clear();
+    }
     this.bump();
   }
 
@@ -985,6 +1571,52 @@ export class AgentController {
     return this.tasks.idle();
   }
 
+  /** The sink and the clock the providers lend a session (agent-harness §5.2). A bare stand-in for the providers lends neither. */
+  private readonly traceSink = (): TraceSink | undefined => (this.providers as Partial<ProviderService>).trace?.sink();
+  private readonly clock = (): number => (this.providers as Partial<ProviderService>).now?.() ?? Date.now();
+
+  /** The session of a task role, made on its first use (see `sessions`). */
+  private sessionFor(role: TaskRole): AgentSession {
+    const kept = this.sessions.get(role);
+    if (kept !== undefined) return kept;
+    const agent = createAgentSession({
+      harness: this.session.harness,
+      gateway: this.providers.gateway,
+      context: createContextPort({ state: this.session.state, config: () => ({ formatTime: localClockTime, ...this.contextConfig() }), withheld: (tool) => this.session.harness.withheld(tool) }),
+      decide: (pending) => this.decide(pending),
+      emit: (event) => this.onEvent(event),
+      role,
+      sessionId: role === 'chat' ? this.sessionId : `${this.sessionId}.${role}`,
+      clock: this.clock,
+      trace: this.traceSink,
+      loadEveryTool: this.loadEveryTool,
+      beforeStage: (offer) => this.askOffer(offer),
+      mode: () => this.mode(),
+      lockAuto: () => this.agentSettings().lockAuto,
+      budget: () => {
+        // The model-call bound is read at each turn; the time limit is the meter's, not a turn budget.
+        const { maxActiveMinutes: _minutes, ...budget } = this.agentSettings().budget;
+        // A task's cap can only lower the writer's limit, never raise it.
+        return this.runCalls === null ? budget : { ...budget, maxModelCalls: Math.min(budget.maxModelCalls ?? Infinity, this.runCalls) };
+      },
+      meter: () => this.meter ?? undefined,
+      price: () => this.priceForNextTurn ?? undefined,
+      beforeAutoApply: (card) => this.beforeAutoApply(card),
+      runLog: {
+        port: this.runLog,
+        projectId: this.session.projectId,
+        // A step's record is written only once the project holds the step, so "applied" in the log means saved.
+        flush: () => this.session.saved(),
+        onNotice: (message) => {
+          this.message = message;
+          this.bump();
+        },
+      },
+    });
+    this.sessions.set(role, agent);
+    return agent;
+  }
+
   /** The session a task is staged with: the Background role's profile, the task's id as its name, and no way to decide a card. */
   private agentForTask(sessionId: string, maxModelCalls: number): TaskAgent | string {
     const resolved = this.providers.resolveForRole?.('background');
@@ -993,12 +1625,14 @@ export class AgentController {
     return createAgentSession({
       harness: this.session.harness,
       gateway: this.providers.gateway,
-      context: createContextPort({ state: this.session.state, config: this.contextConfig }),
+      context: createContextPort({ state: this.session.state, config: () => ({ formatTime: localClockTime, ...this.contextConfig() }), withheld: (tool) => this.session.harness.withheld(tool) }),
       // Staging shows no card. A card that did arrive would be cancelled, so nothing here waits on a writer who is not looking.
       decide: async () => ({ action: 'cancel' }),
       role: 'background',
       sessionId,
       maxModelCalls,
+      clock: this.clock,
+      trace: this.traceSink,
       loadEveryTool: this.loadEveryTool,
       profileId: profile.id,
       ...(resolved?.model === undefined ? {} : { model: resolved.model }),
@@ -1016,6 +1650,46 @@ export class AgentController {
       if (known || task.status === 'ready') this.announcement = announcementFor(task) || this.announcement;
     }
     this.bump();
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Review (editor-engine §15)
+   * ------------------------------------------------------------------ */
+
+  /**
+   * The editor of `docId` asks whether the store change it just saw is the landing of a draft the writer approved. It is, once: the
+   * record is spent by the question, so an undo or a restore that follows is not mistaken for another apply. A scene drafted by
+   * more than one step answers with those steps in order. The controller remembers only the step per document: `revision` is
+   * echoed back as the caller passed it, never matched.
+   */
+  consumeApply(docId: string, revision: number): AgentApply | null {
+    const waiting = this.armed.get(docId);
+    const toolCallId = waiting?.shift();
+    if (toolCallId === undefined) return null;
+    if (waiting?.length === 0) this.armed.delete(docId);
+    return { docId, revision, toolCallId };
+  }
+
+  /** The turn that made the step `toolCallId`, or `null` when the controller does not know it. */
+  turnOf(toolCallId: string): string | null {
+    return this.appliedIn.get(toolCallId) ?? null;
+  }
+
+  /** An open editor in review mode says what it holds marked, so a turn's card can show and resolve it. `null` when it goes. */
+  setReview(docId: string, hold: ReviewHold | null): void {
+    if (hold === null) this.reviewing.delete(docId);
+    else this.reviewing.set(docId, hold);
+    this.bump();
+  }
+
+  /**
+   * Keeps (`accept`: nothing the store holds changes) or puts back (`reject`: the stored scenes change, as the writer's own edit) every
+   * suggestion the turn left. Returns how many were resolved.
+   */
+  resolveReview(turnId: string, mode: 'accept' | 'reject'): number {
+    let resolved = 0;
+    for (const hold of this.reviewing.values()) resolved += hold.resolve(turnId, mode);
+    return resolved;
   }
 
   /* ------------------------------------------------------------------ *
@@ -1042,6 +1716,7 @@ export class AgentController {
    */
   attach(): void {
     this.detached = false;
+    void this.loadInterrupted();
     this.queueWork = this.queueWork.then(() => this.tasks.open());
     // Registered here, where the panel that shows the controller attaches it, so a controller React discarded (StrictMode builds
     // one twice) is never the one a findings panel reaches.

@@ -8,7 +8,7 @@
  * prompt pack panel over the same shots.
  */
 
-import { useEffect, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 
 import type { TreeNode } from '@caotang/store';
 
@@ -166,6 +166,7 @@ export function ShotBoard({ session, folder, ports, focus = null, zoom: zoomProp
   // The picture open in the lightbox, and the element that opened it, which gets focus back when it closes.
   const [lightbox, setLightbox] = useState<{ readonly url: string; readonly title: string; readonly opener: HTMLElement | null } | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
+  const activeDragId = useRef<string | null>(null);
   const [dropId, setDropId] = useState<string | null>(null);
   const [noticesShown, setNoticesShown] = useState(true);
   // What the last drop of files on the board did with each of them (storyboard.md §6).
@@ -394,25 +395,29 @@ export function ShotBoard({ session, folder, ports, focus = null, zoom: zoomProp
                 onOpenImage={(url, opener) => setLightbox({ url, title: card.title, opener })}
                 onPicture={(file) => void picture(card.id, file)}
                 onShotDragStart={(event) => {
+                  // Keep the source synchronously as well as in DataTransfer: some engines expose a reduced type list during dragover.
+                  activeDragId.current = card.id;
                   event.dataTransfer.setData(SHOT_DRAG_TYPE, card.id);
                   event.dataTransfer.effectAllowed = 'move';
                   setDragId(card.id);
                 }}
                 onShotDragOver={(event) => {
-                  if (!isShotDrag(event)) return;
+                  if (activeDragId.current === null && !isShotDrag(event)) return;
                   event.preventDefault();
                   setDropId(card.id);
                 }}
                 onShotDrop={(event) => {
-                  if (!isShotDrag(event)) return;
+                  if (activeDragId.current === null && !isShotDrag(event)) return;
                   event.preventDefault();
-                  const movedId = event.dataTransfer.getData(SHOT_DRAG_TYPE);
+                  const movedId = event.dataTransfer.getData(SHOT_DRAG_TYPE) || activeDragId.current;
                   const moved = cards.find((candidate) => candidate.id === movedId);
+                  activeDragId.current = null;
                   setDragId(null);
                   setDropId(null);
                   if (moved !== undefined && moved.id !== card.id) step(moved, card.index);
                 }}
                 onShotDragEnd={() => {
+                  activeDragId.current = null;
                   setDragId(null);
                   setDropId(null);
                 }}

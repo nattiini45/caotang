@@ -35,7 +35,7 @@ async function baseResult(): Promise<ScanResult> {
 
 function withFindings(result: ScanResult, findings: readonly PlacedFinding[]): ScanResult {
   const count = (severity: PlacedFinding['severity']): number => findings.filter((candidate) => candidate.severity === severity).length;
-  return { ...result, findings, counts: { error: count('error'), warning: count('warning'), info: count('info') }, notices: [], notes: [], skipped: [], status: 'complete' };
+  return { ...result, findings, counts: { error: count('error'), warning: count('warning'), info: count('info') }, notices: [], unread: [], notes: [], skipped: [], status: 'complete' };
 }
 
 /** The runner's decoding of workflow-command data, in one pass. */

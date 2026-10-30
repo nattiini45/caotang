@@ -1,0 +1,153 @@
+/* Settings › Macros and the Save as macro dialog. The workspace's own tokens, so both themes read correctly. */
+
+.macros-empty {
+  margin: 0;
+}
+
+.macros-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.macros-row {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line, currentColor);
+  border-radius: 6px;
+  background: var(--raised, transparent);
+}
+
+.macros-row-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.macros-name {
+  overflow-wrap: anywhere;
+}
+
+.macros-description,
+.macros-risk {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.macros-risk {
+  color: var(--ink-soft, inherit);
+  font-size: 0.88rem;
+}
+
+.macros-problem {
+  margin: 0;
+  color: var(--danger, #b3261e);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.macros-field {
+  display: grid;
+  gap: 0.25rem;
+  margin-bottom: 0.6rem;
+}
+
+.macros-field input[type='text'],
+.macros-field input[type='number'],
+.macros-field select,
+.macros-field textarea {
+  font: inherit;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--line-strong, currentColor);
+  border-radius: 4px;
+  background: var(--panel, Field);
+  color: inherit;
+  max-width: 100%;
+}
+
+.macros-values {
+  border: 1px solid var(--line, currentColor);
+  border-radius: 6px;
+  margin: 0 0 0.6rem;
+  padding: 0.5rem 0.7rem 0;
+}
+
+.macros-steps {
+  margin: 0 0 0.8rem;
+  padding-left: 1.3rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.macros-steps li {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.macros-steps li.is-removed {
+  opacity: 0.55;
+}
+
+.macros-step-tool {
+  font-size: 0.82rem;
+  color: var(--ink-soft, inherit);
+}
+
+.macros-step-params {
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* The Save as macro dialog */
+
+.macro-save-dialog {
+  width: min(44rem, calc(100vw - 2rem));
+}
+
+.macro-leaves {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.macro-leaf {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 10rem);
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.macro-leaf-value {
+  overflow-wrap: anywhere;
+}
+
+.macro-leaf-name {
+  font: inherit;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--line-strong, currentColor);
+  border-radius: 4px;
+  background: var(--panel, Field);
+  color: inherit;
+}
+
+.agent-save-macro {
+  margin: 0.4rem 0 0;
+}
+
+@media (max-width: 40rem) {
+  .macro-leaf {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .macro-leaf-name {
+    grid-column: 2;
+  }
+}

@@ -82,8 +82,8 @@ export const HARD_DENY_CLASSES: readonly HardDenyClass[] = [
 /**
  * Which registered names perform a hard-deny class.
  *
- * **Exactly one member in v0.1, and the count is asserted.** The other three classes
- * have no command to attach to (§4's own reasons are above). A second member cannot
+ * **Two members, and the count is asserted.** The other three classes
+ * have no command to attach to but `deletion`'s (§4's own reasons are above). A third member cannot
  * be added without a test failing that names it — the same treatment the registry gives
  * §9's three `various` rows, because a growing exemption-shaped list is how a gate
  * quietly stops refusing things.
@@ -95,6 +95,8 @@ export const HARD_DENY_CLASSES: readonly HardDenyClass[] = [
  */
 export const HARD_DENIED: Readonly<Partial<Record<CommandName, HardDenyClass>>> = {
   'project.deleteNode': 'deletion',
+  // A memory note is the writer's to remove, as a node and a codex entry are (agent-harness §4, context-assembly §2 LI).
+  'memory.forget': 'deletion',
 };
 
 /**

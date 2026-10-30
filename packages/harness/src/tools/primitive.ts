@@ -21,14 +21,14 @@ import {
 } from '@caotang/bus';
 
 import { failure } from '../errors.js';
-import type { ToolMetadata } from '../metadata.js';
+import type { ToolRow } from '../metadata.js';
 import type { ObjectSpec } from '../schema.js';
 import type { CallParams, PrepareContext, PrepareFn } from '../types.js';
 import { checkCommand } from './common.js';
 
 /**
  * The commands no tool may stand for: deletes, the document-body writes, the view commands, the staging commands, the external
- * call, the skill commands and the hard-denied names. The list is the source of the type, so naming one in a spec is a compile error
+ * call, the skill and macro commands and the hard-denied names. The list is the source of the type, so naming one in a spec is a compile error
  * (`test/primitive.test.ts` holds the `@ts-expect-error`), and the runtime guard reads the same list.
  */
 export const NEVER_EXPOSED = [
@@ -58,6 +58,14 @@ export const NEVER_EXPOSED = [
   'skill.write',
   'skill.delete',
   'skill.setEnabled',
+  // A macro is a plan the writer will run later, so the agent never saves or deletes one (extensibility §4 rule 7).
+  'macro.save',
+  'macro.delete',
+  // A hook is a rule the agent is held to, so the agent never saves or deletes one (extensibility §4 rule 7).
+  'hook.save',
+  'hook.delete',
+  // A memory note is the writer's to forget: hard-denied for an agent as a deletion (command-bus §4).
+  'memory.forget',
 ] as const satisfies readonly CommandName[];
 
 export type NeverExposed = (typeof NEVER_EXPOSED)[number];
@@ -65,8 +73,11 @@ export type NeverExposed = (typeof NEVER_EXPOSED)[number];
 /** A command a spec may name. Being exposable is necessary, not sufficient: a spec is still on the allowlist or it is not a tool. */
 export type ExposablePrimitive = Exclude<CommandName, NeverExposed>;
 
-/** The first wave (issue #56, owner decision). A tool joins the allowlist by an owner decision, never by being exposable. */
-export const PRIMITIVE_TOOL_NAMES = ['notes.replace', 'synopsis.set', 'vocabulary.upsert', 'filter.save', 'goal.save'] as const;
+/**
+ * The first wave (issue #56, owner decision) and the two rows issue #71 names, `memory.write` and `instructions.propose`. A tool joins the
+ * allowlist by an owner decision, never by being exposable.
+ */
+export const PRIMITIVE_TOOL_NAMES = ['notes.replace', 'synopsis.set', 'vocabulary.upsert', 'filter.save', 'goal.save', 'memory.write', 'instructions.propose'] as const;
 
 export type PrimitiveToolName = (typeof PRIMITIVE_TOOL_NAMES)[number];
 
@@ -91,7 +102,7 @@ export interface PrimitiveToolSpec<C extends ExposablePrimitive> {
 
 export interface PrimitiveTool {
   readonly command: CommandName;
-  readonly meta: ToolMetadata;
+  readonly meta: ToolRow;
   readonly params: ObjectSpec;
   readonly prepare: PrepareFn;
 }
@@ -113,7 +124,7 @@ export function primitiveTool<C extends ExposablePrimitive>(spec: PrimitiveToolS
     throw new Error(`"${spec.command}" is never exposed as a tool`);
   }
 
-  const meta: ToolMetadata = {
+  const meta: ToolRow = {
     name: spec.tool,
     risk,
     undoable: descriptor.undo !== 'none',

@@ -15,6 +15,8 @@ export function describeDrop(reason: DropReason): string {
       return 'empty description';
     case 'manual-unattached':
       return 'manual policy, not attached to the focus';
+    case 'withheld':
+      return 'withheld by a read rule, so the agent never sees it';
     case 'forward-outline':
       return 'forward outline withheld (includeForwardOutline is off)';
     case 'scope-limit':
@@ -23,6 +25,8 @@ export function describeDrop(reason: DropReason): string {
       return `dropped budget (${reason.layer}, ${reason.budget} tokens, rank ${reason.rank})`;
     case 'total-budget':
       return `dropped total budget (${reason.total} tokens, ${reason.layer}, rank ${reason.rank})`;
+    case 'instructions-cap':
+      return `${reason.file} is ${formatCount(reason.totalTokens)} tokens; the first ${formatCount(reason.sentTokens)} were sent`;
     case 'reserve-overflow':
       return `the codex's always entries need ${formatCount(reason.need)} tokens; the layer's budget is ${formatCount(reason.budget)}`;
   }

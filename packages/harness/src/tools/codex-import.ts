@@ -48,6 +48,7 @@ import {
 import { atWordBoundary, caseFold, canonical, compileCodex, countMentions, type Phrase } from '@caotang/codex';
 import { CODEX_INCLUDE_POLICIES, CODEX_TYPES, type CodexEntry, type ProjectState } from '@caotang/store';
 
+import { importScanSentence, scanImport } from '../agent/untrusted.js';
 import { failure, invalidParams, notFound, refusal } from '../errors.js';
 import { capOf } from '../metadata.js';
 import { param, type ObjectSpec } from '../schema.js';
@@ -357,10 +358,18 @@ export function prepareCodexImport(params: CallParams, context: PrepareContext):
 
   // The provenance is the tool's: it travels on the command envelope, and no param of the caller reaches it.
   const commands: PreparedCommand[] = [{ name: 'codex.upsert', params: upsert, provenance: 'import' }];
+  // The entries are stored as given; the scan tells the writer, on the card and in the result, what in them reads like instructions to a model (issue #54).
+  const scan = scanImport(
+    cards.flatMap((card, index) => [
+      { where: `entries[${index}].name`, text: String(card['name'] ?? '') },
+      { where: `entries[${index}].description`, text: typeof card['description'] === 'string' ? card['description'] : '' },
+      { where: `entries[${index}].citation`, text: (card['citation'] as { readonly quote: string }).quote },
+    ]),
+  );
   return ok({
     commands,
-    preview: { entries: cards },
-    finish: (done: readonly CommandDone[]) => finishCodexImport(done, cards),
+    preview: { entries: cards, ...(scan.total === 0 ? {} : { scan }) },
+    finish: (done: readonly CommandDone[]) => finishCodexImport(done, cards, scan),
   });
 }
 
@@ -377,7 +386,7 @@ function shortenImportDiff(card: Record<string, unknown>): Record<string, unknow
   };
 }
 
-function finishCodexImport(done: readonly CommandDone[], cards: readonly Record<string, unknown>[]): Result<ToolValue, CommandError> {
+function finishCodexImport(done: readonly CommandDone[], cards: readonly Record<string, unknown>[], scan: ReturnType<typeof scanImport>): Result<ToolValue, CommandError> {
   const upsert = done.find((entry) => entry.name === 'codex.upsert');
   const result = upsert?.outcome.result;
   const created = isRecord(result) && Array.isArray(result['created'])
@@ -391,6 +400,7 @@ function finishCodexImport(done: readonly CommandDone[], cards: readonly Record<
   let kept = shown.length;
   while (kept > 0 && !fitsCap({ created, diffs: shown.slice(0, kept) }, cap)) kept -= 1;
   const omitted = shown.length - kept;
+  const scanSentence = importScanSentence('The imported entries', scan);
   return ok({
     data: {
       created,
@@ -398,12 +408,18 @@ function finishCodexImport(done: readonly CommandDone[], cards: readonly Record<
       origin: 'import',
       diffs: shown.slice(0, kept),
       ...(omitted === 0 ? {} : { diffsOmitted: omitted }),
+      ...(scan.total === 0 ? {} : { scan }),
     },
     summary: `imported ${created.length} codex ${created.length === 1 ? 'entry' : 'entries'} as the writer's own canon, each citing its document`,
     affected: upsert?.outcome.affected ?? [],
     ...(undoGroupId === undefined ? {} : { undoGroupId }),
-    ...(omitted === 0
+    ...(omitted === 0 && scanSentence === undefined
       ? {}
-      : { notes: [`${omitted} of the ${shown.length} entry diffs are left out of this response to keep it within its cap. The plan card and the activity log hold them in full.`] }),
+      : {
+          notes: [
+            ...(omitted === 0 ? [] : [`${omitted} of the ${shown.length} entry diffs are left out of this response to keep it within its cap. The plan card and the activity log hold them in full.`]),
+            ...(scanSentence === undefined ? [] : [scanSentence]),
+          ],
+        }),
   });
 }

@@ -57,22 +57,27 @@
  */
 
 import { preloadAnchorLibraries } from '@caotang/editor';
-import { err, ok, type CommandError, type Result, type UndoOutcome } from '@caotang/bus';
+import { entryOfCall, err, ok, type CommandError, type Result, type UndoOutcome } from '@caotang/bus';
 import { ContextError, type AgentTask, type PromptPreview, type RecentTurn, type SelectionSpan } from '@caotang/context';
 import { estimateTokens, usageFor, type ChatChunk, type ChatMessage, type ChatRequest, type Gateway, type TaskRole, type ThinkingLevel, type ToolCall as WireToolCall, type ToolDef, type Usage } from '@caotang/gateway';
 import { newId } from '@caotang/ids';
 import { SKILL_CATALOG_TOKENS } from '@caotang/skills';
-import { getBody, getRevision, type ProjectState, type TreeNode } from '@caotang/store';
+import { getBody, getRevision, type ProjectState, type RunStatus, type TreeNode } from '@caotang/store';
 import { dialogueDraftTool, resolveContainer } from '@caotang/dialogue';
 import { stagePromptDraftTool, stagePromptVariantTool } from '@caotang/video-prompt-pack';
 
 import { limitExceeded, refusal } from '../errors.js';
-import { askBackFor, parsePlan, type AskBack, type AskBackCode, type Plan, type PlanPreflight, type PlanStep } from '../plan.js';
+import { askBackFor, parsePlan, planStepCallId, type AskBack, type AskBackCode, type Plan, type PlanOptions, type PlanOutcome, type PlanPreflight, type PlanStep, type StepResult } from '../plan.js';
 import { DOCUMENT, descendantsOf, resolveNode } from '../resolve.js';
-import type { Harness, ToolListing } from '../runtime.js';
+import type { Harness, RuleCheck, ToolListing } from '../runtime.js';
+import { isResultOf } from '../results.js';
 import type { ToolName } from '../metadata.js';
-import type { CallParams, ToolCall, ToolOutcome } from '../types.js';
+import type { CallParams, ToolCall, ToolOutcome, ToolValue } from '../types.js';
+import type { HookRun } from '../hooks.js';
 import { canonicalJson, isRecord } from '../util.js';
+import type { TraceInput, TraceSink } from './trace.js';
+import { isCommandName } from '../commands/slash.js';
+import { isMacroCommand } from '../macro.js';
 import { CONTINUITY_MAX_DOCS, SYNOPSIS_MAX_DOCS } from '../tools/ports.js';
 import type { DelegateParams } from '../tools/delegate.js';
 import { fitsCap } from '../tokens.js';
@@ -111,11 +116,12 @@ import {
   type StatusCard,
   type StatusState,
 } from './cards.js';
-import { anySignal, runLimitWords, stepLimitWords, type BudgetMeter, type BudgetStop, type Reservation } from './budget.js';
+import { anySignal, runLimitWords, stepLimitWords, type BudgetMeter, type BudgetSpend, type BudgetStop, type Reservation } from './budget.js';
 import {
   CHECKPOINT_LABEL,
   DEFAULT_MAX_MODEL_CALLS,
   EXTERNAL_CHECKPOINT_NOTE,
+  RESUMED_CHECKPOINT_NOTE,
   type AgentEvent,
   type CardRecord,
   type Decision,
@@ -169,6 +175,9 @@ import {
   type Reply,
 } from './protocol.js';
 import { previewFor, sceneDraftPreflight, shotsDeriveScenePreflight } from './ports.js';
+import { cautionOf, type ApprovalCaution, type CardHit, type QuoteFinding, type TaintRef, type WireProgress } from '@caotang/mcp-client';
+import { quotedProjectText } from './egress-check.js';
+import { modelResult, outsideSources, readsOutsideText, scanForInjection, sourceName, turnNonce, type OutsideOf } from './untrusted.js';
 import { createContextPort, dropLinesOf, mergePreviews, type ContextPort } from './context.js';
 import { createSubagentRunner, framedResult, resultLine, SUBAGENT_SPECS, type ParentTurnHandle } from './subagent.js';
 import {
@@ -180,6 +189,19 @@ import {
   staleSteps,
   type StepRevisions,
 } from './background.js';
+import {
+  createRunWriter,
+  newRunRecord,
+  planResume,
+  statusOfTurn,
+  structureDigest,
+  RUN_LOG_VERSION,
+  type Revisions,
+  type RunLogOptions,
+  type RunReplay,
+  type RunWriter,
+  type PendingStep,
+} from './run-log.js';
 import { DERIVE_SCHEMA_HINT, deriveRole, deriveUserText, parseDeriveReply, promptModelOf, storyboardOf } from './storyboard-model.js';
 
 export interface AgentSessionOptions {
@@ -230,8 +252,11 @@ export interface AgentSessionOptions {
   readonly sessionBudget?: SessionBudget | (() => SessionBudget);
   /** The price per 1,000 tokens the cost limit reads (provider-gateway §2). Absent, a turn has no cost to hold to a limit. */
   readonly price?: () => { readonly prompt: number; readonly completion: number } | undefined;
-  /** Awaited before a card the mode approves is applied, so the app can save the writer's typing as an approval does. */
-  readonly beforeAutoApply?: (card: PlanCardView) => Promise<void>;
+  /**
+   * Awaited before a card the mode approves is applied, so the app can save the writer's typing as an approval does. A reason it
+   * answers means the card is not applied unattended: it is shown to the writer with that reason, as a stale card is, and the writer decides.
+   */
+  readonly beforeAutoApply?: (card: PlanCardView) => Promise<string | void>;
   /**
    * The run limits (agent-harness §7.1), or a function that reads the meter of the turn about to start. Every model call reserves its
    * worst case from the meter before it is sent, a time limit aborts the turn's signal, and a step limit refuses a plan before it is drafted.
@@ -262,6 +287,19 @@ export interface AgentSessionOptions {
    * (`submitPlan`) is never offered, and neither is a plan that cannot run unattended or is small (`BACKGROUND_OFFER_MIN_CALLS`).
    */
   readonly beforeStage?: (offer: PlanOffer) => Promise<OfferAnswer>;
+  /**
+   * Logs each turn ahead of the work, so a turn a reload or a crash cut short can be resumed (agent-harness §5.1). Absent, nothing is logged
+   * and no turn behaves differently: a logged turn runs a plan one step at a time, awaiting the log between steps.
+   */
+  readonly runLog?: RunLogOptions;
+  /**
+   * Where the turn's records go (agent-harness §5.2): the turn, its context, its tools and their results, its cards and its report.
+   * The model calls themselves are the gateway observer's (`traceGateway`), joined to these by turn id and call index, and each
+   * request carries its `callIndex` only when a sink is given. Absent, nothing is recorded and no request changes. A function is
+   * asked at each record, so the app can stop recording between two turns by answering `undefined`. A sink that throws is
+   * ignored: the trace is a view of the turn, never part of it.
+   */
+  readonly trace?: TraceSink | (() => TraceSink | undefined);
 }
 
 /** The plan a writer is asked about before it is staged. */
@@ -306,6 +344,27 @@ export interface TurnOptions {
   readonly profileId?: string;
   readonly model?: string;
   readonly thinking?: ThinkingLevel;
+  /**
+   * The slash command that started the turn (`/draft`), by name. It is what the report, the activity panel and an eval tell a command's
+   * turn by, and it is logged with the turn. A name that is not a command name (`isCommandName`) is ignored.
+   */
+  readonly command?: string;
+  /**
+   * Shows a card even when a single reversible step would run at once (`/plan`, a macro). It only adds a card: the mode, the rules and the
+   * gate decide it as they decide any card, so it never lets a mode approve what the mode would not.
+   */
+  readonly forcePlan?: boolean;
+  /**
+   * For `submitPlan`: a plan whose steps are all reads runs at once with no card, as a planner's read-only steps do (a macro of reads,
+   * extensibility §10). Absent, `submitPlan` shows the card it always showed. A rule that asks about a read still asks.
+   */
+  readonly readsWithoutCard?: boolean;
+  /**
+   * Keeps the turn out of the planner's conversation memory (L6): its intent and its outcome are never sent to a model. A macro run sets it,
+   * because a macro's name and steps are project data a collaborator may have written, and only the writer runs it (extensibility §10).
+   * The turn is still in the activity list, the run log and the trace, and the writer can still rewind or restore it.
+   */
+  readonly hiddenFromPlanner?: boolean;
 }
 
 /** What a UI action can tell a planner turn before it starts. */
@@ -313,6 +372,18 @@ export interface SubmitOptions extends TurnOptions {
   /** Deferred native rows the turn is about, loaded before the first request as if the planner had searched for them. */
   readonly preload?: readonly ToolName[];
 }
+
+/** What `AgentSession.contextPreview` reports: the layers of the planner's next request, their tokens and drops. */
+export interface ContextPreview {
+  readonly layers: readonly { readonly id: string; readonly name: string; readonly tokens: number; readonly included: boolean; readonly budget?: number }[];
+  /** The prompt as a whole, in tokens. */
+  readonly promptTokens: number;
+  /** What the assembly left out, and why (context-assembly §5). */
+  readonly dropped: readonly string[];
+}
+
+/** The request a preview assembles with: the writer's next message is not known yet. */
+const CONTEXT_PREVIEW_REQUEST = '(your next message)';
 
 /** Where a steering note will land (agent-harness §2). */
 export interface SteerReceipt {
@@ -355,8 +426,44 @@ export interface AgentSession {
    * without delivering is reported undelivered (`TurnReport.steering`), for the caller to send as a turn of its own.
    */
   steer(turnId: string, text: string): Result<SteerReceipt, CommandError>;
+  /**
+   * Resumes a run the log says was cut short (agent-harness §5.1). The writer's click is what calls it: it can re-issue a paid planner call.
+   * The log is checked against the project first (`planResume`). A write that did not land, a document that moved on, or an external step that
+   * may have run is a failed report that names it and leaves the run as it was. Otherwise a card the run was showing is shown again, with its
+   * drafts marked out of date where their documents moved, and still needs its own Approve; a run that was between cards asks the model
+   * again from the logged conversation. The rules and the mode are those in force now, not those the run began under.
+   */
+  resume(runId: string, options?: TurnOptions): Promise<TurnReport>;
   /** Reverses a turn's undo group: "restore to before this turn" (command-bus §5). */
   restore(turnId: string): Result<UndoOutcome, CommandError>;
+  /**
+   * Puts the project back to before one step of a finished turn: that step's changes and those of every step after it are taken back,
+   * newest first, and the steps before it stay (command-bus §5, `undoFrom`). `stepId` is the step's status-card id; the call id the step
+   * was dispatched under is the harness's own record, never rebuilt from the id. A step that wrote nothing (a read) starts the restore
+   * at the next step that did. No `stepId` is the whole turn, as `restore`. It restores the project only: an external step's effects stay.
+   */
+  restoreStep(turnId: string, stepId?: string): Result<UndoOutcome, CommandError>;
+  /** The step ids of a finished turn whose restore would take something back, in the order the steps ran. Read live: a step taken back is not listed. */
+  restorableSteps(turnId: string): readonly string[];
+  /** The call id a restore to before `stepId` begins at: the first step from it on that still has changes in the turn's undo group, or `undefined`. */
+  stepStart(turnId: string, stepId: string): string | undefined;
+  /**
+   * Drops this turn and every later one from the conversation the planner sees (L6), and returns the turn's intent so the Intent
+   * box can offer it again. It touches no project state and no activity row, and the turns stay in `reports()`. An unknown turn
+   * returns no turns. The writer's action: the agent has no tool for it.
+   */
+  rewindConversation(turnId: string): { readonly intent: string; readonly rewound: readonly string[] };
+  /**
+   * Records that the writer took these turns' project changes back while keeping the conversation, so L6 says the work is no longer
+   * there. `fromStep` (1-based) applies to the first turn only, when the restore began at one of its steps; the others are whole.
+   * A turn rewound or unknown is left as it is.
+   */
+  markRestored(turnIds: readonly string[], at: number, fromStep?: number): void;
+  /**
+   * What the next planner request would send now: its layers with their tokens, and what was left out. It assembles the request the way a
+   * turn does and sends nothing, so no model call is made and the gateway sees no request (`/context`).
+   */
+  contextPreview(options?: TurnOptions): ContextPreview;
   /** Every turn this session has finished, oldest first. */
   reports(): readonly TurnReport[];
 }
@@ -461,6 +568,8 @@ interface Turn {
   converses: boolean;
   /** Counts the calls a turn makes, so every call id within it is unique. */
   seq: number;
+  /** The model requests the turn has made, a delegated agent's included: the `callIndex` the trace joins on. */
+  calls: number;
   /** The turn's undo group, recorded the moment a run applies anything, so no path loses it. */
   undoGroupId?: string;
   /** The mode the last card (or the start) read: what the turn's report and checkpoint print. */
@@ -491,6 +600,33 @@ interface Turn {
    * the object, so `reconcileWire` re-binds a step's call to the step the writer left in its place.
    */
   readonly wireSteps: Map<PlanStep, WireToolCall>;
+  /** The run log's writer for this turn, when the session logs. */
+  run?: RunWriter;
+  /** How many of `messages` the log already holds. */
+  logged: number;
+  /** The documents a step's draft read, with their revisions, taken before the draft was asked for: what a restored card checks. */
+  readonly reads: Map<PlanStep, StepRevisions>;
+  /** The turn was rebuilt from a log (`resume`): its undo reaches only what it applies, and its ladder does not ask the model. */
+  restored: boolean;
+  /** Steps a resumed turn's run had applied before the reload: its undo group does not reach them. */
+  carried: number;
+  /** The slash command that started the turn. */
+  readonly command: string | undefined;
+  /** A single reversible step shows a card instead of running at once. */
+  readonly forcePlan: boolean;
+  /** A plan the app built whose steps are all reads runs at once, with no card. */
+  readonly readsWithoutCard: boolean;
+  /** The id of the envelopes this turn's outside text sits in (`untrusted.ts`): fresh for each turn, the same under an eval's session id. */
+  readonly nonce: string;
+  /**
+   * The turn has taken in text from outside the project: an external call's result, or the description of an external tool a search surfaced
+   * (agent-harness §4, "Tainted turns"). It lasts to the end of the turn; the writer's next intent starts a turn that is not tainted.
+   */
+  tainted: boolean;
+  /** What the writer's hooks said on this turn's calls, in order (hooks.md §7). */
+  readonly hooks: HookRun[];
+  /** What tainted the turn, once each, in the order it was read: the servers by name, and how a card names the read. */
+  readonly taintedBy: TaintRef[];
 }
 
 /** How the turn ended, before the report is built from it. */
@@ -549,6 +685,18 @@ interface Decided {
   readonly error?: CommandError;
 }
 
+/** What a card is shown from. */
+interface CardStart {
+  readonly editable: EditableSteps;
+  readonly from: number;
+  readonly revision: number;
+  readonly notice?: string;
+  /** The card is the writer's in every mode: a scan over the document guard asks for the writer's own leave. */
+  readonly humanOnly?: boolean;
+  /** The card is a sub-card of a plan the writer approved (an external write inside it): the plan's own record covers it. */
+  readonly nested?: true;
+}
+
 /** The id a step's call carries. A one-step confirm is one call, and a plan names each step by its index. */
 function callIdFor(kind: 'plan' | 'confirm', prefix: string, index: number): string {
   return kind === 'confirm' ? prefix : `${prefix}.${index}`;
@@ -563,11 +711,30 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** How many hits of the injection scan a card lists. */
+const MAX_CARD_HITS = 8;
+
 /** The reason a native call's tool message reports when the call never ran (the step was cancelled or edited away). */
 const NOT_RUN = 'the call did not run: its step was cancelled or changed before it ran';
 
 /** The reason a step reports when the writer's stop ended its wait. */
 const STOPPED_STEP = 'the writer stopped the turn before this step finished';
+
+/** The reason an external call reports when the writer's stop (or a run limit) ended it after it was sent: the server may already have acted. */
+const STOPPED_CALL = 'the writer stopped the turn while this call was running; the server may already have done part of the work';
+
+/** The most often a running card shows a server's progress. */
+const PROGRESS_EVERY_MS = 250;
+
+/** Whether a failed external call was sent and may have done part of its work (`mcp.invoke` says so in its error's details). */
+const mayHaveActedOf = (error: CommandError): boolean => error.details?.mayHaveActed === true;
+
+/** What a turn's summary adds when external calls were sent and did not finish: never a clean "nothing was written". */
+function unsureNote(steps: readonly StepRecord[]): string {
+  const names = steps.filter((step) => step.mayHaveActed === true).map((step) => step.tool);
+  if (names.length === 0) return '';
+  return ` ${names.join(', ')} ${names.length === 1 ? 'was' : 'were'} sent to the server and did not finish, so the server may already have done part of the work.`;
+}
 
 /**
  * A native reply's step expectation. The wire carries no `expect`, so the step takes the reply's own
@@ -583,7 +750,7 @@ function expectOf(text: string): string {
  * A selection the editor captured, read from a step's params: its body offsets and the text found there.
  * `undefined` for anything that is not one, so a rewrite with no usable selection is assembled without one.
  */
-function spanOf(value: unknown): SelectionSpan | undefined {
+export function spanOf(value: unknown): SelectionSpan | undefined {
   if (!isRecord(value)) return undefined;
   const { from, to, exact } = value;
   if (typeof from !== 'number' || typeof to !== 'number' || typeof exact !== 'string') return undefined;
@@ -769,6 +936,37 @@ function clipOutcome(text: string): string {
   return `${flat.slice(0, end)}…`;
 }
 
+/** The intent a report for a resume that never found its run carries. */
+const RESUME_INTENT = 'Resume an agent run';
+
+/** Said to the model for each call of a reply the tab closed on: it never ran. */
+const INTERRUPTED_CALL = 'the tab closed before this call ran, so it did not run';
+
+/** Said to the model when a run is resumed between cards, so it plans from the request again rather than from a reply that was never acted on. */
+const INTERRUPTED_REPLY = 'The tab closed before your last reply was acted on, and nothing in it ran. Plan again from the request.';
+
+/** What a resume the log does not allow says to the writer. The run is left as it was; the writer can discard it. */
+function resumeAskBack(reason: 'write-lost' | 'revision-drift' | 'ask-back' | 'schema', detail: string): AskBack {
+  switch (reason) {
+    case 'write-lost':
+      return {
+        code: 'conflict',
+        reason: `The run was not resumed: ${detail}.`,
+        options: ['check the document, then discard the run and send the request again', 'keep what is there and discard the run'],
+      };
+    case 'revision-drift':
+      return {
+        code: 'conflict',
+        reason: `The run was not resumed: ${detail}. Your text outranks the agent's, so nothing was applied.`,
+        options: ['discard the run and send the request again against the current text', 'keep what is there and discard the run'],
+      };
+    case 'ask-back':
+      return { code: 'needs_input', reason: `The run was not resumed: ${detail}.`, options: ['check the external server yourself, then discard the run and send the request again', 'discard the run'] };
+    case 'schema':
+      return { code: 'needs_input', reason: `The run was not resumed: ${detail}.`, options: ['discard the log and send the request again'] };
+  }
+}
+
 export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const { harness, gateway } = options;
   // The project is read at each call, so a session follows the project as the writer changes it. The model's
@@ -780,9 +978,18 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     createContextPort({
       state: () => harness.state,
       config: () => ({ model: gateway.modelLimits(latestPins.profileId, latestPins.model, latestPins.thinking) }),
+      withheld: (tool) => harness.withheld(tool),
     });
   const emit = (event: AgentEvent): void => options.emit?.(event);
   const now = options.clock ?? Date.now;
+  const sinkNow = (): TraceSink | undefined => (typeof options.trace === 'function' ? options.trace() : options.trace);
+  const trace = (record: TraceInput): void => {
+    try {
+      sinkNow()?.write(record);
+    } catch {
+      // the trace is a view of the turn, never part of it
+    }
+  };
   const configured = (): Partial<TurnBudget> | undefined => (typeof options.budget === 'function' ? options.budget() : options.budget);
   const boundNow = (): number => options.maxModelCalls ?? configured()?.maxModelCalls ?? DEFAULT_MAX_MODEL_CALLS;
   /** The model-call bound of the turn that started last, as `latestPins` is: read at each turn, so a change in Settings applies to the next one. */
@@ -792,6 +999,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const finished: TurnReport[] = [];
   /** Every turn this session has started, oldest first, with its intent: what L6 is built from (context-assembly §2). */
   const started: RecentTurn[] = [];
+  /**
+   * The call id each step of a turn was dispatched under, in the order the steps ran: the step's status-card id, and the id its commands carry
+   * (a plan names a step `<plan>.<index>`, a mixed plan's native run `<prefix>.s<k>.<index>`, a one-step card its own id). `restoreStep` reads
+   * it, so a restore never rebuilds a call id from a card id.
+   */
+  const stepCalls = new Map<string, { readonly stepId: string; readonly callId: string }[]>();
   let turnCounter = 0;
   /** The turns that are running, by id: what `steer` reaches. */
   const running = new Map<string, Turn>();
@@ -812,7 +1025,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const policyOf = (turn: Turn): ModePolicy => {
     const policy = modePolicy(modeNow(), {
       ...(autoLocked() ? { lockAuto: true } : {}),
-      ...(options.taint === undefined ? {} : { taint: options.taint }),
+      // A turn that took in text from outside is tainted for the rest of the turn, and so is a session whose host says its project holds some.
+      taint: () => turn.tainted || options.taint?.() === true,
       ...(options.noHuman === true ? { noHuman: true } : {}),
     });
     turn.mode = policy.mode;
@@ -862,7 +1076,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       ...(price === undefined ? {} : { costUsd: (totals.promptTokens * price.prompt + totals.completionTokens * price.completion) / 1000 }),
       wordsChanged: touched.words,
       documents: touched.ids.size,
-      steps: writesOf(turn).length,
+      steps: spentSteps(turn),
     };
   };
 
@@ -933,6 +1147,18 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   /** The external tool a name is, when the turn has loaded it (extensibility §5). Undefined for a native name. */
   const loadedExternal = (tool: string) => harness.loadedExternalTools().find((candidate) => candidate.qualifiedName === tool);
 
+  /** Where a loaded external tool's text comes from, for the model-facing copy of its errors (`modelResult`). */
+  const outsideOf: OutsideOf = (tool) => {
+    const external = loadedExternal(tool);
+    return external === undefined ? undefined : { serverName: external.serverName, toolName: external.toolName };
+  };
+
+  /** What a failed step takes into the turn from outside: a loaded external tool's error quotes the server. */
+  const failedSources = (tool: string): readonly TaintRef[] => {
+    const from = outsideOf(tool);
+    return from === undefined ? [] : [{ serverName: from.serverName, label: sourceName(from.serverName, from.toolName) }];
+  };
+
   /**
    * A step the loop awaits instead of running inside an approved plan: a loaded external tool (extensibility §6), or a native
    * tool that awaits a model (coherence.md §7 tool 16, `ToolListing.async`). Both run after their card is approved.
@@ -951,6 +1177,83 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return 'unknown';
   };
 
+  /** Records the call id a step's commands were dispatched under (`restoreStep`). Only ids this harness built reach it, never model or server text. */
+  const recordStep = (turn: Turn, stepId: string, callId: string): void => {
+    const calls = stepCalls.get(turn.id) ?? [];
+    calls.push({ stepId, callId });
+    stepCalls.set(turn.id, calls);
+  };
+
+  /**
+   * The ask-back of a plan the harness refused when it came to run it. A hook that blocked a step says so in its own words; any other
+   * refusal is the generic one, since the card the writer approved no longer matches the project.
+   */
+  const refusedAskBack = (preflight: PlanPreflight): AskBack => {
+    const error = preflight.steps.find((entry) => entry.status === 'refused')?.error;
+    return askBackFor(
+      error?.details?.['askBackCode'] === 'hook_blocked'
+        ? error
+        : refusal('invalid-params', 'the plan was refused before anything ran', { correctiveHint: 'correct the refused steps and resend the plan' }),
+    );
+  };
+
+  /** A result as the model is handed it: its data, and the notes the writer's hooks added, which `modelResult` puts in envelopes (hooks.md §4). */
+  const bodyOf = (value: ToolValue): unknown => (value.hookNotes === undefined ? value.data : { ...value.data, hookNotes: value.hookNotes });
+
+  /** Drains what the writer's hooks said on this turn's calls into its report, its event stream and its trace (hooks.md §7). */
+  const flushHooks = (turn: Turn): void => {
+    for (const run of harness.takeHookRuns(turn.id)) {
+      turn.hooks.push(run);
+      emit({ type: 'hook', turnId: turn.id, run });
+      const said = run.decision.action === 'allow' ? '' : run.decision.action === 'context' ? run.decision.text : run.decision.reason;
+      if (run.decision.action === 'allow') continue;
+      trace({
+        kind: 'hook',
+        at: now(),
+        turnId: turn.id,
+        hookId: run.hookId,
+        name: run.name,
+        event: run.event,
+        tool: run.tool,
+        ...(run.callId === undefined ? {} : { callId: run.callId }),
+        action: run.decision.action,
+        text: said,
+        ms: run.ms,
+        ...(run.failed === undefined ? {} : { failed: run.failed }),
+      });
+    }
+  };
+
+  /**
+   * Adds a call's row to the turn's trace and tells the trace sink the call and the result the model is handed back: the same
+   * value that goes into the results message or the native tool message. A call a delegated agent made has no body here.
+   */
+  const pushRow = (turn: Turn, row: TraceEntry, body?: unknown): void => {
+    flushHooks(turn);
+    turn.trace.push(row);
+    if (sinkNow() === undefined) return;
+    const finishedAt = now();
+    const startedAt = turn.statusCards.find((card) => card.id === row.callId)?.startedAt;
+    trace({ kind: 'tool.call', at: startedAt ?? finishedAt, turnId: turn.id, callId: row.callId, tool: row.tool, risk: riskOf(row.tool), ...(row.agentPath === undefined ? {} : { agentPath: row.agentPath }), params: row.params });
+    trace({
+      kind: 'tool.result',
+      at: finishedAt,
+      turnId: turn.id,
+      callId: row.callId,
+      outcome: row.outcome,
+      ...(row.code === undefined ? {} : { code: row.code }),
+      ...(startedAt === undefined ? {} : { startedAt }),
+      finishedAt,
+      ...(body === undefined ? {} : { body }),
+    });
+  };
+
+  /** Adds a card decision to the turn's report, and to the trace. */
+  const pushCard = (turn: Turn, card: CardRecord): void => {
+    turn.cards.push(card);
+    trace({ kind: 'card', at: now(), turnId: turn.id, card });
+  };
+
   /**
    * The refusal the model gets for an external step the turn has not loaded: a qualified name needs tool.search first (§5),
    * and nothing runs for it. A loaded external tool is staged like any other step. A read runs in the reply's order, and a
@@ -963,15 +1266,27 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     return undefined;
   };
 
+  /** What the writer's agent rules say about a step (agent-harness §4, "Rules"): a refusal, or a rule that asks for the writer's card. */
+  const ruleOf = (step: PlanStep): RuleCheck => {
+    const external = loadedExternal(step.tool);
+    return harness.ruleCheck(step.tool, step.params, external === undefined ? undefined : { writes: external.effectiveRisk !== 'read-auto' });
+  };
+
+  /** A rule makes this step the writer's call: it is never approved by a mode, and a single write-auto step shows a card. */
+  const asksWriter = (step: PlanStep): boolean => ruleOf(step).ask !== undefined;
+
   /** The writes a turn has applied so far, in order, as the report names them. Reads are not writes. */
   const writesOf = (turn: Turn): string[] =>
     turn.steps.filter((step) => step.status === 'done' && riskOf(step.tool) !== 'read').map((step) => step.summary ?? step.tool);
+
+  /** The steps the run limit counts: the writes applied, and the external calls that were sent and did not finish, which may have acted all the same. */
+  const spentSteps = (turn: Turn): number => writesOf(turn).length + turn.steps.filter((step) => step.mayHaveActed === true).length;
 
   /** Counts the write steps the turn has applied since the last count into the run's meter, and answers how many the run may still apply. */
   const syncSteps = (turn: Turn): number => {
     const { meter } = turn;
     if (meter === undefined) return Infinity;
-    const done = writesOf(turn).length;
+    const done = spentSteps(turn);
     if (done > turn.metered) {
       meter.countStep(done - turn.metered);
       turn.metered = done;
@@ -1038,9 +1353,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           const hit = hitOf(turn, usageOf(turn), true);
           if (hit !== undefined) throw new BudgetExceeded(budgetStop(hit));
         }
-        const sent = role === undefined ? request : { ...request, role };
-        const reservation = reserveCall(turn, sent);
+        const asked = role === undefined ? request : { ...request, role };
+        const reservation = reserveCall(turn, asked);
         turn.modelCalls += 1;
+        turn.calls += 1;
+        const sent = sinkNow() === undefined ? asked : { ...asked, callIndex: turn.calls };
         emit({ type: 'model.call', turnId: turn.id, used: turn.modelCalls, limit: maxModelCalls });
         return settling(turn, reservation, gateway.complete(sent, signal));
       },
@@ -1070,9 +1387,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       gateway: {
         complete: (request, signal) => {
           if (used >= limit) throw modelCallBound(limit);
-          const sent = options.role === undefined ? request : { ...request, role: options.role };
-          const reservation = reserveCall(turn, sent);
+          const asked = options.role === undefined ? request : { ...request, role: options.role };
+          const reservation = reserveCall(turn, asked);
           used += 1;
+          turn.calls += 1;
+          const sent = sinkNow() === undefined ? asked : { ...asked, callIndex: turn.calls };
           return settling(turn, reservation, gateway.complete(sent, signal));
         },
       },
@@ -1090,11 +1409,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * behind this turn's profile and model must report `tools` in its capabilities, and there must be
    * tools to declare. A gateway with no `modelCaps` reports nothing, which is the fallback either way.
    */
-  const nativeTools = (turn: Turn): ToolDef[] | undefined => {
-    if (gateway.modelCaps?.(turn.pins.profileId, turn.pins.model)?.tools !== true) return undefined;
+  const nativeToolsFor = (pins: Pins): ToolDef[] | undefined => {
+    if (gateway.modelCaps?.(pins.profileId, pins.model)?.tools !== true) return undefined;
     const tools = plannerToolDefs(harness.tools(), harness.loadedNativeTools(), harness.loadedExternalTools(), loadEvery());
     return tools.length === 0 ? undefined : tools;
   };
+  const nativeTools = (turn: Turn): ToolDef[] | undefined => nativeToolsFor(turn.pins);
 
   /**
    * The planner's own calls: the one budgeted call site, with the turn's declarations added on the
@@ -1104,7 +1424,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   const plannerCall = (turn: Turn): ModelCall => {
     const call = modelCall(turn);
     if (!turn.native) return call;
-    const tools = plannerToolDefs(harness.tools(), harness.loadedNativeTools(), harness.loadedExternalTools(), loadEvery());
+    const tools = plannerToolDefs(harness.tools(), harness.loadedNativeTools(), harness.loadedExternalTools(), loadEvery(), undefined, turn.nonce);
     return tools.length === 0 ? call : { ...call, tools };
   };
 
@@ -1120,6 +1440,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     pending?.results.set(call.id, result);
   };
 
+  /** Marks the turn as having taken in text from outside the project (agent-harness §4, "Tainted turns"), and remembers where from. */
+  const taint = (turn: Turn, sources: readonly TaintRef[]): void => {
+    if (sources.length === 0) return;
+    turn.tainted = true;
+    for (const source of sources) if (!turn.taintedBy.some((known) => known.label === source.label)) turn.taintedBy.push(source);
+  };
+
   /**
    * The tool messages the next request carries, one per call the model made and has not yet heard back
    * for — every call is answered, so the model is never left guessing whether one ran. A call with no
@@ -1132,7 +1459,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         turn.messages.push({
           role: 'tool',
           toolCallId: call.id,
-          content: JSON.stringify(result.ok ? { ok: true, data: result.body } : { ok: false, error: result.body }),
+          content: modelResult({ tool: call.name, ok: result.ok, body: result.body }, turn.nonce, false, outsideOf),
           ...(result.ok ? {} : { isError: true }),
         });
       }
@@ -1164,6 +1491,164 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
   /** How many model calls the turn may still make. */
   const callsLeft = (turn: Turn): number => maxModelCalls - turn.modelCalls;
+
+  /* ------------------------------------------------------------------ *
+   * The run log (agent-harness §5.1)
+   * ------------------------------------------------------------------ */
+
+  /** The revision of every document the project holds now. */
+  const revisionsNow = (): Record<string, number> => {
+    const revisions: Record<string, number> = {};
+    for (const [id, record] of harness.state.documents) revisions[id] = record.revision;
+    return revisions;
+  };
+
+  /** The documents whose revision is not what `before` says, with the revision they hold now: what a step changed. */
+  const changedSince = (before: Revisions): Record<string, number> => {
+    const changed: Record<string, number> = {};
+    for (const [id, revision] of Object.entries(revisionsNow())) if (before[id] !== revision) changed[id] = revision;
+    return changed;
+  };
+
+  /** What the turn has spent, from its meter when it has one and from the gateway's ledger otherwise. */
+  const spendOf = (turn: Turn): BudgetSpend => {
+    if (turn.meter !== undefined) return loggable(turn.meter.spend());
+    const totals = gateway.ledger.turnTotals(turn.id);
+    return loggable({ modelCalls: turn.modelCalls, promptTokens: totals.promptTokens, completionTokens: totals.completionTokens, estimatedTokens: 0, steps: spentSteps(turn), activeMs: 0 });
+  };
+
+  /**
+   * The spend as the log keeps it: every figure finite and not below zero, and the call and step counts whole, whatever a clock or a
+   * provider reported, so the log reads back.
+   */
+  const loggable = (spend: BudgetSpend): BudgetSpend => {
+    const amount = (value: number): number => (Number.isFinite(value) && value >= 0 ? value : 0);
+    const whole = (value: number): number => Math.floor(amount(value));
+    return {
+      modelCalls: whole(spend.modelCalls),
+      promptTokens: amount(spend.promptTokens),
+      completionTokens: amount(spend.completionTokens),
+      estimatedTokens: amount(spend.estimatedTokens),
+      ...(spend.costUsd === undefined ? {} : { costUsd: amount(spend.costUsd) }),
+      steps: whole(spend.steps),
+      activeMs: amount(spend.activeMs),
+    };
+  };
+
+  /**
+   * Writes the messages added since the last write, then the spend. `reserved` is the model calls about to be started and not settled:
+   * a crash loses them, and a resume counts them as spent so the run's limits stay honest.
+   */
+  async function syncRun(turn: Turn, reserved: number, status?: RunStatus): Promise<void> {
+    const run = turn.run;
+    if (run === undefined) return;
+    if (turn.messages.length > turn.logged) {
+      const appended = turn.messages.slice(turn.logged);
+      turn.logged = turn.messages.length;
+      await run.append({ t: 'messages', turnId: turn.id, appended });
+    }
+    await run.append({ t: 'spend', turnId: turn.id, spend: spendOf(turn), reservedCalls: reserved }, status === undefined ? undefined : { status });
+  }
+
+  /** The card the writer is about to be shown (or the mode approved), with its drafts and what they were drafted against. */
+  async function logCard(turn: Turn, kind: 'plan' | 'confirm', editable: EditableSteps, status: RunStatus): Promise<void> {
+    const run = turn.run;
+    if (run === undefined) return;
+    await syncRun(turn, 0);
+    await run.append(
+      {
+        t: 'card.pending',
+        turnId: turn.id,
+        kind,
+        steps: editable.steps,
+        proposals: editable.proposals.map((proposal) => (proposal === undefined ? null : proposal)),
+        revisions: editable.steps.map((step) => turn.reads.get(step) ?? null),
+        done: editable.steps.flatMap((_, index) => (ranAt(editable, index) ? [index] : [])),
+      },
+      { status },
+    );
+  }
+
+  async function logDecision(turn: Turn, decided: Decided): Promise<void> {
+    await turn.run?.append({ t: 'card.decided', turnId: turn.id, decision: decided.settled === 'approved' && decided.auto === true ? 'auto' : decided.settled }, { status: 'running' });
+  }
+
+  /** Written before a step runs. Awaited, so the record exists before the step can change anything. */
+  async function logIntent(turn: Turn, callId: string, index: number, tool: string): Promise<void> {
+    await turn.run?.append({ t: 'step.intent', turnId: turn.id, callId, index, tool, expect: revisionsNow(), structure: structureDigest(harness.state.manifest) });
+  }
+
+  /**
+   * Written after a step applied and the project's save has landed. `before` is the revisions just before the step ran, so `after` names
+   * only the documents the step changed, taken before the save is awaited: the writer's own typing during the wait is not the step's.
+   */
+  async function logApplied(turn: Turn, callId: string, index: number, tool: string, summary: string | undefined, before: Revisions | undefined): Promise<void> {
+    const run = turn.run;
+    if (run === undefined) return;
+    const after = before === undefined ? {} : changedSince(before);
+    try {
+      await options.runLog?.flush?.();
+    } catch (error) {
+      run.fail(error);
+      return;
+    }
+    await run.append({ t: 'step.applied', turnId: turn.id, callId, index, tool, ...(summary === undefined ? {} : { summary }), after });
+  }
+
+  async function logFailed(turn: Turn, callId: string, index: number, tool: string, error: string): Promise<void> {
+    await turn.run?.append({ t: 'step.failed', turnId: turn.id, callId, index, tool, error });
+  }
+
+  /**
+   * Runs a plan's steps from `planOptions.from` through the harness. A turn with a run log runs them one at a time, writing each step's intent
+   * before it runs and its applied record after the project is saved; the outcome is the one the whole plan would have given. A turn without
+   * one is a single `executePlan`, as it always was.
+   */
+  async function planRun(
+    turn: Turn,
+    plan: { readonly steps: readonly PlanStep[] },
+    context: { readonly turnId: string; readonly callId: string },
+    planOptions: PlanOptions,
+  ): Promise<Result<PlanOutcome, CommandError>> {
+    if (turn.run === undefined) return harness.executePlan(plan, context, planOptions);
+    const completed: StepResult[] = [];
+    let undoGroupId: string | undefined;
+    const group = (): { undoGroupId?: string } => (undoGroupId === undefined ? {} : { undoGroupId });
+    for (let index = planOptions.from ?? 0; index < plan.steps.length; index += 1) {
+      const step = plan.steps[index] as PlanStep;
+      const callId = planStepCallId(context.callId, index);
+      if (planOptions.signal?.aborted === true) return ok({ status: 'stopped', completed, stoppedAt: index, ...group() });
+      await logIntent(turn, callId, index, step.tool);
+      const before = revisionsNow();
+      const result = harness.executePlan(plan, context, { ...planOptions, from: index, until: index + 1 });
+      if (!result.ok) {
+        await logFailed(turn, callId, index, step.tool, result.error.message);
+        return result;
+      }
+      const outcome = result.value;
+      if (outcome.status === 'applied') {
+        completed.push(...outcome.steps);
+        undoGroupId ??= outcome.undoGroupId;
+        await logApplied(turn, callId, index, step.tool, outcome.steps[0]?.value.summary, before);
+        continue;
+      }
+      if (outcome.status === 'failed') {
+        await logFailed(turn, callId, index, step.tool, outcome.error.message);
+        undoGroupId ??= outcome.undoGroupId;
+        return ok({ ...outcome, completed, ...group() });
+      }
+      if (outcome.status === 'refused') {
+        // Refused at the first step it is the whole plan's refusal; after earlier steps ran, the project moved under the plan, and it failed here.
+        const entry = outcome.preflight.steps.find((checked) => checked.status === 'refused');
+        const error = entry?.error ?? refusal('invalid-params', 'the step was refused before it ran', { correctiveHint: 'correct the step and send it again' });
+        await logFailed(turn, callId, index, step.tool, error.message);
+        if (completed.length === 0) return result;
+        return ok({ status: 'failed', completed, failedAt: index, error, askBack: askBackFor(error), ...group() });
+      }
+      return ok({ status: 'stopped', completed, stoppedAt: outcome.stoppedAt, ...group() });
+    }
+    return ok({ status: 'applied', steps: completed, ...group() });
+  }
 
   /**
    * The model the prompt-pack engine calls through: each of its requests is one generation of the turn, so it
@@ -1200,6 +1685,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       ...(startedAt === undefined ? {} : { startedAt }),
       ...(existing?.finishedAt === undefined ? {} : { finishedAt: existing.finishedAt }),
       ...(existing?.delegation === undefined ? {} : { delegation: existing.delegation }),
+      ...(existing?.progress === undefined ? {} : { progress: existing.progress }),
+      ...(existing?.mayHaveActed === undefined ? {} : { mayHaveActed: existing.mayHaveActed }),
     };
     if (existing === undefined) {
       turn.statusCards.push(card);
@@ -1212,12 +1699,40 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
   };
 
   /** Moves a card to its next state and reports it. The transition is checked, so a card cannot skip one. */
-  const moveCard = (turn: Turn, id: string, to: StatusState, detail: { summary?: string; error?: string } = {}): void => {
+  const moveCard = (turn: Turn, id: string, to: StatusState, detail: { summary?: string; error?: string; mayHaveActed?: true } = {}): void => {
     const card = turn.statusCards.find((entry) => entry.id === id);
     if (card === undefined || !canAdvance(card.status, to)) return;
     const next = advance(card, to, { ...detail, at: now() });
     turn.statusCards[turn.statusCards.indexOf(card)] = next;
     emit({ type: 'card', turnId: turn.id, card: next });
+  };
+
+  /**
+   * Where a server's progress report on an external call goes: onto the call's running card (made now when the call has none yet), and into the
+   * trace. It is the server's text and numbers, shown on the card as the server's words and never sent to the model. A burst of reports is shown
+   * at most four times a second; the card keeps the last one it showed.
+   */
+  const progressTo = (turn: Turn, call: ToolCall): ((progress: WireProgress) => void) => {
+    let shownAt = -Infinity;
+    return (progress) => {
+      const at = now();
+      if (at - shownAt < PROGRESS_EVERY_MS) return;
+      shownAt = at;
+      const card = cardFor(turn, call.callId, call.name, call.params as CallParams, 'running');
+      if (card.status !== 'running') return;
+      const next: StatusCard = { ...card, progress };
+      turn.statusCards[turn.statusCards.indexOf(card)] = next;
+      emit({ type: 'card', turnId: turn.id, card: next });
+      trace({
+        kind: 'tool.progress',
+        at,
+        turnId: turn.id,
+        callId: call.callId,
+        progress: progress.progress,
+        ...(progress.total === undefined ? {} : { total: progress.total }),
+        ...(progress.message === undefined ? {} : { message: progress.message }),
+      });
+    };
   };
 
   /**
@@ -1275,6 +1790,16 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         refusedBeforeCard(turn, step, external);
         continue;
       }
+      // A step a deny rule covers is refused here too, before any draft is made, so no model call is spent on it. The harness refuses it
+      // again when it runs: this is the card the writer sees, and that is the backstop.
+      const denied = ruleOf(step).denied;
+      if (denied !== undefined) {
+        const message = refusalSentence(denied.message, denied.correctiveHint);
+        refusals.push({ index, tool: step.tool, message });
+        refusedBeforeCard(turn, step, message);
+        pushRow(turn, { tool: step.tool, callId: `${turn.id}:rule${index}`, outcome: 'refused', code: denied.code, params: step.params }, message);
+        continue;
+      }
       if (!MODEL_BACKED.has(step.tool)) continue;
       const drafted = await draftFor(turn, step);
       if (drafted.ok) {
@@ -1292,6 +1817,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * refusal here: the assembly's own checks are the backstop behind the ones this file makes first.
    */
   async function draftFor(turn: Turn, step: PlanStep): Promise<Drafted> {
+    // The documents the draft reads, as they are before the model is asked: a restored card checks its draft against them.
+    turn.reads.set(step, revisionsOf(harness.state, step));
     try {
       return await draftStep(turn, step);
     } catch (error) {
@@ -1336,6 +1863,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const instruction = String(step.params['instruction'] ?? '');
       const targetWords = typeof step.params['target_words'] === 'number' ? step.params['target_words'] : undefined;
       const call = context.assemble({
+      nonce: turn.nonce,
         ...history,
         task: withSkills(turn, sceneTask(node.value.title, node.value.id, mode, instruction, selection, targetWords, step.params['include_forward_outline'] === true)),
         role: sceneRole(targetWords, node.value.kind, mode),
@@ -1411,6 +1939,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const previews: PromptPreview[] = [];
       for (const node of nodes) {
         const call = context.assemble({
+      nonce: turn.nonce,
           ...history,
           state: sourceView(state, node.id, source),
           task: withSkills(turn, { tool: 'synopsis.fill', instruction: synopsisInstruction(node, source), focus: node.id }),
@@ -1446,6 +1975,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // The container is the focus (dialogue-narrative §7): its Ink is L5, its prior beats are L4 and the codex of its speakers is L2,
       // so the prompt is the standard stack. The task carries the brief only, because the Ink is already in the focus.
       const call = context.assemble({
+      nonce: turn.nonce,
         ...history,
         task: withSkills(turn, { tool: 'dialogue.draft', instruction: `Brief: ${instruction}`, focus: container.node.id }),
         role: dialogueRole(targetLines),
@@ -1461,7 +1991,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const scopeRefs = Array.isArray(step.params['scope']) ? (step.params['scope'] as readonly string[]) : undefined;
     const scope: TreeNode[] = [];
     if (scopeRefs === undefined) {
-      scope.push(...descendantsOf(state, 'manuscript').filter(DOCUMENT));
+      const hidden = harness.withheld('continuity.scan');
+      scope.push(...descendantsOf(state, 'manuscript').filter((node) => DOCUMENT(node) && !hidden.has(node.id)));
     } else {
       for (const [index, ref] of scopeRefs.entries()) {
         const node = resolveNode(state, ref, DOCUMENT, 'document', `scope[${index}]`);
@@ -1477,6 +2008,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (callsLeft(turn) < 1) return refusedDraft(tooCostly(step.tool, 1, 0, maxModelCalls));
     const aspects = Array.isArray(step.params['aspects']) ? (step.params['aspects'] as readonly string[]) : [];
     const call = context.assemble({
+      nonce: turn.nonce,
       ...history,
       task: continuityTask(scope.map((node) => node.id), aspects),
       role: continuityRole(aspects),
@@ -1503,23 +2035,23 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * harness. Only a native read takes the writer's one-step confirmation.
    */
   async function invokeRead(turn: Turn, call: ToolCall, permission?: { readonly confirmed: true }): Promise<ToolOutcome> {
-    if (loadedExternal(call.name) !== undefined) return harness.callExternal(call, { turnId: turn.id, ...signalOf(turn) });
+    if (loadedExternal(call.name) !== undefined) return harness.callExternal(call, { turnId: turn.id, ...signalOf(turn), onProgress: progressTo(turn, call) });
     return harness.call(call, permission === undefined ? { turnId: turn.id } : { turnId: turn.id, permission });
   }
 
   /** Records one read's outcome: its trace row, its step, its card's last move, and any findings it made. */
   function settleRead(turn: Turn, index: number, step: PlanStep, callId: string, outcome: ToolOutcome): { tool: string; ok: boolean; body: unknown } {
     if (outcome.ok) {
-      turn.trace.push({ tool: step.tool, callId, outcome: 'ok', params: step.params });
+      pushRow(turn, { tool: step.tool, callId, outcome: 'ok', params: step.params }, bodyOf(outcome.value));
       turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'done', summary: outcome.value.summary, data: outcome.value.data });
       moveCard(turn, callId, 'done', { summary: outcome.value.summary });
-      if (Array.isArray(outcome.value.data['findings'])) {
-        emit({ type: 'findings', turnId: turn.id, callId, findings: outcome.value.data['findings'] as FindingsProposal['findings'] });
+      if (isResultOf('continuity.scan', step.tool, outcome.value)) {
+        emit({ type: 'findings', turnId: turn.id, callId, findings: outcome.value.data.findings });
       }
-      return { tool: step.tool, ok: true, body: outcome.value.data };
+      return { tool: step.tool, ok: true, body: bodyOf(outcome.value) };
     }
     const reason = errorSummary(withLoadHint(step.tool, outcome.error));
-    turn.trace.push({ tool: step.tool, callId, outcome: 'refused', code: outcome.error.code, params: step.params });
+    pushRow(turn, { tool: step.tool, callId, outcome: 'refused', code: outcome.error.code, params: step.params }, reason);
     turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'failed', error: reason });
     moveCard(turn, callId, 'failed', { error: reason });
     return { tool: step.tool, ok: false, body: reason };
@@ -1587,7 +2119,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       read: (call) => Promise.resolve(harness.call(call, { turnId: turn.id, agentPath, ...signalOf(turn) })),
       trace: (entry) => {
         const row: TraceEntry = { ...entry, agentPath };
-        turn.trace.push(row);
+        pushRow(turn, row);
         view = { ...view, trace: [...view.trace, row] };
         showDelegation(turn, id, view);
       },
@@ -1627,20 +2159,26 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       checkStop(turn);
       const id = nextCallPrefix(turn, 'r');
       const proposal = proposals[index];
-      const first =
-        step.tool === 'agent.delegate'
+      // A read a rule asks about goes to the writer's card first, as a scan over the document guard does.
+      const asked = asksWriter(step);
+      const first: ToolOutcome = asked
+        ? err(refusal('permission-denied', `a rule asks for the writer’s confirmation of ${step.tool}`, { target: step.tool }))
+        : step.tool === 'agent.delegate'
           ? await runDelegate(turn, step, id)
           : await invokeRead(turn, { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) });
-      // A read the stop cut short is not a refusal the model should hear about.
-      if (!first.ok && turn.signal?.aborted === true) throw new TurnStopped();
+      // A read the stop cut short is not a refusal the model should hear about. Its card, if progress made one, is ended with it.
+      if (!first.ok && turn.signal?.aborted === true) {
+        moveCard(turn, id, 'failed', { error: STOPPED_STEP });
+        throw new TurnStopped();
+      }
       let callId = id;
       let outcome: ToolOutcome = first;
-      if (!first.ok && needsWriterApproval(first.error)) {
+      if (!first.ok && (asked || needsWriterApproval(first.error))) {
         // The refusal came before the scan ran, so nothing has run. The writer decides on a card of its own.
         callId = `${id}.confirm`;
         const decided = await decideCard(turn, 'confirm', callId, { editable: oneStep(step, index, proposal), from: 0, revision: 0, humanOnly: true });
         if (decided.settled === 'cancelled') {
-          turn.cards.push({ kind: 'confirm', tools: [step.tool], decision: 'cancelled', edits: decided.edits, retries: decided.retries });
+          pushCard(turn, { kind: 'confirm', tools: [step.tool], decision: 'cancelled', edits: decided.edits, retries: decided.retries });
           moveCard(turn, callId, 'cancelled');
           turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'cancelled' });
           return { status: 'cancelled' };
@@ -1651,22 +2189,32 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         } else {
           // The card may have edited the step, so the run takes the step as the writer left it.
           const approved = decided.editable.steps[0] ?? step;
-          turn.cards.push({ kind: 'confirm', tools: [step.tool], decision: 'approved', edits: decided.edits, retries: decided.retries });
+          pushCard(turn, { kind: 'confirm', tools: [step.tool], decision: 'approved', edits: decided.edits, retries: decided.retries });
           phase(turn, 'running');
           moveCard(turn, callId, 'running');
-          outcome = await invokeRead(turn, { name: approved.tool, callId, params: approved.params, ...(proposal === undefined ? {} : { proposal }) }, { confirmed: true });
+          // agent.delegate is answered by the loop, not by the harness, so an approved one starts its agent the way an unasked one does.
+          outcome =
+            approved.tool === 'agent.delegate'
+              ? await runDelegate(turn, approved, callId)
+              : await invokeRead(turn, { name: approved.tool, callId, params: approved.params, ...(proposal === undefined ? {} : { proposal }) }, { confirmed: true });
+          if (!outcome.ok && turn.signal?.aborted === true) {
+            moveCard(turn, callId, 'failed', { error: STOPPED_STEP });
+            throw new TurnStopped();
+          }
         }
       } else {
         cardFor(turn, id, step.tool, step.params, 'running');
       }
       const result = settleRead(turn, index, step, callId, outcome);
+      taint(turn, result.ok ? outsideSources(result.body) : failedSources(step.tool));
       wireResult(turn, step, { ok: result.ok, body: result.body });
       results.push(result);
-      if (step.tool === 'tool.search' && outcome.ok && Array.isArray(outcome.value.data['surfaced'])) {
-        for (const name of outcome.value.data['surfaced'] as string[]) surfaced.add(name);
+      if (outcome.ok && isResultOf('tool.search', step.tool, outcome.value)) {
+        for (const name of outcome.value.data.surfaced) surfaced.add(name);
       }
     }
     const loadedNow = harness.loadedExternalTools().filter((tool) => surfaced.has(tool.qualifiedName));
+    taint(turn, loadedNow.map((tool) => ({ serverName: tool.serverName, label: sourceName(tool.serverName, tool.toolName) })));
     // With every tool declared, a native row a search loads is already in front of the model, so only external descriptors follow.
     const nativeNow = loadEvery() ? [] : harness.loadedNativeTools().filter((tool) => surfaced.has(tool.name));
     const loadedAny = loadedNow.length > 0 || nativeNow.length > 0;
@@ -1674,9 +2222,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // On the native wire each call is answered by its own tool message, keyed by its id; a search that
       // surfaced tools still puts their descriptors in a user note after the results, as the JSON wire does.
       flushWire(turn);
-      if (loadedAny) turn.messages.push({ role: 'user', content: loadedToolsMessage(nativeNow, loadedNow) });
+      if (loadedAny) turn.messages.push({ role: 'user', content: loadedToolsMessage(nativeNow, loadedNow, turn.nonce) });
     } else {
-      const sections = [resultsMessage(results), ...(loadedAny ? [loadedToolsMessage(nativeNow, loadedNow)] : [])];
+      const sections = [resultsMessage(results, turn.nonce, outsideOf), ...(loadedAny ? [loadedToolsMessage(nativeNow, loadedNow, turn.nonce)] : [])];
       turn.messages.push({ role: 'user', content: sections.join('\n\n') });
     }
     // The descriptors just sent name every tool the search loaded, so the planner's one-line addendum for the same set is not
@@ -1708,9 +2256,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       nativeAt.length === 0
         ? ok({ ok: true, steps: [] })
         : harness.previewPlan({ steps: nativeAt.map((index) => editable.steps[index] as PlanStep) }, {
+            turnId: turn.id,
             from: nativeFrom,
             proposals: nativeAt.map((index) => editable.proposals[index]),
           });
+    // A hook that spoke while the card was checked is kept on the turn before the card is shown (hooks.md §7).
+    flushHooks(turn);
     if (!checked.ok) return { refused: checked.error };
     const external = editable.steps.flatMap((step, index) =>
       index < from || loadedExternal(step.tool) === undefined ? [] : [{ index, tool: step.tool, expect: step.expect, status: 'ready' as const }],
@@ -1735,6 +2286,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const key = canonicalJson({ tool: step.tool, params: step.params });
       return turn.proposals.find((entry) => entry.key === key)?.agent;
     });
+    const caution = cautionFor(turn, editable, from);
     const card = planCardOf({
       id: `${turn.id}:card`,
       turnId: turn.id,
@@ -1749,8 +2301,39 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       staged,
       ...(proposedBy.some((agent) => agent !== undefined) ? { proposedBy } : {}),
       ...(notice === undefined ? {} : { notice }),
+      ...(caution === undefined ? {} : { caution }),
     });
     return { card, preflight };
+  }
+
+  /**
+   * What a card says beside its steps (issue #54): the outside text the turn read before it, and for each external write still to run the
+   * project text its arguments quote and what the scan finds in them and in the tool's description. Information: it never refuses a step.
+   */
+  function cautionFor(turn: Turn, editable: EditableSteps, from: number): ApprovalCaution | undefined {
+    const quotes: QuoteFinding[] = [];
+    const hits: CardHit[] = [];
+    const leads: string[] = [];
+    let second = false;
+    for (const [index, step] of editable.steps.entries()) {
+      const external = loadedExternal(step.tool);
+      if (index < from || ranAt(editable, index) || external === undefined || external.effectiveRisk === 'read-auto') continue;
+      const found = quotedProjectText(step.params, harness.state).map((quote): QuoteFinding => ({ ...quote, step: index + 1 }));
+      const scanned = [...scanForInjection(JSON.stringify(step.params)), ...scanForInjection(external.description)].map((hit): CardHit => ({ kind: hit.kind, excerpt: hit.excerpt }));
+      const caution = cautionOf(external.serverName, { followsUntrusted: turn.taintedBy, quotes: found, hits: scanned });
+      quotes.push(...found);
+      hits.push(...scanned);
+      if (caution?.lead !== undefined) leads.push(caution.lead);
+      second ||= caution?.requiresSecondClick === true;
+    }
+    if (turn.taintedBy.length === 0 && quotes.length === 0 && hits.length === 0) return undefined;
+    return {
+      followsUntrusted: turn.taintedBy.map((source) => source.label),
+      quotes,
+      hits: hits.slice(0, MAX_CARD_HITS),
+      ...(leads.length === 0 ? {} : { lead: leads.join(' ') }),
+      requiresSecondClick: second,
+    };
   }
 
   /**
@@ -1828,25 +2411,21 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * checked and the card is shown again, so an approval always covers the card as it now stands
    * (agent-harness §2). An edit that cannot be applied is refused by name, and the last good card stays.
    */
-  async function decideCard(
-    turn: Turn,
-    kind: 'plan' | 'confirm',
-    prefix: string,
-    start: {
-      readonly editable: EditableSteps;
-      readonly from: number;
-      readonly revision: number;
-      readonly notice?: string;
-      /** The card is the writer's in every mode: a scan over the document guard asks for the writer's own leave. */
-      readonly humanOnly?: boolean;
-    },
-  ): Promise<Decided> {
+  async function decideCard(turn: Turn, kind: 'plan' | 'confirm', prefix: string, start: CardStart): Promise<Decided> {
+    const decided = await decideLoop(turn, kind, prefix, start);
+    if (start.nested !== true) await logDecision(turn, decided);
+    return decided;
+  }
+
+  async function decideLoop(turn: Turn, kind: 'plan' | 'confirm', prefix: string, start: CardStart): Promise<Decided> {
     let editable = start.editable;
     let revision = start.revision;
     let notice = start.notice;
     let edits = 0;
     let retries = 0;
     let stalls = 0;
+    // Why the app would not let the mode apply this card: once it holds the card, the card is the writer's.
+    let held: string | undefined;
     for (;;) {
       // Before the card is shown, so a stop leaves no pending card behind.
       checkStop(turn);
@@ -1858,9 +2437,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const policy = policyOf(turn);
       const remaining = editable.steps.filter((_, index) => index >= start.from && !ranAt(editable, index));
       const writes = remaining.filter((step) => riskOf(step.tool) !== 'read');
+      // A rule that asks makes the card the writer's in every mode.
       const auto =
         start.humanOnly !== true &&
+        held === undefined &&
         shown.card.approvable &&
+        !remaining.some(asksWriter) &&
         policy.approves({ tools: writes.map((step) => step.tool), external: remaining.some((step) => loadedExternal(step.tool) !== undefined) });
       if (auto) holdToBudget(turn, editable, writes);
       // Each step that has not run is pending from the moment its card is shown (agent-harness §8).
@@ -1870,9 +2452,15 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
       emit({ type: 'plan', turnId: turn.id, card: shown.card, ...(auto ? { auto: true as const } : {}) });
       showGhosts(turn, editable, kind, prefix);
+      if (start.nested !== true) await logCard(turn, kind, editable, auto ? 'running' : 'awaiting-approval');
       if (auto) {
-        await options.beforeAutoApply?.(shown.card);
+        const hold = await options.beforeAutoApply?.(shown.card);
         checkStop(turn);
+        if (typeof hold === 'string') {
+          held = hold;
+          notice = hold;
+          continue;
+        }
         return { settled: 'approved', editable, edits, retries, auto: true };
       }
       phase(turn, 'awaiting-approval');
@@ -1977,31 +2565,50 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     cardFor(turn, id, step.tool, step.params, write ? 'pending-approval' : 'running');
     moveCard(turn, id, 'running');
     const call: ToolCall = { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) };
+    // An external server may act on its own the moment it is called, so its intent is on record first (resume never calls it again unasked).
+    if (write) await logIntent(turn, id, index, step.tool);
     // A native async tool (coherence.review) runs under the approval its card gave: the plan's, or the one-step confirmation.
     // An external tool is called through its own entry, under the confirmation its card gave (extensibility §4 rule 2).
     const outcome =
       loadedExternal(step.tool) === undefined
         ? await harness.callAsync(call, grant === 'plan' ? { turnId: turn.id, permission: { approvedPlan: true }, ...signalOf(turn) } : { turnId: turn.id, permission: { confirmed: true }, ...signalOf(turn) })
-        : await harness.callExternal(call, grant === 'confirmed' ? { turnId: turn.id, permission: { confirmed: true }, ...signalOf(turn) } : { turnId: turn.id, ...signalOf(turn) });
+        : await harness.callExternal(
+            call,
+            grant === 'confirmed'
+              ? { turnId: turn.id, permission: { confirmed: true }, ...signalOf(turn), onProgress: progressTo(turn, call) }
+              : { turnId: turn.id, ...signalOf(turn), onProgress: progressTo(turn, call) },
+          );
+    // A call that was sent and did not finish (timed out, or cancelled) may have done part of its work on the server.
+    const unsure = !outcome.ok && mayHaveActedOf(outcome.error);
+    // These tools write findings or call a server, not documents, and the wait is long: no document is claimed for the step.
+    if (write) {
+      if (outcome.ok) await logApplied(turn, id, index, step.tool, outcome.value.summary, undefined);
+      else await logFailed(turn, id, index, step.tool, outcome.error.message);
+    }
     if (!outcome.ok && turn.signal?.aborted === true) {
       // The wait ended because the writer stopped the turn: the step did not finish, and that is not a refusal to adjust.
-      moveCard(turn, id, 'failed', { error: STOPPED_STEP });
-      turn.trace.push({ tool: step.tool, callId: id, outcome: 'not-run', params: step.params });
-      turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'cancelled' });
-      wireResult(turn, step, { ok: false, body: STOPPED_STEP });
+      // A call that had been sent says so: the server may already have acted, so it is not reported as not run.
+      const reason = unsure ? STOPPED_CALL : STOPPED_STEP;
+      moveCard(turn, id, 'failed', { error: reason, ...(unsure ? { mayHaveActed: true as const } : {}) });
+      if (unsure && !outcome.ok) pushRow(turn, { tool: step.tool, callId: id, outcome: 'refused', code: outcome.error.code, params: step.params }, reason);
+      else pushRow(turn, { tool: step.tool, callId: id, outcome: 'not-run', params: step.params }, reason);
+      turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'cancelled', ...(unsure ? { mayHaveActed: true as const, error: reason } : {}) });
+      wireResult(turn, step, { ok: false, body: reason });
       return { ok: false, cancelled: true, effect: write, completed: [] };
     }
     if (outcome.ok) {
-      turn.trace.push({ tool: step.tool, callId: id, outcome: 'ok', params: step.params });
+      recordStep(turn, id, id);
+      pushRow(turn, { tool: step.tool, callId: id, outcome: 'ok', params: step.params }, bodyOf(outcome.value));
       turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'done', summary: outcome.value.summary, data: outcome.value.data });
       moveCard(turn, id, 'done', { summary: outcome.value.summary });
-      wireResult(turn, step, { ok: true, body: outcome.value.data });
+      wireResult(turn, step, { ok: true, body: bodyOf(outcome.value) });
       return { ok: true, effect: true, completed: [index] };
     }
     const reason = errorSummary(outcome.error);
-    turn.trace.push({ tool: step.tool, callId: id, outcome: 'refused', code: outcome.error.code, params: step.params });
-    turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'failed', error: reason });
-    moveCard(turn, id, 'failed', { error: reason });
+    pushRow(turn, { tool: step.tool, callId: id, outcome: 'refused', code: outcome.error.code, params: step.params }, reason);
+    turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'failed', error: reason, ...(unsure ? { mayHaveActed: true as const } : {}) });
+    moveCard(turn, id, 'failed', { error: reason, ...(unsure ? { mayHaveActed: true as const } : {}) });
+    taint(turn, failedSources(step.tool));
     wireResult(turn, step, { ok: false, body: reason });
     // A write that failed may have reached the server or the findings file, so it is never adjusted (`effect`).
     return { ok: false, failedAt: index, effect: write, askBack: askBackFor(outcome.error), completed: [] };
@@ -2017,7 +2624,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const id = callIdFor(kind, prefix, index);
       cardFor(turn, id, later.tool, later.params, 'pending-approval');
       moveCard(turn, id, 'cancelled');
-      turn.trace.push({ tool: later.tool, callId: id, outcome: 'not-run', params: later.params });
+      pushRow(turn, { tool: later.tool, callId: id, outcome: 'not-run', params: later.params }, NOT_RUN);
       turn.steps.push({ index, tool: later.tool, expect: later.expect, status: 'cancelled' });
     }
   }
@@ -2068,9 +2675,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           continue;
         }
         // An external write: its own one-step card, shown with the step as the writer approved it in the plan (or as it stands).
-        const decided = await decideCard(turn, 'confirm', id, { editable: oneStep(step, index, editable.proposals[index]), from: 0, revision: 0 });
+        const decided = await decideCard(turn, 'confirm', id, { editable: oneStep(step, index, editable.proposals[index]), from: 0, revision: 0, nested: true });
         if (decided.settled === 'cancelled') {
-          turn.cards.push({ kind: 'confirm', tools: [step.tool], decision: 'cancelled', edits: decided.edits, retries: decided.retries });
+          pushCard(turn, { kind: 'confirm', tools: [step.tool], decision: 'cancelled', edits: decided.edits, retries: decided.retries });
           moveCard(turn, id, 'cancelled');
           turn.steps.push({ index, tool: step.tool, expect: step.expect, status: 'cancelled' });
           cancelAfter(turn, editable, index, 'plan', prefix);
@@ -2088,7 +2695,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
             ...(undoGroupId === undefined ? {} : { undoGroupId }),
           };
         }
-        turn.cards.push({ kind: 'confirm', tools: [step.tool], decision: 'approved', edits: decided.edits, retries: decided.retries });
+        pushCard(turn, { kind: 'confirm', tools: [step.tool], decision: 'approved', edits: decided.edits, retries: decided.retries });
         phase(turn, 'running');
         const approved = decided.editable.steps[0] ?? step;
         // The step the writer left in the card is the call's answer, even when an edit made it a new object.
@@ -2106,9 +2713,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       // it may name what an earlier native step created; `from` makes the harness run the run alone.
       let end = index;
       while (end < editable.steps.length && !awaited((editable.steps[end] as PlanStep).tool)) end += 1;
-      const result = harness.executePlan(
+      const runCall = `${prefix}.s${index}`;
+      const result = await planRun(
+        turn,
         { steps: editable.steps.slice(0, end) },
-        { turnId: turn.id, callId: `${prefix}.s${index}` },
+        { turnId: turn.id, callId: runCall },
         { from: index, proposals: acceptedCut ? stripCut(editable.proposals.slice(0, end)) : editable.proposals.slice(0, end), ...signalOf(turn) },
       );
       if (!result.ok) {
@@ -2123,19 +2732,20 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           failedAt: index,
           effect: false,
           completed,
-          askBack: askBackFor(refusal('invalid-params', 'the plan was refused before anything ran', { correctiveHint: 'correct the refused steps and resend the plan' })),
+          askBack: refusedAskBack(outcome.preflight),
         };
       }
       const finished = outcome.status === 'applied' ? outcome.steps : outcome.completed;
       for (const done of finished) {
         const ran = editable.steps[done.index] as PlanStep;
         const doneId = callIdFor('plan', prefix, done.index);
+        recordStep(turn, doneId, planStepCallId(runCall, done.index));
         cardFor(turn, doneId, ran.tool, ran.params, 'pending-approval');
         moveCard(turn, doneId, 'running');
-        turn.trace.push({ tool: ran.tool, callId: doneId, outcome: 'ok', params: ran.params });
+        pushRow(turn, { tool: ran.tool, callId: doneId, outcome: 'ok', params: ran.params }, bodyOf(done.value));
         turn.steps.push({ index: done.index, tool: ran.tool, expect: ran.expect, status: 'done', summary: done.value.summary, data: done.value.data });
         moveCard(turn, doneId, 'done', { summary: done.value.summary });
-        wireResult(turn, ran, { ok: true, body: done.value.data });
+        wireResult(turn, ran, { ok: true, body: bodyOf(done.value) });
         completed.push(done.index);
       }
       if (outcome.undoGroupId !== undefined) undoGroupId ??= outcome.undoGroupId;
@@ -2153,7 +2763,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const reason = errorSummary(outcome.error);
       cardFor(turn, failedId, failed.tool, failed.params, 'pending-approval');
       moveCard(turn, failedId, 'running');
-      turn.trace.push({ tool: failed.tool, callId: failedId, outcome: 'refused', code: outcome.error.code, params: failed.params });
+      pushRow(turn, { tool: failed.tool, callId: failedId, outcome: 'refused', code: outcome.error.code, params: failed.params }, reason);
       turn.steps.push({ index: failedIndex, tool: failed.tool, expect: failed.expect, status: 'failed', error: reason });
       moveCard(turn, failedId, 'failed', { error: reason });
       wireResult(turn, failed, { ok: false, body: reason });
@@ -2197,19 +2807,24 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const proposal = acceptedCut ? stripCut([editable.proposals[from]])[0] : editable.proposals[from];
       cardFor(turn, id, step.tool, step.params, grant === 'auto' ? 'running' : 'pending-approval');
       moveCard(turn, id, 'running');
+      await logIntent(turn, id, from, step.tool);
+      const before = revisionsNow();
       const outcome: ToolOutcome = harness.call(
         { name: step.tool, callId: id, params: step.params, ...(proposal === undefined ? {} : { proposal }) },
         grant === 'auto' ? { turnId: turn.id } : { turnId: turn.id, permission: { confirmed: true } },
       );
+      if (outcome.ok) await logApplied(turn, id, from, step.tool, outcome.value.summary, before);
+      else await logFailed(turn, id, from, step.tool, outcome.error.message);
       if (outcome.ok) {
-        turn.trace.push({ tool: step.tool, callId: id, outcome: 'ok', params: step.params });
+        recordStep(turn, id, id);
+        pushRow(turn, { tool: step.tool, callId: id, outcome: 'ok', params: step.params }, bodyOf(outcome.value));
         turn.steps.push({ index: from, tool: step.tool, expect: step.expect, status: 'done', summary: outcome.value.summary, data: outcome.value.data });
         moveCard(turn, id, 'done', { summary: outcome.value.summary });
-        wireResult(turn, step, { ok: true, body: outcome.value.data });
+        wireResult(turn, step, { ok: true, body: bodyOf(outcome.value) });
         return { ok: true, ...(outcome.value.undoGroupId === undefined ? {} : { undoGroupId: outcome.value.undoGroupId }), effect: true, completed: [from] };
       }
       const reason = errorSummary(outcome.error);
-      turn.trace.push({ tool: step.tool, callId: id, outcome: 'refused', code: outcome.error.code, params: step.params });
+      pushRow(turn, { tool: step.tool, callId: id, outcome: 'refused', code: outcome.error.code, params: step.params }, reason);
       turn.steps.push({ index: from, tool: step.tool, expect: step.expect, status: 'failed', error: reason });
       moveCard(turn, id, 'failed', { error: reason });
       wireResult(turn, step, { ok: false, body: reason });
@@ -2224,7 +2839,8 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       };
     }
 
-    const result = harness.executePlan(
+    const result = await planRun(
+      turn,
       { steps: editable.steps },
       { turnId: turn.id, callId: prefix },
       { from, proposals: acceptedCut ? stripCut(editable.proposals) : editable.proposals, ...signalOf(turn) },
@@ -2237,19 +2853,20 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         failedAt: from,
         effect: false,
         completed: [],
-        askBack: askBackFor(refusal('invalid-params', 'the plan was refused before anything ran', { correctiveHint: 'correct the refused steps and resend the plan' })),
+        askBack: refusedAskBack(outcome.preflight),
       };
     }
     const finished = outcome.status === 'applied' ? outcome.steps : outcome.completed;
     for (const done of finished) {
       const step = editable.steps[done.index] as PlanStep;
       const id = callIdFor(kind, prefix, done.index);
+      recordStep(turn, id, planStepCallId(prefix, done.index));
       cardFor(turn, id, step.tool, step.params, 'pending-approval');
       moveCard(turn, id, 'running');
-      turn.trace.push({ tool: step.tool, callId: id, outcome: 'ok', params: step.params });
+      pushRow(turn, { tool: step.tool, callId: id, outcome: 'ok', params: step.params }, bodyOf(done.value));
       turn.steps.push({ index: done.index, tool: step.tool, expect: step.expect, status: 'done', summary: done.value.summary, data: done.value.data });
       moveCard(turn, id, 'done', { summary: done.value.summary });
-      wireResult(turn, step, { ok: true, body: done.value.data });
+      wireResult(turn, step, { ok: true, body: bodyOf(done.value) });
     }
     const completed = finished.map((done) => done.index);
     if (outcome.status === 'applied') {
@@ -2266,7 +2883,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const reason = errorSummary(outcome.error);
     cardFor(turn, failedId, failed.tool, failed.params, 'pending-approval');
     moveCard(turn, failedId, 'running');
-    turn.trace.push({ tool: failed.tool, callId: failedId, outcome: 'refused', code: outcome.error.code, params: failed.params });
+    pushRow(turn, { tool: failed.tool, callId: failedId, outcome: 'refused', code: outcome.error.code, params: failed.params }, reason);
     turn.steps.push({ index: failedIndex, tool: failed.tool, expect: failed.expect, status: 'failed', error: reason });
     moveCard(turn, failedId, 'failed', { error: reason });
     wireResult(turn, failed, { ok: false, body: reason });
@@ -2276,7 +2893,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       const id = callIdFor(kind, prefix, index);
       cardFor(turn, id, later.tool, later.params, 'pending-approval');
       moveCard(turn, id, 'cancelled');
-      turn.trace.push({ tool: later.tool, callId: id, outcome: 'not-run', params: later.params });
+      pushRow(turn, { tool: later.tool, callId: id, outcome: 'not-run', params: later.params }, NOT_RUN);
       turn.steps.push({ index, tool: later.tool, expect: later.expect, status: 'cancelled' });
     }
     const group = outcome.undoGroupId;
@@ -2292,6 +2909,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
   /** The adjusted step the model sends for a refused one. Anything other than one step of the same tool is not an adjustment. */
   async function adjustStep(turn: Turn, tool: string): Promise<PlanStep | undefined> {
+    await syncRun(turn, 1, 'running');
     const reply = await complete(plannerCall(turn), turn.messages, turn.native ? undefined : { jsonSchemaHint: REPLY_SCHEMA_HINT });
     turn.messages.push(assistantOf(reply));
     if (turn.native) {
@@ -2318,11 +2936,15 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * The write path of a reply: a card per decision, the run, and the verify ladder on a refusal that
    * changed nothing. Returns the turn's end, or `continue` when a refused preflight went back to the model.
    */
-  async function runWrites(turn: Turn, plan: Plan, staged: Staged): Promise<Settled | 'continue'> {
+  async function runWrites(turn: Turn, plan: Plan, staged: Staged, restore?: { readonly kind: 'plan' | 'confirm'; readonly completed: readonly number[] }): Promise<Settled | 'continue'> {
     const single = plan.steps.length === 1 ? (plan.steps[0] as PlanStep) : undefined;
-    const kind: 'plan' | 'confirm' = single !== undefined && riskOf(single.tool) === 'write-confirm' ? 'confirm' : 'plan';
-    // A single write-auto call runs at once: a reversible op skips the plan (agent-harness §2).
-    const auto = single !== undefined && riskOf(single.tool) !== 'write-confirm' && staged.stale?.some(Boolean) !== true;
+    // A rule that asks gives a single write-auto call the one-step card a write-confirm call has (agent-harness §4, "Rules").
+    // A tainted turn does the same: the outside text it read may be what asked for the write (issue #54).
+    const asked = single !== undefined && (asksWriter(single) || (turn.tainted && riskOf(single.tool) === 'write-auto'));
+    const kind: 'plan' | 'confirm' = restore?.kind ?? (single !== undefined && (riskOf(single.tool) === 'write-confirm' || asked) ? 'confirm' : 'plan');
+    // A single write-auto call runs at once: a reversible op skips the plan (agent-harness §2), unless the writer asked for a plan card (`/plan`).
+    // A card restored from a log is shown, not run.
+    const auto = restore === undefined && single !== undefined && !asked && !turn.forcePlan && riskOf(single.tool) !== 'write-confirm' && staged.stale?.some(Boolean) !== true;
     if (plan.steps.some((step) => step.params['selection'] !== undefined)) await preloadAnchorLibraries();
 
     let editable: EditableSteps = {
@@ -2331,10 +2953,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       proposals: staged.proposals,
       stale: plan.steps.map((_, index) => staged.stale?.[index] === true),
       superseded: [],
-      completed: [],
+      completed: [...(restore?.completed ?? [])],
     };
+    // Steps run in order, so what a restored card has run is its first steps and the card is checked from the first that has not.
+    let from = 0;
+    while (ranAt(editable, from)) from += 1;
     const prefix = nextCallPrefix(turn, auto ? 'a' : 'p');
-    const checked = cardOf(turn, editable, 0, 0, kind, undefined);
+    const checked = cardOf(turn, editable, from, 0, kind, undefined);
     if ('refused' in checked) return { status: 'failed', askBack: askBackFor(checked.refused) };
 
     if (single !== undefined && auto) {
@@ -2344,17 +2969,18 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         refusedBeforeCard(turn, single, refusalSentence(refusedEntry?.error?.message ?? 'refused', refusedEntry?.error?.correctiveHint));
         // The call's own tool message goes first, so the refusal text that follows reads as its explanation.
         flushWire(turn);
-        turn.messages.push({ role: 'user', content: refusedStepsMessage(checked.preflight) });
+        turn.messages.push({ role: 'user', content: refusedStepsMessage(checked.preflight, turn.nonce, outsideOf) });
         return 'continue';
       }
       // A mode that decides cards holds this write to the budgets as it holds a card (agent-harness §4).
       if (policyOf(turn).decides) holdToBudget(turn, editable, plan.steps);
+      await logCard(turn, 'confirm', editable, 'running');
+      await turn.run?.append({ t: 'card.decided', turnId: turn.id, decision: 'auto' });
       const executed = await execute(turn, editable, 0, 'confirm', prefix, 'auto');
-      turn.cards.push({ kind: 'auto', tools: [single.tool], decision: 'auto', edits: 0, retries: 0 });
+      pushCard(turn, { kind: 'auto', tools: [single.tool], decision: 'auto', edits: 0, retries: 0 });
       return settle(turn, executed);
     }
 
-    let from = 0;
     let ladder = 0;
     let retries = 0;
     let edits = 0;
@@ -2374,7 +3000,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       }
       const tools = editable.steps.slice(from).map((step) => step.tool);
       if (decided.settled === 'cancelled') {
-        turn.cards.push({ kind, tools, decision: 'cancelled', edits, retries });
+        pushCard(turn, { kind, tools, decision: 'cancelled', edits, retries });
         for (const [index, step] of editable.steps.entries()) {
           if (index < from || ranAt(editable, index)) continue;
           const id = callIdFor(kind, attemptPrefix, index);
@@ -2390,7 +3016,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         }
         return { status: 'cancelled' };
       }
-      turn.cards.push(decided.auto === true ? { kind: 'auto', tools, decision: 'auto', edits, retries } : { kind, tools, decision: 'approved', edits, retries });
+      pushCard(turn, decided.auto === true ? { kind: 'auto', tools, decision: 'auto', edits, retries } : { kind, tools, decision: 'approved', edits, retries });
       phase(turn, 'running');
       const acceptedCut = decided.acceptedCut === true;
       const executed = await execute(turn, editable, from, kind, attemptPrefix, 'confirmed', acceptedCut);
@@ -2415,17 +3041,18 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         continue;
       }
 
-      if (!ADJUSTABLE.has(askBack.code) || executed.effect || ladder >= maxRetries) return settle(turn, executed);
+      if (!ADJUSTABLE.has(askBack.code) || executed.effect || ladder >= maxRetries || turn.restored) return settle(turn, executed);
 
       // Verify ladder, rung one: the model adjusts the refused step, and the card is shown again for approval.
       if (callsLeft(turn) < 1) return settle(turn, executed);
       ladder += 1;
       phase(turn, 'retrying');
       emit({ type: 'ladder', turnId: turn.id, callId: callIdFor(kind, attemptPrefix, failedAt), attempt: ladder, askBack });
+      trace({ kind: 'ladder', at: now(), turnId: turn.id, callId: callIdFor(kind, attemptPrefix, failedAt), attempt: ladder, reason: askBack.reason });
       // The run's calls are answered first: the failed step's tool message carries its refusal, and the
       // corrective text that follows names what to correct, as the JSON wire's retry does.
       flushWire(turn);
-      turn.messages.push({ role: 'user', content: retryMessage(failedAt, failed.tool, askBack, turn.native) });
+      turn.messages.push({ role: 'user', content: retryMessage(failedAt, failed.tool, askBack, turn.native, outsideOf, turn.nonce) });
       const adjusted = await adjustStep(turn, failed.tool);
       if (adjusted === undefined) return settle(turn, executed);
 
@@ -2525,6 +3152,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         turn.addendumSent = addendum;
       }
       deliverNotes(turn);
+      await syncRun(turn, 1, 'running');
       const reply = await complete(plannerCall(turn), turn.messages, turn.native ? undefined : { jsonSchemaHint: REPLY_SCHEMA_HINT });
       turn.messages.push(assistantOf(reply));
 
@@ -2608,6 +3236,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * internal handle, and the checkpoint row (`CHECKPOINT_LABEL`) is where the writer restores the turn.
    */
   function reportOf(turn: Turn, settled: Settled, tokens: { promptTokens: number; completionTokens: number; requests: number }): TurnReport {
+    flushHooks(turn);
     const writes = writesOf(turn);
     const summary =
       settled.status === 'replied'
@@ -2617,12 +3246,12 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
           : settled.status === 'cancelled'
             ? settled.stop !== undefined
               ? writes.length === 0
-                ? 'Stopped by you. Nothing was written.'
-                : `Stopped by you. Written before the stop: ${writes.join('; ')}.`
+                ? `Stopped by you. Nothing was written.${unsureNote(turn.steps)}`
+                : `Stopped by you. Written before the stop: ${writes.join('; ')}.${unsureNote(turn.steps)}`
               : writes.length === 0
-                ? 'Cancelled. Nothing was written.'
-                : `Cancelled. Written before the cancel: ${writes.join('; ')}.`
-            : `Stopped: ${settled.askBack?.reason ?? 'the turn did not finish'}${writes.length === 0 ? '' : ` Written before the stop: ${writes.join('; ')}.`}`;
+                ? `Cancelled. Nothing was written.${unsureNote(turn.steps)}`
+                : `Cancelled. Written before the cancel: ${writes.join('; ')}.${unsureNote(turn.steps)}`
+            : `Stopped: ${settled.askBack?.reason ?? 'the turn did not finish'}${writes.length === 0 ? '' : ` Written before the stop: ${writes.join('; ')}.`}${unsureNote(turn.steps)}`;
     return {
       turnId: turn.id,
       status: settled.status,
@@ -2643,7 +3272,31 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       mode: turn.mode,
       budgetUse: usageOf(turn),
       ...(turn.held.length === 0 ? {} : { heldSteps: turn.held }),
+      ...(turn.hooks.length === 0 ? {} : { hooks: [...turn.hooks] }),
+      ...(turn.command === undefined ? {} : { command: turn.command }),
     };
+  }
+
+  /**
+   * What the planner's first request is made of. It is a `meta` call (context-assembly §3): the protocol and tool list as L0, the project
+   * summary as L1, and the request as L7. The skills list (context-assembly §2) is a second planner addendum beside the loaded-tools line,
+   * in a user message after the system prompt and so never part of L0; a project with no skill on offer has none.
+   */
+  function plannerAssembly(native: boolean, intent: string, priorTurns: readonly RecentTurn[], nonce?: string) {
+    const planner = context.assemble({
+      ...(nonce === undefined ? {} : { nonce }),
+      task: { tool: 'meta', instruction: `Request: ${intent}` },
+      // L0 is the core rows and nothing the turn loads, so it is the same bytes before and after a load (context-assembly §2).
+      role: native ? plannerSystemNative(harness.tools(), loadEvery()) : plannerSystem(harness.tools(), loadEvery()),
+      turns: priorTurns,
+      activity: harness.log.entries(),
+    });
+    const skills = harness.skillCatalog();
+    const dropped = [
+      ...dropLinesOf(planner.prompt),
+      ...(skills?.dropped ?? []).map((name) => `Skills: “${name}” is left out of the skills list (over its ${SKILL_CATALOG_TOKENS}-token budget)`),
+    ];
+    return { planner, skills, dropped };
   }
 
   /** The planner's turn: the request goes to the model, which answers or proposes steps (agent-harness §2). */
@@ -2653,24 +3306,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     // speaks (protocol.ts `plannerSystem`/`plannerSystemNative` — same rules, different wording).
     turn.native = nativeTools(turn) !== undefined;
     turn.converses = true;
-    // The planner's call is a `meta` call (context-assembly §3): the protocol and tool list as L0, the project
-    // summary as L1, and the request as L7.
-    const planner = context.assemble({
-      task: { tool: 'meta', instruction: `Request: ${intent}` },
-      // L0 is the core rows and nothing the turn loads, so it is the same bytes before and after a load (context-assembly §2).
-      role: turn.native ? plannerSystemNative(harness.tools(), loadEvery()) : plannerSystem(harness.tools(), loadEvery()),
-      turns: turn.priorTurns,
-      activity: harness.log.entries(),
-    });
-    // The skills list (context-assembly §2): a second planner addendum beside the loaded-tools line, in a user message after the
-    // system prompt and so never part of L0. A project with no skill on offer has none, and its requests are as they were.
-    const skills = harness.skillCatalog();
-    const dropped = [
-      ...dropLinesOf(planner.prompt),
-      ...(skills?.dropped ?? []).map((name) => `Skills: “${name}” is left out of the skills list (over its ${SKILL_CATALOG_TOKENS}-token budget)`),
-    ];
+    const { planner, skills, dropped } = plannerAssembly(turn.native, intent, turn.priorTurns, turn.nonce);
     turn.dropped.push(...dropped);
     emit({ type: 'context', turnId: turn.id, layers: planner.prompt.layers.map((layer) => ({ id: layer.id, tokens: layer.tokens })), dropped });
+    trace({ kind: 'context', at: now(), turnId: turn.id, callIndex: turn.calls + 1, layers: planner.prompt.layers.map((layer) => ({ id: layer.id, tokens: layer.tokens })), dropped });
     turn.messages.push(...planner.messages);
     // A preload loads the rows as a search would have, and their descriptors follow the request in the same slot a search's do
     // (`loadedToolsMessage`), so the cached prefix is untouched. Nothing is preloaded when every tool is declared already.
@@ -2694,6 +3333,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     if (staged.refusals.length > 0) {
       const named = staged.refusals.map((refused) => `Step ${refused.index + 1} (${refused.tool}) was refused: ${refused.message}`).join(' ');
       return { status: 'failed', askBack: askBackFor(refusal('invalid-params', named, { correctiveHint: 'change the step before its draft can be made' })) };
+    }
+    if (turn.readsWithoutCard && plan.steps.every((step) => riskOf(step.tool) === 'read')) {
+      const ended = await runReads(turn, plan.steps, staged.proposals);
+      if (ended !== undefined) return ended;
+      return { status: 'replied', text: turn.steps.map((step) => step.summary ?? step.tool).join('; ') };
     }
     const written = await runWrites(turn, plan, staged);
     if (written === 'continue') {
@@ -2787,7 +3431,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
    * One turn, from its record to its report. `first` runs the turn's steps. A failure it cannot recover from is reported in words
    * the user can act on: the turn is never left half-finished, and whatever it applied stays in its undo group.
    */
-  function newTurn(turnOptions: TurnOptions, priorTurns: readonly RecentTurn[]): Turn {
+  function newTurn(turnOptions: SubmitOptions, priorTurns: readonly RecentTurn[]): Turn {
     turnCounter += 1;
     const pins: Pins = {
       profileId: turnOptions.profileId ?? options.profileId,
@@ -2798,8 +3442,9 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     maxModelCalls = boundNow();
     const meter = typeof options.meter === 'function' ? options.meter() : options.meter;
     const signals = [turnOptions.signal, meter?.signal].filter((signal): signal is AbortSignal => signal !== undefined);
+    const id = `${sessionName}.turn-${turnCounter}`;
     return {
-      id: `${sessionName}.turn-${turnCounter}`,
+      id,
       messages: [],
       trace: [],
       cards: [],
@@ -2817,6 +3462,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       deciding: false,
       converses: false,
       seq: 0,
+      calls: 0,
       mode: modeNow(),
       budget: { ...DEFAULT_TURN_BUDGET, ...configured(), maxModelCalls },
       held: [],
@@ -2826,14 +3472,99 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       delegations: 0,
       proposals: [],
       wireSteps: new Map(),
+      logged: 0,
+      reads: new Map(),
+      restored: false,
+      carried: 0,
+      command: isCommandName(turnOptions.command) ? turnOptions.command : undefined,
+      forcePlan: turnOptions.forcePlan === true,
+      readsWithoutCard: turnOptions.readsWithoutCard === true,
+      nonce: turnNonce(id),
+      tainted: false,
+      hooks: [],
+      taintedBy: [],
     };
   }
 
-  async function runTurn(intent: string, turnOptions: TurnOptions, first: (turn: Turn) => Promise<Settled>): Promise<TurnReport> {
+  /** How a turn is logged: a new run, the run a resume continues, or not at all. */
+  type LogPlan =
+    | { readonly mode: 'new'; readonly wire: 'planner' | 'plan' }
+    | { readonly mode: 'resume'; readonly runId: string; readonly replay: RunReplay; readonly rerun?: PendingStep }
+    | { readonly mode: 'none' };
+
+  /** Starts the turn's run in the log, or continues the one a resume names. A log that cannot be written is a turn that cannot be resumed, and no more. */
+  async function openRun(turn: Turn, intent: string, plan: LogPlan): Promise<RunWriter | undefined> {
+    const log = options.runLog;
+    if (log === undefined || plan.mode === 'none') return undefined;
+    const runId = plan.mode === 'resume' ? plan.runId : (log.newRunId?.() ?? `run_${newId('cmd').slice('cmd_'.length)}`);
+    const writer = createRunWriter({ port: log.port, runId, nextSeq: plan.mode === 'resume' ? plan.replay.nextSeq : 0, clock: now, ...(log.onNotice === undefined ? {} : { onNotice: log.onNotice }) });
+    if (plan.mode === 'new') {
+      try {
+        await log.port.create(
+          newRunRecord(runId, {
+            projectId: log.projectId,
+            intent,
+            now: now(),
+            ...(turn.pins.profileId === undefined ? {} : { profileId: turn.pins.profileId }),
+            ...(turn.pins.model === undefined ? {} : { model: turn.pins.model }),
+          }),
+        );
+      } catch (error) {
+        writer.fail(error);
+        return writer;
+      }
+    }
+    await writer.append(
+      {
+        t: 'turn.start',
+        v: RUN_LOG_VERSION,
+        turnId: turn.id,
+        intent,
+        wire: plan.mode === 'new' ? plan.wire : plan.replay.wire,
+        native: plan.mode === 'new' ? nativeTools(turn) !== undefined : plan.replay.native,
+        ...(plan.mode === 'resume' ? { resumedFrom: plan.replay.turnId } : {}),
+        ...(turn.command === undefined ? {} : { command: turn.command }),
+        // A restored card builds no new prompt, so the conversation behind it keeps the filter it was built with.
+        withheld: plan.mode === 'resume' && plan.replay.card !== undefined ? plan.replay.withheld : [...harness.withheldAnywhere()].sort(),
+      },
+      { status: 'running' },
+    );
+    // The step the earlier run ended inside never finished and runs again under a call id of this turn's, so the old record is closed.
+    if (plan.mode === 'resume' && plan.rerun !== undefined) {
+      await writer.append({ t: 'step.failed', turnId: turn.id, callId: plan.rerun.callId, index: plan.rerun.index, tool: plan.rerun.tool, error: 'the run was interrupted before this step was recorded as applied' });
+    }
+    return writer;
+  }
+
+  /** Ends the run's log with the turn: what it wrote last, its spend, and how it ended. */
+  async function closeRun(turn: Turn, report: TurnReport): Promise<void> {
+    if (turn.run === undefined) return;
+    await syncRun(turn, 0);
+    await turn.run.append({ t: 'turn.end', turnId: turn.id, status: report.status, summary: report.summary }, { status: statusOfTurn(report.status) });
+  }
+
+  /** The call id of the first step, from `stepId` on, that still has entries in the turn's undo group: where a restore to before `stepId` begins. */
+  function firstWriting(turnId: string, groupId: string, stepId: string): string | undefined {
+    const calls = stepCalls.get(turnId) ?? [];
+    const at = calls.findIndex((call) => call.stepId === stepId);
+    const group = harness.undo.group(groupId);
+    if (at === -1 || group === undefined) return undefined;
+    return calls.slice(at).find((call) => group.entries.some((entry) => entryOfCall(entry, call.callId)))?.callId;
+  }
+
+  async function runTurn(
+    intent: string,
+    turnOptions: SubmitOptions,
+    first: (turn: Turn) => Promise<Settled>,
+    logPlan: LogPlan = { mode: 'new', wire: 'planner' },
+  ): Promise<TurnReport> {
     // The turns before this one are what L6 may show; this turn's intent is recorded for the ones after it.
     const turn = newTurn(turnOptions, [...started]);
-    const slot = started.push({ turnId: turn.id, intent }) - 1;
+    if (logPlan.mode === 'resume') turn.modelCalls = (logPlan.replay.spend?.modelCalls ?? 0) + logPlan.replay.reservedCalls;
+    turn.run = await openRun(turn, intent, logPlan);
+    const slot = started.push({ turnId: turn.id, intent, ...(turnOptions.hiddenFromPlanner === true ? { hidden: true } : {}) }) - 1;
     running.set(turn.id, turn);
+    trace({ kind: 'turn.start', at: now(), turnId: turn.id, intent });
     if (policyOf(turn).decides) takeBase(turn);
     phase(turn, 'started');
 
@@ -2864,8 +3595,10 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
     const report = reportOf(turn, settled, { promptTokens: totals.promptTokens, completionTokens: totals.completionTokens, requests: totals.requests });
     finished.push(report);
     sessionUse = addUse(sessionUse, report.budgetUse);
+    await closeRun(turn, report);
     // What L6 reads for this turn once its activity rows are gone, or when it wrote none: a reply's own answer is its outcome.
     started[slot] = {
+      ...started[slot],
       turnId: turn.id,
       intent,
       outcome: clipOutcome(report.summary),
@@ -2879,13 +3612,119 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         turnId: turn.id,
         undoGroupId: report.undoGroupId,
         label: CHECKPOINT_LABEL,
-        ...(mixed ? { note: EXTERNAL_CHECKPOINT_NOTE } : {}),
+        ...(mixed ? { note: EXTERNAL_CHECKPOINT_NOTE } : turn.carried > 0 ? { note: RESUMED_CHECKPOINT_NOTE } : {}),
         mode: report.mode,
       });
     }
     phase(turn, settled.status === 'replied' || settled.status === 'applied' ? 'done' : settled.status === 'cancelled' ? 'cancelled' : 'failed');
+    trace({ kind: 'turn.end', at: now(), turnId: turn.id, report });
     emit({ type: 'report', turnId: turn.id, report });
     return report;
+  }
+
+  /**
+   * The turn a log describes, rebuilt (`resume`). A card the run was showing is shown again with its applied steps done and its drafts marked
+   * out of date where their documents moved, and it ends the turn when it is decided: the conversation behind a restored card is not
+   * continued, because its tool results were never written down. A run between cards asks the model again from the logged conversation, after
+   * a note that the last reply was never acted on.
+   */
+  async function resumedTurn(turn: Turn, replay: RunReplay): Promise<Settled> {
+    turn.restored = true;
+    turn.carried = replay.applied.length;
+    turn.messages.push(...replay.messages);
+    // The log holds the conversation as the model read it, envelopes included: a turn that read outside text before the reload is still tainted.
+    if (replay.messages.some((message) => typeof message.content === 'string' && readsOutsideText(message.content))) taint(turn, [{ serverName: '', label: 'outside text' }]);
+    turn.logged = turn.messages.length;
+    turn.native = replay.native;
+    const card = replay.card;
+    for (const applied of replay.applied) {
+      const step = card?.completed.includes(applied.index) === true ? card.steps[applied.index] : undefined;
+      turn.steps.push({ index: applied.index, tool: applied.tool, expect: step?.expect ?? '', status: 'done', ...(applied.summary === undefined ? {} : { summary: applied.summary }) });
+      pushRow(turn, { tool: applied.tool, callId: applied.callId, outcome: 'ok', params: step?.params ?? {} });
+    }
+
+    if (card !== undefined) {
+      if (card.decision === 'cancelled' || card.decision === 'refused') return { status: 'cancelled' };
+      const parsed = parsePlan({ steps: card.steps });
+      if (!parsed.ok) return { status: 'failed', askBack: askBackFor(parsed.error) };
+      const plan = parsed.value;
+      const done = card.completed;
+      if (plan.steps.every((_, index) => done.includes(index))) {
+        const writes = writesOf(turn);
+        return { status: 'applied', summary: writes.length > 0 ? writes.join('; ') : 'nothing changed' };
+      }
+      // A step already applied is not stale: its document moved because it ran.
+      const stale = staleSteps(harness.state, plan.steps, card.proposals, card.revisions).map((flag, index) => flag && !done.includes(index));
+      const proposals = plan.steps.map((step, index) => (MODEL_BACKED.has(step.tool) && proposalShapeOk(step.tool, card.proposals[index]) ? card.proposals[index] : undefined));
+      for (const [index, step] of plan.steps.entries()) {
+        const read = card.revisions[index];
+        if (read !== undefined) turn.reads.set(step, read);
+      }
+      const outdated = stale.filter(Boolean).length;
+      const notice =
+        outdated === 0
+          ? undefined
+          : `${outdated} of ${plan.steps.length} ${plan.steps.length === 1 ? 'step is' : 'steps are'} out of date: the text changed after ${outdated === 1 ? 'its draft was' : 'their drafts were'} made. Retry ${outdated === 1 ? 'it' : 'them'} against the current text, or drop ${outdated === 1 ? 'it' : 'them'}.`;
+      const written = await runWrites(turn, plan, { proposals, refusals: [], stale, ...(notice === undefined ? {} : { notice }) }, { kind: card.kind, completed: done });
+      if (written === 'continue') {
+        return { status: 'failed', askBack: askBackFor(refusal('invalid-params', 'the plan was refused before anything ran', { correctiveHint: 'correct the step and send it again' })) };
+      }
+      return written;
+    }
+
+    turn.converses = true;
+    const last = turn.messages.at(-1);
+    if (last?.role === 'assistant') {
+      for (const call of last.toolCalls ?? []) {
+        turn.messages.push({ role: 'tool', toolCallId: call.id, content: JSON.stringify({ ok: false, error: INTERRUPTED_CALL }), isError: true });
+      }
+      turn.messages.push({ role: 'user', content: INTERRUPTED_REPLY });
+    }
+    return converse(turn);
+  }
+
+  async function resumeRun(runId: string, resumeOptions: TurnOptions): Promise<TurnReport> {
+    /** A resume that cannot start: reported as a failed turn that names why, with the run left as it was for the writer to discard or try again. */
+    const refuse = (intent: string, askBack: AskBack): Promise<TurnReport> =>
+      runTurn(intent, resumeOptions, () => Promise.resolve<Settled>({ status: 'failed', askBack }), { mode: 'none' });
+    const log = options.runLog;
+    if (log === undefined) return refuse(RESUME_INTENT, { code: 'needs_input', reason: 'this session keeps no run log, so there is nothing to resume', options: ['send the request again'] });
+    let rows: readonly unknown[];
+    try {
+      rows = await log.port.events(runId);
+    } catch (error) {
+      return refuse(RESUME_INTENT, { code: 'needs_input', reason: `the run log could not be read: ${messageOf(error)}`, options: ['try again', 'discard the log and send the request again'] });
+    }
+    const nameOf = (id: string): string => harness.state.manifest.tree.find((node) => node.id === id)?.title ?? id;
+    const verdict = planResume(rows, (id) => harness.state.documents.get(id)?.revision, { nameOf, structure: () => structureDigest(harness.state.manifest) });
+    const intent = verdict.replay?.intent ?? RESUME_INTENT;
+    if (!verdict.ok) return refuse(intent, resumeAskBack(verdict.reason, verdict.detail));
+    const { replay } = verdict;
+    if (replay.ended !== undefined) return refuse(intent, { code: 'needs_input', reason: 'this run already finished, so there is nothing to resume', options: ['discard the log'] });
+    // A conversation is continued on the wire it began on; a restored card makes no further model call, so it can be shown on any provider.
+    const wireNow = nativeToolsFor({ profileId: resumeOptions.profileId ?? options.profileId, model: resumeOptions.model ?? options.model, thinking: undefined }) !== undefined;
+    if (replay.card === undefined && wireNow !== replay.native) {
+      return refuse(intent, {
+        code: 'needs_input',
+        reason: 'the provider and model now selected do not speak the way the run began, so its conversation cannot be continued on them',
+        options: ['switch back to the provider the run used, then resume', 'discard the log and send the request again'],
+      });
+    }
+    // The logged conversation holds what the rules then allowed the agent to read. A rule since added over more than that is held to now, which
+    // the logged text cannot be: the run is not continued rather than sent to the provider again. Naming no title, since the part is withheld.
+    if (replay.card === undefined) {
+      const before = new Set(replay.withheld);
+      if ([...harness.withheldAnywhere()].some((id) => !before.has(id))) {
+        return refuse(intent, {
+          code: 'needs_input',
+          reason: 'a rule now keeps part of the project from the agent that it could read when the run began, and the run’s conversation still holds what it read',
+          options: ['discard the log and send the request again', 'remove the rule, then resume'],
+        });
+      }
+    }
+    // A resumed macro run stays the writer's: after a reload only the logged command says which turn it was.
+    const resumed: TurnOptions = replay.command === undefined ? resumeOptions : { ...resumeOptions, command: replay.command, ...(isMacroCommand(replay.command) ? { hiddenFromPlanner: true } : {}) };
+    return runTurn(intent, resumed, (turn) => resumedTurn(turn, replay), { mode: 'resume', runId, replay, ...(verdict.rerun === undefined ? {} : { rerun: verdict.rerun }) });
   }
 
   return {
@@ -2895,8 +3734,11 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
     submitPlan(intent: string, plan: unknown, turnOptions: TurnOptions = {}): Promise<TurnReport> {
       const parsed = parsePlan(plan);
-      return runTurn(intent, turnOptions, (turn) =>
-        parsed.ok ? givenPlanTurn(turn, parsed.value) : Promise.resolve<Settled>({ status: 'failed', askBack: askBackFor(parsed.error) }),
+      return runTurn(
+        intent,
+        turnOptions,
+        (turn) => (parsed.ok ? givenPlanTurn(turn, parsed.value) : Promise.resolve<Settled>({ status: 'failed', askBack: askBackFor(parsed.error) })),
+        { mode: 'new', wire: 'plan' },
       );
     },
 
@@ -2910,10 +3752,15 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       turnOptions: TurnOptions = {},
     ): Promise<TurnReport> {
       const parsed = parsePlan(plan);
-      return runTurn(intent, turnOptions, (turn) =>
-        parsed.ok ? stagedTurn(turn, parsed.value, proposals, revisions) : Promise.resolve<Settled>({ status: 'failed', askBack: askBackFor(parsed.error) }),
+      return runTurn(
+        intent,
+        turnOptions,
+        (turn) => (parsed.ok ? stagedTurn(turn, parsed.value, proposals, revisions) : Promise.resolve<Settled>({ status: 'failed', askBack: askBackFor(parsed.error) })),
+        { mode: 'new', wire: 'plan' },
       );
     },
+
+    resume: (runId: string, resumeOptions: TurnOptions = {}): Promise<TurnReport> => resumeRun(runId, resumeOptions),
 
     steer(turnId: string, text: string): Result<SteerReceipt, CommandError> {
       const turn = running.get(turnId);
@@ -2935,6 +3782,59 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
       return harness.undo.undo(report.undoGroupId);
     },
 
+    restoreStep(turnId: string, stepId?: string): Result<UndoOutcome, CommandError> {
+      const report = finished.find((entry) => entry.turnId === turnId);
+      if (report === undefined || report.undoGroupId === undefined) {
+        return err(refusal('not-found', `turn ${turnId} has no checkpoint: it wrote nothing, or it has not finished`, { correctiveHint: 'restore a turn that wrote something, by its id' }));
+      }
+      if (stepId === undefined) return harness.undo.undo(report.undoGroupId);
+      const first = firstWriting(turnId, report.undoGroupId, stepId);
+      if (first === undefined) {
+        return err(refusal('not-found', `step ${stepId} of turn ${turnId} and the steps after it wrote nothing that is still in the project, so there is nothing to restore`, { correctiveHint: 'restore a step that changed the project, or the whole turn' }));
+      }
+      return harness.undo.undoFrom(report.undoGroupId, first);
+    },
+
+    stepStart(turnId: string, stepId: string): string | undefined {
+      const groupId = finished.find((entry) => entry.turnId === turnId)?.undoGroupId;
+      return groupId === undefined ? undefined : firstWriting(turnId, groupId, stepId);
+    },
+
+    restorableSteps(turnId: string): readonly string[] {
+      const report = finished.find((entry) => entry.turnId === turnId);
+      const calls = stepCalls.get(turnId) ?? [];
+      if (report?.undoGroupId === undefined) return [];
+      return calls.filter((call) => firstWriting(turnId, report.undoGroupId!, call.stepId) !== undefined).map((call) => call.stepId);
+    },
+
+    rewindConversation(turnId: string): { readonly intent: string; readonly rewound: readonly string[] } {
+      const at = started.findIndex((entry) => entry.turnId === turnId);
+      if (at === -1) return { intent: '', rewound: [] };
+      for (let index = at; index < started.length; index++) started[index] = { ...started[index]!, rewound: true };
+      return { intent: started[at]!.intent, rewound: started.slice(at).map((entry) => entry.turnId) };
+    },
+
+    markRestored(turnIds: readonly string[], at: number, fromStep?: number): void {
+      turnIds.forEach((id, position) => {
+        const slot = started.findIndex((entry) => entry.turnId === id);
+        if (slot === -1 || started[slot]!.rewound === true) return;
+        const { restoredFromStep: _before, ...rest } = started[slot]!;
+        started[slot] = { ...rest, restoredAt: at, ...(position === 0 && fromStep !== undefined ? { restoredFromStep: fromStep } : {}) };
+      });
+    },
+
     reports: () => [...finished],
+
+    contextPreview(pinned: TurnOptions = {}): ContextPreview {
+      const pins: Pins = { profileId: pinned.profileId ?? options.profileId, model: pinned.model ?? options.model, thinking: pinned.thinking ?? options.thinking };
+      // The port reads the limits of the pins of the turn that started last; a running turn keeps its own.
+      if (running.size === 0) latestPins = pins;
+      const { planner, dropped } = plannerAssembly(nativeToolsFor(pins) !== undefined, CONTEXT_PREVIEW_REQUEST, [...started]);
+      return {
+        promptTokens: planner.preview.promptTokens,
+        layers: planner.prompt.layers.map((layer) => ({ id: layer.id, name: layer.name, tokens: layer.tokens, included: layer.included, ...(layer.budget === undefined ? {} : { budget: layer.budget }) })),
+        dropped,
+      };
+    },
   };
 }

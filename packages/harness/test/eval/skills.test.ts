@@ -11,12 +11,12 @@ import type { ChatRequest, Gateway } from '@caotang/gateway';
 import { parseSkillFolder, type SkillFile } from '@caotang/skills';
 import type { ProjectState } from '@caotang/store';
 
-import { createHarness, PLANNER_SYSTEM_PREFIX, skillLabel } from '../../src/index.js';
+import { PLANNER_SYSTEM_PREFIX, skillLabel } from '../../src/index.js';
 import { createContextPort } from '../../src/agent/context.js';
 import { evaluate, runScenario, type Scenario } from '../../src/agent/eval.js';
 import { createAgentSession } from '../../src/agent/loop.js';
 import { createAgentPorts } from '../../src/agent/ports.js';
-import { CHAPTER_ONE, FRIEND, makeState } from '../fixtures.js';
+import { CHAPTER_ONE, checkedHarness, FRIEND, makeState } from '../fixtures.js';
 import { mockGateway } from '../agent/gateway.js';
 import { answer, prose, steps, transcript } from '../agent/scripts.js';
 
@@ -228,7 +228,7 @@ describe('the turn after', () => {
         return base.complete(request, signal);
       },
     };
-    const harness = createHarness({ state, ports: createAgentPorts(), skills: world.skills });
+    const harness = checkedHarness({ state, ports: createAgentPorts(), skills: world.skills });
     const session = createAgentSession({ harness, gateway, context: createContextPort({ state }), decide: async () => ({ action: 'approve' }), emit: () => undefined, sessionId: 'two-turns' });
 
     const first = await session.submit(INTENT);

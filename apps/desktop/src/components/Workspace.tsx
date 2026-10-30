@@ -16,17 +16,29 @@ import {
   useState,
   useSyncExternalStore,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react';
 import type { ProjectState, RuntimeStore } from '@caotang/store';
 
 import { activityMarkdown } from '../app/activity-model.js';
-import { AgentController } from '../app/agent.js';
+import { AgentController, type SubmitOptions } from '../app/agent.js';
 import { childrenOf, newDocumentRefusalText, newItemParent, nodeById, summarizeSubtree } from '../app/binder-model.js';
 import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, folderIsEmpty, pickDirectory, type DirectoryHandleLike } from '../app/fs-access.js';
 import { resolveKey } from '../app/keymap.js';
-import { exportBundle, noteLeaveSuggestion, saveFolder, type FolderFileChange, type FolderSaveAnswers } from '../app/lifecycle.js';
+import { narrowMediaFeature, togglePanel, type NarrowPanel } from '../app/narrow-model.js';
+import {
+  exportBundle,
+  folderOverwriteSnapshotFor,
+  noteLeaveSuggestion,
+  previewFolderChanges,
+  saveFolder,
+  type FolderFileChange,
+  type FolderFilePreview,
+  type FolderOverwriteSnapshot,
+  type FolderSaveAnswers,
+} from '../app/lifecycle.js';
 import type { ZoomLevel } from '../app/corkboard-model.js';
 import type { AppServices } from '../app/services.js';
 import { contextConfigOf } from '../app/settings.js';
@@ -39,9 +51,11 @@ import { saveStateWords } from '../app/integrity-model.js';
 import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme.js';
 import type { StartIntent } from '../App.js';
 import { AgentPanel } from './AgentPanel.js';
+import { RecurringTasks } from '../app/recurring-tasks.js';
 import { Binder, type CenterMode } from './Binder.js';
 import { CodexPanel } from './CodexPanel.js';
 import { ActivityPanel } from './ActivityPanel.js';
+import { TracePanel } from './TracePanel.js';
 import { mediaKindOf, mediaPortsFor, mediaViewFor } from '../media/index.js';
 
 import { Corkboard } from './Corkboard.js';
@@ -52,6 +66,7 @@ import { openFindingCount } from '../app/findings-model.js';
 import { ExportDialog, type ExportSelection } from './ExportDialog.js';
 import { openDialog } from './dialog-requests.js';
 import { ProjectPanel } from './ProjectPanel.js';
+import { AgentInstructionsPanel } from './AgentInstructionsPanel.js';
 import { SkillsPanel } from './SkillsPanel.js';
 import { VocabularyEditor } from './VocabularyEditor.js';
 import { Inspector } from './Inspector.js';
@@ -66,12 +81,24 @@ import {
   liveSelection,
   selectNode,
 } from './actions.js';
-import { ChoiceDialog, ConfirmDialog, ReportContext, formatCount, useSession, wordsLabel, type StatusMessage } from './shared.js';
+import {
+  ChoiceDialog,
+  ConfirmDialog,
+  Menu,
+  ReportContext,
+  formatCount,
+  useSession,
+  wordsLabel,
+  type MenuAnchor,
+  type MenuItem,
+  type StatusMessage,
+} from './shared.js';
+import { OpenOnDesktop, useNarrow } from './narrow.js';
 
-type RailTab = 'binder' | 'codex' | 'activity' | 'findings';
+type RailTab = 'binder' | 'codex' | 'activity' | 'trace' | 'findings';
 
 /** The rail's tabs in the order the arrow keys walk them (WAI-ARIA tabs). */
-const RAIL_TABS: readonly RailTab[] = ['binder', 'codex', 'activity', 'findings'];
+const RAIL_TABS: readonly RailTab[] = ['binder', 'codex', 'activity', 'trace', 'findings'];
 /** The centre views, in the order the arrow keys walk the radio group. */
 const CENTER_VIEWS: readonly CenterMode[] = ['editor', 'corkboard'];
 
@@ -133,6 +160,15 @@ export function Workspace({
   const { state, view } = session;
   const [rail, setRail] = useState<RailTab>('binder');
   const [center, setCenter] = useState<CenterMode>('editor');
+  // The narrow layout (ui-modules §1): which panel is open over the centre, and the toolbar's overflow menu. View state only; a wide
+  // window never reads it.
+  const narrow = useNarrow();
+  const [panel, setPanel] = useState<NarrowPanel | null>(null);
+  const [overflow, setOverflow] = useState<MenuAnchor | null>(null);
+  if (!narrow && (panel !== null || overflow !== null)) {
+    setPanel(null);
+    setOverflow(null);
+  }
   const [focusMode, setFocusMode] = useState(false);
   // The filter chord asks for the field to be focused. The request is a counter, so each chord press is a new request, and
   // the effect below focuses the field once the binder rail has rendered.
@@ -177,6 +213,15 @@ export function Workspace({
     agent.attach();
     return () => agent.detach();
   }, [agent]);
+  // The project's recurring tasks (agent-harness.md §12): looked at as the project opens and every minute while the tab is visible.
+  const recurring = useMemo(
+    () => new RecurringTasks({ session, agent, enabledChecks: () => services.settings.current().coherence.enabledChecks }),
+    [session, agent, services.settings],
+  );
+  useEffect(() => {
+    void recurring.attach();
+    return () => recurring.detach();
+  }, [recurring]);
   // Today's stored words, read now and every few seconds: a sitting that ends elsewhere still counts toward the target.
   useEffect(() => {
     let alive = true;
@@ -196,6 +241,7 @@ export function Workspace({
   const target = targetProgress(storedToday + session.sittingWords(), settingsNow.session.dailyTargetWords);
   // Focus mode hides the rails only when the writer's Writing setting says so (ui-modules §5.2). Off, focus mode leaves them shown.
   const hideRails = focusMode && settingsNow.editor.focusModeHideRails;
+  const openPanel = narrow && !hideRails ? panel : null;
   const durability = session.durability();
   const showStorageBanner = durability.persisted === false && !bannerDismissed;
   const sample = settingsNow.sampleProjectIds.includes(session.projectId);
@@ -274,9 +320,21 @@ export function Workspace({
       : shotBoard !== undefined && mediaKindOf(shotBoard) === 'storyboard'
         ? shotBoard
         : undefined;
+  // In the narrow layout a storyboard and a dialogue container say "Open on desktop" in place of their view (ui-modules §1).
+  const desktopOnly = narrow && mediaNode !== undefined ? narrowMediaFeature(mediaKindOf(mediaNode)) : null;
   const mediaView =
-    mediaNode !== undefined && (center === 'editor' || mediaKindOf(mediaNode) === 'storyboard')
-      ? mediaViewFor(mediaNode, {
+    mediaNode !== undefined && (center === 'editor' || mediaKindOf(mediaNode) === 'storyboard') ? (
+      desktopOnly !== null ? (
+        <OpenOnDesktop
+          feature={desktopOnly}
+          actions={
+            <button type="button" className="button" onClick={() => setPanel('rail')}>
+              Open the binder
+            </button>
+          }
+        />
+      ) : (
+        mediaViewFor(mediaNode, {
           session,
           ports: mediaPortsFor(session),
           reveal,
@@ -290,7 +348,8 @@ export function Workspace({
             void agent.submit(intent);
           },
         })
-      : null;
+      )
+    ) : null;
   const undoLabel = session.undoLabel();
   const saveState = session.saveState();
   // The export dialog compiles the item the binder has selected, unless that is a section (then it is the whole manuscript).
@@ -350,6 +409,7 @@ export function Workspace({
     (docId: string, offset?: number): void => {
       selectNode(session, docId);
       setCenter('editor');
+      setPanel(null);
       if (offset !== undefined) setReveal({ docId, from: offset, to: offset });
     },
     [session],
@@ -357,9 +417,10 @@ export function Workspace({
 
   /** An empty state's next step (ui-modules §0.3): the agent panel opens, and the controller runs the request through its usual path. */
   const runAgentIntent = useCallback(
-    (intent: string): void => {
+    (intent: string, options?: SubmitOptions): void => {
       setAgentOpen(true);
-      void agent.submit(intent);
+      setPanel(null);
+      void agent.submit(intent, options);
     },
     [agent],
   );
@@ -367,6 +428,7 @@ export function Workspace({
   /** A mention chip's click: the codex tab shows the entry (codex.md §8). */
   const openCodexEntry = useCallback((entryId: string): void => {
     setRail('codex');
+    setPanel('rail');
     setCodexFocus((previous) => ({ entryId, serial: (previous?.serial ?? 0) + 1 }));
   }, []);
 
@@ -407,6 +469,7 @@ export function Workspace({
         event.preventDefault();
         setFocusMode(false);
         setRail('binder');
+        if (narrow) setPanel('rail');
         setFilterFocusRequest((count) => count + 1);
         return;
       case 'new-document':
@@ -426,6 +489,39 @@ export function Workspace({
   useEffect(() => {
     if (filterFocusRequest > 0) focusBinderFilter();
   }, [filterFocusRequest]);
+
+  /**
+   * The binder asks for a centre view as a row is chosen. In the narrow layout a folder leaves the centre alone: the corkboard is one
+   * switch away and says "Open on desktop", and a chapter chosen to add a scene under it should not swap the writer's page for that notice.
+   */
+  const showCenter = (mode: CenterMode): void => {
+    if (narrow && mode === 'corkboard') return;
+    setCenter(mode);
+  };
+
+  // Focus goes into a panel as it opens and back to its button as it closes, unless the writer's focus has already gone somewhere else
+  // (the editor, after a document was chosen). The toolbar and the centre are inert while a panel is open, so focus cannot wander behind it.
+  const shownPanel = useRef<NarrowPanel | null>(null);
+  useEffect(() => {
+    const before = shownPanel.current;
+    shownPanel.current = openPanel;
+    if (openPanel === 'rail') document.getElementById(railTabId(rail))?.focus();
+    else if (openPanel === 'inspector') document.getElementById('narrow-close-inspector')?.focus();
+    else if (before !== null) {
+      const active = document.activeElement;
+      const left = document.getElementById(before === 'rail' ? 'narrow-rail' : 'narrow-sheet');
+      if (active === null || active === document.body || left?.contains(active)) document.getElementById(`narrow-toggle-${before}`)?.focus();
+    }
+  }, [openPanel, rail]);
+  const onPanelKey = (event: ReactKeyboardEvent<HTMLElement>): void => {
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    event.preventDefault();
+    setPanel(null);
+  };
+  const openOverflow = (event: ReactMouseEvent<HTMLButtonElement>): void => {
+    const box = event.currentTarget.getBoundingClientRect();
+    setOverflow({ x: Math.max(8, box.right - 240), y: box.bottom + 4 });
+  };
 
   // The rail's tabs and the centre's radio group: arrows (and Home and End) move the selection and its focus together.
   const onRailTabKey = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
@@ -529,10 +625,16 @@ export function Workspace({
       try {
         const outcome = await saveFolder(session, folder, answers);
         if (outcome.kind === 'refused') {
+          const overwriteSnapshot = folderOverwriteSnapshotFor(outcome);
+          if (overwriteSnapshot === undefined) throw new Error('The folder save question no longer matches the folder state. Save again to review it.');
+          const previewBatch = await previewFolderChanges(session, folder, outcome.previewFiles ?? [], outcome.omittedPreviewFiles ?? 0);
           setFolderOffer({
             folder,
             reason: outcome.reason,
+            overwriteSnapshot,
             files: outcome.files,
+            previews: previewBatch.previews,
+            omittedPreviews: previewBatch.omitted,
             partial: outcome.partial === true,
             after: outcome.after === true,
             removed: outcome.removed === true,
@@ -602,9 +704,11 @@ export function Workspace({
   /** The writer's yes to the question a folder save asked: the answer that question needs, and the save again. */
   const answerFolderQuestion = (): void => {
     if (folderOffer === null) return;
-    const { folder, reason, answers } = folderOffer;
+    const { folder, reason, answers, overwriteSnapshot } = folderOffer;
     setFolderOffer(null);
-    writeFolder(folder, reason === 'locked' ? { ...answers, lockConfirmed: true } : { ...answers, overwriteConfirmed: true });
+    writeFolder(folder, reason === 'locked'
+      ? { ...answers, lockConfirmed: true }
+      : { ...answers, overwriteConfirmed: true, overwriteSnapshot });
   };
 
   const toggleTheme = (): void => {
@@ -639,81 +743,162 @@ export function Workspace({
     })();
   };
 
+  // The toolbar's controls beyond the two panels, in the narrow layout. They are the wide toolbar's buttons, with the same handlers.
+  const overflowItems: readonly MenuItem[] = [
+    { key: 'projects', label: 'Projects', onSelect: leave },
+    { key: 'details', label: 'Project details', onSelect: () => openDialog({ kind: 'project' }) },
+    { key: 'undo', label: 'Undo', disabled: undoLabel === null, onSelect: undoNow },
+    { key: 'focus', label: focusMode ? 'Leave focus mode' : 'Focus mode', onSelect: toggleFocus },
+    { key: 'skills', label: 'Skills', separatorBefore: true, onSelect: () => openDialog({ kind: 'skills' }) },
+    { key: 'instructions', label: 'Instructions', onSelect: () => openDialog({ kind: 'agent-instructions' }) },
+    { key: 'compile', label: 'Compile…', separatorBefore: true, onSelect: () => setExporting(true) },
+    { key: 'bundle', label: 'Export bundle', onSelect: exportNow },
+    ...(folderAccessSupported() ? [{ key: 'folder', label: 'Save to folder', onSelect: saveToFolder }] : []),
+    { key: 'settings', label: 'Settings', separatorBefore: true, onSelect: () => setSettingsSection('providers') },
+    { key: 'theme', label: theme === 'dark' ? 'Light theme' : 'Dark theme', onSelect: toggleTheme },
+  ];
+
   return (
     <ReportContext.Provider value={report}>
       <div className={`workspace${hideRails ? ' is-focus' : ''}`}>
-        <header className="toolbar">
+        <header className="toolbar" inert={openPanel !== null}>
           <div className="toolbar-start">
-            <button type="button" className="button is-quiet" onClick={leave}>
-              Projects
-            </button>
-            <h1 className="project-name">
-              {/* The name opens the project panel, where the title, author, language, ISBN and cover are set. */}
+            {narrow ? (
+              hideRails ? null : (
+                <button
+                  type="button"
+                  id="narrow-toggle-rail"
+                  className="button"
+                  aria-expanded={openPanel === 'rail'}
+                  aria-controls="narrow-rail"
+                  onClick={() => setPanel(togglePanel(openPanel, 'rail'))}
+                >
+                  Binder
+                </button>
+              )
+            ) : (
+              <button type="button" className="button is-quiet" onClick={leave}>
+                Projects
+              </button>
+            )}
+            {narrow ? (
+              // The save state sits under the name: a toolbar of three buttons has no room for a sentence beside them.
+              <div className="toolbar-title">
+                <h1 className="project-name">{state.manifest.project.name}</h1>
+                <SaveIndicator state={saveState} onExport={exportNow} />
+              </div>
+            ) : (
+              <h1 className="project-name">
+                {/* The name opens the project panel, where the title, author, language, ISBN and cover are set. */}
+                <button
+                  type="button"
+                  className="project-name-button"
+                  title="Project details: title, author, language, ISBN and cover"
+                  onClick={() => openDialog({ kind: 'project' })}
+                >
+                  {state.manifest.project.name}
+                </button>
+              </h1>
+            )}
+          </div>
+          {narrow ? (
+            // Narrow: the rail and the inspector open from here, and every other control is in the overflow menu (ui-modules §1).
+            <div className="toolbar-end">
+              {hideRails ? null : (
+                <button
+                  type="button"
+                  id="narrow-toggle-inspector"
+                  className="button"
+                  aria-expanded={openPanel === 'inspector'}
+                  aria-controls="narrow-sheet"
+                  onClick={() => setPanel(togglePanel(openPanel, 'inspector'))}
+                >
+                  Inspector
+                </button>
+              )}
+              <button type="button" className="button" aria-haspopup="menu" aria-expanded={overflow !== null} onClick={openOverflow}>
+                More
+              </button>
+            </div>
+          ) : (
+            <div className="toolbar-end">
               <button
                 type="button"
-                className="project-name-button"
-                title="Project details: title, author, language, ISBN and cover"
-                onClick={() => openDialog({ kind: 'project' })}
+                className="button"
+                disabled={undoLabel === null}
+                title={undoLabel === null ? 'Nothing to undo' : `Undo: ${undoLabel}`}
+                onClick={undoNow}
               >
-                {state.manifest.project.name}
+                Undo
               </button>
-            </h1>
-          </div>
-          <div className="toolbar-end">
-            <button
-              type="button"
-              className="button"
-              disabled={undoLabel === null}
-              title={undoLabel === null ? 'Nothing to undo' : `Undo: ${undoLabel}`}
-              onClick={undoNow}
-            >
-              Undo
-            </button>
-            <button
-              type="button"
-              className="button"
-              aria-pressed={focusMode}
-              title="Focus mode (Ctrl+Shift+F)"
-              onClick={toggleFocus}
-            >
-              Focus
-            </button>
-            <button type="button" className="button" title="Reusable writing instructions for the agent" onClick={() => openDialog({ kind: 'skills' })}>
-              Skills
-            </button>
-            <button type="button" className="button" onClick={() => setExporting(true)}>
-              Compile…
-            </button>
-            <button type="button" className="button" onClick={exportNow}>
-              Export bundle
-            </button>
-            {folderAccessSupported() ? (
-              <button type="button" className="button" onClick={saveToFolder}>
-                Save to folder
+              <button
+                type="button"
+                className="button"
+                aria-pressed={focusMode}
+                title="Focus mode (Ctrl+Shift+F)"
+                onClick={toggleFocus}
+              >
+                Focus
               </button>
-            ) : null}
-            <button type="button" className="button" onClick={() => setSettingsSection('providers')}>
-              Settings
-            </button>
-            <button
-              type="button"
-              className="button"
-              aria-label={theme === 'dark' ? 'Light theme' : 'Dark theme'}
-              title={theme === 'dark' ? 'Use the light theme' : 'Use the dark theme'}
-              onClick={toggleTheme}
-            >
-              {theme === 'dark' ? 'Light theme' : 'Dark theme'}
-            </button>
-            <SaveIndicator state={saveState} onExport={exportNow} />
-          </div>
+              <button type="button" className="button" title="Reusable writing instructions for the agent" onClick={() => openDialog({ kind: 'skills' })}>
+                Skills
+              </button>
+              <button
+                type="button"
+                className="button"
+                title="CAOTANG.md, your standing instructions, and the notes the agent keeps"
+                onClick={() => openDialog({ kind: 'agent-instructions' })}
+              >
+                Instructions
+              </button>
+              <button type="button" className="button" onClick={() => setExporting(true)}>
+                Compile…
+              </button>
+              <button type="button" className="button" onClick={exportNow}>
+                Export bundle
+              </button>
+              {folderAccessSupported() ? (
+                <button type="button" className="button" onClick={saveToFolder}>
+                  Save to folder
+                </button>
+              ) : null}
+              <button type="button" className="button" onClick={() => setSettingsSection('providers')}>
+                Settings
+              </button>
+              <button
+                type="button"
+                className="button"
+                aria-label={theme === 'dark' ? 'Light theme' : 'Dark theme'}
+                title={theme === 'dark' ? 'Use the light theme' : 'Use the dark theme'}
+                onClick={toggleTheme}
+              >
+                {theme === 'dark' ? 'Light theme' : 'Dark theme'}
+              </button>
+              <SaveIndicator state={saveState} onExport={exportNow} />
+            </div>
+          )}
         </header>
 
         {hideRails ? null : (
-          <nav className="rail" aria-label="Project panels">
+          <nav
+            id="narrow-rail"
+            className={`rail${narrow ? ' is-drawer' : ''}${openPanel === 'rail' ? ' is-open' : ''}`}
+            aria-label="Project panels"
+            onKeyDown={narrow ? onPanelKey : undefined}
+          >
+            {narrow ? (
+              <div className="panel-head">
+                <span className="panel-title">Project panels</span>
+                <button type="button" className="button" aria-label="Close panels" onClick={() => setPanel(null)}>
+                  Close
+                </button>
+              </div>
+            ) : null}
             <div role="tablist" aria-label="Panels" className="rail-tabs" onKeyDown={onRailTabKey}>
               <RailTabButton tab="binder" current={rail} label="Binder" onSelect={setRail} />
               <RailTabButton tab="codex" current={rail} label="Codex" onSelect={setRail} />
               <RailTabButton tab="activity" current={rail} label="Activity" onSelect={setRail} />
+              <RailTabButton tab="trace" current={rail} label="Trace" onSelect={setRail} />
               <RailTabButton
                 tab="findings"
                 current={rail}
@@ -730,8 +915,12 @@ export function Workspace({
                     renaming={renaming?.surface === 'binder' ? renaming.nodeId : null}
                     onRename={renameOn('binder')}
                     onAskDelete={askDelete}
-                    onShowCenter={setCenter}
-                    onFocusSynopsis={() => focusSoon('#inspector-synopsis')}
+                    onShowCenter={showCenter}
+                    onOpened={() => setPanel(null)}
+                    onFocusSynopsis={() => {
+                      if (narrow) setPanel('inspector');
+                      focusSoon('#inspector-synopsis');
+                    }}
                     onAgentIntent={runAgentIntent}
                   />
                   <BinderFooter session={session} runtime={store} target={target} />
@@ -744,9 +933,14 @@ export function Workspace({
                   onReveal={revealPassage}
                   settings={settingsNow.coherence}
                   providers={services.providers}
-                  onOpenAgent={() => setAgentOpen(true)}
+                  onOpenAgent={() => {
+                    setAgentOpen(true);
+                    setPanel(null);
+                  }}
                   onOpenDocument={openDocument}
                 />
+              ) : rail === 'trace' ? (
+                <TracePanel services={services} projectName={state.manifest.project.name} />
               ) : (
                 <ActivityPanel
                   session={session}
@@ -757,7 +951,7 @@ export function Workspace({
           </nav>
         )}
 
-        <main className="center">
+        <main className="center" inert={openPanel !== null}>
           <div role="radiogroup" aria-label="Centre view" className="center-switch" onKeyDown={onCenterKey}>
             <button
               type="button"
@@ -786,10 +980,18 @@ export function Workspace({
           {showStorageBanner ? (
             <div className="storage-banner" role="status" aria-label="Browser storage" data-testid="storage-banner">
               <div>
-                <p>
-                  Your words are kept in this browser, and the browser has not promised to keep them. Export a backup to keep a copy you
-                  can open anywhere.
-                </p>
+                {narrow ? (
+                  <p>
+                    Your words are kept in this browser, and the browser has not promised to keep them. A phone or tablet clears browser
+                    storage sooner than a computer when space runs short, and nothing syncs yet, so this copy is not your book&rsquo;s only
+                    home. Export a backup often and keep it somewhere else.
+                  </p>
+                ) : (
+                  <p>
+                    Your words are kept in this browser, and the browser has not promised to keep them. Export a backup to keep a copy you
+                    can open anywhere.
+                  </p>
+                )}
                 {explainStorage ? (
                   <p className="muted">
                     Browsers may remove stored data when a device runs short of space. Asking the browser to keep it lowers that risk, and
@@ -835,8 +1037,19 @@ export function Workspace({
             agent={agent}
             target={target}
             onSetTarget={saveTarget}
+            agentEditMode={settingsNow.editor.agentEditMode}
           />
-          {center === 'corkboard' && mediaView === null ? (
+          {center === 'corkboard' && mediaView === null && narrow ? (
+            <OpenOnDesktop
+              feature="corkboard"
+              actions={
+                <button type="button" className="button" onClick={() => setCenter('editor')}>
+                  Back to the editor
+                </button>
+              }
+            />
+          ) : null}
+          {center === 'corkboard' && mediaView === null && !narrow ? (
             <Corkboard
               session={session}
               zoom={zoom}
@@ -850,6 +1063,7 @@ export function Workspace({
             <AgentPanel
               session={session}
               agent={agent}
+              recurring={recurring}
               startIntent={startIntent}
               open={agentOpen}
               onToggle={() => setAgentOpen((on) => !on)}
@@ -858,9 +1072,21 @@ export function Workspace({
           )}
         </main>
 
-        {hideRails ? null : (
+        {hideRails ? null : narrow ? (
+          <div id="narrow-sheet" className={`sheet${openPanel === 'inspector' ? ' is-open' : ''}`} onKeyDown={onPanelKey}>
+            <div className="panel-head">
+              <span className="panel-title">Inspector</span>
+              <button type="button" id="narrow-close-inspector" className="button" aria-label="Close inspector" onClick={() => setPanel(null)}>
+                Close
+              </button>
+            </div>
+            <Inspector session={session} nodeId={selected} onOpenCodex={openCodexEntry} onAgentIntent={runAgentIntent} />
+          </div>
+        ) : (
           <Inspector session={session} nodeId={selected} onOpenCodex={openCodexEntry} onAgentIntent={runAgentIntent} />
         )}
+        {openPanel === null ? null : <div className="scrim" data-testid="panel-scrim" aria-hidden="true" onClick={() => setPanel(null)} />}
+        {overflow === null ? null : <Menu label="More" anchor={overflow} items={overflowItems} onClose={() => setOverflow(null)} />}
 
         {message ? (
           <div className={`status-line is-${message.tone}`} role={message.tone === 'error' ? 'alert' : 'status'}>
@@ -898,6 +1124,7 @@ export function Workspace({
         ) : null}
         <ProjectPanel session={session} />
         <SkillsPanel session={session} />
+        <AgentInstructionsPanel session={session} services={services} onAgentIntent={runAgentIntent} />
         <VocabularyEditor session={session} />
 
 
@@ -942,6 +1169,7 @@ export function Workspace({
             store={store}
             initialSection={settingsSection}
             onClose={() => setSettingsSection(null)}
+            onOpenAgent={() => setAgentOpen(true)}
             onProvidersChanged={() => agent.refresh()}
           />
         ) : null}
@@ -1027,8 +1255,13 @@ function SaveIndicator({ state, onExport }: { state: SaveState; onExport: () => 
 interface FolderOffer {
   readonly folder: DirectoryHandleLike;
   readonly reason: 'locked' | 'changed' | 'unknown' | 'earlier' | 'files';
+  readonly overwriteSnapshot: FolderOverwriteSnapshot;
   /** The documents and codex entries another program changed, removed or added, named in words (lifecycle `folderChanges`). */
   readonly files: readonly FolderFileChange[];
+  /** A read-only comparison of each named file's folder text and this tab's text. */
+  readonly previews: readonly FolderFilePreview[];
+  /** Number of exact file comparisons omitted by the preview-size limits. */
+  readonly omittedPreviews: number;
   /** The change was found part way through the save, so the files before it and the pictures were written, and these were not. */
   readonly partial: boolean;
   /** The change was found after the save was written in full: the folder holds the other program's version of these files. */
@@ -1039,16 +1272,42 @@ interface FolderOffer {
 }
 
 /** The changed files, one line each, for a question that names them. Nothing renders for a save with none. */
-function changedFilesList(files: readonly FolderFileChange[]): ReactNode {
+function changedFilesList(files: readonly FolderFileChange[], previews: readonly FolderFilePreview[], omittedPreviews: number): ReactNode {
   if (files.length === 0) return null;
+  const MAX_VISIBLE_FOLDER_FILE_LABELS = 12;
   const change = { changed: 'changed', removed: 'removed', added: 'added' } as const;
   return (
     <ul>
-      {files.map((file, index) => (
-        <li key={index}>
-          {file.label}: {change[file.change]}
-        </li>
-      ))}
+      {files.slice(0, MAX_VISIBLE_FOLDER_FILE_LABELS).map((file, index) => {
+        const filePreviews = previews.filter((item) => item.label === file.label && item.change === file.change);
+        return (
+          <li key={index}>
+            <div>{file.label}: {change[file.change]}</div>
+            {filePreviews.map((preview, previewIndex) => (
+              <section
+                className="folder-file-preview"
+                key={preview.path}
+                role="region"
+                aria-label={`Changes for ${file.label}${filePreviews.length > 1 ? `, file ${previewIndex + 1} of ${filePreviews.length}` : ''}`}
+              >
+                <p className="field-note">{filePreviews.length > 1 ? `File ${previewIndex + 1} of ${filePreviews.length} · ` : ''}− In the folder · + In this tab</p>
+                <pre className="folder-diff">
+                  {preview.lines.map((line, lineIndex) => {
+                    const marker = line.kind === 'folder' ? '− ' : line.kind === 'tab' ? '+ ' : line.kind === 'context' ? '  ' : '… ';
+                    return <span className={`folder-diff-line is-${line.kind}`} key={lineIndex}>{marker}{line.text || ' '}{'\n'}</span>;
+                  })}
+                </pre>
+              </section>
+            ))}
+          </li>
+        );
+      })}
+      {files.length > MAX_VISIBLE_FOLDER_FILE_LABELS ? (
+        <li className="field-note">{files.length - MAX_VISIBLE_FOLDER_FILE_LABELS} more changed file labels are not shown.</li>
+      ) : null}
+      {omittedPreviews > 0 ? (
+        <li className="field-note">Detailed comparisons for {omittedPreviews} more file{omittedPreviews === 1 ? '' : 's'} are not shown to keep the question manageable.</li>
+      ) : null}
     </ul>
   );
 }
@@ -1057,10 +1316,12 @@ function changedFilesList(files: readonly FolderFileChange[]): ReactNode {
 function folderQuestion({
   reason,
   files,
+  previews,
+  omittedPreviews,
   partial,
   after,
   removed,
-}: Pick<FolderOffer, 'reason' | 'files' | 'partial' | 'after' | 'removed'>): {
+}: Pick<FolderOffer, 'reason' | 'files' | 'previews' | 'omittedPreviews' | 'partial' | 'after' | 'removed'>): {
   readonly title: string;
   readonly body: ReactNode;
   readonly confirm: string;
@@ -1084,7 +1345,7 @@ function folderQuestion({
               that program&rsquo;s version of them:
             </p>
           ) : null}
-          {changedFilesList(files)}
+          {changedFilesList(files, previews, omittedPreviews)}
           <p>
             Saving writes this tab&rsquo;s version over them. The folder&rsquo;s version is kept first, in <code>.caotang-backup</code> in
             the folder, so if you need anything from it, copy it from there.
@@ -1125,7 +1386,7 @@ function folderQuestion({
           <p>
             Saving here writes <code>caotang.json</code> back into the folder from this tab, with the project as this tab holds it.
           </p>
-          {changedFilesList(files)}
+          {changedFilesList(files, previews, omittedPreviews)}
         </>
       ),
       confirm: 'Write it back',
@@ -1145,7 +1406,7 @@ function folderQuestion({
             To see the folder&rsquo;s newer copy, go to Projects and open the folder again: it opens as a separate project. Saving here
             writes <code>caotang.json</code> from this tab, and an older one that is there is kept as a backup.
           </p>
-          {changedFilesList(files)}
+          {changedFilesList(files, previews, omittedPreviews)}
         </>
       ),
       confirm: 'Save over it',

@@ -9,9 +9,9 @@ import { type ChatRequest } from '@caotang/gateway';
 import { userTextOf, type MockScript } from '@caotang/gateway/mock';
 import { addDocument, getBody, type ProjectState } from '@caotang/store';
 
-import { createAgentPorts, createAgentSession, createContextPort, createHarness, scenePromptPreview, type Decision, type PendingCard } from '../../src/index.js';
+import { createAgentPorts, createAgentSession, createContextPort, scenePromptPreview, type Decision, type PendingCard } from '../../src/index.js';
 import { sceneRole } from '../../src/agent/drafting.js';
-import { OPENED, clock, makeState } from '../fixtures.js';
+import { checkedHarness, clock, makeState, OPENED } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
 import { steps, transcript } from './scripts.js';
 
@@ -102,7 +102,7 @@ describe('a scene draft of a screenplay scene, through the loop', () => {
       transcript(INTENT, [steps({ tool: 'scene.draft', params: { doc: SCENE, instruction: BRIEF, mode: 'draft' }, expect: 'the scene holds the draft' })]),
       drafting,
     ]);
-    const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now });
+    const harness = checkedHarness({ state, ports: createAgentPorts(), clock: clock.now });
     const pending: PendingCard[] = [];
     const decision: Decision = { action: 'approve' };
     const session = createAgentSession({
@@ -139,7 +139,7 @@ describe('a scene draft of a screenplay scene, through the loop', () => {
       transcript(INTENT, [steps({ tool: 'scene.draft', params: { doc: SCENE, instruction: BRIEF, mode: 'continue' }, expect: 'the scene carries on' })]),
       drafting,
     ]);
-    const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now });
+    const harness = checkedHarness({ state, ports: createAgentPorts(), clock: clock.now });
     const session = createAgentSession({
       harness,
       gateway,
@@ -168,7 +168,7 @@ describe('a scene draft of a screenplay scene, through the loop', () => {
       transcript(INTENT, [steps({ tool: 'scene.draft', params: { doc: PROSE, instruction: BRIEF, mode: 'continue' }, expect: 'the scene continues' })]),
       drafting,
     ]);
-    const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now });
+    const harness = checkedHarness({ state, ports: createAgentPorts(), clock: clock.now });
     const session = createAgentSession({
       harness,
       gateway,

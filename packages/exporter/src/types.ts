@@ -10,8 +10,8 @@
  * the call site in `test/exporter.test.ts`.
  */
 
-import type { SceneNumberPlacement } from '@caotang/screenplay';
-import type { ProjectState } from '@caotang/store';
+import type { CommandError } from '@caotang/bus';
+import type { ExportRecipeOptions as StoreExportRecipeOptions, ProjectState } from '@caotang/store';
 
 /**
  * The formats this build compiles. The prose formats are exporter.md §2 and §3 (`epub` is §3a's). The rest
@@ -99,33 +99,11 @@ export interface ExportSelection {
   readonly docFilter?: (doc: FilterDocument) => boolean;
 }
 
-export interface ExportRecipeOptions {
-  /** Front matter: the title page. Default on. */
-  readonly titlePage?: boolean;
-  /** Generated contents list where the format supports one. Default on. */
-  readonly toc?: boolean;
-  /** Shown on the title page and in the EPUB package metadata. */
-  readonly author?: string;
-  /**
-   * The dialogue table's character limit (dialogue-narrative.md §4): the `charLimit` column of each line. Absent means no limit.
-   * Only the dialogue table (`dialogue-csv` and `dialogue-xlsx`) reads it, and the other formats ignore it. A whole number above zero (the bus caps it at its own maximum).
-   */
-  readonly charLimit?: number;
-  /**
-   * The screenplay PDF's scene numbers (screenplay.md §5.3), in the paginator's shared type: in the left margin, the
-   * right, both, or off. Absent means off. Only `pdf` reads it.
-   */
-  readonly sceneNumbers?: SceneNumberPlacement;
-  /** `(MORE)` and `NAME (CONT'D)` where the screenplay PDF splits a speech across a page (screenplay.md §5.3). Default on. Only `pdf` reads it. */
-  readonly continued?: boolean;
-  /** The contact sheet's paper (storyboard.md §6): `A4` or `Letter`. Absent is A4. Only `contact-sheet-pdf` reads it. */
-  readonly pageSize?: 'A4' | 'Letter';
-  /**
-   * The contact sheet prints blank numbered frames to draw on instead of the shots' pictures (storyboard.md §6, the paper-photo round
-   * trip). Absent is off. Only `contact-sheet-pdf` reads it.
-   */
-  readonly paperFrames?: boolean;
-}
+/**
+ * A recipe's options: the store's type (the one the manifest holds and the bus writes), read-only here. Each key says which formats read it in
+ * `packages/store/src/manifest.ts`; the type-equality checks in `test/scene-numbers-union.test.ts` pin its bus-typed fields to the renderers'.
+ */
+export type ExportRecipeOptions = Readonly<StoreExportRecipeOptions>;
 
 /**
  * exporter.md §2: a named, saved selection — "paperback draft" vs "beta read" are one click. Recipes live in the
@@ -203,14 +181,46 @@ export interface ExportFile {
 }
 
 /**
- * exporter.md §4, verbatim except for the format enum, which now carries `epub`. `saveRecipe` is gone: a recipe is
- * written by the bus's `recipe.save` (an undoable command on the manifest), so there is one way to save one.
+ * exporter.md §4, except for the format enum, which now carries `epub`, and `preview`, which replaces `previewFlatten` (the Draft).
+ * `saveRecipe` is gone: a recipe is written by the bus's `recipe.save` (an undoable command on the manifest), so there is one way to save one.
  */
 export interface Exporter {
   compile(selection: ExportSelection, format: ExportFormat, templateId?: string): Promise<ExportResult>;
-  previewFlatten(selection: ExportSelection): FlatBlock[];
+  preview(request: ExportPreviewRequest): ExportPreview;
   listRecipes(): ExportRecipe[];
 }
+
+/**
+ * What `preview` is asked: the request a bus compile makes, without its clock reading. The recipe, the selection and the template
+ * resolve exactly as the compile resolves them, so the Draft is the book the compile would write.
+ */
+export type ExportPreviewRequest = Omit<ExportCommandRequest, 'at'>;
+
+/** What a compile will record in its log row, known before anything is made: the Draft's numbers and the compile log's are the same. */
+export interface ExportPreviewFacts {
+  readonly format: ExportFormat;
+  readonly blockCount: number;
+  readonly chapterCount: number;
+  readonly sceneCount: number;
+  readonly wordCount: number;
+  /** Labels of the documents left out, in the compile log's words, e.g. `Chapter 3 → The Call`. */
+  readonly skippedDocs: readonly string[];
+  readonly tocIncluded: boolean;
+  readonly notes: readonly string[];
+}
+
+/**
+ * exporter.md §4, the Draft half of the Draft/Proof duality: what a compile would write, and what it would leave out. Nothing is
+ * reserved, written, gated or logged, and no command runs.
+ *
+ * - `draft`: a prose format. The block list the artifact is built from (`flatten`, the compile's own call), with the facts of its log row.
+ * - `media`: a media format, which does not go through `flatten`. Its selection gates passed; it has the compile's counts and notes and no block list.
+ * - `refused`: the compile would be refused, with the refusal it would get.
+ */
+export type ExportPreview =
+  | (ExportPreviewFacts & { readonly kind: 'draft'; readonly blocks: readonly FlatBlock[]; readonly titlePage: boolean })
+  | (ExportPreviewFacts & { readonly kind: 'media' })
+  | { readonly kind: 'refused'; readonly error: CommandError };
 
 /** The selection a bus command names: the whole manuscript, or the nodes it lists. */
 export type ExportCommandSelection =

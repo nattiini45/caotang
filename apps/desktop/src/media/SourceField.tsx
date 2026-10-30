@@ -6,7 +6,7 @@
  * input's text is the one a reader hears.
  */
 
-import { Fragment, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import { Fragment, useRef, type FocusEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 
 import type { Segment } from './source-decor.js';
 
@@ -18,6 +18,7 @@ export interface SourceFieldProps {
   readonly segments: readonly Segment[];
   readonly onChange: (text: string) => void;
   readonly onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
+  readonly onBlur?: (event: FocusEvent<HTMLTextAreaElement>) => void;
   /** The input's element, for the views that place the caret or focus it. */
   readonly inputRef?: RefObject<HTMLTextAreaElement | null>;
   /** The view's own classes for the input, kept so its existing styling still applies. */
@@ -31,6 +32,7 @@ export function SourceField({
   segments,
   onChange,
   onKeyDown,
+  onBlur,
   inputRef,
   inputClassName,
   rows,
@@ -62,6 +64,7 @@ export function SourceField({
         spellCheck={false}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={onKeyDown}
+        onBlur={onBlur}
         onScroll={(event) => {
           // The layer follows the input in both directions, so a long line that scrolls sideways keeps its styling under it.
           if (layer.current === null) return;

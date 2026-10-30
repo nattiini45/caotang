@@ -238,7 +238,7 @@ test('a store another tab has upgraded stops this tab, and the words typed after
   await other.evaluate(
     () =>
       new Promise<void>((resolve, reject) => {
-        const request = (globalThis as unknown as { indexedDB: IDBFactory }).indexedDB.open('caotang', 4);
+        const request = (globalThis as unknown as { indexedDB: IDBFactory }).indexedDB.open('caotang', 5);
         request.onsuccess = () => {
           request.result.close();
           resolve();

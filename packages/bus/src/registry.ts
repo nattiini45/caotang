@@ -34,6 +34,9 @@ import {
 import * as shotImageDescriptors from './descriptors-shot-image.js';
 import * as scriptDescriptors from './descriptors-script.js';
 import * as skillDescriptors from './descriptors-skills.js';
+import * as agentFileDescriptors from './descriptors-agent-files.js';
+import * as hookDescriptors from './descriptors-hooks.js';
+import * as macroDescriptors from './descriptors-macros.js';
 import {
   viewSetActiveDocApply,
   viewSetCorkboardScopeApply,
@@ -136,6 +139,16 @@ export function buildRegistry(): CommandRegistry {
     'skill.write': { descriptor: skillDescriptors.skillWrite },
     'skill.delete': { descriptor: skillDescriptors.skillDelete },
     'skill.setEnabled': { descriptor: skillDescriptors.skillSetEnabled },
+    // The agent's files (context-assembly.md §2, layer LI). The applies are the store's (`commands-agent-files.ts`).
+    'project.setInstructions': { descriptor: agentFileDescriptors.projectSetInstructions },
+    'memory.write': { descriptor: agentFileDescriptors.memoryWrite },
+    'memory.forget': { descriptor: agentFileDescriptors.memoryForget },
+    // The writer's macros (extensibility.md §10). User-only: both descriptors are `agentRisk: 'never'`. The applies are the store's (`commands-macros.ts`).
+    'macro.save': { descriptor: macroDescriptors.macroSave },
+    'macro.delete': { descriptor: macroDescriptors.macroDelete },
+    // The writer's hooks (hooks.md). User-only: both descriptors are `agentRisk: 'never'`. The applies are the store's (`commands-hooks.ts`).
+    'hook.save': { descriptor: hookDescriptors.hookSave },
+    'hook.delete': { descriptor: hookDescriptors.hookDelete },
   };
 }
 

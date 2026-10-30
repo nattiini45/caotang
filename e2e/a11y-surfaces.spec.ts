@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 
 import { expect, test, type Page } from '@playwright/test';
 
+import { fakeEndpoint, useFakeEndpoint } from './endpoint.js';
 import { binderTitle, createProject, firstChapter, waitForSaved } from './support.js';
 
 /**
@@ -206,6 +207,19 @@ test('every surface of the shell and its dialogs passes the colour-contrast, tar
   await page.keyboard.press('Escape');
   await expect(page.locator('dialog.project-dialog')).toBeHidden();
 
+  // The Agent instructions panel, with a note in it, so its list rows, chips and budget line are on the page.
+  await page.getByRole('button', { name: 'Instructions', exact: true }).click();
+  const instructions = page.getByRole('dialog', { name: 'Agent instructions' });
+  await expect(instructions).toBeVisible();
+  await instructions.getByRole('button', { name: 'Add a note…' }).click();
+  await instructions.getByRole('textbox', { name: 'Title' }).fill('Dialogue tags');
+  await instructions.getByRole('textbox', { name: 'Note' }).fill('Use said.');
+  await instructions.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(instructions.getByTestId('memory-note-dialogue-tags')).toBeVisible();
+  await check('agent instructions', 'dialog[aria-labelledby="agent-instructions-title"]');
+  await page.keyboard.press('Escape');
+  await expect(instructions).toBeHidden();
+
   // Focus mode keeps the toolbar, with its Projects button (the button was squeezed to a target under 24 px).
   await page.getByRole('button', { name: 'Focus', exact: true }).click();
   await check('focus toolbar', '.toolbar');
@@ -253,4 +267,108 @@ test('the Pages tab of a screenplay scene, with its lines that open the Source t
   // Not the target-size rule: a line is a row of the page's own 14px grid, and the function it has is also reached by the Source tab
   // (WCAG 2.5.8, the equivalent-control exception), which axe cannot know.
   expect(await problemsIn(page, '.sp-preview', ['color-contrast', 'aria-allowed-role'])).toEqual([]);
+});
+
+test('the recurring tasks, with a task due, its form, its runs and a confirmation, pass the colour-contrast, target-size and role rules', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await createProject(page, 'Tasks Surface');
+  await page.getByRole('button', { name: 'Agent', exact: true }).click();
+  const tasks = page.getByTestId('recurring-tasks');
+  await expect(tasks).toBeVisible();
+
+  const make = async (name: string, does: string, when: string): Promise<void> => {
+    await page.getByRole('button', { name: 'New task' }).click();
+    const form = page.getByRole('form', { name: 'New task' });
+    await form.getByLabel('Task name').fill(name);
+    await form.getByLabel('What it does').selectOption({ label: does });
+    if (does === 'Ask the agent') await form.getByLabel('What to ask').fill('Look over the newest scene.');
+    await form.getByLabel('When', { exact: true }).selectOption({ label: when });
+    if (when === 'Every day') await form.getByLabel('From').fill('00:00');
+    // The form is checked while it is open, with every control it can show.
+    if (when === 'Every week') expect([...(await contrastProblemsIn(page, '.recurring-form')), ...(await shellProblemsIn(page, '.recurring-form'))]).toEqual([]);
+    await form.getByRole('button', { name: 'Save task' }).click();
+    await expect(tasks.locator('[data-task]', { hasText: name })).toBeVisible();
+  };
+  await make('Weekly scan', 'Scan for continuity problems', 'Every week');
+  await make('Daily read', 'Ask the agent', 'Every day');
+  const scan = tasks.locator('[data-task]', { hasText: 'Weekly scan' });
+  await scan.getByRole('button', { name: /^Run now/ }).click();
+  await scan.getByText(/Runs on this machine/).click();
+  await expect(scan.getByRole('list', { name: 'Runs of Weekly scan' })).toContainText('Done');
+
+  // The daily task is due as the project opens again, and its offer is shown with the drawer closed.
+  await page.reload();
+  const row = page.getByRole('listitem').filter({ hasText: 'Tasks Surface' });
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  await row.getByRole('button', { name: 'Open' }).click();
+  await expect(page.getByTestId('task-offers').getByRole('group', { name: 'Task due: Daily read' })).toBeVisible({ timeout: 20_000 });
+  expect([...(await contrastProblemsIn(page, '.recurring-offers')), ...(await shellProblemsIn(page, '.recurring-offers'))]).toEqual([]);
+
+  await page.getByRole('button', { name: 'Agent', exact: true }).click();
+  await expect(tasks).toBeVisible();
+  await tasks.locator('[data-task]', { hasText: 'Weekly scan' }).getByText(/Runs on this machine/).click();
+  expect([...(await contrastProblemsIn(page, '.recurring')), ...(await shellProblemsIn(page, '.recurring'))]).toEqual([]);
+
+  await tasks.locator('[data-task]', { hasText: 'Daily read' }).getByRole('button', { name: /^Delete/ }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  expect([...(await contrastProblemsIn(page, 'dialog[open]')), ...(await shellProblemsIn(page, 'dialog[open]'))]).toEqual([]);
+});
+
+test('the agent’s Intent combobox, with its command list open and a command’s answer shown, passes the colour-contrast, target-size, role and ARIA rules', async ({
+  page,
+}) => {
+  await fakeEndpoint(page, () => 'Nothing to say.');
+  await useFakeEndpoint(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Check for continuity problems', exact: true }).click();
+  await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
+  await expect(page.locator('.agent-turn')).toHaveCount(1);
+
+  const rules = [
+    'color-contrast',
+    'target-size',
+    'aria-allowed-role',
+    'aria-allowed-attr',
+    'aria-required-attr',
+    'aria-valid-attr-value',
+    'aria-required-children',
+    'aria-input-field-name',
+    'aria-hidden-focus',
+    'scrollable-region-focusable',
+  ];
+  const box = page.getByRole('combobox', { name: 'Intent' });
+  await box.click();
+  await page.keyboard.type('/');
+  await expect(page.getByRole('listbox', { name: 'Commands' })).toBeVisible();
+  await page.keyboard.press('ArrowDown');
+  expect(await problemsIn(page, '.agent', rules)).toEqual([]);
+
+  // With the list closed, and a command's answer under the box.
+  await box.fill('/help');
+  await box.press('Enter');
+  await expect(page.getByTestId('agent-command-note')).toBeVisible();
+  expect(await problemsIn(page, '.agent', rules)).toEqual([]);
+  await box.fill('/draft The');
+  await box.press('Enter');
+  await expect(page.getByTestId('agent-command-note')).toContainText('matches');
+  expect(await problemsIn(page, '.agent', rules)).toEqual([]);
+});
+
+test('the Trace tab, with a turn and a model call open, and its export dialog, pass the colour-contrast, target-size and role rules', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Check for continuity problems', exact: true }).click();
+  await expect(page.getByRole('tree', { name: 'Binder' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Trace' }).click();
+  const call = page.getByTestId('trace-call').first();
+  await call.locator('summary').first().click();
+  await expect(call.getByRole('heading', { name: 'Reply' })).toBeVisible();
+  await page.getByTestId('trace-tool').first().locator('summary').click();
+
+  expect([...(await contrastProblemsIn(page, '.trace')), ...(await shellProblemsIn(page, '.trace'))]).toEqual([]);
+
+  await page.getByRole('button', { name: 'Export trace…' }).click();
+  await expect(page.getByRole('dialog', { name: 'Export trace' })).toBeVisible();
+  expect([...(await contrastProblemsIn(page, 'dialog[open].confirm')), ...(await shellProblemsIn(page, 'dialog[open].confirm'))]).toEqual([]);
 });

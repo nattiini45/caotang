@@ -19,6 +19,7 @@
 import { err, ok, type CommandError, type Result } from '@caotang/bus';
 import type { ReviewPlan } from '@caotang/coherence';
 import { codexRead, type CodexReadQuery } from '@caotang/codex';
+import { entryWithheld } from '@caotang/context';
 import { dialogueDraftTool } from '@caotang/dialogue';
 import { resolveAnchor, type TextAnchor } from '@caotang/editor';
 import { getBody, getRevision, nodeById, type CodexEntry, type ProjectState } from '@caotang/store';
@@ -60,7 +61,10 @@ function cutRefusal(tool: string, what: string): CommandError {
 
 /** `codex.read` — codex.md §7, over the manifest's codex. Read-only; an empty result is a result, not a refusal. */
 export const codexReadPort: ToolPort = (params, context) => {
-  const entries = (context.state.manifest.codex ?? []) as readonly CodexEntry[];
+  const all = (context.state.manifest.codex ?? []) as readonly CodexEntry[];
+  const hidden = context.withheld ?? new Set<string>();
+  const entries = all.filter((entry) => !entryWithheld(entry, hidden));
+  const withheld = all.length - entries.length;
   const query: CodexReadQuery = {
     ...(typeof params['query'] === 'string' ? { query: params['query'] } : {}),
     ...(typeof params['type'] === 'string' ? { type: params['type'] } : {}),
@@ -75,11 +79,19 @@ export const codexReadPort: ToolPort = (params, context) => {
       entries: result.entries,
       total: result.total,
       truncated: result.truncated,
+      ...(withheld === 0 ? {} : { withheld }),
       ...(result.note === undefined ? {} : { note: result.note }),
     },
     summary: `read ${count} of ${result.total} codex ${result.total === 1 ? 'entry' : 'entries'}`,
     affected: [],
-    ...(result.note === undefined ? {} : { notes: [result.note] }),
+    ...(result.note === undefined && withheld === 0
+      ? {}
+      : {
+          notes: [
+            ...(withheld === 0 ? [] : [`${withheld} codex ${withheld === 1 ? 'entry is' : 'entries are'} withheld from the agent by a rule and left out of this answer.`]),
+            ...(result.note === undefined ? [] : [result.note]),
+          ],
+        }),
   });
 };
 
@@ -106,6 +118,26 @@ export function sceneDraftPreflight(params: CallParams, state: ProjectState): Co
   if (!node.ok) return node.error;
   const mode = typeof params['mode'] === 'string' ? params['mode'] : 'draft';
   return draftModeRefusal(mode, getBody(state, node.value.id));
+}
+
+/**
+ * The state check of a `scene.apply` call: the mode rule of its draft, and for a rewrite the anchor, resolved against the body as it
+ * stands. The reply is the host's, so the placement is the only part of the draft this can check before the writer is asked.
+ */
+export function sceneApplyPreflight(params: CallParams, state: ProjectState): CommandError | undefined {
+  const refused = sceneDraftPreflight(params, state);
+  if (refused !== undefined) return refused;
+  const node = resolveNode(state, String(params['doc']), DOCUMENT, 'document', 'params.doc');
+  if (!node.ok) return node.error;
+  const mode = typeof params['mode'] === 'string' ? params['mode'] : 'draft';
+  const placed = placement(mode, getBody(state, node.value.id), '', getRevision(state, node.value.id), params['selection'] as TextAnchor | undefined);
+  return placed.ok ? undefined : placed.error;
+}
+
+/** The state check of a `dialogue.apply` call: the dialogue module's own check of the Ink against the container, as `dialogue.draft` runs it. */
+export function dialogueApplyPreflight(params: CallParams, state: ProjectState): CommandError | undefined {
+  const checked = dialogueDraftTool({ doc: params['doc'], fromBeats: params['fromBeats'] }, { state, proposal: { ink: String(params['ink'] ?? '').trim() } });
+  return checked.ok ? undefined : checked.error;
 }
 
 /**
@@ -162,10 +194,12 @@ export function shotsDeriveScenePreflight(params: CallParams, state: ProjectStat
 export const portPreflights: Partial<Record<PortToolName, (params: CallParams, state: ProjectState, proposal?: unknown) => CommandError | undefined>> = {
   'scene.draft': sceneDraftPreflight,
   'shots.derive': shotsDerivePreflight,
+  'scene.apply': sceneApplyPreflight,
+  'dialogue.apply': dialogueApplyPreflight,
 };
 
 /** The range a draft occupies, and the text that goes there, for each mode. Pure over the body it is given. */
-function placement(
+export function placement(
   mode: string,
   body: string,
   text: string,
@@ -311,7 +345,9 @@ export const continuityScanPort: ToolPort = (params, context) => {
   const failures: { target: string; error: CommandError }[] = [];
   const scope: { id: string; title: string }[] = [];
   if (refs === undefined) {
-    for (const node of descendantsOf(state, 'manuscript').filter(DOCUMENT)) scope.push({ id: node.id, title: node.title });
+    // An omitted scope is the manuscript less what a read rule keeps from the agent: a hidden title never reaches the result.
+    const hidden = context.withheld ?? new Set<string>();
+    for (const node of descendantsOf(state, 'manuscript').filter(DOCUMENT)) if (!hidden.has(node.id)) scope.push({ id: node.id, title: node.title });
   } else {
     for (const [index, ref] of refs.entries()) {
       const node = resolveNode(state, ref, DOCUMENT, 'document', `scope[${index}]`);
@@ -406,8 +442,7 @@ export const dialogueDraftPort: ToolPort = (params, context) => {
   if (proposal.cut === true) return failure(cutRefusal('dialogue.draft', 'Ink draft'));
   const checked = dialogueDraftTool(params, { state: context.state, proposal: { ink: proposal.ink } });
   if (!checked.ok) return failure(checked.error);
-  const docId = String(checked.value.data['containerId']);
-  const body = String(checked.value.data['body']);
+  const { containerId: docId, body } = checked.value.data;
   const result = context.dispatchInherited('doc.write', { docId, body, expectedRevision: proposal.revision });
   if (!result.ok) return failure(result.error);
   // Verify (agent-harness §7): the container now holds the Ink it was checked as.
@@ -420,7 +455,7 @@ export const dialogueDraftPort: ToolPort = (params, context) => {
     );
   }
   return ok({
-    data: { container: checked.value.data['title'], newBeats: checked.value.data['newBeats'], warnings: checked.value.data['warnings'] },
+    data: { container: checked.value.data.title, newBeats: checked.value.data.newBeats, warnings: checked.value.data.warnings },
     summary: checked.value.summary,
     affected: [...result.value.affected],
     ...(result.value.undoGroupId === undefined ? {} : { undoGroupId: result.value.undoGroupId }),
@@ -499,7 +534,8 @@ export function previewFor(state: ProjectState, tool: string, params: CallParams
     if (typeof drafted?.ink !== 'string') return undefined;
     const checked = dialogueDraftTool(params, { state, proposal: { ink: drafted.ink } });
     if (!checked.ok) return undefined;
-    return { container: checked.value.data['title'], ink: drafted.ink, newBeats: checked.value.data['newBeats'], warnings: checked.value.data['warnings'] };
+    const { title, newBeats, warnings } = checked.value.data;
+    return { container: title, ink: drafted.ink, newBeats, warnings };
   }
   if (tool === 'shots.derive') {
     // The shot list and the storyboard folder an approved derive creates (storyboard.md §4), planned from the staged proposal. A plan the

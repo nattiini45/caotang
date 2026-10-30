@@ -13,7 +13,7 @@ import type { SchemaFailure } from './schema.js';
 import { describeFailure } from './schema.js';
 
 /** §3.5's `McpError` codes. A call failure is one of these, and it is data: nothing throws past the boundary without one. */
-export type McpErrorCode = 'unreachable' | 'pin_mismatch' | 'schema' | 'timeout' | 'server_error' | 'not_found' | 'input_required';
+export type McpErrorCode = 'unreachable' | 'pin_mismatch' | 'schema' | 'timeout' | 'cancelled' | 'server_error' | 'not_found' | 'input_required';
 
 export interface McpError {
   readonly code: McpErrorCode;
@@ -46,6 +46,22 @@ export function timeoutText(timeoutMs: number): string {
   return `external call timed out after ${formatSeconds(timeoutMs)} s — no partial results exist`;
 }
 
+/**
+ * A call that ran to its wall-clock cap while the server was still reporting progress. The cap is named, and so is why progress did not
+ * extend it. The idle limit's text above is for a server that went quiet.
+ */
+export function totalTimeoutText(totalMs: number): string {
+  return `external call stopped after ${formatSeconds(totalMs)} s, the longest any call may run even while the server reports progress — no partial results exist`;
+}
+
+/**
+ * A call that was cancelled before the server answered: the writer pressed Stop, or a run limit ended the turn. The server was told to stop, and
+ * it may already have done part of the work: Caotang cannot know, and cannot undo what a server did.
+ */
+export function cancelledText(): string {
+  return 'external call cancelled before the server answered — the server may already have done part of the work';
+}
+
 function formatSeconds(ms: number): string {
   return String(Math.round(ms) / 1000);
 }
@@ -53,6 +69,19 @@ function formatSeconds(ms: number): string {
 /** The schema refusal's sentence: every violation, each at its path. */
 export function schemaText(failures: readonly SchemaFailure[]): string {
   return `arguments do not match the tool's input schema: ${failures.map(describeFailure).join('; ')}`;
+}
+
+/**
+ * The sentence for a result that does not match the output schema its tool declared: every violation, each at its path. The tool ran, so
+ * the sentence says its effect is in place, as the cap refusal does.
+ */
+export function outputSchemaText(serverName: string, toolName: string, failures: readonly SchemaFailure[]): string {
+  return `server '${serverName}' answered '${toolName}' with structured content that does not match the output schema it declared: ${failures.map((failure) => `${failure.path === '' ? 'the structured content' : failure.path} ${failure.message}`).join('; ')}. The tool ran on the server, so any effect it had is already in place; Caotang does not pass on an answer it cannot trust to have the shape the server promised.`;
+}
+
+/** The sentence for an output schema the checker cannot read, or a declared one the answer did not carry. The tool ran, as above. */
+export function outputUncheckedText(serverName: string, toolName: string, why: string): string {
+  return `server '${serverName}' answered '${toolName}', and ${why}. The tool ran on the server, so any effect it had is already in place; Caotang does not pass on an answer it cannot check.`;
 }
 
 /** The sentence for a schema the checker cannot read. The call is refused, and the reason is the keyword. */
@@ -121,6 +150,13 @@ export function toCommandError(error: McpError, serverName: string, toolName: st
         message: error.message,
         target: toolName,
         correctiveHint: 'drop this step or report it to the user; Caotang does not retry an external call',
+      };
+    case 'cancelled':
+      return {
+        code: 'io-error',
+        message: error.message,
+        target: toolName,
+        correctiveHint: 'the call was cancelled; do not retry it unless the user asks, and check whether the server already did part of the work',
       };
     case 'server_error':
       return {

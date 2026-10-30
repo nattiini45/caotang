@@ -613,7 +613,11 @@ describe('§10 — a scripted 20-command sequence leaves the state the script sa
     expect(view.scroll).toEqual({ [LANDING]: 480 });
     // And the project state carries none of it: §2's ephemeral clause, asserted
     // from the side that would break if an apply had written it into the manifest.
-    expect(canonical(h.state)).not.toContain('480');
+    // The scroll offset is looked for as a JSON number, not as three digits, which a
+    // generated id or a timestamp can hold by chance.
+    const stored = canonical(h.state);
+    expect(stored).not.toMatch(/[:,[]480[,\]}]/);
+    expect(stored).not.toMatch(/"(scroll|selection|activeDocId)"/);
   });
 
   it('satisfies the project-format schema, which is the one assertion that reads the spec', () => {
@@ -810,6 +814,22 @@ describe('§10 — the permission matrix, over the registry that implements the 
       case 'skill.setEnabled':
         state.skills.set('close-third', [{ path: 'SKILL.md', bytes: new Uint8Array([45, 45, 45]) }]);
         return name === 'skill.delete' ? { name: 'close-third' } : { name: 'close-third', enabled: false };
+      // A memory note is the writer's to forget (hard-denied for an agent, like project.deleteNode).
+      // The macro commands are the writer's own, as the skill commands are.
+      case 'macro.save':
+        return { macro: { slug: 'tidy-notes', name: 'Tidy notes', description: '', params: { kind: 'object', description: 'p', properties: {}, required: [] }, steps: [{ tool: 'notes.append', params: { text: 'x' }, expect: 'Adds a note.' }] } };
+      case 'macro.delete':
+        state.manifest.macros = [{ id: 'm_GATE000001', slug: 'tidy-notes', name: 'Tidy notes', description: '', params: { kind: 'object', description: 'p', properties: {}, required: [] }, steps: [{ tool: 'notes.append', params: { text: 'x' }, expect: 'Adds a note.' }] }];
+        return { macroId: 'm_GATE000001' };
+      // The hook commands are the writer's own, as the macro commands are.
+      case 'hook.save':
+        return { hook: { name: 'No suddenly', event: 'tool.before', handler: { kind: 'check', check: { kind: 'pattern', patterns: [{ match: 'suddenly', message: 'Show it.' }] } }, enabled: true } };
+      case 'hook.delete':
+        state.manifest.agent = { hooks: [{ id: 'h_GATE000001', name: 'No suddenly', event: 'tool.before', handler: { kind: 'check', check: { kind: 'pattern', patterns: [{ match: 'suddenly', message: 'Show it.' }] } }, enabled: true }] };
+        return { hookId: 'h_GATE000001' };
+      case 'memory.forget':
+        state.agentFiles = { memory: [{ slug: 'style-dialogue', type: 'style', title: 'Dialogue tags', body: 'Use said.', modified: '', origin: 'writer' }], declined: new Map(), unreadable: [] };
+        return { slug: 'style-dialogue' };
       default:
         throw new Error(`no user params for the never-class name ${name}`);
     }
@@ -821,7 +841,12 @@ describe('§10 — the permission matrix, over the registry that implements the 
     expect(NEVER).toEqual([
       'editor.insert',
       'editor.replaceRange',
+      'hook.delete',
+      'hook.save',
+      'macro.delete',
+      'macro.save',
       'mcp.readResource',
+      'memory.forget',
       'project.deleteNode',
       'skill.delete',
       'skill.import',
@@ -869,7 +894,7 @@ describe('§10 — the permission matrix, over the registry that implements the 
       // destructive, the requirement of a dialog.
       expect(result.ok, `${name} must be allowed for a user`).toBe(true);
       if (!result.ok) continue;
-      expect(result.value.grant.requiresUserConfirm).toBe(name === 'project.deleteNode');
+      expect(result.value.grant.requiresUserConfirm).toBe(name === 'project.deleteNode' || name === 'memory.forget');
     }
   });
 });

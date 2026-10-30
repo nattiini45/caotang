@@ -21,6 +21,12 @@ export const EMOJI_COMMON_FONT_FILE = 'NotoEmoji-Regular-common.woff';
 /** The emoji font's name, as the compile log names it. */
 export const EMOJI_FONT_NAME = 'Noto Emoji';
 
+/** The colour emoji file's name in `@caotang/font-noto-color-emoji` (vendor/noto-color-emoji): the vector pictures both PDFs draw as Type 3 glyphs. */
+export const COLOUR_EMOJI_FILE = 'NotoColorEmoji.bin';
+
+/** The colour emoji's name, as the compile log names it. */
+export const COLOUR_EMOJI_NAME = 'Noto Color Emoji';
+
 /** The Arabic font's file name in `@caotang/font-noto-arabic` (vendor/noto-sans-arabic). */
 export const ARABIC_FONT_FILE = 'NotoSansArabic-Regular.ttf';
 

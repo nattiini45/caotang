@@ -1,0 +1,296 @@
+[
+  {
+    "id": "planner.system.json",
+    "sha256": "d59f01c707bcddc309869832a437162e84ddc7065571f92e4ff7ec8d54e645ad"
+  },
+  {
+    "id": "planner.system.native",
+    "sha256": "c18f63b7e78b11ccd914d0b65750d3248a94c4d6b3aa70bb485bae89a77db290"
+  },
+  {
+    "id": "planner.more-tools-line",
+    "sha256": "386043697bf20578213420c283e647e32b1f9fb2274867e06e8b2ff577b973e2"
+  },
+  {
+    "id": "context.untrusted-rule",
+    "sha256": "865263173ccb8e0120411680d6463a5b1272408940c7864a4f040fe2e310f34e"
+  },
+  {
+    "id": "planner.tools.native.all",
+    "sha256": "0336496aba102fdc332786756245f569cd09fc10be1225a7095b8380584d0428"
+  },
+  {
+    "id": "draft.scene.prose",
+    "sha256": "60466a61a95b607ad55bf96a7a08390e651230cc76f24fc9d3c21433e3d1f5e3"
+  },
+  {
+    "id": "draft.scene.prose.target",
+    "sha256": "0710fcc7299b2e48ad14439f0e545c8a3279767162384d03a25021a1a7203996"
+  },
+  {
+    "id": "draft.scene.screenplay.draft",
+    "sha256": "6ede40d60e069b84af1b4a2912312686dd8e80eae76f79b7e61549fdccf27f68"
+  },
+  {
+    "id": "draft.scene.screenplay.continue",
+    "sha256": "267cb6ce6dd69e96d8d44baee7c74123d108aaac1ad07655cf38728afff0d240"
+  },
+  {
+    "id": "draft.scene.screenplay.rewrite_selection",
+    "sha256": "2a3f2da73a08a471374693fa4d1b72b9c9d130746d6179a414bed259ee03a714"
+  },
+  {
+    "id": "draft.dialogue",
+    "sha256": "e759a3a2dc6ff75aeaba212155c3b152bed711fb1d0e544ae59fa3c51766e50c"
+  },
+  {
+    "id": "draft.synopsis",
+    "sha256": "775b886ccc82d5b47f4f605236ec62d986e20ebafb940d80caa2f0681c2cbc79"
+  },
+  {
+    "id": "draft.continuity.all-aspects",
+    "sha256": "0528243621a9b494f5ea7f27b40ee59e316b62718d580c9948d351d5b354cc75"
+  },
+  {
+    "id": "draft.continuity.timeline",
+    "sha256": "c9022d8454d507b03f8906518854bc4f246f97b01e6dda401e1e9823eac097a2"
+  },
+  {
+    "id": "draft.derive.key-shots",
+    "sha256": "02e84fc5ae038fede4d2b80c7a806b329015926bd50b0a8e44e93f07459e4875"
+  },
+  {
+    "id": "draft.derive.full-coverage",
+    "sha256": "ecc17740558670295800748e18f8ebd19d81b037d20c866854a5a41dc195315c"
+  },
+  {
+    "id": "draft.derive.schema",
+    "sha256": "49544d9e6ae04981cbbb8920e48b28246f3c40c8857cdef241dcd84ed53fc554"
+  },
+  {
+    "id": "review.extraction.system",
+    "sha256": "881152ddbdc194decc2a4c92b8c6afcda4151099b168884761a6510cd609cafc"
+  },
+  {
+    "id": "review.extraction.schema",
+    "sha256": "e2077b48c360a9d9b7ad366e56771f9858b706a2f400c9bcda08aaa4c08aa054"
+  },
+  {
+    "id": "review.verification.system",
+    "sha256": "b18ddd5cc983df9f0424af865b6f5bd4aba00be2456e896728de770cdc71ce84"
+  },
+  {
+    "id": "review.verification.schema",
+    "sha256": "84f3a6506b359d226f57b0b5c8b656784ce4b3616590cfdf33d589dd35236532"
+  },
+  {
+    "id": "subagent.reader",
+    "sha256": "32b747b1b506b680e774682c7b825e58fd4887e209fd8705f9f830fcc6f8e1d7",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "subagent.general",
+    "sha256": "af4a2c3fa2be31c63458b6d8ae6851c3f627656f977a56118536cab3ebf8d6d0",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.project.overview",
+    "sha256": "e8e08f93fe802b99cd7b7afcae954d284d8314214c8aed5bea6277e1edacfd4d",
+    "descriptionVersion": 2
+  },
+  {
+    "id": "tool.binder.read_tree",
+    "sha256": "694b9e82e9645fa667b516a78f29fb8313a0fd79e4861f936b1ff79976533a6d",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.doc.read",
+    "sha256": "944d672236c260d8785a16bfbac586285f36adbfb37d84ac781ee13100bee133",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.notes.read",
+    "sha256": "f95b2e59c769770c473b177ce625d0fa05db96cd208d066139728f51ed7d3c59",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.meta.set",
+    "sha256": "e8f62ec74ed345e9f59a38362b9753c4ff99fcd021b98e9e34e2d513e69f8294",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.notes.append",
+    "sha256": "b8d303a69944459989949a13e12d9b56a2c52d224ef8ba8ef99175eab0d5f7d3",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.synopsis.fill",
+    "sha256": "d09d5af8c2c810cbb239af804d21c0a26a47aa71e87bba408fbab343d8e554b7",
+    "descriptionVersion": 3
+  },
+  {
+    "id": "tool.scene.draft",
+    "sha256": "0e8a38082a810c75b4f3a464010ae587ee00b4f37464d45a1ea7572d5ee946d0",
+    "descriptionVersion": 2
+  },
+  {
+    "id": "tool.binder.restructure",
+    "sha256": "23406ee55a09ae2c454d473ba9e9f9d46f54e3fae238bdbcd58fd72d354b6766",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.continuity.scan",
+    "sha256": "907f1a4127b373ed0feb8bd6ed1d8ae07ab3a2c4f30dff95a8dc08dd6461fd76",
+    "descriptionVersion": 3
+  },
+  {
+    "id": "tool.export.compile",
+    "sha256": "5fae165e42f9176a2681257551d56e5bdd57aa36ae3782078067b967619a9135",
+    "descriptionVersion": 3
+  },
+  {
+    "id": "tool.codex.read",
+    "sha256": "c966a0f51ea841989b10226bd7b9b7b4371c3ba4634eda0899632157c7dbaf9c",
+    "descriptionVersion": 2
+  },
+  {
+    "id": "tool.codex.write",
+    "sha256": "1b7274b467ef713322987f0bfbec59ab99f26d2fe7dce895982139006fdf7572",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.agent.plan",
+    "sha256": "1fc6a42ddb2a5209260138ad17018f57ef6bb71a81d7827360556dd4ed019c7e",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.doc.import",
+    "sha256": "b90d57ec1a7f7699d128ebd43be2aa347b23c5a8ecd6c93986c9b078acf85795",
+    "descriptionVersion": 3
+  },
+  {
+    "id": "tool.codex.import",
+    "sha256": "3364432e54c3c5fbd4c07b3dfd6e8e80bccedf9fc6c88ed1bb9884f6bca74b2b",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.coherence.scan",
+    "sha256": "c6c7342745fe0a0357f6e2242d90a70ebc451a176330c2c63b2375858bd874a4",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.coherence.review",
+    "sha256": "15a33f8964480ef3aa148d5431b64a50556e69e49f2009a82081caefd4ae1f0e",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.coherence.setFindingStatus",
+    "sha256": "1c61e0177f02ec74418a625dd2188c698b37fee677c66b25118288d45a07706a",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.tool.search",
+    "sha256": "a3d983f36456c7b3a43c8629e90631602d710b1f72e246c62ab80e0ed6c69b60",
+    "descriptionVersion": 2
+  },
+  {
+    "id": "tool.shots.derive",
+    "sha256": "2105339bb545ba485cc0fa3c1abd3f0e3968342e0d310441141dcf44d424363f",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.shots.annotate",
+    "sha256": "aca8b9797dd36b0be38333dc464bb59b0044b357333e1cbb8ee3673bf1efcc91",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.prompt.draft",
+    "sha256": "7ea5535a5ff8f7c74e8a4d9db9e9fceba44d9cc8aa596fd6f22ee6b2eca1c78b",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.prompt.variant",
+    "sha256": "cde487aea77a248807125e4251717cf3cd6e832fe5b93dc168f70d4ca92ee96e",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.dialogue.draft",
+    "sha256": "1ae90b6c9fb91d308f6b4eef93baaac74e378b83aa6ca2fe50166ca91b1945d3",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.dialogue.table",
+    "sha256": "bd1884eb5374bdc660560b8fe47ab7c622a03eaf14444f850f9c6e5dea90ac61",
+    "descriptionVersion": 2
+  },
+  {
+    "id": "tool.skill.load",
+    "sha256": "6e82e108cb6e5de0b3c58bd6cd9158a5d0e94f730379e94478835ed43638a5fc",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.memory.read",
+    "sha256": "c17101a8b3ae5f9e50553965f324ee1170b85cdf260f7f8bc5a9ea5c740cd132",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.agent.delegate",
+    "sha256": "dd2da6d0ca51fded9eb0bd4a15c74c05a1deebef713b04e4eb9ad1641bf2900c",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.scene.brief",
+    "sha256": "ca5d96119465f15de756f23f9dcfd4548e3a5a822d4dafb8e3ecb8297de54641",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.scene.apply",
+    "sha256": "b1429315dbf2c7b0aa7dbcdc0d04e6fa62c531b49d2d7884dfe4a9f3723ba4ca",
+    "descriptionVersion": 2
+  },
+  {
+    "id": "tool.dialogue.brief",
+    "sha256": "73a9cab6abdfced893b47ca7caa2814b64fccb9559091e774b642d4588cc33b6",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.dialogue.apply",
+    "sha256": "3be4cd36e6e574460b99112a76d1d30273eae685ea967808fded55ebe3723779",
+    "descriptionVersion": 2
+  },
+  {
+    "id": "tool.notes.replace",
+    "sha256": "1b6b6221603684ce51ad9cb6fa302961b962c0cb0c395d121c2d079d07ffe10c",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.synopsis.set",
+    "sha256": "794469b62ac32a38b2bdf51dc4c92322ccfb00fc9a23ca8e9d5b28c5e0f42201",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.vocabulary.upsert",
+    "sha256": "f6af5ab1e8fc254e2f4f1c5bcb1046474d35fefc625310297767c51f9e36d100",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.filter.save",
+    "sha256": "6f8cecaeaaee5ae5fb75c60e4ff6fd3740d8a124e7ea48afa6453b60c73958d9",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.goal.save",
+    "sha256": "3bfe25196d96bc46df28ef718b8055efcc79c92e76ff1478bf92d5f31090ceb8",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.memory.write",
+    "sha256": "cbf1fd9634a580ee3036863d6872bb45435463ab05fb6ca83c65b4ab431b5a3f",
+    "descriptionVersion": 1
+  },
+  {
+    "id": "tool.instructions.propose",
+    "sha256": "6584d8f54ab84691ae3fc78a8990c9d6b80e23fde8c6409de544dc8be0377fad",
+    "descriptionVersion": 1
+  }
+]

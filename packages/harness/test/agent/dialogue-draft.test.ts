@@ -8,8 +8,8 @@ import { describe, expect, it } from 'vitest';
 
 import { addDocument, getBody, getRevision, type ProjectState } from '@caotang/store';
 
-import { createAgentPorts, createAgentSession, createContextPort, createHarness, type AgentEvent, type Decision, type PendingCard } from '../../src/index.js';
-import { OPENED, clock, makeState } from '../fixtures.js';
+import { createAgentPorts, createAgentSession, createContextPort, type AgentEvent, type Decision, type PendingCard } from '../../src/index.js';
+import { checkedHarness, clock, makeState, OPENED } from '../fixtures.js';
 import { mockGateway } from './gateway.js';
 import { prose, steps, transcript } from './scripts.js';
 
@@ -31,7 +31,7 @@ async function draftTurn(state: ProjectState, ink: string, decision: Decision) {
     transcript(INTENT, [steps({ tool: 'dialogue.draft', params: { doc: CONTAINER, instruction: 'A thank-you.' }, expect: 'the reply is drafted' })]),
     prose('Brief: A thank-you.', ink),
   ]);
-  const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now });
+  const harness = checkedHarness({ state, ports: createAgentPorts(), clock: clock.now });
   const pending: PendingCard[] = [];
   const events: AgentEvent[] = [];
   const session = createAgentSession({
@@ -76,7 +76,7 @@ describe('dialogue.draft through the agent (dialogue-narrative.md §7)', () => {
 
   it('refuses a container name the project does not hold, in the dialogue module’s words, and writes nothing', () => {
     const state = withContainer();
-    const harness = createHarness({ state, ports: createAgentPorts(), clock: clock.now });
+    const harness = checkedHarness({ state, ports: createAgentPorts(), clock: clock.now });
     // The call is approved and Ink is staged, so it reaches the port's container check rather than the permission gate or the
     // nothing-staged refusal, which would also refuse it.
     const outcome = harness.call(
@@ -90,9 +90,9 @@ describe('dialogue.draft through the agent (dialogue-narrative.md §7)', () => {
   });
 
   it('is not wired in a bare harness, and is wired where the app builds its harness with the agent ports (session.ts)', () => {
-    const bare = createHarness({ state: makeState(), clock: clock.now });
+    const bare = checkedHarness({ state: makeState(), clock: clock.now });
     expect(bare.tools().find((tool) => tool.name === 'dialogue.draft')?.wired).toBe(false);
-    const app = createHarness({ state: makeState(), ports: createAgentPorts(), clock: clock.now });
+    const app = checkedHarness({ state: makeState(), ports: createAgentPorts(), clock: clock.now });
     expect(app.tools().find((tool) => tool.name === 'dialogue.draft')?.wired).toBe(true);
   });
 });

@@ -23,6 +23,7 @@ import {
   buildPreview,
   tokensForChars,
   toChatMessages,
+  UNTRUSTED_RULE,
   type AgentTask,
   type AppSnapshot,
   type AssembledPrompt,
@@ -46,6 +47,8 @@ export interface ContextRequest {
   readonly turns?: readonly RecentTurn[];
   /** The activity rows of those turns, which give L6 its outcome lines. */
   readonly activity?: readonly ActivityEntry[];
+  /** The id of the call's untrusted envelopes: the turn's (`nonceFor`). Absent, the fixed one (context `untrusted.ts`). */
+  readonly nonce?: string;
 }
 
 /** One model call, assembled: what it sends, and what the card shows of it. */
@@ -71,6 +74,11 @@ export interface ContextPortOptions {
    * function is read at each call, as the state is, so the limits follow the active model as it changes.
    */
   readonly config?: ContextConfig | (() => ContextConfig);
+  /**
+   * The binder nodes a read-deny keeps out of a call's prompt, by the tool the call is for (agent-harness §4, "Rules"). Read at each
+   * call. Absent, nothing is withheld.
+   */
+  readonly withheld?: (tool: string) => ReadonlySet<string>;
 }
 
 /**
@@ -79,8 +87,11 @@ export interface ContextPortOptions {
  * its system message first, so the rest of the messages are the user message.
  */
 export function withRole(prompt: AssembledPrompt, role: string): AssembledPrompt {
-  const messages: ChatMessage[] = [{ role: 'system', content: role }, ...prompt.messages.slice(1)];
-  const roleTokens = tokensForChars(role.length);
+  // A call whose user message carries an envelope (layer LI) is told what the markers mean, whatever its role text is (system prompt v2).
+  const enveloped = prompt.layers.some((layer) => layer.id === 'LI' && layer.included);
+  const sent = enveloped && !role.includes(UNTRUSTED_RULE) ? `${role}\n\n${UNTRUSTED_RULE}` : role;
+  const messages: ChatMessage[] = [{ role: 'system', content: sent }, ...prompt.messages.slice(1)];
+  const roleTokens = tokensForChars(sent.length);
   const layers = prompt.layers.map((layer) => (layer.id === 'L0' ? { ...layer, tokens: roleTokens } : layer));
   const promptTokens = tokensForChars(messages.reduce((sum, message) => sum + message.content.length, 0));
   return {
@@ -113,10 +124,13 @@ export function createContextPort(options: ContextPortOptions): ContextPort {
   const configOf: () => ContextConfig = typeof given === 'function' ? given : () => given ?? {};
   return {
     assemble(request: ContextRequest): AssembledCall {
+      const withheld = options.withheld?.(request.task.tool);
       const app: AppSnapshot = {
         state: request.state ?? stateOf(),
+        ...(withheld === undefined || withheld.size === 0 ? {} : { withheld }),
         ...(request.turns === undefined ? {} : { turns: request.turns }),
         ...(request.activity === undefined ? {} : { activity: request.activity }),
+        ...(request.nonce === undefined ? {} : { nonce: request.nonce }),
       };
       const prompt = withRole(assemble(request.task, app, configOf()), request.role);
       return { prompt, messages: toChatMessages(prompt), preview: buildPreview(prompt) };

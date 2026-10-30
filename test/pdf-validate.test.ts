@@ -107,6 +107,17 @@ describe('fonts', () => {
       { name: 'NotoSansMonoCJKsc-Regular', embedded: true, toUnicode: true },
     ]);
   });
+
+  it('names a Type 3 font Type3, as the file’s own reading does, and does not take its embedding from the table', () => {
+    const table = [
+      'name                                 type              encoding         emb sub uni object ID',
+      '------------------------------------ ----------------- ---------------- --- --- --- ---------',
+      '[none]                               Type 3            Custom           yes no  yes     12  0',
+      '',
+    ].join('\n');
+    expect(parsePdffonts(table)).toEqual([{ name: 'Type3', embedded: true, toUnicode: true, type3: true }]);
+    expect(compareFonts([{ name: 'Type3', embedded: true, toUnicode: true }], [{ name: 'Type3', embedded: false, toUnicode: true, type3: true }])).toEqual([]);
+  });
 });
 
 describe('withoutNoText', () => {
@@ -165,7 +176,7 @@ describe('the pdf-validate job in ci.yml', () => {
       mutool: 'mupdf-tools',
     };
     expect([...EXTERNAL_TOOLS].sort()).toEqual(Object.keys(packages).sort());
-    const install = job.split('\n').find((line) => line.includes('apt-get install')) ?? '';
+    const install = job.split('\n').find((line) => line.includes('bash tools/ci/apt-install.sh')) ?? '';
     for (const tool of EXTERNAL_TOOLS) expect(install, tool).toContain(packages[tool]);
   });
 

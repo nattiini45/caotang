@@ -9,16 +9,18 @@ There is **no backend server, no account, no telemetry**. The app is static file
 | Part | Stack |
 |---|---|
 | Workspace | pnpm monorepo (`pnpm@12.9.1` pinned in the root `packageManager` field), `corepack enable` |
-| Node | `^22.12.0 \|\| ^24.0.0 \|\| >=26.0.0` — **CI tests Node 24 only** |
+| Node | `^22.12.0 \|\| ^24.0.0 \|\| >=26.0.0` — **CI tests Node 22.12.0 and 24; Node 26 is allowed but not covered** |
 | Language | TypeScript `^6.0.3` (strict) |
 | App | React `19.3`, Vite `8.3.2` (rolldown/oxc, not esbuild) |
 | Unit tests | Vitest `5.0.3` (node environment) |
-| E2E | Playwright `1.63` (Chromium on every pull request; Firefox and WebKit nightly) |
-| Lint | ESLint `10` + typescript-eslint |
+| E2E | Playwright `1.63` (Chromium, Firefox and WebKit on pull requests; Firefox and WebKit nightly) |
+| Lint | ESLint `9` + typescript-eslint |
 
 Workspace globs (`pnpm-workspace.yaml`): `apps/*`, `packages/*`, `vendor/*`.
 
 ## Setup
+
+With Node 22.12.0, first run `npm install --global corepack@0.34.3`; the bundled Corepack 0.29.4 cannot verify pnpm 12.9.1's current signing key.
 
 ```sh
 corepack enable          # uses the pnpm version pinned in package.json
@@ -78,14 +80,16 @@ packages/mcp-server/     Caotang as an MCP server (@caotang/mcp-server)
 packages/pdf-fonts/      what both PDFs share for their fallback fonts (byte checks, fontkit, CID writer, emoji)
 packages/remote-store/   ArtifactFs over an encrypted remote blob store for the hosted instance (specified, not built; nothing imports it)
 packages/screenplay/     Fountain screenplay model
-packages/scan/           the deterministic continuity scan as a library, for a writer's own CI (@caotang/scan); no command yet
+packages/scan/           the deterministic continuity scan as a library, for a writer's own CI (@caotang/scan); the `caotang scan` command is in packages/cli
 packages/sdk/            run the agent from Node against a project folder (@caotang/sdk); owns the Node folder session the MCP server shares
 packages/skills/         Agent Skills folders: the SKILL.md reader, the caps, the review pin, the model's catalog
 packages/store/          the project store and the manifest
 packages/storyboard/     shot cards and animatics
+packages/tasks/          recurring agent tasks: tasks.json, when a task is due, what a task may do (pure; the run and the history are the app's)
 packages/video-prompt-pack/
 vendor/noto-sans-cjk/    @caotang/font-noto-cjk
 vendor/noto-emoji/       @caotang/font-noto-emoji
+vendor/noto-color-emoji/ @caotang/font-noto-color-emoji (the colour emoji, compiled offline to PDF operators)
 vendor/noto-sans-arabic/ @caotang/font-noto-arabic
 vendor/noto-sans-hebrew/ @caotang/font-noto-hebrew
 site/                    the marketing landing page (GitHub Pages root)
@@ -115,7 +119,7 @@ These are the project's own rules (see `CONTRIBUTING.md` and `docs/decisions.md`
 
 **Do**
 
-- Run `pnpm verify`, `pnpm build` and `pnpm test:e2e` before opening a PR. CI runs exactly these on Node 24, and also packs the MCP server bundle.
+- Run `pnpm verify`, `pnpm build` and `pnpm test:e2e` before opening a PR. CI runs `pnpm verify`, the production build, bundle-size check, MCP pack and CLI build on Node 22.12.0 and 24; Chromium E2E runs on Node 24 in parallel, and a separate workflow gates PRs in Firefox and WebKit.
 - Use `pnpm` — the workspace uses `workspace:*` dependencies, which npm and yarn do not resolve the same way.
 - Regenerate `THIRD-PARTY-NOTICES.md` when you add or upgrade a dependency.
 - Add a line to `docs/decisions.md` when you change a standing rule, and update the matching spec.

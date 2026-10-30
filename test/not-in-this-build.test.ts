@@ -58,7 +58,12 @@ const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp
   // A limitation sentence about skills names what it is about (scripts, the other files, allowed tools, sharing, running by name), before or
   // after the word. Any other sentence in these lists that names skills says the feature is missing, and it is built.
   { name: 'skills', pattern: /(?:^|[.!?]\s+|\n)(?:(?!scripts?|other files|allowed tools|shared across|by name)[^.\n])*?\bskills?\b(?![^.\n]*(?:scripts?|other files|allowed tools|shared across|by name))/i },
+  { name: 'resuming an agent run after a reload', pattern: /agent (?:runs?|turns?) (?:does|do|can)(?: not|n't) (?:survive|resume)|(?:cannot|can't|not) resum(?:e|ing) an agent (?:run|turn)/i },
+  { name: 'A4 pages and a font choice for the screenplay PDF', pattern: /US Letter only|(?:Letter|US Letter) pages only|no A4 (?:page|paper)|no choice of (?:a )?font|a choice of font/i },
+  // The CJK sentence of the limits: "Text in Noto Sans Mono CJK has no bold", "Chinese, Japanese and Korean text has no bold". Another script's missing bold does not match.
+  { name: 'bold CJK on the contact sheet', pattern: /(?:Chinese, Japanese and Korean|Noto (?:Sans )?(?:Mono )?CJK)[^.\n]*\bno bold/i },
   { name: 'the storyboard contact sheet PDF', pattern: /storyboard PDF|PDF (?:exports? |output )?(?:of|for) (?:a )?storyboards?|PDF of a storyboard/i },
+  { name: 'the agent trace', pattern: /agent traces? (?:view|export)/i },
 ];
 
 describe('the built-feature patterns flag a stale claim and nothing else', () => {
@@ -124,6 +129,20 @@ describe('the not-in-this-build lists name only what is missing', () => {
     expect(sectionUnder(media, '## What is not wired')).not.toMatch(/visual references/i);
     // The panel sets them and the pack names them; the wired-behaviour list says so.
     expect(media).toMatch(/The codex panel's \*Visual references\* section sets them/);
+  });
+});
+
+describe('the bold CJK pattern', () => {
+  const pattern = BUILT_FEATURES.find((feature) => feature.name === 'bold CJK on the contact sheet')?.pattern ?? /$^/;
+
+  it('flags the old claims that CJK text has no bold', () => {
+    expect('Chinese, Japanese and Korean text has no bold.').toMatch(pattern);
+    expect('Text in Noto Sans Mono CJK has no bold.').toMatch(pattern);
+  });
+
+  it('lets the limit that remains through', () => {
+    expect('Arabic, Hebrew and Devanagari text is not bold in the sheet.').not.toMatch(pattern);
+    expect('Chinese, Japanese and Korean text is bold by thickening its strokes.').not.toMatch(pattern);
   });
 });
 

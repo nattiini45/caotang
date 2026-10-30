@@ -18,25 +18,33 @@
  *
  * The runner builds everything from the scenario and nothing else: a fresh project, a fresh harness
  * with the agent ports, a fresh session. Two runs of one scenario see the same bytes, so an eval is
- * a regression test and not a sample. This module has no runtime dependency on the gateway: the
- * caller builds the gateway, and the runner only reads it.
+ * a regression test and not a sample. The caller builds the gateway and the runner only reads it; the one thing it
+ * takes from the gateway at run time is the manual clock a traced run uses.
+ *
+ * A run can also write a trace (`runScenario(scenario, { trace })`, agent-harness §5.2): the same `caotang.trace/1` records
+ * the app keeps, from a clock that moves one millisecond per record, so two runs of one scenario write the same bytes.
  */
 
 import type { CoherenceModel, ModelReply, ModelRequest } from '@caotang/coherence';
-import type { ChatRequest, Gateway } from '@caotang/gateway';
-import type { ProjectState } from '@caotang/store';
+import { createManualClock, type ChatRequest, type Clock, type Gateway, type GatewayTraceEvent } from '@caotang/gateway';
+import { agentFileTexts, type ProjectState } from '@caotang/store';
 
 import { metadataFor, type ToolName } from '../metadata.js';
 import { createHarness } from '../runtime.js';
+import { withResultChecks } from '../testing.js';
 import type { SkillsOption } from '../tools/skills.js';
 import type { AskBackCode } from '../plan.js';
 import { canonicalJson } from '../util.js';
+import { producedOutputs, runChecks, type Check, type CheckVerdict } from './checks.js';
 import { createAgentSession, type AgentSession, type AgentSessionOptions } from './loop.js';
 import { createAgentPorts } from './ports.js';
 import { createContextPort, type ContextPortOptions } from './context.js';
+import { docResolverFor } from '../commands/resolver.js';
+import { resolveSlash } from '../commands/slash.js';
 import { emptyTaskList, reduceTaskList, type TaskState } from './progress.js';
 import { createProjectCommandRegistry } from '@caotang/store';
 
+import { traceGateway, type TraceSink } from './trace.js';
 import type { AgentEvent, CardRecord, Decision, PendingCard, TraceEntry, TurnPhase, TurnReport, TurnStatus } from './events.js';
 
 export type ScenarioCategory =
@@ -110,6 +118,8 @@ export type WriterAction = { readonly at: WriterMoment; readonly do: 'stop' } | 
 
 export interface Expectation {
   readonly status: TurnStatus;
+  /** The slash command the report names (`TurnReport.command`); `null` means it names none. Absent, the report is not read for one. */
+  readonly command?: string | null;
   /** The turn was stopped by the writer, in this phase. Absent, the report is not read for a stop. */
   readonly stop?: { readonly during: TurnPhase };
   /** The notes the report carries, in order, with the model call each reached (absent: undelivered). */
@@ -148,6 +158,12 @@ export interface Expectation {
   readonly state?: (state: ProjectState, report: TurnReport) => readonly string[];
 }
 
+/** What a traced run lends the scenario's gateway: the observer that writes its calls to the trace, and the clock the whole run reads. */
+export interface GatewayHooks {
+  readonly observe: (event: GatewayTraceEvent) => void;
+  readonly clock: Clock;
+}
+
 /** A decision the scenario makes on a card, or a function that makes it from the card it is shown. */
 export type ScenarioDecision = Decision | ((pending: PendingCard) => Decision);
 
@@ -156,8 +172,11 @@ export interface Scenario {
   readonly category: ScenarioCategory;
   readonly intent: string;
   readonly project: () => ProjectState;
-  /** Builds the gateway for this scenario. The mock scripts it answers with are the scenario's model. */
-  readonly gateway: (state: ProjectState) => Promise<Gateway>;
+  /**
+   * Builds the gateway for this scenario. The mock scripts it answers with are the scenario's model. A traced run hands it the
+   * observer and the clock to give `createGateway`; a builder that ignores them still traces the turn, without its model calls.
+   */
+  readonly gateway: (state: ProjectState, hooks?: GatewayHooks) => Promise<Gateway>;
   readonly contextOptions?: Partial<Omit<ContextPortOptions, 'state'>>;
   /** Used in order, one per card. A card with no decision left is approved. */
   readonly decisions?: readonly ScenarioDecision[];
@@ -171,6 +190,12 @@ export interface Scenario {
    * Off by default: a wired review adds its schema to every planner call, which other scenarios' token ceilings do not count.
    */
   readonly coherence?: boolean;
+  /**
+   * A line typed in the composer, run in place of `intent` the way the app runs it: `resolveSlash` reads it, and the plan it builds goes to
+   * `submitPlan`, or the request it names to `submit`. A line that resolves to anything else is a scenario error. `intent` then only names
+   * the scenario's request for the reader.
+   */
+  readonly slash?: string;
   /** Deferred rows loaded before the planner's first request, as `submit(intent, { preload })` does. */
   readonly preload?: readonly ToolName[];
   /**
@@ -180,6 +205,10 @@ export interface Scenario {
   readonly skills?: SkillsOption;
   /** What the writer does during the turn, at fixed moments: the turn's signal is aborted, or a note is sent to it. */
   readonly writer?: readonly WriterAction[];
+  /** Run-context checks (agent-harness §9), read over the finished turn beside the expectation. A failed check is a failure of the run. */
+  readonly checks?: readonly Check[];
+  /** The cassette the scenario's gateway replays (cassette.ts), when it replays one: named in a failure so the reader knows what to re-record. */
+  readonly cassette?: string;
   readonly expect: Expectation;
 }
 
@@ -212,6 +241,8 @@ export interface ScenarioRun {
   readonly state: ProjectState;
   /** The project's bytes before the turn, for the undo-replay check. */
   readonly before: string;
+  /** What the scenario's run-context checks found, read over the project as the turn left it (before any restore). Present only when the scenario has checks. */
+  readonly verdicts?: readonly CheckVerdict[];
   /** Present when the scenario asked for a restore: whether it ran, and the project's bytes after it. */
   readonly restored?: { readonly ok: boolean; readonly message: string; readonly after: string };
 }
@@ -234,21 +265,39 @@ function recording(base: Gateway, into: ChatRequest[]): Gateway {
 
 /**
  * The bytes of everything an undo has to restore: the manifest, every body, and the decline record. Two projects with
- * the same bytes are the same project to the bus (command-bus §10). A document's revision is left out: it is runtime
+ * the same bytes are the same project to the bus (command-bus §10). The agent's files are in it (CAOTANG.md and the memory notes), so a
+ * restore that leaves a note behind is a failure. A document's revision is left out: it is runtime
  * bookkeeping that is never serialized, and an undo is a write that raises it.
  */
 export function projectBytes(state: ProjectState): string {
   const documents = [...state.documents.entries()]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([id, record]) => [id, { id: record.id, body: record.body }] as const);
-  return canonicalJson({ manifest: state.manifest, documents, declinedCodexFiles: [...state.declinedCodexFiles].sort() });
+  return canonicalJson({ manifest: state.manifest, documents, declinedCodexFiles: [...state.declinedCodexFiles].sort(), agentFiles: agentFileTexts(state.agentFiles) });
+}
+
+/** The run-context checks over a finished turn. `initial` is a second build of the scenario's project, which no turn has touched. */
+function verdictsOf(list: readonly Check[], initial: ProjectState, state: ProjectState, report: TurnReport, requests: readonly ChatRequest[]): readonly CheckVerdict[] {
+  return runChecks(list, { before: initial, after: state, report, requests, outputs: producedOutputs(initial, state, report) });
 }
 
 /** Runs a scenario once, end to end, and returns what it did. Nothing is asserted here. */
-export async function runScenario(scenario: Scenario): Promise<ScenarioRun> {
+export async function runScenario(scenario: Scenario, options: { readonly trace?: TraceSink } = {}): Promise<ScenarioRun> {
   const state = scenario.project();
   const requests: ChatRequest[] = [];
-  const gateway = recording(await scenario.gateway(state), requests);
+  // A traced run reads one clock everywhere, and it moves a millisecond per record, so a trace is a function of the scenario.
+  const clock = options.trace === undefined ? undefined : createManualClock(0);
+  const sink: TraceSink | undefined =
+    options.trace === undefined || clock === undefined
+      ? undefined
+      : {
+          write: (record) => {
+            options.trace?.write(record);
+            clock.advance(1);
+          },
+        };
+  const hooks: GatewayHooks | undefined = sink === undefined || clock === undefined ? undefined : { observe: traceGateway(sink), clock };
+  const gateway = recording(await scenario.gateway(state, hooks), requests);
   const writer = scenario.writer ?? [];
   const stop = new AbortController();
   const held: { session?: AgentSession; turnId?: string } = {};
@@ -283,13 +332,14 @@ export async function runScenario(scenario: Scenario): Promise<ScenarioRun> {
         ) as typeof base;
       })()
     : undefined;
-  const harness = createHarness({
+  // Every result a scenario's tools return is checked against its row's declared schema, so a scenario fails where a tool broke its contract.
+  const harness = withResultChecks(createHarness({
     state,
     ports: createAgentPorts(),
     ...(registry === undefined ? {} : { registry }),
     ...(scenario.coherence === true ? { coherence: { model: () => reviewModelOf(gateway) } } : {}),
     ...(scenario.skills === undefined ? {} : { skills: scenario.skills }),
-  });
+  }));
   const before = projectBytes(state);
 
   const events: AgentEvent[] = [];
@@ -318,23 +368,38 @@ export async function runScenario(scenario: Scenario): Promise<ScenarioRun> {
     },
     // A fixed session name, so two runs of one scenario name the same turns and see the same bytes.
     sessionId: 'eval',
+    ...(sink === undefined || clock === undefined ? {} : { trace: sink, clock: () => clock.now() }),
     ...(scenario.maxRetries === undefined ? {} : { maxRetries: scenario.maxRetries }),
     ...(scenario.modelCallBound === undefined ? {} : { maxModelCalls: scenario.modelCallBound }),
     ...(scenario.modeOptions ?? {}),
   });
   held.session = session;
-  const report = await session.submit(scenario.intent, {
-    ...(scenario.preload === undefined ? {} : { preload: scenario.preload }),
-    ...(writer.length === 0 ? {} : { signal: stop.signal }),
-  });
-  if (scenario.expect.restores !== true) return { report, events, requests, pending, state, before };
+  const signal = writer.length === 0 ? {} : { signal: stop.signal };
+  const resolved =
+    scenario.slash === undefined
+      ? undefined
+      : resolveSlash(scenario.slash, { resolve: docResolverFor(state, harness.withheldAnywhere()), recipes: (state.manifest.recipes ?? []).map((recipe) => ({ name: recipe.name, format: recipe.format })) });
+  if (resolved !== undefined && resolved.kind !== 'plan' && resolved.kind !== 'intent') throw new Error(`scenario "${scenario.name}": ${scenario.slash} is not a request or a plan (${resolved.kind})`);
+  const report =
+    resolved?.kind === 'plan'
+      ? await session.submitPlan(resolved.intent, resolved.plan, { command: resolved.command, ...signal })
+      : await session.submit(resolved?.intent ?? scenario.intent, {
+          ...(scenario.preload === undefined ? {} : { preload: scenario.preload }),
+          ...(resolved?.command === undefined ? {} : { command: resolved.command }),
+          ...(resolved?.forcePlan === true ? { forcePlan: true } : {}),
+          ...signal,
+        });
+  // The checks read the project the turn left, so they run before a restore puts the old one back.
+  const verdicts = scenario.checks === undefined ? undefined : verdictsOf(scenario.checks, scenario.project(), state, report, requests);
+  const kept = verdicts === undefined ? {} : { verdicts };
+  if (scenario.expect.restores !== true) return { report, events, requests, pending, state, before, ...kept };
   const outcome = session.restore(report.turnId);
   const restored = {
     ok: outcome.ok,
     message: outcome.ok ? '' : outcome.error.message,
     after: projectBytes(state),
   };
-  return { report, events, requests, pending, state, before, restored };
+  return { report, events, requests, pending, state, before, restored, ...kept };
 }
 
 /** A card item matches when its kind, decision and tools agree. Tools are compared as a multiset when unordered. */
@@ -491,6 +556,9 @@ export function checkRun(scenario: Scenario, run: ScenarioRun): string[] {
     const found = report.askBack?.candidates?.length ?? 0;
     if (found !== expect.candidates) failures.push(`ask-back: expected ${expect.candidates} candidates, got ${found}`);
   }
+  if (expect.command !== undefined && (report.command ?? null) !== expect.command) {
+    failures.push(`command: expected ${JSON.stringify(expect.command)}, got ${JSON.stringify(report.command ?? null)}`);
+  }
   if (expect.revisionDrift !== undefined && report.askBack?.revisionDrift !== expect.revisionDrift) {
     failures.push(`ask-back: expected revision drift ${expect.revisionDrift}, got ${report.askBack?.revisionDrift ?? 'none'}`);
   }
@@ -524,6 +592,7 @@ export function checkRun(scenario: Scenario, run: ScenarioRun): string[] {
   }
   failures.push(...reachedFailures(scenario, run));
   if (expect.state !== undefined) failures.push(...expect.state(run.state, report));
+  for (const result of run.verdicts ?? []) if (!result.pass) failures.push(`check ${result.id}: ${result.detail}`);
   return failures;
 }
 

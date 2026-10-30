@@ -36,7 +36,7 @@ describe('the message layout (§2)', () => {
   it('puts L0 alone in the system message, and L1 to L7 in one user message in fixed order', () => {
     const messages = assemble(CONTINUE, buildApp()).messages;
     expect(messages.map((m) => m.role)).toEqual(['system', 'user']);
-    expect(messages[0]?.content.startsWith('Caotang writing agent, system prompt v1.')).toBe(true);
+    expect(messages[0]?.content.startsWith('Caotang writing agent, system prompt v2.')).toBe(true);
 
     const text = messages[1]?.content ?? '';
     const headings = ['# Project', '# Codex', '# Structure', '# Story so far', '# Focus', '# Recent turns', '# Task'];
@@ -115,7 +115,7 @@ describe('L1, the project summary (§2)', () => {
     expect(text).toContain('Binder (depth one):');
     expect(text).toContain('- Manuscript (folder): 2 items, 5 documents');
     expect(text).toContain('- Research (folder): 1 item, 1 document');
-    expect(assembled.layers[1]?.notes).toEqual(['The binder is shown at depth one. binder.read_tree shows any part in full.']);
+    expect(assembled.layers[2]?.notes).toEqual(['The binder is shown at depth one. binder.read_tree shows any part in full.']);
   });
 
   it('says the session is unavailable when the app did not supply it', () => {
@@ -155,7 +155,7 @@ describe('L4, the story so far (§2 and §4)', () => {
 
   it('withholds later scenes by default, and records how many', () => {
     const assembled = assemble(CONTINUE, buildApp());
-    const story = assembled.layers[4];
+    const story = assembled.layers[5];
     expect(story?.dropped).toEqual([
       '2 later documents: forward outline withheld (includeForwardOutline is off)',
     ]);
@@ -170,7 +170,7 @@ describe('L4, the story so far (§2 and §4)', () => {
     expect(story).toContain('## Chapter 5 (document)');
     expect(story.indexOf('Chapter 2')).toBeLessThan(story.indexOf('Chapter 4'));
     const assembled = assemble({ ...CONTINUE, includeForwardOutline: true }, buildApp());
-    expect(assembled.layers[4]?.kept.map((item) => item.reason)).toEqual([
+    expect(assembled.layers[5]?.kept.map((item) => item.reason)).toEqual([
       'earlier scene',
       'earlier scene',
       'later scene, sent because the call asks for the forward outline',
@@ -180,8 +180,8 @@ describe('L4, the story so far (§2 and §4)', () => {
 
   it('says why nothing precedes the focus when it is the first document', () => {
     const assembled = assemble({ ...CONTINUE, focus: IDS.ch1 }, buildApp());
-    expect(assembled.layers[4]?.included).toBe(true);
-    expect(assembled.layers[4]?.kept).toEqual([]);
+    expect(assembled.layers[5]?.included).toBe(true);
+    expect(assembled.layers[5]?.kept).toEqual([]);
     expect(user({ ...CONTINUE, focus: IDS.ch1 })).toContain('(no earlier scenes)');
   });
 });
@@ -254,7 +254,7 @@ describe('L5, the focus text (§2)', () => {
       },
       buildApp(),
     );
-    expect(assembled.layers[5]?.notes).toEqual([
+    expect(assembled.layers[6]?.notes).toEqual([
       'The selection no longer matches the document, so the text before it is not sent.',
     ]);
     expect(assembled.messages[1]?.content).toContain('Preceding text:\n(none)');
@@ -284,8 +284,8 @@ describe('L5, the focus text (§2)', () => {
     expect(text).toContain(`(full text; ${formatCount(shown)} of ${formatCount(CH3.length)} characters, the rest is over the focus budget)`);
     expect(text).toContain(CH3.slice(0, shown));
     expect(text).not.toContain(CH3.slice(0, shown + 20));
-    expect(assembled.layers[5]?.notes).toEqual([`The document is cut at ${formatCount(shown)} of ${formatCount(CH3.length)} characters.`]);
-    expect(assembled.layers[5]?.tokens).toBeLessThanOrEqual(50);
+    expect(assembled.layers[6]?.notes).toEqual([`The document is cut at ${formatCount(shown)} of ${formatCount(CH3.length)} characters.`]);
+    expect(assembled.layers[6]?.tokens).toBeLessThanOrEqual(50);
   });
 
   it('continuity.scan: every scope document is sent, in scope order, with its extent', () => {
@@ -318,7 +318,7 @@ describe('L6, the recent turns (§2)', () => {
     expect(turns).toContain('  Outcome: wrote 212 words into Chapter 2\n  Undo group: g_t2');
     expect(turns).toContain('  Outcome: trimmed 41 words from Chapter 3; set the status of Chapter 3 to revised');
     expect(turns).toContain('  Undo group: g_t3');
-    expect(assemble(CONTINUE, buildApp()).layers[6]?.notes).toEqual([
+    expect(assemble(CONTINUE, buildApp()).layers[7]?.notes).toEqual([
       "1 earlier turn is not sent; the agent's tools can read them back.",
     ]);
   });
@@ -348,7 +348,7 @@ describe('L6, the recent turns (§2)', () => {
 
   it('is left out of the layers that do not take conversation memory', () => {
     const assembled = assemble({ tool: 'meta', instruction: 'x' }, buildApp());
-    expect(assembled.layers[6]?.included).toBe(false);
+    expect(assembled.layers[7]?.included).toBe(false);
     expect(assembled.messages[1]?.content).not.toContain('# Recent turns');
   });
 });

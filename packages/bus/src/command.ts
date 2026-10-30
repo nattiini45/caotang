@@ -21,7 +21,9 @@ import type {
   DialogueSetMetaParams,
   ScreenplayImportParams,
 } from './descriptors-script.js';
-import type { SceneNumbersOption } from './descriptors-project.js';
+import type { RecipeScriptFont, SceneNumbersOption } from './descriptors-project.js';
+import type { HookDraft } from './hook-rules.js';
+import type { MacroDraft } from './macro-rules.js';
 
 /**
  * §9's closed v0.1 registry, in the order the spec tabulates it.
@@ -136,6 +138,20 @@ export const COMMAND_NAMES = [
   'skill.write',
   'skill.delete',
   'skill.setEnabled',
+  // The agent's files (context-assembly.md §2, layer LI): the writer's CAOTANG.md and the agent's memory notes. `project.setInstructions`
+  // and `memory.write` are write-confirm for an agent, and `memory.forget` is the writer's alone (never, and hard-denied as a deletion).
+  // Their applies are the store's (`commands-agent-files.ts`).
+  'project.setInstructions',
+  'memory.write',
+  'memory.forget',
+  // The writer's macros (extensibility.md §10): plan templates in the manifest's `macros[]`. Both are `agentRisk: 'never'`, so only the writer
+  // saves or deletes one. The applies are the store's (`commands-macros.ts`).
+  'macro.save',
+  'macro.delete',
+  // The writer's hooks (hooks.md): checks the harness runs at a point of the agent's turn, in the manifest's `agent.hooks`. Both are
+  // `agentRisk: 'never'`, so only the writer saves or deletes one. The applies are the store's (`commands-hooks.ts`).
+  'hook.save',
+  'hook.delete',
 ] as const;
 
 export type CommandName = (typeof COMMAND_NAMES)[number];
@@ -211,6 +227,8 @@ export interface ValidationCodexEntry {
   readonly name: string;
   /** The entry's kind (`character`, `location`, …). The scene declarations of who learns and knows a fact take a character. */
   readonly type?: string;
+  /** The entry's other names. `memory.write` refuses a title that is one of them. Absent reads as none. */
+  readonly aliases?: readonly string[];
   /**
    * codex.md §2's citations, held by the entry; an update's new ones are appended to
    * them. Only the count is read here, so only the document id is named.
@@ -277,12 +295,28 @@ export interface ValidationSnapshot {
     readonly project?: { readonly name?: string };
     /** The skills the writer turned off (extensibility.md §10), by name. Additive, so absent means every skill is on. */
     readonly disabledSkills?: readonly string[];
+    /** The writer's macros (extensibility.md §10). Additive, so absent means none. Only the id and slug are read, for the refusals `macro.save` and `macro.delete` make. */
+    readonly macros?: readonly { readonly id: string; readonly slug: string }[];
+    /** The writer's hooks (hooks.md), under the `agent` object that also holds the rules. Additive; only the id is read, for the refusals `hook.save` and `hook.delete` make. */
+    readonly agent?: { readonly hooks?: readonly { readonly id: string }[] };
   };
   readonly documents: ReadonlyMap<string, ValidationDocument>;
   /** The coherence file, when one is open. Additive, like `codex` — absent means no file. */
   readonly coherence?: ValidationCoherence;
   /** The project's skills, by folder name (extensibility.md §10). Additive — absent means none. */
   readonly skills?: ReadonlyMap<string, readonly ValidationSkillFile[]>;
+  /** The agent's files (project-format.md §1): CAOTANG.md and the memory notes. Additive — absent means none. */
+  readonly agentFiles?: ValidationAgentFiles;
+}
+
+/** The agent's files as a validate reads them. */
+export interface ValidationAgentFiles {
+  readonly instructions?: { readonly path: string; readonly text: string };
+  readonly memory: readonly { readonly slug: string; readonly title: string; readonly body: string }[];
+  /** Notes that did not parse, by path. */
+  readonly declined: ReadonlyMap<string, string>;
+  /** Agent files the load could not read as text, by path. */
+  readonly unreadable: readonly string[];
 }
 
 /** One file of a skill as a validate reads it: its path inside the skill folder and how long its bytes are. */
@@ -589,6 +623,13 @@ export interface CommandParams {
   'skill.write': SkillWriteParams;
   'skill.delete': SkillDeleteParams;
   'skill.setEnabled': SkillSetEnabledParams;
+  'project.setInstructions': ProjectSetInstructionsParams;
+  'memory.write': MemoryWriteParams;
+  'memory.forget': MemoryForgetParams;
+  'macro.save': MacroSaveParams;
+  'macro.delete': MacroDeleteParams;
+  'hook.save': HookSaveParams;
+  'hook.delete': HookDeleteParams;
 }
 
 /**
@@ -923,6 +964,40 @@ export type SkillDeleteParams = { name: string };
 /** `skill.setEnabled`: whether the agent may be told about the skill. The skill's files are not touched. */
 export type SkillSetEnabledParams = { name: string; enabled: boolean };
 
+/**
+ * `project.setInstructions` (context-assembly.md §2, layer LI): replace the text of `CAOTANG.md`. An empty text leaves the file empty, which
+ * keeps an `AGENTS.md` beside it unread. `expectedDigest` is the digest of the text the caller read (`textDigest`); the write is refused
+ * when the file is no longer that text.
+ */
+export type ProjectSetInstructionsParams = { text: string; expectedDigest?: string };
+
+/**
+ * `memory.write`: create or update one memory note and its line in `memory/MEMORY.md`. `expectedDigest` is the digest of the note body the
+ * caller read, for an update; a new note carries none. The note's `modified`, `origin` and `sourceTurn` are the apply's, never params.
+ */
+export type MemoryWriteParams = {
+  slug: string;
+  type: 'style' | 'preference' | 'process' | 'reference';
+  title: string;
+  body: string;
+  expectedDigest?: string;
+};
+
+/** `memory.forget`: remove one memory note and its index line. The writer's alone. */
+export type MemoryForgetParams = { slug: string };
+
+/** `macro.save` (extensibility.md §10): create a macro, or replace the one with the same id. The store mints the id of a new one. */
+export type MacroSaveParams = { macro: MacroDraft };
+
+/** `macro.delete`: remove one macro. The project's content is not touched. */
+export type MacroDeleteParams = { macroId: string };
+
+/** `hook.save` (hooks.md): create a hook, or replace the one with the same id. The store mints the id of a new one. */
+export type HookSaveParams = { hook: HookDraft };
+
+/** `hook.delete`: remove one hook. The project's content is not touched. */
+export type HookDeleteParams = { hookId: string };
+
 /** The two vocabularies (project-format.md §2). */
 export type VocabularyKind = 'status' | 'label';
 
@@ -945,10 +1020,14 @@ export type RecipeOptionsParams = {
   sceneNumbers?: SceneNumbersOption;
   /** `(MORE)` and `(CONT'D)` across a page break in the screenplay PDF (screenplay.md §5.3). */
   continued?: boolean;
-  /** The contact sheet's paper (storyboard.md §6). */
+  /** The paper of the screenplay PDF (screenplay.md §5.3) and the contact sheet (storyboard.md §6). Absent: Letter for the first, A4 for the second. */
   pageSize?: RecipePageSize;
+  /** The screenplay PDF's Latin face (screenplay.md §5.3). Absent: courier-prime. */
+  scriptFont?: RecipeScriptFont;
   /** The contact sheet prints blank numbered frames to draw on (storyboard.md §6). */
   paperFrames?: boolean;
+  /** Emoji print in colour in the screenplay PDF and the contact sheet (screenplay.md §5.3, storyboard.md §6). Absent: the format's default. */
+  colourEmoji?: boolean;
 };
 
 /**
@@ -956,9 +1035,9 @@ export type RecipeOptionsParams = {
  * Declared beside the runtime list in `descriptors-project.ts` and re-exported here,
  * where the recipe options (and their consumers) already read the bus's types.
  */
-export type { SceneNumbersOption };
+export type { RecipeScriptFont, SceneNumbersOption };
 
-/** The contact sheet's paper (storyboard.md §6), a recipe option. */
+/** The paper of a PDF (screenplay.md §5.3, storyboard.md §6), a recipe option. */
 export type RecipePageSize = 'A4' | 'Letter';
 
 /** `recipe.save`: a named export configuration. Saving a name that exists replaces it. */

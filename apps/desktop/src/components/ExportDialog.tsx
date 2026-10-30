@@ -11,24 +11,31 @@
  * than one file (a prompt pack, or a story per container) is downloaded as one zip; a single file downloads as itself.
  */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
+  COLOUR_EMOJI_HINT,
+  COLOUR_EMOJI_LABEL,
   DEFAULT_TEMPLATE,
   EXPORT_MIME,
+  colourEmojiDefault,
   recipesOf,
   type ExportCommandDigest,
   type ExportFormat,
   type ExportRecipe,
 } from '@caotang/exporter';
 import { loadZipEngine } from '@caotang/store';
-import { CHAR_LIMIT_MAX, SCENE_NUMBER_OPTIONS, type SceneNumbersOption } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type RecipeScriptFont, type SceneNumbersOption } from '@caotang/bus';
 
 import { downloadBytes } from '../app/download.js';
+import { narrowExportAllowed, narrowExportFormat } from '../app/narrow-model.js';
 import { PACK_TEMPLATES } from '../media/prompt-pack-model.js';
 import { recipeChoicesOf } from '../app/recipe-choices.js';
 import type { ProjectSession } from '../app/session.js';
 import { compileManuscript, compileSelection, explain, saveRecipe } from './actions.js';
-import { formatCount, useReport, type StatusMessage } from './shared.js';
+import { ExportPreviewPanel, type PreviewState } from './ExportPreviewPanel.js';
+import { holdsOf } from './export-preview-model.js';
+import { OpenOnDesktop, useNarrow } from './narrow.js';
+import { formatCount, useReport, useSession, type StatusMessage } from './shared.js';
 
 /** What the dialog compiles when the selection is a single item: its id and its title, for the scope's label. */
 export interface ExportSelection {
@@ -58,7 +65,7 @@ const FORMAT_GROUPS: readonly { readonly name: string; readonly formats: readonl
     formats: [
       { format: 'fountain', label: 'Fountain (.fountain)', help: 'The screenplay as plain Fountain text, for Beat or Highland.' },
       { format: 'fdx', label: 'Final Draft (.fdx)', help: 'The screenplay in Final Draft’s XML.' },
-      { format: 'pdf', label: 'Screenplay PDF (.pdf)', help: 'The screenplay on US Letter pages in Courier Prime, ready to print.' },
+      { format: 'pdf', label: 'Screenplay PDF (.pdf)', help: 'The screenplay on US Letter or A4 pages in Courier Prime, Courier or Cousine, ready to print.' },
       { format: 'ink-json', label: 'Ink story (.ink.json)', help: 'The dialogue compiled for a game engine that reads Ink. One file per story.' },
       { format: 'dialogue-csv', label: 'Dialogue table (.csv)', help: 'Each spoken line with its id, speaker, text and locale, for translation or recording. A Yarn container gets a Yarn strings file.' },
       { format: 'shot-list-csv', label: 'Shot list (.csv)', help: 'Each shot in order, with its size, angle, movement and duration.' },
@@ -97,10 +104,17 @@ interface ShownOptions {
   readonly sceneNumbers: SceneNumbersOption;
   /** `(MORE)` and `(CONT'D)` where the screenplay PDF splits a speech. On unless the recipe turns it off. */
   readonly continued: boolean;
-  /** The contact sheet's paper; `undefined` is A4 (storyboard.md §6). */
+  /** The paper; `undefined` is each format's own: Letter for the screenplay PDF, A4 for the contact sheet (screenplay.md §5.3, storyboard.md §6). */
   readonly pageSize: PageSize | undefined;
+  /** The screenplay PDF's Latin face; `undefined` is Courier Prime (screenplay.md §5.3). */
+  readonly scriptFont: RecipeScriptFont | undefined;
   /** The contact sheet prints blank frames to draw on, not the pictures; off unless the recipe sets it (storyboard.md §6). */
   readonly paperFrames: boolean;
+  /**
+   * Colour emoji, as the recipe holds it: `undefined` is the format's default (off for the screenplay PDF, on for the contact sheet), and an
+   * explicit value always wins (screenplay.md §5.3, storyboard.md §6).
+   */
+  readonly colourEmoji: boolean | undefined;
 }
 
 /** The scene-number choices, in the words the dialog shows. */
@@ -111,15 +125,53 @@ const SCENE_NUMBER_LABELS: Readonly<Record<SceneNumbersOption, string>> = {
   both: 'Both margins',
 };
 
-/** The screenplay PDF's options as recipe options. The defaults (off, on) are left out, so a recipe saved without them stays as it was. */
-function pdfOptionsOf(shown: ShownOptions): { sceneNumbers?: SceneNumbersOption; continued?: boolean } {
+/** The Latin faces, in the words the dialog shows. */
+const SCRIPT_FONT_LABELS: Readonly<Record<RecipeScriptFont, string>> = {
+  'courier-prime': 'Courier Prime',
+  courier: 'Courier (the reader’s own)',
+  cousine: 'Cousine (like Courier New)',
+};
+
+/** The screenplay PDF's options as recipe options. The defaults (off, on, Courier Prime) are left out, so a recipe saved without them stays as it was. */
+function pdfOptionsOf(shown: ShownOptions): { sceneNumbers?: SceneNumbersOption; continued?: boolean; scriptFont?: RecipeScriptFont } {
   return {
     ...(shown.sceneNumbers === 'off' ? {} : { sceneNumbers: shown.sceneNumbers }),
     ...(shown.continued ? {} : { continued: false }),
+    ...(shown.scriptFont === undefined || shown.scriptFont === 'courier-prime' ? {} : { scriptFont: shown.scriptFont }),
   };
 }
 
-/** The papers a contact sheet is drawn on. */
+/**
+ * The Colour emoji checkbox, for the two formats that have it. It shows the recipe's value, or the format's default when the recipe
+ * says nothing, and keeps an explicit value only when it differs from that default, so a recipe saved without it stays as it was (an
+ * explicit "off" is kept for the contact sheet, whose default is on).
+ */
+function ColourEmojiControl({
+  format,
+  shown,
+  onChange,
+}: {
+  format: 'pdf' | 'contact-sheet-pdf';
+  shown: ShownOptions;
+  onChange: (colourEmoji: boolean | undefined) => void;
+}): ReactNode {
+  const fallback = colourEmojiDefault(format);
+  return (
+    <>
+      <label className="export-option">
+        <input
+          type="checkbox"
+          checked={shown.colourEmoji ?? fallback}
+          onChange={(event) => onChange(event.target.checked === fallback ? undefined : event.target.checked)}
+        />
+        <span className="export-option-label">{COLOUR_EMOJI_LABEL}</span>
+      </label>
+      <p className="export-note">{COLOUR_EMOJI_HINT[format]}</p>
+    </>
+  );
+}
+
+/** The papers the PDFs are drawn on. */
 type PageSize = 'A4' | 'Letter';
 
 /**
@@ -138,7 +190,9 @@ function shownOptionsOf(recipe: ExportRecipe | undefined): ShownOptions {
     author: recipe?.options?.author ?? '',
     charLimit: recipe?.options?.charLimit,
     pageSize: recipe?.options?.pageSize,
+    scriptFont: recipe?.options?.scriptFont,
     paperFrames: recipe?.options?.paperFrames ?? false,
+    colourEmoji: recipe?.options?.colourEmoji,
     sceneNumbers: recipe?.options?.sceneNumbers ?? 'off',
     continued: recipe?.options?.continued ?? true,
   };
@@ -158,7 +212,11 @@ export function ExportDialog({
   const recipes = recipeChoicesOf(recipesOf(session.state));
   const [recipeName, setRecipeName] = useState<string | null>(recipes[0]?.name ?? null);
   const recipe = recipes.find((candidate) => candidate.name === recipeName);
-  const [format, setFormat] = useState<ExportFormat>(recipe?.format ?? 'docx');
+  const [chosenFormat, setFormat] = useState<ExportFormat>(recipe?.format ?? 'docx');
+  // A narrow window compiles Markdown and plain text; the rest say "Open on desktop" (ui-modules §1). Derived, so a rotation to a wide
+  // window gives the writer's own choice back.
+  const narrow = useNarrow();
+  const format = narrow ? narrowExportFormat(chosenFormat) : chosenFormat;
   // The vendor template a prompt pack is written for. Empty until chosen, and a compile of the pack without one is refused.
   const [vendor, setVendor] = useState(vendorOf(recipe));
   // The whole manuscript unless the writer chooses a part: a selection is a choice to make, not a default.
@@ -169,6 +227,53 @@ export function ExportDialog({
   // because the status line sits under the dialog and the writer is reading the dialog. A finished compile is said on the status line.
   const [notice, setNotice] = useState<StatusMessage | null>(null);
   const shown = shownOptionsOf(recipe);
+  // What the compile and the Preview both ask for, so the Preview is of the compile that Compile makes. A part compiles with the recipe's
+  // options too. The pack's vendor is sent on the command, never read from the recipe: a recipe's templateId may be a layout template.
+  // With none chosen the recipe is left off too, so the refusal is the bus's one about the vendor and not about the layout id.
+  const partId = scope === 'selection' && selection !== null ? selection.id : null;
+  const pack = format === 'promptpack';
+  const templateId = pack && vendor !== '' ? vendor : undefined;
+  const recipeFor = pack && vendor === '' ? undefined : recipe?.name;
+
+  // The Preview waits for the same readiness a compile does (the Ink compiler, the image listing), so a media format's gates are the compile's.
+  const [ready, setReady] = useState(false);
+  const [readyFailure, setReadyFailure] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    session.exportsReady().then(
+      () => {
+        if (live) setReady(true);
+      },
+      (error: unknown) => {
+        if (live) setReadyFailure(error instanceof Error ? error.message : String(error));
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [session]);
+  // A recipe saved, a format, scope or vendor chosen, or any change to the project, makes another Draft. Making one is a read of the project.
+  const version = useSession(session);
+  const preview = useMemo((): PreviewState => {
+    // The project is the session's, read in place, so the Draft is made again whenever the session has committed something.
+    void version;
+    if (readyFailure !== null) return { kind: 'failed', message: readyFailure };
+    if (!ready) return { kind: 'waiting' };
+    if (pack && vendor === '') return { kind: 'needs-vendor' };
+    try {
+      return {
+        kind: 'ready',
+        preview: session.previewExport({
+          selection: partId === null ? { kind: 'manuscript' } : { kind: 'nodes', includeRootIds: [partId] },
+          format,
+          ...(recipeFor === undefined ? {} : { recipeName: recipeFor }),
+          ...(templateId === undefined ? {} : { templateId }),
+        }),
+      };
+    } catch (error) {
+      return { kind: 'failed', message: error instanceof Error ? error.message : String(error) };
+    }
+  }, [session, ready, readyFailure, version, format, pack, vendor, recipeFor, templateId, partId]);
 
   // The control that opened the dialog takes focus back when it closes, so the keyboard is where it was. It is read on
   // the first render, before any effect runs: an effect that runs twice (React's development double run) would
@@ -199,6 +304,7 @@ export function ExportDialog({
         ...pdfOptionsOf(next),
         ...(next.pageSize === undefined ? {} : { pageSize: next.pageSize }),
         ...(next.paperFrames ? { paperFrames: true } : {}),
+        ...(next.colourEmoji === undefined ? {} : { colourEmoji: next.colourEmoji }),
       },
     });
     if (outcome.ok) setNotice(null);
@@ -230,6 +336,7 @@ export function ExportDialog({
         ...pdfOptionsOf(shown),
         ...(shown.pageSize === undefined ? {} : { pageSize: shown.pageSize }),
         ...(shown.paperFrames ? { paperFrames: true } : {}),
+        ...(shown.colourEmoji === undefined ? {} : { colourEmoji: shown.colourEmoji }),
       },
     });
     if (outcome.ok) {
@@ -250,15 +357,8 @@ export function ExportDialog({
       // failure. Only the entries this compile adds are matched, so a path that wrote successfully now is not reported
       // as failed because an earlier compile of the same name failed.
       const priorFailures = session.exportFailures().length;
-      const useSelection = scope === 'selection' && selection !== null;
-      // The pack's vendor is sent on the command, never read from the recipe: a recipe's templateId may be a layout template.
-      // With none chosen the recipe is left off too, so the refusal is the bus's one about the vendor and not about the layout id.
-      const pack = format === 'promptpack';
-      const templateId = pack && vendor !== '' ? vendor : undefined;
-      const recipeFor = pack && vendor === '' ? undefined : recipe?.name;
-      // A part compiles with the recipe's options too, so the title page, the contents and the author apply to one item.
-      const outcome = useSelection
-        ? compileSelection(session, [selection.id], format, recipeFor, templateId)
+      const outcome = partId !== null
+        ? compileSelection(session, [partId], format, recipeFor, templateId)
         : compileManuscript(session, format, recipeFor, templateId);
       if (!outcome.ok) {
         // A refusal keeps the dialog open, so the reason is said here, next to Compile, and not on the status line under the dialog.
@@ -303,6 +403,11 @@ export function ExportDialog({
 
   // The recipe's options apply to a whole manuscript and to a single item alike, so they are on whenever a recipe is chosen.
   const optionsEnabled = recipe !== undefined;
+  const groups = narrow
+    ? FORMAT_GROUPS.map((group) => ({ ...group, formats: group.formats.filter((option) => narrowExportAllowed(option.format)) })).filter(
+        (group) => group.formats.length > 0,
+      )
+    : FORMAT_GROUPS;
 
   return (
     <dialog
@@ -342,7 +447,7 @@ export function ExportDialog({
           </select>
         </label>
 
-        {FORMAT_GROUPS.map((group) => (
+        {groups.map((group) => (
           <fieldset key={group.name} className="export-group">
             <legend className="field-label">{group.name}</legend>
             {group.formats.map((option) => (
@@ -365,6 +470,7 @@ export function ExportDialog({
             ))}
           </fieldset>
         ))}
+        {narrow ? <OpenOnDesktop feature="exports" /> : null}
 
         {format === 'promptpack' ? (
           <label className="export-field">
@@ -457,6 +563,30 @@ export function ExportDialog({
                   ))}
                 </select>
               </label>
+              <label className="export-field">
+                <span className="export-option-label">Paper size</span>
+                {/* Letter is the screenplay PDF's own paper, so choosing it leaves the option out of the recipe. */}
+                <select
+                  value={shown.pageSize ?? 'Letter'}
+                  onChange={(event) => saveOptions({ ...shown, pageSize: event.target.value === 'A4' ? 'A4' : undefined })}
+                >
+                  <option value="Letter">US Letter</option>
+                  <option value="A4">A4</option>
+                </select>
+              </label>
+              <label className="export-field">
+                <span className="export-option-label">Font</span>
+                <select
+                  value={shown.scriptFont ?? 'courier-prime'}
+                  onChange={(event) => saveOptions({ ...shown, scriptFont: event.target.value as RecipeScriptFont })}
+                >
+                  {RECIPE_SCRIPT_FONTS.map((option) => (
+                    <option key={option} value={option}>
+                      {SCRIPT_FONT_LABELS[option]}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="export-option">
                 <input
                   type="checkbox"
@@ -465,6 +595,7 @@ export function ExportDialog({
                 />
                 <span className="export-option-label">(MORE) and (CONT’D) where a speech crosses a page</span>
               </label>
+              <ColourEmojiControl format="pdf" shown={shown} onChange={(colourEmoji) => saveOptions({ ...shown, colourEmoji })} />
             </>
           ) : null}
           {format === 'contact-sheet-pdf' ? (
@@ -487,6 +618,7 @@ export function ExportDialog({
                 />
                 <span className="export-option-label">Paper frames: blank numbered frames to draw in, without the pictures</span>
               </label>
+              <ColourEmojiControl format="contact-sheet-pdf" shown={shown} onChange={(colourEmoji) => saveOptions({ ...shown, colourEmoji })} />
             </>
           ) : null}
         </fieldset>
@@ -510,6 +642,8 @@ export function ExportDialog({
         <p className="export-note">
           Empty documents are left out and listed in the compile log. Undo removes the file again.
         </p>
+
+        <ExportPreviewPanel state={preview} />
 
         <div className="export-footer">
           {notice === null ? null : (
@@ -616,40 +750,6 @@ async function zipFiles(files: readonly { readonly name: string; readonly bytes:
   const entries: Record<string, Uint8Array> = {};
   for (const file of files) entries[file.name] = file.bytes;
   return zipSync(entries, { level: 6 });
-}
-
-/**
- * What a compile's file holds, in the words of its format (media-track.md). A script counts its scenes and sections, a
- * table its lines and containers, a shot list or a prompt pack its shots, and an Ink story its containers. A prose format
- * counts chapters, scenes and words, as it always has. The counts are the compile's own, so the sentence says what was written.
- */
-function holdsOf(digest: ExportCommandDigest): string {
-  switch (digest.format) {
-    case 'fountain':
-    case 'fdx':
-    case 'pdf':
-      return `${countPhrase(digest.sceneCount, 'scene')} in ${countPhrase(digest.chapterCount, 'section')}, ${countPhrase(digest.wordCount, 'word')}`;
-    case 'ink-json':
-      return countPhrase(digest.sceneCount, 'container');
-    case 'dialogue-csv':
-    case 'dialogue-xlsx':
-      return `${countPhrase(digest.blockCount, 'line')} in ${countPhrase(digest.sceneCount, 'container')}, ${countPhrase(digest.wordCount, 'word')}`;
-    case 'shot-list-csv':
-    case 'shot-list-xlsx':
-    case 'promptpack':
-    case 'contact-sheet-pdf':
-      return countPhrase(digest.blockCount, 'shot');
-    case 'coherence-md':
-    case 'coherence-json':
-      return 'the coherence report';
-    default:
-      return `${countPhrase(digest.chapterCount, 'chapter')}, ${countPhrase(digest.sceneCount, 'scene')}, ${countPhrase(digest.wordCount, 'word')}`;
-  }
-}
-
-/** A count and its noun, in the singular or the plural: "1 scene", "3 scenes", "1,204 words". */
-function countPhrase(count: number, noun: string): string {
-  return `${formatCount(count)} ${count === 1 ? noun : `${noun}s`}`;
 }
 
 /** What the status line says about a finished compile: what it holds, what was skipped, and where it went. */

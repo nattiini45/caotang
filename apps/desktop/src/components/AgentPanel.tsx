@@ -8,7 +8,7 @@
  * Ctrl+Enter sends it to the running turn as a note, and Stop (or Escape, with the box empty) stops the turn.
  */
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import {
   CHECKPOINT_LABEL,
   MODE_LABELS,
@@ -25,25 +25,39 @@ import {
 import type { ProjectState } from '@caotang/store';
 
 import { DEMO_CHOICES } from '../app/demo.js';
-import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, MODE_HINTS, phaseLabel, spendLine, type DelegationCardView, type TurnView } from '../app/agent-model.js';
+import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, MODE_HINTS, phaseLabel, progressViewOf, savesAsMacro, spendLine, stepMenuOf, type DelegationCardView, type TurnView } from '../app/agent-model.js';
 import { formatUsd, turnCostOf } from '../app/plan-preview.js';
 import { resolveKey, shortcutLabel } from '../app/keymap.js';
 import { providerLabel } from '../app/provider-label.js';
+import { UNRESOLVED_NOTICE } from '../app/review-text.js';
 import type { AgentController, AgentSnapshot } from '../app/agent.js';
+import type { CommandNote } from '../app/slash-model.js';
+import type { RecurringTasks } from '../app/recurring-tasks.js';
 import type { StartIntent } from '../App.js';
 import type { ProjectSession } from '../app/session.js';
 import { useAssetRecords } from '../media/hooks.js';
 import { ConfirmDialog, EmptyState, useReport, useSession } from './shared.js';
 import { AgentQueue, type HeldNote } from './AgentQueue.js';
+import { CommandComposer } from './CommandComposer.js';
 import { openDialog } from './dialog-requests.js';
 import { PlanCard, planHeading } from './PlanCard.js';
+import { SaveAsMacro } from './SaveAsMacro.js';
 import { PlanOfferCard } from './PlanOfferCard.js';
 import { BackgroundTasks } from './BackgroundTasks.js';
+import { RecurringTasksPanel } from './RecurringTasks.js';
+import { TaskOffers } from './TaskOffers.js';
+import { InterruptedRuns } from './InterruptedRuns.js';
 import { TaskChecklist } from './TaskChecklist.js';
+import { TurnMenu } from './TurnMenu.js';
+
+/** Fetched when a turn has suggestions pending, which only an editor in review mode makes. */
+const TurnReview = lazy(() => import('./TurnReview.js').then((module) => ({ default: module.TurnReview })));
 
 export interface AgentPanelProps {
   readonly session: ProjectSession;
   readonly agent: AgentController;
+  /** The project's recurring tasks (agent-harness.md §12). */
+  readonly recurring: RecurringTasks;
   readonly startIntent: StartIntent | null;
   readonly open: boolean;
   readonly onToggle: () => void;
@@ -51,14 +65,23 @@ export interface AgentPanelProps {
   readonly sample: boolean;
 }
 
-/** A restore the writer is asked to confirm: the turn, what it did, and the later changes the restore would also take back. */
+/**
+ * A restore the writer is asked to confirm: the turn, what it did, and the later changes the restore would also take back.
+ * `both` also rewinds the conversation once the project is back. `note` is the scope note of a turn that called an external tool.
+ */
 interface PendingRestore {
   readonly turnId: string;
   readonly summary: string;
   readonly later: readonly string[];
+  readonly both: boolean;
+  readonly note?: string;
+  /** The step (status-card id) the restore begins at; absent for the whole turn. */
+  readonly stepId?: string;
+  /** The planner proved this restore can leave the later changes standing: the dialog then offers to keep them. */
+  readonly exact?: boolean;
 }
 
-export function AgentPanel({ session, agent, startIntent, open, onToggle, sample }: AgentPanelProps): ReactNode {
+export function AgentPanel({ session, agent, recurring, startIntent, open, onToggle, sample }: AgentPanelProps): ReactNode {
   useSession(session);
   const snapshot = useSyncExternalStore(agent.subscribe, agent.snapshot);
   const report = useReport();
@@ -69,6 +92,8 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
   const waitingSkills = session.skills().waiting;
   const [intent, setIntent] = useState('');
   const [restoring, setRestoring] = useState<PendingRestore | null>(null);
+  // The instruction of a turn the writer rewound, offered when the Intent box already holds a draft: that draft is never replaced unasked.
+  const [oldInstruction, setOldInstruction] = useState<string | null>(null);
   // A note the writer wrote while a card waits, until they choose what happens to it and the card.
   const [held, setHeld] = useState<HeldNote | null>(null);
   const handled = useRef(0);
@@ -90,14 +115,21 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
   const cardKey = snapshot.pending === null ? null : `${snapshot.pending.turnId}:${snapshot.pending.card.id}:${snapshot.pending.card.revision}`;
   const heldNow = held !== null && held.cardKey === cardKey ? held : null;
 
-  // Enter: send when no turn runs, queue as the next turn when one does.
+  // Enter: send when no turn runs, queue as the next turn when one does. A line that starts with a slash is read as a command first
+  // (agent-harness §2): it may start a turn of its own, answer under the box, or ask to restore. A line the command could not use stays in
+  // the box for the writer to correct.
+  const send = (line: string): void => {
+    const text = line.trim();
+    if (text === '') return;
+    const outcome = agent.sendLine(text);
+    if (outcome.kind === 'kept') return;
+    setIntent('');
+    setOldInstruction(null);
+    if (outcome.kind === 'restore') openRestore(restoreOf(agent, outcome.turnId, outcome.summary, false));
+  };
   const submit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
-    const text = intent.trim();
-    if (text === '') return;
-    setIntent('');
-    if (snapshot.busy) agent.enqueue(text);
-    else void agent.submit(text);
+    send(intent);
   };
 
   // Ctrl+Enter: send the text to the running turn as a note. While a card waits, the writer chooses what happens to the card first.
@@ -138,13 +170,79 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
     }
   };
 
+  // The old instruction goes back into the Intent box when the box is empty, and is offered as a button when it is not.
+  const refill = (text: string): void => {
+    if (text === '') return;
+    if (intent.trim() === '') {
+      setIntent(text);
+      setOldInstruction(null);
+      intentRef.current?.focus();
+    } else setOldInstruction(text);
+  };
+
+  const rewind = (turnId: string): void => {
+    const result = agent.rewindConversation(turnId);
+    if (result === null) {
+      // The menu is enabled from the last render; a turn may have started, or the turn may already be rewound, since.
+      report({
+        text: agent.snapshot().busy ? 'The conversation could not be rewound: a turn is running.' : 'The conversation could not be rewound: that turn is no longer available to rewind.',
+        tone: 'error',
+      });
+      return;
+    }
+    report({ text: 'Rewound the conversation to before that turn. The project was not changed.', tone: 'info' });
+    refill(result.intent);
+  };
+
+  // The dialog opens at once with the full restore; the planner is asked after pending typing is saved, and the dialog gains "keep your
+  // later edits" only when it proves the later changes are elsewhere. A newer dialog is never changed by an older answer.
+  const openRestore = (next: PendingRestore): void => {
+    setRestoring(next);
+    if (next.both || next.later.length === 0) return;
+    void agent.restorePlan(next.turnId, next.stepId).then((plan) => {
+      // Saving the typing may have added a change to the list the dialog shows, so the list is read again with the answer.
+      setRestoring((now) =>
+        now !== null && now.turnId === next.turnId && now.stepId === next.stepId && !now.both
+          ? { ...now, later: agent.laterChanges(now.turnId), exact: plan?.kind === 'exact' }
+          : now,
+      );
+    });
+  };
+
+  const confirmOnly = (): void => {
+    if (restoring === null) return;
+    const { turnId, stepId } = restoring;
+    setRestoring(null);
+    void agent.restoreOnly(turnId, stepId).then((outcome) => {
+      if (!outcome.ok) report({ text: outcome.message, tone: 'error' });
+      else report({ text: onlyLine(stepId !== undefined, outcome.kept), tone: 'info' });
+    });
+  };
+
   const confirmRestore = (): void => {
     if (restoring === null) return;
-    const target = restoring.turnId;
+    const { turnId, both, stepId } = restoring;
     setRestoring(null);
-    void agent.restore(target).then((outcome) => {
-      if (!outcome.ok) report({ text: outcome.message, tone: 'error' });
-      else report({ text: restoredLine(outcome.later), tone: 'info' });
+    if (stepId !== undefined) {
+      void agent.restoreStep(turnId, stepId).then((outcome) => {
+        if (!outcome.ok) report({ text: outcome.message, tone: 'error' });
+        else report({ text: restoredStepLine(outcome.later), tone: 'info' });
+      });
+      return;
+    }
+    if (!both) {
+      void agent.restore(turnId).then((outcome) => {
+        if (!outcome.ok) report({ text: outcome.message, tone: 'error' });
+        else report({ text: restoredLine(outcome.later), tone: 'info' });
+      });
+      return;
+    }
+    void agent.restoreBoth(turnId).then((outcome) => {
+      if (!outcome.ok) report({ text: outcome.projectRestored ? outcome.message : `${outcome.message} The conversation was not rewound.`, tone: 'error' });
+      else {
+        report({ text: `${restoredLine(outcome.later)} The conversation was rewound too.`, tone: 'info' });
+        refill(outcome.intent);
+      }
     });
   };
 
@@ -204,25 +302,27 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
         </p>
       </header>
 
+      {/* An unfinished run is shown with the drawer closed too: it is the first thing the writer has to decide after a reload. */}
+      <InterruptedRuns agent={agent} runs={snapshot.interrupted} busy={snapshot.busy} onResume={() => (open ? undefined : onToggle())} />
+
+      {/* A task that is due waits for the writer's answer, so its offer is shown with the drawer closed too. */}
+      <TaskOffers recurring={recurring} />
+
       {open ? (
         <div id="agent-body" className="agent-body">
           <form className="agent-intent" onSubmit={submit}>
-            <label>
-              <span className="visually-hidden">Intent</span>
-              <input
-                ref={intentRef}
-                type="text"
-                aria-label="Intent"
-                placeholder={
-                  snapshot.busy
-                    ? `${shortcutLabel('agent-send')} queues it for the next turn, ${shortcutLabel('agent-steer')} sends it to this one`
-                    : 'Ask the agent to draft, fill, or check something'
-                }
-                value={intent}
-                disabled={snapshot.providerName === null}
-                onChange={(event) => setIntent(event.target.value)}
-              />
-            </label>
+            <CommandComposer
+              inputRef={intentRef}
+              value={intent}
+              onChange={setIntent}
+              onRun={send}
+              disabled={snapshot.providerName === null}
+              placeholder={
+                snapshot.busy
+                  ? `${shortcutLabel('agent-send')} queues it for the next turn, ${shortcutLabel('agent-steer')} sends it to this one`
+                  : 'Ask the agent to draft, fill, or check something, or type / for commands'
+              }
+            />
             <button type="submit" className="button is-primary" disabled={intent.trim() === '' || snapshot.providerName === null}>
               {snapshot.busy ? 'Queue' : 'Send'}
             </button>
@@ -232,6 +332,28 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
               </button>
             ) : null}
           </form>
+
+          {oldInstruction !== null ? (
+            <p className="agent-old-instruction" data-testid="agent-old-instruction">
+              <span className="muted">The Intent box holds your draft. The rewound instruction was:</span> <q>{oldInstruction}</q>{' '}
+              <button
+                type="button"
+                className="button is-quiet"
+                onClick={() => {
+                  setIntent(oldInstruction);
+                  setOldInstruction(null);
+                  intentRef.current?.focus();
+                }}
+              >
+                Use the old instruction
+              </button>
+              <button type="button" className="button is-quiet" onClick={() => setOldInstruction(null)}>
+                Dismiss
+              </button>
+            </p>
+          ) : null}
+
+          {snapshot.command !== null ? <CommandNoteView note={snapshot.command} onDismiss={() => agent.dismissCommandNote()} /> : null}
 
           {/* Skills the writer has not read and approved are not offered to the agent (extensibility.md §10). The panel says how many wait. */}
           {waitingSkills > 0 ? (
@@ -246,6 +368,8 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
           <AgentQueue agent={agent} snapshot={snapshot} held={heldNow} cardKey={cardKey} onHold={setHeld} onRelease={() => setHeld(null)} />
 
           <BackgroundTasks agent={agent} tasks={agent.taskViews()} />
+
+          <RecurringTasksPanel recurring={recurring} />
 
           {snapshot.offer !== null ? <PlanOfferCard agent={agent} view={snapshot.offer} /> : null}
 
@@ -266,19 +390,43 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
             </EmptyState>
           ) : (
             <ol className="agent-turns" aria-label="Turns">
-              {snapshot.turns.map((turn) => (
-                <TurnBlock
-                  key={turn.turnId}
-                  turn={turn}
-                  snapshot={snapshot}
-                  project={session.state}
-                  pictureNames={pictureNames}
-                  stands={turn.checkpoint !== null && session.undo.group(turn.checkpoint.undoGroupId) !== undefined}
-                  onDecide={(decision) => agent.answer(decision)}
-                  onRestore={(turnId, summary) => setRestoring({ turnId, summary, later: agent.laterChanges(turnId) })}
-                  onRunHeld={(turnId) => void agent.runHeldPlan(turnId)}
-                />
-              ))}
+              {runsOf(snapshot.turns).map((run) => {
+                const blocks = run.turns.map((turn) => (
+                  <TurnBlock
+                    key={turn.turnId}
+                    turn={turn}
+                    snapshot={snapshot}
+                    project={session.state}
+                    session={session}
+                    pictureNames={pictureNames}
+                    stands={turn.checkpoint !== null && session.undo.group(turn.checkpoint.undoGroupId) !== undefined}
+                    canRewind={agent.canRewind(turn.turnId)}
+                    onDecide={(decision) => agent.answer(decision)}
+                    restorable={agent.restorableSteps(turn.turnId)}
+                    onRestore={(turnId, summary, both) => openRestore(restoreOf(agent, turnId, summary, both))}
+                    onRestoreStep={(turnId, summary, stepId) => openRestore(restoreOf(agent, turnId, summary, false, stepId))}
+                    onRewind={rewind}
+                    onRunHeld={(turnId) => void agent.runHeldPlan(turnId)}
+                    onResolveReview={(turnId, mode) => {
+                      // The card offers this only while it shows a pending count, so nothing settled means the marks are still there.
+                      if (agent.resolveReview(turnId, mode) === 0) report({ text: UNRESOLVED_NOTICE, tone: 'info' });
+                    }}
+                  />
+                ));
+                return run.rewound ? (
+                  // Rewound turns are kept, not deleted: the writer can read them and take their project changes back.
+                  <li key={run.turns[0]!.turnId} className="agent-rewound">
+                    <details data-testid="agent-rewound">
+                      <summary>Rewound - not sent to the model ({run.turns.length === 1 ? '1 turn' : `${run.turns.length} turns`})</summary>
+                      <ol className="agent-turns" aria-label="Rewound turns">
+                        {blocks}
+                      </ol>
+                    </details>
+                  </li>
+                ) : (
+                  blocks
+                );
+              })}
             </ol>
           )}
         </div>
@@ -286,18 +434,44 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
 
       <ConfirmDialog
         open={restoring !== null}
-        title="Restore to before this turn?"
-        confirmLabel="Restore"
+        title={
+          restoring?.stepId !== undefined
+            ? 'Restore to before this step?'
+            : restoring?.both === true
+              ? 'Restore the project and rewind the conversation?'
+              : 'Restore to before this turn?'
+        }
+        confirmLabel={restoring?.both === true ? 'Restore both' : 'Restore'}
+        alternate={
+          restoring?.exact === true && restoring.later.length > 0
+            ? { label: restoring.stepId !== undefined ? 'Restore only this step (keep your later edits)' : 'Restore only this turn (keep your later edits)', onSelect: confirmOnly }
+            : undefined
+        }
         onCancel={() => setRestoring(null)}
         onConfirm={confirmRestore}
       >
-        <p>
-          This restores the project to its state before this turn{restoring?.summary ? `: ${restoring.summary}` : ''}. Your edits since then
-          are included in the restore.
-        </p>
+        {restoring?.stepId !== undefined ? (
+          <p>
+            This restores the project to its state before this step of the turn{restoring.summary ? `: ${restoring.summary}` : ''}. The
+            steps after it, and your edits since then, are included in the restore. The steps before it stay.
+          </p>
+        ) : (
+          <p>
+            This restores the project to its state before this turn{restoring?.summary ? `: ${restoring.summary}` : ''}. Your edits since then
+            are included in the restore.
+            {restoring?.both === true ? ' The agent then forgets this turn and the ones after it.' : ''}
+          </p>
+        )}
+        {restoring?.note === undefined ? null : <p className="muted">{restoring.note}</p>}
+        {restoring?.exact === true && restoring.later.length > 0 ? (
+          <p data-testid="restore-exact">
+            Your later changes are in other parts of the project, so this can be taken back on its own and they stay. Restore takes them back
+            too.
+          </p>
+        ) : null}
         {restoring !== null && restoring.later.length > 0 ? (
           <>
-            <p>It also takes back these later changes, oldest first:</p>
+            <p>{restoring.exact === true ? 'Restore would also take back these later changes, oldest first:' : 'It also takes back these later changes, oldest first:'}</p>
             <ul aria-label="Later changes">
               {restoring.later.map((line, index) => (
                 <li key={`${index}:${line}`}>{line}</li>
@@ -310,46 +484,150 @@ export function AgentPanel({ session, agent, startIntent, open, onToggle, sample
   );
 }
 
+/** What the last slash command said: help, a missing or ambiguous argument, the context, or why a line was kept. It is the panel's, not a turn's. */
+function CommandNoteView({ note, onDismiss }: { note: CommandNote; onDismiss: () => void }): ReactNode {
+  return (
+    <section className={`agent-command-note is-${note.kind}`} role="status" aria-label="Command result" data-testid="agent-command-note">
+      <p className="agent-command-title">{note.title}</p>
+      {note.lines.length === 0 ? null : (
+        <ul>
+          {note.lines.map((line, index) => (
+            <li key={`${index}:${line}`}>{line}</li>
+          ))}
+        </ul>
+      )}
+      <button type="button" className="button is-quiet" onClick={onDismiss}>
+        Dismiss
+      </button>
+    </section>
+  );
+}
+
+/** The restore dialog's state for a turn: the later changes it would also take back are read now, from the undo stack. */
+function restoreOf(agent: AgentController, turnId: string, summary: string, both: boolean, stepId?: string): PendingRestore {
+  const note = agent.snapshot().turns.find((turn) => turn.turnId === turnId)?.checkpoint?.note;
+  return { turnId, summary, later: agent.laterChanges(turnId), both, ...(note === undefined ? {} : { note }), ...(stepId === undefined ? {} : { stepId }) };
+}
+
+/**
+ * The turns in panel order, as runs: consecutive rewound turns share one collapsed block, and the others stand alone. The order is
+ * the order the turns happened in, so a turn the writer sent after a rewind comes after the rewound block.
+ */
+function runsOf(turns: readonly TurnView[]): readonly { readonly rewound: boolean; readonly turns: readonly TurnView[] }[] {
+  const runs: { rewound: boolean; turns: TurnView[] }[] = [];
+  for (const turn of turns) {
+    const last = runs[runs.length - 1];
+    if (turn.rewound && last?.rewound === true) last.turns.push(turn);
+    else runs.push({ rewound: turn.rewound, turns: [turn] });
+  }
+  return runs;
+}
+
+/** What a restore that kept the later edits says. */
+function onlyLine(step: boolean, kept: number): string {
+  const what = step ? 'that step' : 'that turn';
+  return `Restored to before ${what}. Your ${kept} later ${kept === 1 ? 'change was' : 'changes were'} kept.`;
+}
+
+/** What a finished step restore says: how many later changes went back with it, if any. */
+function restoredStepLine(later: number): string {
+  if (later === 0) return 'Restored to before that step.';
+  return `Restored to before that step. ${later} later ${later === 1 ? 'change was' : 'changes were'} taken back with it.`;
+}
+
 /** What a finished restore says: how many later changes went back with the turn, if any. */
 function restoredLine(later: number): string {
   if (later === 0) return 'Restored to before that turn.';
   return `Restored to before that turn. ${later} later ${later === 1 ? 'change was' : 'changes were'} taken back with it.`;
 }
 
+/** An intent short enough to name a button for a screen reader. */
+function clipIntent(intent: string): string {
+  return intent.length <= 60 ? intent : `${intent.slice(0, 59)}…`;
+}
+
 function TurnBlock({
   turn,
   snapshot,
   project,
+  session,
   pictureNames,
   stands,
+  canRewind,
+  restorable,
   onDecide,
   onRestore,
+  onRestoreStep,
+  onRewind,
   onRunHeld,
+  onResolveReview,
 }: {
   turn: TurnView;
   snapshot: AgentSnapshot;
   /** The open project, which a plan card reads its previews against. */
   project: ProjectState;
+  /** The open project, which "Save as macro…" saves into. */
+  session: ProjectSession;
   /** The project's pictures by asset id, as their file names (a codex step names its visual references by these). */
   pictureNames: ReadonlyMap<string, string>;
   /** The turn's checkpoint is still on the undo stack, so it can be restored. */
   stands: boolean;
+  /** The conversation can be rewound to before this turn: nothing runs and the turn is still sent to the model. */
+  canRewind: boolean;
+  /** The steps of the turn a restore to before that step would take something back, by status-card id. */
+  restorable: ReadonlySet<string>;
   onDecide: (decision: Decision) => void;
-  onRestore: (turnId: string, summary: string) => void;
+  onRestore: (turnId: string, summary: string, both: boolean) => void;
+  onRestoreStep: (turnId: string, summary: string, stepId: string) => void;
+  onRewind: (turnId: string) => void;
   /** Switches to Ask and runs the writes Plan only refused in the turn. */
   onRunHeld: (turnId: string) => void;
+  /** Keeps or puts back the suggestions this turn's edits still have marked in the editor (editor-engine §15). */
+  onResolveReview: (turnId: string, mode: 'accept' | 'reject') => void;
 }): ReactNode {
   const live = snapshot.pending !== null && snapshot.pending.turnId === turn.turnId;
   const settled = isSettled(turn);
   return (
     <li className={`agent-turn is-${turn.phase}`} data-turn={turn.turnId}>
       <header className="agent-turn-head">
+        {turn.command === null ? null : (
+          <span className="agent-turn-command muted" data-testid="turn-command">
+            /{turn.command}
+          </span>
+        )}
         <q className="agent-intent-text">{turn.intent}</q>
         {turn.mode === null ? null : (
           <span className="agent-turn-mode muted" data-testid="turn-mode">
             {MODE_LABELS[turn.mode]}
           </span>
         )}
+        {settled ? (
+          <TurnMenu
+            label={`Rewind options for “${clipIntent(turn.intent)}”`}
+            testId="turn-menu"
+            note={turn.checkpoint?.note}
+            items={[
+              {
+                label: 'Restore project to before this turn',
+                hint: 'Keeps the conversation; the agent is told the changes are gone.',
+                disabled: snapshot.busy || !stands,
+                onSelect: () => onRestore(turn.turnId, turn.report?.summary ?? '', false),
+              },
+              {
+                label: 'Rewind conversation to before this turn',
+                hint: 'The agent forgets this turn and the ones after it. The project is not changed.',
+                disabled: !canRewind,
+                onSelect: () => onRewind(turn.turnId),
+              },
+              {
+                label: 'Restore both',
+                hint: 'Project first; the conversation is rewound only if that works.',
+                disabled: snapshot.busy || !stands || !canRewind,
+                onSelect: () => onRestore(turn.turnId, turn.report?.summary ?? '', true),
+              },
+            ]}
+          />
+        ) : null}
         <span className="agent-phase" aria-live="polite">
           {settled
             ? turn.report?.stop !== undefined
@@ -387,7 +665,22 @@ function TurnBlock({
         </details>
       ) : null}
 
-      {turn.cards.length > 0 ? <StatusCards cards={turn.cards} /> : null}
+      {turn.cards.length > 0 ? (
+        <StatusCards
+          cards={turn.cards}
+          steps={
+            settled
+              ? { restorable, disabled: snapshot.busy || !stands, onRestore: (stepId) => onRestoreStep(turn.turnId, turn.report?.summary ?? '', stepId) }
+              : undefined
+          }
+        />
+      ) : null}
+
+      {snapshot.reviews.length > 0 ? (
+        <Suspense fallback={null}>
+          <TurnReview turnId={turn.turnId} reviews={snapshot.reviews} onResolve={onResolveReview} />
+        </Suspense>
+      ) : null}
 
       {turn.steering.length > 0 ? (
         <ul className="agent-notes" aria-label="Notes you sent during this turn">
@@ -412,6 +705,8 @@ function TurnBlock({
         <PlanCard key={turn.planSeq} card={turn.plan} live={live} drafts={live ? snapshot.drafts : null} project={project} pictureNames={pictureNames} onDecide={onDecide} />
       ) : null}
 
+      {turn.plan !== null && savesAsMacro(turn) ? <SaveAsMacro session={session} steps={turn.plan.steps} intent={turn.intent} /> : null}
+
       {turn.report?.heldSteps !== undefined && !snapshot.heldRun.includes(turn.turnId) ? (
         <HeldPlan report={turn.report} disabled={snapshot.busy} onRun={() => onRunHeld(turn.turnId)} />
       ) : null}
@@ -430,9 +725,15 @@ function TurnBlock({
           mode={turn.checkpoint.mode}
           note={turn.checkpoint.note}
           taken={!stands}
-          onRestore={() => onRestore(turn.turnId, turn.report?.summary ?? '')}
+          onRestore={() => onRestore(turn.turnId, turn.report?.summary ?? '', false)}
           disabled={snapshot.busy}
         />
+      ) : null}
+
+      {turn.restoredFromStep !== null && stands ? (
+        <p className="muted agent-partial-restore" data-testid="partial-restore">
+          Restored from step {turn.restoredFromStep}: the steps before it are still in the project.
+        </p>
       ) : null}
 
       {turn.report !== null ? <ReportLine report={turn.report} price={turn.price} /> : null}
@@ -441,14 +742,14 @@ function TurnBlock({
 }
 
 /** The status cards of one turn, consecutive calls grouped (agent-harness §8). */
-export function StatusCards({ cards }: { cards: readonly StatusCard[] }): ReactNode {
+export function StatusCards({ cards, steps }: { cards: readonly StatusCard[]; steps?: StepRestore }): ReactNode {
   const items = groupCards(cards);
   return (
     <ol className="status-cards" aria-label="Tool calls">
       {items.map((item) =>
         item.kind === 'card' ? (
           <li key={item.card.id}>
-            <StatusCardRow card={item.card} />
+            <StatusCardRow card={item.card} steps={steps} />
           </li>
         ) : (
           <li key={item.cards[0]?.id ?? item.turnId}>
@@ -457,7 +758,7 @@ export function StatusCards({ cards }: { cards: readonly StatusCard[] }): ReactN
                 {item.cards.length} calls · {item.expanded ? 'running' : 'done'}
               </summary>
               {item.cards.map((card) => (
-                <StatusCardRow key={card.id} card={card} />
+                <StatusCardRow key={card.id} card={card} steps={steps} />
               ))}
             </details>
           </li>
@@ -465,6 +766,13 @@ export function StatusCards({ cards }: { cards: readonly StatusCard[] }): ReactN
       )}
     </ol>
   );
+}
+
+/** What a finished turn lets the writer do with its steps: which can be restored to before, and how. */
+interface StepRestore {
+  readonly restorable: ReadonlySet<string>;
+  readonly disabled: boolean;
+  readonly onRestore: (stepId: string) => void;
 }
 
 const STATUS_WORDS: Readonly<Record<StatusCard['status'], string>> = {
@@ -475,8 +783,12 @@ const STATUS_WORDS: Readonly<Record<StatusCard['status'], string>> = {
   failed: 'Failed',
 };
 
-function StatusCardRow({ card }: { card: StatusCard }): ReactNode {
+function StatusCardRow({ card, steps }: { card: StatusCard; steps?: StepRestore }): ReactNode {
   const delegation = delegationViewOf(card);
+  // A step of a finished turn, up to the last one that changed the project, can be restored to before it (a step that changed nothing starts the restore at the next one that did); a step that called an outside tool says its effects stay.
+  const restorable = steps?.restorable.has(card.id) === true;
+  const menu = stepMenuOf(card, restorable);
+  const progress = progressViewOf(card);
   return (
     <article className={`status-card is-${card.status}`} data-tool={card.tool} data-status={card.status}>
       <header className="status-card-head">
@@ -484,12 +796,40 @@ function StatusCardRow({ card }: { card: StatusCard }): ReactNode {
         <span className={`badge is-risk-${card.risk.replace(/[^a-z]+/g, '-')}`}>{card.risk}</span>
         <span className={`status-pill is-${card.status}`}>{STATUS_WORDS[card.status]}</span>
         <ElapsedTime card={card} />
+        {steps !== undefined && menu.show ? (
+          <TurnMenu
+            label={`Rewind options for step ${card.tool}`}
+            testId="step-menu"
+            note={menu.note}
+            items={[
+              {
+                label: 'Restore project to before this step',
+                hint: 'Takes back this step and the ones after it. The steps before it stay.',
+                disabled: steps.disabled || !restorable,
+                onSelect: () => steps.onRestore(card.id),
+              },
+            ]}
+          />
+        ) : null}
       </header>
       {delegation === undefined ? null : <DelegationBlock view={delegation} />}
+      {progress === undefined ? null : (
+        // The server's report on a call that is still running. The message is its own text, shown as text and labelled as the server's.
+        <div className="status-card-progress" data-testid="call-progress">
+          {progress.fraction === undefined ? null : <progress max={1} value={progress.fraction} aria-label={`Progress of ${card.tool}`} />}
+          <span className="status-card-progress-count">{progress.label}</span>
+          {progress.message === undefined ? null : (
+            <p className="status-card-text status-card-progress-message">
+              <span className="muted">The server says: </span>
+              {progress.message}
+            </p>
+          )}
+        </div>
+      )}
       {card.summary !== undefined || card.error !== undefined ? (
         // The result is collapsed once the call is done, and open when it failed, so the reason is in front of the writer.
         <details className="status-card-result" open={card.error !== undefined}>
-          <summary>{card.error === undefined ? 'Result' : 'Why it did not run'}</summary>
+          <summary>{card.error === undefined ? 'Result' : card.mayHaveActed === true ? 'Why it did not finish' : 'Why it did not run'}</summary>
           <p className={card.error === undefined ? 'status-card-text' : 'status-card-text is-error'}>{card.error ?? card.summary}</p>
         </details>
       ) : null}
@@ -560,6 +900,7 @@ const ASKBACK_TITLES: Readonly<Record<AskBack['code'], string>> = {
   verify_failed: 'The change did not check out',
   anchor_unresolvable: 'The selected text could not be found',
   budget_exhausted: 'The run reached a limit',
+  hook_blocked: 'A hook stopped the step',
 };
 
 /** The ask-back envelope (agent-harness §2): why the turn stopped and the next actions it offers, as a card. */

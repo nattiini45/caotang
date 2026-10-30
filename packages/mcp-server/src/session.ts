@@ -15,7 +15,8 @@ import { resolve } from 'node:path';
 
 import type { CommandError } from '@caotang/bus';
 import type { ExportDispatch, ExporterService } from '@caotang/exporter';
-import { createProductHarness, metadataFor, type Harness, type ToolOutcome } from '@caotang/harness';
+import { withheldState } from '@caotang/context';
+import { briefRefusal, createBriefLedger, createBriefPorts, createProductHarness, metadataFor, type Harness, type RulesProvider, type ToolOutcome } from '@caotang/harness';
 import {
   MCP_VOICE,
   isCodexFileName,
@@ -31,6 +32,7 @@ import {
   createProjectState,
   DOCS_DIR,
   MANIFEST_FILE,
+  parseRules,
   writeProject,
   type LoadNotice,
   type ProjectState,
@@ -104,6 +106,13 @@ export interface ProjectSession {
   readonly fs: NodeArtifactFs;
   readonly state: ProjectState;
   readonly harness: Harness;
+  /**
+   * The project as a host may read it outside a tool call: a resource or a prompt (agent-harness §4, Rules). The nodes a read rule
+   * withholds from the agent are not in it, so a resource does not list or serve them and a prompt does not assemble them. `mirrors`
+   * names the read tools the resource or prompt stands for: a read-deny aimed at `doc.read` alone keeps its nodes from `caotang://doc`
+   * and from every prompt too.
+   */
+  readable(use: 'resource' | 'prompt', mirrors?: readonly string[]): ProjectState;
   readonly exporter: ExporterService;
   readonly allowWrites: boolean;
   /** Whether this open made the project, rather than finding one. */
@@ -182,6 +191,30 @@ async function projectFileWithoutManifest(fs: NodeArtifactFs): Promise<string | 
   return copy === undefined ? undefined : `the manifest copy ${copy}`;
 }
 
+/**
+ * The folder's agent rules as the harness reads them (agent-harness §4, Rules): the manifest's `agent.rules`, as the load kept them.
+ * The server cannot show the writer a warning, so a rule the load had to drop is a restriction nobody will hear was lost: the rules are
+ * then unreadable, and every call that changes the project is refused until the file is put right and the server restarted. The same
+ * holds when the manifest cannot be read again here. A rule that was fine is held either way.
+ */
+async function rulesOf(fs: NodeArtifactFs, state: ProjectState): Promise<RulesProvider> {
+  let unreadable = false;
+  try {
+    const raw: unknown = JSON.parse(await fs.read(MANIFEST_FILE));
+    const agent = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>)['agent'] : undefined;
+    if (agent !== undefined) {
+      if (typeof agent !== 'object' || agent === null || Array.isArray(agent)) unreadable = true;
+      else unreadable = parseRules((agent as Record<string, unknown>)['rules']).lost > 0;
+    }
+  } catch {
+    unreadable = true;
+  }
+  return () => ({
+    rules: (state.manifest.agent?.rules ?? []).map((rule) => ({ ...rule, source: 'project' as const })),
+    ...(unreadable ? { unreadable: true } : {}),
+  });
+}
+
 export async function openProject(options: OpenProjectOptions): Promise<ProjectSession> {
   const now = options.now ?? (() => new Date());
   const { create } = options;
@@ -211,9 +244,19 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
   try {
     const { fs, state, exporter } = folder;
     // codex.read is a pure read over the manifest's codex, so it runs here as it does in the app.
-    // The three model-backed tools stay unwired ('external' ports): this server holds no provider profile or key,
-    // and those tools would draft with Caotang's model, not the caller's.
-    const harness = createProductHarness({ state, registry: folder.registry, externalWrites: options.allowWrites, ports: 'external' });
+    // The model-backed tools stay unwired ('external' ports): this server holds no provider profile or key, and those tools would
+    // draft with Caotang's model, not the caller's. The brief/apply pairs are wired instead: the host's own model does the writing, and
+    // the ledger holds the briefs it was handed, in memory only (agent-harness §3, "External-only rows").
+    const briefs = createBriefLedger({ now: () => now().getTime() });
+    const harness = createProductHarness({
+      externalPorts: createBriefPorts({ ledger: briefs }),
+      state,
+      registry: folder.registry,
+      externalWrites: options.allowWrites,
+      ports: 'external',
+      // The project's own rules (agent.rules) bind a host that connects here as they bind the agent in the app (agent-harness §4).
+      rules: await rulesOf(fs, state),
+    });
     const window = sourceWindow(harness.log);
     const changes = createChangeFeed();
     // The folder changing under the server stops its writes for good, so it is announced once: a host that is subscribed reads again.
@@ -241,6 +284,11 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
       fs,
       state,
       harness,
+      readable: (use, mirrors = []) => {
+        const hidden = new Set<string>();
+        for (const tool of [use === 'resource' ? 'mcp.resource' : 'mcp.prompt', ...mirrors]) for (const id of harness.withheld(tool)) hidden.add(id);
+        return withheldState(state, hidden);
+      },
       exporter,
       allowWrites: options.allowWrites,
       created: folder.created,
@@ -281,6 +329,10 @@ export async function openProject(options: OpenProjectOptions): Promise<ProjectS
         // A folder that changed stops every write (callConfirmed), so a write is refused here, as the accept would refuse it, and no
         // question is asked for it.
         if (folder.changed && changesProject(name)) return notMadeError(name, folder.stoppedError(false));
+        // An apply whose brief is gone, expired or stale is refused before the host is asked to confirm a text that could not be written, and
+        // before the placement checks, so the refusal says the brief is stale and not that the text no longer fits.
+        const stale = typeof params === 'object' && params !== null ? briefRefusal(briefs, name, params as Record<string, unknown>, state, harness.withheld(name)) : undefined;
+        if (stale !== undefined) return stale;
         // A plan of one step is checked by the tool's own prepare, with no effect (plan.ts), which is the check the accept runs first. A step
         // is deferred only when an earlier step may create what it names, and a plan of one has none, so a refusal here is final.
         const preflight = harness.previewPlan({ steps: [{ tool: name, params, expect: 'the call as the host asked it' }] });

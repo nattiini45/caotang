@@ -27,7 +27,8 @@
  * both directions, and the load path is where a version changes.
  */
 
-import { CHAR_LIMIT_MAX, SCENE_NUMBER_OPTIONS } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type HookCheck, type ProjectHook, type ProjectMacro } from '@caotang/bus';
+import type { PermissionRule } from './agent-rules.js';
 import { jsonValueProblem } from './json-value.js';
 import type {
   CodexEntry,
@@ -307,6 +308,97 @@ function projectGoal(g: ProjectGoal): string {
   return oneLine(pairs);
 }
 
+/**
+ * extensibility.md §10. A macro is a block, not a line: its fields one to a line and its steps one to a line, so a changed step is a one-line
+ * diff. A step's params and the macro's param spec are written as the JSON they are, in the key order they hold.
+ */
+function macroBlock(m: ProjectMacro): string {
+  const inner = INDENT.repeat(3);
+  const steps = m.steps.map((step) =>
+    oneLine([
+      ['tool', str(step.tool, 'macro.step.tool')],
+      ['params', criterion(step.params, 'macro.step.params')],
+      ['expect', str(step.expect, 'macro.step.expect')],
+    ]),
+  );
+  return [
+    '{',
+    `${inner}"id": ${str(m.id, 'macro.id')},`,
+    `${inner}"slug": ${str(m.slug, 'macro.slug')},`,
+    `${inner}"name": ${str(m.name, 'macro.name')},`,
+    `${inner}"description": ${str(m.description, 'macro.description')},`,
+    `${inner}"params": ${criterion(m.params, 'macro.params')},`,
+    `${inner}"steps": ${objectArray(steps, 3)}`,
+    `${INDENT.repeat(2)}}`,
+  ].join('\n');
+}
+
+/**
+ * agent-harness §4, Rules. One rule per line under `agent.rules`, keys in a fixed order; `scope`, `access` and `note` are written only
+ * when present, so a rule round-trips with no new key. A project with no rules, no hooks and no other `agent` key writes no `agent` key at all.
+ */
+function agentRule(r: PermissionRule): string {
+  const pairs: [string, string][] = [['effect', str(r.effect, 'rule.effect')], ['tool', str(r.tool, 'rule.tool')]];
+  if (r.scope !== undefined) {
+    pairs.push(['scope', 'subtree' in r.scope ? oneLine([['subtree', str(r.scope.subtree, 'rule.scope')]]) : oneLine([['path', str(r.scope.path, 'rule.scope')]])]);
+  }
+  if (r.access !== undefined) pairs.push(['access', str(r.access, 'rule.access')]);
+  if (r.note !== undefined) pairs.push(['note', str(r.note, 'rule.note')]);
+  return oneLine(pairs);
+}
+
+/** A hook's check, with a pattern list one pattern to a line so a changed pattern is a one-line diff. */
+function hookCheck(check: HookCheck, depth: number): string {
+  if (check.kind !== 'pattern') return criterion(check, 'hook.handler.check');
+  const patterns = check.patterns.map((p) => oneLine([['match', str(p.match, 'hook.pattern.match')], ['message', str(p.message, 'hook.pattern.message')]]));
+  return `{ "kind": "pattern", "patterns": ${objectArray(patterns, depth)} }`;
+}
+
+/**
+ * hooks.md. A hook is a block, not a line: its fields one to a line, in a fixed order, and the optional ones only when present, so a
+ * hook round-trips with no new key.
+ */
+function hookBlock(h: ProjectHook): string {
+  const inner = INDENT.repeat(4);
+  const lines = [
+    `${inner}"id": ${str(h.id, 'hook.id')},`,
+    `${inner}"name": ${str(h.name, 'hook.name')},`,
+    `${inner}"event": ${str(h.event, 'hook.event')},`,
+  ];
+  if (h.matcher !== undefined) lines.push(`${inner}"matcher": ${criterion(h.matcher, 'hook.matcher')},`);
+  lines.push(`${inner}"handler": { "kind": "check", "check": ${hookCheck(h.handler.check, 4)} },`);
+  if (h.onBlock !== undefined) lines.push(`${inner}"onBlock": ${str(h.onBlock, 'hook.onBlock')},`);
+  if (h.failClosed !== undefined) lines.push(`${inner}"failClosed": ${scalar(h.failClosed, 'hook.failClosed')},`);
+  lines.push(`${inner}"enabled": ${scalar(h.enabled, 'hook.enabled')}`);
+  return ['{', ...lines, `${INDENT.repeat(3)}}`].join('\n');
+}
+
+const AGENT_KNOWN = new Set(['rules', 'hooks']);
+
+/**
+ * Keys a project never carries because the app's settings own them (agent-harness §4: a project carries no permission mode or budget). A
+ * file that names one is read and ignored, and a save leaves it out.
+ */
+const AGENT_SETTINGS_KEYS = new Set(['mode', 'defaultMode', 'lockAuto', 'budget', 'loadEveryTool', 'keepTraces']);
+
+/** The keys under `agent` this build does not know, in the order they were read: written back as they were, except the app's settings. */
+function agentExtras(agent: NonNullable<Manifest['agent']>): [string, unknown][] {
+  return Object.entries(agent).filter(([name, value]) => !AGENT_KNOWN.has(name) && !AGENT_SETTINGS_KEYS.has(name) && value !== undefined);
+}
+
+function hasAgentBlock(agent: Manifest['agent']): agent is NonNullable<Manifest['agent']> {
+  if (agent === undefined) return false;
+  return (agent.rules?.length ?? 0) > 0 || (agent.hooks?.length ?? 0) > 0 || agentExtras(agent).length > 0;
+}
+
+function agentBlock(agent: NonNullable<Manifest['agent']>): string {
+  const members: string[] = [];
+  if (agent.rules !== undefined && agent.rules.length > 0) members.push(`${INDENT.repeat(2)}"rules": ${objectArray(agent.rules.map(agentRule), 2)}`);
+  if (agent.hooks !== undefined && agent.hooks.length > 0) members.push(`${INDENT.repeat(2)}"hooks": ${objectArray(agent.hooks.map(hookBlock), 2)}`);
+  for (const [name, value] of agentExtras(agent)) members.push(`${INDENT.repeat(2)}${key(name)}: ${criterion(value, `agent.${name}`)}`);
+  return [`${INDENT}"agent": {`, members.join(',\n'), `${INDENT}},`].join('\n');
+}
+
 /** Best-effort inline rendering for a free-form map (saved-filter criteria). */
 function inlineObject(value: Record<string, unknown>): string {
   const parts = Object.entries(value).map(([k, v]) => `${key(k)}: ${criterion(v, `filter.criteria.${k}`)}`);
@@ -388,7 +480,12 @@ function recipeOptions(o: NonNullable<ExportRecipe['options']>): string {
   if (o.pageSize === 'A4' || o.pageSize === 'Letter') {
     pairs.push(['pageSize', str(o.pageSize, 'recipe.options.pageSize')]);
   }
+  const font: unknown = o.scriptFont;
+  if (typeof font === 'string' && (RECIPE_SCRIPT_FONTS as readonly string[]).includes(font)) {
+    pairs.push(['scriptFont', str(font, 'recipe.options.scriptFont')]);
+  }
   if (typeof o.paperFrames === 'boolean') pairs.push(['paperFrames', String(o.paperFrames)]);
+  if (typeof o.colourEmoji === 'boolean') pairs.push(['colourEmoji', String(o.colourEmoji)]);
   return pairs.length === 0 ? '{}' : oneLine(pairs);
 }
 
@@ -487,6 +584,12 @@ export function serializeManifest(
   }
   if (manifest.disabledSkills !== undefined) {
     parts.push(`${INDENT}"disabledSkills": ${inlineArray(manifest.disabledSkills, 'disabledSkills')},`);
+  }
+  if (manifest.macros !== undefined && manifest.macros.length > 0) {
+    parts.push(`${INDENT}"macros": ${objectArray(manifest.macros.map(macroBlock), 1)},`);
+  }
+  if (hasAgentBlock(manifest.agent)) {
+    parts.push(agentBlock(manifest.agent));
   }
 
   // Drop the trailing comma of the last member, then close.

@@ -14,7 +14,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { assemble, type AgentTask, type AssembledPrompt, type ContextConfig } from '../src/index.js';
-import { FOCUS_ID, IDS, buildApp, selectionOfFocus } from './fixtures.js';
+import { FOCUS_ID, IDS, buildApp, selectionOfFocus, withInstructions } from './fixtures.js';
 
 const GOLDEN_DIR = resolve(__dirname, 'golden');
 const UPDATE = process.env['CAOTANG_UPDATE_GOLDEN'] === '1';
@@ -24,7 +24,11 @@ interface GoldenCase {
   readonly describe: string;
   readonly task: AgentTask;
   readonly config?: ContextConfig;
+  /** The project carries CAOTANG.md and a memory index (layer LI). */
+  readonly instructions?: boolean;
 }
+
+const appOf = (c: GoldenCase, shuffled = false) => (c.instructions === true ? withInstructions(buildApp({ shuffled })) : buildApp({ shuffled }));
 
 const CASES: readonly GoldenCase[] = [
   {
@@ -109,6 +113,37 @@ const CASES: readonly GoldenCase[] = [
     describe: 'a metadata tool: system, project summary and task only',
     task: { tool: 'meta', instruction: 'Summarise the project in two sentences.' },
   },
+  {
+    name: 'scene-continue-instructions',
+    describe: 'scene.draft, continue, with CAOTANG.md and a memory index: layer LI sits between the system prompt and the project summary',
+    instructions: true,
+    task: {
+      tool: 'scene.draft',
+      instruction: 'Write the next scene: Elena argues with Captain Hale about the lighthouse light.',
+      mode: 'continue',
+      focus: FOCUS_ID,
+      params: { doc: FOCUS_ID, mode: 'continue', target_words: 900 },
+    },
+  },
+  {
+    name: 'scene-continue-instructions-capped',
+    describe: 'scene.draft, continue, LI held to ninety tokens: whole lines up to the cap, and the drop and the note say how much was sent',
+    instructions: true,
+    config: { layerBudgets: { LI: 90 } },
+    task: {
+      tool: 'scene.draft',
+      instruction: 'Write the next scene.',
+      mode: 'continue',
+      focus: FOCUS_ID,
+      params: { doc: FOCUS_ID, mode: 'continue' },
+    },
+  },
+  {
+    name: 'meta-instructions',
+    describe: 'a metadata tool on a project with instructions: LI is in the metadata profile too',
+    instructions: true,
+    task: { tool: 'meta', instruction: 'Summarise the project in two sentences.' },
+  },
 ];
 
 /** The golden file: a summary of the report, then the two messages, each in a fenced block. */
@@ -147,7 +182,7 @@ describe('the golden prompts', () => {
   for (const golden of CASES) {
     it(`${golden.name} matches its committed golden, byte for byte`, () => {
       const path = resolve(GOLDEN_DIR, `${golden.name}.md`);
-      const actual = renderGolden(golden, assemble(golden.task, buildApp(), golden.config));
+      const actual = renderGolden(golden, assemble(golden.task, appOf(golden), golden.config));
       if (UPDATE) writeFileSync(path, actual);
       expect(existsSync(path), `missing golden ${path}: run with CAOTANG_UPDATE_GOLDEN=1`).toBe(true);
       expect(readFileSync(path, 'utf8')).toBe(actual);
@@ -155,8 +190,8 @@ describe('the golden prompts', () => {
 
     it(`${golden.name} is the same golden whatever order the fixture was built in`, () => {
       const path = resolve(GOLDEN_DIR, `${golden.name}.md`);
-      const shuffled = renderGolden(golden, assemble(golden.task, buildApp({ shuffled: true }), golden.config));
-      expect(shuffled).toBe(renderGolden(golden, assemble(golden.task, buildApp(), golden.config)));
+      const shuffled = renderGolden(golden, assemble(golden.task, appOf(golden, true), golden.config));
+      expect(shuffled).toBe(renderGolden(golden, assemble(golden.task, appOf(golden), golden.config)));
       if (existsSync(path)) expect(readFileSync(path, 'utf8')).toBe(shuffled);
     });
   }

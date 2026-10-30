@@ -7,7 +7,7 @@
  * it concerns, never as a toast alone (context-assembly §6).
  */
 
-import { useEffect, useReducer, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useReducer, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
 import {
   PRESETS,
   isLocalBase,
@@ -31,6 +31,7 @@ import {
   DEBOUNCE_MAX_MS,
   DEBOUNCE_MIN_MS,
   TARGET_MAX_WORDS,
+  type AgentEditMode,
   type RoleRef,
   type RoleSettings,
 } from '../app/settings.js';
@@ -38,8 +39,11 @@ import { activeTheme, applyTheme, rememberTheme, type Theme } from '../app/theme
 import { DEMO_PROFILE_NAME, priceClearedBy, priceFromInputs } from '../app/providers.js';
 import { CoherenceSection } from './CoherenceSettings.js';
 import { AgentModeSettings } from './AgentModeSettings.js';
+import { AgentRulesSettings } from './AgentRulesSettings.js';
+import { MacrosPanel } from './MacrosPanel.js';
 import { ContextSection } from './ContextSection.js';
 import { McpSection } from './McpSection.js';
+import { OpenOnDesktop, useNarrow } from './narrow.js';
 
 /** The origin of an address, or the text itself when it does not parse (a form being typed). */
 function originOf(address: string): string {
@@ -60,12 +64,13 @@ function FormMessage({ message }: { message: { readonly text: string; readonly t
   );
 }
 
-export type SettingsSection = 'providers' | 'context' | 'agent' | 'writing' | 'coherence' | 'mcp' | 'appearance' | 'data';
+export type SettingsSection = 'providers' | 'context' | 'agent' | 'macros' | 'writing' | 'coherence' | 'mcp' | 'appearance' | 'data';
 
 const SECTIONS: readonly { readonly id: SettingsSection; readonly label: string }[] = [
   { id: 'providers', label: 'Providers' },
   { id: 'context', label: 'Context' },
   { id: 'agent', label: 'Agent' },
+  { id: 'macros', label: 'Macros' },
   { id: 'writing', label: 'Writing' },
   { id: 'coherence', label: 'Coherence' },
   { id: 'mcp', label: 'MCP & tools' },
@@ -80,6 +85,8 @@ export interface SettingsProps {
   readonly store: RuntimeStore | null;
   readonly initialSection?: SettingsSection;
   readonly onClose: () => void;
+  /** Called when a macro's run has started, so the agent panel is open for the card it shows. */
+  readonly onOpenAgent?: () => void;
   /** Called after a provider changes, so a view that shows the active provider reads it again. */
   readonly onProvidersChanged?: () => void;
   /** The storage bridge; tests pass their own. Defaults to the browser's. */
@@ -92,11 +99,13 @@ export function Settings({
   store,
   initialSection = 'providers',
   onClose,
+  onOpenAgent,
   onProvidersChanged,
   storage,
 }: SettingsProps): ReactNode {
   const ref = useRef<HTMLDialogElement>(null);
   const [section, setSection] = useState<SettingsSection>(initialSection);
+  const narrow = useNarrow();
   // The control that opened the dialog takes focus back when it closes, so the keyboard is where it was (Menu and ExportDialog do
   // the same). It is read on the first render, before the dialog takes focus. While the dialog is modal the rest of the page is
   // inert, so the focus call made during a development double-mount is a no-op and the dialog keeps focus.
@@ -148,10 +157,19 @@ export function Settings({
           <div className="settings-body">
             {section === 'providers' ? <ProvidersSection services={services} onChanged={onProvidersChanged} /> : null}
             {section === 'context' ? <ContextSection services={services} session={session} /> : null}
-            {section === 'agent' ? <AgentSection services={services} /> : null}
+            {section === 'agent' ? <AgentSection services={services} session={session} /> : null}
+            {section === 'macros' ? (
+              <MacrosPanel
+                session={session}
+                onRan={() => {
+                  onOpenAgent?.();
+                  onClose();
+                }}
+              />
+            ) : null}
             {section === 'writing' ? <WritingSection services={services} /> : null}
             {section === 'coherence' ? <CoherenceSection services={services} /> : null}
-            {section === 'mcp' ? <McpSection mcp={services.mcp} /> : null}
+            {section === 'mcp' ? narrow ? <OpenOnDesktop feature="mcp" /> : <McpSection mcp={services.mcp} /> : null}
             {section === 'appearance' ? <AppearanceSection /> : null}
             {section === 'data' ? <DataSection services={services} session={session} store={store} storage={storage} /> : null}
           </div>
@@ -1002,9 +1020,12 @@ function RequestLogPanel({ services }: { services: AppServices }): ReactNode {
  * Agent
  * ------------------------------------------------------------------ */
 
-function AgentSection({ services }: { services: AppServices }): ReactNode {
+function AgentSection({ services, session }: { services: AppServices; session: ProjectSession | null }): ReactNode {
   const [loadEvery, setLoadEvery] = useState(services.settings.current().agent.loadEveryTool);
+  // Read live, so the Trace tab's own switch and this one never disagree.
+  const keepTraces = useSyncExternalStore(services.settings.subscribe, services.settings.current).agent.keepTraces;
   const [message, setMessage] = useState<string | null>(null);
+  const [traceMessage, setTraceMessage] = useState<{ readonly text: string; readonly tone: 'info' | 'error' } | null>(null);
 
   const change = (next: boolean): void => {
     setLoadEvery(next);
@@ -1025,7 +1046,26 @@ function AgentSection({ services }: { services: AppServices }): ReactNode {
         <span>Load every tool on every request</span>
       </label>
       <FormMessage message={message === null ? null : { text: message, tone: 'info' }} />
+      <p className="settings-note">
+        The Trace tab shows what each turn sent to the model and got back. It holds your prompts and manuscript text, only in this tab’s memory, and a
+        reload clears it. Turn it off to gather nothing.
+      </p>
+      <label className="settings-check">
+        <input
+          type="checkbox"
+          checked={keepTraces}
+          data-testid="agent-keep-traces"
+          onChange={(event) => {
+            void services.settings.update({ agent: { keepTraces: event.target.checked } }).then((error) => {
+              setTraceMessage(error === null ? { text: 'Saved. It applies to what the agent records next.', tone: 'info' } : { text: error, tone: 'error' });
+            });
+          }}
+        />
+        <span>Keep agent traces for this tab</span>
+      </label>
+      <FormMessage message={traceMessage} />
       <AgentModeSettings services={services} />
+      <AgentRulesSettings services={services} session={session} />
     </section>
   );
 }
@@ -1039,6 +1079,7 @@ function WritingSection({ services }: { services: AppServices }): ReactNode {
   const [target, setTarget] = useState(String(current.session.dailyTargetWords ?? 0));
   const [debounce, setDebounce] = useState(String(current.editor.autosaveDebounceMs));
   const [hideRails, setHideRails] = useState(current.editor.focusModeHideRails);
+  const [agentEditMode, setAgentEditMode] = useState<AgentEditMode>(current.editor.agentEditMode);
   const [message, setMessage] = useState<string | null>(null);
 
   const save = (event: FormEvent<HTMLFormElement>): void => {
@@ -1053,8 +1094,8 @@ function WritingSection({ services }: { services: AppServices }): ReactNode {
       setMessage(`The save delay is a whole number of milliseconds from ${DEBOUNCE_MIN_MS} to ${DEBOUNCE_MAX_MS}.`);
       return;
     }
-    void services.settings.update({ session: { dailyTargetWords: words }, editor: { autosaveDebounceMs: ms, focusModeHideRails: hideRails } }).then((error) => {
-      setMessage(error ?? 'Saved. The save delay applies to the projects you open from now on.');
+    void services.settings.update({ session: { dailyTargetWords: words }, editor: { autosaveDebounceMs: ms, focusModeHideRails: hideRails, agentEditMode } }).then((error) => {
+      setMessage(error ?? 'Saved. The save delay applies to the projects you open from now on, and the agent-edit choice to the next document you open.');
     });
   };
 
@@ -1081,6 +1122,23 @@ function WritingSection({ services }: { services: AppServices }): ReactNode {
           <input type="checkbox" checked={hideRails} onChange={(event) => setHideRails(event.target.checked)} />
           <span>In focus mode, hide the binder and the inspector</span>
         </label>
+        <label>
+          <span>When you apply an agent edit</span>
+          <select
+            value={agentEditMode}
+            aria-describedby="agent-edit-help"
+            onChange={(event) => setAgentEditMode(event.target.value === 'suggestions' ? 'suggestions' : 'ghost')}
+          >
+            <option value="ghost">Replace the text</option>
+            <option value="suggestions">Mark the changes for review</option>
+          </select>
+        </label>
+        <p className="muted" id="agent-edit-help">
+          Marking keeps the agent’s new text in the scene and underlines or strikes only the words that changed, so you can keep or put back
+          each change. The agent’s text is already saved when the marks appear, so other tools and git see the accepted version, and rejecting
+          a change is what edits the file. It covers prose scenes only, not Ink or Fountain. Closing the tab with changes still marked keeps
+          the agent’s text. A new agent edit accepts any earlier marks first. The choice applies the next time you open a document.
+        </p>
         <button type="submit" className="button is-primary">
           Save writing settings
         </button>

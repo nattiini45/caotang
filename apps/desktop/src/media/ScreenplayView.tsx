@@ -21,6 +21,7 @@ import { isOwnWrite } from './rebase-model.js';
 import { SourceField } from './SourceField.js';
 import { fountainSegments } from './source-decor.js';
 import { cueCompletion, cueNames, enterAfterCue, enterOnEmptyDialogue, type KeyEdit } from './screenplay-keys.js';
+import { OpenOnDesktop, useNarrow } from '../components/narrow.js';
 import { ScreenplayPreview } from './ScreenplayPreview.js';
 import { ELEMENT_MENU_LABEL, chordAria, chordPlatform, chordRange, elementChord, elementEntries, opensElementMenu, type ElementEntry } from './element-menu.js';
 
@@ -69,12 +70,16 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
   const stored = getBody(session.state, docId);
   const revision = getRevision(session.state, docId);
   const [mode, setMode] = useState<Mode>('script');
+  // Pages is the printed layout and the PDF's preview; a narrow window names it as a desktop view (ui-modules §1).
+  const narrow = useNarrow();
   const [draft, setDraft] = useState(stored);
   // The body and revision this view last agreed with the store. The effect below tells its own write from a change made
   // underneath it, the way the editor does (EditorPane).
   const [opened] = useState(() => ({ body: stored, revision }));
   const synced = useRef<{ body: string; revision: number }>(opened);
   const sourceRef = useRef<HTMLTextAreaElement>(null);
+  // A browser may collapse a textarea's selection when it loses focus; keep the caret for the Element button's click and keyboard path.
+  const lastSourceCaret = useRef<number | null>(null);
   // The formatted view reads the draft a moment late, so a fast typist never waits on a re-parse.
   const deferred = useDeferredValue(draft);
   const model = useMemo(() => screenplayModelOf(deferred), [deferred]);
@@ -179,10 +184,11 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
     const field = sourceRef.current;
     if (field === null) return;
     const rect = (elementButtonRef.current ?? field).getBoundingClientRect();
+    const caret = field.ownerDocument.activeElement === field ? field.selectionStart : (lastSourceCaret.current ?? field.selectionStart);
     setElementMenu({
       anchor: { x: rect.left, y: rect.bottom + 4 },
       text: field.value,
-      entries: elementEntries(field.value, field.selectionStart, platform),
+      entries: elementEntries(field.value, caret, platform),
     });
   };
 
@@ -311,6 +317,15 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
                 model.units.map((unit) => <UnitView key={keyOf(unit)} unit={unit} />)
               )}
             </article>
+          ) : mode === 'pages' && narrow ? (
+            <OpenOnDesktop
+              feature="screenplay-pages"
+              actions={
+                <button type="button" className="button" onClick={() => setMode('script')}>
+                  Show the script
+                </button>
+              }
+            />
           ) : mode === 'pages' ? (
             <ScreenplayPreview source={deferred} title={node.title} onOpenSource={(range) => showSourceAt(range.from)} />
           ) : (
@@ -337,6 +352,9 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
                 segments={segments}
                 onChange={onSourceChange}
                 onKeyDown={onSourceKeyDown}
+                onBlur={(event) => {
+                  lastSourceCaret.current = event.currentTarget.selectionStart;
+                }}
               />
               {elementMenu === null ? null : (
                 <Menu

@@ -1172,7 +1172,9 @@ describe('the three view commands, through the shipped registry with no fakes', 
     // The project's skills add `skill.import`, `skill.write`, `skill.delete` and `skill.setEnabled`, descriptors here and applies in the store: 42 + 4 = 46. The knowledge facts add `coherence.addKnowledgeFact`, `coherence.editKnowledgeFact` and `coherence.removeKnowledgeFact`, descriptors here and applies in the store: 46 + 3 = 49.
     // `mcp.readResource` (the writer's read of a resource, extensibility §6) is the same kind of name as `mcp.invoke`: a descriptor here, its apply injected: 49 + 1 = 50.
     // The paper-photo round trip adds `shot.importImages`, the batch form of `shot.importImage`, a descriptor here with its apply in the store: 50 + 1 = 51.
-    expect(COMMAND_NAMES.length).toBe(51);
+    // The writer's macros add `macro.save` and `macro.delete`, descriptors here and applies in the store: 54 + 2 = 56.
+    // The writer's hooks add `hook.save` and `hook.delete`, descriptors here and applies in the store: 56 + 2 = 58.
+    expect(COMMAND_NAMES.length).toBe(58);
   });
 
   it('an agent may emit a view command, and it is granted as a read', () => {

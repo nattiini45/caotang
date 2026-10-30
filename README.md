@@ -19,9 +19,12 @@ Caotang is free and MIT-licensed. There are no accounts, no subscriptions, no cr
 - **Dialogue.** A container is an Ink story, with an outline, a branch graph, findings and line ids. Import a `.ink` story as one container for each group of knots that divert to one another, or a Twee 3 story (`.twee`) as one container, after a report of the logic the import strips.
 - **Storyboards.** Shot cards with pictures (chosen, dropped or pasted), an animatic total, script coverage, a prompt for each target video model, and a prompt pack that exports as JSON, Markdown or CSV.
 - **Codex.** Characters, locations, objects, lore, subplots and other entries, with aliases, include policies, excluded phrases and a list of the documents each name appears in.
+- **Agent instructions and memory.** Your standing instructions live in `CAOTANG.md` at the root of the project and ride every request, within a visible 1,500-token limit; the notes the agent keeps are plain files in a `memory` folder you can read, edit and forget. The agent writes either only behind a card you approve.
 - **Skills.** Reusable writing instructions for the agent ("draft in close third person"), kept in the project as standard Agent Skills folders other tools read too. You read and approve each skill before the agent is told about it, and a change asks again. A skill guides the agent and changes nothing about what needs your approval.
+- **Macros.** Save a plan you approved as a macro with a few values left to fill in, and run it again from Settings. The run shows the same card as any plan, one undo takes it back, and your rules and permission mode still apply. Only you run a macro; the agent cannot.
+- **Hooks.** Write a check the agent is held to, such as a word it must not use, a status it must not touch, a length it must keep or a continuity check it must pass, and it runs before and after each of the agent's calls. A hook can warn, stop the step with its reason beside a greyed-out Approve, or leave the agent a note. It never approves anything, your rules and permission mode still decide, and only you can add or remove one (by hand in the project file until Settings has a panel for it). See [Hooks](docs/USER-GUIDE.md#hooks).
 - **Findings.** A quick scan of the manuscript against the codex and the scene declarations, and a model review that runs only after you approve its plan. Findings are grouped by severity and quote their passages. Dismiss one with a reason, mark it fixed, or send it to the agent with **Fix with agent**. The run history keeps each run.
-- **Agent.** Plans, one-step cards and draft previews in the agent panel, with checkpoints and restore. Stop a running turn, steer it with a note, or queue your next message while it works. A **Mode** control sets who answers its cards: Plan only, Ask (the default), Accept edits or Auto, with limits that stop a turn on a question. A plan that needs five or more model calls can run in the background while you write, and you review what it drafted before anything is applied. For a long reading job it can hand the reading to a helper agent, which only reads and suggests; a suggestion happens only if it is in the plan you approve. It runs on presets for the major providers (Anthropic, OpenAI, Google, xAI, Mistral, DeepSeek, OpenRouter and more) or any OpenAI-compatible endpoint you add, or on the built-in demo provider with no key. It uses native tool calling where the model supports it, and can run the model review as a plan step, and call the tools of the MCP servers you connect and enable (see below).
+- **Agent.** Plans, one-step cards and draft previews in the agent panel (or, if you choose it in Settings, the agent's new text kept in the scene with only the changed words marked for you to accept or reject), with checkpoints and restore, and a **Trace** tab that shows what each turn sent and got back (kept only in the open tab, exported on request). Stop a running turn, steer it with a note, or queue your next message while it works. A **Mode** control sets who answers its cards: Plan only, Ask (the default), Accept edits or Auto, with limits that stop a turn on a question. A plan that needs five or more model calls can run in the background while you write, and you review what it drafted before anything is applied. For a long reading job it can hand the reading to a helper agent, which only reads and suggests; a suggestion happens only if it is in the plan you approve. It runs on presets for the major providers (Anthropic, OpenAI, Google, xAI, Mistral, DeepSeek, OpenRouter and more) or any OpenAI-compatible endpoint you add, or on the built-in demo provider with no key. It uses native tool calling where the model supports it, and can run the model review as a plan step, and call the tools of the MCP servers you connect and enable (see below).
 - **Export.** Markdown, plain text, Word (`.docx`) and EPUB, for the whole manuscript or one part of it. For screenplays, dialogue and storyboards: Fountain, Final Draft (`.fdx`, not yet checked in Final Draft itself), a paginated screenplay PDF, an Ink story, a dialogue table, a shot list and a storyboard contact sheet (PDF, also as blank numbered frames to draw in, with photographs of the drawings dropped back on their shots). Also a coherence report. Recipes keep your export settings.
 - **Settings.** Provider profiles, the agent's context budgets, the daily target and autosave delay, coherence checks, light and dark themes, checkpoint limits, **MCP & tools**, and data.
 - **MCP & tools.** Settings can connect external [Model Context Protocol](https://modelcontextprotocol.io) servers over Streamable HTTP. Each server's tool list is reviewed before its tools are used, and a tool can be switched off. The agent calls an enabled tool at once only when its server is trusted for reads and the tool is read-only. Any other call waits for your approval.
@@ -31,10 +34,10 @@ Not in this build yet: the desktop wrapper. [docs/USER-GUIDE.md](docs/USER-GUIDE
 
 ## Requirements
 
-- **Node.js.** The `engines` field of [package.json](package.json) allows Node 22.12 or later in the 22 line, 24.x, and 26 or later. Continuous integration tests Node 24 only.
-- **pnpm** 12.9.1, the version the `packageManager` field pins. Run `corepack enable`, and the right pnpm is used.
-- **A browser.** The app is written for current browsers. The end-to-end suite gates every pull request in Chromium, and runs nightly in Firefox and WebKit. Opening and saving a project folder needs Chrome or Edge, or another Chromium-based browser. Bundles work in any browser.
-- **A window at least 960 px wide.** The layout is made for that width, and a narrower window scrolls rather than overlapping. Under 1100 px the toolbar wraps onto a second row and the side panels narrow.
+- **Node.js.** The `engines` field of [package.json](package.json) allows Node 22.12 or later in the 22 line, 24.x, and 26 or later. Continuous integration tests the 22.12.0 floor and Node 24; Node 26 is allowed but not covered.
+- **pnpm** 12.9.1, pinned in `packageManager`. With Node 22.12.0, update Corepack first with `npm install --global corepack@0.34.3`; the bundled Corepack 0.29.4 cannot verify pnpm's current signing key. Then run `corepack enable`.
+- **A browser.** The app is written for current browsers. End-to-end tests gate every pull request in Chromium, Firefox and WebKit; the Firefox and WebKit suite also runs nightly and on demand. Opening and saving a project folder needs Chrome or Edge, or another Chromium-based browser. Bundles work in any browser.
+- **A window at least 960 px wide** for the desktop layout. Under 1100 px the toolbar wraps onto a second row and the side panels narrow. Under 960 px (a phone or a tablet held upright) Caotang uses a narrow layout: the binder is a drawer, the inspector a sheet, and the corkboard, storyboards, dialogue branch graphs, the screenplay Pages view, MCP & tools and compile formats other than Markdown and plain text say "Open on desktop". It is tested in an emulated Chromium, not on real phones, and there is no sync, so export a backup.
 
 ## Install and run
 
@@ -66,7 +69,7 @@ Projects are kept per origin: a project made on one host does not appear on anot
 The build's `index.html` already carries its Content-Security-Policy in a `<meta>` tag. A host that can send headers can send the same policy as a header, and add the protections a `<meta>` tag cannot (`frame-ancestors`):
 
 ```
-Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src *; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src *; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'
 X-Content-Type-Options: nosniff
 Referrer-Policy: no-referrer
 ```
@@ -77,7 +80,7 @@ For **Netlify** or **Cloudflare Pages**, put the headers in a `_headers` file in
 
 ```
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src *; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src *; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
 ```
@@ -90,7 +93,7 @@ server {
     server_name writing.example.com;
     root /var/www/caotang;   # the contents of apps/desktop/dist
 
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src *; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; connect-src *; worker-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'" always;
     add_header X-Content-Type-Options nosniff always;
     add_header Referrer-Policy no-referrer always;
 
@@ -106,15 +109,19 @@ The repository's [Pages workflow](.github/workflows/pages.yml) deploys caotang.a
 
 ```sh
 pnpm verify                             # lint, typecheck, and the unit tests in packages/ and test/
-pnpm exec playwright install chromium   # once, for the browser the end-to-end tests use (firefox webkit as well, for the nightly projects)
-pnpm test:e2e                           # the Playwright suite
+pnpm exec playwright install chromium   # once, for the browser the pull-request end-to-end tests use
+pnpm test:e2e                           # the Chromium Playwright suite
+pnpm exec playwright install firefox webkit  # once, for the optional cross-browser suite
+CAOTANG_E2E_BROWSERS=all pnpm exec playwright test --project=webkit  # run a cross-browser project
 ```
+
+The agent's golden writing tasks run inside `pnpm verify`: each replays a committed cassette through the mock provider, with no key and no network, and fails when a prompt or tool description would send a model something different from what was recorded. The cassettes are synthetic (hand-written answers), so they guard the prompts and the harness and say nothing about any model. Recording from real models and a model benchmark are not available yet.
 
 `pnpm verify` does not run the desktop's pure model specs in `e2e/unit`, because they are Playwright specs. `pnpm test:e2e` runs them, with the dev-server suite and a smoke test of the production build (`e2e/prod-smoke.spec.ts`), which uses `vite preview` on its own port.
 
 The end-to-end suite starts its own dev server, or, outside CI and when `CAOTANG_E2E_PORT` is not set, reuses one already on port 5173. To run it beside another copy of Caotang, give each checkout its own port with `CAOTANG_E2E_PORT`, for example `CAOTANG_E2E_PORT=5183 pnpm test:e2e`. In PowerShell, set it first with `$env:CAOTANG_E2E_PORT = 5183`. The production preview then uses that port plus 1000, or `CAOTANG_E2E_PREVIEW_PORT` when you set it.
 
-Continuous integration (`.github/workflows/ci.yml`) runs `pnpm verify`, `pnpm build`, packs the MCP server bundle, and runs `pnpm test:e2e`, all on Node 24 in one job, a second job (`office-interop`) that writes the `.xlsx` corpus and opens it in openpyxl and LibreOffice, and a third (`pdf-validate`) that writes the PDF corpus and checks it with pdf.js, qpdf, Poppler, Ghostscript and MuPDF. A nightly workflow (`.github/workflows/e2e-browsers.yml`, also runnable by hand) runs the suite in Firefox and WebKit in shards: set `CAOTANG_E2E_BROWSERS=all` to get those projects locally, as in `CAOTANG_E2E_BROWSERS=all pnpm exec playwright test --project=webkit`. The specs that need a project folder skip outside Chromium; `e2e/non-chromium-storage.spec.ts` covers the bundle-only path those browsers use.
+Continuous integration (`.github/workflows/ci.yml`) runs a `verify` matrix on Node 22.12.0 and 24. Each leg uses a frozen, engine-strict install, then runs `pnpm verify`, `pnpm build`, the bundle-size check, the MCP server pack and the CLI bundle build. Node 22.12 CI installs the pnpm tarball directly after checking its SHA-512 against the `packageManager` pin; Node 24 uses Corepack. The Node 24 Chromium E2E suite runs as an independent job in parallel, alongside `office-interop` (the `.xlsx` corpus in openpyxl and LibreOffice) and `pdf-validate` (pdf.js, qpdf, Poppler, Ghostscript and MuPDF). A separate workflow gates pull requests in Firefox and WebKit, also runs nightly and on demand, and shards each browser into two jobs whose results merge into one HTML report uploaded when a shard fails. Set `CAOTANG_E2E_BROWSERS=all` locally to enable those projects. Folder-access specs skip outside Chromium, and `e2e/non-chromium-storage.spec.ts` checks the bundle-only path those browsers use.
 
 A real-key check of the provider presets, `e2e/provider-smoke.spec.ts`, runs only with `CAOTANG_SMOKE_<PRESET>` keys set, on your machine or by a maintainer's manual dispatch of the `provider-smoke` workflow (`gh workflow run provider-smoke.yml -f presets="anthropic deepseek"`); it never runs on a pull request. See [providers-browser-cors.md](docs/architecture/providers-browser-cors.md#3-the-real-key-round).
 
@@ -137,6 +144,7 @@ A project is a folder:
 caotang.json          the manifest: the binder tree, the codex, the vocabulary, recipes, filters and goals
 caotang.json.bak.1..3 the three previous manifests
 coherence.json        the findings and check runs, beside the manifest
+tasks.json            the recurring agent tasks, definitions only (when each last ran stays in the browser)
 docs/                 one file per scene, note or dialogue container, named by id: .md, .fountain or .ink
 codex/                one file per codex entry
 assets/               images: storyboard pictures and the cover
@@ -171,7 +179,7 @@ Serve a project folder over HTTP, on `127.0.0.1` only:
 node packages/mcp-server/dist/caotang-mcp.mjs serve --project ~/Writing/my-novel
 ```
 
-The server is read-only unless you add `--allow-writes`, or set `CAOTANG_MCP_ALLOW_WRITES=true`. With writes allowed, seven tools apply their change at once (`meta.set`, `notes.append`, `synopsis.set`, `filter.save`, `goal.save`, `coherence.setFindingStatus` and `shots.annotate`), and seven ask you to confirm each call in the host before anything is written (`binder.restructure`, `codex.write`, `codex.import`, `doc.import`, `export.compile`, `notes.replace` and `vocabulary.upsert`). Add `--create "New Book"` to make a new project in a folder that does not have one yet. `--create` is refused for a folder that already holds document or codex files, or manifest copies (`caotang.json.*`), so it cannot take them over.
+The server is read-only unless you add `--allow-writes`, or set `CAOTANG_MCP_ALLOW_WRITES=true`. With writes allowed, seven tools apply their change at once (`meta.set`, `notes.append`, `synopsis.set`, `filter.save`, `goal.save`, `coherence.setFindingStatus` and `shots.annotate`), and nine ask you to confirm each call in the host before anything is written (`binder.restructure`, `codex.write`, `codex.import`, `doc.import`, `export.compile`, `notes.replace`, `vocabulary.upsert`, `scene.apply` and `dialogue.apply`). Add `--create "New Book"` to make a new project in a folder that does not have one yet. `--create` is refused for a folder that already holds document or codex files, or manifest copies (`caotang.json.*`), so it cannot take them over.
 
 **Token.** Over HTTP the server prints a bearer token once, when it starts. To choose the token yourself, set `CAOTANG_MCP_TOKEN` to at least 16 characters before you start the server. Every request must send `Authorization: Bearer <token>`.
 
@@ -203,7 +211,7 @@ Three things to know before you connect:
 - A host on a 2025 protocol revision confirms changes over HTTP when it declares elicitation and keeps the `Mcp-Session-Id` the server returns when it starts the session. The server holds at most 16 such connections, closes one that has been idle for 30 minutes, and answers `503` to a new host while all 16 are busy. A host that cannot keep a session can connect over `--stdio`, or install the `.mcpb` bundle, which runs over stdio.
 - While the server runs with `--allow-writes`, save its folder from the Caotang app only with the server stopped, or with each save question checked. The app asks before it saves over the server's lock, but a confirmed save can still overwrite what the server wrote (see the server's README, Known gaps).
 
-The tools that need a model, `scene.draft`, `synopsis.fill`, `continuity.scan`, `coherence.review`, `shots.derive`, `prompt.draft`, `prompt.variant` and `dialogue.draft`, are not available over MCP, because the server holds no provider key. [Bringing existing writing into Caotang](docs/USER-GUIDE.md#bringing-existing-writing-in-through-the-mcp-server) explains the import tools, `doc.import` and `codex.import`, which are available. With writes allowed, `export.compile` compiles the manuscript, one item or a saved recipe in any export format, EPUB included, once the host confirms it.
+The tools that need a model, `scene.draft`, `synopsis.fill`, `continuity.scan`, `coherence.review`, `shots.derive`, `prompt.draft`, `prompt.variant` and `dialogue.draft`, are not available over MCP, because the server holds no provider key. For scenes and dialogue the host's own model writes instead: `scene.brief` and `dialogue.brief` hand it what Caotang's agent would send, and `scene.apply` and `dialogue.apply` put its text in the project after you confirm. The confirmation is not a review, so read what the model wrote first; undo restores the document. [Drafting with the host's model](packages/mcp-server/README.md#drafting-with-the-hosts-model) has the details. [Bringing existing writing into Caotang](docs/USER-GUIDE.md#bringing-existing-writing-in-through-the-mcp-server) explains the import tools, `doc.import` and `codex.import`, which are available. With writes allowed, `export.compile` compiles the manuscript, one item or a saved recipe in any export format, EPUB included, once the host confirms it.
 
 ### Install the bundle
 
@@ -247,7 +255,35 @@ CAOTANG_API_KEY=... node dist/caotang.mjs agent -p "Fill in the synopses for Cha
 | `--output-format` | `text` (default), `json` (one object when the turn ends) or `stream-json` (one line per event, a `decision` line for each card, then the result). |
 | `--max-model-calls <n>` | The most model calls a turn may make (default 8). |
 
-Standard output carries only the chosen format; progress and notes go to standard error. The exit code is **0** when the turn is done, **1** for an internal error, **2** for a wrong command line or a folder that holds no project, **3** when another writer (the app, or `caotang-mcp serve`) holds the folder, **4** when the turn needs input (a card was cancelled by the permission mode, a bound was reached, or the provider failed), **5** for a conflict, **6** when verification failed, and **130** and **143** after SIGINT and SIGTERM. The undo history of a `--write` run ends with the command, so keep the folder in git. `caotang mcp serve` starts the MCP server with the same flags as `caotang-mcp serve`.
+Standard output carries only the chosen format; progress and notes go to standard error. The exit code is **0** when the turn is done, **1** for an internal error, **2** for a wrong command line or a folder that holds no project, **3** when another writer (the app, or `caotang-mcp serve`) holds the folder, **4** when the turn needs input (a card was cancelled by the permission mode, a bound was reached, or the provider failed), **5** for a conflict, **6** when verification failed, and **130** and **143** after SIGINT and SIGTERM. The undo history of a `--write` run ends with the command, so keep the folder in git. `caotang mcp serve` starts the MCP server with the same flags as `caotang-mcp serve`. `caotang scan` runs the continuity checks without a model; see [Continuity checks in CI](#continuity-checks-in-ci).
+
+## Continuity checks in CI
+
+`caotang scan` runs the deterministic checks of the Findings tab on a project folder, with no browser, no model and no key, so a project kept in a Git repository can be checked every night or on every pull request that touches the manuscript.
+
+```sh
+node dist/caotang.mjs scan --project ~/Writing/my-novel                          # a report in the terminal; exit 7 if an error is open
+node dist/caotang.mjs scan --format github --fail-on warning --summary ../report.md  # annotations on the files, the Markdown report in a file outside the folder
+```
+
+| Flag | Meaning |
+|---|---|
+| `--project <dir>` | The project folder (default: the working directory). |
+| `--scope <scope>` | `full` (default) or `changed`. `full` reads every document; `changed` only those edited since the last saved run. Without `--write` that run never advances, so CI uses `full`. |
+| `--checks <id,...>` | Run only these checks, such as `presence.expected,timeline.overlap` (default: all of them). |
+| `--format` | `text` (default), `markdown` (the coherence report), `json`, or `github` (one workflow command per finding, so each shows on its file and line). |
+| `--fail-on <level>` | `error` (default), `warning`, `info` or `never`: the severity at which an open finding fails the run. |
+| `--write` | Save `coherence.json` with this run in it. Without it the folder is only read, and every file in it is byte-identical afterwards. |
+| `--summary <file>` | Also write the Markdown report to this file. It is appended to only when the path resolves to the same path as `$GITHUB_STEP_SUMMARY`, so it can follow other steps; any other file is written whole. Without `--write`, `--summary` must name a file outside the project folder. |
+| `--help`, `-h` | Print the usage and exit 0. |
+
+The exit code is **0** when the scan is clean or `--fail-on never` is set, **7** when an open finding is at or above `--fail-on`, **8** when none is, `--fail-on` is not `never`, and a document or codex file is not UTF-8 text and so was not checked (the output names it and the scan is partial), **1** for an internal error, **2** for a wrong command line or a folder that holds no project, and **3** when another writer holds the folder (only with `--write`, which takes the folder's lock). A finding you dismissed or marked fixed in the app, and committed in `coherence.json`, neither prints nor fails the run; a `coherence.json` that cannot be read is not repaired, the findings are computed again, and the output says its dismissals are lost. The scan runs the dialogue checks too. It reads a document in the file where the project keeps it, so a finding in a screenplay lands on its `.fountain` file and one in a dialogue container on its `.ink` file.
+
+**The workflow.** [docs/ci/continuity-scan.yml](docs/ci/continuity-scan.yml) is a GitHub Actions workflow to copy to `.github/workflows/` in your project repository. It runs nightly, by hand and on pull requests that change `docs/`, `codex/`, `caotang.json` or `coherence.json`. The project folder must be the root of the repository: the scan step passes no `--project`, and the paths filter assumes the root, so for a project in a subfolder add `--project <dir>` to that step and the folder to the filter; it asks for `contents: read`, holds no secret, and never uses `pull_request_target`. It does not run `npx`: it downloads `caotang.mjs` from a Caotang release and checks it against the SHA-256 written in the file, which the release lists in `SHA256SUMS`. The template is pinned to release [v0.1.0](https://github.com/nattiini45/caotang/releases/tag/v0.1.0), so it works as copied; to move to a later release, set the version and the hash together from that release's `SHA256SUMS` (`pnpm --filter @caotang/cli build` writes the same file locally).
+
+**What it prints.** Annotations and the job log carry short quotes from your manuscript, because a finding quotes the passage it is about. On a public repository anyone can read them. If that matters, keep the repository private or run the scan with `--format text` in a step whose output you do not publish.
+
+**No model review in CI.** CI runs the deterministic checks only. A model review there is not offered: it would need a key in the repository's secrets, which is the one place a key would leave your device, and a spend on a schedule. If it is ever added it will sit behind the per-task opt-in and call cap that recurring tasks have, with a separately scoped key and a read-only tool allowlist.
 
 ## Scripting Caotang
 

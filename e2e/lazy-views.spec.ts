@@ -39,10 +39,15 @@ test('a view says it is loading while its code arrives, then opens', async ({ pa
   await expect(page.getByRole('status').filter({ hasText: 'Loading Storyboard' })).toHaveCount(0);
 });
 
-test('a view whose code cannot be fetched says so, leaves the rest of the app working, and opens again after Reload', async ({ page }) => {
+test('a view whose module fails to load says so, leaves the rest of the app working, and opens again after Reload', async ({ page }) => {
+  let intercepted = false;
+  await page.route(STORYBOARD_MODULE, async (route) => {
+    intercepted = true;
+    await route.fulfill({ status: 200, contentType: 'text/javascript', body: 'throw new Error("simulated module load failure");' });
+  });
   await createProject(page, 'Offline Board');
-  await page.route(STORYBOARD_MODULE, (route) => route.abort());
   await makeStoryboard(page);
+  await expect.poll(() => intercepted).toBe(true);
 
   const failure = page.getByRole('alert').filter({ hasText: 'Storyboard could not be loaded' });
   await expect(failure).toBeVisible();
@@ -56,8 +61,10 @@ test('a view whose code cannot be fetched says so, leaves the rest of the app wo
   // the page and says so. Either way the pane is never blank, and Reload gets the board.
   await page.unroute(STORYBOARD_MODULE);
   await binderTitle(page, 'Storyboard').click();
-  await page.getByRole('button', { name: 'Try again' }).click();
   const board = page.getByRole('region', { name: 'Storyboard: Storyboard' });
+  const retry = page.getByRole('button', { name: 'Try again' });
+  await expect(board.or(retry)).toBeVisible();
+  if (await retry.isVisible()) await retry.click();
   const still = page.getByRole('alert').filter({ hasText: 'Storyboard still could not be loaded' });
   await expect(board.or(still)).toBeVisible();
   if (await still.isVisible()) {
@@ -69,12 +76,17 @@ test('a view whose code cannot be fetched says so, leaves the rest of the app wo
 });
 
 test('the prompt pack tab fails on its own without taking the board with it', async ({ page }) => {
+  let intercepted = false;
+  await page.route(PROMPT_PACK_MODULE, async (route) => {
+    intercepted = true;
+    await route.fulfill({ status: 200, contentType: 'text/javascript', body: 'throw new Error("simulated module load failure");' });
+  });
   await createProject(page, 'Pack Tab');
   await makeStoryboard(page);
   await expect(page.getByRole('region', { name: 'Storyboard: Storyboard' })).toBeVisible();
 
-  await page.route(PROMPT_PACK_MODULE, (route) => route.abort());
   await page.getByRole('radio', { name: 'Prompt pack' }).click();
+  await expect.poll(() => intercepted).toBe(true);
   const failure = page.getByRole('alert').filter({ hasText: 'The prompt pack could not be loaded' });
   await expect(failure).toBeVisible();
   // The board's header and its tabs are still there: only the tab's body failed.

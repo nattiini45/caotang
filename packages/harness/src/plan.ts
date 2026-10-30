@@ -28,7 +28,8 @@
 
 import { ok, type CommandError, type CommandErrorCode, type CommandErrorDetails, type Result } from '@caotang/bus';
 
-import { invalidParams, refusal } from './errors.js';
+import { hooksAreTheWriters, invalidParams, isHookCommand, refusal } from './errors.js';
+import type { HookRun } from './hooks.js';
 import { param, type ObjectSpec } from './schema.js';
 import { checkParams } from './validate.js';
 import type { CallParams, ToolCall, ToolOutcome, ToolValue, TurnContext } from './types.js';
@@ -74,6 +75,8 @@ export interface PlanStepPreflight {
   readonly status: 'ready' | 'deferred' | 'refused';
   /** The tool's preview for the card, when its prepare produced one. */
   readonly preview?: unknown;
+  /** The hooks that spoke on this step at preflight: a warning, or the block that refused it (hooks.md §3). Absent when none did. */
+  readonly hooks?: readonly HookRun[];
   /** Refused: the refusal. Deferred: the lookup failure that was deferred. */
   readonly error?: CommandError;
   /** Deferred: why the refusal was not final. */
@@ -93,8 +96,8 @@ export interface StepResult {
   readonly value: ToolValue;
 }
 
-/** `budget_exhausted`: the run reached a limit the writer set (agent-harness §7.1). */
-export type AskBackCode = 'verify_failed' | 'anchor_unresolvable' | 'needs_input' | 'conflict' | 'budget_exhausted';
+/** `budget_exhausted`: the run reached a limit the writer set (agent-harness §7.1). `hook_blocked`: a hook the writer set refused the step (hooks.md §3). */
+export type AskBackCode = 'verify_failed' | 'anchor_unresolvable' | 'needs_input' | 'conflict' | 'budget_exhausted' | 'hook_blocked';
 
 /** agent-harness §2's envelope, shared by a failed check and an unresolvable anchor. */
 export interface AskBack {
@@ -112,9 +115,14 @@ export interface AskBack {
  * retry the step that failed without re-running the steps before it. `proposals` is one entry per
  * step, aligned by index, holding what the agent loop staged for a model-backed step. `signal` is the writer's
  * stop: it is read before each step, never inside one, so a started step finishes and the steps after it do not run.
+ * `until` ends the run before that step (exclusive): the agent loop runs a logged plan one step at a time, so each step's record is
+ * written before it runs and after it is saved (agent-harness §5.1). A run with `until` is not recorded in the plan replay cache.
  */
 export interface PlanOptions {
+  /** The turn the check belongs to, so a hook that speaks at preflight is recorded on that turn's report. Absent for a check made outside a turn. */
+  readonly turnId?: string;
   readonly from?: number;
+  readonly until?: number;
   readonly proposals?: readonly unknown[];
   readonly signal?: AbortSignal;
 }
@@ -137,7 +145,7 @@ export type PlanOutcome =
 export interface PlanHost {
   known(tool: string): boolean;
   /** A pure check of one step. `proposal` is what the loop staged for it, for a step whose content the model drafts (`shots.derive`). */
-  check(tool: string, params: unknown, proposal?: unknown): Result<{ readonly preview?: unknown }, CommandError>;
+  check(tool: string, params: unknown, proposal?: unknown, turnId?: string): Result<{ readonly preview?: unknown; readonly hooks?: readonly HookRun[] }, CommandError>;
   run(call: ToolCall, turn: TurnContext): ToolOutcome;
 }
 
@@ -146,6 +154,13 @@ function startOf(plan: Plan, options: PlanOptions): number {
   const from = options.from ?? 0;
   if (!Number.isInteger(from) || from < 0 || from > plan.steps.length) return 0;
   return from;
+}
+
+/** The step index a run stops before: the plan's end unless `until` names an earlier step. */
+function endOf(plan: Plan, options: PlanOptions): number {
+  const until = options.until;
+  if (until === undefined || !Number.isInteger(until) || until < 0 || until > plan.steps.length) return plan.steps.length;
+  return until;
 }
 
 /** A plan as the model sent it, checked against the plan schema. */
@@ -214,23 +229,31 @@ function lookupKinds(error: CommandError): readonly LookupKind[] {
 /** Checks every step from the plan's start, in order, with no effect. */
 export function preflight(plan: Plan, host: PlanHost, options: PlanOptions = {}): PlanPreflight {
   const steps: PlanStepPreflight[] = [];
-  for (let index = startOf(plan, options); index < plan.steps.length; index += 1) {
+  const end = endOf(plan, options);
+  for (let index = startOf(plan, options); index < end; index += 1) {
     const step = plan.steps[index] as PlanStep;
     const base = { index, tool: step.tool, expect: step.expect };
     if (!host.known(step.tool)) {
       steps.push({
         ...base,
         status: 'refused',
-        error: refusal('not-found', `"${step.tool}" is not a tool in this build`, {
-          correctiveHint: 'use one of the tool names in the registry, or drop this step',
-          target: `steps[${index}].tool`,
-        }),
+        error: isHookCommand(step.tool)
+          ? { ...hooksAreTheWriters(step.tool), target: `steps[${index}].tool` }
+          : refusal('not-found', `"${step.tool}" is not a tool in this build`, {
+              correctiveHint: 'use one of the tool names in the registry, or drop this step',
+              target: `steps[${index}].tool`,
+            }),
       });
       continue;
     }
-    const checked = host.check(step.tool, step.params, options.proposals?.[index]);
+    const checked = host.check(step.tool, step.params, options.proposals?.[index], options.turnId);
     if (checked.ok) {
-      steps.push({ ...base, status: 'ready', ...(checked.value.preview === undefined ? {} : { preview: checked.value.preview }) });
+      steps.push({
+        ...base,
+        status: 'ready',
+        ...(checked.value.preview === undefined ? {} : { preview: checked.value.preview }),
+        ...(checked.value.hooks === undefined || checked.value.hooks.length === 0 ? {} : { hooks: checked.value.hooks }),
+      });
       continue;
     }
     const kinds = lookupKinds(checked.error);
@@ -256,7 +279,7 @@ export function preflight(plan: Plan, host: PlanHost, options: PlanOptions = {})
  */
 export function askBackFor(error: CommandError): AskBack {
   const anchored = error.details?.['askBackCode'] === 'anchor_unresolvable';
-  const code: AskBackCode = anchored ? 'anchor_unresolvable' : askBackCodeFor(error.code);
+  const code: AskBackCode = anchored ? 'anchor_unresolvable' : error.details?.['askBackCode'] === 'hook_blocked' ? 'hook_blocked' : askBackCodeFor(error.code);
   const reason = error.message;
   const drift =
     typeof error.details?.['actualRevision'] === 'number' && typeof error.details['expectedRevision'] === 'number'
@@ -314,7 +337,18 @@ function optionsFor(code: AskBackCode): readonly string[] {
       ];
     case 'budget_exhausted':
       return ['raise the limit in Settings › Agent, then send the request again', 'stop here and keep what was applied'];
+    case 'hook_blocked':
+      return [
+        'change the step so the hook passes, and approve a corrected plan',
+        'drop this step and approve the rest of the plan',
+        'tell the writer which hook is in the way; only the writer can change a hook',
+      ];
   }
+}
+
+/** The call id a plan's step is dispatched under: the plan's own id and the step's index in the whole plan. */
+export function planStepCallId(planCallId: string, index: number): string {
+  return `${planCallId}.${index}`;
 }
 
 /**
@@ -331,11 +365,12 @@ export function runPlan(
   host: PlanHost,
   options: PlanOptions = {},
 ): PlanOutcome {
-  const pre = preflight(plan, host, options);
+  const pre = preflight(plan, host, { ...options, turnId: turn.turnId });
   if (!pre.ok) return { status: 'refused', preflight: pre };
 
   const completed: StepResult[] = [];
-  for (let index = startOf(plan, options); index < plan.steps.length; index += 1) {
+  const end = endOf(plan, options);
+  for (let index = startOf(plan, options); index < end; index += 1) {
     if (options.signal?.aborted === true) {
       const stopped = completed.find((entry) => entry.value.undoGroupId !== undefined)?.value.undoGroupId;
       return { status: 'stopped', completed, stoppedAt: index, ...(stopped === undefined ? {} : { undoGroupId: stopped }) };
@@ -346,7 +381,7 @@ export function runPlan(
     const outcome = host.run(
       {
         name: step.tool,
-        callId: `${turn.callId}.${index}`,
+        callId: planStepCallId(turn.callId, index),
         params: step.params,
         ...(proposal === undefined || proposal === null ? {} : { proposal }),
       },

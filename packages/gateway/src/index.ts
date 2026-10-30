@@ -75,7 +75,7 @@ export {
 export { createMemoryVaultPort, type KeyVaultPort, type SealedEntry } from './keys/vault.js';
 export { createIndexedDbVaultPort, type IndexedDbVaultOptions } from './keys/indexeddb-vault.js';
 
-export { createGateway, type Gateway, type GatewayOptions } from './gateway.js';
+export { createGateway, type Gateway, type GatewayOptions, type GatewayTraceEvent } from './gateway.js';
 export type { FetchLike } from './transport.js';
 export { adapterFor } from './adapters/index.js';
 export { effectiveOutput, levelForBudget, nominalThinkingTokens, type EffectiveOutput } from './adapters/effort.js';
@@ -115,5 +115,5 @@ export {
 } from './retry.js';
 
 export { systemClock, createManualClock, type Clock, type ManualClock, type TimerId } from './clock.js';
-export { redact } from './redact.js';
+export { redact, redactDeep } from './redact.js';
 export { estimateTokens, usageFor } from './tokens.js';

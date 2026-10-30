@@ -70,6 +70,16 @@ export const COMMAND_TITLES: Readonly<Record<CommandName, string>> = {
   'skill.write': 'Skill saved',
   'skill.delete': 'Skill deleted',
   'skill.setEnabled': 'Skill turned on or off',
+  // The writer's macros (extensibility.md §10).
+  'macro.save': 'Macro saved',
+  'macro.delete': 'Macro deleted',
+  // The writer's hooks (hooks.md).
+  'hook.save': 'Hook saved',
+  'hook.delete': 'Hook deleted',
+  // The writer's instructions and the agent's memory (context-assembly.md §2, layer LI).
+  'project.setInstructions': 'Instructions changed',
+  'memory.write': 'Memory note saved',
+  'memory.forget': 'Memory note forgotten',
 };
 
 export function titleOf(command: string): string {

@@ -13,12 +13,13 @@ import type { ChatMessage } from '@caotang/gateway';
 import type { ProjectState } from '@caotang/store';
 
 /** §2's fixed layer order. Rendering and the prompt preview both follow it. */
-export const LAYER_IDS = ['L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7'] as const;
+export const LAYER_IDS = ['L0', 'LI', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7'] as const;
 export type LayerId = (typeof LAYER_IDS)[number];
 
 /** The name each layer carries in the prompt's headings and in the preview. */
 export const LAYER_NAMES: Readonly<Record<LayerId, string>> = {
   L0: 'System',
+  LI: 'Instructions',
   L1: 'Project',
   L2: 'Codex',
   L3: 'Structure',
@@ -82,6 +83,14 @@ export interface RecentTurn {
   readonly outcome?: string;
   /** The turn's undo group, for the same cases. */
   readonly undoGroupId?: string;
+  /** Epoch ms of the writer's restore of the turn's project changes, with the conversation kept. L6 says so in the outcome line. */
+  readonly restoredAt?: number;
+  /** With `restoredAt`: the 1-based step the restore began at, when the restore took back that step and the later ones only. */
+  readonly restoredFromStep?: number;
+  /** The writer rewound the conversation past this turn: L6 leaves it out before the turn limit applies. */
+  readonly rewound?: boolean;
+  /** A turn the planner is never told of (a macro run): L6 leaves it out, intent and outcome both, before the turn limit applies. */
+  readonly hidden?: boolean;
 }
 
 /** The app state assembly reads. Assembly never writes any of it. */
@@ -97,6 +106,20 @@ export interface AppSnapshot {
   readonly turns?: readonly RecentTurn[];
   /** Activity rows, for the turns' outcome and undo-group lines. */
   readonly activity?: readonly ActivityEntry[];
+  /**
+   * Binder nodes a read-deny keeps out of the prompt (agent-harness §4). Assembly works on a view of the project without them and
+   * lists each in the preview as withheld; see `withhold`.
+   */
+  readonly withheld?: ReadonlySet<string>;
+  /**
+   * The writer's instructions for layer LI: `CAOTANG.md`, or the `AGENTS.md` it falls back to. Absent means the project's own
+   * (`state.agentFiles.instructions`), which is what the app and the MCP server both send.
+   */
+  readonly instructions?: { readonly source: 'CAOTANG.md' | 'AGENTS.md'; readonly text: string };
+  /** The memory index for layer LI (`memory/MEMORY.md`). Absent means the project's own (`state.agentFiles.index`). */
+  readonly memoryIndex?: string;
+  /** The id of the envelopes the call's untrusted text sits in (`untrusted.ts`): the turn's. Absent, a fixed id; a marker inside the text is defused either way. */
+  readonly nonce?: string;
 }
 
 /** A model's limits and prices, as the gateway's profile and `listModels` report them. */
@@ -127,6 +150,8 @@ export interface ContextConfig {
   /** When an object, L0 carries the JSON protocol line (provider-gateway §5). */
   readonly responseFormat?: 'text' | { readonly jsonSchemaHint: object };
   readonly model?: ModelLimits;
+  /** How a restore time is written in L6 (`HH:MM`). Default: UTC, so a golden does not depend on the machine's zone. */
+  readonly formatTime?: (epochMs: number) => string;
 }
 
 /**
@@ -144,10 +169,14 @@ export type DropReason =
   | { readonly kind: 'forward-outline' }
   /** A continuity scope longer than the document limit. */
   | { readonly kind: 'scope-limit'; readonly limit: number }
+  /** A read rule keeps this item from the agent (agent-harness §4), so it is not in the prompt. Listed for the writer only. */
+  | { readonly kind: 'withheld' }
   /** The layer's own budget was full. `budget` is the effective budget in tokens. */
   | { readonly kind: 'budget'; readonly layer: LayerId; readonly budget: number; readonly rank: number }
   /** The whole prompt was over `contextBudget`, and this item was in the prune order (§2). */
   | { readonly kind: 'total-budget'; readonly layer: LayerId; readonly total: number; readonly rank: number }
+  /** LI was over its cap: it sent whole lines up to it, and the first `sentTokens` of `totalTokens` reached the model. */
+  | { readonly kind: 'instructions-cap'; readonly file: string; readonly sentTokens: number; readonly totalTokens: number }
   /** The codex's `always` entries alone need more than the layer's budget; they are sent whole. */
   | { readonly kind: 'reserve-overflow'; readonly layer: LayerId; readonly need: number; readonly budget: number };
 

@@ -10,7 +10,7 @@
  *   back to the generator. The key is revealed from the vault and sealed again under that id, because the vault binds
  *   each key to its profile id.
  * - **Usage** (the ledger's day rows) and the **request log** (its last 50 entries) are kept in the app database. Turn
- *   rows are not: they belong to a session, and an agent turn does not survive a reload in the activity log either.
+ *   rows are not: they belong to a session. An agent turn's run log is kept in the runtime database, not here (agent-harness §5.1).
  *
  * ## The probes
  *
@@ -43,11 +43,13 @@ import {
   type TaskRole,
   type ThinkingLevel,
   UsageLedger,
+  systemClock,
 } from '@caotang/gateway';
 import { DEMO_FALLBACK_REPLY, appMockProvider, type MockProvider } from '@caotang/gateway/mock';
 
 import { APP_KEYS, type AppDb } from './app-db.js';
 import { normalizeSettings, type RoleSettings } from './settings.js';
+import { TabTrace } from './trace-store.js';
 
 /** The name the first-run profile carries. It answers the three demo intents and nothing else. */
 export const DEMO_PROFILE_NAME = 'Demo (no key)';
@@ -133,6 +135,9 @@ export class ProviderService {
   readonly gateway: Gateway;
   readonly ledger: UsageLedger;
   readonly requests: RequestLog;
+  /** The tab's agent trace, listening to this gateway while recording is on (agent-harness §5.2). Memory only. */
+  readonly trace: TabTrace;
+  private readonly clock: Clock;
   private readonly db: AppDb | null;
   /**
    * The task-role routing in force, in one cell the gateway's resolver reads at request time (provider-gateway
@@ -149,6 +154,7 @@ export class ProviderService {
     requests: RequestLog;
     db: AppDb | null;
     roleState: { current: RoleSettings | undefined };
+    clock: Clock;
   }) {
     this.profiles = parts.profiles;
     this.keys = parts.keys;
@@ -157,7 +163,12 @@ export class ProviderService {
     this.requests = parts.requests;
     this.db = parts.db;
     this.roleState = parts.roleState;
+    this.clock = parts.clock;
+    this.trace = new TabTrace(parts.gateway);
   }
+
+  /** The time the gateway reads. The agent sessions read it too, so a trace's model calls and its turns are stamped by one clock. */
+  now = (): number => this.clock.now();
 
   /**
    * The routing record as the settings slice holds it — absent or `'follow'` roles resolve through 'chat'. Set by
@@ -247,7 +258,7 @@ export class ProviderService {
         },
       },
     });
-    const service = new ProviderService({ profiles, keys, gateway, ledger, requests, db: options.db, roleState });
+    const service = new ProviderService({ profiles, keys, gateway, ledger, requests, db: options.db, roleState, clock: options.clock ?? systemClock });
 
     if (options.db !== null) {
       await service.restore(options.db, notices, (id) => {

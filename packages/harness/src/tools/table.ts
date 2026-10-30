@@ -14,9 +14,12 @@ import { TOOL_SEARCH_ENTRY } from '@caotang/mcp-client';
 import { STORYBOARD_TOOL_ENTRIES } from '@caotang/storyboard';
 import { PROMPT_PACK_TOOL_ENTRIES } from '@caotang/video-prompt-pack';
 
+import { toResultSchema } from '@caotang/bus';
+
 import { invalidParams } from '../errors.js';
 import { metadataFor, TOOL_METADATA, type ToolMetadata, type ToolName } from '../metadata.js';
-import { toJsonSchema, type ObjectSpec } from '../schema.js';
+import { RESULT_CLOSED, RESULT_SPECS, type CallableToolName } from '../results.js';
+import { toJsonSchema, type JsonSchema, type ObjectSpec } from '../schema.js';
 import type { NativeEntry, PortEntry, PortToolName, PrepareFn, ProtocolEntry, ToolEntry } from '../types.js';
 import { planParams } from '../plan.js';
 import { prepareCodexImport, codexImportParams } from './codex-import.js';
@@ -41,11 +44,16 @@ import { notesAppendParams, prepareNotesAppend, metaSetParams, prepareMetaSet, r
 import {
   codexReadParams,
   continuityScanParams,
+  dialogueApplyParams,
+  dialogueBriefParams,
   refineSceneDraft,
+  sceneApplyParams,
+  sceneBriefParams,
   sceneDraftParams,
   synopsisFillParams,
 } from './ports.js';
 import { delegateParams } from './delegate.js';
+import { memoryReadParams, prepareMemoryRead } from './memory.js';
 import { skillLoadParams } from './skills.js';
 import type { CallParams } from '../types.js';
 import type { CommandError } from '@caotang/bus';
@@ -89,8 +97,15 @@ const DEFINITIONS: Readonly<Record<ToolName, Definition>> = {
   'dialogue.table': extensionDefinition(DIALOGUE_TOOL_ENTRIES, 'dialogue.table'),
   // The project's skills (extensibility.md §10).
   'skill.load': { kind: 'port', port: 'skill.load', params: skillLoadParams },
+  // The writer's instructions and the agent's memory notes (context-assembly.md §2, layer LI).
+  'memory.read': { kind: 'native', params: memoryReadParams, prepare: prepareMemoryRead },
   // Delegation to a built-in helper agent (agent-harness §2): the loop answers it; the port is the answer outside a turn.
   'agent.delegate': { kind: 'port', port: 'agent.delegate', params: delegateParams },
+  // The host-model pairs (agent-harness §3, "External-only rows"): the in-app tool's arguments in, the host's reply back through the in-app port.
+  'scene.brief': { kind: 'port', port: 'scene.brief', params: sceneBriefParams, refine: refineSceneDraft },
+  'scene.apply': { kind: 'port', port: 'scene.apply', params: sceneApplyParams, refine: refineSceneDraft },
+  'dialogue.brief': { kind: 'port', port: 'dialogue.brief', params: dialogueBriefParams },
+  'dialogue.apply': { kind: 'port', port: 'dialogue.apply', params: dialogueApplyParams },
   // The allowlisted bus primitives, each built from its command's descriptor (tools/primitive.ts).
   ...Object.fromEntries(PRIMITIVE_TOOL_NAMES.map((name) => [name, primitiveDefinition(name)])) as Record<PrimitiveToolName, Definition>,
 };
@@ -177,9 +192,15 @@ export function buildEntries(): ReadonlyMap<ToolName, ToolEntry> {
     const definition = DEFINITIONS[name];
     const meta = requireMetadata(name);
     const base = { meta, params: definition.params, schema: toJsonSchema(definition.params) };
+    const declare = (): { readonly result: ObjectSpec; readonly resultSchema: JsonSchema; readonly resultClosed: boolean } => {
+      const result = RESULT_SPECS[name as CallableToolName];
+      const resultClosed = RESULT_CLOSED.has(name as CallableToolName);
+      return { result, resultSchema: toResultSchema(result, resultClosed), resultClosed };
+    };
     if (definition.kind === 'native') {
       const entry: NativeEntry = {
         ...base,
+        ...declare(),
         kind: 'native',
         prepare: definition.prepare,
         ...(definition.refine === undefined ? {} : { refine: definition.refine }),
@@ -188,6 +209,7 @@ export function buildEntries(): ReadonlyMap<ToolName, ToolEntry> {
     } else if (definition.kind === 'port') {
       const entry: PortEntry = {
         ...base,
+        ...declare(),
         kind: 'port',
         port: definition.port,
         ...(definition.refine === undefined ? {} : { refine: definition.refine }),

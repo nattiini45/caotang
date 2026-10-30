@@ -31,7 +31,7 @@ import {
   type AppliedMigration,
   type FormatContext,
 } from './migrations.js';
-import { CHAR_LIMIT_MAX, CRITERIA_KEYS, SCENE_NUMBER_OPTIONS, SCENE_STYLES, filterNameFits } from '@caotang/bus';
+import { CHAR_LIMIT_MAX, CRITERIA_KEYS, HOOKS_MAX, HOOK_EVENTS_RUN, MACROS_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, SCENE_STYLES, filterNameFits, readHook, readMacro } from '@caotang/bus';
 // The shapes the bus names for the furniture commands. The *values* the bus
 // refuses at the command boundary are restated below, for the load; the types
 // are the bus's own, so a value the bus does not know cannot be listed here.
@@ -42,6 +42,7 @@ import type {
   GoalMetricParam,
 } from '@caotang/bus';
 import { isGeneratedId, isIdWithPrefix } from '@caotang/ids';
+import { parseRules } from './agent-rules.js';
 import { bodyNamesOf, isBodyType } from './paths.js';
 import { isJsonNumber, jsonValueProblem } from './json-value.js';
 import {
@@ -160,7 +161,9 @@ function isRecipeOptions(v: unknown): boolean {
     (o['sceneNumbers'] === undefined || isSceneNumbers(o['sceneNumbers'])) &&
     (o['continued'] === undefined || typeof o['continued'] === 'boolean') &&
     (o['pageSize'] === undefined || o['pageSize'] === 'A4' || o['pageSize'] === 'Letter') &&
-    (o['paperFrames'] === undefined || typeof o['paperFrames'] === 'boolean')
+    (o['scriptFont'] === undefined || isScriptFont(o['scriptFont'])) &&
+    (o['paperFrames'] === undefined || typeof o['paperFrames'] === 'boolean') &&
+    (o['colourEmoji'] === undefined || typeof o['colourEmoji'] === 'boolean')
   );
 }
 
@@ -170,6 +173,11 @@ function isRecipeOptions(v: unknown): boolean {
  */
 function isSceneNumbers(v: unknown): v is (typeof SCENE_NUMBER_OPTIONS)[number] {
   return typeof v === 'string' && (SCENE_NUMBER_OPTIONS as readonly string[]).includes(v);
+}
+
+/** The screenplay PDF's Latin face (screenplay.md §5.3): one the bus accepts, from its own export. */
+function isScriptFont(v: unknown): boolean {
+  return typeof v === 'string' && (RECIPE_SCRIPT_FONTS as readonly string[]).includes(v);
 }
 
 /** exporter.md §2's recipe shape, the three fields a recipe cannot do without. */
@@ -394,7 +402,7 @@ function validateFields(
           // a saved selection the writer chose, and the options it cannot read fall back to the template's defaults.
           const options = (recipe as Record<string, unknown>)['options'];
           if (options !== undefined && !isRecipeOptions(options)) {
-            warn(`recipes[${i}].options`, 'not a set of recipe options (titlePage, toc, author, charLimit, sceneNumbers, continued, pageSize, paperFrames); dropped, and the recipe uses the template defaults');
+            warn(`recipes[${i}].options`, 'not a set of recipe options (titlePage, toc, author, charLimit, sceneNumbers, continued, pageSize, scriptFont, paperFrames, colourEmoji); dropped, and the recipe uses the template defaults');
             delete (recipe as Record<string, unknown>)['options'];
           }
           return true;
@@ -639,6 +647,8 @@ function validateFields(
   }
   validateFilters(source, warn);
   validateGoals(source, nodeIds, warn);
+  validateMacros(source, warn);
+  validateAgent(source, nodeIds, warn);
 
   // Step 3 — derived (rebuildable; absence is not an error)
   if (source.derived !== undefined && !isRecord(source.derived)) {
@@ -1155,6 +1165,88 @@ function validateFilters(source: Record<string, unknown>, warn: (path: string, m
 }
 
 /**
+ * Step 3's `agent.rules` — [agent-harness.md §4](docs/architecture/agent-harness.md), Rules.
+ *
+ * The convention is the one `filters[]` sets: a rule that cannot be read is dropped with a warning that names it, and the load goes
+ * on. A dropped rule is a restriction lost, so the warning is the only place the writer learns of it. A rule whose subtree names a
+ * node the tree no longer holds is kept and flagged: it is inert, and it never blocks a load. An `allow` rule is dropped with a
+ * warning, since this build has none and a project file may never grant the agent power. An unknown key on `agent` is kept as it is.
+ */
+function validateAgent(
+  source: Record<string, unknown>,
+  nodeIds: ReadonlySet<string>,
+  warn: (path: string, message: string) => void,
+): void {
+  const raw = source['agent'];
+  if (raw === undefined) return;
+  if (!isRecord(raw)) {
+    warn('agent', 'expected an object; dropped');
+    delete source['agent'];
+    return;
+  }
+  validateHooks(raw, warn);
+  if (raw['rules'] === undefined) return;
+  const parsed = parseRules(raw['rules'], { at: 'agent.rules' });
+  for (const message of parsed.warnings) {
+    const at = /^[^:]*/.exec(message)?.[0] ?? 'agent.rules';
+    warn(at, message.slice(at.length).replace(/^:s*/, ''));
+  }
+  parsed.rules.forEach((rule, i) => {
+    if (rule.scope !== undefined && 'subtree' in rule.scope && !nodeIds.has(rule.scope.subtree)) {
+      warn(`agent.rules[${i}].scope`, `names a binder node (${rule.scope.subtree}) that is not in this project, so the rule has no effect`);
+    }
+  });
+  raw['rules'] = parsed.rules.map((rule) => ({ ...rule }));
+}
+
+/**
+ * Step 3's `agent.hooks` — [hooks.md §5](docs/architecture/hooks.md).
+ *
+ * The convention is the one `macros[]` sets: a hook that cannot be read is dropped with a warning that names it, and the load goes on. The
+ * check is the bus's own `readHook`, the one `hook.save` runs, so a hook the load keeps is one the bus would accept. That includes the
+ * rule that a project file holds only the `check` handler: a hook of any other kind is dropped here, so a folder someone else shares
+ * can never carry a handler that runs anything. A dropped hook is a rule the agent is no longer held to, so the warning is the only
+ * place the writer learns of it. A hook for an event this build does not run yet is kept and flagged. A second hook with a kept hook's
+ * id is dropped. With no hook left the key is removed.
+ */
+function validateHooks(agent: Record<string, unknown>, warn: (path: string, message: string) => void): void {
+  const raw = agent['hooks'];
+  if (raw === undefined) return;
+  if (!Array.isArray(raw)) {
+    warn('agent.hooks', 'expected an array of hooks; dropped');
+    delete agent['hooks'];
+    return;
+  }
+  const kept: unknown[] = [];
+  const ids = new Set<string>();
+  for (const [i, item] of (raw as unknown[]).entries()) {
+    const at = `agent.hooks[${i}]`;
+    const called = isRecord(item) && typeof item['name'] === 'string' ? ` "${item['name'].slice(0, 60)}"` : '';
+    if (kept.length >= HOOKS_MAX) {
+      warn(at, `more than ${HOOKS_MAX} hooks; the rest are dropped`);
+      break;
+    }
+    const read = readHook(item, true);
+    if (!read.ok) {
+      warn(at, `hook${called} dropped: ${read.error.message} (${read.error.target ?? 'hook'})`);
+      continue;
+    }
+    const hook = read.value;
+    if (ids.has(hook.id as string)) {
+      warn(at, `hook${called} dropped: another hook has the same id, and the first keeps it`);
+      continue;
+    }
+    ids.add(hook.id as string);
+    if (!(HOOK_EVENTS_RUN as readonly string[]).includes(hook.event)) {
+      warn(at, `hook${called} runs at ${hook.event}, which this build does not run yet; it is kept and has no effect`);
+    }
+    kept.push(hook);
+  }
+  if (kept.length === 0) delete agent['hooks'];
+  else agent['hooks'] = kept;
+}
+
+/**
  * Step 3's `goals[]` — [goals-progress §2.2 and §3](docs/architecture/goals-progress.md).
  *
  * The convention is the one `filters[]` above uses and the one `recipes[]`
@@ -1337,6 +1429,51 @@ function validateGoals(
     return true;
   });
   source['goals'] = kept;
+}
+
+/**
+ * Step 3's `macros[]` — [extensibility.md §10](docs/architecture/extensibility.md).
+ *
+ * The convention is the one `filters[]` sets: a macro that cannot be read is dropped with a warning that names it, and the load goes on. The
+ * check is the bus's own `readMacro`, the one `macro.save` runs, so a macro the load keeps is one the bus would accept: its shape, its
+ * caps, the tools it may never name, a placeholder it does not declare, and a `__proto__` key anywhere in it. Whether the tools it names
+ * exist is not checked here (the store has no registry); the harness checks that every time the macro runs.
+ *
+ * A second macro with a kept macro's id or slug is dropped, since the bus refuses to save either. With no macro left the key is removed, as
+ * a project that never had one.
+ */
+function validateMacros(source: Record<string, unknown>, warn: (path: string, message: string) => void): void {
+  const raw = source['macros'];
+  if (raw === undefined) return;
+  if (!Array.isArray(raw)) {
+    warn('macros', 'expected an array of macros; dropped');
+    delete source['macros'];
+    return;
+  }
+  const kept: unknown[] = [];
+  const ids = new Set<string>();
+  const slugs = new Set<string>();
+  for (const [i, item] of (raw as unknown[]).entries()) {
+    if (kept.length >= MACROS_MAX) {
+      warn(`macros[${i}]`, `more than ${MACROS_MAX} macros; the rest are dropped`);
+      break;
+    }
+    const read = readMacro(item, true);
+    if (!read.ok) {
+      warn(`macros[${i}]`, `${read.error.message} (${read.error.target ?? 'macro'}); macro dropped`);
+      continue;
+    }
+    const macro = read.value;
+    if (ids.has(macro.id as string) || slugs.has(macro.slug)) {
+      warn(`macros[${i}]`, `duplicate id or slug "${macro.slug}"; dropped, and the first macro keeps it`);
+      continue;
+    }
+    ids.add(macro.id as string);
+    slugs.add(macro.slug);
+    kept.push(macro);
+  }
+  if (kept.length === 0) delete source['macros'];
+  else source['macros'] = kept;
 }
 
 /** Step 4: referential integrity. */

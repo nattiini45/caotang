@@ -65,9 +65,8 @@ export interface ToolRuntime {
 /** A value the harness can return in the tool result, as the MCP `structuredContent` object. */
 export type Structured = Record<string, unknown>;
 
-/** The advertised Standard Schema: the harness's own JSON Schema, and a pass-through validate. */
-export function advertisedSchema(schema: JsonSchema): StandardSchemaWithJSON<Structured, Structured> {
-  const json: Record<string, unknown> = { ...schema };
+/** A Standard Schema that advertises `json` and passes every value through: the harness validates a call, and the tests validate a result. */
+function passThrough(json: Record<string, unknown>): StandardSchemaWithJSON<Structured, Structured> {
   return {
     '~standard': {
       version: 1,
@@ -81,16 +80,75 @@ export function advertisedSchema(schema: JsonSchema): StandardSchemaWithJSON<Str
   };
 }
 
+/** The advertised `inputSchema`: the harness's own JSON Schema for a row's params, and a pass-through validate. */
+export function advertisedInput(schema: JsonSchema): StandardSchemaWithJSON<Structured, Structured> {
+  return passThrough({ ...schema });
+}
+
+/**
+ * The JSON Schema of what `toCallResult` puts in `structuredContent` for a call that was made or declined, around a row's result
+ * schema: the envelope of a success, or the answer to a confirmation that was not given (`notWritten`). A refusal sets `isError`
+ * and carries `{ error }`, which the SDK does not check against an output schema, so it is not a branch. The root is an object
+ * under both protocol eras (2025-06-18 requires one).
+ */
+export function resultEnvelope(result: JsonSchema): JsonSchema {
+  return {
+    type: 'object',
+    oneOf: [
+      {
+        type: 'object',
+        description: 'The call ran: what it says, what it returned, and which nodes it touched.',
+        properties: {
+          summary: { type: 'string', description: 'One line: what changed, or what was read.' },
+          data: result,
+          affected: {
+            type: 'array',
+            description: 'The nodes the call touched, by title. Empty for a read.',
+            items: {
+              type: 'object',
+              properties: { nodeId: { type: 'string' }, title: { type: 'string' } },
+              required: ['nodeId', 'title'],
+              additionalProperties: false,
+            },
+          },
+          undoGroupId: { type: 'string', description: 'The undo group of the call, when it wrote anything.' },
+          notes: { type: 'array', description: 'Truncation and normalisation notes.', items: { type: 'string' } },
+        },
+        required: ['summary', 'data', 'affected'],
+        additionalProperties: false,
+      },
+      {
+        type: 'object',
+        description: 'The call asked for a confirmation that was declined, cancelled or not given: it completed, and nothing was written.',
+        properties: {
+          status: { type: 'string' },
+          written: { const: false },
+          tool: { type: 'string' },
+        },
+        required: ['status', 'written', 'tool'],
+        additionalProperties: false,
+      },
+    ],
+  };
+}
+
+/** The advertised `outputSchema`: the envelope around a row's result schema, and a pass-through validate. */
+export function advertisedOutput(result: JsonSchema): StandardSchemaWithJSON<Structured, Structured> {
+  return passThrough({ ...resultEnvelope(result) });
+}
+
 /** A harness outcome as a tool result: the value as text and as structured content, or the refusal with `isError` set. */
 export function toCallResult(outcome: ToolOutcome): CallToolResult {
   if (outcome.ok) {
-    const { summary, data, affected, undoGroupId, notes } = outcome.value;
+    const { summary, data, affected, undoGroupId, notes, hookNotes } = outcome.value;
     const body: Structured = {
       summary,
       data,
       affected,
       ...(undoGroupId === undefined ? {} : { undoGroupId }),
       ...(notes === undefined ? {} : { notes }),
+      // What the project's hooks reported about this call. The text can quote the project, so a host reads it as data.
+      ...(hookNotes === undefined ? {} : { hookNotes }),
     };
     return { content: [{ type: 'text', text: JSON.stringify(body) }], structuredContent: body };
   }
@@ -424,6 +482,13 @@ function runConfirmed(
 }
 
 /**
+ * The rows that change what every later request says. An outside host reads CAOTANG.md and the memory notes (`memory.read`, and the prompts,
+ * which assemble with them), and never writes them: a memory the agent keeps, or a rule in CAOTANG.md, is the writer's decision in the app, at
+ * a card, whatever `--allow-writes` opens (context-assembly.md §2, layer LI).
+ */
+const IN_APP_ONLY: ReadonlySet<string> = new Set(['memory.write', 'instructions.propose']);
+
+/**
  * Registers every exposed harness tool on `server`. Returns the names registered, in table order. `roundWaitMs` is the
  * deadline of a confirmation on this server's connection, when it has one; the question says so (confirm.ts).
  */
@@ -436,6 +501,7 @@ export function registerCaotangTools(server: McpServer, runtime: ToolRuntime, ro
     // tool.search searches the tool servers that Caotang's own MCP client connects to. This server connects to none, so the
     // tool could only answer that no servers are connected, and an outside agent would plan around a dead end (§9).
     if (listing.name === 'tool.search') continue;
+    if (IN_APP_ONLY.has(listing.name)) continue;
     // A tool whose implementation this server does not have is not advertised: listed, it
     // would refuse every call, and an outside agent would plan around a tool that cannot run.
     if (!listing.wired) continue;
@@ -450,11 +516,15 @@ export function registerCaotangTools(server: McpServer, runtime: ToolRuntime, ro
       {
         description: exposure.description,
         annotations: exposure.annotations,
-        inputSchema: advertisedSchema(listing.schema),
+        inputSchema: advertisedInput(listing.schema),
+        ...(listing.resultSchema === undefined ? {} : { outputSchema: advertisedOutput(listing.resultSchema) }),
       },
       async (args: Structured, ctx: ServerContext): Promise<CallToolResult | InputRequiredResult> => {
         const params: Structured = args ?? {};
-        if (listing.risk === 'write-confirm') return runConfirmed(server, listing, params, ctx, runtime, waitSeconds);
+        // A rule that asks makes the host's question the call's confirmation, as a write-confirm tool's is (agent-harness §4, Rules). A read
+        // is not asked about here: it is refused, since a read saves nothing and the confirmed path saves the folder.
+        const asked = listing.risk === 'write-auto' && runtime.session.harness.ruleCheck(listing.name, params).ask !== undefined;
+        if (listing.risk === 'write-confirm' || asked) return runConfirmed(server, listing, params, ctx, runtime, waitSeconds);
         const key = listing.risk === 'write-auto' ? idempotencyKeyOf(ctx.mcpReq._meta) : undefined;
         if (key !== undefined) return runKeyed(runtime, key, listing.name, params);
         return (await runDirect(runtime, listing.name, params)).result;

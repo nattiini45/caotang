@@ -68,7 +68,7 @@ export interface ScanResult {
   readonly project: string;
   /** `YYYY-MM-DD`. */
   readonly date: string;
-  /** `partial` when a check did not run or a document could not be counted: the scan is then not a full one. */
+  /** `partial` when a check did not run, a document could not be counted or a file was not UTF-8 text: the scan is then not a full one. */
   readonly status: 'complete' | 'partial';
   /** The checks that ran. */
   readonly checks: readonly string[];
@@ -78,8 +78,10 @@ export interface ScanResult {
   readonly documents: number;
   /** The run's own notes (coherence.md §6.2): what was skipped and why. */
   readonly notes: readonly string[];
-  /** What reading `coherence.json` had to say, including dismissals that could not be read. */
+  /** What loading the project and reading `coherence.json` had to say: a body held back, dismissals that could not be read. */
   readonly notices: readonly string[];
+  /** The documents and codex files whose bytes are not UTF-8 text, project-relative. They open empty, so no check saw them. */
+  readonly unread: readonly string[];
   /** Open findings only: a dismissed or fixed finding is not counted. */
   readonly counts: Readonly<Record<FindingSeverity, number>>;
   /** The open findings, most severe first. */
@@ -165,7 +167,8 @@ export async function runScan(fs: ArtifactFs, options: ScanOptions = {}, deps: S
   const now = options.now ?? new Date();
   const requested = [...new Set(options.checks ?? DETERMINISTIC_CHECK_IDS)];
 
-  const { state } = await readProject(fs, { now });
+  const { state, notices: loaded, encodingIssues } = await readProject(fs, { now });
+  const unread = encodingIssues.filter((issue) => issue.kind === 'document' || issue.kind === 'codex').map((issue) => issue.path);
   // Read-only: an unreadable file is neither kept under a corrupt name nor restored here, and the load says what it fell back to.
   const load = await loadCoherence(fs, { readOnly: true });
   const reconciled = reconcileCoherence(load.file, state);
@@ -194,15 +197,17 @@ export async function runScan(fs: ArtifactFs, options: ScanOptions = {}, deps: S
   return {
     project: state.manifest.project.name,
     date,
-    status: run.status === 'partial' || skipped.length > 0 ? 'partial' : 'complete',
+    status: run.status === 'partial' || skipped.length > 0 || unread.length > 0 ? 'partial' : 'complete',
     checks: run.checkIds,
     skipped,
     documents: run.scope.docIds.length,
     notes: run.notes ?? [],
-    notices: [...load.notices, ...reconciled.notices].map((notice) => notice.message),
+    // What the load would drop on a save (`droppedField`) is not a fact about this read-only run.
+    notices: [...loaded.filter((notice) => notice.droppedField === undefined), ...load.notices, ...reconciled.notices].map((notice) => notice.message),
+    unread,
     counts,
     findings,
-    exitCode: exitCodeFor(counts, options.failOn ?? DEFAULT_FAIL_ON),
+    exitCode: exitCodeFor(counts, options.failOn ?? DEFAULT_FAIL_ON, unread.length),
     written: options.write === true,
     file,
     report: reportInputOf(state, file, date),

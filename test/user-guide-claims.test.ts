@@ -8,6 +8,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+import { COMMAND_REGISTRY, HOOKS_MAX, HOOK_EVENTS_RUN, HOOK_PATTERNS_MAX, HOOK_TEXT_MAX, MACROS_MAX, MACRO_DESCRIPTION_MAX, MACRO_STEPS_MAX, readHook } from '../packages/bus/src/index.js';
+import { BUILTIN_COMMAND_NAMES } from '../packages/harness/src/commands/slash.js';
+import { macroCommandName } from '../packages/harness/src/macro.js';
+
 const repoRoot = resolve(__dirname, '..');
 
 function read(path: string): string {
@@ -85,10 +89,41 @@ describe('the user guide’s reviewed claims match the code', () => {
   });
 
   it('says the window is at least 960 px wide and the toolbar wraps below 1100 px', () => {
-    expect(guide).toContain('The window needs at least 960 px of width. Under 1100 px the toolbar wraps onto a second row');
+    expect(guide).toContain('At 960 px and wider the layout is the desktop one: under 1100 px the toolbar wraps onto a second row');
     const css = read('apps/desktop/src/styles.css');
     expect(css).toContain('min-width: 960px');
     expect(css).toContain('@media (max-width: 1100px)');
+  });
+
+  it('names the narrow layout’s controls and the views it leaves to a desktop in the words the app shows', () => {
+    const section = guide.slice(guide.indexOf('## Using Caotang on a phone or tablet'), guide.indexOf('## Settings'));
+    expect(section.length).toBeGreaterThan(0);
+    // The narrow layout is the stylesheet's block below 960 px, and the guide says so.
+    expect(read('apps/desktop/src/styles.css')).toContain('@media (max-width: 959px)');
+    expect(section).toContain('under 960 px wide');
+    const workspace = read('apps/desktop/src/components/Workspace.tsx');
+    for (const label of ['Binder', 'Inspector', 'More']) {
+      expect(section).toContain(`**${label}**`);
+      expect(workspace.split('\n').some((row) => row.trim() === label)).toBe(true);
+    }
+    // The More menu's entries, each a label in the overflow list.
+    for (const label of ['Projects', 'Project details', 'Undo', 'Focus mode', 'Skills', 'Instructions', 'Compile…', 'Export bundle', 'Save to folder', 'Settings']) {
+      expect(section).toContain(`**${label}**`);
+      expect(workspace).toContain(`'${label}'`);
+    }
+    expect(read('apps/desktop/src/components/Binder.tsx')).toContain('aria-label={`Actions for ${title}`}');
+    expect(section).toContain('**Actions for …**');
+    // The views left to a desktop say "Open on desktop" and name themselves; the guide lists the same six.
+    const model = read('apps/desktop/src/app/narrow-model.ts');
+    expect(read('apps/desktop/src/components/narrow.tsx')).toContain('Open on desktop: {note.name}');
+    for (const name of ['the corkboard', 'the storyboard', 'the dialogue branch graph', 'the screenplay Pages view', 'MCP & tools', 'the other export formats']) {
+      expect(model).toContain(`name: '${name}'`);
+    }
+    expect(section).toContain('**Open on desktop**');
+    for (const view of ['the corkboard', 'a storyboard', 'a dialogue container', '**Pages** view', '**Settings › MCP & tools**', '**Compile…** as anything but Markdown or plain text']) {
+      expect(section).toContain(view);
+    }
+    expect(model).toContain("export const NARROW_EXPORT_FORMATS: readonly ExportFormat[] = ['md', 'txt'];");
   });
 
   it('says focus mode’s status line tells the writer when the panels stay', () => {
@@ -235,15 +270,29 @@ describe('the user guide’s reviewed claims match the code', () => {
   it('states the screenplay PDF’s margins, page numbering and recipe controls as the layout and the dialog have them', () => {
     const pdfSection = guide.slice(guide.indexOf('### The screenplay PDF'), guide.indexOf('## Writing dialogue'));
     const paginate = read('packages/screenplay/src/paginate.ts');
-    // US Letter at 72 points an inch: 1.5 inches is 108 points, 1 inch is 72.
-    expect(pdfSection).toContain('sets the script on US Letter pages');
+    // US Letter at 72 points an inch: 1.5 inches is 108 points, 1 inch is 72. A4 is 210 by 297 mm.
+    expect(pdfSection).toContain('sets the script on US Letter or A4 pages');
     expect(paginate).toContain('pageWidth: 612,');
     expect(paginate).toContain('pageHeight: 792,');
-    expect(pdfSection).toContain('The margins are 1.5 inches on the left and 1 inch on the other three sides.');
+    expect(paginate).toContain('A4: Object.freeze({ pageWidth: 595.28, pageHeight: 841.89, marginRight: 55.28, marginBottom: 121.89 })');
+    expect(pdfSection).toContain('The margins are 1.5 inches on the left and 1 inch on the other three sides on Letter.');
     for (const margin of ['marginLeft: 108,', 'marginRight: 72,', 'marginTop: 72,', 'marginBottom: 72,']) expect(paginate).toContain(margin);
+    // The paper and the face are controls of the dialog, in the words the guide uses, and Letter and Courier Prime are what it preselects.
+    expect(pdfSection).toContain('**Paper size** is US Letter unless you choose A4 in the recipe.');
+    expect(pdfSection).toContain('A4 is taller, and the extra height is white space at the foot of the page.');
+    expect(pdfSection).toContain('**Font** is Courier Prime at 12 point unless you choose another in the recipe: **Cousine (like Courier New)**, or **Courier (the reader\u2019s own)**.');
+    const dialogSource = read('apps/desktop/src/components/ExportDialog.tsx');
+    expect(dialogSource).toContain('<span className="export-option-label">Paper size</span>');
+    expect(dialogSource).toContain('<span className="export-option-label">Font</span>');
+    expect(dialogSource).toContain("value={shown.pageSize ?? 'Letter'}");
+    expect(dialogSource).toContain("value={shown.scriptFont ?? 'courier-prime'}");
+    expect(dialogSource).toContain("'courier-prime': 'Courier Prime',");
+    expect(dialogSource).toContain("courier: 'Courier (the reader\u2019s own)',");
+    expect(dialogSource).toContain("cousine: 'Cousine (like Courier New)',");
+    expect(read('packages/exporter/src/media.ts')).toContain('...(request.scriptFont === undefined ? {} : { scriptFont: request.scriptFont }),');
     expect(pdfSection).toContain('Script pages count from 1. The number is printed at the top right from page 2.');
     expect(paginate).toContain('const all = number >= 2 ? [...lines, pageNumberLine(number)] : [...lines];');
-    expect(paginate).toContain('x: LAYOUT.pageWidth - LAYOUT.marginRight - text.length * LAYOUT.charWidth,');
+    expect(paginate).toContain('x: LAYOUT.textRight - text.length * LAYOUT.charWidth,');
     expect(paginate).toContain('y: LAYOUT.pageNumberY,');
     expect(paginate).toContain('pageNumberY: 46,');
     // The recipe controls, in the words the export dialog shows.
@@ -267,6 +316,9 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(pdfSection).toContain('An emoji takes the width of two Courier letters, however it is built');
     expect(pdfSection).toContain('it is never split across lines');
     expect(pdfSection).toContain('so 👍🏽 prints as 👍, but text you copy out of the PDF keeps the emoji you typed');
+    expect(pdfSection).toContain('turn on **Colour emoji** in the recipe');
+    expect(pdfSection).toContain('It is off unless you turn it on, because scripts are usually printed and photocopied in black and white, and colour is the only way to get a skin tone.');
+    expect(pdfSection).not.toContain('The font has no colours and no skin tones');
     expect(pdfSection).toContain('A script with no emoji does not load this font.');
     expect(pdfSection).toContain('A character no font has prints as a question mark, and the compile log names it.');
     expect(pdfSection).not.toMatch(/such as an emoji, prints as a question mark/);
@@ -374,6 +426,15 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(changelog).toContain('**Stop** (or **Esc**, with the Intent box empty) ends a running turn');
   });
 
+  it('says in the guide what the panel says when an interrupted run’s log cannot be read', () => {
+    const controller = read('apps/desktop/src/app/agent.ts');
+    expect(controller).toContain('Interrupted agent runs could not be checked: ');
+    expect(controller).toContain('The run was not resumed. Try again, or discard the log.');
+    expect(controller).toContain('so the run was not resumed. You can discard the log.');
+    expect(guide).toContain('the panel says once that interrupted runs could not be checked and shows no card');
+    expect(guide).toContain('the run is not resumed and the panel says so: try again, or choose **Discard log**');
+  });
+
   it('names the Agent setting in the words the section shows, and says it is off by default', () => {
     const section = read('apps/desktop/src/components/Settings.tsx');
     expect(section).toContain("{ id: 'agent', label: 'Agent' }");
@@ -381,7 +442,7 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(read('apps/desktop/src/app/settings.ts')).toContain("DEFAULT_AGENT_SETTINGS: AgentSettings = Object.freeze({ loadEveryTool: false, defaultMode: 'ask'");
     expect(guide).toContain('**Settings › Agent** has **Load every tool on every request** for a model that searches poorly. It is off by default, and it makes every request longer.');
     expect(guide).toContain('- **Agent.** **Load every tool on every request**, off by default.');
-    expect(guide).toContain('It has eight sections: Providers, Context, Agent, Writing, Coherence, MCP & tools, Appearance and Data.');
+    expect(guide).toContain('It has nine sections: Providers, Context, Agent, Macros, Writing, Coherence, MCP & tools, Appearance and Data.');
     expect(changelog).toContain('**Settings › Agent** has **Load every tool on every request**, off by default');
   });
 
@@ -417,5 +478,85 @@ describe('the user guide’s reviewed claims match the code', () => {
     for (const tag of ["'JAN '", "'KOR '", "'ZHT '", "'ZHH '"]) expect(tags).toContain(tag);
     expect(read('packages/screenplay/src/render-pdf.ts')).toContain('hanLocaleTag(language)');
     expect(read('packages/exporter/src/cjk-font.ts')).toContain('hanLocaleTag(language)');
+  });
+
+  it('lists exactly the slash commands the harness has, in its order, in the guide’s Commands table, the spec and the changelog', () => {
+    // The names come from the closed set the composer resolves (commands/slash.ts), so a renamed or added command fails here until the guide says so.
+    const agentSection = guide.slice(guide.indexOf('## The agent'), guide.indexOf('## Skills'));
+    const rows = agentSection.split('\n').filter((line) => line.startsWith('| `/'));
+    const named = rows.map((line) => (/^\| `\/([a-z]+)/.exec(line) ?? [])[1]);
+    expect(named).toEqual([...BUILTIN_COMMAND_NAMES]);
+    expect(agentSection).toContain('**Commands.** Type `/` at the start of the Intent box');
+    expect(agentSection).toContain('**no command skips a card, a rule or the mode.**');
+    const spec = read('docs/architecture/agent-harness.md');
+    const quoted = BUILTIN_COMMAND_NAMES.map((name) => `\`/${name}\``);
+    expect(spec).toContain(`${quoted.slice(0, -1).join(', ')} and ${quoted.at(-1)} (\`BUILTIN_COMMAND_NAMES\`)`);
+    for (const name of BUILTIN_COMMAND_NAMES) {
+      expect(spec).toContain(`\`/${name}\``);
+      expect(changelog.slice(changelog.indexOf('**Slash commands in the agent panel.**'), changelog.indexOf('**Agent instructions and memory.**'))).toContain(`\`/${name}\``);
+    }
+    // The words the guide names are the words the panel shows.
+    expect(read('apps/desktop/src/components/CommandComposer.tsx')).toContain('aria-label="Commands"');
+    expect(read('apps/desktop/src/components/AgentPanel.tsx')).toContain('Dismiss');
+    expect(read('docs/decisions.md')).toContain('Slash commands in the agent panel are a closed set of built-ins');
+  });
+
+  it('names the Macros panel and Save as macro in the words the app shows, with the limits the bus enforces', () => {
+    // MacrosPanel.tsx and SaveAsMacro.tsx are the words the guide names; the limits are the bus's own constants, and the agent's part is the registry's.
+    const panel = read('apps/desktop/src/components/MacrosPanel.tsx');
+    for (const label of ['Run…', 'Show the card', 'Edit', 'Delete', 'This project has no macros yet.']) expect(panel).toContain(label);
+    expect(read('apps/desktop/src/components/SaveAsMacro.tsx')).toContain('Save as macro…');
+    expect(read('apps/desktop/src/components/Settings.tsx')).toContain("{ id: 'macros', label: 'Macros' }");
+    const section = guide.slice(guide.indexOf('## Macros'), guide.indexOf('## Export'));
+    for (const label of ['**Save as macro…**', '**Run…**', '**Show the card**', '**Edit**', '**Delete**']) expect(section).toContain(label);
+    expect(section).toContain(`A macro can hold at most ${MACRO_STEPS_MAX} steps, a project at most ${MACROS_MAX} macros, and a description at most ${MACRO_DESCRIPTION_MAX} characters`);
+    expect(section).toContain(`the turn is named \`/macro-\` and the macro's short name`);
+    expect(macroCommandName('revise')).toBe('macro-revise');
+    // Only the writer saves or deletes one, and the agent has no command for it.
+    expect(COMMAND_REGISTRY['macro.save'].descriptor.agentRisk).toBe('never');
+    expect(COMMAND_REGISTRY['macro.delete'].descriptor.agentRisk).toBe('never');
+    expect(section).toContain('The agent does not run macros, cannot see them and cannot change them.');
+    // A mode never approves a card it would not approve for any plan, and the run is one turn.
+    expect(section).toContain('a mode approves only the cards it approves for any plan');
+    expect(read('apps/desktop/src/app/agent.ts')).toContain('forcePlan: checked.value.risk !== \'read\'');
+    expect(changelog).toContain('**Macros.** Under a plan you approved, **Save as macro…**');
+    expect(read('docs/decisions.md')).toContain('Macros are writer-authored, parameterised plan templates');
+  });
+
+  it('describes hooks as the app and the bus treat them: the file shape, the events, the limits and who may change one', () => {
+    const section = guide.slice(guide.indexOf('## Hooks'), guide.indexOf('## Export'));
+    // The example in the guide is a hook the bus and the loader accept, with the id a stored hook must have.
+    const json = /```json\n([\s\S]*?)\n```/.exec(section)?.[1];
+    expect(json).toBeDefined();
+    const parsed = JSON.parse(`{${json}}`) as { agent: { hooks: unknown[] } };
+    expect(parsed.agent.hooks).toHaveLength(1);
+    expect(readHook(parsed.agent.hooks[0], true).ok).toBe(true);
+    // Each check the guide shows is one the bus reads.
+    const base = { id: 'h_7K2QX9M4A1', name: 'A hook', event: 'tool.before', enabled: true };
+    const checks = [
+      { kind: 'pattern', patterns: [{ match: 'suddenly', message: 'Show it.' }] },
+      { kind: 'status', allowed: ['Final'] },
+      { kind: 'words', min: 200, max: 900 },
+      { kind: 'coherence', checks: ['codex.alias-collisions'] },
+    ];
+    for (const check of checks) expect(readHook({ ...base, handler: { kind: 'check', check } }, true).ok).toBe(true);
+    for (const shape of ['{ "kind": "status", "allowed": ["Final"] }', '{ "kind": "words", "min": 200, "max": 900 }', '{ "kind": "coherence", "checks": ["codex.alias-collisions"] }']) {
+      expect(section).toContain(shape);
+    }
+    // A program or a model handler is not a project-file hook, as the guide says.
+    expect(readHook({ ...base, handler: { kind: 'command', command: 'x' } }, true).ok).toBe(false);
+    // The events the guide names are the ones this build runs, and the limits are the bus's own.
+    expect([...HOOK_EVENTS_RUN]).toEqual(['tool.before', 'tool.after']);
+    expect(section).toContain(`A project holds at most ${HOOKS_MAX} hooks, a check at most ${HOOK_PATTERNS_MAX} patterns, and a pattern or a message at most ${HOOK_TEXT_MAX} characters.`);
+    // Only the writer changes a hook: the agent has no command for it.
+    expect(COMMAND_REGISTRY['hook.save'].descriptor.agentRisk).toBe('never');
+    expect(COMMAND_REGISTRY['hook.delete'].descriptor.agentRisk).toBe('never');
+    expect(section).toContain('The agent cannot add, change, turn off or remove a hook');
+    // The refusal the card shows, and the three places the guide and the README point a writer to.
+    expect(read('packages/harness/src/hooks.ts')).toContain('stopped ${tool}: ${run.decision.reason}');
+    expect(guide).toContain('- **Hooks.** A hook is a check you write for the agent');
+    expect(guide.slice(guide.indexOf('## What is not in this build yet'))).toContain('- **Hooks.** There is no Settings › Hooks');
+    expect(read('README.md')).toContain('- **Hooks.** Write a check the agent is held to');
+    expect(read('docs/decisions.md')).toMatch(/hooks/i);
   });
 });

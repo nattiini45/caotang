@@ -28,9 +28,11 @@ import { getBody, type CodexEntry, type ProjectState, type TreeNode } from '@cao
 
 import { charsAt, cheapestKept, cutOne, fitBlock, fitReserved, protectedCount, renderBlock, tokensAt, type Block } from './block.js';
 import { describeDrop, dropLine, dropRecord } from './drops.js';
+import { withhold } from './withheld.js';
 import { ContextError } from './errors.js';
 import { codexBlock, detectCodex } from './layers/codex.js';
 import { beatStoryBlock, speakerHitsOf } from './layers/dialogue.js';
+import { instructionsLayer } from './layers/instructions.js';
 import { focusText, scopeBlock, type FocusPlan, type ScopePlan } from './layers/focus.js';
 import { projectLayer, type ProjectLayer } from './layers/project.js';
 import { scopeStoryBlock, storyBlock } from './layers/story.js';
@@ -64,13 +66,13 @@ import {
 } from './types.js';
 
 /** The layers that go in the user message, in §2's order. L0 is the system message. */
-const USER_LAYERS: readonly LayerId[] = ['L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7'];
+const USER_LAYERS: readonly LayerId[] = ['LI', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7'];
 
 /** Labels a detection surface reports as. Any other `where` is a node id, and reads as its title. `speakers` is a container's speakers (dialogue-narrative §7). */
 const SURFACE_LABELS: ReadonlySet<string> = new Set(['instruction', 'tail', 'selection', 'focus', 'speakers']);
 
 function perLayer<T>(make: () => T): Record<LayerId, T> {
-  return { L0: make(), L1: make(), L2: make(), L3: make(), L4: make(), L5: make(), L6: make(), L7: make() };
+  return { L0: make(), LI: make(), L1: make(), L2: make(), L3: make(), L4: make(), L5: make(), L6: make(), L7: make() };
 }
 
 function resolveFocus(task: AgentTask, tree: TreeIndex): TreeNode | undefined {
@@ -148,12 +150,16 @@ function keptReports(block: Block): LayerItemReport[] {
   return out;
 }
 
-export function assemble(task: AgentTask, app: AppSnapshot, config: ContextConfig = {}): AssembledPrompt {
+export function assemble(given: AgentTask, snapshot: AppSnapshot, config: ContextConfig = {}): AssembledPrompt {
+  const { task, app, drops: withheldDrops } = withhold(given, snapshot);
   const tree = indexTree(app.state.manifest.tree);
   const entries = app.state.manifest.codex ?? [];
   const profile = profileFor(task.tool);
   const budgets = effectiveBudgets(profile, config, task.compact === true);
-  const totalBudget = totalBudgetFor(profile, budgets, config);
+  // LI is in every profile, but a project with no instructions and no memory index has no such layer: its prompt is the one it was before
+  // LI existed, and the cap of a layer that is not sent does not raise a tool's total.
+  const instructions = instructionsLayer(app, budgets.LI ?? 0);
+  const totalBudget = totalBudgetFor(profile, instructions === undefined ? { ...budgets, LI: 0 } : budgets, config);
   const continuationChars = Math.max(0, Math.floor(config.continuationChars ?? DEFAULT_CONTINUATION_CHARS));
   const baseOf = (id: LayerId): number => budgets[id] ?? 0;
 
@@ -162,8 +168,14 @@ export function assemble(task: AgentTask, app: AppSnapshot, config: ContextConfi
 
   // The layers this call is assembled from. The total-budget pass can cut one whole.
   const active = new Set<LayerId>(profile.layers);
+  if (instructions === undefined) active.delete('LI');
   const notes = perLayer<string[]>(() => []);
   const drops = perLayer<DropRecord[]>(() => []);
+  // Every layer works on the view without the withheld nodes; the project layer lists them, since every profile has it.
+  if (withheldDrops.length > 0) {
+    drops.L1.push(...withheldDrops);
+    notes.L1.push(`${withheldDrops.length} ${withheldDrops.length === 1 ? 'item is' : 'items are'} withheld by a read rule and not in this prompt.`);
+  }
   const effective: Partial<Record<LayerId, number>> = {};
 
   // L0 and L7 are fixed text: never truncated, and outside every budget (§2).
@@ -255,7 +267,7 @@ export function assemble(task: AgentTask, app: AppSnapshot, config: ContextConfi
 
   let turns: Block | undefined;
   if (active.has('L6')) {
-    const plan = turnsBlock(app.turns ?? [], app.activity ?? []);
+    const plan = turnsBlock(app.turns ?? [], app.activity ?? [], config.formatTime);
     turns = plan.block;
     notes.L6.push(...plan.notes);
     const budget = baseOf('L6');
@@ -269,6 +281,12 @@ export function assemble(task: AgentTask, app: AppSnapshot, config: ContextConfi
     effective.L1 = budget;
     project = projectLayer(tree, app, budget);
     notes.L1.push(...project.notes);
+  }
+
+  if (instructions !== undefined && active.has('LI')) {
+    effective.LI = baseOf('LI');
+    notes.LI.push(...instructions.notes);
+    drops.LI.push(...instructions.drops);
   }
 
   const blockOf = (id: LayerId): Block | undefined => {
@@ -293,6 +311,8 @@ export function assemble(task: AgentTask, app: AppSnapshot, config: ContextConfi
     switch (id) {
       case 'L0':
         return system;
+      case 'LI':
+        return instructions?.text ?? '';
       case 'L1':
         return project?.text ?? '';
       case 'L5':
@@ -381,6 +401,7 @@ export function assemble(task: AgentTask, app: AppSnapshot, config: ContextConfi
 
     const kept: LayerItemReport[] = [];
     if (included && block !== undefined) kept.push(...keptReports(block));
+    if (included && id === 'LI' && instructions !== undefined) kept.push(...instructions.kept);
     if (included && id === 'L5' && focus !== undefined) {
       kept.push({ label: focus.item.label, reason: focus.item.reason, tokens });
     }

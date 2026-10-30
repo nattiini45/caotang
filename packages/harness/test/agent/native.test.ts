@@ -259,7 +259,7 @@ describe('the planner on the native tool-call wire', () => {
     const intent = 'Find the lore tools, read the bible, and label The Friend.';
     const fixture = await nativeFixture(
       nativeTranscript(intent, [
-        { calls: [{ id: 'call_s', name: 'tool.search', args: { query: '', limit: 20 } }] },
+        { calls: [{ id: 'call_s', name: 'tool.search', args: { query: 'mcp__', limit: 20 } }] },
         {
           content: 'The bible is loaded; reading it and labelling.',
           calls: [

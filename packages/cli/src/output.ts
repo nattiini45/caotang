@@ -47,6 +47,7 @@ export function exitCodeOf(report: TurnReport): ExitCode {
   switch (report.askBack?.code) {
     case 'needs_input':
     case 'budget_exhausted':
+    case 'hook_blocked':
       return ExitCode.NeedsInput;
     case 'conflict':
     case 'anchor_unresolvable':

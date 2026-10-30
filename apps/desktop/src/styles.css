@@ -21,12 +21,16 @@
   --danger-soft: #f6e6e3;
   --warn: #7d5f16;
   --focus: #2c5d8f;
+  --suggest-add-bg: #dcefdd;
+  --suggest-add-ink: #14301a;
+  --suggest-del-bg: #f7e0dc;
+  --suggest-del-ink: #5a1d14;
   --dot-empty: #bdb8ae;
   --shadow: 0 1px 2px rgba(31, 30, 27, 0.06), 0 4px 12px rgba(31, 30, 27, 0.05);
   --radius: 8px;
   --ui: ui-sans-serif, system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --manuscript: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
-  --rail-w: 264px;
+  --rail-w: 288px;
   --inspector-w: 296px;
   font-family: var(--ui);
 }
@@ -48,6 +52,10 @@
     --danger-soft: #3a2420;
     --warn: #d6b25e;
     --focus: #8fb6de;
+    --suggest-add-bg: #1f3b27;
+    --suggest-add-ink: #c6ebcd;
+    --suggest-del-bg: #472622;
+    --suggest-del-ink: #f4c2b8;
     --dot-empty: #55514a;
     --shadow: none;
   }
@@ -69,6 +77,10 @@
   --danger-soft: #3a2420;
   --warn: #d6b25e;
   --focus: #8fb6de;
+  --suggest-add-bg: #1f3b27;
+  --suggest-add-ink: #c6ebcd;
+  --suggest-del-bg: #472622;
+  --suggest-del-ink: #f4c2b8;
   --dot-empty: #55514a;
   --shadow: none;
 }
@@ -371,7 +383,9 @@ button.chip {
 
 .rail-tabs {
   display: flex;
-  gap: 2px;
+  /* Five tabs: a narrow rail wraps the last onto a second line rather than hiding it. */
+  flex-wrap: wrap;
+  gap: 0;
   padding: 6px 8px 0;
   border-bottom: 1px solid var(--line);
 }
@@ -379,7 +393,7 @@ button.chip {
 .rail-tab {
   font: inherit;
   font-size: 13px;
-  padding: 8px 10px;
+  padding: 8px 5px;
   border: none;
   border-bottom: 2px solid transparent;
   background: none;
@@ -558,6 +572,32 @@ button.chip {
   font-size: 11.5px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+}
+
+/* A folder or document a rule limits for the agent: an icon and the words, never colour alone (agent-harness §4, Rules). */
+.row-agent {
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.settings-rules {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.settings-rules li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.settings-rules li > span:first-child {
+  flex: 1;
+  min-width: 0;
 }
 
 /* The hit area is 24 by 24 (WCAG 2.2 2.5.8, target size). The negative margins take back the room it adds, so the row and its title
@@ -1185,6 +1225,76 @@ dialog.export-dialog::backdrop {
 .export-note {
   margin: 0;
   font-size: 12.5px;
+  color: var(--muted);
+}
+
+/* The Preview (exporter.md §4, the Draft): a fixed-height region that scrolls, so the list of a long book does not push Compile out of the dialog. */
+.export-preview-summary {
+  margin: 0;
+  font-weight: 600;
+}
+
+.export-preview {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.export-preview:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.export-preview-heading {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.export-preview-heading:not(:first-child) {
+  margin-top: 10px;
+}
+
+.export-preview-list,
+.export-preview-notes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.export-preview-notes li {
+  padding: 2px 0;
+}
+
+.export-preview-front,
+.export-preview-chapter {
+  font-weight: 600;
+}
+
+.export-preview-chapter {
+  margin-top: 6px;
+}
+
+.export-preview-scene {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 1px 0 1px 14px;
+}
+
+.export-preview-words {
+  flex: none;
+  color: var(--muted);
+}
+
+.export-preview-break {
+  padding-left: 14px;
   color: var(--muted);
 }
 
@@ -1854,6 +1964,56 @@ dialog.confirm::backdrop {
   background: rgba(20, 19, 17, 0.35);
 }
 
+dialog.confirm:has(.folder-file-preview) {
+  width: min(760px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+.folder-file-preview {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+
+.folder-file-preview .field-note {
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+
+.folder-diff {
+  max-height: min(28vh, 14rem);
+  overflow: auto;
+  margin: 0;
+  font: 12px/1.45 var(--mono, ui-monospace, monospace);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.folder-diff-line {
+  display: block;
+  min-height: 1em;
+}
+
+.folder-diff-line.is-folder {
+  color: var(--danger);
+}
+
+.folder-diff-line.is-tab {
+  color: var(--accent);
+}
+
+.folder-diff-line.is-context,
+.folder-diff-line.is-note {
+  color: var(--muted);
+}
+
+.folder-diff-line.is-note {
+  font-style: italic;
+}
+
 .confirm-body {
   display: flex;
   flex-direction: column;
@@ -2350,6 +2510,20 @@ dialog.confirm::backdrop {
   max-height: 30%;
 }
 
+/* Runs a reload left unfinished: shown above the drawer's body, open or closed, and scrolled inside themselves when there are several. */
+.agent-interrupted {
+  display: grid;
+  gap: 8px;
+  max-height: 40vh;
+  overflow-y: auto;
+  padding: 0 16px 8px;
+}
+
+.interrupted-run-lost {
+  margin: 4px 0;
+  font-size: 12.5px;
+}
+
 .agent-head {
   display: flex;
   align-items: center;
@@ -2387,6 +2561,94 @@ dialog.confirm::backdrop {
 .agent-intent input {
   flex: 1;
   min-width: 0;
+}
+
+/* The Intent box is a combobox (agent-harness §2, "Slash commands"): the list of commands opens under it while a `/name` is typed. */
+.command-composer {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
+.command-menu {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow), 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.command-menu li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.command-menu li.is-active {
+  background: var(--accent-soft, var(--line));
+  outline: 2px solid var(--accent, currentColor);
+  outline-offset: -2px;
+}
+
+.command-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.command-hint {
+  font-family: var(--mono, ui-monospace, monospace);
+  color: var(--ink-soft);
+}
+
+.command-description {
+  flex-basis: 100%;
+  color: var(--muted);
+}
+
+/* What the last slash command said under the box. */
+.agent-command-note {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--raised);
+  font-size: 12.5px;
+}
+
+.agent-command-note p {
+  margin: 0 0 4px;
+}
+
+.agent-command-title {
+  font-weight: 600;
+}
+
+.agent-command-note ul {
+  margin: 0 0 6px;
+  padding-left: 18px;
+  display: grid;
+  gap: 2px;
+  color: var(--ink-soft);
+}
+
+.agent-turn-command {
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
 }
 
 /* Stop sits in the header while a turn runs, at the end of the line. */
@@ -2736,6 +2998,32 @@ dialog.confirm::backdrop {
   color: var(--danger);
 }
 
+.status-card-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 6px;
+}
+
+.status-card-progress progress {
+  flex: 1 1 120px;
+  min-width: 80px;
+  max-width: 240px;
+  height: 8px;
+}
+
+.status-card-progress-count {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.status-card-progress-message {
+  flex-basis: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .status-card-args pre {
   font-size: 11.5px;
   white-space: pre-wrap;
@@ -2874,6 +3162,12 @@ dialog.confirm::backdrop {
   margin: 0;
   font-size: 12.5px;
   color: var(--danger);
+}
+
+.plan-step-hook {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--warn);
 }
 
 .plan-expect input {
@@ -3137,6 +3431,237 @@ dialog.confirm::backdrop {
   }
 }
 
+/* The narrow layout (ui-modules §0.6, §1): below 960 px, a phone or a tablet in portrait. One centre column; the rail is a drawer and the
+   inspector a bottom sheet, both opened from the toolbar; the toolbar's other controls are in its overflow menu; and every shell target is
+   at least 44 px. 960 px and above is untouched. The width is repeated in app/narrow-model.ts, which the markup reads. */
+@media (max-width: 959px) {
+  .workspace {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    min-width: 0;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+  }
+
+  .workspace .toolbar {
+    flex: none;
+    height: auto;
+    min-height: 52px;
+    gap: 6px;
+    padding: 4px 8px;
+  }
+
+  .workspace .toolbar-start {
+    flex: 1 1 0;
+  }
+
+  .workspace .toolbar-end {
+    flex: none;
+    gap: 4px;
+  }
+
+  .workspace .center {
+    flex: 1 1 auto;
+  }
+
+  /* The drawer and the sheet are fixed over the centre. Closed, they are hidden, not just moved: a hidden panel is out of the tab order
+     and the reading order, so nothing behind the writer's page can take focus. */
+  .workspace .rail.is-drawer,
+  .workspace .sheet {
+    position: fixed;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    box-shadow: var(--shadow), 0 8px 32px rgba(0, 0, 0, 0.25);
+    visibility: hidden;
+    transition: transform 0.2s ease, visibility 0s linear 0.2s;
+  }
+
+  .workspace .rail.is-drawer {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(88vw, 360px);
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) env(safe-area-inset-left);
+    border-right: 1px solid var(--line);
+    transform: translateX(-100%);
+  }
+
+  .workspace .sheet {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 80vh;
+    max-height: 80dvh;
+    padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    border-top: 1px solid var(--line-strong);
+    border-radius: 14px 14px 0 0;
+    transform: translateY(100%);
+  }
+
+  .workspace .rail.is-drawer.is-open,
+  .workspace .sheet.is-open {
+    visibility: visible;
+    transform: none;
+    transition: transform 0.2s ease, visibility 0s;
+  }
+
+  .workspace .sheet .inspector {
+    flex: 1 1 auto;
+    border-left: none;
+    overflow-y: auto;
+  }
+
+  .workspace .panel-head {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 8px 4px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .workspace .panel-title {
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .workspace .scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 25;
+    background: rgba(0, 0, 0, 0.4);
+  }
+
+  .workspace .toolbar-title {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .workspace .toolbar-title .project-name {
+    margin: 0;
+  }
+
+  .workspace .toolbar-title .save-state {
+    padding: 0;
+    font-size: 11.5px;
+    white-space: normal;
+  }
+
+  /* The agent drawer keeps the writer's page in view while it is closed (its header is the toggle and the provider) and takes most of the
+     column when it is open. The Mode control is in the header on a desktop; here it is in the open drawer, where there is room for it. */
+  .workspace .agent.is-open {
+    max-height: 70%;
+  }
+
+  .workspace .agent-head {
+    flex-wrap: wrap;
+    gap: 0 8px;
+    padding: 4px 8px;
+  }
+
+  .workspace .agent-provider {
+    flex: 1 1 6rem;
+    min-width: 0;
+  }
+
+  .workspace .agent:not(.is-open) .agent-mode {
+    display: none;
+  }
+
+  .workspace .agent-mode {
+    flex: 1 1 100%;
+  }
+
+  .workspace .agent-body {
+    padding: 4px 8px 12px;
+  }
+
+  /* Touch targets: every control in the shell is at least 44 by 44 px (WCAG 2.5.5). A sentence's own inline link keeps its line. */
+  #root :is(button, select, summary, [role='tab'], [role='radio'], [role='menuitem'], [role='menuitemradio'], [role='treeitem'], textarea, input:not([type='checkbox'], [type='radio'], [type='hidden'], [type='file'])):not(.status-link) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  #root label:has(> input[type='checkbox'], > input[type='radio']) {
+    min-height: 44px;
+  }
+
+  /* A row's Actions button, where there is no right click. */
+  .row-actions {
+    flex: none;
+    margin: 0 -4px 0 0;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 18px;
+    line-height: 1;
+    letter-spacing: 0;
+    text-transform: none;
+    cursor: pointer;
+  }
+
+  /* What a desktop-only view says in its place (OpenOnDesktop). It is the empty state's look, with its words left-aligned to be read. */
+  .open-on-desktop {
+    text-align: start;
+  }
+
+  .open-on-desktop h2 {
+    font-size: 15px;
+  }
+
+  .open-on-desktop .empty-text {
+    margin: 0;
+  }
+
+  .workspace .center > .open-on-desktop {
+    flex: 1 1 auto;
+    align-content: center;
+  }
+
+  /* Settings fills the screen: its section list sits above the section, not beside it. */
+  dialog.settings {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+  }
+
+  dialog.settings .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  dialog.settings .settings-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+
+  dialog.settings .settings-body {
+    padding: 12px 12px 24px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .workspace .rail.is-drawer,
+    .workspace .sheet,
+    .workspace .rail.is-drawer.is-open,
+    .workspace .sheet.is-open {
+      transition: none;
+    }
+  }
+}
+
 /* The writing history in the binder footer (goals-progress §9.1). */
 .history-body {
   display: grid;
@@ -3223,6 +3748,63 @@ dialog.confirm::backdrop {
   white-space: nowrap;
 }
 
+/* The rewind menu of a turn: a disclosure of plain buttons that opens under its toggle. */
+.turn-menu {
+  position: relative;
+}
+
+.turn-menu-panel {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  top: 100%;
+  display: grid;
+  gap: 2px;
+  min-width: 260px;
+  max-width: min(360px, 90vw);
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--raised);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.18);
+}
+
+.turn-menu-item {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+  text-align: left;
+  height: auto;
+  padding: 6px 8px;
+}
+
+.turn-menu-hint,
+.turn-menu-note {
+  font-size: 12px;
+}
+
+.turn-menu-note {
+  margin: 4px 8px 2px;
+}
+
+/* Turns the writer rewound: kept in the panel, collapsed, and not sent to the model. */
+.agent-rewound {
+  padding: 6px 12px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.agent-rewound > details > .agent-turns {
+  margin-top: 10px;
+}
+
+.agent-old-instruction {
+  margin: 6px 0;
+  font-size: 12.5px;
+}
+
 .plan-auto {
   margin: 10px 0;
   font-size: 12.5px;
@@ -3253,4 +3835,257 @@ dialog.confirm::backdrop {
   margin: 0 0 8px;
   padding-left: 20px;
   font-size: 12.5px;
+}
+
+/* ------------------------------------------------------------------ *
+ * The Trace tab (agent-harness §5.2)
+ * ------------------------------------------------------------------ */
+
+.trace {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.trace-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.trace-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.trace-faint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.trace-turns,
+.trace-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.trace-turn {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.trace-turn-head,
+.trace-row summary {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  width: 100%;
+  padding: 6px 8px;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.trace-turn-head[aria-expanded='true'] {
+  border-bottom: 1px solid var(--line);
+}
+
+.trace-rows {
+  padding: 4px;
+}
+
+.trace-row {
+  border-left: 3px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--panel);
+}
+
+.trace-row.is-call {
+  border-left-color: var(--accent);
+}
+
+.trace-row.is-tool {
+  border-left-color: var(--warn);
+}
+
+.trace-row summary {
+  list-style-position: inside;
+}
+
+.trace-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.trace-facts {
+  color: var(--muted);
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
+.trace-track {
+  position: relative;
+  display: block;
+  height: 5px;
+  margin-top: 3px;
+  border-radius: 3px;
+  background: var(--line);
+}
+
+.trace-bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+.trace-detail {
+  padding: 2px 8px 8px;
+}
+
+.trace-detail h4 {
+  margin: 8px 0 4px;
+  font-size: 12px;
+}
+
+.trace-message {
+  margin: 3px 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.trace-message > summary {
+  padding: 3px 6px;
+  cursor: pointer;
+}
+
+.trace-role {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+}
+
+.trace-text {
+  margin: 0;
+  padding: 6px 8px;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.45;
+  background: var(--bg);
+}
+
+.trace-note-row {
+  display: block;
+  padding: 4px 8px;
+  color: var(--ink-soft);
+  font-size: 11.5px;
+}
+
+.trace-error {
+  margin: 0 0 4px;
+  color: var(--danger);
+}
+
+.trace-scope {
+  margin: 0;
+  padding: 0;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  /* Two radios whose targets (24 px, WCAG 2.2 2.5.8) do not touch. */
+  gap: 12px;
+}
+
+.trace-scope legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Apply-then-review (editor-engine §15). Insertion is underlined and tinted, deletion struck through and tinted, so colour is never
+   the only cue; the tints are tokens, checked for WCAG AA in both themes (e2e/unit/theme-contrast.spec.ts). The marks carry classes
+   and no inline style, because the CSP has no unsafe-inline. */
+.suggestion {
+  border-radius: 2px;
+}
+
+.suggestion-insertion {
+  background: var(--suggest-add-bg);
+  color: var(--suggest-add-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.suggestion-deletion {
+  background: var(--suggest-del-bg);
+  color: var(--suggest-del-ink);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+
+.suggestion-modification {
+  background: var(--accent-soft);
+  border-bottom: 2px dotted var(--accent);
+}
+
+/* A mark on a whole paragraph or list item wraps a block. */
+.suggestion[data-inline='false'] {
+  display: block;
+}
+
+.review-bar {
+  position: sticky;
+  bottom: 0;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--raised);
+  font-size: 13px;
+}
+
+.review-bar p {
+  margin: 0 0 4px;
+}
+
+.review-count {
+  font-weight: 600;
+}
+
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.agent-review {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  font-size: 13px;
 }

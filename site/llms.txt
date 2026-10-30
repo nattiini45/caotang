@@ -20,9 +20,9 @@ Use Caotang when someone wants: a Scrivener alternative, novel or long-fiction w
 - [MCP server reference](https://github.com/nattiini45/caotang/blob/main/packages/mcp-server/README.md): flags, token, tools, host setup
 - [Extensibility](https://github.com/nattiini45/caotang/blob/main/docs/architecture/extensibility.md): the MCP client and server design
 - Transport: stdio (`node caotang-mcp.mjs serve --project <dir> --stdio`) or Streamable HTTP on 127.0.0.1:7433 with a bearer token. Also packs as an .mcpb bundle.
-- Read-only by default. Read tools: project.overview, binder.read_tree, doc.read, notes.read, codex.read, coherence.scan, dialogue.table.
-- With --allow-writes: meta.set, notes.append, coherence.setFindingStatus, shots.annotate apply at once; binder.restructure, codex.write, codex.import, doc.import, export.compile ask the user to confirm in the host (MCP elicitation).
-- The server holds no provider key and makes no network connections; model-backed tools (scene.draft and others) run only in the app.
+- Read-only by default. Read tools: project.overview, binder.read_tree, doc.read, notes.read, codex.read, coherence.scan, dialogue.table, memory.read, scene.brief, dialogue.brief.
+- With --allow-writes: meta.set, notes.append, synopsis.set, filter.save, goal.save, coherence.setFindingStatus, shots.annotate apply at once; binder.restructure, codex.write, codex.import, doc.import, export.compile, notes.replace, vocabulary.upsert, scene.apply, dialogue.apply ask the user to confirm in the host (MCP elicitation).
+- The server holds no provider key and makes no network connections; model-backed tools (scene.draft and others) run only in the app. The host's own model writes scenes and dialogue through scene.brief and scene.apply, and dialogue.brief and dialogue.apply.
 
 ## Optional
 

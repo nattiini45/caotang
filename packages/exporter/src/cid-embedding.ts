@@ -13,8 +13,11 @@
  * objects are written by {@link CidEmbedding.finish}, once every page is drawn; until then the pages point at `ref`.
  */
 
-import { CidNumbering, cidFontObjects, describeSubset, encodeSubset, padGlyphs, type PdfObject, type PdfValue } from '@caotang/pdf-fonts';
+import { CidNumbering, cidFontObjects, describeSubset, encodeSubset, padGlyphs, type PdfObject } from '@caotang/pdf-fonts';
 import type * as PdfLib from 'pdf-lib';
+
+import { emboldenOf } from './bold-run.js';
+import { registerPdfObjects } from './pdf-objects.js';
 
 /** One glyph a text draws: its id in the font, its advance in font units, and the text it stands for when copied. */
 export interface CidGlyph {
@@ -88,20 +91,23 @@ export class CidEmbedding {
     return this.entries.length > 0;
   }
 
-  /** Draws glyphs from a baseline start, in a colour. */
-  draw(page: PdfLib.PDFPage, glyphs: readonly CidGlyph[], x: number, y: number, size: number, ink: { r: number; g: number; b: number }): void {
-    const { pushGraphicsState, popGraphicsState, beginText, endText, setFontAndSize, setFillingRgbColor, moveText, showText, PDFHexString } = this.lib;
+  /** Draws glyphs from a baseline start, in a colour. With `bold` they are stroked and spaced by one line width (bold-run.ts). */
+  draw(page: PdfLib.PDFPage, glyphs: readonly CidGlyph[], x: number, y: number, size: number, ink: { r: number; g: number; b: number }, bold = false): void {
+    const { pushGraphicsState, popGraphicsState, beginText, endText, setFontAndSize, setFillingRgbColor, setStrokingRgbColor, setLineWidth, setLineJoin, LineJoinStyle, setTextRenderingMode, TextRenderingMode, setCharacterSpacing, moveText, showText, PDFHexString } = this.lib;
     let key = this.keys.get(page);
     if (key === undefined) {
       key = page.node.newFontDictionary(this.names.resource, this.ref);
       this.keys.set(page, key);
     }
     const codes = glyphs.map((glyph) => hex4(this.cidOf(glyph))).join('');
+    const stroke = bold ? emboldenOf(size) : undefined;
     page.pushOperators(
       pushGraphicsState(),
       setFillingRgbColor(ink.r, ink.g, ink.b),
+      ...(stroke === undefined ? [] : [setStrokingRgbColor(ink.r, ink.g, ink.b), setLineWidth(stroke.lineWidth), setLineJoin(LineJoinStyle.Round)]),
       beginText(),
       setFontAndSize(key, size),
+      ...(stroke === undefined ? [] : [setTextRenderingMode(TextRenderingMode.FillAndOutline), setCharacterSpacing(stroke.spacing)]),
       moveText(x, y),
       showText(PDFHexString.of(codes)),
       endText(),
@@ -188,25 +194,6 @@ export class CidEmbedding {
 
   /** Registers the writer's objects with pdf-lib: object 0 is the font {@link ref} names, the others get references of their own. */
   private register(objects: readonly PdfObject[]): void {
-    const { PDFName, PDFNumber, PDFString } = this.lib;
-    const context = this.doc.context;
-    const refs = objects.map((_, index) => (index === 0 ? this.ref : context.nextRef()));
-    const convert = (value: PdfValue): PdfLib.PDFObject => {
-      if (typeof value === 'number') return PDFNumber.of(value);
-      if (Array.isArray(value)) return context.obj((value as readonly PdfValue[]).map(convert));
-      const object = value as Exclude<PdfValue, number | readonly PdfValue[]>;
-      if ('name' in object) return PDFName.of(object.name);
-      if ('string' in object) return PDFString.of(object.string);
-      if ('ref' in object) return refs[object.ref] as PdfLib.PDFRef;
-      return convertDict(object.dict);
-    };
-    const convertDict = (dict: { readonly [key: string]: PdfValue }): PdfLib.PDFDict =>
-      context.obj(Object.fromEntries(Object.entries(dict).map(([key, item]) => [key, convert(item)]))) as PdfLib.PDFDict;
-    objects.forEach((object, index) => {
-      const ref = refs[index] as PdfLib.PDFRef;
-      const entries = Object.fromEntries(Object.entries(object.dict).map(([key, item]) => [key, convert(item)]));
-      if (object.stream === undefined) context.assign(ref, context.obj(entries));
-      else context.assign(ref, context.flateStream(object.stream, entries));
-    });
+    registerPdfObjects(this.lib, this.doc, objects, new Map([[0, this.ref]]));
   }
 }

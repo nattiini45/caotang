@@ -5,7 +5,7 @@
  *
  * A reader sees an emoji as one character, though it can be many code points: a ZWJ sequence (👨‍👩‍👧, 🧑‍💻), a skin-tone
  * modifier (👍🏽), a flag of two regional indicators (🇩🇪), a keycap (1️⃣), a tag sequence (🏴󠁧󠁢󠁳󠁣󠁴󠁿), or a character with a
- * variation selector (❤️). Both PDFs work on grapheme clusters (`Intl.Segmenter`, UAX #29), so such a sequence is measured,
+ * variation selector (❤️). Both PDFs use pinned Unicode 17 grapheme data (UAX #29), so such a sequence is measured,
  * wrapped, cut and drawn as one unit and never split across a line or a font.
  *
  * {@link emojiStyleOf} says how a cluster wants to be shown, as Unicode's emoji presentation rules put it (UTS #51):
@@ -22,24 +22,23 @@
  * keeps the tone. {@link emojiPrint} says what the font prints for a cluster, from the coverage tables.
  */
 
+import { isEmojiPresentation, isExtendedPictographic } from 'unicode-segmenter/emoji';
+import { collectGraphemes } from 'unicode-segmenter/grapheme';
 import { emojiFontHasSequence, emojiFontHasTonedSequence, emojiFontLayoutGlyph, emojiFontMaps } from './coverage.js';
 
 /** The grapheme clusters of a text: a letter with its combining marks, an emoji sequence, as a reader sees one character. */
 export function graphemesOf(text: string): string[] {
-  const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-  return Array.from(segmenter.segment(text), (part) => part.segment);
+  return collectGraphemes(text);
 }
 
-/** `\p{RGI_Emoji}` needs the `v` flag (ES2024). Built from a string, so a runtime without it reads the other rules only. */
-const RGI_EMOJI: RegExp | null = (() => {
-  try {
-    return new RegExp('^\\p{RGI_Emoji}$', 'v');
-  } catch {
-    return null;
+/** Whether text contains a code point with the pinned Unicode Extended_Pictographic property. */
+export function hasExtendedPictographic(text: string): boolean {
+  for (const character of text) {
+    if (isExtendedPictographic(character.codePointAt(0) ?? 0)) return true;
   }
-})();
-const PICTOGRAPHIC = /\p{Extended_Pictographic}/u;
-const EMOJI_PRESENTATION = /^\p{Emoji_Presentation}/u;
+  return false;
+}
+
 
 const ZWJ = 0x200d;
 const VS15 = 0xfe0e;
@@ -55,13 +54,13 @@ export type EmojiStyle = 'emoji' | 'text';
 /** How a grapheme cluster wants to be shown: as an emoji, as a text pictograph, or `null` for no emoji. See the header. */
 export function emojiStyleOf(cluster: string): EmojiStyle | null {
   const codes = Array.from(cluster, (char) => char.codePointAt(0) ?? 0);
-  if (codes.includes(VS15)) return PICTOGRAPHIC.test(cluster) || codes.includes(KEYCAP) || codes.some(isRegionalIndicator) ? 'text' : null;
-  if (RGI_EMOJI?.test(cluster) === true) return 'emoji';
+  const pictographic = codes.some(isExtendedPictographic);
+  if (codes.includes(VS15)) return pictographic || codes.includes(KEYCAP) || codes.some(isRegionalIndicator) ? 'text' : null;
   if (codes.some((code) => code === VS16 || code === KEYCAP || isRegionalIndicator(code) || isSkinTone(code) || isTag(code))) return 'emoji';
-  if (codes.includes(ZWJ) && PICTOGRAPHIC.test(cluster)) return 'emoji';
-  if (EMOJI_PRESENTATION.test(cluster)) return 'emoji';
+  if (codes.includes(ZWJ) && pictographic) return 'emoji';
+  if (isEmojiPresentation(codes[0] ?? 0)) return 'emoji';
   // Latin-1's © and ® are pictographs too, but every font draws them; they stay text that is no emoji.
-  if (PICTOGRAPHIC.test(cluster) && (codes[0] ?? 0) > 0xff) return 'text';
+  if (pictographic && (codes[0] ?? 0) > 0xff) return 'text';
   return null;
 }
 

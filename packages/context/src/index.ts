@@ -1,5 +1,5 @@
 /**
- * `@caotang/context` — context assembly for one model call: the eight layers in their fixed
+ * `@caotang/context` — context assembly for one model call: the nine layers in their fixed
  * order, their budgets and flow-up, the drop-reason taxonomy, the prompt preview, and the
  * execution payload. [context-assembly.md](../../../docs/architecture/context-assembly.md)
  * is the contract; this package is its implementation.
@@ -15,13 +15,33 @@ export { buildPreview } from './preview.js';
 export { describeDrop } from './drops.js';
 export { SYSTEM_PROMPT_VERSION } from './layers/system.js';
 export { FOCUS_MARKER } from './layers/focus.js';
+export {
+  STATIC_NONCE,
+  UNTRUSTED_CLOSE,
+  UNTRUSTED_OPEN,
+  UNTRUSTED_RULE,
+  closingOf,
+  defuseMarkers,
+  neutralise,
+  nonceFor,
+  openingOf,
+  revealInvisible,
+  scanForInjection,
+  sourceLabel,
+  spotlight,
+  type InjectionHit,
+  type InvisibleRun,
+  type UntrustedSource,
+} from './untrusted.js';
 
+export { entryWithheld, withhold, withheldState, type WithheldView } from './withheld.js';
 export { ContextError, type ContextErrorCode } from './errors.js';
 
 export {
   ANTECEDENT_CHARS,
   DEFAULT_CONTEXT_BUDGET,
   DEFAULT_CONTINUATION_CHARS,
+  DEFAULT_INSTRUCTIONS_BUDGET,
   DEFAULT_MAX_OUTPUT_TOKENS,
   PREVIEW_CHARS,
   RESERVED_TOKENS,

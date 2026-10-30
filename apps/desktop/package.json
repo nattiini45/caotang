@@ -20,6 +20,7 @@
     "@caotang/exporter": "workspace:*",
     "@caotang/font-noto-arabic": "workspace:*",
     "@caotang/font-noto-cjk": "workspace:*",
+    "@caotang/font-noto-color-emoji": "workspace:*",
     "@caotang/font-noto-devanagari": "workspace:*",
     "@caotang/font-noto-emoji": "workspace:*",
     "@caotang/font-noto-hebrew": "workspace:*",
@@ -33,6 +34,7 @@
     "@caotang/skills": "workspace:*",
     "@caotang/storyboard": "workspace:*",
     "@caotang/store": "workspace:*",
+    "@caotang/tasks": "workspace:*",
     "@caotang/video-prompt-pack": "workspace:*",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"

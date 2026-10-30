@@ -103,6 +103,7 @@ export function formatJson(result: ScanResult): string {
     documents: result.documents,
     counts: result.counts,
     exitCode: result.exitCode,
+    unread: result.unread,
     written: result.written,
     notes: result.notes,
     notices: result.notices,

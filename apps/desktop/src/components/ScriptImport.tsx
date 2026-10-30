@@ -2,12 +2,15 @@
  * The import actions for a whole script, a whole Ink story and a Twee story (screenplay.md §2.2, dialogue-narrative.md §4). The file
  * is read in the browser and handed to the bus: `screenplay.import` takes a Fountain or FDX file, and `dialogue.importInk` takes the
  * containers an Ink or Twee plan makes. Each import is one undo group, and what it could not bring in is read back on the status
- * line. A Twee story strips logic, so its report is shown first, and nothing is written until the writer confirms it.
+ * line. A Twee story strips logic, so its report is shown first, and nothing is written until the writer confirms it. Each file is scanned
+ * for passages that read like instructions to an AI (hidden characters, role markers, "ignore previous instructions"), and the status line
+ * says so; the file is imported as it is either way (issue #54).
  */
 
 import { useRef, useState, type ReactNode } from 'react';
 
 import { compileInk, mintImportIds, planInkImport, planTweeImport, type TweeImportPlan } from '@caotang/dialogue';
+import { importScanSentence, scanImport } from '@caotang/harness';
 
 import { explain } from './actions.js';
 import { requestInkCompiler } from '../app/ink-compiler.js';
@@ -23,6 +26,12 @@ interface ScriptImportResult {
   readonly notices: readonly string[];
 }
 
+/** The status line's sentence about a file's instruction-like passages, or nothing when the scan finds none. */
+function scanSentenceOf(fileName: string, text: string): string[] {
+  const sentence = importScanSentence(fileName, scanImport([{ where: 'file', text }]));
+  return sentence === undefined ? [] : [sentence];
+}
+
 export function ScriptImportActions({ session }: { session: ProjectSession }): ReactNode {
   useSession(session);
   const report = useReport();
@@ -30,7 +39,7 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
   const inkFile = useRef<HTMLInputElement>(null);
   const tweeFile = useRef<HTMLInputElement>(null);
   const [addIds, setAddIds] = useState(false);
-  const [pendingTwee, setPendingTwee] = useState<{ readonly fileName: string; readonly plan: TweeImportPlan } | null>(null);
+  const [pendingTwee, setPendingTwee] = useState<{ readonly fileName: string; readonly plan: TweeImportPlan; readonly scan: string[] } | null>(null);
 
   const importScript = async (file: File): Promise<void> => {
     const format = /\.fdx$/i.test(file.name) ? 'fdx' : 'fountain';
@@ -42,7 +51,7 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
     }
     const result = outcome.value.result as ScriptImportResult;
     const made = `Imported ${countOf(result.scenes, 'scene')} and ${countOf(result.folders, 'section')} from ${file.name}.`;
-    report({ text: [made, ...result.notices].join(' '), tone: 'info' });
+    report({ text: [made, ...result.notices, ...scanSentenceOf(file.name, text)].join(' '), tone: 'info' });
   };
 
   const importInk = async (file: File): Promise<void> => {
@@ -71,21 +80,22 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
         ? []
         : [`${countOf(above, 'line')} above the first knot ${above === 1 ? 'was' : 'were'} not imported. Copy ${above === 1 ? 'it' : 'them'} by hand if you need ${above === 1 ? 'it' : 'them'}.`];
     const ids = minted === null ? [] : [importLineIdsSentence(minted)];
-    report({ text: [made, ...plan.notes, ...left, ...ids].join(' '), tone: 'info' });
+    report({ text: [made, ...plan.notes, ...left, ...ids, ...scanSentenceOf(file.name, text)].join(' '), tone: 'info' });
   };
 
   const planTwee = async (file: File): Promise<void> => {
-    const plan = planTweeImport(await file.text());
+    const text = await file.text();
+    const plan = planTweeImport(text);
     if (plan.container === null) {
       report({ text: `${file.name} has no passage to import. A Twee story makes one knot for each passage.`, tone: 'error' });
       return;
     }
-    setPendingTwee({ fileName: file.name, plan });
+    setPendingTwee({ fileName: file.name, plan, scan: scanSentenceOf(file.name, text) });
   };
 
   const importTwee = async (): Promise<void> => {
     if (pendingTwee === null) return;
-    const { fileName, plan } = pendingTwee;
+    const { fileName, plan, scan } = pendingTwee;
     setPendingTwee(null);
     const container = plan.container;
     if (container === null) return;
@@ -97,7 +107,7 @@ export function ScriptImportActions({ session }: { session: ProjectSession }): R
     }
     const { report: made } = plan;
     const text = `Imported ${fileName} as one dialogue container: ${countOf(made.passages, 'knot')}, ${countOf(made.choices, 'choice')}, ${made.strippedMacros} logic ${made.strippedMacros === 1 ? 'block' : 'blocks'} stripped.`;
-    report({ text, tone: 'info' });
+    report({ text: [text, ...scan].join(' '), tone: 'info' });
   };
 
   return (

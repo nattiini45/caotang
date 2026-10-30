@@ -6,7 +6,11 @@
  * unknown-tolerant rules that make them safe.
  */
 
-import type { SceneNumbersOption } from '@caotang/bus';
+import type { ProjectHook, ProjectMacro, RecipeScriptFont, SceneNumbersOption } from '@caotang/bus';
+
+import type { PermissionRule } from './agent-rules.js';
+
+export type { ProjectHook, ProjectMacro };
 
 export const APP_ID = 'caotang';
 export const FORMAT_VERSION = 1;
@@ -53,10 +57,14 @@ export interface ExportRecipeOptions {
   sceneNumbers?: SceneNumbersOption;
   /** `(MORE)` and `(CONT'D)` across a page break in the screenplay PDF (screenplay.md §5.3). Absent = on. */
   continued?: boolean;
-  /** The contact sheet's paper (storyboard.md §6). Absent = A4. */
+  /** The paper of the screenplay PDF (screenplay.md §5.3) and the contact sheet (storyboard.md §6). Absent = Letter for the first, A4 for the second. */
   pageSize?: 'A4' | 'Letter';
+  /** The screenplay PDF's Latin face (screenplay.md §5.3). Absent = courier-prime. */
+  scriptFont?: RecipeScriptFont;
   /** The contact sheet prints blank numbered frames to draw on (storyboard.md §6). Absent = off. */
   paperFrames?: boolean;
+  /** Emoji print in colour in the screenplay PDF and the contact sheet (screenplay.md §5.3). Absent = the format's default: off for the screenplay PDF, on for the contact sheet. */
+  colourEmoji?: boolean;
 }
 
 /**
@@ -238,4 +246,17 @@ export interface Manifest {
    * that is on is still not offered to the agent until the writer has reviewed it, and the review is not kept here.
    */
   disabledSkills?: string[];
+  /**
+   * additive in v1 (extensibility.md §10): the writer's macros, plan templates over registry tools, changed only by `macro.save` and
+   * `macro.delete`. Absent = no macros. The shape is the bus's, which the load and the commands both check.
+   */
+  macros?: ProjectMacro[];
+  /**
+   * additive in v1 (agent-harness.md §4, Rules): the writer's rules for the agent that travel with the folder. Only `deny` and `ask` rules are
+   * read, so a project file can restrict the agent and never grant it power. Absent = no rules.
+   *
+   * `hooks` (hooks.md): the writer's checks for the agent's calls, changed only by `hook.save` and `hook.delete`; only the `check` handler
+   * is read from a file. Any other key under `agent` is kept as read and written back, so a newer build's key survives this build's save.
+   */
+  agent?: { rules?: PermissionRule[]; hooks?: ProjectHook[]; [other: string]: unknown };
 }

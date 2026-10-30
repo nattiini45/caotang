@@ -162,9 +162,10 @@ One exception is open: `ScreenplayPreview.tsx` imports `paginate` and `LAYOUT` f
     *Add line ids on save* by it. An id the source already holds in two places is kept and reported, never renamed, and a line
     that cannot take an id is named on the status line. Otherwise ids come from the Add line ids action or from a container whose
     `autoLineIds` is on.
-9. **The agent's derive plan is not verified.** The derive offers send their request to the agent (*What a writer can do*,
-    *Derive shots*), and the plan the agent proposes for it, its folder and its shots, needs a model that proposes shots, which
-    no test drives.
+9. **The agent's derive plan is verified against scripted answers, not a model.** The derive offers send their request to the agent
+    (*What a writer can do*, *Derive shots*). The `storyboard-derive` golden task replays a synthetic cassette (hand-written model
+    answers) through the loop and checks the plan, the card and the folder and shots it applies, but no model has been recorded
+    proposing shots, so how a real model plans them is not measured.
 
 ## Tests
 

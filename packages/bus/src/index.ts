@@ -48,6 +48,7 @@ export type {
   UndoKind,
   UndoPayload,
   UndoScope,
+  ValidationAgentFiles,
   ValidationCodexEntry,
   ValidationDocument,
   ValidationNode,
@@ -88,18 +89,91 @@ export * as commands from './descriptors.js';
 export * as projectCommands from './descriptors-project.js';
 // The skill commands (extensibility.md §10), by name. The store reads them here.
 export * as skillCommands from './descriptors-skills.js';
+// The macro commands (extensibility.md §10) and the shape and rules the store's loader shares with them.
+export * as macroCommands from './descriptors-macros.js';
+export {
+  MACROS_MAX,
+  MACRO_DEPTH_MAX,
+  MACRO_DESCRIPTION_MAX,
+  MACRO_EXPECT_MAX,
+  MACRO_NAME_MAX,
+  MACRO_NODES_MAX,
+  MACRO_PARAMS_MAX,
+  MACRO_SIZE_MAX,
+  MACRO_SLUG_MAX,
+  MACRO_STEPS_MAX,
+  isMacroId,
+  isMacroParamName,
+  isMacroPlaceholder,
+  isMacroSlug,
+  macroToolProblem,
+  placeholdersOf,
+  readMacro,
+  type MacroDraft,
+  type MacroPlaceholder,
+  type MacroStep,
+  type MacroValue,
+  type ProjectMacro,
+} from './macro-rules.js';
+// The hook commands (hooks.md) and the shape and rules the store's loader shares with them.
+export * as hookCommands from './descriptors-hooks.js';
+export {
+  HOOKS_MAX,
+  HOOK_EVENTS,
+  HOOK_EVENTS_RUN,
+  HOOK_ISSUERS,
+  HOOK_LIST_MAX,
+  HOOK_NAME_MAX,
+  HOOK_PATTERNS_MAX,
+  HOOK_SEVERITIES,
+  HOOK_STATUS_MAX,
+  HOOK_TEXT_MAX,
+  HOOK_TOOLS_MAX,
+  HOOK_WORDS_MAX,
+  isHookCheckId,
+  isHookId,
+  readHook,
+  type HookCheck,
+  type HookDraft,
+  type HookEvent,
+  type HookMatcher,
+  type ProjectHook,
+} from './hook-rules.js';
+// The agent-file commands (context-assembly.md §2, layer LI), by name, and the rules the store's file codec shares with them.
+export * as agentFileCommands from './descriptors-agent-files.js';
+export {
+  INSTRUCTIONS_MAX_CHARS,
+  MEMORY_BODY_MAX_CHARS,
+  MEMORY_MAX_FILES,
+  MEMORY_SLUG_MAX_CHARS,
+  MEMORY_TITLE_MAX_CHARS,
+  MEMORY_TYPES,
+  isMemorySlug,
+  slugOf,
+  textDigest,
+  type MemoryType,
+} from './agent-files-rules.js';
 export {
   AUTHOR_MAX,
   CHAR_LIMIT_MAX,
   METADATA_PATCH_KEYS,
   PROJECT_TITLE_MAX,
   RECIPE_NAME_MAX,
+  RECIPE_PAGE_SIZES,
+  RECIPE_SCRIPT_FONTS,
   SCENE_NUMBER_OPTIONS,
   VOCABULARY_NAME_MAX,
   normalizeIsbn,
 } from './descriptors-project.js';
 export type {
   ProjectImportAssetParams,
+  HookDeleteParams,
+  HookSaveParams,
+  MacroDeleteParams,
+  MacroSaveParams,
+  MemoryForgetParams,
+  MemoryWriteParams,
+  ProjectSetInstructionsParams,
   SkillDeleteParams,
   SkillImportParams,
   SkillSetEnabledParams,
@@ -109,7 +183,9 @@ export type {
   ProjectSetMetadataParams,
   RecipeDeleteParams,
   RecipeOptionsParams,
+  RecipePageSize,
   RecipeSaveParams,
+  RecipeScriptFont,
   SceneNumbersOption,
   VocabularyKind,
   VocabularyRemoveParams,
@@ -138,7 +214,9 @@ export { ApplyRefusal, execute, executeAsync } from './pipeline.js';
 export type { IdempotencyCache } from './idempotency.js';
 export { createIdempotencyCache } from './idempotency.js';
 export type { SettledUndoScope, UndoDispatch, UndoEntry, UndoGroup, UndoGroupKind, UndoOutcome, UndoStore, UndoStoreOptions, UndoTarget } from './undo.js';
-export { applyContext, createUndoScope, createUndoStore } from './undo.js';
+export { applyContext, createUndoScope, createUndoStore, entryOfCall } from './undo.js';
+export { FOOTPRINT_CLASS, restorePlan } from './restore-plan.js';
+export type { RestorePlan, RestoreTarget } from './restore-plan.js';
 export {
   createViewState,
   isViewState,
@@ -264,21 +342,23 @@ export {
 
 // The shapes a tool package declares its tools with, so a media module needs no import of the harness
 // (which imports it). The harness re-exports each of them (schema.ts, errors.ts, types.ts).
-export { param, toJsonSchema } from './tool-schema.js';
+export { param, toJsonSchema, toResultSchema } from './tool-schema.js';
 export type {
   ArraySpec,
   BooleanSpec,
   EnumSpec,
   FreeObjectSpec,
   IntegerSpec,
+  NumberSpec,
   JsonSchema,
   ObjectSpec,
+  ObjectSpecOf,
   ParamSpec,
   StringSpec,
   TaggedSpec,
   UnionSpec,
 } from './tool-schema.js';
 export { refusal, type RefusalOptions } from './refusal.js';
-export type { ToolValue } from './tool-value.js';
+export type { HookNote, ToolData, ToolValue } from './tool-value.js';
 // The name a project with no recipes key holds (exporter.md §4). The exporter names its default recipe with it.
 export { DEFAULT_RECIPE_NAME } from './recipe-names.js';

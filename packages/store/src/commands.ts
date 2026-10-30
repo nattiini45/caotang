@@ -164,7 +164,10 @@ import {
 } from './state.js';
 import type { CodexEntry, CodexIncludePolicy, TreeNode } from './manifest.js';
 import { projectCommandRegistrations, type ProjectAssetPort } from './commands-project.js';
+import { agentFileCommandRegistrations } from './commands-agent-files.js';
 import { skillCommandRegistrations, type SkillStaging } from './commands-skills.js';
+import { hookCommandRegistrations } from './commands-hooks.js';
+import { macroCommandRegistrations } from './commands-macros.js';
 import { shotImageCommandRegistrations } from './commands-shot-image.js';
 import { furnitureApplies } from './commands-furniture.js';
 import { scriptApplies } from './commands-script.js';
@@ -1828,6 +1831,12 @@ export function createProjectCommandRegistry(
   // The project's skills (extensibility.md §10): the writer's own files in `.agents/skills/`. The three that need nothing from the host
   // are always registered; `skill.import` is added only when the host injects its staging.
   Object.assign(registry, skillCommandRegistrations({ clock, ...(options.skillStaging === undefined ? {} : { staging: options.skillStaging }) }));
+  // The agent's files (context-assembly.md §2, layer LI): CAOTANG.md and the memory notes (commands-agent-files.ts).
+  Object.assign(registry, agentFileCommandRegistrations({ clock }));
+  // The writer's macros (extensibility.md §10): `macros[]` in the manifest (commands-macros.ts).
+  Object.assign(registry, macroCommandRegistrations({ clock }));
+  // The writer's hooks (hooks.md): `agent.hooks` in the manifest (commands-hooks.ts).
+  Object.assign(registry, hookCommandRegistrations({ clock }));
   // Storyboard: the shot image import needs both the asset port and the storyboard port (commands-shot-image.ts).
   Object.assign(
     registry,

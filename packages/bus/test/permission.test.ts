@@ -162,7 +162,7 @@ describe('§4 issuedBy: \'user\' — a gesture is its own confirmation', () => {
     // the UI cannot tell a destructive command from a rename by looking at it.
     expect(granted('project.deleteNode', 'user').requiresUserConfirm).toBe(true);
     const flagged = COMMAND_NAMES.filter((n) => granted(n, 'user').requiresUserConfirm);
-    expect(flagged).toEqual(['project.deleteNode']);
+    expect(flagged).toEqual(['project.deleteNode', 'memory.forget']);
   });
 
   it('grants every user command via user-gesture, whatever the plan context says', () => {
@@ -379,13 +379,14 @@ describe('the gate\'s own lists are held against the spec, not against themselve
     }
   });
 
-  it('hard-denies exactly one command, and it is the destructive one', () => {
+  it('hard-denies exactly two commands, and both are deletions', () => {
     // Three of §4's four classes have no command in §9's closed set (the bus has no
     // network, provider settings are app-level, and codex deletion is not an
-    // `action` value yet). A second member therefore cannot be added without this
-    // failing and naming it.
-    expect(Object.keys(HARD_DENIED)).toEqual(['project.deleteNode']);
+    // `action` value yet). A third member therefore cannot be added without this
+    // failing and naming it. `memory.forget` is the second: a memory note is the writer's to remove.
+    expect(Object.keys(HARD_DENIED)).toEqual(['project.deleteNode', 'memory.forget']);
     expect(hardDenyClass('project.deleteNode')).toBe('deletion');
+    expect(hardDenyClass('memory.forget')).toBe('deletion');
     expect(hardDenyClass('binder.rename')).toBeUndefined();
   });
 
@@ -399,10 +400,10 @@ describe('the gate\'s own lists are held against the spec, not against themselve
       expect(COMMAND_REGISTRY[name].descriptor.agentRisk, name).toBe('never');
     }
     const inheritable = NEVER_CLASS.filter((n) => HARD_DENIED[n] === undefined);
-    // The four skill commands are `never` too, and nothing composes them: the harness's allowlist of primitives excludes them
+    // The four skill commands, the two macro commands and the two hook commands are `never` too, and nothing composes them: the harness's allowlist of primitives excludes them
     // (`NEVER_EXPOSED`), so an agent reaches a skill only through the user's own gesture. `mcp.readResource` is the same: the writer's
     // pick is the only way to it, and no tool is written over it.
-    expect([...inheritable].sort()).toEqual(['editor.insert', 'editor.replaceRange', 'mcp.readResource', 'skill.delete', 'skill.import', 'skill.setEnabled', 'skill.write']);
+    expect([...inheritable].sort()).toEqual(['editor.insert', 'editor.replaceRange', 'hook.delete', 'hook.save', 'macro.delete', 'macro.save', 'mcp.readResource', 'skill.delete', 'skill.import', 'skill.setEnabled', 'skill.write']);
     for (const name of inheritable) {
       expect(granted(name, 'agent', { inheritedGrant: 'write-confirm' }).via, name).toBe('inherited');
     }
@@ -435,6 +436,11 @@ describe('the gate\'s own lists are held against the spec, not against themselve
       'skill.write',
       'skill.delete',
       'skill.setEnabled',
+      'memory.forget',
+      'macro.save',
+      'macro.delete',
+      'hook.save',
+      'hook.delete',
     ]);
     expect(byRisk.get('write-confirm')).toContain('doc.write');
     expect(byRisk.get('write-auto')).toContain('binder.move');

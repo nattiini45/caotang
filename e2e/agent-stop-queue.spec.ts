@@ -50,7 +50,7 @@ async function openSample(page: Page): Promise<void> {
   await expect(page.locator('.agent-turn')).toHaveCount(1);
 }
 
-const intentBox = (page: Page) => page.getByRole('textbox', { name: 'Intent' });
+const intentBox = (page: Page) => page.getByRole('combobox', { name: 'Intent' });
 const turns = (page: Page) => page.locator('.agent-turn');
 
 async function typeAndPress(page: Page, text: string, key: string): Promise<void> {
@@ -204,6 +204,8 @@ test('a note typed while a card waits offers Send with Cancel and Queue as next 
   // A second note, sent with the Cancel, goes back to the model within the same turn.
   await typeAndPress(page, 'Add a note and a synopsis, again.', 'Enter');
   await expect(card.getByRole('heading', { name: 'Plan, 2 steps' })).toBeVisible();
+  // The card is the writer's to decide once its Approve is live; the turn logs its card before it waits on the writer (agent-harness §5.1).
+  await expect(card.last().getByRole('button', { name: 'Approve plan', exact: true })).toBeEnabled();
   await typeAndPress(page, 'Never mind the synopsis', 'Control+Enter');
   await page.getByRole('group', { name: 'A note while a card waits' }).getByRole('button', { name: 'Send with Cancel' }).click();
   const sent = turns(page).last();

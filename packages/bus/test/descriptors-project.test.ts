@@ -290,6 +290,35 @@ describe('recipe.save', () => {
     expect(save({ continued: 'yes' })).toMatchObject({ ok: false, target: 'options.continued' });
   });
 
+  // screenplay.md §5.3: the screenplay PDF reads the paper too, and takes its Latin face from scriptFont.
+  it('keeps the screenplay PDF’s paper and font, and refuses a value it does not know in the style of the other options', () => {
+    const save = (options: Record<string, unknown>) =>
+      check(projectCommands.recipeSave.validate, { name: 'A4 script', includeRootIds: [MANUSCRIPT], format: 'pdf', options });
+    for (const pageSize of ['A4', 'Letter']) {
+      for (const scriptFont of ['courier-prime', 'courier', 'cousine']) {
+        expect(save({ pageSize, scriptFont }), `${pageSize} ${scriptFont}`).toEqual({
+          ok: true,
+          value: { name: 'A4 script', includeRootIds: [MANUSCRIPT], format: 'pdf', options: { pageSize, scriptFont } },
+        });
+      }
+    }
+    for (const bad of ['A3', 'a4', 'letter', 1, null]) {
+      expect(save({ pageSize: bad }), String(bad)).toMatchObject({ ok: false, target: 'options.pageSize' });
+    }
+    for (const bad of ['Courier New', 'COURIER', 'cousine ', 1, true, null]) {
+      expect(save({ scriptFont: bad }), String(bad)).toMatchObject({ ok: false, target: 'options.scriptFont' });
+    }
+    const paper = save({ pageSize: 'A3' });
+    expect(!paper.ok && paper.message).toContain('params.options.pageSize must be one of A4, Letter, got "A3"');
+    const font = save({ scriptFont: 'Courier New' });
+    expect(!font.ok && font.message).toContain('params.options.scriptFont must be one of courier-prime, courier, cousine, got "Courier New"');
+    // The hint no longer promises A4 where the screenplay PDF's own paper is Letter.
+    const refused = projectCommands.recipeSave.validate({ name: 'A4 script', includeRootIds: [MANUSCRIPT], format: 'pdf', options: { pageSize: 'A3' } }, snapshot());
+    const hint = !refused.ok ? refused.error.correctiveHint : undefined;
+    expect(hint).toContain('Letter for the screenplay PDF');
+    expect(hint).not.toContain('leave it out for A4');
+  });
+
   // storyboard.md §6: the contact sheet's paper frames are a boolean recipe option.
   it('keeps the contact sheet’s paper frames switch, and refuses a value that is not true or false', () => {
     const save = (options: Record<string, unknown>) =>
@@ -302,6 +331,23 @@ describe('recipe.save', () => {
     }
     for (const bad of ['yes', 1, null]) {
       expect(save({ paperFrames: bad }), String(bad)).toMatchObject({ ok: false, target: 'options.paperFrames' });
+    }
+  });
+
+  // screenplay.md §5.3, storyboard.md §6: Colour emoji is a boolean recipe option for both PDFs. An explicit false is kept, because the
+  // contact sheet's default is on.
+  it('keeps the Colour emoji switch, true or false, and refuses a value that is not a boolean', () => {
+    const save = (format: string, options: Record<string, unknown>) => check(projectCommands.recipeSave.validate, { name: 'Colour', includeRootIds: [MANUSCRIPT], format, options });
+    for (const format of ['pdf', 'contact-sheet-pdf']) {
+      for (const colourEmoji of [true, false]) {
+        expect(save(format, { colourEmoji }), `${format} ${colourEmoji}`).toEqual({
+          ok: true,
+          value: { name: 'Colour', includeRootIds: [MANUSCRIPT], format, options: { colourEmoji } },
+        });
+      }
+    }
+    for (const bad of ['yes', 1, null]) {
+      expect(save('pdf', { colourEmoji: bad }), String(bad)).toMatchObject({ ok: false, target: 'options.colourEmoji' });
     }
   });
 });

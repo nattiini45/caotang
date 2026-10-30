@@ -48,7 +48,7 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 - **Surfaces:** agent tools `codex.read` / `codex.write`; codex panel and inspector chips; pure detection function. Spec: [architecture/codex.md](architecture/codex.md).
 
 ### 2.3b `context-assembly` 📐
-- **Responsibility:** the read half of every model call — fixed eight-layer prompt stack, token budgets, deterministic truncation, prompt preview, cost estimates. Keyed context (synopses + mention-keyed codex), no embeddings.
+- **Responsibility:** the read half of every model call — fixed nine-layer prompt stack (the writer's instructions among them), token budgets, deterministic truncation, prompt preview, cost estimates. Keyed context (synopses + mention-keyed codex), no embeddings.
 - **Owns:** assembled `messages[]`, layer budgets, drop reasons.
 - **Spec:** [architecture/context-assembly.md](architecture/context-assembly.md).
 
@@ -175,11 +175,13 @@ ProjectGoal    { id, nodeId, metric, comparator: at-least|at-most|about, target,
 McpServerConfig{ key, name, transport: 'http', url, auth, enabled, trustReads, pinnedTools, addedAt }  // extensibility.md §3.2 (app settings, never project files)
 ```
 
-Additive manifest arrays (`codex[]`, `recipes[]`, `filters[]`, `goals[]`) and per-node `createdAt`/`updatedAt` join format v1 without a `formatVersion` bump. MCP server configs are not project data: they live in app settings, never in `caotang.json`, so a committed project can never carry a server URL or token.
+Additive manifest arrays (`codex[]`, `recipes[]`, `filters[]`, `goals[]`, `macros[]`) and per-node `createdAt`/`updatedAt` join format v1 without a `formatVersion` bump. MCP server configs are not project data: they live in app settings, never in `caotang.json`, so a committed project can never carry a server URL or token.
 
 ## 4. Explicit non-goals
 
-Collaboration and sync in the local version, a plugin system, a theme marketplace, version history beyond git, **embedding/RAG context retrieval** (keyed context is the design; revisit only with usage evidence), a **codex relations graph**. Screen and media formats were once on this list and are now built (§6).
+Collaboration and sync in the local version, a plugin system that **runs third-party code in the app**, a theme marketplace, version history beyond git, **embedding/RAG context retrieval** (keyed context is the design; revisit only with usage evidence), a **codex relations graph**. Screen and media formats were once on this list and are now built (§6).
+
+Macros (writer-authored plan templates over the app's own tools, [extensibility.md](architecture/extensibility.md) §10) are not a plugin system: a macro is JSON data with no code and no install path, and only the writer runs one. Nor are the planned declarative extension bundles ([extensions.md](architecture/extensions.md), specified, not built): Markdown and JSON that carry skills and suggested MCP servers, with no code, installed only by the writer from a local file. Sandboxed JS plugins are deferred, not rejected (decisions.md, MCP server and client).
 
 ## 5. Scope non-negotiables
 
