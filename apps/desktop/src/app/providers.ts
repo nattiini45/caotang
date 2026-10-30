@@ -37,6 +37,7 @@ import {
   type NewProfile,
   type ProfilePatch,
   type ProfileStore,
+  type ModelLimits,
   type ProfileView,
   type RequestLogEntry,
   RequestLog,
@@ -193,6 +194,16 @@ export class ProviderService {
    */
   resolveForRole(role: TaskRole): RoleResolution | undefined {
     return resolveRole(this.profiles, this.roleState.current, role);
+  }
+
+  /**
+   * The limits of the model a request under `role` would run on (context-assembly §5): its window, output cap and price, as the
+   * gateway knows them. Read at each call, so a preview before any turn shows the window and the cost of the active Chat role.
+   * Undefined only when no profile exists at all.
+   */
+  limitsForRole(role: TaskRole): ModelLimits | undefined {
+    const resolved = this.resolveForRole(role);
+    return resolved === undefined ? undefined : this.gateway.modelLimits(resolved.profile.id, resolved.model, resolved.thinking);
   }
 
   /**
