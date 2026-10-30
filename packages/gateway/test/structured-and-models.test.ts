@@ -220,12 +220,12 @@ describe('listModels (§3)', () => {
     expect(rejected.message).toContain('Could not reach a.example');
 
     // A preset the sweep found blocked is greyed out in Settings; its rejection keeps the plain message too.
-    const zai = harness({ net: new ScriptedFetch().push(rejects, rejects, rejects) });
-    const blocked = await addEndpoint(zai, { preset: 'zhipu-zai', baseUrl: 'https://api.z.ai/api/paas/v4' });
-    const refused = await listWhenRejected(zai, blocked.id);
+    const oc = harness({ net: new ScriptedFetch().push(rejects, rejects, rejects) });
+    const blocked = await addEndpoint(oc, { preset: 'opencode', baseUrl: 'https://opencode.ai/inference/v1' });
+    const refused = await listWhenRejected(oc, blocked.id);
     expect(refused.kind).toBe('network');
-    expect(refused.message).toContain('Could not reach api.z.ai');
-    expect(refused.message).not.toBe(providerMessages.modelListUnreadable('api.z.ai'));
+    expect(refused.message).toContain('Could not reach opencode.ai');
+    expect(refused.message).not.toBe(providerMessages.modelListUnreadable('opencode.ai'));
 
     // A timeout is a network failure the browser did not reject, so it says what it always said.
     const hang = (): Promise<Response> => new Promise<Response>(() => undefined);
