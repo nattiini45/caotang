@@ -6,6 +6,7 @@
 
 import { localDayKey } from '@caotang/gateway';
 import { listProjectIds, readSessions, RuntimeStoreStaleError, type RuntimeStore, type SessionRecord } from '@caotang/store';
+import { formatCount } from '../i18n/locale.js';
 
 /** The local calendar day of an ISO instant, or `null` when the instant does not parse. */
 export function localDayOfIso(iso: string): string | null {
@@ -94,9 +95,9 @@ export function targetProgress(words: number, target: number | undefined): Targe
 
 /** The status-bar line for a progress reading: "412 / 800 words today", or the words alone with no target. */
 export function todayLine(progress: TargetProgress): string {
-  const words = `${new Intl.NumberFormat('en-US').format(progress.words)}`;
+  const words = `${formatCount(progress.words)}`;
   if (progress.target === undefined) return `${words} ${progress.words === 1 ? 'word' : 'words'} today`;
-  return `${words} / ${new Intl.NumberFormat('en-US').format(progress.target)} words today`;
+  return `${words} / ${formatCount(progress.target)} words today`;
 }
 
 /**

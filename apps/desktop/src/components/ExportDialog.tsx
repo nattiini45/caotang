@@ -739,7 +739,7 @@ function CharLimitField({
           }
           const limit = Number(text);
           if (!Number.isInteger(limit) || limit < 1 || limit > CHAR_LIMIT_MAX) {
-            onInvalid(`A character limit is a whole number from 1 to ${CHAR_LIMIT_MAX.toLocaleString('en-US')}, or empty for no limit.`);
+            onInvalid(`A character limit is a whole number from 1 to ${formatCount(CHAR_LIMIT_MAX)}, or empty for no limit.`);
             setDraft(saved);
             return;
           }

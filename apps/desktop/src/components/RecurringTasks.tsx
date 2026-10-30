@@ -10,6 +10,7 @@ import { WEEKDAYS } from '@caotang/tasks';
 
 import { EMPTY_DRAFT, SELF_START_NOTE, type RecurringTasks, type RunView, type TaskDraft, type TaskRowView } from '../app/recurring-tasks.js';
 import { ConfirmDialog } from './shared.js';
+import { DATE_AND_TIME, formatCount, formatDateTime } from '../i18n/locale.js';
 
 const WEEKDAY_NAMES = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' } as const;
 
@@ -17,7 +18,7 @@ const STATUS_WORDS = { done: 'Done', failed: 'Failed', stopped: 'Stopped', skipp
 
 function usedWords(run: RunView): string {
   if (run.requests === 0) return 'no model calls';
-  return `${run.requests} ${run.requests === 1 ? 'model call' : 'model calls'}, ${(run.promptTokens + run.completionTokens).toLocaleString('en-US')} tokens`;
+  return `${run.requests} ${run.requests === 1 ? 'model call' : 'model calls'}, ${formatCount(run.promptTokens + run.completionTokens)} tokens`;
 }
 
 interface Editing {
@@ -132,7 +133,7 @@ export function RecurringTasksPanel({ recurring }: { recurring: RecurringTasks }
                 <ol aria-label={`Runs of ${task.name}`}>
                   {task.history.map((run) => (
                     <li key={`${run.at}:${run.status}`} data-status={run.status}>
-                      <span className="recurring-run-when">{new Date(run.at).toLocaleString()}</span> — <strong>{STATUS_WORDS[run.status]}</strong>
+                      <span className="recurring-run-when">{formatDateTime(new Date(run.at), DATE_AND_TIME)}</span> — <strong>{STATUS_WORDS[run.status]}</strong>
                       {run.trigger === 'manual' ? ' (started by you)' : ''}. {run.summary}{' '}
                       <span className="muted">({usedWords(run)})</span>
                       {run.canRestore && run.turnId !== undefined ? (

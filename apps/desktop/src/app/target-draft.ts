@@ -4,6 +4,7 @@
  */
 
 import { TARGET_MAX_WORDS } from './settings.js';
+import { formatCount } from '../i18n/locale.js';
 
 export type TargetDraft = { readonly ok: true; readonly words: number } | { readonly ok: false; readonly message: string };
 
@@ -14,7 +15,7 @@ export function targetDraftOf(text: string): TargetDraft {
   if (trimmed === '' || !Number.isInteger(words) || words < 0 || words > TARGET_MAX_WORDS) {
     return {
       ok: false,
-      message: `The daily target is a whole number of words from 0 to ${TARGET_MAX_WORDS.toLocaleString('en-US')}; 0 means no target.`,
+      message: `The daily target is a whole number of words from 0 to ${formatCount(TARGET_MAX_WORDS)}; 0 means no target.`,
     };
   }
   return { ok: true, words };

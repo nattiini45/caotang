@@ -96,6 +96,7 @@ import { newId } from '@caotang/ids';
 import type { McpClient } from '@caotang/mcp-client';
 
 import { attachCoherence } from './coherence-io.js';
+import { interfaceCollator } from '../i18n/locale.js';
 import { folderFileDiff, type FolderDiffLine } from './folder-diff.js';
 import { applyEncodingDecisions, encodingResultLines, type EncodingDecision } from './encoding-review.js';
 import { changedDuringSave, pruneFolderBackups, watchSave } from './folder-guard.js';
@@ -396,7 +397,16 @@ export async function listProjects(store: RuntimeStore): Promise<ProjectSummary[
       words: Object.values(state.manifest.derived.wordCounts).reduce((sum, count) => sum + count, 0),
     });
   }
-  return summaries.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  return orderProjects(summaries);
+}
+
+/**
+ * The order of the projects on Home. Projects can each be in a different language, so their names compare by the formatter
+ * locale (`interfaceCollator()`), without case or accents and with numbers by value, then by id.
+ */
+export function orderProjects<T extends { readonly name: string; readonly id: string }>(summaries: T[]): T[] {
+  const names = interfaceCollator();
+  return summaries.sort((a, b) => names.compare(a.name, b.name) || a.id.localeCompare(b.id));
 }
 
 /** A new project: the three fixed roots and nothing else (ui-modules §2.4 — the empty state carries the next step). */

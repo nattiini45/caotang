@@ -43,6 +43,9 @@ export default defineConfig({
   reporter: 'list',
   use: {
     baseURL: `http://127.0.0.1:${port}`,
+    // The browser's languages are pinned, so the formatter locale (i18n.md §4.1, D3) and every date and count the specs read
+    // are en-US on any machine (i18n.md §8.3).
+    locale: 'en-US',
     trace: 'on-first-retry',
   },
   projects: [

@@ -254,6 +254,9 @@ importers:
       '@caotang/harness':
         specifier: workspace:*
         version: link:../../packages/harness
+      '@caotang/i18n':
+        specifier: workspace:*
+        version: link:../../packages/i18n
       '@caotang/ids':
         specifier: workspace:*
         version: link:../../packages/ids
@@ -596,6 +599,9 @@ importers:
       '@caotang/dialogue':
         specifier: workspace:*
         version: link:../dialogue
+      '@caotang/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       '@caotang/pdf-fonts':
         specifier: workspace:*
         version: link:../pdf-fonts
@@ -651,6 +657,9 @@ importers:
       '@caotang/codex':
         specifier: workspace:*
         version: link:../codex
+      '@caotang/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       '@caotang/ids':
         specifier: workspace:*
         version: link:../ids
@@ -712,6 +721,8 @@ importers:
       '@caotang/video-prompt-pack':
         specifier: workspace:*
         version: link:../video-prompt-pack
+
+  packages/i18n: {}
 
   packages/ids: {}
 

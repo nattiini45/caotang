@@ -40,6 +40,7 @@ import {
   type StepPreviewView,
 } from '../app/plan-preview.js';
 import { isImeEnter } from '../app/ime.js';
+import { formatCount } from '../i18n/locale.js';
 
 /** A step's estimated cost, as the card's step view carries it: the prompt's, or a staged review's (coherence.md §5.3). */
 type PlanStepCost = NonNullable<PlanStepView['cost']>;
@@ -319,7 +320,7 @@ function StepRow({
  * review changes no text, so the card says only what it will read.
  */
 function ReviewPreviewBlock({ view, cost }: { view: ReviewPreviewView; cost?: PlanStepCost }): ReactNode {
-  const count = (n: number, one: string, many: string): string => `${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
+  const count = (n: number, one: string, many: string): string => `${formatCount(n)} ${n === 1 ? one : many}`;
   // Shown only when the profile has a price (coherence.md §5.3): the same line a prompt's cost gets, with the bound the plan states.
   const line = costLineOf(cost);
   return (
@@ -327,8 +328,8 @@ function ReviewPreviewBlock({ view, cost }: { view: ReviewPreviewView; cost?: Pl
       <figcaption>What this review reads, shown before approval</figcaption>
       <p>
         {count(view.documents.length, 'document', 'documents')}: {count(view.extractCalls, 'extraction call', 'extraction calls')}, and at most{' '}
-        {count(view.verifyCallsAtMost, 'verification call', 'verification calls')}, about {view.totalTokensAtMost.toLocaleString('en-US')} tokens
-        at most. Up to {view.maxFindings.toLocaleString('en-US')} findings are recorded in the inbox.
+        {count(view.verifyCallsAtMost, 'verification call', 'verification calls')}, about {formatCount(view.totalTokensAtMost)} tokens
+        at most. Up to {formatCount(view.maxFindings)} findings are recorded in the inbox.
       </p>
       {line !== undefined ? <p className="context-cost">{line}</p> : null}
       {view.overGuard ? (
@@ -339,7 +340,7 @@ function ReviewPreviewBlock({ view, cost }: { view: ReviewPreviewView; cost?: Pl
       <ul>
         {view.documents.map((doc, index) => (
           <li key={`${doc.title}:${index}`}>
-            <strong>{doc.title}</strong> (about {doc.tokens.toLocaleString('en-US')} tokens
+            <strong>{doc.title}</strong> (about {formatCount(doc.tokens)} tokens
             {doc.truncated ? ', cut to fit the budget' : ''})
             {doc.left.length > 0 ? `. Left out of its prompt: ${doc.left.join(', ')}` : ''}
           </li>

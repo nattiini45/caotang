@@ -26,6 +26,7 @@ import { getBody, getRevision, type CodexEntry, type ProjectState } from '@caota
 
 import { childrenOf } from './binder-model.js';
 import { containersOf } from './coherence-facts.js';
+import { formatCount, formatDateTime, namesCollator } from '../i18n/locale.js';
 
 /** The severity sections, most severe first (coherence.md §5.3: the severity the check or the category gives). */
 export const SEVERITY_SECTIONS: readonly { readonly severity: FindingSeverity; readonly label: string }[] = [
@@ -252,11 +253,11 @@ export function runViewsOf(file: CoherenceFile | undefined, docTitle: (docId: st
   return [...file.runs].reverse().map((run) => runViewOf(run, docTitle));
 }
 
-/** A run's time in words for the writer: a day and a clock time, in the reader's own locale. An unreadable stamp shows as it is. */
+/** A run's time in words for the writer: a day and a clock time, in the formatter locale (D3). An unreadable stamp shows as it is. */
 export function runTimeLabel(at: string): string {
   const stamp = Date.parse(at);
   if (Number.isNaN(stamp)) return at;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(stamp));
+  return formatDateTime(new Date(stamp), { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 function runViewOf(run: CoherenceRun, docTitle: (docId: string) => string): RunView {
@@ -281,7 +282,7 @@ function runViewOf(run: CoherenceRun, docTitle: (docId: string) => string): RunV
     tokenLine:
       run.tokens === undefined
         ? undefined
-        : `${run.tokens.promptTokens.toLocaleString('en-US')} tokens in, ${run.tokens.completionTokens.toLocaleString('en-US')} out${run.model === undefined ? '' : ` (${run.model})`}`,
+        : `${formatCount(run.tokens.promptTokens)} tokens in, ${formatCount(run.tokens.completionTokens)} out${run.model === undefined ? '' : ` (${run.model})`}`,
   };
 }
 
@@ -394,11 +395,12 @@ export function afterCandidates(state: ProjectState, docId: string): { id: strin
     .map((node) => ({ id: node.id, title: node.title }));
 }
 
-/** The codex entries a POV may name: characters first, since that is what a point of view is, then the rest by name. */
-export function povCandidates(entries: readonly CodexEntry[]): CodexEntry[] {
+/** The codex entries a POV may name: characters first, since that is what a point of view is, then the rest by name in the project language (D9). */
+export function povCandidates(entries: readonly CodexEntry[], projectLanguage?: string): CodexEntry[] {
+  const names = namesCollator(projectLanguage);
   return [...entries].sort((a, b) => {
     const rank = (entry: CodexEntry): number => (entry.type === 'character' ? 0 : 1);
-    return rank(a) - rank(b) || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    return rank(a) - rank(b) || names.compare(a.name, b.name);
   });
 }
 

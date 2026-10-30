@@ -77,7 +77,8 @@ test('the binder filters by text, a saved filter is kept across a reload, and go
   await expect(goals.locator('.goal-sentence')).toContainText('at least 1,000 words on');
   await expect(goals.locator('.goal-line')).toContainText('0 of 1,000 words · in progress');
   // A pace of one word a day is written in the singular (writer copy): the whole line, so "1 words/day" fails.
-  await expect(goals.locator('.goal-pace')).toHaveText('≈ 1 word/day to finish by 31 Dec 2030');
+  // The date follows the formatter locale (D3), and the suite pins the browser to en-US (playwright.config.ts).
+  await expect(goals.locator('.goal-pace')).toHaveText('≈ 1 word/day to finish by Dec 31, 2030');
   await expect(page.getByTestId('binder-footer').locator('.goal-sentence')).toContainText('at least 1,000 words on');
   await expect(page.getByTestId('binder-footer').getByTestId('goal-progress')).toContainText('0 of 1,000 words · in progress');
 

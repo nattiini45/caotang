@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@caotang/codex": "workspace:*",
+    "@caotang/i18n": "workspace:*",
     "@caotang/ids": "workspace:*",
     "@caotang/store": "workspace:*"
   },

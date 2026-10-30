@@ -6,6 +6,7 @@
  */
 
 import { TRACE_REVIEWS, type TraceMessage, type TraceRecord, type TraceStore, type TraceText } from '@caotang/harness';
+import { formatCount } from '../i18n/locale.js';
 
 export interface TraceMessageView {
   readonly id: string;
@@ -235,7 +236,7 @@ export function turnTimeline(store: TraceStore, turnId: string): TraceTimeline {
           kind: 'context',
           key: `context-${record.seq}`,
           startMs: record.at - t0,
-          text: `Context for call ${record.callIndex}: ${tokens.toLocaleString('en-US')} tokens in ${record.layers.filter((layer) => layer.tokens > 0).length} layers${record.dropped.length === 0 ? '' : `, ${record.dropped.length} left out`}`,
+          text: `Context for call ${record.callIndex}: ${formatCount(tokens)} tokens in ${record.layers.filter((layer) => layer.tokens > 0).length} layers${record.dropped.length === 0 ? '' : `, ${record.dropped.length} left out`}`,
         });
         break;
       }

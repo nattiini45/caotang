@@ -8,11 +8,11 @@ import type { ProjectGoal } from '@caotang/furniture';
 import { SPRINT_MAX_MINUTES, SPRINT_MIN_MINUTES, paceWords } from '@caotang/furniture';
 import type { GoalState } from '@caotang/furniture';
 
-const NUMBER = new Intl.NumberFormat('en-US');
+import { appFormatLocale, formatCount, formatDateTime } from '../i18n/locale.js';
 
-/** A count as the footer shows it: thousands separated, as the rest of the app does. */
+/** A count as the footer shows it: thousands separated in the formatter locale, as the rest of the app does (D3). */
 export function countText(value: number): string {
-  return NUMBER.format(value);
+  return formatCount(value);
 }
 
 /** The sprint lengths the picker offers, in minutes. The timer bounds the free value (sprint.ts); these are the common ones. */
@@ -20,11 +20,14 @@ export const SPRINT_CHOICES: readonly number[] = [5, 10, 15, 25, 30, 45, 60].fil
   (choice) => choice >= SPRINT_MIN_MINUTES && choice <= SPRINT_MAX_MINUTES,
 );
 
-/** A local calendar day ("2026-10-31") as a short date for a person ("31 Oct 2026"). An unreadable day is shown as it is. */
+/**
+ * A local calendar day ("2026-10-31") as a short date for a person, in the formatter locale (D3): "31 Oct 2026" in en-GB,
+ * "Oct 31, 2026" in en-US. An unreadable day is shown as it is.
+ */
 export function formatDay(day: string): string {
   const [year, month, date] = day.split('-').map(Number);
   if (year === undefined || month === undefined || date === undefined) return day;
-  return new Date(year, month - 1, date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  return formatDateTime(new Date(year, month - 1, date), { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 /** What a goal counts, in the words the footer uses: "words", or "characters" for the `chars` metric (goals-progress §9.2). */
@@ -34,7 +37,7 @@ export function unitOf(goal: { readonly metric?: string }): string {
 
 /** A pace line's count and noun, in the goal's own unit: "1 word", "850 characters" (goals-progress §2.2, §9.2). */
 export function paceCountOf(goal: { readonly metric?: string }, perDay: number): string {
-  if (unitOf(goal) === 'words') return paceWords(perDay);
+  if (unitOf(goal) === 'words') return paceWords(perDay, appFormatLocale());
   return `${countText(perDay)} ${perDay === 1 ? 'character' : 'characters'}`;
 }
 

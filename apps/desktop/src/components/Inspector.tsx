@@ -33,6 +33,7 @@ import {
   type MenuItem,
 } from './shared.js';
 import { isImeEnter } from '../app/ime.js';
+import { namesCollator } from '../i18n/locale.js';
 
 /** ui-modules §4.1 and project-format §2: the limits the inspector enforces before the command does. */
 export const NOTES_MAX_CHARS = 50_000;
@@ -281,8 +282,9 @@ function KeywordsField({ session, node }: { session: ProjectSession; node: TreeN
   );
 }
 
-/** Every keyword any node in the project carries, for the suggestion list (§4.1: "autocomplete from existing keywords in-project"). */
+/** Every keyword any node in the project carries, by the project language (D9), for the suggestion list (§4.1: "autocomplete from existing keywords in-project"). */
 function allKeywords(state: ProjectState): string[] {
+  const names = namesCollator(state.manifest.project.language);
   const seen = new Map<string, string>();
   for (const node of state.manifest.tree) {
     for (const keyword of node.keywords) {
@@ -290,7 +292,7 @@ function allKeywords(state: ProjectState): string[] {
       if (!seen.has(key)) seen.set(key, keyword);
     }
   }
-  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  return [...seen.values()].sort((a, b) => names.compare(a, b));
 }
 
 /**
