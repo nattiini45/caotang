@@ -17,6 +17,7 @@ import { closeDialog, useDialogRequest } from './dialog-requests.js';
 import { useStoreDraft } from './store-draft.js';
 import { useReport } from './shared.js';
 import type { ProjectSession } from '../app/session.js';
+import { isImeEnter } from '../app/ime.js';
 import './project-dialogs.css';
 
 /** The vocabulary editor, rendered only while its request is open. */
@@ -128,7 +129,7 @@ function VocabularyEditorDialog({ session, initial }: { session: ProjectSession;
               placeholder={kind === 'status' ? 'For example, Second pass' : 'For example, Act 2'}
               onChange={(event) => setDraftName(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === 'Enter') add();
+                if (event.key === 'Enter' && !isImeEnter(event)) add();
               }}
             />
           </label>
@@ -219,7 +220,7 @@ function TermRow({
         maxLength={40}
         onChange={(event) => draftName.change(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === 'Enter' && changed) save();
+          if (event.key === 'Enter' && !isImeEnter(event) && changed) save();
         }}
       />
       <button type="button" className="button" disabled={!changed} onClick={save}>

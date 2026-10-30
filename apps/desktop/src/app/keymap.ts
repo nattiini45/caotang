@@ -1,7 +1,7 @@
 /**
  * The keyboard map — ui-modules §2.5, plus the two app-wide chords the shell needs.
  *
- * Pure on purpose: the React layer translates a DOM `KeyboardEvent` into the four
+ * Pure on purpose: the React layer translates a DOM `KeyboardEvent` into the
  * facts this function reads, and the table itself can be tested without a browser.
  *
  * The rule that matters most: **a key typed into a text field is never a shortcut**.
@@ -40,6 +40,11 @@ export interface KeyFacts {
   readonly meta: boolean;
   readonly shift: boolean;
   readonly alt: boolean;
+  /**
+   * True while an input method is composing (`isImeEnter`, i18n §7.3). The Enter that confirms a Chinese, Japanese or Korean
+   * candidate, and the Escape that cancels one, belong to the input method, so no key is a shortcut then.
+   */
+  readonly composing?: boolean;
 }
 
 export interface KeyContext {
@@ -69,6 +74,8 @@ function command(facts: KeyFacts): boolean {
  * checked first, so Ctrl+Enter is "open" and not a bare Enter.
  */
 export function resolveKey(facts: KeyFacts, context: KeyContext): KeyAction | null {
+  // A key the input method is composing with is never a shortcut (#188): Enter in the Intent box would send the half-typed line.
+  if (facts.composing === true) return null;
   const cmd = command(facts);
   const key = facts.key.length === 1 ? facts.key.toLowerCase() : facts.key;
 

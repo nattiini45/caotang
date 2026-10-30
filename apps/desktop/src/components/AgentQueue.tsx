@@ -9,6 +9,7 @@ import { useState, type DragEvent, type KeyboardEvent, type ReactNode } from 're
 
 import type { AgentController, AgentSnapshot, QueuedMessage } from '../app/agent.js';
 import { QUEUE_PAUSED } from '../app/agent.js';
+import { isImeEnter } from '../app/ime.js';
 
 /** The note the writer wrote while a card waits. The card is neither approved nor dropped by it: the writer chooses what happens to both. */
 export interface HeldNote {
@@ -51,7 +52,8 @@ export function AgentQueue({
     setEditing(null);
   };
   const onEditKey = (event: KeyboardEvent<HTMLInputElement>, id: string): void => {
-    if (event.key !== 'Enter' && event.key !== 'Escape') return;
+    // An Enter or Escape that confirms or cancels an input method's candidate is the input method's (#188).
+    if (isImeEnter(event) || (event.key !== 'Enter' && event.key !== 'Escape')) return;
     event.preventDefault();
     event.stopPropagation();
     finishEdit(id);

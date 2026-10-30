@@ -28,6 +28,7 @@ import { DEMO_CHOICES } from '../app/demo.js';
 import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, MODE_HINTS, phaseLabel, progressViewOf, savesAsMacro, spendLine, stepMenuOf, type DelegationCardView, type TurnView } from '../app/agent-model.js';
 import { formatUsd, turnCostOf } from '../app/plan-preview.js';
 import { resolveKey, shortcutLabel } from '../app/keymap.js';
+import { isImeEnter } from '../app/ime.js';
 import { providerLabel } from '../app/provider-label.js';
 import { UNRESOLVED_NOTICE } from '../app/review-text.js';
 import type { AgentController, AgentSnapshot } from '../app/agent.js';
@@ -152,7 +153,7 @@ export function AgentPanel({ session, agent, recurring, startIntent, open, onTog
     const target = event.target;
     if (event.defaultPrevented || (target instanceof HTMLElement && target.closest('dialog') !== null)) return;
     const action = resolveKey(
-      { key: event.key, ctrl: event.ctrlKey, meta: event.metaKey, shift: event.shiftKey, alt: event.altKey },
+      { key: event.key, ctrl: event.ctrlKey, meta: event.metaKey, shift: event.shiftKey, alt: event.altKey, composing: isImeEnter(event) },
       {
         inTextField: target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement,
         inBinder: false,

@@ -31,6 +31,7 @@ import { explain } from './actions.js';
 import { useReturnFocus } from './dialog-focus.js';
 import { closeDialog, useDialogRequest } from './dialog-requests.js';
 import { useReport, useSession } from './shared.js';
+import { isImeEnter } from '../app/ime.js';
 import './skills-dialog.css';
 
 type View =
@@ -451,7 +452,7 @@ function NewSkill({ session, onBack, onCreated }: { session: ProjectSession; onB
           autoFocus
           onChange={(event) => setName(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === 'Enter') create();
+            if (event.key === 'Enter' && !isImeEnter(event)) create();
           }}
         />
         <span className="project-dialog-help">Lower-case letters, digits and hyphens, such as close-third-person.</span>

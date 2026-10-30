@@ -34,6 +34,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Content-Security-Policy.** The built app's policy now says `frame-src 'none'`, so it refuses every frame, as its comment and this changelog already said; before, it fell back to `default-src 'self'` and allowed frames from its own origin. Nothing in the app shows a frame. The README's Self-hosting policy carries the same directive; a host that sends the policy as a header should update its copy.
 - **Releases list themselves in the MCP Registry.** The release workflow now lists each release in the MCP Registry after it creates it, signing in with GitHub OIDC, so the maintainer no longer signs in or runs `mcp-publisher` by hand. It takes the `.mcpb` hash from the release's `SHA256SUMS`, and an existing release such as v0.1.0 can be listed by running the workflow by hand with its tag.
 
+### Fixed
+
+- **Typing Chinese, Japanese or Korean with an input method.** The Enter that confirms a candidate no longer acts on the field: it does not commit a codex name or chip, add a keyword, save a Project panel field, blur an inspector or plan-card field, create a skill, add or save a vocabulary entry, finish an inline rename, commit a queued message's edit, send or complete in the agent's Intent box, or rewrite a screenplay cue. The Enter you press after the candidate is chosen does what it did before (#188).
+
 ### Known limits
 
 - Tool results are checked against their declared shape in Caotang's own tests and not while you write, and twenty-five of the agent's tools still allow a key their declaration does not list. A connected tool that declares an output schema this build cannot check (one that uses `unevaluatedProperties`, for example) has its answers refused.

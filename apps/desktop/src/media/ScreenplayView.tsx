@@ -24,6 +24,7 @@ import { cueCompletion, cueNames, enterAfterCue, enterOnEmptyDialogue, type KeyE
 import { OpenOnDesktop, useNarrow } from '../components/narrow.js';
 import { ScreenplayPreview } from './ScreenplayPreview.js';
 import { ELEMENT_MENU_LABEL, chordAria, chordPlatform, chordRange, elementChord, elementEntries, opensElementMenu, type ElementEntry } from './element-menu.js';
+import { isImeEnter } from '../app/ime.js';
 
 export interface ScreenplayViewProps {
   readonly session: ProjectSession;
@@ -158,6 +159,8 @@ export function ScreenplayView({ session, node, reveal = null, onRevealHandled =
     if (field.selectionStart !== field.selectionEnd) return;
     const at = field.selectionStart;
     let edit: KeyEdit | null = null;
+    // The Enter (or Tab) that confirms an input method's candidate is the input method's, not a cue's (#188).
+    if (isImeEnter(event)) return;
     if (event.key === 'Enter') edit = enterAfterCue(field.value, at) ?? enterOnEmptyDialogue(field.value, at);
     else if (event.key === 'Tab') edit = cueCompletion(field.value, at, completions);
     if (edit === null) return;

@@ -80,7 +80,7 @@
 - Empty research: guidance card pointing at notes-first workflow.
 
 ### 2.5 Keyboard map (v0.1 minimum)
-`Ctrl+N` new doc in selection's parent · `F2` rename · `Delete` delete w/ confirm · arrow keys move selection · `Ctrl+Enter` open in editor (`view.setActiveDoc`) · `Escape` closes inline editors. (Full chord sheet = polish backlog; these are the Playwright-scripted set.) The agent's Intent box has its own keys for the command list, in §5.6.
+`Ctrl+N` new doc in selection's parent · `F2` rename · `Delete` delete w/ confirm · arrow keys move selection · `Ctrl+Enter` open in editor (`view.setActiveDoc`) · `Escape` closes inline editors. (Full chord sheet = polish backlog; these are the Playwright-scripted set.) The agent's Intent box has its own keys for the command list, in §5.6. While an input method composes (`isImeEnter`: `isComposing`, or `keyCode` 229), no key is a shortcut and no field acts on Enter: the Enter that confirms a Chinese, Japanese or Korean candidate is the input method's ([i18n.md](i18n.md) §7.3).
 
 ## 3. Corkboard (module 2.4)
 

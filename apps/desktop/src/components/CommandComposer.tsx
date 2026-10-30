@@ -11,6 +11,7 @@ import { useId, useState, type ChangeEvent, type KeyboardEvent as ReactKeyboardE
 import { matchCommands, menuQuery, type BuiltinCommand } from '@caotang/harness';
 
 import { radioStep } from './radio-keys.js';
+import { isImeEnter } from '../app/ime.js';
 
 export interface CommandComposerProps {
   readonly value: string;
@@ -44,7 +45,7 @@ export function CommandComposer({ value, onChange, onRun, placeholder, disabled,
   };
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>): void => {
-    if (event.nativeEvent.isComposing || !visible || active === undefined) return;
+    if (isImeEnter(event) || !visible || active === undefined) return;
     if (event.key === 'Escape') {
       event.preventDefault();
       setClosedFor(value);

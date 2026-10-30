@@ -94,6 +94,22 @@ test.describe('the keyboard map', () => {
     expect(resolveKey(keys('Enter', { ctrl: true }), ELSEWHERE)).toBe('open-in-editor');
   });
 
+  test('while an input method composes, no key is a shortcut: the Enter that confirms a candidate does not send (#188)', () => {
+    const composing = { composing: true } as const;
+    expect(resolveKey(keys('Enter', composing), AGENT_INTENT)).toBeNull();
+    expect(resolveKey(keys('Enter', { ...composing, ctrl: true }), AGENT_INTENT)).toBeNull();
+    expect(resolveKey(keys('Escape', composing), { ...AGENT_INTENT, agentIntentEmpty: true })).toBeNull();
+    expect(resolveKey(keys('Escape', composing), TYPING)).toBeNull();
+    expect(resolveKey(keys('Enter', composing), CARD)).toBeNull();
+    expect(resolveKey(keys('Enter', { ...composing, ctrl: true }), ELSEWHERE)).toBeNull();
+    expect(resolveKey(keys('n', { ...composing, ctrl: true }), ELSEWHERE)).toBeNull();
+    expect(resolveKey(keys('ArrowDown', composing), BINDER)).toBeNull();
+    // The composition over, the same keys mean what they did.
+    expect(resolveKey(keys('Enter', { composing: false }), AGENT_INTENT)).toBe('agent-send');
+    expect(resolveKey(keys('Enter'), AGENT_INTENT)).toBe('agent-send');
+    expect(resolveKey(keys('Enter', { composing: false }), CARD)).toBe('select-card');
+  });
+
   test('each action has the label a control shows for it', () => {
     expect(shortcutLabel('agent-send')).toBe('Enter');
     expect(shortcutLabel('agent-steer')).toBe('Ctrl+Enter');
