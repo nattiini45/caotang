@@ -47,6 +47,8 @@ interface NativeReply {
   readonly content?: string;
   readonly calls?: readonly NativeCall[];
   readonly reasoning?: string;
+  /** `length` scripts a reply the provider cut at its output limit (issue #97). */
+  readonly finish?: 'length';
 }
 
 /** Whether a request is the planner's on the native wire: the agent's system message, with tools declared. */
@@ -85,6 +87,7 @@ function responseOf(reply: NativeReply | undefined) {
           })),
         }),
     ...(reply?.reasoning === undefined ? {} : { reasoning: reply.reasoning }),
+    ...(reply?.finish === undefined ? {} : { finishReason: reply.finish }),
   };
 }
 
@@ -199,6 +202,8 @@ interface NativeOptions {
   /** Connect the story-bible server, so `tool.search` has tools to load. */
   readonly mcp?: boolean;
   readonly state?: ProjectState;
+  /** The caps `modelLimits` reports over the mock profile's: the cap a request is sent with, and the cap the model advertises. */
+  readonly limits?: { readonly maxOutputTokens: number; readonly modelMaxOutputTokens?: number };
   /** Runs as each event is emitted, with the session: a test steers at a fixed point of the turn. */
   readonly onEvent?: (event: AgentEvent, session: AgentSession) => void;
 }
@@ -209,7 +214,9 @@ async function nativeFixture(scripts: readonly MockScript[], options: NativeOpti
   // The ports the product wires in — scene.draft and friends are callable only through them.
   const harness = makeHarness({ ports: createAgentPorts(), ...(options.mcp === true ? { mcp: { client: await connectedClient(calls) } } : {}) }, state);
   const seen: ChatRequest[] = [];
-  const base = await nativeGateway(scripts, seen);
+  const native = await nativeGateway(scripts, seen);
+  const capped = options.limits;
+  const base: Gateway = capped === undefined ? native : { ...native, modelLimits: (profileId, model, thinking) => ({ ...native.modelLimits(profileId, model, thinking), ...capped }) };
   const asked = options.limitsAsked;
   const gateway: Gateway =
     asked === undefined
@@ -612,5 +619,81 @@ describe('a steering note on the native wire', () => {
     expect(messages.slice(assistantAt, noteAt + 1).map((message) => message.role)).toEqual(['assistant', 'tool', 'tool', 'user']);
     expect(messages.slice(assistantAt + 1, noteAt).map((message) => message.role === 'tool' && message.toolCallId)).toEqual(['call_r', 'call_t']);
     expect(report.steering).toEqual([{ noteId: 'nvt.turn-1.note-1', text: 'Keep Elena out of it.', deliveredAtCall: 2 }]);
+  });
+});
+
+describe('a native planner reply the provider cut (issue #97)', () => {
+  it('refuses a cut call whose arguments do not parse with words that name the cut, keeping its step number, and asks again with more room', async () => {
+    const intent = 'Read The Friend.';
+    const fixture = await nativeFixture(
+      nativeTranscript(intent, [
+        // The mock counts the reply's text toward its completion tokens: 42 characters, 11 tokens, past the cap of 5.
+        { content: 'Reading the scene before I label anything.', calls: [{ id: 'cut', name: 'doc.read', args: '{"doc": "The Fri' }], finish: 'length' },
+        { content: 'I will ask for less.' },
+      ]),
+      { limits: { maxOutputTokens: 5, modelMaxOutputTokens: 64 } },
+    );
+    const report = await fixture.session.submit(intent);
+    expect(report.status).toBe('replied');
+    expect(report.cutReplies).toBe(1);
+
+    const second = plannerRequests(fixture.seen)[1] as ChatRequest;
+    const refused = resultFor(second, 'cut');
+    expect(refused?.message.isError).toBe(true);
+    expect(refused?.body).toEqual({ ok: false, error: expect.stringContaining('cut off at the model’s output limit') });
+    const last = second.messages.at(-1);
+    expect(last?.role).toBe('user');
+    expect(last?.content).toContain('Step 1 (doc.read) was refused');
+    expect(last?.content).toContain('cut off at the model’s output limit');
+    expect(last?.content).not.toContain('not valid JSON');
+    expect(second.maxOutputTokens).toBe(10);
+  });
+
+  it('keeps an earlier call’s own refusal in a cut reply: only the last call can have been cut', async () => {
+    const intent = 'Read The Friend twice.';
+    const fixture = await nativeFixture(
+      nativeTranscript(intent, [
+        {
+          content: 'Reading the scene before I label anything.',
+          calls: [
+            { id: 'array', name: 'doc.read', args: '[1]' },
+            { id: 'cut', name: 'doc.read', args: '{"doc": "The Fri' },
+          ],
+          finish: 'length',
+        },
+        { content: 'I will ask for less.' },
+      ]),
+      { limits: { maxOutputTokens: 5, modelMaxOutputTokens: 64 } },
+    );
+    await fixture.session.submit(intent);
+    const second = plannerRequests(fixture.seen)[1] as ChatRequest;
+    expect(resultFor(second, 'array')?.body).toEqual({ ok: false, error: expect.not.stringContaining('cut off') });
+    expect(resultFor(second, 'cut')?.body).toEqual({ ok: false, error: expect.stringContaining('cut off at the model’s output limit') });
+    const last = second.messages.at(-1)?.content ?? '';
+    expect(last).toContain('Step 1 (doc.read) was refused: the call');
+    expect(last).toContain('Step 2 (doc.read) was refused: Your reply was cut off');
+  });
+
+  it('stages a cut reply whose calls all parsed with the cut flag, and approves it only with acceptTruncated', async () => {
+    const intent = 'Label The Friend act-2.';
+    const fixture = await nativeFixture(
+      nativeTranscript(intent, [
+        { content: 'Labelling.', calls: [{ id: 'w', name: 'meta.set', args: { targets: [FRIEND], label: 'act-2' } }], finish: 'length' },
+        { content: 'Labelled.' },
+      ]),
+      { decisions: [{ action: 'approve' }, { action: 'approve', acceptTruncated: true }] },
+    );
+    const report = await fixture.session.submit(intent);
+    expect(report.cutReplies).toBe(1);
+
+    // A single write-auto call would run at once; a cut reply's plan is shown instead, since it may be missing steps.
+    const first = fixture.pending[0]?.card;
+    expect(first?.replyCut).toBe(true);
+    expect(first?.cut).toBe(true);
+    expect(first?.approvable).toBe(false);
+    expect(first?.canAcceptCut).toBe(true);
+    // A plain approve is refused with the reason, and the consent runs it.
+    expect(fixture.pending[1]?.card.notice).toContain('may be missing steps');
+    expect(fixture.state.manifest.tree.find((node) => node.id === FRIEND)?.label).toBe('act-2');
   });
 });

@@ -96,7 +96,19 @@ describe('modelLimits (context-assembly §5)', () => {
     const profile = await addEndpoint(h, { maxOutputTokens: 1_000, pricePer1k: { prompt: 5, completion: 7 } });
     await h.gateway.listModels(profile.id);
 
-    expect(h.gateway.modelLimits(profile.id)).toEqual({ maxOutputTokens: 1_000, pricePer1k: { prompt: 5, completion: 7 } });
+    // The provider's own cap is still reported, as the model's: a request is sent with the profile's.
+    expect(h.gateway.modelLimits(profile.id)).toEqual({ maxOutputTokens: 1_000, modelMaxOutputTokens: 8_000, pricePer1k: { prompt: 5, completion: 7 } });
+  });
+
+  it('reports the output cap the model advertises beside the cap a request is sent with', async () => {
+    const net = new ScriptedFetch().push(() => jsonResponse(200, { data: [{ id: 'model-x', max_completion_tokens: 32_000 }] }));
+    const h = harness({ net });
+    const profile = await addEndpoint(h);
+    await h.gateway.listModels(profile.id);
+
+    const limits = h.gateway.modelLimits(profile.id);
+    expect(limits.maxOutputTokens).toBe(DEFAULT_MAX_OUTPUT_TOKENS);
+    expect(limits.modelMaxOutputTokens).toBe(32_000);
   });
 
   it('an Anthropic profile reports the preset row’s window before any listing, and the row’s price', async () => {

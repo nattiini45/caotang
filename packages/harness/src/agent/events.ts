@@ -91,6 +91,8 @@ export interface TurnReport {
   readonly dropped: readonly string[];
   /** The model calls the turn made, in order, including retries. */
   readonly modelCalls: number;
+  /** The planner replies the provider ended with `length`, parsed or not, at the request's cap or short of it (issue #97). Absent when none was. */
+  readonly cutReplies?: number;
   /** Present when the writer stopped the turn. `status` is then `cancelled`, and whatever was applied before the stop stays in the undo group. */
   readonly stop?: TurnStop;
   /** Present when the turn ended on a run limit (agent-harness §7.1): the limit, and for a refused call what it would have needed. `status` is `failed`, never `cancelled`. */
@@ -115,6 +117,7 @@ export interface TurnReport {
  * A decision the user makes on a card. A plan can be edited, and the edited card is shown again before it runs.
  * `acceptTruncated` is the explicit consent a cut draft needs: the provider stopped it at its output
  * limit, and approval keeps the cut text (context-assembly §5). Without it, a cut draft is not approvable.
+ * A plan whose planner reply was cut (`PlanCardView.replyCut`) needs the same consent: it may be missing steps.
  */
 export type Decision =
   | { readonly action: 'approve'; readonly acceptTruncated?: boolean }

@@ -579,6 +579,36 @@ const scenarios: Scenario[] = [
       },
     },
   },
+  {
+    // Issue #97: a planner reply the provider cut at its output limit is named as cut, not as malformed JSON, and asked again
+    // with twice the cap (inside the model's advertised cap). The mock profile's limits are wrapped to a 10-token cap.
+    name: 'verify-recovery: a planner reply cut at the output limit is named as cut and asked again with more room',
+    category: 'verify-recovery',
+    intent: 'Move The Friend into Act 2, carefully.',
+    project: makeState,
+    gateway: async () => {
+      const base = await mockGateway([
+        plannerScript((req) => {
+          if (!userTextOf(req).includes('Request: Move The Friend into Act 2, carefully.')) return undefined;
+          return req.messages.some((message) => message.role === 'assistant') ? answer('Ready when you are.') : undefined;
+        }),
+        {
+          match: (req) => userTextOf(req).includes('Request: Move The Friend into Act 2, carefully.') && !req.messages.some((message) => message.role === 'assistant'),
+          respond: () => ({ content: '{"steps": [{"tool": "meta.set", "params": {"targets": ["', finishReason: 'length' }),
+        },
+      ]);
+      return { ...base, modelLimits: (profileId, model, thinking) => ({ ...base.modelLimits(profileId, model, thinking), maxOutputTokens: 10, modelMaxOutputTokens: 40 }) };
+    },
+    expect: {
+      status: 'replied',
+      requests: [
+        { excludes: ['cut off'] },
+        { includes: ['Your reply was cut off at the model’s output limit', 'Send a shorter reply'], excludes: ['not valid JSON'] },
+      ],
+      maxModelCalls: 2,
+      state: (state) => (state.manifest.tree.find((node) => node.id === FRIEND)?.label === null ? [] : ['The Friend was labelled by a reply that was cut']),
+    },
+  },
 ];
 
 describe('the v0.1 scenario suite (agent-harness §9)', () => {

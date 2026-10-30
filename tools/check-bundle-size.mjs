@@ -55,8 +55,9 @@ export const BUDGET = {
   // 840.2 kB measured with macros (#57); 847.8 kB measured with macros, the injection guards and the export Preview together on top of wave 20's fixes,
   // which left 0.2 kB under the old 848.0 kB ceiling, so it is raised to that plus about 1%.
   // 858.2 kB measured with the result schemas (#58); the ceiling is that plus about 1%.
-  // 866.9 kB measured on main at #247, 0.1 kB under that ceiling; 867.0 kB (867,047 bytes) with the input-method guard in every Enter
-  // handler and the keymap (#188), which put the first load 47 bytes over it, so it is raised to that plus about 1%.
+  // 867.7 kB measured with the planner's cut-reply handling (#97): the loop's cut words and retry, and the plan card's cut-reply note,
+  // which put the first load 0.7 kB over the old 867.0 kB ceiling, so it is raised to that plus about 1%.
+  // The input-method guard in every Enter handler and the keymap (#188) adds about 0.05 kB on top; the 876.0 kB ceiling covers both.
   initialGzip: 876_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
