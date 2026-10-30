@@ -332,7 +332,7 @@ describe('coherence.json codec', () => {
   });
 
   it('drops one malformed declaration field and keeps the others', () => {
-    const raw = { formatVersion: 1, findings: [], runs: [], sceneMeta: { sA: { dayOffset: -1, durationDays: 3 } }, worldRules: [], reviewState: {} };
+    const raw = { formatVersion: 1, findings: [], runs: [], sceneMeta: { sA: { dayOffset: 1.5, durationDays: 3 } }, worldRules: [], reviewState: {} };
     const outcome = parseCoherenceFile(JSON.stringify(raw));
     expect(outcome.kind === 'ok' && outcome.file.sceneMeta['sA']).toEqual({ durationDays: 3 });
     expect(outcome.kind === 'ok' && outcome.notices.map((n) => n.code)).toEqual(['dropped-scene-meta']);

@@ -64,9 +64,27 @@ const BUILT_FEATURES: readonly { readonly name: string; readonly pattern: RegExp
   { name: 'bold CJK on the contact sheet', pattern: /(?:Chinese, Japanese and Korean|Noto (?:Sans )?(?:Mono )?CJK)[^.\n]*\bno bold/i },
   { name: 'the storyboard contact sheet PDF', pattern: /storyboard PDF|PDF (?:exports? |output )?(?:of|for) (?:a )?storyboards?|PDF of a storyboard/i },
   { name: 'the agent trace', pattern: /agent traces? (?:view|export)/i },
+  // A claim that days before day 0 or the prologue/epilogue parts are missing (#175). The limit that remains, that an older build drops them and the
+  // timeline view is not built, names neither as missing.
+  {
+    name: 'days before day 0 and prologue and epilogue parts',
+    pattern:
+      /(?:negative days?|days? before day 0|story parts?)[^.\n]*(?:not (?:yet )?(?:built|supported|allowed|available|in this build)|cannot be)|(?:\bno|cannot (?:set|declare|store)) (?:negative days?|days? before day 0|a story part|story parts|prologue (?:or|and) epilogue parts?)/i,
+  },
 ];
 
 describe('the built-feature patterns flag a stale claim and nothing else', () => {
+  it('the story-part pattern flags a claim that days before day 0 or parts are missing, and not the older-build limit', () => {
+    const parts = BUILT_FEATURES.find((feature) => feature.name === 'days before day 0 and prologue and epilogue parts')?.pattern ?? /$^/;
+    expect('Negative day offsets are not supported yet.').toMatch(parts);
+    expect('There are no days before day 0.').toMatch(parts);
+    expect('You cannot declare a story part.').toMatch(parts);
+    expect(
+      'A project with a day before day 0 or a story part, opened in a build from before this one, loses them: the older build drops a negative day when it loads the project (its load report says the day offset was malformed) and drops the story part when it next saves (its load report names a field it does not know).',
+    ).not.toMatch(parts);
+    expect('The timeline view that draws the prologue and epilogue as their own zones is not built yet.').not.toMatch(parts);
+  });
+
   const spreadsheet = BUILT_FEATURES.find((feature) => feature.name === 'spreadsheet export')?.pattern ?? /$^/;
 
   it('the spreadsheet pattern flags a claim that spreadsheet export is missing', () => {

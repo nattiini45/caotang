@@ -166,6 +166,28 @@ describe('coherence.setSceneMeta (coherence.md §5.2, §7.1)', () => {
     expect(h.state.coherence?.sceneMeta[STORM]).toBeUndefined();
   });
 
+  it('declares a story part on a folder and a day before day 0 on a scene, and undo clears each, byte for byte (§5.2.2)', () => {
+    const h = harness();
+    const before = snapshotOf(h.state);
+    const folder = expectOk(h.send('coherence.setSceneMeta', { docId: CHAPTER, patch: { storyPart: 'epilogue' } }));
+    expect(h.state.coherence?.sceneMeta[CHAPTER]).toEqual({ storyPart: 'epilogue' });
+    const scene = expectOk(h.send('coherence.setSceneMeta', { docId: STORM, patch: { dayOffset: -3650, storyPart: 'prologue' } }));
+    expect(h.state.coherence?.sceneMeta[STORM]).toEqual({ dayOffset: -3650, storyPart: 'prologue' });
+    expect(h.undo.undo(scene.undoGroupId!).ok).toBe(true);
+    expect(h.undo.undo(folder.undoGroupId!).ok).toBe(true);
+    expect(snapshotOf(h.state)).toBe(before);
+  });
+
+  it('refuses a day out of range and an unknown story part, naming the rule, and changes nothing (§5.2.2)', () => {
+    const h = harness();
+    const before = snapshotOf(h.state);
+    const far = h.send('coherence.setSceneMeta', { docId: STORM, patch: { dayOffset: -10_000_001 } });
+    expect(far.ok === false && far.error.message).toContain('between −10,000,000 and 10,000,000');
+    const part = h.send('coherence.setSceneMeta', { docId: CHAPTER, patch: { storyPart: 'coda' } });
+    expect(part.ok === false && part.error.message).toContain('valid parts are prologue, epilogue');
+    expect(snapshotOf(h.state)).toBe(before);
+  });
+
   it('drops a record whose last declaration is cleared, so the file holds no empty record', () => {
     const h = harness();
     expectOk(h.send('coherence.setSceneMeta', { docId: STORM, patch: { dayOffset: 2 } }));

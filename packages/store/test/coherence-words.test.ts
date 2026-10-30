@@ -88,6 +88,7 @@ describe('the coherence words name a change in the writer’s terms (coherence.m
       'dependencies, point of view, day, expected presence and duration',
     );
     expect(declarationChangeWords(['timelineMode'])).toBe('timeline mode');
+    expect(declarationChangeWords(['dayOffset', 'storyPart'])).toBe('day and story part');
     expect(declarationChangeWords(['threads_add', 'threads_remove'])).toBe('threads');
   });
 

@@ -276,13 +276,16 @@ export type {
   KnowledgeLinkRecord,
   SceneMetaRecord,
   SceneThread,
+  StoryPartName,
   TimelineModeName,
 } from './coherence.js';
 export {
   COHERENCE_NOTE_LIMIT,
   COHERENCE_STATUSES,
+  DAY_OFFSET_LIMIT,
   DISMISSAL_REASON_IDS,
   SCENE_PATCH_KEYS,
+  STORY_PARTS,
   THREAD_ID_LIMIT,
   THREAD_NOTE_LIMIT,
   TIMELINE_MODES,
@@ -291,6 +294,7 @@ export {
   findingTransition,
   findingsDiscardedWith,
   inverseScenePatch,
+  isDayOffset,
   isEmptySceneMeta,
   trimCoherenceNote,
 } from './coherence.js';

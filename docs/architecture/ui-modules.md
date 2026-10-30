@@ -118,7 +118,7 @@
 | Status / Label | node.status/label | pickers → `binder.setMeta` | Vocabulary-validated at the command; picker shows "unknown status" chip when the loaded value is outside the vocabulary (project-format §2 tolerant rule). |
 | Export style | node.style (documents only) | select (Normal, Section) → `binder.setMeta {style}` | exporter.md §2, Per-scene styling. Normal clears the field; an unknown stored value shows as itself, disabled, and exports as Normal. The agent's `meta.set` does not carry it. |
 | Codex section | codex.md §8 | attach picker → `codex.write {attachTo}` / chips show mention counts | Mention chips refresh on doc-write cache invalidation; click → codex panel. |
-| SceneMeta editor | coherence.md §8.3 | POV picker (codex characters), dayOffset/duration number fields, `after`/`expectedPresent` chip pickers, a **Dialogue container** select (the live dialogue containers; coherence.md §5.6) | **Lands with the coherence module** (post-v0.1); the Inspector layout reserves the collapsible section from day one. |
+| SceneMeta editor | coherence.md §8.3 | POV picker (codex characters), dayOffset/duration number fields (the day takes a minus sign, coherence.md §5.2.2), `after`/`expectedPresent` chip pickers, a **Dialogue container** select (the live dialogue containers; coherence.md §5.6), a **Story part** select (also on folders; coherence.md §5.2.2) | **Lands with the coherence module** (post-v0.1); the Inspector layout reserves the collapsible section from day one. |
 
 ### 4.2 Folder nodes
 Same panel minus notes (folders carry synopsis + keywords + status/label only — matches manifest fields; a folder is the act/part card).

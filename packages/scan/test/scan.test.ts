@@ -58,6 +58,25 @@ function facts(severity: FindingSeverity, ink: string): DialogueFacts {
 }
 
 describe('runScan', () => {
+  it('reads days before day 0 and a declared epilogue from a committed coherence.json (coherence.md §5.2.2)', async () => {
+    const { fs } = await seedProject({ expecting: [] });
+    const sceneMeta = { [HARBOUR]: { dayOffset: -3650, storyPart: 'prologue' }, [SHORE]: { dayOffset: 0 }, [SCRIPT]: { dayOffset: 4000, storyPart: 'epilogue' } };
+    fs.putFile('coherence.json', JSON.stringify({ formatVersion: 1, findings: [], runs: [], sceneMeta, worldRules: [], knowledge: [], reviewState: {} }));
+    const parted = await runScan(fs, { now: NOW, checks: ['timeline.gap', 'timeline.order-drift'], failOn: 'info' });
+    expect(parted.findings).toEqual([]);
+    expect(parted.exitCode).toBe(0);
+
+    // The same days with no part: both jumps are gaps (negative control).
+    const plain = { [HARBOUR]: { dayOffset: -3650 }, [SHORE]: { dayOffset: 0 }, [SCRIPT]: { dayOffset: 4000 } };
+    fs.putFile('coherence.json', JSON.stringify({ formatVersion: 1, findings: [], runs: [], sceneMeta: plain, worldRules: [], knowledge: [], reviewState: {} }));
+    const unparted = await runScan(fs, { now: NOW, checks: ['timeline.gap'], failOn: 'info' });
+    expect(unparted.findings.map((finding) => finding.message)).toEqual([
+      '"The Shore" happens 3650 days after "The Harbour"',
+      '"The Script" happens 4000 days after "The Shore"',
+    ]);
+    expect(unparted.exitCode).toBe(7);
+  });
+
   it('runs with no provider and no network: a fetch that throws is never called', async () => {
     const fetch = vi.fn(() => {
       throw new Error('the scan reached for the network');

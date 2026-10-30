@@ -6,11 +6,30 @@
  */
 
 import { useState, type ReactNode } from 'react';
-import { SCENE_STYLES, THREAD_ID_LIMIT, THREAD_NOTE_LIMIT, TIMELINE_MODES, type KnowledgeLinkRecord, type ScenePatch, type SceneThread } from '@caotang/bus';
+import {
+  DAY_OFFSET_LIMIT,
+  SCENE_STYLES,
+  THREAD_ID_LIMIT,
+  THREAD_NOTE_LIMIT,
+  TIMELINE_MODES,
+  type KnowledgeLinkRecord,
+  type ScenePatch,
+  type SceneThread,
+} from '@caotang/bus';
 import type { CodexEntry, TreeNode } from '@caotang/store';
 
 import { attachEntry, explain, setSceneStyle } from './actions.js';
-import { afterCandidates, dialogueContainerChoices, modeLabel, povCandidates, sceneMetaOf } from '../app/findings-model.js';
+import {
+  STORY_PART_CHOICES,
+  afterCandidates,
+  dayLabel,
+  dialogueContainerChoices,
+  inheritedStoryPart,
+  modeLabel,
+  povCandidates,
+  sceneMetaOf,
+  storyPartLabel,
+} from '../app/findings-model.js';
 import { characterCandidates, pairWords } from '../app/knowledge-model.js';
 import type { ProjectSession } from '../app/session.js';
 import { useStoreDraft } from './store-draft.js';
@@ -207,8 +226,21 @@ export function SceneMetaSection({ session, node }: { session: ProjectSession; n
         </select>
       </label>
 
-      <NumberField label="Day offset" value={meta.dayOffset} onCommit={(value) => apply({ dayOffset: value })} />
-      <NumberField label="Duration in days" value={meta.durationDays} onCommit={(value) => apply({ durationDays: value })} />
+      <NumberField
+        label="Day offset"
+        value={meta.dayOffset}
+        min={-DAY_OFFSET_LIMIT}
+        max={DAY_OFFSET_LIMIT}
+        onCommit={(value) => apply({ dayOffset: value })}
+      />
+      <p className="field-note" data-testid="day-offset-note">
+        {meta.dayOffset === undefined
+          ? 'Day 0 is the story’s reference day. Use a minus sign for days before it, such as a prologue.'
+          : `${dayLabel(meta.dayOffset)}${meta.dayOffset < 0 ? ', before day 0' : ''}.`}
+      </p>
+      <NumberField label="Duration in days" value={meta.durationDays} min={0} onCommit={(value) => apply({ durationDays: value })} />
+
+      <StoryPartField session={session} node={node} part={meta.storyPart} onChange={(storyPart) => apply({ storyPart })} />
 
       <label className="scene-field">
         <span>Timeline mode</span>
@@ -526,16 +558,32 @@ function ThreadsEditor({
  * field showing what the project holds. Leaving the field then writes nothing, because the draft
  * is the project's value and the commit only writes a value the project does not hold.
  */
-function NumberField({ label, value, onCommit }: { label: string; value: number | undefined; onCommit: (value: number | null) => void }): ReactNode {
+/**
+ * A whole-number field that commits on blur or Enter. `min` and `max` bound what it commits; a value outside them, or not whole,
+ * puts the stored value back. A typographic minus (U+2212) is read as a minus sign.
+ */
+function NumberField({
+  label,
+  value,
+  min,
+  max,
+  onCommit,
+}: {
+  label: string;
+  value: number | undefined;
+  min: number;
+  max?: number;
+  onCommit: (value: number | null) => void;
+}): ReactNode {
   const draft = useStoreDraft(value === undefined ? '' : String(value));
   const commit = (): void => {
-    const trimmed = draft.value.trim();
+    const trimmed = draft.value.trim().replace(/^\u2212/, '-');
     if (trimmed === '') {
       if (value !== undefined) onCommit(null);
       return;
     }
     const parsed = Number(trimmed);
-    if (!Number.isInteger(parsed) || parsed < 0) {
+    if (!Number.isInteger(parsed) || parsed < min || (max !== undefined && parsed > max)) {
       draft.reset();
       return;
     }
@@ -546,7 +594,8 @@ function NumberField({ label, value, onCommit }: { label: string; value: number 
       <span>{label}</span>
       <input
         type="number"
-        min={0}
+        min={min}
+        max={max}
         step={1}
         aria-label={label}
         value={draft.value}
@@ -557,6 +606,67 @@ function NumberField({ label, value, onCommit }: { label: string; value: number 
         }}
       />
     </label>
+  );
+}
+
+/**
+ * §5.2.2: the part select. A document or a folder declares Prologue, Epilogue or the main story (no part). A folder's part covers
+ * the scenes under it, so a node that declares none says which folder's part covers it.
+ */
+function StoryPartField({
+  session,
+  node,
+  part,
+  onChange,
+}: {
+  session: ProjectSession;
+  node: TreeNode;
+  part: string | undefined;
+  onChange: (part: string | null) => void;
+}): ReactNode {
+  const inherited = inheritedStoryPart(session.state, session.coherenceFile(), node.id);
+  const known = part === undefined || STORY_PART_CHOICES.some((choice) => choice.value === part);
+  return (
+    <>
+      <label className="scene-field">
+        <span>Story part</span>
+        <select aria-label="Story part" value={part ?? ''} onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}>
+          {known ? null : (
+            <option value={part} disabled>
+              {part} (unknown, read as the main story)
+            </option>
+          )}
+          {STORY_PART_CHOICES.map((choice) => (
+            <option key={choice.value} value={choice.value}>
+              {choice.value === '' && inherited !== undefined ? `${storyPartLabel(inherited.part)}, from “${inherited.folderTitle}”` : choice.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="field-note" data-testid="story-part-note">
+        {part === undefined && inherited !== undefined
+          ? `Covered by the folder “${inherited.folderTitle}”, which is declared ${storyPartLabel(inherited.part).toLowerCase()}.`
+          : node.type === 'folder'
+            ? 'A part declared here covers the scenes inside, unless a scene declares its own. A long jump into the epilogue or out of the prologue is never reported as a gap.'
+            : 'A long jump into the epilogue or out of the prologue is never reported as a gap.'}
+      </p>
+    </>
+  );
+}
+
+/** §5.2.2: a folder's story part, the one scene declaration the Inspector edits on a folder. */
+export function FolderStoryPartSection({ session, node }: { session: ProjectSession; node: TreeNode }): ReactNode {
+  useSession(session);
+  const report = useReport();
+  const meta = sceneMetaOf(session.coherenceFile(), node.id);
+  const apply = (patch: ScenePatch): void => {
+    const outcome = session.dispatch('coherence.setSceneMeta', { docId: node.id, patch });
+    if (!outcome.ok) report({ text: explain(outcome.error), tone: 'error' });
+  };
+  return (
+    <section className="inspector-section" aria-label="Story part" data-testid="folder-story-part">
+      <StoryPartField session={session} node={node} part={meta.storyPart} onChange={(storyPart) => apply({ storyPart })} />
+    </section>
   );
 }
 

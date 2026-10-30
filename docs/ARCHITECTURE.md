@@ -155,7 +155,7 @@ CodexEntry     { id, name, aliases[], type, description (md), includePolicy: alw
                  sources?: EntrySource[], createdAt, updatedAt }   // codex.md §2
 CoherenceFinding{ id, runId, class: deterministic|llm, checkId, type, severity, status: open|dismissed|fixed,
                  factGroup, evidence: Evidence[1-2], reasoning?, modelMeta?, dismissedReason?, supersededBy? }  // coherence.md §3
-SceneMeta       { pov?, dayOffset?, durationDays?, after?, expectedPresent? }   // coherence.md §5.2 (writer-declared)
+SceneMeta       { pov?, dayOffset?, durationDays?, after?, expectedPresent?, storyPart? }   // coherence.md §5.2, §5.2.2 (writer-declared; days may be negative)
 ExportRecipe   { include[], template, format }
 AssembledPrompt{ messages[], layers[{id, included, tokens, dropped[]}], estimate }  // context-assembly.md §4
 TextAnchor     { from, to, exact, prefix, suffix, capturedRevision }              // edit-anchors.md §2

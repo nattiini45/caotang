@@ -17,6 +17,7 @@ const DECLARATION_WORDS: Readonly<Record<string, string>> = {
   timelineMode: 'timeline mode',
   threads: 'threads',
   dialogueContainer: 'dialogue container',
+  storyPart: 'story part',
 };
 
 /** Joins words the way a sentence does: `a`, `a and b`, `a, b and c`. */
