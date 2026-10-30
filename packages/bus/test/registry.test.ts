@@ -47,10 +47,10 @@ const specPath = resolve(__dirname, '../../../docs/architecture/command-bus.md')
 const descriptorsPath = resolve(__dirname, '../src/descriptors.ts');
 
 /**
- * Every name the registry holds beyond §9's table. **Empty:** §9 tabulates all 58 names in `COMMAND_NAMES`.
+ * Every name the registry holds beyond §9's table. **Empty:** §9 tabulates all 60 names in `COMMAND_NAMES`.
  * The arithmetic, stated once: 36 table rows name 38 commands (the view row names three), and four more rows
  * (`shot.importImage`, and the script imports `screenplay.import`, `dialogue.importInk`, `dialogue.setMeta`)
- * make 40 rows, and the four skill rows (`skill.import`, `skill.write`, `skill.delete`, `skill.setEnabled`) make 44 rows, and the three knowledge rows (`coherence.addKnowledgeFact`, `coherence.editKnowledgeFact`, `coherence.removeKnowledgeFact`), and the writer's resource read (`mcp.readResource`) and the batch form of the shot image import (`shot.importImages`) make 49 rows, and the two macro rows (`macro.save`, `macro.delete`) make 51 rows, and the two hook rows (`hook.save`, `hook.delete`) make 53 rows and **58 names**. A name added to `COMMAND_NAMES` must get its §9 row in the same change. The stale check below
+ * make 40 rows, and the four skill rows (`skill.import`, `skill.write`, `skill.delete`, `skill.setEnabled`) make 44 rows, and the three knowledge rows (`coherence.addKnowledgeFact`, `coherence.editKnowledgeFact`, `coherence.removeKnowledgeFact`), and the writer's resource read (`mcp.readResource`) and the batch form of the shot image import (`shot.importImages`) make 49 rows, and the two macro rows (`macro.save`, `macro.delete`) make 51 rows, and the two hook rows (`hook.save`, `hook.delete`) make 53 rows, and the two AV script settings rows (`script.setShowMeta`, `script.setEpisodeMeta`) make 55 rows and **60 names**. A name added to `COMMAND_NAMES` must get its §9 row in the same change. The stale check below
  * stays: a name listed here that §9 also tabulates fails it.
  */
 const UNTABULATED_NAMES: readonly string[] = [];
@@ -224,6 +224,9 @@ const MACRO_ID = 'm_7K2QX9M4A1';
 const HOOK_ID = 'h_7K2QX9M4A1';
 /** A dialogue container, for `dialogue.setMeta`, whose validate refuses any other node. */
 const DIALOGUE_ID = 'n_7J4VQ9XK2D';
+/** A show folder and an episode in it, for `script.setShowMeta` and `script.setEpisodeMeta` (av-script.md §2). */
+const SHOW_ID = 'n_5H8SHW2Q4P';
+const EPISODE_ID = 'n_3E9PSD6K2M';
 
 /**
  * A row's own values, merged over `PARAM_SAMPLE`. Every key here is one §9 declares for that row, and the inverse
@@ -287,6 +290,8 @@ const ROW_SAMPLE: Partial<Record<CommandName, Record<string, unknown>>> = {
   'screenplay.import': { format: 'fountain' },
   'dialogue.importInk': { containers: [{ title: 'The Harbour', body: 'Mara: The boats are in.' }] },
   'dialogue.setMeta': { nodeId: DIALOGUE_ID, patch: { engineTarget: 'ink-json', autoLineIds: true, locBaseline: 'en-GB' } },
+  'script.setShowMeta': { nodeId: SHOW_ID, patch: { ratePreset: 'broadcast', cueVocabulary: ['music', 'bed'], targetRuntimeSec: 1800 } },
+  'script.setEpisodeMeta': { nodeId: EPISODE_ID, patch: { audioUrl: 'https://cdn.example.com/1.mp3', audioBytes: 1024, audioMime: 'audio/mpeg' } },
   // The four skill rows (extensibility.md §10). `skill.write` names a file of a skill the project holds; `skill.setEnabled` flips one that is on.
   'skill.import': { stagingId: 'stg_ABCDEF0123' },
   'skill.write': { name: 'close-third', path: 'references/voice.md', text: 'Stay close to the narrator.' },
@@ -342,6 +347,12 @@ const RECIPE_STATE = makeSnapshot({ recipes: [{ name: 'novel', includeRootIds: [
 const DIALOGUE_STATE = makeSnapshot({
   extraNodes: [{ id: DIALOGUE_ID, parentId: CHAPTER_ONE, type: 'dialogue', title: 'The Harbour' }],
 });
+const SHOW_STATE = makeSnapshot({
+  extraNodes: [
+    { id: SHOW_ID, parentId: 'manuscript', type: 'folder', kind: 'show', title: 'The Show' },
+    { id: EPISODE_ID, parentId: SHOW_ID, type: 'document', kind: 'av-script', title: 'Episode 1' },
+  ],
+});
 const SKILL_STATE = makeSnapshot({ skills: { 'close-third': [{ path: 'SKILL.md', length: 120 }] } });
 const MEMORY_STATE = makeSnapshot({
   agentFiles: {
@@ -371,6 +382,8 @@ const ROW_STATE: Partial<Record<CommandName, ValidationSnapshot>> = {
   'shot.create': STORYBOARD_STATE,
   'shot.setMeta': STORYBOARD_STATE,
   'dialogue.setMeta': DIALOGUE_STATE,
+  'script.setShowMeta': SHOW_STATE,
+  'script.setEpisodeMeta': SHOW_STATE,
   'recipe.delete': RECIPE_STATE,
   // Both export names check a recipe name the project holds, and the sample names the recipe this state holds.
   'export.compile': RECIPE_STATE,
@@ -390,12 +403,12 @@ function snapshotFor(name: CommandName): ValidationSnapshot {
 describe('§9 the closed v0.1 registry', () => {
   const specRows = readSpecRegistry();
 
-  it('parses all 58 command names out of §9 — so a broken parse fails, not passes', () => {
-    // 58: the 38 names of the first 36 rows, and the seventeen rows after them. The count is a
+  it('parses all 60 command names out of §9 — so a broken parse fails, not passes', () => {
+    // 60: the 38 names of the first 36 rows, and the nineteen rows after them. The count is a
     // claim about the parse, not about the registry — if §9's table loses a row this fails, which is the whole point of asserting
     // it separately.
-    expect(specRows).toHaveLength(58);
-    expect(new Set(specRows.map((r) => r.name)).size).toBe(58);
+    expect(specRows).toHaveLength(60);
+    expect(new Set(specRows.map((r) => r.name)).size).toBe(60);
   });
 
   it('registers exactly the names §9 tabulates, in §9 order, plus the stated exceptions', () => {
@@ -405,8 +418,8 @@ describe('§9 the closed v0.1 registry', () => {
 
   it('holds the exceptions to exactly the names §9 does not tabulate, which is none', () => {
     const tabulated = new Set(specRows.map((r) => r.name));
-    // The arithmetic, stated once: 58 names in COMMAND_NAMES, all of them tabulated, so the exception list is empty.
-    expect(COMMAND_NAMES, '58 names: every one tabulated in §9').toHaveLength(58);
+    // The arithmetic, stated once: 60 names in COMMAND_NAMES, all of them tabulated, so the exception list is empty.
+    expect(COMMAND_NAMES, '60 names: every one tabulated in §9').toHaveLength(60);
     expect(specRows.length + UNTABULATED_NAMES.length).toBe(COMMAND_NAMES.length);
     for (const name of UNTABULATED_NAMES) {
       // A stale exception is a red test, not a silent allowance: once §9 lists the
@@ -430,12 +443,12 @@ describe('§9 the closed v0.1 registry', () => {
     }
   });
 
-  it('marks the five view commands as ephemeral, and the other fifty-one as project state, the two external names apart', () => {
+  it('marks the five view commands as ephemeral, and the other fifty-three as project state, the two external names apart', () => {
     // §9's view rows say these commands are never persisted and carry no undo, which is `mutates: 'view'` and
     // `undo: 'none'`. The five view commands are the three original ones and the two binder/corkboard names, ephemeral
     // UI state by the same definition. `mutates: 'none'` is the v0.2 `mcp.invoke` row's (extensibility §6: externals
     // are not project state), so it is held apart, and so is `mcp.readResource`, which reads a resource and changes nothing. The
-    // arithmetic is asserted, not implied: 58 names are 5 view + 2 external + 51 project mutations.
+    // arithmetic is asserted, not implied: 60 names are 5 view + 2 external + 53 project mutations.
     const view = [
       'view.setSelection',
       'view.setActiveDoc',
@@ -455,7 +468,7 @@ describe('§9 the closed v0.1 registry', () => {
     const project = COMMAND_NAMES.filter(
       (name) => !(view as readonly string[]).includes(name) && name !== 'mcp.invoke' && name !== 'mcp.readResource',
     );
-    expect(project, 'the project names: 58 less five view names and the two external names').toHaveLength(51);
+    expect(project, 'the project names: 60 less five view names and the two external names').toHaveLength(53);
     for (const name of project) {
       expect(COMMAND_REGISTRY[name].descriptor.mutates, `${name} mutates`).toBe('project');
     }
@@ -520,17 +533,17 @@ describe("§9's Params column against the code's accepted keys", () => {
   const withKeys = specRows.filter((r) => specParamKeys(r.params) !== undefined);
   const exempt = specRows.filter((r) => specParamKeys(r.params) === undefined);
 
-  it('parses fifty-five key lists and three "various" rows — the parse cannot be vacuous', () => {
+  it('parses fifty-seven key lists and three "various" rows — the parse cannot be vacuous', () => {
     // **The control, and it earns its place by having already been needed.**
     // `specParamKeys` reads `undefined` for any cell that is not a `{…}` literal.
     // §9 writes every real Params cell as a backtick code span, so a parser that
-    // forgets to strip the backticks returns `undefined` for all fifty-five rows,
+    // forgets to strip the backticks returns `undefined` for all fifty-seven rows,
     // the parity loop below iterates over nothing, and the suite stays green
     // while guarding nothing at all. That is precisely what the first draft of
     // this guard did during this build; the numbers here are what made it loud.
-    // 58 names less the view row's three, which are exempt, leave 55 with a literal (58 - 3 = 55).
-    expect(specRows).toHaveLength(58);
-    expect(withKeys).toHaveLength(55);
+    // 60 names less the view row's three, which are exempt, leave 57 with a literal (60 - 3 = 57).
+    expect(specRows).toHaveLength(60);
+    expect(withKeys).toHaveLength(57);
     expect(exempt.map((r) => r.name)).toEqual(['view.setSelection', 'view.setActiveDoc', 'view.setScroll']);
     // …and the exemption is earned by the word "various", not by a hardcoded name.
     for (const row of exempt) expect(row.params).toBe('various');
@@ -661,7 +674,7 @@ describe("§9's Params column against the code's accepted keys", () => {
  *
  * ## What each assertion is for, because three of them can pass vacuously
  *
- * - **The exempt count.** `DECLARED_PARAMS` covers all 58 names, but §9 gives only
+ * - **The exempt count.** `DECLARED_PARAMS` covers all 60 names, but §9 gives only
  *   48 a literal; the three `view.*` rows are declared here alone. If §9 ever stops
  *   saying "various", or a fourth row does, the counts disagree and it fails rather
  *   than silently widening what the spec constrains.
@@ -677,8 +690,8 @@ describe("§9's closed key set, and the refusal that enforces it", () => {
   const withKeys = specRows.filter((r) => specParamKeys(r.params) !== undefined);
   const exempt = specRows.filter((r) => specParamKeys(r.params) === undefined);
 
-  it('declares a key set for all 58 names — the closed set cannot have a hole', () => {
-    // 58 = every name §9 tabulates (see UNTABULATED_NAMES above, which is empty).
+  it('declares a key set for all 60 names — the closed set cannot have a hole', () => {
+    // 60 = every name §9 tabulates (see UNTABULATED_NAMES above, which is empty).
     expect(Object.keys(DECLARED_PARAMS).sort()).toEqual([...COMMAND_NAMES].sort());
     for (const name of COMMAND_NAMES) {
       expect(DECLARED_PARAMS[name].length, `${name} declares no keys`).toBeGreaterThan(0);
@@ -687,8 +700,8 @@ describe("§9's closed key set, and the refusal that enforces it", () => {
     }
   });
 
-  it('declares exactly the keys §9 declares, for the fifty-five rows §9 spells out', () => {
-    expect(withKeys).toHaveLength(55);
+  it('declares exactly the keys §9 declares, for the fifty-seven rows §9 spells out', () => {
+    expect(withKeys).toHaveLength(57);
     for (const row of withKeys) {
       const name = row.name as CommandName;
       // §9 names `kind` on binder.create (command-bus §9 was widened with the media track), so no key is exempt here.
@@ -709,7 +722,7 @@ describe("§9's closed key set, and the refusal that enforces it", () => {
     for (const name of VARIOUS_PARAM_NAMES) expect(DECLARED_PARAMS[name].length).toBeGreaterThan(0);
   });
 
-  it('refuses an undeclared key for every one of the 58 §9 names, naming the key', () => {
+  it('refuses an undeclared key for every one of the 60 §9 names, naming the key', () => {
     // **The behavioural half.** For each name: a payload built from §9's own
     // keys that validates, and the same payload plus one unknown key that does
     // not. A table nothing reads fails the second half only.
@@ -983,13 +996,13 @@ describe('one lookup, and the half-built state', () => {
     }
   });
 
-  it('the unimplemented set is exactly the fifty-three names that are not the view family', () => {
+  it('the unimplemented set is exactly the fifty-five names that are not the view family', () => {
     // The control for the test above: the five view names are the only ones the bus's own registry gives an apply, so the
-    // refused set is exactly the other 53 (58 less five).
+    // refused set is exactly the other 55 (60 less five).
     const withApply = COMMAND_NAMES.filter((name) => COMMAND_REGISTRY[name].apply !== undefined);
     expect(withApply).toHaveLength(5);
     expect(new Set(withApply)).toEqual(new Set(VIEW_COMMAND_NAMES));
-    expect(COMMAND_NAMES.length - withApply.length, '58 names less the five view applies').toBe(53);
+    expect(COMMAND_NAMES.length - withApply.length, '60 names less the five view applies').toBe(55);
     expect(COMMAND_REGISTRY['export.compile'].apply).toBeUndefined();
   });
 
