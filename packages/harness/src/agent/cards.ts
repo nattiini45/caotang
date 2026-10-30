@@ -189,10 +189,15 @@ export interface PlanCardView {
   readonly steps: readonly PlanStepView[];
   /** True when the latest preview is current, nothing is refused or stale or cut, and there is something to run. */
   readonly approvable: boolean;
-  /** True when the only thing stopping approval is a cut draft: the user may approve by accepting the cut text. */
+  /** True when the only thing stopping approval is a cut draft or a cut planner reply: the user may approve by accepting the cut text. */
   readonly canAcceptCut: boolean;
-  /** True when a step still to run is a draft the provider cut at its output limit. */
+  /** True when a step still to run is a draft the provider cut at its output limit, or the planner's reply itself was cut (`replyCut`). */
   readonly cut: boolean;
+  /**
+   * The planner's reply that proposed these steps was cut at the model's output limit, though every call in it parsed (native wire only):
+   * the plan may be missing steps. Like a cut draft, it is approved only with `acceptTruncated`. Absent when the reply was whole.
+   */
+  readonly replyCut?: true;
   /** Why the last edit or draft was not applied, when one was refused. The card is shown as it was before it. */
   readonly notice?: string;
   /**
@@ -484,6 +489,8 @@ export function planCardOf(args: {
   readonly proposedBy?: readonly (string | undefined)[];
   readonly notice?: string;
   readonly caution?: ApprovalCaution;
+  /** The planner's reply was cut, though its calls all parsed (`PlanCardView.replyCut`). */
+  readonly replyCut?: boolean;
 }): PlanCardView {
   const badges = dependencyBadges(args.state.steps, args.state.origins, args.state.superseded);
   const staged = args.staged ?? [];
@@ -523,7 +530,7 @@ export function planCardOf(args: {
   const pending = steps.filter((step) => step.status !== 'done');
   const current = args.previewRevision === args.revision;
   const staleAny = pending.some((step) => step.stale);
-  const cutAny = pending.some((step) => step.cut);
+  const cutAny = pending.some((step) => step.cut) || args.replyCut === true;
   const usable = current && args.preflight.ok && pending.length > 0 && !staleAny;
   return {
     id: args.id,
@@ -536,6 +543,7 @@ export function planCardOf(args: {
     approvable: usable && !cutAny,
     canAcceptCut: usable && cutAny,
     cut: cutAny,
+    ...(args.replyCut === true ? { replyCut: true as const } : {}),
     ...(args.notice === undefined ? {} : { notice: args.notice }),
     ...(args.caution === undefined ? {} : { caution: args.caution }),
   };

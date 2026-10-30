@@ -539,6 +539,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     const price = profile.pricePer1k ?? info?.pricePer1k ?? row?.pricePer1k;
     const contextWindow = info?.contextWindow ?? row?.contextWindow;
     const maxOutputTokens = profile.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
+    const modelMaxOutputTokens = info?.maxOutputTokens ?? row?.maxOutputTokens;
     let thinkingTokens: number | undefined;
     if (thinking !== undefined && row !== undefined) {
       const spec = resolveRoute({ preset: profile.preset, baseUrl: profile.baseUrl }, modelId);
@@ -554,6 +555,7 @@ export function createGateway(options: GatewayOptions): Gateway {
     return {
       ...(contextWindow === undefined ? {} : { contextWindow }),
       maxOutputTokens,
+      ...(modelMaxOutputTokens === undefined ? {} : { modelMaxOutputTokens }),
       ...(thinkingTokens === undefined ? {} : { thinkingTokens }),
       ...(price === undefined ? {} : { pricePer1k: { prompt: price.prompt, completion: price.completion } }),
     };

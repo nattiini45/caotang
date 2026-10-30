@@ -205,6 +205,11 @@ export interface ModelLimits {
   /** The output cap a request is sent with: the profile's, else the documented default (provider-gateway §2). */
   readonly maxOutputTokens: number;
   /**
+   * The output cap the model itself advertises, when the provider's listing or the preset's row says one. Requests are not sent with
+   * it; the harness may raise one retry's cap toward it when a reply was cut at `maxOutputTokens` (provider-gateway §2).
+   */
+  readonly modelMaxOutputTokens?: number;
+  /**
    * The thinking tokens one call may add to the reply at the level asked for: the effective budget on a budget route, the
    * level's nominal share on an adaptive one. Absent when no level was asked for or the row lists none. Display-only.
    */
