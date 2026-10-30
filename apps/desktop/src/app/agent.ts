@@ -67,7 +67,7 @@
  */
 
 import type { GhostPreview } from '@caotang/editor/tiptap';
-import type { ProfileView, TaskRole } from '@caotang/gateway';
+import type { ModelLimits, ProfileView, TaskRole, ThinkingLevel } from '@caotang/gateway';
 import {
   checkMacro,
   createAgentSession,
@@ -123,6 +123,19 @@ import { contextNote, helpNote, restoreTarget, type CommandNote, type LineOutcom
 function localClockTime(epochMs: number): string {
   const at = new Date(epochMs);
   return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+}
+
+/** The profile, model and thinking level whose limits a session's prompts are assembled with (context-assembly §5). */
+interface LimitPins {
+  readonly profileId: string;
+  readonly model?: string;
+  readonly thinking?: ThinkingLevel;
+}
+
+/** The pins of a role's resolution, or undefined when no profile exists. */
+function pinsOf(resolved: { readonly profile: ProfileView; readonly model: string; readonly thinking?: ThinkingLevel } | undefined): LimitPins | undefined {
+  if (resolved === undefined) return undefined;
+  return { profileId: resolved.profile.id, model: resolved.model, ...(resolved.thinking === undefined ? {} : { thinking: resolved.thinking }) };
 }
 
 /** Where a turn runs. The demo intents run on the built-in demo profile, whatever is active (context-assembly §6). */
@@ -328,6 +341,12 @@ export class AgentController {
    * only: a reload starts it over.
    */
   private readonly sessions = new Map<TaskRole, AgentSession>();
+  /**
+   * The profile, model and thinking level the running turn of each role resolved to, so its session's prompts carry that model's
+   * limits (context-assembly §5): the window the plan card warns against, and the price and output cap its cost reads. A role with
+   * no turn running reads what it would resolve to now.
+   */
+  private readonly limitPins = new Map<TaskRole, LimitPins>();
   /** The mode a running turn was given in place of the panel's (`SubmitOptions.mode`). */
   private runMode: PermissionMode | null = null;
   /** The model-call cap a running turn was given (`SubmitOptions.maxModelCalls`). */
@@ -743,6 +762,7 @@ export class AgentController {
     this.turnAbort = abort;
     this.bump();
     let report: TurnReport | null = null;
+    let pinnedRole: TaskRole | null = null;
     try {
       // The demo intents run on the built-in demo profile, whichever profile is active (context-assembly §6).
       // Every other turn runs under the 'chat' role unless the caller names one (provider-gateway §6). The role's profile, model and
@@ -769,6 +789,8 @@ export class AgentController {
       // settlement, so a cancelled/refused/failed turn cannot leave its state behind in the shared session.
       const model = resolved?.model;
       const thinking = resolved?.thinking;
+      this.limitPins.set(role, { profileId: profile.id, ...(model === undefined ? {} : { model }), ...(thinking === undefined ? {} : { thinking }) });
+      pinnedRole = role;
       // A session is kept for each role, so a turn under another role never carries the chat conversation or stamps its requests as chat.
       const agent = this.sessionFor(role);
       this.runningAgent = agent;
@@ -793,6 +815,8 @@ export class AgentController {
       this.turnAbort = null;
       this.meter?.dispose();
       this.meter = null;
+      // Between turns a role's prompts read what it would resolve to now, so a preview follows a change in Settings › Providers.
+      if (pinnedRole !== null) this.limitPins.delete(pinnedRole);
       this.runningAgent = null;
       this.runMode = null;
       this.runCalls = null;
@@ -1575,6 +1599,20 @@ export class AgentController {
   private readonly traceSink = (): TraceSink | undefined => (this.providers as Partial<ProviderService>).trace?.sink();
   private readonly clock = (): number => (this.providers as Partial<ProviderService>).now?.() ?? Date.now();
 
+  /**
+   * The assembler's config for a session (context-assembly §3, §5): the writer's budgets from Settings, read at each call, and the
+   * limits of the model `pins` names, so a step's preview carries the window and the cost the plan card shows. A config that names
+   * its own limits (a test's) keeps them.
+   */
+  private contextConfigFor(pins: () => LimitPins | undefined): () => ContextConfig {
+    return () => {
+      const pinned = pins();
+      const gateway = (this.providers as Partial<ProviderService>).gateway;
+      const model: ModelLimits | undefined = pinned === undefined || gateway === undefined ? undefined : gateway.modelLimits(pinned.profileId, pinned.model, pinned.thinking);
+      return { formatTime: localClockTime, ...(model === undefined ? {} : { model }), ...this.contextConfig() };
+    };
+  }
+
   /** The session of a task role, made on its first use (see `sessions`). */
   private sessionFor(role: TaskRole): AgentSession {
     const kept = this.sessions.get(role);
@@ -1582,7 +1620,7 @@ export class AgentController {
     const agent = createAgentSession({
       harness: this.session.harness,
       gateway: this.providers.gateway,
-      context: createContextPort({ state: this.session.state, config: () => ({ formatTime: localClockTime, ...this.contextConfig() }), withheld: (tool) => this.session.harness.withheld(tool) }),
+      context: createContextPort({ state: this.session.state, config: this.contextConfigFor(() => this.limitPins.get(role) ?? pinsOf(this.providers.resolveForRole?.(role))), withheld: (tool) => this.session.harness.withheld(tool) }),
       decide: (pending) => this.decide(pending),
       emit: (event) => this.onEvent(event),
       role,
@@ -1625,7 +1663,7 @@ export class AgentController {
     return createAgentSession({
       harness: this.session.harness,
       gateway: this.providers.gateway,
-      context: createContextPort({ state: this.session.state, config: () => ({ formatTime: localClockTime, ...this.contextConfig() }), withheld: (tool) => this.session.harness.withheld(tool) }),
+      context: createContextPort({ state: this.session.state, config: this.contextConfigFor(() => pinsOf(resolved) ?? { profileId: profile.id }), withheld: (tool) => this.session.harness.withheld(tool) }),
       // Staging shows no card. A card that did arrive would be cancelled, so nothing here waits on a writer who is not looking.
       decide: async () => ({ action: 'cancel' }),
       role: 'background',
