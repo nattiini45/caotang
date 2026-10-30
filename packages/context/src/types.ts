@@ -131,6 +131,11 @@ export interface ModelLimits {
   readonly maxOutputTokens?: number;
   /** What one call may spend on thinking at the level the caller asked for; the completion estimate adds it to the cap. */
   readonly thinkingTokens?: number;
+  /**
+   * The model's prompt cache, when the profile caches and the row prices it (provider-gateway §3): a reused prefix is priced
+   * at `readMultiplier` times the prompt price. Absent, every prompt token is priced in full. Display-only.
+   */
+  readonly cache?: { readonly readMultiplier: number; readonly writeMultiplier?: number; readonly minTokens?: number };
 }
 
 export interface ContextConfig {
@@ -227,10 +232,25 @@ export interface FocusReport {
   readonly documentChars: number;
 }
 
+/**
+ * One part of the user message (§2, "Cache boundary"): a layer's text, or the trailing Status part that carries L1's volatile
+ * lines. The part marked `cacheBoundary` ends the prefix that stays the same from call to call for this kind of call.
+ */
+export interface AssembledPart {
+  readonly layer: LayerId | 'status';
+  readonly text: string;
+  readonly cacheBoundary?: boolean;
+}
+
 export interface AssembledPrompt {
   readonly tool: AssemblyTool;
-  /** The wire shape for `ProviderGateway.complete`: a system message, then one user message. */
+  /**
+   * The wire shape for `ProviderGateway.complete`: a system message, then one user message. The user message carries `parts`,
+   * one per layer and the Status part, whose texts joined with a blank line are its `content`.
+   */
   readonly messages: readonly ChatMessage[];
+  /** The user message's parts with the layer each came from. */
+  readonly parts: readonly AssembledPart[];
   /** Every layer, L0 to L7, in order. */
   readonly layers: readonly LayerReport[];
   readonly estimate: {
@@ -264,6 +284,8 @@ export interface PreviewLayer {
   readonly fraction?: number;
   /** Every item the layer dropped, whatever the layer: suppressions first, then budget cuts. */
   readonly drops: readonly PreviewDrop[];
+  /** The layer sits before the cache boundary, so a later call of the same kind is likely to read it from the provider's cache. */
+  readonly likelyCached?: true;
   /** The layer's own notes: what was cut, and that it was cut. */
   readonly notes: readonly string[];
 }
@@ -286,6 +308,12 @@ export interface PromptPreview {
   };
   readonly focus?: { readonly head: string; readonly summary: string };
   readonly window?: { readonly contextWindow: number; readonly warning?: string };
+  /**
+   * The prompt's reusable prefix (§5, "Cache forecast"): the system message and the user parts through the cache boundary.
+   * `key` is the system text and the prefix's text joined with a NUL, so two calls share a cache entry exactly when both match.
+   * Absent when the model's cache is not priced, the prefix is under its minimum, or no part is marked.
+   */
+  readonly cache?: { readonly prefixTokens: number; readonly readMultiplier: number; readonly key: string };
   /** Display-only estimate from `pricePer1k` (provider-gateway §6). */
   readonly cost?: {
     readonly promptUsd: number;
@@ -293,5 +321,7 @@ export interface PromptPreview {
     readonly totalUsd: number;
     /** The reply side counts the thinking a set level can spend as well as the output cap; the card says "including thinking". */
     readonly includesThinking?: true;
+    /** Prompt tokens priced at the cache-read rate, because an earlier call of the same batch wrote their prefix. */
+    readonly cachedTokens?: number;
   };
 }

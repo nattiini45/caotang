@@ -357,6 +357,7 @@ describe('L7, the task (§2)', () => {
   it('sends the instruction verbatim, then the canonical parameters', () => {
     const instruction = 'Write the next scene:\n  keep the  spacing.';
     const text = user({ ...CONTINUE, instruction, params: { mode: 'continue', doc: FOCUS_ID } });
-    expect(text.endsWith(`# Task\n\n${instruction}\n\nTool: scene.draft\nParameters: {"doc":"n_ch3","mode":"continue"}`)).toBe(true);
+    // The Status part with L1's volatile lines follows the task (§2, "Cache boundary").
+    expect(text).toContain(`# Task\n\n${instruction}\n\nTool: scene.draft\nParameters: {"doc":"n_ch3","mode":"continue"}\n\n# Status\n`);
   });
 });

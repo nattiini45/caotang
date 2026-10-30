@@ -15,16 +15,24 @@
  * budget; 'budget' (the default for a Messages row that says nothing) sends
  * `thinking.type: 'enabled'` with the budget `effectiveOutput` settled under `max_tokens`. With
  * thinking on Anthropic does not accept `temperature`, so the field is omitted.
+ *
+ * Prompt caching (provider-gateway §3), on a row whose `cache` is `explicit` and only then: `system` goes as an array of text
+ * blocks, and `cache_control` marks the last tool, the last system block and the boundary part of the first user message that carries one
+ * (`cacheBoundary`), each only when the prefix it closes reaches the row's minimum; a top-level `cache_control` lets Anthropic
+ * move the fourth breakpoint along the growing thread. That is four breakpoints at most, the documented limit, and every one
+ * carries the same lifetime, since a mix must run longest first. Without caching the body is what it always was.
  */
 
 import type { SseEvent } from '../sse.js';
 import type {
   ChatMessage,
+  Usage,
   FinishReason,
   ModelInfo,
   ReasoningBlock,
   ToolCall,
 } from '../types.js';
+import { boundaryIndex, partsOf, tokensOf, type CacheSettings } from './cache.js';
 import { parseModels } from './models.js';
 import type {
   BodyInput,
@@ -85,8 +93,12 @@ function assistantContent(m: ChatMessage): unknown[] {
   return blocks;
 }
 
-function messageContent(m: ChatMessage): unknown {
+function messageContent(m: ChatMessage, mark?: CacheMark): unknown {
   if (m.role === 'assistant') return assistantContent(m);
+  if (mark !== undefined && m.role === 'user') {
+    // The cached user message goes as text blocks, one per part, so the breakpoint can sit at the end of the stable prefix.
+    return partsOf(m).map((part, index) => ({ type: 'text', text: part.text, ...(index === mark.at ? { cache_control: mark.control } : {}) }));
+  }
   if (m.role === 'tool') {
     // A tool result rides inside a user message on this route.
     return [{ type: 'tool_result', tool_use_id: m.toolCallId, content: m.content, ...(m.isError ? { is_error: true } : {}) }];
@@ -112,14 +124,47 @@ function mergeConsecutive(messages: { role: string; content: unknown }[]): { rol
   return out;
 }
 
-function wireMessages(req: BodyInput['req']): { system?: string; messages: unknown[] } {
+/** Where the breakpoint goes inside the first user message: the part's index, and the `cache_control` it carries. */
+interface CacheMark {
+  readonly at: number;
+  readonly control: Record<string, unknown>;
+}
+
+/** The `cache_control` object for a lifetime. Five minutes is the default and is not written, so it matches the top-level one. */
+function controlOf(cache: CacheSettings): Record<string, unknown> {
+  return cache.ttl === '1h' ? { type: 'ephemeral', ttl: '1h' } : { type: 'ephemeral' };
+}
+
+/**
+ * The breakpoint of the first user message that marks a boundary, when the prefix up to it (`before` characters of tools and
+ * system, the schema hint, and the parts through the boundary) reaches the row's minimum. The later user messages are the turn's
+ * own thread, which the top-level breakpoint covers.
+ */
+function userMark(rest: readonly ChatMessage[], cache: CacheSettings | undefined, before: number): { index: number; mark: CacheMark } | undefined {
+  if (cache === undefined) return undefined;
+  let chars = before;
+  for (let index = 0; index < rest.length; index += 1) {
+    const message = rest[index] as ChatMessage;
+    const parts = partsOf(message);
+    const at = message.role === 'user' ? boundaryIndex(parts) : -1;
+    if (at >= 0) {
+      chars += parts.slice(0, at + 1).reduce((sum, part) => sum + part.text.length, 0);
+      return tokensOf(chars) >= cache.minTokens ? { index, mark: { at, control: controlOf(cache) } } : undefined;
+    }
+    chars += message.content.length;
+  }
+  return undefined;
+}
+
+function wireMessages(req: BodyInput['req'], cache?: CacheSettings, before = 0): { system?: string; systemChars: number; messages: unknown[] } {
   const { system, rest } = splitSystem(req.messages);
   const messages: { role: string; content: unknown }[] = [];
   const format = req.responseFormat;
   const hint = format !== undefined && format !== 'text' ? `Respond with JSON matching: ${JSON.stringify(format.jsonSchemaHint)}` : undefined;
   if (hint !== undefined) messages.push({ role: 'user', content: hint });
-  for (const m of rest) {
-    const content = messageContent(m);
+  const marked = userMark(rest, cache, before + (system?.length ?? 0) + (hint?.length ?? 0));
+  for (const [index, m] of rest.entries()) {
+    const content = messageContent(m, marked?.index === index ? marked.mark : undefined);
     // A completely empty assistant turn has no wire form; drop it rather than send `content: []`.
     if (m.role === 'assistant' && Array.isArray(content) && content.length === 0) continue;
     messages.push({
@@ -127,7 +172,7 @@ function wireMessages(req: BodyInput['req']): { system?: string; messages: unkno
       content,
     });
   }
-  return { system, messages: mergeConsecutive(messages) };
+  return { ...(system === undefined ? {} : { system }), systemChars: system?.length ?? 0, messages: mergeConsecutive(messages) };
 }
 
 function anthropicEffort(body: Record<string, unknown>, input: BodyInput): void {
@@ -162,8 +207,23 @@ interface BlockAcc {
 
 function anthropicStreamParser(): StreamParser {
   const blocks = new Map<number, BlockAcc>();
-  let promptTokens = 0;
+  // `input_tokens` counts only what follows the last breakpoint; the cache reads and writes are reported beside it, and all
+  // three together are what the call billed as input (issue #78, step 2).
+  let inputTokens = 0;
+  let cacheRead: number | undefined;
+  let cacheWrite: number | undefined;
   let completionTokens = 0;
+  const readInput = (usage: Record<string, unknown> | undefined): void => {
+    if (isAmount(usage?.input_tokens)) inputTokens = usage.input_tokens;
+    if (isAmount(usage?.cache_read_input_tokens)) cacheRead = usage.cache_read_input_tokens;
+    if (isAmount(usage?.cache_creation_input_tokens)) cacheWrite = usage.cache_creation_input_tokens;
+  };
+  const usageNow = (): Usage => ({
+    promptTokens: inputTokens + (cacheRead ?? 0) + (cacheWrite ?? 0),
+    completionTokens,
+    ...(cacheRead === undefined ? {} : { cachedPromptTokens: cacheRead }),
+    ...(cacheWrite === undefined ? {} : { cacheWritePromptTokens: cacheWrite }),
+  });
 
   const blockAt = (index: number): BlockAcc => {
     const acc = blocks.get(index) ?? { type: '', text: '', id: '', name: '', args: '', signature: '', raw: undefined };
@@ -171,8 +231,10 @@ function anthropicStreamParser(): StreamParser {
     return acc;
   };
 
-  const usagePiece = (): StreamPiece[] =>
-    promptTokens > 0 || completionTokens > 0 ? [{ usage: { promptTokens, completionTokens } }] : [];
+  const usagePiece = (): StreamPiece[] => {
+    const usage = usageNow();
+    return usage.promptTokens > 0 || completionTokens > 0 ? [{ usage }] : [];
+  };
 
   return {
     push(ev: SseEvent): StreamPiece[] {
@@ -191,7 +253,7 @@ function anthropicStreamParser(): StreamParser {
         case 'message_start': {
           const message = record.message as Record<string, unknown> | undefined;
           const usage = message?.usage as Record<string, unknown> | undefined;
-          if (isAmount(usage?.input_tokens)) promptTokens = usage.input_tokens;
+          readInput(usage);
           if (isAmount(usage?.output_tokens)) completionTokens = usage.output_tokens;
           return [];
         }
@@ -243,6 +305,8 @@ function anthropicStreamParser(): StreamParser {
         case 'message_delta': {
           const delta = record.delta as Record<string, unknown> | undefined;
           const usage = record.usage as Record<string, unknown> | undefined;
+          // The final delta's usage is cumulative, and may restate the input counts; a restated count replaces the first.
+          readInput(usage);
           if (isAmount(usage?.output_tokens)) completionTokens = usage.output_tokens;
           const finish = mapStopReason(delta?.stop_reason);
           return [...(finish !== undefined ? [{ finish }] : []), ...usagePiece()];
@@ -324,21 +388,39 @@ export const anthropicMessagesAdapter: ProviderAdapter = {
 
   buildBody(input: BodyInput): Record<string, unknown> {
     const { req, ctx, temperature, effective, jsonObject } = input;
-    const { system, messages } = wireMessages(req);
+    // Breakpoints are this route's own mechanism: a row that caches by itself gets no field from here.
+    const cache = input.cache?.style === 'explicit' ? input.cache : undefined;
     const deny = new Set(ctx.caps.denylist ?? []);
+    const tools =
+      req.tools !== undefined && req.tools.length > 0 && !deny.has('tools')
+        ? req.tools.map((tool): Record<string, unknown> => ({ name: tool.name, description: tool.description, input_schema: tool.parameters }))
+        : undefined;
+    const toolChars = tools === undefined ? 0 : JSON.stringify(tools).length;
+    const { system, systemChars, messages } = wireMessages(req, cache, toolChars);
     const body: Record<string, unknown> = {
       model: ctx.model,
       messages,
       max_tokens: effective.maxTokens,
       stream: true,
     };
-    if (system !== undefined) body.system = system;
+    if (system !== undefined) {
+      // Cached, the system prompt is one text block carrying the second breakpoint; otherwise the plain string it always was.
+      body.system =
+        cache === undefined || system === ''
+          ? system
+          : [{ type: 'text', text: system, ...(tokensOf(toolChars + systemChars) >= cache.minTokens ? { cache_control: controlOf(cache) } : {}) }];
+    }
     if (temperature !== undefined && !deny.has('temperature')) body.temperature = temperature;
     if (req.stop !== undefined && req.stop.length > 0 && !deny.has('stop')) body.stop_sequences = [...req.stop];
-    if (req.tools !== undefined && req.tools.length > 0 && !deny.has('tools')) {
-      body.tools = req.tools.map((tool) => ({ name: tool.name, description: tool.description, input_schema: tool.parameters }));
+    if (tools !== undefined) {
+      const last = tools.at(-1);
+      // Tools come first in Anthropic's prefix (tools, system, messages), so the first breakpoint closes them.
+      if (cache !== undefined && last !== undefined && tokensOf(toolChars) >= cache.minTokens) last.cache_control = controlOf(cache);
+      body.tools = tools;
       body.tool_choice = { type: req.toolChoice === 'none' ? 'none' : 'auto' };
     }
+    // The top-level breakpoint: Anthropic places it on the last cacheable block and moves it as the thread grows.
+    if (cache !== undefined) body.cache_control = controlOf(cache);
     anthropicEffort(body, input);
     if (body.thinking !== undefined && (body.thinking as { type?: string }).type !== 'disabled') {
       // Anthropic rejects temperature with extended thinking enabled.

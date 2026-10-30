@@ -18,7 +18,9 @@
  *    non-`always` entries from the bottom, then L4's tail, then L3's tail. It runs only if
  *    the cheapest state of every layer would make the prompt fit. If it would not, nothing
  *    is removed and the result says the prompt is over budget.
- * 5. Render the messages, and report every layer, every kept entry and every drop.
+ * 5. Render the messages, and report every layer, every kept entry and every drop. The user
+ *    message is sent as parts, one per layer and a trailing Status part with L1's volatile lines,
+ *    and the last stable layer's part is marked as the prompt-cache boundary.
  */
 
 import type { DetectionDoc, DetectionResult } from '@caotang/codex';
@@ -54,6 +56,7 @@ import {
   LAYER_NAMES,
   type AgentTask,
   type AppSnapshot,
+  type AssembledPart,
   type AssembledPrompt,
   type ContextConfig,
   type DraftMode,
@@ -67,6 +70,12 @@ import {
 
 /** The layers that go in the user message, in §2's order. L0 is the system message. */
 const USER_LAYERS: readonly LayerId[] = ['LI', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7'];
+
+/**
+ * The layers that stay the same from call to call of one kind (§2, "Cache boundary"): the writer's instructions, L1's stable
+ * lines and the codex. L3 to L5 follow the focus document and L6 and L7 the turn, so the boundary is never after them.
+ */
+const CACHE_STABLE_LAYERS: ReadonlySet<LayerId> = new Set(['LI', 'L1', 'L2']);
 
 /** Labels a detection surface reports as. Any other `where` is a node id, and reads as its title. `speakers` is a container's speakers (dialogue-narrative §7). */
 const SURFACE_LABELS: ReadonlySet<string> = new Set(['instruction', 'tail', 'selection', 'focus', 'speakers']);
@@ -325,7 +334,10 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
   };
   const charsOf = (id: LayerId): number => {
     const block = blockOf(id);
-    return block !== undefined ? charsAt(block) : textOf(id).length;
+    if (block !== undefined) return charsAt(block);
+    // L1's volatile lines are sent in the trailing Status part, one blank line apart, and still count as L1's.
+    if (id === 'L1' && project !== undefined) return project.text.length + 2 + project.status.length;
+    return textOf(id).length;
   };
   const userLayers = (): LayerId[] => USER_LAYERS.filter((id) => active.has(id));
   const promptChars = (): number => {
@@ -384,11 +396,19 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
     notes.L2.push('The prompt is over the total budget: the always entries are never cut to reach it.');
   }
 
-  // Step 5: the messages, and the report of every layer.
-  const user = userLayers().map((id) => textOf(id)).join('\n\n');
+  // Step 5: the messages, and the report of every layer. The user message is one part per layer, then the Status part with
+  // L1's volatile lines, and the last of LI, L1 and L2 the call includes ends the prefix worth caching (§2, "Cache boundary").
+  const parts: AssembledPart[] = userLayers().map((id) => ({ layer: id, text: textOf(id) }));
+  if (project !== undefined && active.has('L1')) parts.push({ layer: 'status', text: project.status });
+  let boundary = -1;
+  parts.forEach((part, index) => {
+    if (part.layer !== 'status' && CACHE_STABLE_LAYERS.has(part.layer)) boundary = index;
+  });
+  const marked = parts.map((part, index) => (index === boundary ? { ...part, cacheBoundary: true } : part));
+  const user = marked.map((part) => part.text).join('\n\n');
   const messages: ChatMessage[] = [
     { role: 'system', content: system },
-    { role: 'user', content: user },
+    { role: 'user', content: user, parts: marked.map((part) => ({ text: part.text, ...(part.cacheBoundary === true ? { cacheBoundary: true } : {}) })) },
   ];
   const promptTokens = tokensForChars(messages.reduce((sum, message) => sum + message.content.length, 0));
 
@@ -436,6 +456,7 @@ export function assemble(given: AgentTask, snapshot: AppSnapshot, config: Contex
   return {
     tool: task.tool,
     messages,
+    parts: marked,
     layers,
     estimate: { promptTokens, byLayer },
     totalBudget,
