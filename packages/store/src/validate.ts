@@ -598,7 +598,7 @@ function validateFields(
         warn(`${at}.style`, `unknown scene style "${node.style}"; kept as-is, and exports render the scene as normal`);
       }
     }
-    for (const key of ['shot', 'dialogue'] as const) {
+    for (const key of ['shot', 'dialogue', 'showMeta', 'episodeMeta'] as const) {
       const value = node[key];
       if (value === undefined) continue;
       if (!isRecord(value)) {

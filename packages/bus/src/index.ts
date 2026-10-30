@@ -315,6 +315,26 @@ export {
   SCREENPLAY_IMPORT_FORMATS,
   SCREENPLAY_IMPORT_TEXT_MAX,
 } from './descriptors-script.js';
+// The AV script's show and episode settings (descriptors-av-script.ts), named by the store and by `@caotang/script`, which reads
+// the stored values with the same lists.
+export type {
+  EpisodeMetaPatch,
+  ScriptSetEpisodeMetaParams,
+  ScriptSetShowMetaParams,
+  ShowMetaPatch,
+} from './descriptors-av-script.js';
+export {
+  CUE_VOCABULARY_MAX,
+  ENCLOSURE_MIME_TYPES,
+  EPISODE_META_KEYS,
+  EPISODE_TYPES,
+  SCRIPT_LABEL_PATTERN,
+  SCRIPT_SETTING_TEXT_MAX,
+  SHOW_DESCRIPTION_MAX,
+  SHOW_META_KEYS,
+  SPEECH_RATE_PRESET_NAMES,
+  SPEECH_RATE_WPM_MAX,
+} from './descriptors-av-script.js';
 /**
  * codex.md §2's limits, shared with `@caotang/store`'s manifest validator rather
  * than retyped there — see `descriptors.ts` for why this is the only direction

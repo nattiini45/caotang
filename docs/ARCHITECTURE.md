@@ -132,7 +132,7 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 
 ### 2.21 `script` 🧭
 - **Responsibility:** one linear timed script for podcasts, radio and audio drama, and narrated video: a show folder and an episode document, segments and speaker turns parsed from Markdown, audio cues, per-line durations declared or estimated from a speech rate, episode runtime totals, and the compile targets a serial needs — a VO script, show notes, a transcript, a teleprompter, chapters and a feed.
-- **Owns:** `packages/script` (the parser, the segment and line model, runtime totals, the VO table), the `av-script` document kind and the `show` folder kind. The script body stays `docs/<id>.md`; the episode's timings are derived, never a second copy of the text. Specified, not built.
+- **Owns:** `packages/script` (the parser, the segment and line model, runtime totals, the VO table), the `av-script` document kind and the `show` folder kind. The script body stays `docs/<id>.md`; the episode's timings are derived, never a second copy of the text. Built in part: the parser, the model, line ids, the totals, the two kinds and the `script.setShowMeta` / `script.setEpisodeMeta` commands are built; the VO table, the exports, the view and the checks are specified, not built.
 - **Spec:** [architecture/av-script.md](architecture/av-script.md).
 
 ### 2.22 `web-publishing` 🧭
@@ -163,9 +163,9 @@ AssetRecord    { id, file, mime, sha256, bytes, width?, height?, caption?, alt?,
 AssetLink      { id, assetId, target: project|node|paragraph, role: reference|card|source, order, note?, when? }        // pictures.md §2.1 (planned)
 TimelineOp     { op: meta|move|shift|picture-when, …, expect }                                                         // timeline.md §4.3 (planned)
 MessageRef     { id, values?, message }                                                                          // i18n.md §3.2 (type in @caotang/i18n; not yet emitted)
-ScriptLine     { id, kind: speech|narration|text, speaker?, text, durationSec?, declared }                        // av-script.md §2 (planned)
-ScriptCue      { id, kind, text, atSec?, forSec?, under? }                                                       // av-script.md §2, segment-owned (planned)
-ScriptTotals   { seconds, timedCount, untimed[] }                                                                 // av-script.md §4, the AnimaticTotals shape (planned)
+ScriptLine     { id, kind: speech|narration|text, speaker?, text, durationSec?, declared }                        // av-script.md §2
+ScriptCue      { id, kind, text, atSec?, forSec?, under? }                                                       // av-script.md §2, segment-owned
+ScriptTotals   { seconds, timedCount, untimed[] }                                                                 // av-script.md §4, the AnimaticTotals shape
 PublishMeta    { slug?, publishedAt?, tags[], canonical?, description?, layout? }                                 // web-publishing.md §2 (planned)
 Command        { id, name, params, issuedBy: user|agent, turnId?, callId?, createdAt }  // command-bus.md §2
 ActivityEntry  { at, command, issuedBy, turnId?, callId?, undoGroupId?, source?: native|mcp, affected[], tokensSpent?, summary, defect? } // command-bus.md §8
@@ -206,5 +206,5 @@ Caotang covers games, video, film and audio as well as prose. The full inventory
 | **AI video prompt packs** | per-shot prompt packs for several video models. **Caotang writes prompts; it does not render video** — generation stays in the writer's own tool with their own account | `context-assembly`, `codex`, `exporter` (vendor templates), harness tools | [video-prompt-pack.md](architecture/video-prompt-pack.md) |
 | **Plot coherence & continuity** | deterministic checks (structure + codex, no model call) and model-judged findings (evidence-cited reports, never silent edits) | `coherence` module over `codex` + `context-assembly` | [coherence.md](architecture/coherence.md) |
 | **Comics** 🧭 | comic books, pages, panels and balloons; comic scripts (full script or Marvel method); lettering rules; comic PDF, CBZ and fixed-layout EPUB. Specified, not built | `comic` node kind, `comic-page` nodes, picture registry, `exporter` | [comics.md](architecture/comics.md) |
-| **AV scripts** 🧭 | podcasts, radio and audio drama, and narrated video: one linear timed script with segments, speakers, audio cues and per-line durations; VO script, show notes, transcript, teleprompter, chapters and feed exports. Specified, not built | `av-script` document kind, `show` folder kind, `exporter` | [av-script.md](architecture/av-script.md) |
+| **AV scripts** 🧭 | podcasts, radio and audio drama, and narrated video: one linear timed script with segments, speakers, audio cues and per-line durations; VO script, show notes, transcript, teleprompter, chapters and feed exports. Built in part: the model, parser and totals; the view and exports are specified, not built | `av-script` document kind, `show` folder kind, `exporter` | [av-script.md](architecture/av-script.md) |
 | **One story, many outputs** | a single narrative source compiled to prose, screenplay, game dialogue, storyboard, prompt pack and report targets — media targets are **export recipes**, not separate apps | the `exporter` contract and per-kind renderers | [media-track.md](architecture/media-track.md) §1 |

@@ -66,6 +66,9 @@ export const COMMAND_TITLES: Readonly<Record<CommandName, string>> = {
   'screenplay.import': 'Script imported',
   'dialogue.importInk': 'Ink story imported',
   'dialogue.setMeta': 'Dialogue settings changed',
+  // The AV script's settings (av-script.md §2).
+  'script.setShowMeta': 'Show settings changed',
+  'script.setEpisodeMeta': 'Episode settings changed',
   // The project's skills (extensibility.md §10).
   'skill.import': 'Skill imported',
   'skill.write': 'Skill saved',

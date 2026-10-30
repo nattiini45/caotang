@@ -115,6 +115,8 @@ export const DECLARED_PARAMS: Readonly<Record<CommandName, readonly string[]>> =
   'screenplay.import': ['format', 'text', 'parentId'],
   'dialogue.importInk': ['containers', 'parentId'],
   'dialogue.setMeta': ['nodeId', 'patch'],
+  'script.setShowMeta': ['nodeId', 'patch'],
+  'script.setEpisodeMeta': ['nodeId', 'patch'],
   'skill.import': ['stagingId'],
   'skill.write': ['name', 'path', 'text'],
   'skill.delete': ['name'],
