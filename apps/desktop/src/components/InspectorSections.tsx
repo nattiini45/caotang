@@ -35,6 +35,7 @@ import type { ProjectSession } from '../app/session.js';
 import { useStoreDraft } from './store-draft.js';
 import { useReport, useSession } from './shared.js';
 import { isImeEnter } from '../app/ime.js';
+import { namesCollator } from '../i18n/locale.js';
 
 /* ------------------------------------------------------------------ *
  * Export style
@@ -97,7 +98,7 @@ export function CodexSection({
   const report = useReport();
   const entries = session.mentions.entriesOf(session.state);
   const attached = entries.filter((entry) => entry.attachments.includes(node.id));
-  const available = entries.filter((entry) => !entry.attachments.includes(node.id)).sort(byName);
+  const available = entries.filter((entry) => !entry.attachments.includes(node.id)).sort(byNameIn(session.state.manifest.project.language));
   const mentions =
     node.type === 'document'
       ? entries
@@ -177,8 +178,10 @@ export function CodexSection({
   );
 }
 
-function byName(a: CodexEntry, b: CodexEntry): number {
-  return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+/** Codex entries by name in the project language (D9). */
+function byNameIn(projectLanguage: string | undefined): (a: CodexEntry, b: CodexEntry) => number {
+  const names = namesCollator(projectLanguage);
+  return (a, b) => names.compare(a.name, b.name);
 }
 
 /* ------------------------------------------------------------------ *
@@ -194,7 +197,7 @@ export function SceneMetaSection({ session, node }: { session: ProjectSession; n
   const report = useReport();
   const meta = sceneMetaOf(session.coherenceFile(), node.id);
   const entries = session.mentions.entriesOf(session.state);
-  const characters = povCandidates(entries);
+  const characters = povCandidates(entries, session.state.manifest.project.language);
   const documents = afterCandidates(session.state, node.id);
   const afterTitles = (meta.after ?? []).map((id) => ({ id, title: documents.find((doc) => doc.id === id)?.title ?? 'a document that is gone' }));
   const expected = (meta.expectedPresent ?? []).map((id) => ({ id, name: entries.find((entry) => entry.id === id)?.name ?? 'an entry that is gone' }));
@@ -298,7 +301,7 @@ export function SceneMetaSection({ session, node }: { session: ProjectSession; n
         addLabel="Add an entry expected here"
         candidates={entries
           .filter((entry) => !(meta.expectedPresent ?? []).includes(entry.id))
-          .sort(byName)
+          .sort(byNameIn(session.state.manifest.project.language))
           .map((entry) => ({ id: entry.id, label: entry.name }))}
         onAdd={(id) => apply({ expectedPresent_add: [id] })}
         onRemove={(id) => apply({ expectedPresent_remove: [id] })}
@@ -309,6 +312,7 @@ export function SceneMetaSection({ session, node }: { session: ProjectSession; n
         learns={meta.learns ?? []}
         knows={meta.knows ?? []}
         entries={entries}
+        language={session.state.manifest.project.language}
         facts={session.coherenceFile()?.knowledge ?? []}
         apply={apply}
       />
@@ -325,16 +329,19 @@ function KnowledgeEditor({
   learns,
   knows,
   entries,
+  language,
   facts,
   apply,
 }: {
   learns: readonly KnowledgeLinkRecord[];
   knows: readonly KnowledgeLinkRecord[];
   entries: readonly CodexEntry[];
+  /** The project language, which orders the character names (D9). */
+  language: string | undefined;
   facts: readonly { readonly id: string; readonly text: string }[];
   apply: (patch: ScenePatch) => void;
 }): ReactNode {
-  const characters = characterCandidates(entries);
+  const characters = characterCandidates(entries, language);
   const readyToDeclare = characters.length > 0 && facts.length > 0;
   return (
     <div className="scene-chips scene-knowledge" data-testid="scene-knowledge">

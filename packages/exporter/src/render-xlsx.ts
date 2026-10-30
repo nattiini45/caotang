@@ -37,6 +37,7 @@
  * never pays for it, and the tested file is the shipped file.
  */
 
+import { PACKAGE_TEXT_LOCALE, formatNumber } from '@caotang/i18n';
 import type { ZipOptions } from 'fflate/browser';
 import { stripXmlIllegal } from './xml-text.js';
 
@@ -95,7 +96,7 @@ export function prepareSheet(sheet: XlsxSheet): { readonly sheet: XlsxSheet; rea
     const clean = stripXmlIllegal(label);
     if (clean.length <= XLSX_CELL_MAX) return clean;
     notes.push(
-      `xlsx: the header of column ${columnName(c)} is longer than the ${XLSX_CELL_MAX.toLocaleString('en-US')} characters a spreadsheet cell holds, so it was cut`,
+      `xlsx: the header of column ${columnName(c)} is longer than the ${formatNumber(XLSX_CELL_MAX, PACKAGE_TEXT_LOCALE)} characters a spreadsheet cell holds, so it was cut`,
     );
     return clean.slice(0, XLSX_CELL_MAX);
   });
@@ -105,7 +106,7 @@ export function prepareSheet(sheet: XlsxSheet): { readonly sheet: XlsxSheet; rea
       const clean = stripXmlIllegal(cell);
       if (clean.length <= XLSX_CELL_MAX) return clean;
       notes.push(
-        `xlsx: row ${r + 2}, column ${sheet.columns[c] ?? String(c + 1)} is longer than the ${XLSX_CELL_MAX.toLocaleString('en-US')} characters a spreadsheet cell holds, so it was cut`,
+        `xlsx: row ${r + 2}, column ${sheet.columns[c] ?? String(c + 1)} is longer than the ${formatNumber(XLSX_CELL_MAX, PACKAGE_TEXT_LOCALE)} characters a spreadsheet cell holds, so it was cut`,
       );
       return clean.slice(0, XLSX_CELL_MAX);
     }),

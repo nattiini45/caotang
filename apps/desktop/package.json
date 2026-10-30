@@ -27,6 +27,7 @@
     "@caotang/furniture": "workspace:*",
     "@caotang/gateway": "workspace:*",
     "@caotang/harness": "workspace:*",
+    "@caotang/i18n": "workspace:*",
     "@caotang/ids": "workspace:*",
     "@caotang/mcp-client": "workspace:*",
     "@caotang/pdf-fonts": "workspace:*",

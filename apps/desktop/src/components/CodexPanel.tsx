@@ -115,7 +115,7 @@ function CodexList({
   const [filter, setFilter] = useState<CodexFilter>(NO_FILTER);
   const totals = totalsOf(session.state, session.mentions, entries);
   const visible = entries.filter((entry) => matchesFilter(entry, filter));
-  const groups = groupByType(visible);
+  const groups = groupByType(visible, session.state.manifest.project.language);
 
   const create = (): void => {
     const name = uniqueName(entries, 'Untitled entry');

@@ -5,6 +5,7 @@
 
 import { countBody } from '@caotang/store';
 import type { FlatBlock } from '@caotang/exporter';
+import { formatCount } from '../i18n/locale.js';
 
 /** The scenes the list shows. A longer book says how many it holds, and the counts above the list are never capped. */
 export const PREVIEW_SCENE_CAP = 300;
@@ -66,7 +67,7 @@ export function draftListing(blocks: readonly FlatBlock[], cap: number = PREVIEW
 
 /** A count and its noun, in the singular or the plural: "1 scene", "3 scenes", "1,204 words". */
 export function countPhrase(count: number, noun: string): string {
-  return `${new Intl.NumberFormat('en-US').format(count)} ${count === 1 ? noun : `${noun}s`}`;
+  return `${formatCount(count)} ${count === 1 ? noun : `${noun}s`}`;
 }
 
 /** The facts of a compile that its sentence is made from. A digest and a Draft both carry them. */

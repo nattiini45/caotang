@@ -4,6 +4,7 @@
  */
 
 import { BUILTIN_COMMANDS, usageOf, type BuiltinCommand, type ContextPreview, type TurnReport } from '@caotang/harness';
+import { formatCount } from '../i18n/locale.js';
 
 /** A result shown under the Intent box until the writer dismisses it or sends the next line. It is view state: never saved, never sent. */
 export interface CommandNote {
@@ -35,10 +36,10 @@ export function helpNote(topic?: string): CommandNote {
 
 /** `/context`: the layers of the next planner request. Nothing was sent to get it. */
 export function contextNote(preview: ContextPreview): CommandNote {
-  const lines = preview.layers.filter((layer) => layer.included).map((layer) => `${layer.id} ${layer.name}: ${layer.tokens.toLocaleString('en-US')} tokens${layer.budget === undefined ? '' : ` of ${layer.budget.toLocaleString('en-US')}`}`);
+  const lines = preview.layers.filter((layer) => layer.included).map((layer) => `${layer.id} ${layer.name}: ${formatCount(layer.tokens)} tokens${layer.budget === undefined ? '' : ` of ${formatCount(layer.budget)}`}`);
   return {
     kind: 'context',
-    title: `The next request would send about ${preview.promptTokens.toLocaleString('en-US')} tokens`,
+    title: `The next request would send about ${formatCount(preview.promptTokens)} tokens`,
     lines: [...lines, ...(preview.dropped.length === 0 ? ['Nothing was left out.'] : preview.dropped.map((drop) => `Left out: ${drop}`)), 'No request was sent to work this out.'],
   };
 }

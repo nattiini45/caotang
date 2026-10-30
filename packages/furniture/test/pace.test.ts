@@ -17,3 +17,11 @@ describe('the pace line words (goals-progress §2.2)', () => {
     expect(paceWords(1200)).toBe('1,200 words');
   });
 });
+
+describe('the pace count follows the locale it is given (D3, i18n.md §4.1)', () => {
+  it('groups in the formatter locale the app passes, and en-US with none', () => {
+    expect(paceWords(1200, 'en-GB')).toBe('1,200 words');
+    expect(paceWords(1200, 'de-DE')).toBe('1.200 words');
+    expect(paceWords(1200)).toBe('1,200 words');
+  });
+});

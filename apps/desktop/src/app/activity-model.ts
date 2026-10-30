@@ -13,6 +13,7 @@ import type { ActivityEntry, CommandName, UndoGroup } from '@caotang/bus';
 import { CHECKPOINT_LABEL, type TurnReport } from '@caotang/harness';
 
 import { phaseLabel, promptCacheLines, type TurnView } from './agent-model.js';
+import { formatDateTime } from '../i18n/locale.js';
 
 /** A person's name for each command. Typed over the closed set, so a new command is a compile error here. */
 export const COMMAND_TITLES: Readonly<Record<CommandName, string>> = {
@@ -106,7 +107,7 @@ export function issuerLabel(issuedBy: ActivityEntry['issuedBy']): string {
 }
 
 export function timeLabel(at: number): string {
-  return new Date(at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return formatDateTime(at, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 export interface ActivityRow {

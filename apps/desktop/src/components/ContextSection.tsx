@@ -24,6 +24,7 @@ import {
   type ContextSettings,
 } from '../app/settings.js';
 import { PromptPreview } from './PlanCard.js';
+import { formatCount } from '../i18n/locale.js';
 
 /** Each layer's label and the default the spec gives it for a scene draft (context-assembly §2). Total over `ContextLayerId`, so a new layer is a compile error here until it has a row. */
 const LAYER_META: Readonly<Record<ContextLayerId, { readonly label: string; readonly fallback: number }>> = {
@@ -39,7 +40,7 @@ const LAYER_META: Readonly<Record<ContextLayerId, { readonly label: string; read
 /** The layers in the stack's order, as `CONTEXT_LAYERS` lists them. */
 const LAYERS: readonly { readonly id: ContextLayerId; readonly label: string; readonly fallback: number }[] = CONTEXT_LAYERS.map((id) => ({ id, ...LAYER_META[id] }));
 
-const WORDS_OF = (value: number): string => value.toLocaleString('en-US');
+const WORDS_OF = (value: number): string => formatCount(value);
 
 /**
  * A typed budget read as a whole number in range. `null` for an empty field (the default applies), and `undefined` for a

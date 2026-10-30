@@ -1,0 +1,16 @@
+{
+  "name": "@caotang/i18n",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "Interface locale resolution, cached Intl formatters, collation, bidi isolation and the MessageRef type, with no React and no message library (i18n.md §3.2, §4)",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

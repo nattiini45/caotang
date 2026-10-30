@@ -15,6 +15,7 @@
   "dependencies": {
     "@caotang/bus": "workspace:*",
     "@caotang/dialogue": "workspace:*",
+    "@caotang/i18n": "workspace:*",
     "@caotang/pdf-fonts": "workspace:*",
     "@caotang/screenplay": "workspace:*",
     "@caotang/store": "workspace:*",

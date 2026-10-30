@@ -10,6 +10,7 @@ import { textDigest } from '@caotang/bus';
 import { DEMO_INTENTS } from '@caotang/gateway/mock';
 import { estimateTokens, instructionsReport } from '@caotang/harness';
 import type { MemoryFile, ProjectState } from '@caotang/store';
+import { formatCount } from '../i18n/locale.js';
 
 /** What "Initialise from this project" asks the agent. The built-in demo provider answers these exact words with a canned draft. */
 export const INITIALISE_INTENT = DEMO_INTENTS.instructions;
@@ -85,5 +86,5 @@ export function agentInstructionsView(state: ProjectState, budget?: number): Age
 
 /** A count with its noun: `1 token`, `1,500 tokens`. */
 export function tokensLabel(count: number): string {
-  return `${count.toLocaleString('en-US')} ${count === 1 ? 'token' : 'tokens'}`;
+  return `${formatCount(count)} ${count === 1 ? 'token' : 'tokens'}`;
 }

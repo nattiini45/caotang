@@ -19,6 +19,7 @@ import {
 
 import type { ProjectSession } from '../app/session.js';
 import { isImeEnter } from '../app/ime.js';
+import { formatCount as formatInterfaceCount } from '../i18n/locale.js';
 
 /** Re-renders the caller whenever the session commits, saves or undoes anything. */
 export function useSession(session: ProjectSession): number {
@@ -498,8 +499,9 @@ export function EmptyState({
   );
 }
 
+/** A count grouped in the formatter locale (D3); the one the rest of the app uses, re-exported for the components. */
 export function formatCount(n: number): string {
-  return new Intl.NumberFormat('en-US').format(n);
+  return formatInterfaceCount(n);
 }
 
 export function wordsLabel(n: number): string {
