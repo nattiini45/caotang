@@ -53,7 +53,7 @@ The shipped presets (the registry is the source of truth; this table is generate
 | tencent-hunyuan | openai-chat | unknown | region field builds the URL |
 | byteplus-ark | openai-chat | unknown | — |
 | moonshot | openai-chat | unknown | — |
-| zhipu-zai | openai-chat | blocked | the chat route refuses the browser preflight; only `/models` answers it |
+| zhipu-zai | openai-chat | unknown | blocked in the 2026-10-26 sweep; the chat route answered a browser request on 2026-10-30 |
 | minimax | openai-chat | unknown | — |
 | xiaomi-mimo | openai-chat | unknown | — |
 | nanogpt | openai-chat | unknown | keyless `/models` listing |
