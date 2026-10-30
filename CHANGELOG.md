@@ -35,6 +35,10 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 - **Content-Security-Policy.** The built app's policy now says `frame-src 'none'`, so it refuses every frame, as its comment and this changelog already said; before, it fell back to `default-src 'self'` and allowed frames from its own origin. Nothing in the app shows a frame. The README's Self-hosting policy carries the same directive; a host that sends the policy as a header should update its copy.
 - **Releases list themselves in the MCP Registry.** The release workflow now lists each release in the MCP Registry after it creates it, signing in with GitHub OIDC, so the maintainer no longer signs in or runs `mcp-publisher` by hand. It takes the `.mcpb` hash from the release's `SHA256SUMS`, and an existing release such as v0.1.0 can be listed by running the workflow by hand with its tag.
 
+### Fixed
+
+- **Shortcuts on non-Latin keyboard layouts.** Ctrl+Z, Ctrl+N, Ctrl+Shift+F, Ctrl+Alt+F and the screenplay's Ctrl+E now work on a Russian, Greek, Hebrew, Arabic or other non-Latin layout: when the key types a letter outside the Latin alphabet, the shortcut follows the physical key, the one where the letter sits on an English keyboard. On Latin layouts the letter printed on the key still decides, so Ctrl+Z stays the key labelled Z on QWERTZ and AZERTY. AltGr, which Windows reports as Ctrl+Alt, is never taken as a Ctrl+Alt shortcut, so it always types its character (`@`, `{`, `[`, `€`).
+
 ### Known limits
 
 - Tool results are checked against their declared shape in Caotang's own tests and not while you write, and twenty-five of the agent's tools still allow a key their declaration does not list. A connected tool that declares an output schema this build cannot check (one that uses `unevaluatedProperties`, for example) has its answers refused.

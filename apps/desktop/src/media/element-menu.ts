@@ -7,6 +7,7 @@
  * way typing does, through the autosave. Nothing here touches the store, the session or the DOM.
  */
 
+import { chordKey } from '../app/keymap.js';
 import { LINE_ELEMENT_TYPES, convertLine, lineElementAt, type LineConversion, type LineElementType } from './engines.js';
 
 /** The menu's name, which its tests find it by. */
@@ -119,13 +120,17 @@ export function elementChord(event: ChordEvent, platform: ChordPlatform): LineEl
   return LINE_ELEMENT_TYPES[event.code.charCodeAt(5) - 49] ?? null;
 }
 
-/** Whether a key opens the menu: Ctrl+E, or Cmd+E on macOS, with no other modifier. */
+/**
+ * Whether a key opens the menu: Ctrl+E, or Cmd+E on macOS, with no other modifier. The key is read as the app's chords read it
+ * (`chordKey`), so the physical E opens it on a non-Latin layout too.
+ */
 export function opensElementMenu(event: {
   readonly key: string;
+  readonly code?: string;
   readonly ctrlKey: boolean;
   readonly metaKey: boolean;
   readonly altKey: boolean;
   readonly shiftKey: boolean;
 }): boolean {
-  return (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'e';
+  return (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && chordKey(event.key, event.code ?? '') === 'e';
 }

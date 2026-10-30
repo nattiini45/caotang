@@ -497,6 +497,8 @@ Choose **Settings** on the projects screen or in the toolbar. It has nine sectio
 
 On a Mac, Cmd takes the place of Ctrl. The element chords are the one exception: they use Cmd+Alt, because Cmd+Shift+3 and Cmd+Shift+4 take screenshots.
 
+The letter in a shortcut is the letter printed on the key, so on a German or French keyboard Ctrl+Z is the key labelled Z. On a Russian, Greek, Hebrew, Arabic or other non-Latin layout, a shortcut uses the key where that letter sits on an English keyboard, so you do not have to switch layouts to undo. AltGr is never taken for Ctrl+Alt, so it always types its character, such as `@` or `{` on a German keyboard.
+
 | Key | What it does |
 |---|---|
 | Ctrl+N | New document. |
