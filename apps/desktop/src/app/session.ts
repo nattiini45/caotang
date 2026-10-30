@@ -122,7 +122,7 @@ import { checkMacro, createProductHarness, dialogueFactsOf, excludedBy, withheld
 import type { McpClient } from '@caotang/mcp-client';
 import type { SkillFile } from '@caotang/skills';
 
-import { loadArabicFontOverHttp, loadCjkFontOverHttp, loadColourEmojiOverHttp, loadDevanagariFontOverHttp, loadEmojiFontOverHttp, loadHebrewFontOverHttp } from './fallback-fonts.js';
+import { loadArabicFontOverHttp, loadCjkBoldFontOverHttp, loadCjkFontOverHttp, loadColourEmojiOverHttp, loadDevanagariFontOverHttp, loadEmojiFontOverHttp, loadHebrewFontOverHttp } from './fallback-fonts.js';
 import { transcodePictureInBrowser } from './picture-transcoder.js';
 import { withAccess, type AgentAccess } from './agent-rules-model.js';
 import { CodexMentions } from './codex-model.js';
@@ -1715,6 +1715,8 @@ function exporterFor(
     assets: images,
     // The contact sheet's font for text outside Latin script, fetched from this origin only when a sheet needs it.
     loadFallbackFont: loadCjkFontOverHttp,
+    // Its Bold, fetched from this origin only when the sheet's title, page label or a number chip holds such text.
+    loadBoldFallbackFont: loadCjkBoldFontOverHttp,
     // Its emoji font (Noto Emoji, monochrome), fetched from this origin only when a sheet holds an emoji.
     loadEmojiFont: loadEmojiFontOverHttp,
     // Noto Color Emoji's vector pictures, fetched from this origin only when an export has Colour emoji on and an emoji the file has.

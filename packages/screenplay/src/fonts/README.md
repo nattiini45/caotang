@@ -11,7 +11,7 @@ A font offered here must be monospaced at 600 units to the em (the layout's 7.2 
 
 Every character WinAnsi cannot encode prints in a fallback font, and neither fallback ships in this package. Both PDFs (this one and the storyboard contact sheet) share one CJK font and one emoji font:
 
-- Noto Sans Mono CJK SC 2.004, for Hanzi, kana, Hangul and more: `vendor/noto-sans-cjk` (`@caotang/font-noto-cjk`), a TrueType WOFF built from the upstream OTF (10,692,940 bytes), and a common file cut from it to the characters of everyday use (1,956,568 bytes);
+- Noto Sans Mono CJK SC 2.004, for Hanzi, kana, Hangul and more: `vendor/noto-sans-cjk` (`@caotang/font-noto-cjk`), a TrueType WOFF built from the upstream OTF (10,692,940 bytes), and a common file cut from it to the characters of everyday use (1,956,568 bytes), with its Bold beside it (10,786,312 and 1,968,608 bytes), which the contact sheet reads for CJK in a bold place and this PDF, which draws no bold, does not;
 - Noto Emoji 3.006, for emoji (Unicode Emoji 17.0): `vendor/noto-emoji` (`@caotang/font-noto-emoji`), a static TrueType WOFF (579,236 bytes), and a common file of the single-code-point emoji and the keycaps (298,992 bytes).
 
 A script whose characters in a font are all in its common file reads only that file; one character outside it reads the full font, and the PDF holds the same glyphs either way (`@caotang/pdf-fonts/common`).

@@ -17,6 +17,9 @@
  * (`NotoSansMonoCJKsc-Regular-common.woff`, 2.0 MB of the full 10.7 MB, and `NotoEmoji-Regular-common.woff`, 0.3 of 0.6 MB). The
  * loader is the full font's and carries the common file's as `common` ({@link withCommon}); a PDF that sets only common characters
  * in the font fetches that one, and any other character fetches the full font (`@caotang/pdf-fonts/common`).
+ *
+ * The CJK font's Bold (`NotoSansMonoCJKsc-Bold.woff`, 10.8 MB, and its common file, 2.0 MB) is fetched the same way, and only when the
+ * contact sheet's title, page label or a number chip holds text outside Latin script; without it that text is the Regular with a stroke.
  */
 
 import { checkFontBytes, withCommon, type CommonFontLoader, type FontLoader } from '@caotang/pdf-fonts';
@@ -38,6 +41,17 @@ export const loadCjkFontOverHttp: CommonFontLoader = withCommon(
   },
   async () => {
     const { default: url } = await import('@caotang/font-noto-cjk/NotoSansMonoCJKsc-Regular-common.woff?url');
+    return fetchBytes(url);
+  },
+);
+
+export const loadCjkBoldFontOverHttp: CommonFontLoader = withCommon(
+  async () => {
+    const { default: url } = await import('@caotang/font-noto-cjk/NotoSansMonoCJKsc-Bold.woff?url');
+    return fetchBytes(url);
+  },
+  async () => {
+    const { default: url } = await import('@caotang/font-noto-cjk/NotoSansMonoCJKsc-Bold-common.woff?url');
     return fetchBytes(url);
   },
 );

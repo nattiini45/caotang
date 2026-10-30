@@ -7,6 +7,10 @@
  * and traditional), Japanese kana and kanji, Korean Hangul, Greek and Cyrillic. The host passes a `FontLoader` for it, and the
  * emitter calls it only when a sheet holds a character Helvetica cannot encode, so a Latin-only export never reads the font.
  *
+ * Its Bold (`NotoSansMonoCJKsc-Bold.woff`, the same build of the upstream Bold) sets CJK text in a bold place (the title, the page
+ * label, the chip) when the host passes `loadBoldFallbackFont`: a second {@link CjkFace} and {@link CjkEmbedding}, a font of its own
+ * in the file. Without it, or when it cannot be read, that text is the Regular with the synthetic stroke (embolden.ts).
+ *
  * Its text is laid out one code point to a glyph, a Han character in the forms of the project's language (`hanLocaleTag`: the
  * font's `locl` feature, the build keeps no other), and embedded as the emoji font is (cid-embedding.ts): a CID for each
  * distinct glyph-and-text pair.
@@ -53,9 +57,16 @@ export class CjkFace {
   }
 }
 
-/** The CJK font as it is embedded in one PDF (cid-embedding.ts). */
+/** The CJK font as it is embedded in one PDF (cid-embedding.ts): the Regular, or with `bold` the Bold, each a font of its own. */
 export class CjkEmbedding extends CidEmbedding {
-  constructor(lib: typeof PdfLib, doc: PdfLib.PDFDocument, readonly face: CjkFace) {
-    super(lib, doc, face.font, { resource: 'NotoCjk', tag: 'CAOTCJ', postscriptName: face.font.postscriptName ?? 'NotoSansMonoCJKsc-Regular' });
+  constructor(lib: typeof PdfLib, doc: PdfLib.PDFDocument, readonly face: CjkFace, bold = false) {
+    super(
+      lib,
+      doc,
+      face.font,
+      bold
+        ? { resource: 'NotoCjkBold', tag: 'CAOTCB', postscriptName: face.font.postscriptName ?? 'NotoSansMonoCJKsc-Bold' }
+        : { resource: 'NotoCjk', tag: 'CAOTCJ', postscriptName: face.font.postscriptName ?? 'NotoSansMonoCJKsc-Regular' },
+    );
   }
 }

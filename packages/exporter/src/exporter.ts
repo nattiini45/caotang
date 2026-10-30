@@ -100,6 +100,12 @@ export interface ExporterOptions {
    */
   readonly loadFallbackFont?: FontLoader;
   /**
+   * Reads the Bold of the PDF fallback font (Noto Sans Mono CJK SC Bold, `@caotang/font-noto-cjk`), the same way, for text outside
+   * Latin script in a bold place. The contact sheet reads it only when its title, page label or a number chip holds such text; the
+   * screenplay PDF draws nothing in bold and does not read it. Without it, that text is the regular weight thickened by a stroke.
+   */
+  readonly loadBoldFallbackFont?: FontLoader;
+  /**
    * Reads the PDF emoji font (Noto Emoji, monochrome, `@caotang/font-noto-emoji`) for emoji, the same way: the app from its
    * own origin, Node from the package. It is called only when a file holds an emoji. Without it, emoji are drawn as `?`, and
    * the compile log says so.
@@ -400,6 +406,7 @@ export function createExporter(options: ExporterOptions): ExporterService {
       // Colour emoji (screenplay.md §5.3, storyboard.md §6). Absent is each format's own default, which media.ts applies.
       ...(request.options.colourEmoji === undefined ? {} : { colourEmoji: request.options.colourEmoji }),
       ...(options.loadFallbackFont === undefined ? {} : { loadFallbackFont: options.loadFallbackFont }),
+      ...(options.loadBoldFallbackFont === undefined ? {} : { loadBoldFallbackFont: options.loadBoldFallbackFont }),
       ...(options.loadEmojiFont === undefined ? {} : { loadEmojiFont: options.loadEmojiFont }),
       ...(options.loadColourEmoji === undefined ? {} : { loadColourEmoji: options.loadColourEmoji }),
       ...(options.loadArabicFont === undefined ? {} : { loadArabicFont: options.loadArabicFont }),

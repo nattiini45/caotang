@@ -12,6 +12,18 @@ export const CJK_COMMON_FONT_FILE = 'NotoSansMonoCJKsc-Regular-common.woff';
 /** The CJK font's name, as the compile log names it. */
 export const CJK_FONT_NAME = 'Noto Sans Mono CJK SC';
 
+/**
+ * The Bold weight of the CJK font, beside the Regular in `@caotang/font-noto-cjk`: built the same way and mapping the same
+ * characters, so the Regular's coverage tables choose its file too. A PDF reads it only for CJK text in a bold place.
+ */
+export const CJK_BOLD_FONT_FILE = 'NotoSansMonoCJKsc-Bold.woff';
+
+/** The Bold's common file, cut to the same characters as the Regular's ({@link CJK_COMMON_FONT_FILE}). */
+export const CJK_BOLD_COMMON_FONT_FILE = 'NotoSansMonoCJKsc-Bold-common.woff';
+
+/** The Bold CJK font's name, as the compile log names it. */
+export const CJK_BOLD_FONT_NAME = 'Noto Sans Mono CJK SC Bold';
+
 /** The emoji font's file name in `@caotang/font-noto-emoji` (vendor/noto-emoji). */
 export const EMOJI_FONT_FILE = 'NotoEmoji-Regular.woff';
 
