@@ -84,6 +84,11 @@ export interface ProjectAssetPort {
   readonly staging: AssetStaging;
   writeBytes(path: string, bytes: Uint8Array): Promise<void>;
   /**
+   * Whether a file under `assets/` is held. The import's dedup asks it before it trusts a record with the same hash: a record
+   * whose file is gone is re-created over the bytes being imported (pictures.md §6.2). Absent, a record is trusted as it stands.
+   */
+  has?(path: string): Promise<boolean>;
+  /**
    * What the host can decode (pictures.md §6.4): HEIC to JPEG, and working copies of large photos. Absent (Node, a test), HEIC is
    * refused with the remedy and large photos keep their originals.
    */

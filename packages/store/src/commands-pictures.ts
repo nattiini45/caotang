@@ -36,7 +36,6 @@ import {
 import {
   ASSETS_DIR,
   mintAssetId,
-  preparePicture,
   recordByHash,
   usedAssetIds,
   type AssetRecord,
@@ -85,6 +84,8 @@ export async function preparedFromStaging(
       correctiveHint: 'choose the image again',
     });
   }
+  // The pipeline and the metadata strip load with the first import, so the app's first load does not carry them.
+  const { preparePicture } = await import('@caotang/pictures/prepare');
   const result = await preparePicture(bytes, {
     ...(assets.decoder === undefined ? {} : { decoder: assets.decoder }),
     ...(options.largePhotos === undefined ? {} : { largePhotos: options.largePhotos }),
@@ -128,6 +129,11 @@ function recordOf(assetId: string, prepared: PreparedPicture, meta: PictureMeta,
   };
 }
 
+/** Whether the port holds a file. A port that cannot say (no `has`) is trusted to hold what a record names. */
+async function fileHeld(assets: ProjectAssetPort, path: string): Promise<boolean> {
+  return assets.has === undefined ? true : assets.has(path);
+}
+
 /**
  * Step 2 for one picture: dedup by hash against the registry, the records this batch has already planned (`pending`) and the
  * records an undo retired in this session; otherwise mint an id and write the file. Throws whatever the port's write throws.
@@ -141,12 +147,23 @@ export async function storePicture(
   clock: ApplyClock,
 ): Promise<StoredPicture> {
   const recorded = recordByHash(state.manifest.assets, prepared.sha256);
-  if (recorded !== undefined) return { assetId: recorded.id, path: `${ASSETS_DIR}/${recorded.file}`, existing: true, written: false };
+  if (recorded !== undefined) {
+    const path = `${ASSETS_DIR}/${recorded.file}`;
+    if (await fileHeld(assets, path)) return { assetId: recorded.id, path, existing: true, written: false };
+    // The record's file is gone (deleted outside the app, or never synced here): the bytes being imported are that file, so
+    // they are written back under the record's name and the record stands as it is (§6.2). Nothing is reported as existing.
+    await assets.writeBytes(path, prepared.bytes);
+    return { assetId: recorded.id, path, existing: false, written: true };
+  }
   const planned = pending.find((stored) => stored.record?.sha256 === prepared.sha256);
   if (planned !== undefined) return { assetId: planned.assetId, path: planned.path, existing: true, written: false };
   const retired = retiredOf(assets).get(prepared.sha256);
   if (retired !== undefined) {
-    return { assetId: retired.id, path: `${ASSETS_DIR}/${retired.file}`, existing: false, written: false, record: { ...retired } };
+    const path = `${ASSETS_DIR}/${retired.file}`;
+    // The file an undo left behind is re-used when it is still there, and written again from these bytes when it is not.
+    const held = await fileHeld(assets, path);
+    if (!held) await assets.writeBytes(path, prepared.bytes);
+    return { assetId: retired.id, path, existing: false, written: !held, record: { ...retired } };
   }
   const taken = new Set<string>([
     ...(state.manifest.assets ?? []).map((record) => record.id),

@@ -344,6 +344,8 @@ export class ProjectSession {
   private readonly pictureDecoder: PictureDecoder | undefined = browserPictureDecoder();
   /** Whether the open's backfill of the picture registry has run (pictures.md §6.2). Once per session, after the image check. */
   private picturesBackfilled = false;
+  /** The backfill in flight, so two calls that find the listing authoritative run it once. */
+  private picturesBackfill: Promise<void> | null = null;
   /** The large-photo question's answer, asked once and remembered while this project is open (pictures.md §6.4, D6). */
   private largePhotoAnswer: LargePhotoChoice | undefined;
   /** The skill folders the writer has chosen and the next `skill.import` will take: held in memory, and single-use. */
@@ -461,6 +463,7 @@ export class ProjectSession {
       assets: {
         staging: this.assetStaging,
         writeBytes: (path, bytes) => this.assets.writeBytes(path, bytes),
+        has: (path) => this.assets.has(path),
         ...(this.pictureDecoder === undefined ? {} : { decoder: this.pictureDecoder }),
       },
       // The skills the writer imports are staged here, and the command names them (extensibility.md §10).
@@ -1565,7 +1568,8 @@ export class ProjectSession {
    * a listing that failed) drops nothing and leaves the check to run when a later listing is (`attachFolder`).
    */
   async checkImageReferences(): Promise<void> {
-    if (this.imagesChecked) return;
+    // After the check, a call only retries a backfill that failed (a later authoritative listing); one that ran is a no-op.
+    if (this.imagesChecked) return this.backfillPictureRecords();
     await this.assets.ready();
     if (this.imagesChecked || !this.assets.listingAuthoritative()) return;
     this.imagesChecked = true;
@@ -1582,15 +1586,32 @@ export class ProjectSession {
    * The open's backfill of the picture registry (pictures.md §6.2): every used picture whose file the listing holds gets a record in
    * `assets[]`, with its hash and size, written with the next save, the way the identifier and the language were back-filled. It runs
    * once per session, after the image check, against the same authoritative listing, so a dropped reference is never given a record.
+   * A listing or read that fails costs the backfill, never the open: it is skipped, and the next call that finds the listing
+   * authoritative (a settle, the storyboard opening, a folder attached) tries it again. It is marked done only when it has run.
    */
-  private async backfillPictureRecords(): Promise<void> {
-    if (this.picturesBackfilled) return;
-    this.picturesBackfilled = true;
-    const fs = this.assets.artifactFs();
-    const added = await backfillAssetRecords(this.state, {
-      list: () => fs.listFiles('assets'),
-      read: async (path) => (await this.assets.readBytes(path)) ?? undefined,
+  private backfillPictureRecords(): Promise<void> {
+    if (this.picturesBackfilled) return Promise.resolve();
+    this.picturesBackfill ??= this.runPictureBackfill().finally(() => {
+      this.picturesBackfill = null;
     });
+    return this.picturesBackfill;
+  }
+
+  private async runPictureBackfill(): Promise<void> {
+    let added: readonly unknown[];
+    try {
+      await this.assets.ready();
+      if (!this.assets.listingAuthoritative()) return;
+      const fs = this.assets.artifactFs();
+      added = await backfillAssetRecords(this.state, {
+        list: () => fs.listFiles('assets'),
+        read: async (path) => (await this.assets.readBytes(path)) ?? undefined,
+      });
+    } catch {
+      // Nothing is lost: a picture without a record is still shown and exported, and the records are filled in by a later try.
+      return;
+    }
+    this.picturesBackfilled = true;
     if (added.length === 0) return;
     this.persistence.schedule();
     this.bump();

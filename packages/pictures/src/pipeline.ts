@@ -19,11 +19,11 @@
  * with the remedy and keeps large originals.
  */
 
-import { pixelSize, type PixelSize } from './dimensions.js';
+import { isLargePhoto, pixelSize, type PixelSize } from './dimensions.js';
 import { stripPrivateMetadata, type StrippedPart } from './exif.js';
 import { IMAGE_FORMATS, isHeif, isSvg, sniffImage, unsupportedFormatName, type ImageFormat } from './files.js';
 import { sha256Hex } from './hash.js';
-import { LARGE_PHOTO_BYTES, LARGE_PHOTO_PIXELS, PICTURE_MAX_BYTES, PICTURE_MAX_PIXELS, WORKING_COPY_EDGE } from './limits.js';
+import { LARGE_PHOTO_BYTES, PICTURE_MAX_BYTES, PICTURE_MAX_PIXELS, WORKING_COPY_EDGE } from './limits.js';
 import type { WorkingCopyOf } from './record.js';
 
 /** What the host can decode. Every method is optional; an absent one is a browser that cannot. */
@@ -75,13 +75,6 @@ function megapixels(size: PixelSize): string {
 
 function refuse(code: PictureRefusalCode, message: string, hint: string): PrepareResult {
   return { ok: false, refusal: { code, message, hint } };
-}
-
-/** Whether a picture is large enough for the working-copy question (above 24 MP or 8 MB). A size the header does not state counts by bytes only. */
-export function isLargePhoto(bytes: Uint8Array): boolean {
-  if (bytes.length > LARGE_PHOTO_BYTES) return true;
-  const size = pixelSize(bytes);
-  return size !== undefined && size.width * size.height > LARGE_PHOTO_PIXELS;
 }
 
 /**

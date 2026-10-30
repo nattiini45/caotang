@@ -6,6 +6,7 @@
  */
 
 import { sniffImage } from './files.js';
+import { LARGE_PHOTO_BYTES, LARGE_PHOTO_PIXELS } from './limits.js';
 
 export interface PixelSize {
   readonly width: number;
@@ -90,4 +91,11 @@ export function pixelSize(bytes: Uint8Array): PixelSize | undefined {
   const size = format === 'png' ? pngSize(bytes) : format === 'jpeg' ? jpegSize(bytes) : format === 'webp' ? webpSize(bytes) : undefined;
   if (size === undefined || size.width <= 0 || size.height <= 0) return undefined;
   return size;
+}
+
+/** Whether a picture is large enough for the working-copy question (above 24 MP or 8 MB). A size the header does not state counts by bytes only. */
+export function isLargePhoto(bytes: Uint8Array): boolean {
+  if (bytes.length > LARGE_PHOTO_BYTES) return true;
+  const size = pixelSize(bytes);
+  return size !== undefined && size.width * size.height > LARGE_PHOTO_PIXELS;
 }

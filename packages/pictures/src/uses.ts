@@ -46,7 +46,9 @@ export type PictureUse =
  */
 export function inlineAssetIds(body: string): string[] {
   const ids: string[] = [];
-  const pattern = /!\[[^\]]*\]\(\s*<?(?:\.\.\/)?assets\/(a_[0-9A-HJKMNP-TV-Z]{10})\.(?:png|jpg|webp)>?(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/g;
+  // The alt text excludes `[` as well as `]`, so a failed match from one `![` never rescans the next one: a body of many
+  // unclosed `![` stays linear (CodeQL js/polynomial-redos). Markdown alt text with brackets is not something we write.
+  const pattern = /!\[[^[\]]*\]\(\s*<?(?:\.\.\/)?assets\/(a_[0-9A-HJKMNP-TV-Z]{10})\.(?:png|jpg|webp)>?(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/g;
   for (const match of body.matchAll(pattern)) {
     const id = match[1];
     if (id !== undefined && ASSET_ID_PATTERN.test(id) && !ids.includes(id)) ids.push(id);

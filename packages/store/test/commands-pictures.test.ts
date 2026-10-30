@@ -65,6 +65,7 @@ function bus(state: ProjectState = project()): Bus {
       b.writes += 1;
       written.set(path, bytes.slice());
     },
+    has: async (path) => written.has(path),
   };
   const registry = createProjectCommandRegistry({ clock, assets: port });
   const undo: UndoStore = createUndoStore({ dispatch: (command) => execute(command, handle.bus, registry) });
@@ -153,6 +154,30 @@ describe('asset.import — one picture into assets/ and the registry', () => {
     const again = okValue(await importOne(b, PHOTO)).result as { assetId: string; existing: boolean };
     expect(again).toMatchObject({ assetId: first.assetId, existing: false });
     expect(b.writes).toBe(1);
+    expect(b.state.manifest.assets?.map((record) => record.id)).toEqual([first.assetId]);
+  });
+
+  it('writes the file again when the same bytes come back after the record’s file was deleted, and keeps the one record', async () => {
+    const b = bus();
+    const first = okValue(await importOne(b, PHOTO)).result as { assetId: string; path: string };
+    const stored = b.written.get(first.path);
+    b.written.delete(first.path);
+    const again = okValue(await importOne(b, PHOTO)).result as { assetId: string; path: string; existing: boolean };
+    expect(again).toMatchObject({ assetId: first.assetId, path: first.path, existing: false });
+    expect(b.writes).toBe(2);
+    expect(b.written.get(first.path)).toEqual(stored);
+    expect(b.state.manifest.assets?.map((record) => record.id)).toEqual([first.assetId]);
+  });
+
+  it('writes the file again when an undone import’s file is gone before the same bytes come back', async () => {
+    const b = bus();
+    const first = okValue(await importOne(b, PHOTO)).result as { assetId: string; path: string };
+    undoLast(b);
+    b.written.delete(first.path);
+    const again = okValue(await importOne(b, PHOTO)).result as { assetId: string; existing: boolean };
+    expect(again).toMatchObject({ assetId: first.assetId, existing: false });
+    expect(b.writes).toBe(2);
+    expect(b.written.has(first.path)).toBe(true);
     expect(b.state.manifest.assets?.map((record) => record.id)).toEqual([first.assetId]);
   });
 

@@ -12,14 +12,13 @@ import {
   jpegHasGps,
   jpegOrientation,
   pixelSize,
-  preparePicture,
   readAssetRecord,
   sha256Hex,
   sniffImage,
-  stripPrivateMetadata,
   usesOf,
   type PictureDecoder,
 } from '../src/index.js';
+import { preparePicture, stripPrivateMetadata } from '../src/prepare.js';
 import { contains, exifTiff, jpeg, png, pngCrcsValid, webp } from './fixtures.js';
 
 describe('the metadata strip keeps Orientation and takes the location (pictures.md §6.4, D2)', () => {
@@ -157,6 +156,13 @@ describe('usesOf: uses are derived, never stored', () => {
       'a_0123456789',
       'a_ABCDEFGHJK',
     ]);
+  });
+
+  it('stays linear on a body of unclosed image openers', () => {
+    const body = `${'!['.repeat(50_000)}![x](../assets/a_0123456789.png)`;
+    const started = performance.now();
+    expect(inlineAssetIds(body)).toEqual(['a_0123456789']);
+    expect(performance.now() - started).toBeLessThan(1000);
   });
 });
 
