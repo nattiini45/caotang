@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { FAKE_ENDPOINT, fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
+import { FAKE_ENDPOINT, endpointRoute, fakeEndpoint, planThenAnswer, useFakeEndpoint } from './endpoint.js';
 import { idOf, projectTrace } from './support.js';
 
 /**
@@ -92,12 +92,8 @@ test('a restructure’s new item shows where it lands in the card before Approve
   expect((await projectTrace(page)).filter((name) => name === 'binder.restructure' || name === 'binder.create')).toEqual([]);
 });
 
-test('a coherence review’s card shows what the review is estimated to cost, at the profile’s price, before Approve is clicked', async ({ page }) => {
-  // The review is staged as a card: the planner's one step, and no model call until the writer approves it. The card is what this
-  // test reads, so the endpoint answers the planner only.
-  const plan = { steps: [{ tool: 'coherence.review', params: { scope: { mode: 'full' } }, expect: 'the manuscript is reviewed for contradictions' }] };
-  await fakeEndpoint(page, planThenAnswer(plan, 'Reviewed.'));
-  // A priced profile, made active: the endpoint's prices are 1 per 1,000 prompt tokens and 2 per 1,000 reply tokens.
+/** Adds a priced profile on the fake endpoint and makes it active: 1 per 1,000 prompt tokens and 2 per 1,000 reply tokens. */
+async function usePricedEndpoint(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.getByTestId('settings');
@@ -115,6 +111,31 @@ test('a coherence review’s card shows what the review is estimated to cost, at
   await settings.locator('[data-profile="Priced endpoint"]').getByRole('button', { name: 'Use this profile' }).click();
   await expect(settings.getByText('is now the active profile')).toBeVisible();
   await settings.getByRole('button', { name: 'Close' }).click();
+}
+
+test('a scene draft’s card warns when the prompt is over the model’s window and shows the whole plan’s cost (issue #69)', async ({ page }) => {
+  const plan = {
+    steps: [{ tool: 'scene.draft', params: { doc: 'The Friend', instruction: 'The friend arrives by boat.', mode: 'draft' }, expect: 'The Friend holds a drafted opening scene' }],
+  };
+  // The listing reports a window far smaller than a scene draft's prompt, so the step's preview is over it.
+  await endpointRoute(page, new URL(FAKE_ENDPOINT).origin, planThenAnswer(plan, 'Drafted.', FRIEND_PROSE), [{ id: 'test-model', context_length: 300 }]);
+  await usePricedEndpoint(page);
+  await openSample(page);
+  await sendIntent(page, 'Draft the opening of The Friend.');
+
+  const card = page.getByTestId('plan-card');
+  await expect(card).toContainText('scene.draft');
+  // The model's limits reach the app's prompts: the window check and the price are the step's own (context-assembly §5).
+  await expect(card.locator('.plan-notice.is-warn').filter({ hasText: 'model window 300' })).toBeVisible();
+  await expect(card.locator('.plan-cost')).toContainText('About $');
+});
+
+test('a coherence review’s card shows what the review is estimated to cost, at the profile’s price, before Approve is clicked', async ({ page }) => {
+  // The review is staged as a card: the planner's one step, and no model call until the writer approves it. The card is what this
+  // test reads, so the endpoint answers the planner only.
+  const plan = { steps: [{ tool: 'coherence.review', params: { scope: { mode: 'full' } }, expect: 'the manuscript is reviewed for contradictions' }] };
+  await fakeEndpoint(page, planThenAnswer(plan, 'Reviewed.'));
+  await usePricedEndpoint(page);
 
   await openSample(page);
   await sendIntent(page, 'Review the manuscript for contradictions.');

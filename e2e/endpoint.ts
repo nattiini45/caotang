@@ -104,7 +104,8 @@ function sse(answer: string | FakeAnswer): string {
 }
 
 /**
- * Routes every request to one endpoint origin through `reply`, answering its model list with `models`. Call it before
+ * Routes every request to one endpoint origin through `reply`, answering its model list with `models` (an id, or an id with the
+ * window the listing reports, as LM Studio's `context_length`). Call it before
  * the page makes the requests (before `goto`, or before the click that starts them). Preset profiles whose URLs are
  * their own (a region or workspace template) route their origin here, so no save-time probe reaches a real network.
  */
@@ -112,7 +113,7 @@ export async function endpointRoute(
   page: Page,
   origin: string,
   reply: FakeReply,
-  models: readonly string[] = ['test-model', 'other-model'],
+  models: readonly (string | { readonly id: string; readonly context_length: number })[] = ['test-model', 'other-model'],
 ): Promise<void> {
   await page.route(`${origin}/**`, async (route) => {
     const request = route.request();
@@ -125,7 +126,7 @@ export async function endpointRoute(
       await route.fulfill({
         status: 200,
         headers: { ...CORS, 'content-type': 'application/json' },
-        body: JSON.stringify({ data: models.map((id) => ({ id })) }),
+        body: JSON.stringify({ data: models.map((model) => (typeof model === 'string' ? { id: model } : model)) }),
       });
       return;
     }
