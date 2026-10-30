@@ -1,18 +1,22 @@
 {
   "name": "@caotang/font-noto-cjk",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "license": "OFL-1.1",
   "private": true,
-  "description": "Noto Sans Mono CJK SC Regular 2.004 as a TrueType WOFF: the fallback font both PDFs embed, subset, for Chinese, Japanese and Korean text, and the smaller common file of it",
+  "description": "Noto Sans Mono CJK SC Regular and Bold 2.004 as TrueType WOFF files: the fallback font both PDFs embed, subset, for Chinese, Japanese and Korean text, its Bold for that text in a bold place, and the smaller common file of each",
   "repository": "https://github.com/notofonts/noto-cjk",
   "exports": {
     "./NotoSansMonoCJKsc-Regular.woff": "./NotoSansMonoCJKsc-Regular.woff",
     "./NotoSansMonoCJKsc-Regular-common.woff": "./NotoSansMonoCJKsc-Regular-common.woff",
+    "./NotoSansMonoCJKsc-Bold.woff": "./NotoSansMonoCJKsc-Bold.woff",
+    "./NotoSansMonoCJKsc-Bold-common.woff": "./NotoSansMonoCJKsc-Bold-common.woff",
     "./package.json": "./package.json"
   },
   "files": [
     "NotoSansMonoCJKsc-Regular.woff",
     "NotoSansMonoCJKsc-Regular-common.woff",
+    "NotoSansMonoCJKsc-Bold.woff",
+    "NotoSansMonoCJKsc-Bold-common.woff",
     "LICENSE",
     "README.md",
     "SHA256SUMS",
