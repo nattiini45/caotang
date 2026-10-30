@@ -14,7 +14,7 @@
  *  1. Stage `dist/mcpb/`: `server/caotang-mcp.mjs` (the built bundle), `server/fonts/` (the CJK, emoji, Arabic, Hebrew and Devanagari fonts
  *     both PDFs set text in: `@caotang/font-noto-cjk`, `@caotang/font-noto-emoji`, `@caotang/font-noto-arabic`,
  *     `@caotang/font-noto-hebrew` and `@caotang/font-noto-devanagari`, staged as `NotoSansMonoCJKsc-Regular.woff`,
- *     `NotoSansMonoCJKsc-Regular-common.woff`, `NotoEmoji-Regular.woff`, `NotoEmoji-Regular-common.woff`, `NotoColorEmoji.bin` (the colour emoji, `@caotang/font-noto-color-emoji`), `NotoSansArabic-Regular.ttf`, `NotoSansHebrew-Regular.ttf` and `NotoSansDevanagari-Regular.ttf`, where the Node loaders look first, packages/pdf-fonts/src/node-loader.ts),
+ *     `NotoSansMonoCJKsc-Regular-common.woff`, `NotoSansMonoCJKsc-Bold.woff`, `NotoSansMonoCJKsc-Bold-common.woff` (the CJK font's Bold, for bold places of the contact sheet), `NotoEmoji-Regular.woff`, `NotoEmoji-Regular-common.woff`, `NotoColorEmoji.bin` (the colour emoji, `@caotang/font-noto-color-emoji`), `NotoSansArabic-Regular.ttf`, `NotoSansHebrew-Regular.ttf` and `NotoSansDevanagari-Regular.ttf`, where the Node loaders look first, packages/pdf-fonts/src/node-loader.ts),
  *     `server/webp_dec.wasm` (the WebP decoder of `@jsquash/webp`, beside the bundle, where the contact sheet's transcoder looks first,
  *     packages/exporter/src/picture-transcoder-node.ts), `manifest.json`,
  *     `THIRD-PARTY-NOTICES.md` for this bundle's production dependencies (tools/third-party-notices.mjs), and the repository's
@@ -200,6 +200,8 @@ async function main() {
     fonts: [
       createRequire(import.meta.url).resolve('@caotang/font-noto-cjk/NotoSansMonoCJKsc-Regular.woff'),
       createRequire(import.meta.url).resolve('@caotang/font-noto-cjk/NotoSansMonoCJKsc-Regular-common.woff'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-cjk/NotoSansMonoCJKsc-Bold.woff'),
+      createRequire(import.meta.url).resolve('@caotang/font-noto-cjk/NotoSansMonoCJKsc-Bold-common.woff'),
       createRequire(import.meta.url).resolve('@caotang/font-noto-emoji/NotoEmoji-Regular.woff'),
       createRequire(import.meta.url).resolve('@caotang/font-noto-emoji/NotoEmoji-Regular-common.woff'),
       createRequire(import.meta.url).resolve('@caotang/font-noto-color-emoji/NotoColorEmoji.bin'),

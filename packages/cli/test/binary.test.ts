@@ -27,6 +27,8 @@ const FONTS = [
   'NotoSansArabic-Regular.ttf',
   'NotoSansDevanagari-Regular.ttf',
   'NotoSansHebrew-Regular.ttf',
+  'NotoSansMonoCJKsc-Bold-common.woff',
+  'NotoSansMonoCJKsc-Bold.woff',
   'NotoSansMonoCJKsc-Regular-common.woff',
   'NotoSansMonoCJKsc-Regular.woff',
 ];

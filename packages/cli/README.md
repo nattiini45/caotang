@@ -11,7 +11,7 @@ node dist/caotang.mjs scan --project ~/Writing/my-novel --format github --fail-o
 node dist/caotang.mjs mcp serve --project ~/Writing/my-novel      # the MCP server, as caotang-mcp serve
 ```
 
-`dist/caotang.mjs` is one file: the workspace packages and the MCP SDK are inlined, so it runs with a plain `node`. The PDFs' fallback fonts (CJK, emoji, Arabic, Hebrew, Devanagari) are read from `fonts/` beside it, and so is the WebP decoder, `webp_dec.wasm`, which draws a WebP picture on a contact sheet; copy the folder and that file with the bundle. `caotang-mcp` stays the bin of `@caotang/mcp-server` and of the `.mcpb` bundle.
+`dist/caotang.mjs` is one file: the workspace packages and the MCP SDK are inlined, so it runs with a plain `node`. The PDFs' fallback fonts (CJK in Regular and Bold, emoji, Arabic, Hebrew, Devanagari) are read from `fonts/` beside it, and so is the WebP decoder, `webp_dec.wasm`, which draws a WebP picture on a contact sheet; copy the folder and that file with the bundle. `caotang-mcp` stays the bin of `@caotang/mcp-server` and of the `.mcpb` bundle.
 
 ## Rules the code keeps
 

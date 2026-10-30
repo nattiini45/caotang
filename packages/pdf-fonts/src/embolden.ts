@@ -3,7 +3,9 @@
  * sheet uses it today (`packages/exporter/src/cid-embedding.ts`, `render-contact-sheet.ts`); the screenplay PDF draws no bold yet,
  * and a bold heading there would take its fallback runs from here too.
  *
- * Noto Sans Mono CJK SC and Noto Emoji are embedded in their Regular weight only. A run set in bold (on the contact sheet, the header
+ * Noto Emoji is embedded in its Regular weight only. Noto Sans Mono CJK SC has a vendored Bold (`NotoSansMonoCJKsc-Bold.woff`, #253),
+ * which the contact sheet sets CJK in a bold place in when the host passes it; the stroke is the fallback for CJK when the Bold is not
+ * passed or cannot be read, and the only bold of a monochrome emoji. A run set in bold this way (on the contact sheet, the header
  * title, the page label, the number chip) is drawn in the same glyphs with text rendering mode 2 (`2 Tr`: fill and stroke), the
  * stroke in the ink of the fill, with round joins (`1 j`), so the glyph grows by half the line width on every side. Mode 2 changes
  * no advance, so each glyph also takes a character spacing (`Tc`) of one line width, which gives back what the stroke took from the
@@ -15,7 +17,8 @@
  * 11 pt) and the chip (8 pt) at 0.02, 0.025, 0.035 and 0.05 in pdf.js and MuPDF, and checked in Poppler (`pdftocairo`, 300 dpi) at
  * 8, 11 and 14 pt: 0.02 is the least that reads as bold beside Helvetica-Bold, 0.025 is clearly bold at every size with the counters
  * of 鬱 and 龘 still open, from 0.035 those counters start to close (in Poppler 龘 fills in at 14 pt) and at 0.05 the dense characters
- * are blots. A real Bold weight of the font would be a second vendored file and a second download; it is not built.
+ * are blots. The real Bold of the CJK font is a second vendored file and a second download, read only on use; the issue that added
+ * it (#253) compared it with this stroke in Poppler at the same sizes.
  */
 
 /** The stroke's line width as a fraction of the font size. */
