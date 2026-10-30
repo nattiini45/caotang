@@ -1174,8 +1174,8 @@ describe('the three view commands, through the shipped registry with no fakes', 
     // The paper-photo round trip adds `shot.importImages`, the batch form of `shot.importImage`, a descriptor here with its apply in the store: 50 + 1 = 51.
     // The writer's macros add `macro.save` and `macro.delete`, descriptors here and applies in the store: 54 + 2 = 56.
     // The writer's hooks add `hook.save` and `hook.delete`, descriptors here and applies in the store: 56 + 2 = 58.
-    // The picture registry adds `asset.import`, `asset.importBatch` and `asset.setMeta`, descriptors here and applies in the store: 58 + 3 = 61.
-    expect(COMMAND_NAMES.length).toBe(61);
+    // The picture registry adds `asset.import`, `asset.importBatch` and `asset.setMeta`, descriptors here and applies in the store: 58 + 3 + 2 (the AV script's `script.setShowMeta` and `script.setEpisodeMeta`) = 63.
+    expect(COMMAND_NAMES.length).toBe(63);
   });
 
   it('an agent may emit a view command, and it is granted as a read', () => {

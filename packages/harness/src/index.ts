@@ -300,6 +300,7 @@ export { CONTINUITY_MAX_DOCS } from './tools/ports.js';
 export {
   createContextPort,
   dropLinesOf,
+  forecastReads,
   mergePreviews,
   withRole,
   type AssembledCall,
@@ -307,6 +308,8 @@ export {
   type ContextPortOptions,
   type ContextRequest,
 } from './agent/context.js';
+// What a turn read from the provider's prompt cache, and the planner calls that missed it (agent-harness §5, "Prompt cache").
+export { CACHE_MISS_CAUSES, CacheWatch, missCause, stableToolOrder, type CacheMiss, type TurnCacheUse } from './agent/cache-watch.js';
 // The Context section's preview: the prompt a scene draft would send, assembled as the loop assembles it (context-assembly §5).
 export { instructionsReport, scenePromptPreview, type InstructionsReport, type ScenePreviewOptions } from './agent/step-preview.js';
 // The plan card renders a step's prompt preview; the app reads its shape from here, not from @caotang/context.

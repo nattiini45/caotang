@@ -198,6 +198,8 @@ export const KNOWN_NODE_KEYS = new Set([
   'kind',
   'shot',
   'dialogue',
+  'showMeta',
+  'episodeMeta',
   'style',
 ]);
 

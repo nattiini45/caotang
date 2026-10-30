@@ -1720,6 +1720,9 @@ export function createProjectCommandRegistry(
   registry['screenplay.import'] = { descriptor: registry['screenplay.import'].descriptor, apply: narrow(script['screenplay.import']) };
   registry['dialogue.importInk'] = { descriptor: registry['dialogue.importInk'].descriptor, apply: narrow(script['dialogue.importInk']) };
   registry['dialogue.setMeta'] = { descriptor: registry['dialogue.setMeta'].descriptor, apply: narrow(script['dialogue.setMeta']) };
+  // The AV script's show and episode settings (av-script.md §2), applies of the store's own.
+  registry['script.setShowMeta'] = { descriptor: registry['script.setShowMeta'].descriptor, apply: narrow(script['script.setShowMeta']) };
+  registry['script.setEpisodeMeta'] = { descriptor: registry['script.setEpisodeMeta'].descriptor, apply: narrow(script['script.setEpisodeMeta']) };
 
   const exportPort = options.exporter;
   if (exportPort !== undefined) {

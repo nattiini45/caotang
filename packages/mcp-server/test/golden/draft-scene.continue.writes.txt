@@ -15,8 +15,6 @@ Tools:
 
 # Project
 Title: The Lighthouse Keeper
-Documents: 3. Words: 25.
-Session: progress unavailable.
 Statuses: draft (Draft), revised (Revised), final (Final).
 Labels: none.
 Saved filters: 0. Goals: 0.
@@ -70,5 +68,9 @@ Brief: Carry on into the morning.
 
 Tool: scene.draft
 Parameters: {"mode":"continue"}
+
+# Status
+Documents: 3. Words: 25.
+Session: progress unavailable.
 
 Show the draft to the writer; do not write it into the project on your own. If they want to keep it, offer to store it as a new document in the same chapter with doc.import, which asks them to confirm. The existing text stays as it is.

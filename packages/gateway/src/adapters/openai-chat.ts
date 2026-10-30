@@ -144,7 +144,40 @@ function usageOf(raw: unknown): Usage | undefined {
   // A figure that cannot be a count (negative, or not finite) is no usage.
   if (typeof prompt !== 'number' || typeof completion !== 'number') return undefined;
   if (!(Number.isFinite(prompt) && prompt >= 0 && Number.isFinite(completion) && completion >= 0)) return undefined;
-  return { promptTokens: prompt, completionTokens: completion };
+  // The breakdown is a subset of the two totals on this route (issue #78, step 2): OpenAI's `prompt_tokens_details`, and
+  // DeepSeek's `prompt_cache_hit_tokens`, both counted inside `prompt_tokens`.
+  const promptDetails = recordOf(record.prompt_tokens_details) ?? recordOf(record.input_tokens_details);
+  const completionDetails = recordOf(record.completion_tokens_details) ?? recordOf(record.output_tokens_details);
+  return withBreakdown(
+    { promptTokens: prompt, completionTokens: completion },
+    {
+      cached: promptDetails?.cached_tokens ?? record.prompt_cache_hit_tokens,
+      written: promptDetails?.cache_write_tokens,
+      reasoning: completionDetails?.reasoning_tokens,
+    },
+  );
+}
+
+function recordOf(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+}
+
+/**
+ * A usage with whichever breakdown counts the provider reported, each a count no larger than the total it is part of. A figure
+ * that is not a count, or that is larger than its total, is left out rather than trusted.
+ */
+export function withBreakdown(usage: Usage, raw: { readonly cached?: unknown; readonly written?: unknown; readonly reasoning?: unknown }): Usage {
+  const count = (value: unknown, total: number): number | undefined =>
+    typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= total ? value : undefined;
+  const cached = count(raw.cached, usage.promptTokens);
+  const written = count(raw.written, usage.promptTokens);
+  const reasoning = count(raw.reasoning, usage.completionTokens);
+  return {
+    ...usage,
+    ...(cached === undefined ? {} : { cachedPromptTokens: cached }),
+    ...(written === undefined ? {} : { cacheWritePromptTokens: written }),
+    ...(reasoning === undefined ? {} : { reasoningTokens: reasoning }),
+  };
 }
 
 /** The reasoning channel's field names across chat-compatible providers. */

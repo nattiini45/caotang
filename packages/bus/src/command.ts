@@ -21,6 +21,7 @@ import type {
   DialogueSetMetaParams,
   ScreenplayImportParams,
 } from './descriptors-script.js';
+import type { ScriptSetEpisodeMetaParams, ScriptSetShowMetaParams } from './descriptors-av-script.js';
 import type { RecipeScriptFont, SceneNumbersOption } from './descriptors-project.js';
 import type { HookDraft } from './hook-rules.js';
 import type { MacroDraft } from './macro-rules.js';
@@ -136,6 +137,10 @@ export const COMMAND_NAMES = [
   'screenplay.import',
   'dialogue.importInk',
   'dialogue.setMeta',
+  // The AV script's show and episode settings (av-script.md §2). Their applies are the store's (`commands-script.ts`), and
+  // their descriptors are `descriptors-av-script.ts`.
+  'script.setShowMeta',
+  'script.setEpisodeMeta',
   // The project's skills (extensibility.md §10): the writer's own instructions for the agent. All four are `issuedBy: 'user'` only
   // (`agentRisk: 'never'`), so an agent never installs, edits, enables or removes a skill. Their applies are the store's
   // (`commands-skills.ts`), and `skill.import` needs the staged files the host holds.
@@ -217,7 +222,7 @@ export interface ValidationNode {
   readonly id: string;
   readonly parentId: string | null;
   readonly type: string;
-  /** The media-track kind marker (screenplay, storyboard, branching). Absent on a plain node. */
+  /** The media-track kind marker (screenplay, storyboard, branching, show, av-script). Absent on a plain node. */
   readonly kind?: string;
   readonly title: string;
   readonly status: string | null;
@@ -627,6 +632,8 @@ export interface CommandParams {
   'screenplay.import': ScreenplayImportParams;
   'dialogue.importInk': DialogueImportInkParams;
   'dialogue.setMeta': DialogueSetMetaParams;
+  'script.setShowMeta': ScriptSetShowMetaParams;
+  'script.setEpisodeMeta': ScriptSetEpisodeMetaParams;
   'skill.import': SkillImportParams;
   'skill.write': SkillWriteParams;
   'skill.delete': SkillDeleteParams;
@@ -796,14 +803,14 @@ export type CodexUpsertOp = {
 /**
  * `binder.create`'s params. The media track (storyboard.md §2.1, dialogue-narrative.md §2.1, screenplay.md §2.1)
  * widens `type` with the two media node types and adds `kind`, the marker a node carries. The validator pairs
- * them: a folder is plain or `storyboard`, a document is plain or `screenplay`, a dialogue container is `branching`,
- * and a shot takes no kind, because its kind is its type.
+ * them: a folder is plain, `storyboard` or `show`, a document is plain, `screenplay` or `av-script` (av-script.md §2), a
+ * dialogue container is `branching`, and a shot takes no kind, because its kind is its type.
  */
 export type BinderCreateParams = {
   parentId: string;
   type: 'folder' | 'document' | 'shot' | 'dialogue';
   title: string;
-  kind?: 'screenplay' | 'storyboard' | 'branching';
+  kind?: 'screenplay' | 'storyboard' | 'branching' | 'show' | 'av-script';
 };
 
 export type BinderMoveParams = { nodeId: string; newParentId: string; index: number };

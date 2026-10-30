@@ -2,13 +2,15 @@
 
 scene.draft, continue, with the forward outline asked for.
 
-Prompt: 1499 tokens against a total budget of 12000; over budget: no.
+Prompt: 1502 tokens against a total budget of 12000; over budget: no.
+
+User parts: L1, L2 (cache boundary), L3, L4, L5, L6, L7, status.
 
 | layer | included | base | budget | tokens | kept | dropped |
 |---|---|---|---|---|---|---|
 | L0 | yes | - | - | 295 | 0 | 0 |
 | LI | no | 1500 | - | 0 | 0 | 0 |
-| L1 | yes | 1500 | 1500 | 79 | 0 | 0 |
+| L1 | yes | 1500 | 1500 | 82 | 0 | 0 |
 | L2 | yes | 1000 | 1000 | 91 | 4 | 3 |
 | L3 | yes | 1200 | 1200 | 72 | 4 | 0 |
 | L4 | yes | 2000 | 3128 | 68 | 4 | 0 |
@@ -41,8 +43,6 @@ Tools:
 ```text
 # Project
 Title: Harbor Notes
-Documents: 6. Words: 930.
-Session: 412 words today, target 1,000.
 Statuses: draft (Draft), revised (Revised), final (Final).
 Labels: none.
 Saved filters: 0. Goals: 0.
@@ -147,4 +147,8 @@ Write the next scene and set up the storm.
 
 Tool: scene.draft
 Parameters: {"doc":"n_ch3","mode":"continue"}
+
+# Status
+Documents: 6. Words: 930.
+Session: 412 words today, target 1,000.
 ```

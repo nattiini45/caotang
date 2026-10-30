@@ -46,7 +46,10 @@ export const BUDGET = {
     // 1,516.6 kB measured with the result schemas of every callable row (#58), whose specs the registry builds at start; the cap is that plus about 1%.
     // 1,532.9 kB measured with those and hooks (#59) together: the bus's hook reader and commands, the store's loader and serializer, the harness's runner and
     // its checks, and the plan card's hook line, which put the entry 0.9 kB over the old cap; the cap is that plus about 1%.
-    index: 1_549_000,
+    // 1,549.2 kB measured with prompt caching (#86): the gateway's cache parts, policy and per-provider markers, the assembler's per-layer
+    // parts and cache boundary, the harness's cache watch and the Settings switch, on top of main's context limits (#254), which put the
+    // entry 0.2 kB over the old cap; the cap is that plus about 1%.
+    index: 1_565_000,
   },
   /** The first load, gzip: the entry chunk and the chunks index.html loads with it. */
   // 772.4 kB measured with Colour emoji, against 769.1 kB before it; 779.3 kB with Colour emoji and Agent rules together (Wave 14); 786.4 kB with the agent run log and resume.
@@ -58,7 +61,9 @@ export const BUDGET = {
   // 867.7 kB measured with the planner's cut-reply handling (#97): the loop's cut words and retry, and the plan card's cut-reply note,
   // which put the first load 0.7 kB over the old 867.0 kB ceiling, so it is raised to that plus about 1%.
   // The input-method guard in every Enter handler and the keymap (#188) adds about 0.05 kB on top; the 876.0 kB ceiling covers both.
-  initialGzip: 876_000,
+  // 877.5 kB measured with the picture registry (#152): the asset records, the backfill on open and the use scan, with the import
+  // pipeline and metadata strip loaded on first import; the ceiling is that plus about 1%.
+  initialGzip: 886_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).

@@ -159,6 +159,8 @@ function renderGolden(c: GoldenCase, assembled: AssembledPrompt): string {
     '',
     `Prompt: ${assembled.estimate.promptTokens} tokens against a total budget of ${assembled.totalBudget}; over budget: ${assembled.overBudget ? 'yes' : 'no'}.`,
     '',
+    `User parts: ${assembled.parts.map((part) => `${part.layer}${part.cacheBoundary === true ? ' (cache boundary)' : ''}`).join(', ')}.`,
+    '',
     '| layer | included | base | budget | tokens | kept | dropped |',
     '|---|---|---|---|---|---|---|',
     ...rows,

@@ -59,6 +59,7 @@ import {
 import {
   addDocument,
   addFolder,
+  addNode,
   createEmptyManifest,
   createProjectCommandRegistry,
   createProjectState,
@@ -75,6 +76,9 @@ const STORM = 'n_STORM000000';
 const OTHER = 'n_OTHER000000';
 const ENTRY = 'c_ELENA000000';
 const CELLAR = 'n_CELLAR000000';
+/** A show folder and an episode in it, for the AV script settings (av-script.md §2). */
+const SHOW = 'n_SHOW00000000';
+const EPISODE = 'n_EPISODE00001';
 
 const TICK = 1_760_000_000_000;
 const clock = { now: () => TICK };
@@ -150,6 +154,8 @@ interface Case {
   readonly coherence?: boolean;
   /** The case needs a dialogue container in the state: the settings command names one. */
   readonly dialogue?: boolean;
+  /** The case needs a show folder and an episode in the state: the AV script settings commands name them. */
+  readonly show?: boolean;
   /** The case needs a skill in the state: the skill commands name one. */
   readonly skill?: boolean;
   /** The case needs a memory note in the state: the memory commands name one. */
@@ -514,6 +520,20 @@ const CASES: readonly Case[] = [
     digestMentions: 'changed the dialogue settings of "The Cellar"',
     dialogue: true,
   },
+  {
+    name: 'script.setShowMeta',
+    params: { nodeId: SHOW, patch: { ratePreset: 'broadcast' } },
+    titles: ['The Long Way'],
+    digestMentions: 'changed the show settings of "The Long Way"',
+    show: true,
+  },
+  {
+    name: 'script.setEpisodeMeta',
+    params: { nodeId: EPISODE, patch: { episode: 12 } },
+    titles: ['Episode 12'],
+    digestMentions: 'changed the episode settings of "Episode 12"',
+    show: true,
+  },
 ];
 
 describe('§8 — the activity row for every shipped store apply', () => {
@@ -578,6 +598,10 @@ describe('§8 — the activity row for every shipped store apply', () => {
       }
       if (testCase.dialogue === true) {
         addDocument(state, { parentId: 'manuscript', title: 'The Cellar', type: 'dialogue', kind: 'branching', body: '=== Cellar ===\nHello.\n-> END\n', now: OPENED, id: CELLAR });
+      }
+      if (testCase.show === true) {
+        addNode(state, { parentId: 'manuscript', title: 'The Long Way', kind: 'show', now: OPENED, id: SHOW });
+        addDocument(state, { parentId: SHOW, title: 'Episode 12', kind: 'av-script', body: '## Open\nHOST: Hi.\n', now: OPENED, id: EPISODE });
       }
       const h = harnessOver(state);
       h.run(cmd(testCase.name, testCase.params));

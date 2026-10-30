@@ -33,6 +33,7 @@ import {
 } from './descriptors-coherence.js';
 import * as shotImageDescriptors from './descriptors-shot-image.js';
 import * as pictureDescriptors from './descriptors-pictures.js';
+import * as avScriptDescriptors from './descriptors-av-script.js';
 import * as scriptDescriptors from './descriptors-script.js';
 import * as skillDescriptors from './descriptors-skills.js';
 import * as agentFileDescriptors from './descriptors-agent-files.js';
@@ -139,6 +140,9 @@ export function buildRegistry(): CommandRegistry {
     'screenplay.import': { descriptor: scriptDescriptors.screenplayImport },
     'dialogue.importInk': { descriptor: scriptDescriptors.dialogueImportInk },
     'dialogue.setMeta': { descriptor: scriptDescriptors.dialogueSetMeta },
+    // The AV script's show and episode settings (av-script.md §2). Descriptor only; the applies are the store's (`commands-script.ts`).
+    'script.setShowMeta': { descriptor: avScriptDescriptors.scriptSetShowMeta },
+    'script.setEpisodeMeta': { descriptor: avScriptDescriptors.scriptSetEpisodeMeta },
     // The project's skills (extensibility.md §10). User-only: every descriptor is `agentRisk: 'never'`. The applies are the store's
     // (`commands-skills.ts`), and `skill.import` is registered only when the host injects its staging.
     'skill.import': { descriptor: skillDescriptors.skillImport },

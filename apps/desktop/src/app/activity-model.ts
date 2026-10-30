@@ -12,7 +12,7 @@
 import type { ActivityEntry, CommandName, UndoGroup } from '@caotang/bus';
 import { CHECKPOINT_LABEL, type TurnReport } from '@caotang/harness';
 
-import { phaseLabel, type TurnView } from './agent-model.js';
+import { phaseLabel, promptCacheLines, type TurnView } from './agent-model.js';
 
 /** A person's name for each command. Typed over the closed set, so a new command is a compile error here. */
 export const COMMAND_TITLES: Readonly<Record<CommandName, string>> = {
@@ -69,6 +69,9 @@ export const COMMAND_TITLES: Readonly<Record<CommandName, string>> = {
   'screenplay.import': 'Script imported',
   'dialogue.importInk': 'Ink story imported',
   'dialogue.setMeta': 'Dialogue settings changed',
+  // The AV script's settings (av-script.md §2).
+  'script.setShowMeta': 'Show settings changed',
+  'script.setEpisodeMeta': 'Episode settings changed',
   // The project's skills (extensibility.md §10).
   'skill.import': 'Skill imported',
   'skill.write': 'Skill saved',
@@ -211,6 +214,7 @@ export function activityMarkdown(input: ActivityMarkdownInput): string {
       if (turn.report !== null) {
         lines.push(`- Summary: ${oneLine(turn.report.summary)}`);
         lines.push(`- Model calls: ${turn.report.modelCalls}; tokens in ${turn.report.tokens.promptTokens}, out ${turn.report.tokens.completionTokens}`);
+        for (const line of promptCacheLines(turn.report)) lines.push(`- ${line}`);
       }
       if (turn.checkpoint !== null) lines.push(`- Checkpoint: ${CHECKPOINT_LABEL} (undo group \`${turn.checkpoint.undoGroupId}\`)`);
       for (const card of turn.cards) {
@@ -261,3 +265,4 @@ function endedWord(report: TurnReport): string {
       return 'stopped';
   }
 }
+
