@@ -1,6 +1,6 @@
 # Pictures and attachments — one picture registry, links, inline pictures in prose
 
-> Status: **specified, not built.** Nothing in this spec runs in the current build; the decisions in §12 bind the work when it is cut. What exists today is listed in §0, and only that is built. The comic-book track that shares this registry is its own spec, [comics.md](comics.md).
+> Status: **partly built.** The registry (A1, #152) is built: `assets[]` and its load rules (§2.1), the pure `packages/pictures` package, `asset.import`, `asset.importBatch` and `asset.setMeta` (§2.4), the limits (§6.1), the dedup and the open's backfill (§6.2) and the import pipeline (§6.4), with the cover and shot imports re-based on it. Everything else in this spec (links, the board, inline pictures, export, the agent and MCP rows, handwriting) is **specified, not built**; the decisions in §12 bind that work when it is cut. §0 lists what existed before the registry. The comic-book track that shares this registry is its own spec, [comics.md](comics.md).
 > Scope: pictures attached at project, chapter (folder), page (document) and paragraph level; pictures placed in prose and carried into every export; the import pipeline (HEIC, size, EXIF); vision input for the agent; MCP in both directions; handwriting transcription (#146); MCP image content blocks (#145).
 > Cross-refs: asset files and ids = [storyboard.md](storyboard.md) §2.2 · additive manifest keys = [project-format.md](project-format.md) §2 · anchors and the resolve ladder = [edit-anchors.md](edit-anchors.md) · editor schema (`image` node) = [editor-engine.md](editor-engine.md) §3.1/§3.3 · compile hosts = [exporter.md](exporter.md) · storage posture and the eviction banner = [ui-modules.md](ui-modules.md) §5.3 · harness rows = [agent-harness.md](agent-harness.md) §10 · MCP = [extensibility.md](extensibility.md) · timeline consumer = [timeline.md](timeline.md) §9.1 · comics = [comics.md](comics.md).
 
@@ -122,9 +122,9 @@ Fixtures: paragraph edited in place, moved, split, deleted (→ orphaned), whole
 
 | Command | agentRisk / undo | Notes |
 |---|---|---|
-| `asset.import {stagingId, links?: AssetTarget[], caption?, alt?, source?}` | write-auto · undo removes record and links, **the file stays** | Runs the import pipeline (§6.4). Hash first; a match returns the existing id. `project.importAsset` and `shot.importImage(s)` are re-implemented on it, keeping their names and params. |
-| `asset.importBatch {items[]}` | write-auto · one undo group | All-or-nothing, as `shot.importImages`. The large-photo prompt is asked once per batch. |
-| `asset.setMeta {assetId, patch, expect}` | write-auto · inverse | caption, alt, decorative, tags, note, source label. |
+| `asset.import {stagingId, links?: AssetTarget[], caption?, alt?, source?, largePhotos?}` | write-auto · undo removes record and links, **the file stays** | Runs the import pipeline (§6.4). Hash first; a match returns the existing id. `project.importAsset` and `shot.importImage(s)` are re-implemented on it, keeping their names and params. **Built (#152)** without `links`, which arrives with A2 (#153); `source` is `{kind: 'import'\|'paste', label?}` from the writer, and `largePhotos` (`'keep'`, the default, or `'working-copies'`) carries the batch's answer to the large-photo question. The cover and shot imports keep their own undo (the reference goes back) and leave the file and its record. |
+| `asset.importBatch {items[], largePhotos?}` | write-auto · one undo group | All-or-nothing, as `shot.importImages`. The large-photo prompt is asked once per batch, and its answer is `largePhotos`. **Built (#152)**: up to 200 items; the same bytes twice in a batch are one file. |
+| `asset.setMeta {assetId, patch, expect}` | write-auto · inverse | caption, alt, decorative, tags, note, source label. **Built (#152)** for caption, alt, decorative, tags and source label (`sourceLabel`); `note` is a link's and arrives with A2. `expect` names the patched keys with their values now (`null` for none), and a record that has moved on is refused as a revision conflict. |
 | `asset.link` / `asset.unlink` / `asset.reorderLinks` / `asset.repin` | write-auto · inverse | `repin` re-captures an orphaned or moved paragraph anchor from a selection. |
 | `asset.relink {pairs[]}` | write-auto · inverse | Load-time "renamed outside Caotang" re-link (§6.3), one batch. |
 | `asset.delete {assetId}` | write-confirm · compensate | Removes record and links; the file stays until the sweep. Refused while a typed use exists, with the uses listed. |
@@ -164,11 +164,13 @@ One transcoder path (the `PictureTranscoder` port) with per-target profiles. All
 
 ### 6.1 Limits
 
-`COVER_MAX_BYTES` becomes `PICTURE_MAX_BYTES` (16 MB, unchanged), exported from `packages/pictures`. Formats are PNG, JPEG and WebP. **SVG is refused** (active content in EPUB and MCP). A project soft budget warns at 500 MB of assets in Settings › Data. `navigator.storage.persist()` and `estimate()` run at the first picture import.
+`COVER_MAX_BYTES` becomes `PICTURE_MAX_BYTES` (16 MB, unchanged), exported from `packages/pictures`. Formats are PNG, JPEG and WebP. **SVG is refused** (active content in EPUB and MCP). A project soft budget warns at 500 MB of assets in Settings › Data. `navigator.storage.persist()` and `estimate()` run at the first picture import. Built (#152): the cap, the formats and the SVG refusal (`COVER_MAX_BYTES` stays as an alias of `PICTURE_MAX_BYTES`); the budget and `persist()` belong to A6.
 
 ### 6.2 Dedup by hash, and the backfill
 
 `crypto.subtle.digest('SHA-256')` runs inside the async apply. A hash equal to a record's returns that id, writes no file and adds only the links. A hash equal to an unrecorded file on disk (left by an undone import) re-creates the record over it. Ids stay random; the hash is never the file name. On open, every listed `assets/` file used by cover, shots, `visualRefs` or an inline image gets a record (hash computed in idle time), written with the next save, the way `language` and `identifier` were back-filled.
+
+As built (#152): the app runs the backfill once per session, after the open's image check and against the same authoritative listing (`backfillAssetRecords` in `packages/store/src/asset-backfill.ts`), so a reference the check dropped never gets a record; the bytes are hashed as stored and never rewritten. The MCP server and the CLI do not run it yet. The "unrecorded file left by an undone import" is found within the session: an undo of `asset.import` remembers the record it took out, by hash, and the same bytes imported again re-create it over the file with no second write. After a reload such a file waits for the sweep (A6).
 
 ### 6.3 Load-time reconciliation
 
@@ -183,6 +185,8 @@ A record whose file is missing, plus an unrecorded file with the same `sha256`, 
 5. Hash the bytes as stored, then dedup (§6.2).
 
 `QuotaExceededError` keeps the file staged and offers *Attach a folder* or *Export a bundle*; nothing fails silently.
+
+As built (#152): the pipeline is `preparePicture` in `packages/pictures/src/pipeline.ts`, pure over bytes and an injected `PictureDecoder` (`apps/desktop/src/app/picture-decoder.ts` in the app: `createImageBitmap` with resize options and `imageOrientation: 'from-image'`, an `OffscreenCanvas` blank check retried once at half the size). The pixel size is read from the header, so nothing is decoded to learn it. A host without a decoder (Node, the MCP server) refuses HEIC with the remedy and keeps large originals; a blank or larger working copy also keeps the original. The strip (`exif.ts`) removes the GPS IFD, the maker note and the body, lens and camera serial numbers in place, zeroing their bytes, and drops an XMP packet that names a GPS property; an EXIF block it cannot walk is dropped whole. The large-photo answer is the command's `largePhotos` param; the session's `importPictures` asks once per batch and remembers the answer while the project is open. No screen asks it yet (the picture surfaces are A4, #154), and the cover and shot imports, whose params are unchanged, keep originals. A failed write refuses the command and names the files already written; the staged-bytes-kept and *Attach a folder* offer arrive with the picture surfaces.
 
 ### 6.5 Thumbnails, bundle, folder
 
@@ -263,7 +267,7 @@ Milestone **Pictures**, epic #148. Issues: A0 #151, A1 #152, A2 #153, A4 #154, A
 | # | Title | Scope | Done when | Needs |
 |---|---|---|---|---|
 | A0 | `docs(architecture): specify pictures and attachments` | This spec, ARCHITECTURE rows, decisions.md lines | Spec merged, decisions recorded | — |
-| A1 | `feat(store): a picture registry with hashes, dedup and a backfill of existing images` | `assets[]`, `packages/pictures`, `asset.import(Batch)`, `asset.setMeta`, `alt`/`decorative`; the import pipeline (§6.4: HEIC, pixel budget, GPS strip, working-copy prompt); cover and shot imports re-based; backfill | Old projects open with a record for every used file; the same bytes imported twice write one file; GPS is gone from an imported JPEG with Orientation kept; cover and shot undo unchanged | A0 |
+| A1 | `feat(store): a picture registry with hashes, dedup and a backfill of existing images` | `assets[]`, `packages/pictures`, `asset.import(Batch)`, `asset.setMeta`, `alt`/`decorative`; the import pipeline (§6.4: HEIC, pixel budget, GPS strip, working-copy prompt); cover and shot imports re-based; backfill | Old projects open with a record for every used file; the same bytes imported twice write one file; GPS is gone from an imported JPEG with Orientation kept; cover and shot undo unchanged. **Built (#152).** | A0 |
 | A2 | `feat(store): link pictures to the project, a folder or a document` | `assetLinks[]` with project and node targets, link/unlink/reorder, the deleteNode cascade, `role: 'card'` | Links survive save, reload and bundle; delete plus undo restores them | A1 |
 | A4 | `feat(pictures): a Pictures section in the Inspector and a project picture board` | Inspector section, `PictureBoard.tsx`, filters, lightbox, size meter, "Lost their paragraph" list | Upload, caption, alt, tag and link from both surfaces; e2e drop plus undo | A2 |
 | A5 | `feat(corkboard): show each card's picture` | `Corkboard.tsx` M/L | The card picture shows and survives reorder | A2 |

@@ -30,7 +30,10 @@ import {
   type ShotImportImagesParams,
 } from '@caotang/bus';
 
-import { sniffCoverImage, COVER_MAX_BYTES, type ApplyClock, type ProjectAssetPort } from './commands-project.js';
+import type { PreparedPicture } from '@caotang/pictures';
+
+import { commitRecords, preparedFromStaging, storePicture, type StoredPicture } from './commands-pictures.js';
+import type { ApplyClock, ProjectAssetPort } from './commands-project.js';
 import type { ShotCommandPort } from './commands.js';
 import type { TreeNode } from './manifest.js';
 import { nodeById, type ProjectState } from './state.js';
@@ -39,11 +42,6 @@ type ImportApply<P> = CommandApply<P, ProjectState>;
 
 /** The node type a shot card is (storyboard.md §2.1). The store does not import the storyboard module to name it. */
 const SHOT_NODE_TYPE = 'shot';
-
-/** A new asset id, `a_` and ten Crockford base32 characters, the shape the storyboard's image store uses. */
-function mintAssetId(): string {
-  return `a_${newId('c').slice(2)}`;
-}
 
 /** The inverse command, minted as the user's own gesture, as the store's other inverses are (command-bus §4). */
 function inverseCommand<P>(name: 'shot.setMeta', params: P, clock: ApplyClock): Command<P> {
@@ -73,45 +71,20 @@ function shotToImportOnto(state: ProjectState, nodeId: string): TreeNode {
   return node;
 }
 
-/** What a staged file is, or a refusal that writes nothing: held, within the size cap, and a picture by its leading bytes. */
-function pictureOf(assets: ProjectAssetPort, stagingId: string, which?: string): { readonly bytes: Uint8Array; readonly extension: string } {
-  const bytes = assets.staging.take(stagingId);
-  if (bytes === undefined) {
-    throw new ApplyRefusal({
-      code: 'not-found',
-      message: `${which ?? 'the image'} is no longer held, so nothing was imported`,
-      target: 'stagingId',
-      correctiveHint: 'choose the image again',
-    });
-  }
-  if (bytes.length > COVER_MAX_BYTES) {
-    throw new ApplyRefusal({
-      code: 'limit-exceeded',
-      message: `${which ?? 'the image'} is ${Math.round(bytes.length / (1024 * 1024))} MB, and an image may be at most ${COVER_MAX_BYTES / (1024 * 1024)} MB`,
-      target: 'stagingId',
-      correctiveHint: 'use a smaller image of the same picture',
-    });
-  }
-  const kind = sniffCoverImage(bytes);
-  if (kind === undefined) {
-    throw new ApplyRefusal({
-      code: 'invalid-params',
-      message: `${which ?? 'the file'} is not a PNG, JPEG or WebP image, which are the formats a shot can hold`,
-      target: 'stagingId',
-      correctiveHint: 'choose a PNG, JPEG or WebP file',
-    });
-  }
-  return { bytes, extension: kind.extension };
+/**
+ * What a staged file is, or a refusal that writes nothing: held, and through the picture registry's pipeline (commands-pictures.ts):
+ * within the size cap, a picture by its leading bytes, its location stripped and its hash taken.
+ */
+function pictureOf(assets: ProjectAssetPort, stagingId: string, which?: string): Promise<PreparedPicture> {
+  return preparedFromStaging(assets, stagingId, { what: which ?? 'the image' });
 }
 
 function shotImportImageApply(clock: ApplyClock, assets: ProjectAssetPort, shots: ShotCommandPort): ImportApply<ShotImportImageParams> {
   return async (state, params, context: ApplyContext) => {
     const node = shotToImportOnto(state, params.nodeId);
-    const { bytes, extension } = pictureOf(assets, params.stagingId);
-
-    const assetId = mintAssetId();
-    const path = `assets/${assetId}.${extension}`;
-    await assets.writeBytes(path, bytes);
+    const picture = await pictureOf(assets, params.stagingId);
+    const stored = await storePicture(state, assets, picture, { source: { kind: 'import' } }, [], clock);
+    const { assetId, path } = stored;
 
     // Everything after the await is synchronous, and reads the shot again, because the project may have moved while the
     // file was written. The write goes through the storyboard module's own guard, with the value it expects to replace.
@@ -125,6 +98,7 @@ function shotImportImageApply(clock: ApplyClock, assets: ProjectAssetPort, shots
       new Date(clock.now()),
     );
     if (!applied.ok) throw new ApplyRefusal(applied.error);
+    commitRecords(state, [stored]);
 
     // The inverse swaps the two values, as shot.setMeta's own does. The file it leaves behind is harmless (assets/ is not
     // read for shots that do not name it), and removing it here would make undo depend on a write this apply does not own.
@@ -165,22 +139,22 @@ function plural(count: number, one: string, many: string): string {
 function shotImportImagesApply(clock: ApplyClock, assets: ProjectAssetPort, shots: ShotCommandPort): ImportApply<ShotImportImagesParams> {
   return async (state, params, context: ApplyContext) => {
     // Everything is checked before the first byte is written: each shot, then each staged file (taken, so it is held no longer).
-    const staged = params.items.map((item) => {
-      const node = shotToImportOnto(state, item.nodeId);
-      return { item, node, picture: pictureOf(assets, item.stagingId, `the image for "${node.title}"`) };
-    });
+    const nodes = params.items.map((item) => ({ item, node: shotToImportOnto(state, item.nodeId) }));
+    const staged: { item: (typeof params.items)[number]; node: TreeNode; picture: PreparedPicture }[] = [];
+    for (const { item, node } of nodes) staged.push({ item, node, picture: await pictureOf(assets, item.stagingId, `the image for "${node.title}"`) });
 
     const written: { nodeId: string; assetId: string; path: string }[] = [];
+    const stored: StoredPicture[] = [];
     for (const { item, node, picture } of staged) {
-      const assetId = mintAssetId();
-      const path = `assets/${assetId}.${picture.extension}`;
+      let placed: StoredPicture;
       try {
-        await assets.writeBytes(path, picture.bytes);
+        placed = await storePicture(state, assets, picture, { source: { kind: 'import' } }, stored, clock);
       } catch (failure) {
+        const files = stored.filter((entry) => entry.written).length;
         const left =
-          written.length === 0
+          files === 0
             ? ''
-            : ` ${plural(written.length, 'file was', 'files were')} already written to the project's images, and no shot names ${written.length === 1 ? 'it' : 'them'}.`;
+            : ` ${plural(files, 'file was', 'files were')} already written to the project's images, and no shot names ${files === 1 ? 'it' : 'them'}.`;
         throw new ApplyRefusal({
           code: 'internal',
           message: `the image for "${node.title}" could not be saved (${failure instanceof Error ? failure.message : String(failure)}), so no shot was given a picture.${left}`,
@@ -188,10 +162,12 @@ function shotImportImagesApply(clock: ApplyClock, assets: ProjectAssetPort, shot
           correctiveHint: 'drop the pictures again once the project can be written to',
         });
       }
-      written.push({ nodeId: item.nodeId, assetId, path });
+      stored.push(placed);
+      written.push({ nodeId: item.nodeId, assetId: placed.assetId, path: placed.path });
     }
 
     // Everything after the last await is synchronous. The shots are read again, because the project may have moved while the files were written.
+    const filesWritten = stored.filter((entry) => entry.written).length;
     const changed: BatchedShot[] = [];
     const affected: { nodeId: string; title: string }[] = [];
     try {
@@ -204,7 +180,7 @@ function shotImportImagesApply(clock: ApplyClock, assets: ProjectAssetPort, shot
         if (!applied.ok) {
           throw new ApplyRefusal({
             ...applied.error,
-            message: `${applied.error.message} No shot was given a picture; ${plural(written.length, 'file was', 'files were')} written to the project's images, and no shot names ${written.length === 1 ? 'it' : 'them'}.`,
+            message: `${applied.error.message} No shot was given a picture; ${plural(filesWritten, 'file was', 'files were')} written to the project's images, and no shot names ${filesWritten === 1 ? 'it' : 'them'}.`,
           });
         }
         changed.push({ node, before, after, stampBefore });
@@ -215,6 +191,7 @@ function shotImportImagesApply(clock: ApplyClock, assets: ProjectAssetPort, shot
       restoreShots(changed);
       throw failure;
     }
+    commitRecords(state, stored);
 
     // One undo entry for the batch. A shot changed since is not overwritten: the undo throws, and the bus keeps the entry.
     context.undo.compensate(`take the pictures back off ${plural(changed.length, 'shot', 'shots')}`, () => {

@@ -309,7 +309,8 @@ describe('shot.importImages: several pictures, each on its shot, in one undo gro
       },
     };
     const registry = createProjectCommandRegistry({ clock, assets: failing, shots: shotPort });
-    const items = [SHOT, SHOT_WITH_FIELDS].map((nodeId) => ({ nodeId, stagingId: b.staging.stage(PNG) }));
+    // Two different pictures: the same bytes twice are one file since the picture registry dedups by hash (pictures.md §6.2).
+    const items = [SHOT, SHOT_WITH_FIELDS].map((nodeId, index) => ({ nodeId, stagingId: b.staging.stage(index === 0 ? PNG : JPEG) }));
     const refused = await executeAsync(command('shot.importImages', { items }), b.bus, registry);
 
     expect(refused.ok).toBe(false);
@@ -337,7 +338,8 @@ describe('shot.importImages: several pictures, each on its shot, in one undo gro
       shots: flaky,
     });
     const before = JSON.stringify(b.state.manifest.tree);
-    const items = [SHOT, SHOT_WITH_FIELDS].map((nodeId) => ({ nodeId, stagingId: b.staging.stage(PNG) }));
+    // Two different pictures: the same bytes twice are one file since the picture registry dedups by hash (pictures.md §6.2).
+    const items = [SHOT, SHOT_WITH_FIELDS].map((nodeId, index) => ({ nodeId, stagingId: b.staging.stage(index === 0 ? PNG : JPEG) }));
     const refused = await executeAsync(command('shot.importImages', { items }), b.bus, registry);
 
     expect(!refused.ok && refused.error.message).toContain('No shot was given a picture; 2 files were written');
@@ -359,7 +361,8 @@ describe('shot.importImages: several pictures, each on its shot, in one undo gro
     };
     const registry = createProjectCommandRegistry({ clock, assets: moving, shots: shotPort });
     const stamp = nodeById(b.state, SHOT)?.updatedAt;
-    const items = [SHOT, SHOT_WITH_FIELDS].map((nodeId) => ({ nodeId, stagingId: b.staging.stage(PNG) }));
+    // Two different pictures: the same bytes twice are one file since the picture registry dedups by hash (pictures.md §6.2).
+    const items = [SHOT, SHOT_WITH_FIELDS].map((nodeId, index) => ({ nodeId, stagingId: b.staging.stage(index === 0 ? PNG : JPEG) }));
     const refused = await executeAsync(command('shot.importImages', { items }), b.bus, registry);
 
     expect(refused.ok).toBe(false);

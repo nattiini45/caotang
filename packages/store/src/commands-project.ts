@@ -15,7 +15,6 @@
 
 import { newId } from '@caotang/ids';
 import {
-  ApplyRefusal,
   projectCommands,
   type ApplyContext,
   type Command,
@@ -32,6 +31,9 @@ import {
   type VocabularyRemoveParams,
   type VocabularyUpsertParams,
 } from '@caotang/bus';
+import { PICTURE_MAX_BYTES, type PictureDecoder } from '@caotang/pictures';
+
+import { commitRecords, preparedFromStaging, storePicture } from './commands-pictures.js';
 import { defaultLanguage, mintIdentifier } from './project-identity.js';
 import { defaultRecipe } from './create.js';
 import type { ExportRecipe, ProjectIdentity, VocabularyTerm } from './manifest.js';
@@ -81,6 +83,11 @@ export function createAssetStaging(): AssetStaging {
 export interface ProjectAssetPort {
   readonly staging: AssetStaging;
   writeBytes(path: string, bytes: Uint8Array): Promise<void>;
+  /**
+   * What the host can decode (pictures.md §6.4): HEIC to JPEG, and working copies of large photos. Absent (Node, a test), HEIC is
+   * refused with the remedy and large photos keep their originals.
+   */
+  readonly decoder?: PictureDecoder;
 }
 
 /* ------------------------------------------------------------------ *
@@ -93,8 +100,11 @@ export interface CoverImageKind {
   readonly mime: 'image/png' | 'image/jpeg' | 'image/webp';
 }
 
-/** The largest cover file the command takes. A cover is a few megabytes at most; a larger file is refused, not stored. */
-export const COVER_MAX_BYTES = 16 * 1024 * 1024;
+/**
+ * The largest cover file the command takes. Since the picture registry it is `PICTURE_MAX_BYTES` (pictures.md §6.1), the one cap
+ * every picture import keeps; the name stays for the callers that read it.
+ */
+export const COVER_MAX_BYTES = PICTURE_MAX_BYTES;
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const JPEG_SIGNATURE = [0xff, 0xd8, 0xff];
@@ -114,11 +124,6 @@ export function sniffCoverImage(bytes: Uint8Array): CoverImageKind | undefined {
   if (startsWithBytes(bytes, JPEG_SIGNATURE)) return { extension: 'jpg', mime: 'image/jpeg' };
   if (startsWithBytes(bytes, RIFF) && startsWithBytes(bytes, WEBP, 8)) return { extension: 'webp', mime: 'image/webp' };
   return undefined;
-}
-
-/** A new asset id, `a_` and ten Crockford base32 characters, the shape the storyboard's image store uses. */
-function mintAssetId(): string {
-  return `a_${newId('c').slice(2)}`;
 }
 
 /** A vocabulary id from a name: lower-case words joined by hyphens (`Act 1` → `act-1`), made unique among the terms. */
@@ -245,49 +250,25 @@ function projectSetMetadataApply(clock: ApplyClock): ProjectApply<ProjectSetMeta
  * Writes a staged image into `assets/` and makes it the cover. The file is written first and the reference set second:
  * a failed write leaves the project as it was, and the reference never names a file that was not written.
  *
- * The undo restores the previous reference and leaves the file in place. A file the reference no longer names is
- * harmless to every reader (`assets/` is ignored by the loader, and only the named cover is exported), and removing it
- * here would make undo depend on a write this apply does not own.
+ * The undo restores the previous reference and leaves the file, and its record in the picture registry, in place. A file the
+ * reference no longer names is harmless to every reader (`assets/` is ignored by the loader, and only the named cover is
+ * exported), and removing it here would make undo depend on a write this apply does not own.
  */
 function projectImportAssetApply(clock: ApplyClock, assets: ProjectAssetPort): ProjectApply<ProjectImportAssetParams> {
   return async (state, params, context) => {
-    const bytes = assets.staging.take(params.stagingId);
-    if (bytes === undefined) {
-      throw new ApplyRefusal({
-        code: 'not-found',
-        message: 'the image is no longer held, so nothing was imported',
-        target: 'stagingId',
-        correctiveHint: 'choose the image again',
-      });
-    }
-    if (bytes.length > COVER_MAX_BYTES) {
-      throw new ApplyRefusal({
-        code: 'limit-exceeded',
-        message: `the image is ${Math.round(bytes.length / (1024 * 1024))} MB, and a cover may be at most ${COVER_MAX_BYTES / (1024 * 1024)} MB`,
-        target: 'stagingId',
-        correctiveHint: 'use a smaller image of the same picture',
-      });
-    }
-    const kind = sniffCoverImage(bytes);
-    if (kind === undefined) {
-      throw new ApplyRefusal({
-        code: 'invalid-params',
-        message: 'the file is not a PNG, JPEG or WebP image, which is what a cover can be',
-        target: 'stagingId',
-        correctiveHint: 'choose a PNG, JPEG or WebP file',
-      });
-    }
+    // The picture registry's import (commands-pictures.ts): the pipeline, then the dedup by hash, then the file. The same bytes
+    // imported twice name one file.
+    const prepared = await preparedFromStaging(assets, params.stagingId, { what: 'the image' });
+    const stored = await storePicture(state, assets, prepared, { source: { kind: 'import' } }, [], clock);
 
-    const assetId = mintAssetId();
-    const path = `assets/${assetId}.${kind.extension}`;
-    await assets.writeBytes(path, bytes);
-
+    // Everything after the last await is synchronous.
+    commitRecords(state, [stored]);
     const project = identityOf(state);
     const previous = project.coverAssetId ?? null;
-    project.coverAssetId = assetId;
+    project.coverAssetId = stored.assetId;
     context.undo.inverse(inverseCommand('project.setMetadata', { patch: { coverAssetId: previous } }, clock));
     context.report({ affected: [{ nodeId: 'root', title: project.name }], summary: 'set the cover image' });
-    return { assetId, path };
+    return { assetId: stored.assetId, path: stored.path };
   };
 }
 

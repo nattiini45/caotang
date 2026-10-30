@@ -162,6 +162,7 @@ const KNOWN_TOP_LEVEL = new Set([
   'disabledSkills',
   'macros',
   'agent',
+  'assets',
 ]);
 
 /**

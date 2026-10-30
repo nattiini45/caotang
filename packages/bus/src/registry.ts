@@ -32,6 +32,7 @@ import {
   coherenceRemoveKnowledgeFact,
 } from './descriptors-coherence.js';
 import * as shotImageDescriptors from './descriptors-shot-image.js';
+import * as pictureDescriptors from './descriptors-pictures.js';
 import * as scriptDescriptors from './descriptors-script.js';
 import * as skillDescriptors from './descriptors-skills.js';
 import * as agentFileDescriptors from './descriptors-agent-files.js';
@@ -128,6 +129,11 @@ export function buildRegistry(): CommandRegistry {
     // Storyboard: the shot's image import. Descriptor only; its apply is the store's (`commands-shot-image.ts`).
     'shot.importImage': { descriptor: shotImageDescriptors.shotImportImage },
     'shot.importImages': { descriptor: shotImageDescriptors.shotImportImages },
+    // The picture registry (pictures.md §2.4). Descriptor only; the applies are the store's (`commands-pictures.ts`), and the two
+    // imports need the host's staged bytes.
+    'asset.import': { descriptor: pictureDescriptors.assetImport },
+    'asset.importBatch': { descriptor: pictureDescriptors.assetImportBatch },
+    'asset.setMeta': { descriptor: pictureDescriptors.assetSetMeta },
     // The two imports and the container settings (screenplay.md §2.2, dialogue-narrative.md §2.1, §4). The applies
     // are the store's (`commands-script.ts`), injected through `createProjectCommandRegistry`, so these are descriptor-only here.
     'screenplay.import': { descriptor: scriptDescriptors.screenplayImport },

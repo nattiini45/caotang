@@ -62,6 +62,10 @@ export const COMMAND_TITLES: Readonly<Record<CommandName, string>> = {
   'project.deleteGoal': 'Goal deleted',
   'shot.importImage': 'Image added to shot',
   'shot.importImages': 'Images added to shots',
+  // The picture registry (pictures.md §2.4).
+  'asset.import': 'Picture added',
+  'asset.importBatch': 'Pictures added',
+  'asset.setMeta': 'Picture details changed',
   'screenplay.import': 'Script imported',
   'dialogue.importInk': 'Ink story imported',
   'dialogue.setMeta': 'Dialogue settings changed',

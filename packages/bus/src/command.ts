@@ -125,6 +125,11 @@ export const COMMAND_NAMES = [
   'shot.importImage',
   // The paper-photo round trip's batch (storyboard.md §6): several pictures, each on its shot, written and set as one undo group.
   'shot.importImages',
+  // The picture registry (pictures.md §2.4): import one picture or a batch into `assets[]`, and edit a record's caption, alt and
+  // tags. Their applies are the store's (`commands-pictures.ts`), and the two imports need the staged bytes the host holds.
+  'asset.import',
+  'asset.importBatch',
+  'asset.setMeta',
   // The whole-script Fountain and FDX import (screenplay.md §2.2), the whole-story Ink import (dialogue-narrative.md
   // §4) and a dialogue container's settings (dialogue-narrative.md §2.1). §9 tabulates them, after shot.importImage.
   // Their applies are the store's (`commands-script.ts`).
@@ -616,6 +621,9 @@ export interface CommandParams {
   'project.deleteGoal': ProjectDeleteGoalParams;
   'shot.importImage': ShotImportImageParams;
   'shot.importImages': ShotImportImagesParams;
+  'asset.import': AssetImportParams;
+  'asset.importBatch': AssetImportBatchParams;
+  'asset.setMeta': AssetSetMetaParams;
   'screenplay.import': ScreenplayImportParams;
   'dialogue.importInk': DialogueImportInkParams;
   'dialogue.setMeta': DialogueSetMetaParams;
@@ -948,6 +956,51 @@ export type ProjectSetMetadataParams = {
  * would travel as JSON and be copied into the undo group), so the host stages them and names the staging id here.
  */
 export type ProjectImportAssetParams = { stagingId: string; target: 'cover' };
+
+/*
+ * The picture registry (pictures.md §2.4). Each is the closed key set its descriptor in `descriptors-pictures.ts` accepts.
+ */
+
+/**
+ * The batch's one answer for photos above 24 megapixels or 8 MB (pictures.md §6.4, D6): keep the originals, or store working copies
+ * with a 4096 px long edge. Absent is `keep`.
+ */
+export type AssetLargePhotos = 'keep' | 'working-copies';
+
+/** Where a picture the writer brings comes from: a file they chose, or a paste. `label` is a short line, such as the file's name. */
+export type AssetImportSource = { kind: 'import' | 'paste'; label?: string };
+
+/**
+ * `asset.import`: one staged picture into `assets/` and the registry. The bytes are staged by the host, as the cover's are. A picture
+ * whose bytes match a record's (by SHA-256 after the import pipeline) returns that record's id and writes nothing. `caption` and
+ * `alt` start the new record's defaults; a matched record keeps its own.
+ */
+export type AssetImportParams = {
+  stagingId: string;
+  caption?: string;
+  alt?: string;
+  source?: AssetImportSource;
+  largePhotos?: AssetLargePhotos;
+};
+
+/** `asset.importBatch`: several staged pictures as one command and so one undo group, all or none. The large-photo answer is the batch's. */
+export type AssetImportBatchParams = {
+  items: { stagingId: string; caption?: string; alt?: string; source?: AssetImportSource }[];
+  largePhotos?: AssetLargePhotos;
+};
+
+/**
+ * `asset.setMeta`: a record's caption, alt text, decorative flag, tags and source label. A key left out is left alone; `null` clears
+ * it. `expect` holds the value each patched key has now (`null` for none), and the apply refuses when the record has moved on.
+ */
+export type AssetMetaPatch = {
+  caption?: string | null;
+  alt?: string | null;
+  decorative?: boolean | null;
+  tags?: string[] | null;
+  sourceLabel?: string | null;
+};
+export type AssetSetMetaParams = { assetId: string; patch: AssetMetaPatch; expect: AssetMetaPatch };
 
 /**
  * `skill.import` (extensibility.md §10): take one skill folder the writer chose into the project. The files are not params. The host

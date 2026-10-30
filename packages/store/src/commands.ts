@@ -164,6 +164,7 @@ import {
 } from './state.js';
 import type { CodexEntry, CodexIncludePolicy, TreeNode } from './manifest.js';
 import { projectCommandRegistrations, type ProjectAssetPort } from './commands-project.js';
+import { pictureCommandRegistrations } from './commands-pictures.js';
 import { agentFileCommandRegistrations } from './commands-agent-files.js';
 import { skillCommandRegistrations, type SkillStaging } from './commands-skills.js';
 import { hookCommandRegistrations } from './commands-hooks.js';
@@ -227,7 +228,7 @@ export interface ProjectCommandOptions {
    */
   readonly shots?: ShotCommandPort;
   /**
-   * The project's asset port, for `project.importAsset` (the cover image). **Injected, not imported**, for the reason the
+   * The project's asset port, for `project.importAsset` (the cover image), `asset.import` and `asset.importBatch` (pictures.md §2.4). **Injected, not imported**, for the reason the
    * other ports are: the host owns where the bytes are written. Without it the name stays descriptor-only and is refused as not wired.
    */
   readonly assets?: ProjectAssetPort;
@@ -1837,6 +1838,8 @@ export function createProjectCommandRegistry(
   Object.assign(registry, macroCommandRegistrations({ clock }));
   // The writer's hooks (hooks.md): `agent.hooks` in the manifest (commands-hooks.ts).
   Object.assign(registry, hookCommandRegistrations({ clock }));
+  // The picture registry (pictures.md §2.4): `asset.setMeta` always, the two imports only with the asset port (commands-pictures.ts).
+  Object.assign(registry, pictureCommandRegistrations({ clock, ...(options.assets === undefined ? {} : { assets: options.assets }) }));
   // Storyboard: the shot image import needs both the asset port and the storyboard port (commands-shot-image.ts).
   Object.assign(
     registry,
