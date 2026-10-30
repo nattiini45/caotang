@@ -15,8 +15,6 @@ Tools:
 
 # Project
 Title: The Lighthouse Keeper
-Documents: 3. Words: 25.
-Session: progress unavailable.
 Statuses: draft (Draft), revised (Revised), final (Final).
 Labels: none.
 Saved filters: 0. Goals: 0.
@@ -56,5 +54,9 @@ Check these documents for continuity problems.
 
 Tool: continuity.scan
 Parameters: {"aspects":[]}
+
+# Status
+Documents: 3. Words: 25.
+Session: progress unavailable.
 
 Report each problem to the writer with the document it is in and the passage, and say what would fix it. Do not change the project.
