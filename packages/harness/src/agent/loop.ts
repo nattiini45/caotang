@@ -48,7 +48,8 @@
  * stop mid-way) is answered with words that name the cut and ask for a shorter reply, not with a syntax
  * error, and the next planner request may ask for twice the output cap, never above the model's
  * advertised cap, and only when the reply reached the cap it was sent with. A second such reply ends the
- * turn on an ask-back that names the output limit, as one that leaves no model call for the retry does.
+ * turn on an ask-back, as one that leaves no model call for the retry does: it names the output limit when
+ * a cut reached its request's cap, and otherwise says only that the reply was cut before it ended.
  * A native reply that was cut but whose calls all parsed may be missing steps: its card carries the
  * `replyCut` flag and is approved only with `acceptTruncated`.
  *
@@ -606,7 +607,7 @@ interface Turn {
   readonly wireReplies: WireReply[];
   /** The delegated agents this turn has started, so each has a path of its own (`turn-3/reader#1`). */
   delegations: number;
-  /** The planner replies the provider cut at its output limit this turn, parsed or not: the report's `cutReplies`. */
+  /** The planner replies the provider ended with `length` this turn, parsed or not, at the cap or short of it: the report's `cutReplies`. */
   cutReplies: number;
   /** The planner replies that were cut and could not be read. A second one ends the turn (the retry is once, not a loop). */
   unreadCuts: number;
@@ -911,8 +912,11 @@ function askBackOf(stop: { readonly reason: string; readonly options: readonly s
  * draft it.
  */
 function noticeFor(card: PlanCardView): string {
-  if (card.replyCut === true && !card.steps.some((step) => step.cut && step.status !== 'done')) {
-    return 'the model’s reply was cut off at its output limit, so this plan may be missing steps: approve with acceptTruncated to run it as it is, or cancel and ask for less';
+  if (card.replyCut === true) {
+    const draftCut = card.steps.some((step) => step.cut && step.status !== 'done');
+    return draftCut
+      ? 'the model’s reply was cut off, so this plan may be missing steps, and a draft in it was cut off at the model’s output limit: retry the draft, approve with acceptTruncated to run the plan and keep the cut text, or cancel and ask for less'
+      : 'the model’s reply was cut off, so this plan may be missing steps: approve with acceptTruncated to run it as it is, or cancel and ask for less';
   }
   const stale = card.steps.find((step) => step.stale && step.status !== 'done');
   if (stale !== undefined) {
@@ -3197,7 +3201,7 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
 
   /**
    * After an unreadable cut reply: the retry is once. A second such reply, or no model call left for the retry, ends the turn on an
-   * ask-back that names the output limit. Otherwise the next request asks for twice the cap, never above the model's advertised cap,
+   * ask-back about the cut, naming the output limit when a cut reached its request's cap. Otherwise the next request asks for twice the cap, never above the model's advertised cap,
    * when the reply reached the cap it was sent with; a reply cut for another reason (the context, the provider's own) keeps its cap.
    */
   function afterCut(turn: Turn, cut: { readonly atCap: boolean; readonly cap: number; readonly advertised?: number }): Settled | undefined {
@@ -3255,9 +3259,13 @@ export function createAgentSession(options: AgentSessionOptions): AgentSession {
         }
         if (malformed.length > 0) {
           // A cut reply's last call is the one that stops mid-way: its refusal names the cut, not its arguments, and keeps its step number.
-          const cut = reply.cut ? cutOf(turn, reply, cap) : undefined;
-          if (cut !== undefined) for (const refused of malformed) refused.message = cutReplyWords(cut.atCap);
-          if (cut !== undefined) for (const refused of malformed) pending.results.set((calls[refused.index] as WireToolCall).id, { ok: false, body: refused.message });
+          // An earlier call that failed to parse was whole when it arrived, so it keeps its own refusal.
+          const truncated = reply.cut ? malformed.find((refused) => refused.index === calls.length - 1) : undefined;
+          const cut = truncated === undefined ? undefined : cutOf(turn, reply, cap);
+          if (truncated !== undefined && cut !== undefined) {
+            truncated.message = cutReplyWords(cut.atCap);
+            pending.results.set((calls[truncated.index] as WireToolCall).id, { ok: false, body: truncated.message });
+          }
           flushWire(turn);
           turn.messages.push({
             role: 'user',

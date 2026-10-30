@@ -194,7 +194,7 @@ export interface PlanCardView {
   /** True when a step still to run is a draft the provider cut at its output limit, or the planner's reply itself was cut (`replyCut`). */
   readonly cut: boolean;
   /**
-   * The planner's reply that proposed these steps was cut at the model's output limit, though every call in it parsed (native wire only):
+   * The planner's reply that proposed these steps was cut (finish reason `length`), though every call in it parsed (native wire only):
    * the plan may be missing steps. Like a cut draft, it is approved only with `acceptTruncated`. Absent when the reply was whole.
    */
   readonly replyCut?: true;

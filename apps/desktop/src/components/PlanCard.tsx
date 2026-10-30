@@ -74,8 +74,9 @@ export function PlanCard({ card, live, drafts, project, pictureNames, onDecide, 
   const approvable = live && card.approvable && held === null;
   // A refused step is why Approve is off, and its reason is the preflight's own words (plan-preview.ts `refusalReasonOf`).
   const refused = refusalReasonOf(card.steps);
-  // The planner's reply was cut though its calls arrived whole (issue #97): the plan, not a draft, is what may be short.
-  const replyCutOnly = card.replyCut === true && !pending.some((step) => step.cut);
+  // The planner's reply was cut though its calls arrived whole (issue #97): the plan, not only a draft, is what may be short.
+  const replyCut = card.replyCut === true;
+  const replyCutOnly = replyCut && !pending.some((step) => step.cut);
   const caution = card.caution;
   // A step that sends project text out asks twice: the first click arms the button for this showing of the card, the second approves.
   const showing = `${card.id}:${card.revision}`;
@@ -132,9 +133,9 @@ export function PlanCard({ card, live, drafts, project, pictureNames, onDecide, 
           {warning}
         </p>
       ))}
-      {replyCutOnly ? (
+      {replyCut ? (
         <p className="plan-notice is-warn" role="status">
-          The model’s reply was cut off at its output limit, so this plan may be missing steps.
+          The model’s reply was cut off, so this plan may be missing steps.
         </p>
       ) : null}
       {planCost !== undefined ? <p className="plan-cost">About {formatUsd(planCost)} for the whole plan, at this profile’s prices.</p> : null}

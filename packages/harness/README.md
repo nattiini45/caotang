@@ -142,7 +142,7 @@ The two system prefixes (`PLANNER_SYSTEM_PREFIX`, `DRAFT_SYSTEM_PREFIX`) are dup
   cap, "cut off before it ended" otherwise) and asks for a shorter reply, not with a JSON syntax error; a native
   refusal keeps its step number. The next request asks for twice the cap, never above the model's advertised cap
   (`modelMaxOutputTokens`), and only after a reply that reached its cap. A second unreadable cut, or one that leaves no
-  call for the retry, ends the turn as `needs_input` naming the output limit. A native reply cut after calls that all
+  call for the retry, ends the turn as `needs_input`, naming the output limit when a cut reached its request's cap. A native reply cut after calls that all
   parsed is a card with `replyCut`, approved only with `acceptTruncated`. The report's `cutReplies` counts them.
 - **An errored stream.** Finish reason `error` means the answer ended on a failure with part of it. Nothing is
   staged from it. The turn stops as `needs_input`, and no ghost preview is offered.

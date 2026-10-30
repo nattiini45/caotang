@@ -91,7 +91,7 @@ export interface TurnReport {
   readonly dropped: readonly string[];
   /** The model calls the turn made, in order, including retries. */
   readonly modelCalls: number;
-  /** The planner replies the provider cut at its output limit, parsed or not (issue #97). Absent when none was cut. */
+  /** The planner replies the provider ended with `length`, parsed or not, at the request's cap or short of it (issue #97). Absent when none was. */
   readonly cutReplies?: number;
   /** Present when the writer stopped the turn. `status` is then `cancelled`, and whatever was applied before the stop stays in the undo group. */
   readonly stop?: TurnStop;

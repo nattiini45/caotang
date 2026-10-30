@@ -649,6 +649,31 @@ describe('a native planner reply the provider cut (issue #97)', () => {
     expect(second.maxOutputTokens).toBe(10);
   });
 
+  it('keeps an earlier call’s own refusal in a cut reply: only the last call can have been cut', async () => {
+    const intent = 'Read The Friend twice.';
+    const fixture = await nativeFixture(
+      nativeTranscript(intent, [
+        {
+          content: 'Reading the scene before I label anything.',
+          calls: [
+            { id: 'array', name: 'doc.read', args: '[1]' },
+            { id: 'cut', name: 'doc.read', args: '{"doc": "The Fri' },
+          ],
+          finish: 'length',
+        },
+        { content: 'I will ask for less.' },
+      ]),
+      { limits: { maxOutputTokens: 5, modelMaxOutputTokens: 64 } },
+    );
+    await fixture.session.submit(intent);
+    const second = plannerRequests(fixture.seen)[1] as ChatRequest;
+    expect(resultFor(second, 'array')?.body).toEqual({ ok: false, error: expect.not.stringContaining('cut off') });
+    expect(resultFor(second, 'cut')?.body).toEqual({ ok: false, error: expect.stringContaining('cut off at the model’s output limit') });
+    const last = second.messages.at(-1)?.content ?? '';
+    expect(last).toContain('Step 1 (doc.read) was refused: the call');
+    expect(last).toContain('Step 2 (doc.read) was refused: Your reply was cut off');
+  });
+
   it('stages a cut reply whose calls all parsed with the cut flag, and approves it only with acceptTruncated', async () => {
     const intent = 'Label The Friend act-2.';
     const fixture = await nativeFixture(
