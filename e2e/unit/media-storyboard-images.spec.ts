@@ -293,7 +293,8 @@ test.describe('a drop of several pictures in a session: one command, one undo st
 
     const verdicts = planPictureDrop(named('3.png', '001.png'), SHOTS);
     const items = verdicts.flatMap((verdict) => (verdict.kind === 'import' ? [{ shotId: verdict.shot.id, bytes: PNG }] : []));
-    const result = await session.importShotImages(items.map(({ shotId, bytes }) => ({ nodeId: shotId, bytes })));
+    // Distinct bytes per picture: the registry stores the same bytes once (pictures.md §6.4), and this test counts two files.
+    const result = await session.importShotImages(items.map(({ shotId, bytes }, index) => ({ nodeId: shotId, bytes: Uint8Array.from([...bytes, index]) })));
     expect(result.ok).toBe(true);
 
     expect(imageOf(state, FERRY)).toMatch(/^a_/);

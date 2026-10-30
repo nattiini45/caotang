@@ -31,6 +31,7 @@ import { CHAR_LIMIT_MAX, RECIPE_SCRIPT_FONTS, SCENE_NUMBER_OPTIONS, type HookChe
 import type { PermissionRule } from './agent-rules.js';
 import { jsonValueProblem } from './json-value.js';
 import type {
+  AssetRecord,
   CodexEntry,
   Derived,
   ExportRecipe,
@@ -336,6 +337,32 @@ function macroBlock(m: ProjectMacro): string {
 }
 
 /**
+ * pictures.md §2.1. One record per line, keys in a fixed order; every optional key is written only when present, so a record
+ * round-trips with no new key. `source`, `transcription` and `workingCopy` are small objects written inline.
+ */
+function assetRecord(a: AssetRecord): string {
+  const pairs: [string, string][] = [
+    ['id', str(a.id, 'asset.id')],
+    ['file', str(a.file, 'asset.file')],
+    ['mime', str(a.mime, 'asset.mime')],
+    ['sha256', str(a.sha256, 'asset.sha256')],
+    ['bytes', scalar(a.bytes, 'asset.bytes')],
+  ];
+  if (a.width !== undefined) pairs.push(['width', scalar(a.width, 'asset.width')]);
+  if (a.height !== undefined) pairs.push(['height', scalar(a.height, 'asset.height')]);
+  if (a.caption !== undefined) pairs.push(['caption', str(a.caption, 'asset.caption')]);
+  if (a.alt !== undefined) pairs.push(['alt', str(a.alt, 'asset.alt')]);
+  if (a.decorative === true) pairs.push(['decorative', scalar(true, 'asset.decorative')]);
+  if (a.tags !== undefined) pairs.push(['tags', inlineArray(a.tags, 'asset.tags')]);
+  if (a.source !== undefined) pairs.push(['source', criterion(a.source, 'asset.source')]);
+  if (a.transcription !== undefined) pairs.push(['transcription', criterion(a.transcription, 'asset.transcription')]);
+  if (a.workingCopy !== undefined) pairs.push(['workingCopy', criterion(a.workingCopy, 'asset.workingCopy')]);
+  pairs.push(['createdAt', str(a.createdAt, 'asset.createdAt')]);
+  if (a.updatedAt !== undefined) pairs.push(['updatedAt', str(a.updatedAt, 'asset.updatedAt')]);
+  return oneLine(pairs);
+}
+
+/**
  * agent-harness §4, Rules. One rule per line under `agent.rules`, keys in a fixed order; `scope`, `access` and `note` are written only
  * when present, so a rule round-trips with no new key. A project with no rules, no hooks and no other `agent` key writes no `agent` key at all.
  */
@@ -592,6 +619,9 @@ export function serializeManifest(
   }
   if (hasAgentBlock(manifest.agent)) {
     parts.push(agentBlock(manifest.agent));
+  }
+  if (manifest.assets !== undefined && manifest.assets.length > 0) {
+    parts.push(`${INDENT}"assets": ${objectArray(manifest.assets.map(assetRecord), 1)},`);
   }
 
   // Drop the trailing comma of the last member, then close.

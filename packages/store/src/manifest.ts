@@ -8,9 +8,11 @@
 
 import type { ProjectHook, ProjectMacro, RecipeScriptFont, SceneNumbersOption } from '@caotang/bus';
 
+import type { AssetRecord } from '@caotang/pictures';
+
 import type { PermissionRule } from './agent-rules.js';
 
-export type { ProjectHook, ProjectMacro };
+export type { AssetRecord, ProjectHook, ProjectMacro };
 
 export const APP_ID = 'caotang';
 export const FORMAT_VERSION = 1;
@@ -266,4 +268,10 @@ export interface Manifest {
    * is read from a file. Any other key under `agent` is kept as read and written back, so a newer build's key survives this build's save.
    */
   agent?: { rules?: PermissionRule[]; hooks?: ProjectHook[]; [other: string]: unknown };
+  /**
+   * additive in v1 (pictures.md §2.1, D4): the picture registry, one record per file in `assets/` with its hash, size, caption, alt
+   * and tags. Absent = no records yet; the open back-fills one for every used file (§6.2). The cover, `shot.image` and `visualRefs`
+   * keep their own pointers and are read as uses of a record. A record whose file is missing is kept, never dropped.
+   */
+  assets?: AssetRecord[];
 }

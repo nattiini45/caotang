@@ -7,6 +7,8 @@
  * folder. A manifest refers to an image by id and never by path, so the folder can be moved, zipped
  * or synced without a reference breaking.
  *
+ * The file names, the formats and the sniff live in `@caotang/pictures` (pictures.md §2.1) and are re-exported here.
+ *
  * Bytes move through `readBytes` and `writeBytesAtomic` (the port's byte methods, added for the
  * exporter's DOCX and EPUB output). The format is decided by the file's leading bytes, never by its
  * name, because a file renamed to `.png` is still whatever it is. A file that is not an image is
@@ -20,79 +22,33 @@
 import { ArtifactNotFoundError, nodeById, type ArtifactFs, type ProjectState, type TreeNode } from '@caotang/store';
 import type { RandomBytes } from '@caotang/ids';
 
-import { mintAssetId, isAssetId } from './ids.js';
+import {
+  ASSETS_DIR,
+  IMAGE_FORMATS,
+  assetFileName,
+  isAssetId,
+  mintAssetId,
+  parseAssetFileName,
+  sniffImage,
+  unsupportedFormatName,
+  type AssetName,
+  type ImageFormat,
+} from '@caotang/pictures';
 import { isShotNode } from './model.js';
 import { shotFieldOf } from './nodes.js';
 import { isPlainObject, storedOf } from './shot-meta.js';
 import { ok, refuse, type StoryboardResult } from './result.js';
 
-/** The folder the images live in, project-root-relative. */
-export const ASSETS_DIR = 'assets';
-
-export type ImageFormat = 'png' | 'jpeg' | 'webp';
-
-/** The v1 formats, with the extension each is stored under and the MIME type it serves as. */
-export const IMAGE_FORMATS: Readonly<Record<ImageFormat, { readonly extension: string; readonly mime: string }>> = {
-  png: { extension: 'png', mime: 'image/png' },
-  jpeg: { extension: 'jpg', mime: 'image/jpeg' },
-  webp: { extension: 'webp', mime: 'image/webp' },
-};
-
-const EXTENSION_FORMATS: Readonly<Record<string, ImageFormat>> = {
-  png: 'png',
-  jpg: 'jpeg',
-  webp: 'webp',
-};
-
-const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-const JPEG_SIGNATURE = [0xff, 0xd8, 0xff];
-const RIFF_SIGNATURE = [0x52, 0x49, 0x46, 0x46];
-const WEBP_SIGNATURE = [0x57, 0x45, 0x42, 0x50];
-const PSD_SIGNATURE = [0x38, 0x42, 0x50, 0x53];
-const EXR_SIGNATURE = [0x76, 0x2f, 0x31, 0x01];
-
-function startsWith(bytes: Uint8Array, signature: readonly number[]): boolean {
-  return signature.every((byte, index) => bytes[index] === byte);
-}
-
-/** The v1 format a file's leading bytes name, or `undefined` for anything else. */
-export function sniffImage(bytes: Uint8Array): ImageFormat | undefined {
-  if (startsWith(bytes, PNG_SIGNATURE)) return 'png';
-  if (startsWith(bytes, JPEG_SIGNATURE)) return 'jpeg';
-  if (startsWith(bytes, RIFF_SIGNATURE) && startsWith(bytes.subarray(8), WEBP_SIGNATURE)) return 'webp';
-  return undefined;
-}
-
-/**
- * A name for a format the v1 store refuses, so the refusal can say what the file is. §2.2 defers
- * PSD and EXR to a later gate, and a writer who drops one in should hear that, not "unknown file".
- */
-export function unsupportedFormatName(bytes: Uint8Array): string | undefined {
-  if (startsWith(bytes, PSD_SIGNATURE)) return 'Photoshop (PSD)';
-  if (startsWith(bytes, EXR_SIGNATURE)) return 'OpenEXR';
-  return undefined;
-}
-
-export function assetFileName(assetId: string, format: ImageFormat): string {
-  return `${assetId}.${IMAGE_FORMATS[format].extension}`;
-}
-
-/** An asset id and the format its file name carries. */
-export interface AssetName {
-  readonly assetId: string;
-  readonly format: ImageFormat;
-}
-
-/** The asset a file name names, or `undefined` for a name that is not `a_XXXXXXXXXX.<png|jpg|webp>`. */
-export function parseAssetFileName(fileName: string): AssetName | undefined {
-  const match = /^([^.]+)\.(png|jpg|webp)$/.exec(fileName);
-  if (match === null) return undefined;
-  const assetId = match[1];
-  const extension = match[2];
-  if (assetId === undefined || extension === undefined || !isAssetId(assetId)) return undefined;
-  const format = EXTENSION_FORMATS[extension];
-  return format === undefined ? undefined : { assetId, format };
-}
+export {
+  ASSETS_DIR,
+  IMAGE_FORMATS,
+  assetFileName,
+  parseAssetFileName,
+  sniffImage,
+  unsupportedFormatName,
+  type AssetName,
+  type ImageFormat,
+} from '@caotang/pictures';
 
 /** An asset file found in `assets/`, with the path the byte port reads it from. */
 export interface StoredAsset extends AssetName {

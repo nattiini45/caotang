@@ -266,6 +266,9 @@ importers:
       '@caotang/pdf-fonts':
         specifier: workspace:*
         version: link:../../packages/pdf-fonts
+      '@caotang/pictures':
+        specifier: workspace:*
+        version: link:../../packages/pictures
       '@caotang/screenplay':
         specifier: workspace:*
         version: link:../../packages/screenplay
@@ -300,6 +303,9 @@ importers:
 
   packages/bus:
     dependencies:
+      '@caotang/pictures':
+        specifier: workspace:*
+        version: link:../pictures
       '@caotang/skills':
         specifier: workspace:*
         version: link:../skills
@@ -843,6 +849,12 @@ importers:
         specifier: 1.6.3
         version: 1.6.3
 
+  packages/pictures:
+    dependencies:
+      '@caotang/ids':
+        specifier: workspace:*
+        version: link:../ids
+
   packages/remote-store:
     dependencies:
       '@caotang/crypto':
@@ -932,6 +944,9 @@ importers:
       '@caotang/ids':
         specifier: workspace:*
         version: link:../ids
+      '@caotang/pictures':
+        specifier: workspace:*
+        version: link:../pictures
       '@caotang/screenplay':
         specifier: workspace:*
         version: link:../screenplay
@@ -953,6 +968,9 @@ importers:
       '@caotang/pdf-fonts':
         specifier: workspace:*
         version: link:../pdf-fonts
+      '@caotang/pictures':
+        specifier: workspace:*
+        version: link:../pictures
       '@caotang/store':
         specifier: workspace:*
         version: link:../store

@@ -117,7 +117,7 @@ Each module: responsibility → owns → key surfaces → spec. Dependencies flo
 
 ### 2.18 `pictures` 🧭
 - **Responsibility:** one picture registry with hashes and dedup, links from the project, a folder, a document or a paragraph, inline pictures in prose carried into EPUB, Word and Markdown, the import pipeline (HEIC, pixel budget, GPS strip), vision input for the agent, MCP pictures in both directions, and handwriting transcription.
-- **Owns:** `assets[]` and `assetLinks[]` in the manifest, the pure `packages/pictures` selectors, the thumbnail store. Specified, not built.
+- **Owns:** `assets[]` and `assetLinks[]` in the manifest, the pure `packages/pictures` selectors, the thumbnail store. Built: `assets[]`, `packages/pictures` (the record, `usesOf`, the import pipeline with the GPS strip and the hash), `asset.import`, `asset.importBatch`, `asset.setMeta` and the open's backfill (#152). The rest is specified, not built.
 - **Spec:** [architecture/pictures.md](architecture/pictures.md).
 
 ### 2.19 `timeline` 🧭
@@ -159,7 +159,7 @@ SceneMeta       { pov?, dayOffset?, durationDays?, after?, expectedPresent? }   
 ExportRecipe   { include[], template, format }
 AssembledPrompt{ messages[], layers[{id, included, tokens, dropped[]}], estimate }  // context-assembly.md §4
 TextAnchor     { from, to, exact, prefix, suffix, capturedRevision }              // edit-anchors.md §2
-AssetRecord    { id, file, mime, sha256, bytes, width?, height?, caption?, alt?, decorative?, tags?, source?, transcription? }  // pictures.md §2.1 (planned)
+AssetRecord    { id, file, mime, sha256, bytes, width?, height?, caption?, alt?, decorative?, tags?, source?, transcription? }  // pictures.md §2.1 (built: packages/pictures)
 AssetLink      { id, assetId, target: project|node|paragraph, role: reference|card|source, order, note?, when? }        // pictures.md §2.1 (planned)
 TimelineOp     { op: meta|move|shift|picture-when, …, expect }                                                         // timeline.md §4.3 (planned)
 MessageRef     { id, values?, message }                                                                          // i18n.md §3.2 (type in @caotang/i18n; not yet emitted)

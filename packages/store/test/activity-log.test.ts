@@ -164,6 +164,8 @@ interface Case {
   readonly macro?: boolean;
   /** The project holds the hook `h_FXTRE00001`, which the case deletes. */
   readonly hook?: boolean;
+  /** The case needs a picture record in `assets[]` (pictures.md §2.1). */
+  readonly picture?: boolean;
 }
 
 /** The finding the coherence cases act on: one open finding that quotes the storm scene. */
@@ -503,6 +505,14 @@ const CASES: readonly Case[] = [
     digestMentions: 'saved the hook "No suddenly"',
   },
   { name: 'hook.delete', params: { hookId: 'h_FXTRE00001' }, titles: [], digestMentions: 'deleted the hook "No suddenly"', hook: true },
+  // The picture registry's one apply that needs no port (pictures.md §2.4). A picture is not in the binder, so it names no node.
+  {
+    name: 'asset.setMeta',
+    params: { assetId: 'a_FXTRE00001', patch: { caption: 'The ferry at dawn' }, expect: { caption: null } },
+    titles: [],
+    digestMentions: 'changed the caption of a picture',
+    picture: true,
+  },
   {
     name: 'dialogue.setMeta',
     params: { nodeId: CELLAR, patch: { autoLineIds: true } },
@@ -556,7 +566,11 @@ describe('§8 — the activity row for every shipped store apply', () => {
     // unimplemented here for the same reason `mcp.invoke` is. Its row is asserted with the port in its own test file.
     // `shot.importImage` registers only with both the asset port and the storyboard port, so it
     // is unimplemented here too. Its row is asserted with both ports in `commands-shot-image.test.ts`.
+    // `asset.import` and `asset.importBatch` register only with the asset port, as the cover import does (commands-pictures.ts);
+    // their rows are asserted with the port in `commands-pictures.test.ts`.
     expect(withoutApply).toEqual([
+      'asset.import',
+      'asset.importBatch',
       'export.compile',
       'export.compileSelection',
       'mcp.invoke',
@@ -579,6 +593,9 @@ describe('§8 — the activity row for every shipped store apply', () => {
       if (testCase.memory === true) state.agentFiles = { memory: [{ slug: 'style-dialogue', type: 'style', title: 'Dialogue tags', body: 'Use said.', modified: '', origin: 'writer' }], declined: new Map(), unreadable: [] };
       if (testCase.macro === true) state.manifest.macros = [{ id: 'm_FXTRE00001', slug: 'revise-chapter', name: 'Revise chapter', description: '', params: { kind: 'object', description: 'p', properties: {}, required: [] }, steps: [{ tool: 'meta.set', params: { status: 'revised' }, expect: 'Marks the node revised.' }] }];
       if (testCase.hook === true) state.manifest.agent = { hooks: [{ id: 'h_FXTRE00001', name: 'No suddenly', event: 'tool.before', handler: { kind: 'check', check: { kind: 'pattern', patterns: [{ match: 'suddenly', message: 'Show it.' }] } }, enabled: true }] };
+      if (testCase.picture === true) {
+        state.manifest.assets = [{ id: 'a_FXTRE00001', file: 'a_FXTRE00001.png', mime: 'image/png', sha256: 'a'.repeat(64), bytes: 12, createdAt: '2026-10-02T15:00:00.000Z' }];
+      }
       if (testCase.dialogue === true) {
         addDocument(state, { parentId: 'manuscript', title: 'The Cellar', type: 'dialogue', kind: 'branching', body: '=== Cellar ===\nHello.\n-> END\n', now: OPENED, id: CELLAR });
       }
