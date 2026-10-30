@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { resolveKey, shortcutLabel, type KeyFacts } from '../../apps/desktop/src/app/keymap.js';
+import { chordKey, keyFacts, resolveKey, shortcutLabel, type KeyFacts } from '../../apps/desktop/src/app/keymap.js';
 import {
   cardsOf,
   planCardDrop,
@@ -12,7 +12,7 @@ import {
 import { IDS, project } from './fixtures.js';
 
 function keys(key: string, mods: Partial<Omit<KeyFacts, 'key'>> = {}): KeyFacts {
-  return { key, ctrl: false, meta: false, shift: false, alt: false, ...mods };
+  return { key, code: '', altGraph: false, ctrl: false, meta: false, shift: false, alt: false, ...mods };
 }
 
 const BINDER = { inTextField: false, inBinder: true };
@@ -108,6 +108,83 @@ test.describe('the keyboard map', () => {
     expect(resolveKey(keys('Enter', { composing: false }), AGENT_INTENT)).toBe('agent-send');
     expect(resolveKey(keys('Enter'), AGENT_INTENT)).toBe('agent-send');
     expect(resolveKey(keys('Enter', { composing: false }), CARD)).toBe('select-card');
+  });
+
+  test('on a plain US layout the chords read the key, with or without the physical code', () => {
+    expect(resolveKey(keys('z', { code: 'KeyZ', ctrl: true }), ELSEWHERE)).toBe('undo');
+    expect(resolveKey(keys('n', { code: 'KeyN', ctrl: true }), ELSEWHERE)).toBe('new-document');
+    expect(resolveKey(keys('F', { code: 'KeyF', ctrl: true, shift: true }), ELSEWHERE)).toBe('focus-mode');
+    expect(resolveKey(keys('f', { code: 'KeyF', ctrl: true, alt: true }), TYPING)).toBe('focus-filter');
+    expect(resolveKey(keys('Enter', { code: 'Enter', ctrl: true }), ELSEWHERE)).toBe('open-in-editor');
+    expect(resolveKey(keys('z', { code: 'KeyZ', ctrl: true }), TYPING)).toBeNull();
+  });
+
+  test('on a non-Latin layout a chord falls back to the physical key (Russian, Greek, Hebrew, Arabic)', () => {
+    // Russian ЙЦУКЕН: Z is я, N is т, F is а.
+    expect(resolveKey(keys('я', { code: 'KeyZ', ctrl: true }), ELSEWHERE)).toBe('undo');
+    expect(resolveKey(keys('т', { code: 'KeyN', ctrl: true }), BINDER)).toBe('new-document');
+    expect(resolveKey(keys('А', { code: 'KeyF', ctrl: true, shift: true }), ELSEWHERE)).toBe('focus-mode');
+    expect(resolveKey(keys('а', { code: 'KeyF', ctrl: true, alt: true }), TYPING)).toBe('focus-filter');
+    // A field keeps its own undo on any layout.
+    expect(resolveKey(keys('я', { code: 'KeyZ', ctrl: true }), TYPING)).toBeNull();
+    // Greek, Hebrew and Arabic.
+    expect(resolveKey(keys('ζ', { code: 'KeyZ', meta: true }), ELSEWHERE)).toBe('undo');
+    expect(resolveKey(keys('מ', { code: 'KeyN', ctrl: true }), ELSEWHERE)).toBe('new-document');
+    expect(resolveKey(keys('כ', { code: 'KeyF', ctrl: true, shift: true }), ELSEWHERE)).toBe('focus-mode');
+    expect(resolveKey(keys('ى', { code: 'KeyN', ctrl: true }), ELSEWHERE)).toBe('new-document');
+    expect(resolveKey(keys('ب', { code: 'KeyF', ctrl: true, shift: true }), ELSEWHERE)).toBe('focus-mode');
+    expect(resolveKey(keys('ئ', { code: 'KeyZ', ctrl: true }), ELSEWHERE)).toBe('undo');
+    // The fallback adds no chord: a Russian letter on a key that has none, or with no command modifier, is nothing.
+    expect(resolveKey(keys('ф', { code: 'KeyA', ctrl: true }), ELSEWHERE)).toBeNull();
+    expect(resolveKey(keys('я', { code: 'KeyZ' }), BINDER)).toBeNull();
+  });
+
+  test('on a Latin layout the key wins over the physical key (QWERTZ, AZERTY, Dvorak)', () => {
+    // German QWERTZ: the key labelled Z sits where US has Y.
+    expect(resolveKey(keys('z', { code: 'KeyY', ctrl: true }), ELSEWHERE)).toBe('undo');
+    expect(resolveKey(keys('y', { code: 'KeyZ', ctrl: true }), ELSEWHERE)).toBeNull();
+    // French AZERTY: the key labelled Z sits where US has W.
+    expect(resolveKey(keys('z', { code: 'KeyW', ctrl: true }), ELSEWHERE)).toBe('undo');
+    expect(resolveKey(keys('w', { code: 'KeyZ', ctrl: true }), ELSEWHERE)).toBeNull();
+    // ASCII punctuation on a letter key keeps its own key: Dvorak types ; where US has Z.
+    expect(resolveKey(keys(';', { code: 'KeyZ', ctrl: true }), ELSEWHERE)).toBeNull();
+  });
+
+  test('AltGr is never a Ctrl+Alt chord: German and Hungarian Windows keep their typed characters', () => {
+    const altGr = { ctrl: true, alt: true, altGraph: true };
+    // German Windows: AltGr+Q types @, AltGr+7 and AltGr+0 type { and }.
+    expect(resolveKey(keys('@', { code: 'KeyQ', ...altGr }), TYPING)).toBeNull();
+    expect(resolveKey(keys('@', { code: 'KeyQ', ...altGr }), ELSEWHERE)).toBeNull();
+    expect(resolveKey(keys('{', { code: 'Digit7', ...altGr }), TYPING)).toBeNull();
+    expect(resolveKey(keys('}', { code: 'Digit0', ...altGr }), TYPING)).toBeNull();
+    // Hungarian Windows: AltGr+F types [, on the key Ctrl+Alt+F reads.
+    expect(resolveKey(keys('[', { code: 'KeyF', ...altGr }), TYPING)).toBeNull();
+    // Even a layout whose AltGr+F reports f is not the filter chord, nor is AltGr+F with a non-Latin key.
+    expect(resolveKey(keys('f', { code: 'KeyF', ...altGr }), TYPING)).toBeNull();
+    expect(resolveKey(keys('а', { code: 'KeyF', ...altGr }), ELSEWHERE)).toBeNull();
+    // Without AltGraph, Ctrl+Alt+F stays the filter chord.
+    expect(resolveKey(keys('f', { code: 'KeyF', ctrl: true, alt: true }), TYPING)).toBe('focus-filter');
+  });
+
+  test('the facts are read from a key event, AltGraph included', () => {
+    const event = (altGraph: boolean) => ({
+      key: 'я',
+      code: 'KeyZ',
+      ctrlKey: true,
+      metaKey: false,
+      shiftKey: false,
+      altKey: false,
+      getModifierState: (name: string) => altGraph && name === 'AltGraph',
+    });
+    expect(keyFacts(event(false))).toEqual({ key: 'я', code: 'KeyZ', altGraph: false, ctrl: true, meta: false, shift: false, alt: false });
+    expect(keyFacts(event(true)).altGraph).toBe(true);
+    expect(keyFacts({ key: 'z', code: 'KeyZ', ctrlKey: false, metaKey: false, shiftKey: false, altKey: false }).altGraph).toBe(false);
+    expect(chordKey('Z', 'KeyY')).toBe('z');
+    expect(chordKey('я', 'KeyZ')).toBe('z');
+    expect(chordKey('é', 'Digit2')).toBe('2');
+    expect(chordKey('ö', 'Semicolon')).toBe('ö');
+    expect(chordKey('Enter', 'NumpadEnter')).toBe('Enter');
+    expect(chordKey('я', '')).toBe('я');
   });
 
   test('each action has the label a control shows for it', () => {

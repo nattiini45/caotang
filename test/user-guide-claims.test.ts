@@ -378,7 +378,8 @@ describe('the user guide’s reviewed claims match the code', () => {
     const menu = read('apps/desktop/src/media/element-menu.ts');
     // The button's visible word, and the chord the view opens the menu on.
     expect(view).toMatch(/>\s*Element\s*<\/button>/);
-    expect(menu).toMatch(/event\.key\.toLowerCase\(\) === 'e'/);
+    // The key is read as the app's chords read it: the printed letter, or the physical key on a non-Latin layout.
+    expect(menu).toMatch(/chordKey\(event\.key, event\.code \?\? ''\) === 'e'/);
     // The chord the menu accepts: Ctrl+E, or Cmd+E on a Mac — both modifiers are read from the event.
     expect(menu).toMatch(/event\.ctrlKey\s*\|\|\s*event\.metaKey/);
     const screenplay = guide.slice(guide.indexOf('## Writing a screenplay'), guide.indexOf('## Writing dialogue'));
@@ -400,6 +401,19 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(screenplay).toContain('**Ctrl+Shift+1** to **9** (**Cmd+Alt+1** to **9** on a Mac)');
     expect(menu).toContain("other: { ctrl: true, meta: false, alt: false, shift: true, label: 'Ctrl+Shift'");
     expect(menu).toContain("mac: { ctrl: false, meta: true, alt: true, shift: false, label: 'Cmd+Alt'");
+  });
+
+  it('says shortcuts follow the printed letter, the physical key on a non-Latin layout, and never take AltGr, as the keymap reads them', () => {
+    const keymap = read('apps/desktop/src/app/keymap.ts');
+    // key first; only one character outside ASCII falls back to the physical KeyX or DigitN.
+    expect(keymap).toMatch(/if \(key\.charCodeAt\(0\) < 0x80\) return key\.toLowerCase\(\);/);
+    expect(keymap).toMatch(/\/\^\(\?:Key\(\[A-Z\]\)\|Digit\(\[0-9\]\)\)\$\/\.exec\(code\)/);
+    // A Ctrl+Alt chord is never AltGr.
+    expect(keymap).toMatch(/if \(facts\.altGraph && cmd && facts\.alt\) return null;/);
+    const keyboard = guide.slice(guide.indexOf('## Keyboard'));
+    expect(keyboard).toContain('The letter in a shortcut is the letter printed on the key, so on a German or French keyboard Ctrl+Z is the key labelled Z.');
+    expect(keyboard).toContain('a shortcut uses the key where that letter sits on an English keyboard');
+    expect(keyboard).toContain('AltGr is never taken for Ctrl+Alt, so it always types its character');
   });
 
   it('names the agent panel’s Stop, queue and note controls, and their keys, as the panel and the keymap have them', () => {

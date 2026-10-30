@@ -26,7 +26,7 @@ import { AgentController, type SubmitOptions } from '../app/agent.js';
 import { childrenOf, newDocumentRefusalText, newItemParent, nodeById, summarizeSubtree } from '../app/binder-model.js';
 import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, folderIsEmpty, pickDirectory, type DirectoryHandleLike } from '../app/fs-access.js';
-import { resolveKey } from '../app/keymap.js';
+import { keyFacts, resolveKey } from '../app/keymap.js';
 import { isImeEnter } from '../app/ime.js';
 import { narrowMediaFeature, togglePanel, type NarrowPanel } from '../app/narrow-model.js';
 import {
@@ -451,7 +451,7 @@ export function Workspace({
       target instanceof HTMLInputElement ||
       (target instanceof HTMLElement && target.isContentEditable);
     const action = resolveKey(
-      { key: event.key, ctrl: event.ctrlKey, meta: event.metaKey, shift: event.shiftKey, alt: event.altKey, composing: isImeEnter(event) },
+      { ...keyFacts(event), composing: isImeEnter(event) },
       { inTextField, inBinder: false },
     );
     if (action === null) return;

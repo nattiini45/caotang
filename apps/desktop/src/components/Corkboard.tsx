@@ -18,7 +18,7 @@ import {
   type DropZone,
   type KeyboardStep,
 } from '../app/binder-model.js';
-import { resolveKey } from '../app/keymap.js';
+import { keyFacts, resolveKey } from '../app/keymap.js';
 import { isImeEnter } from '../app/ime.js';
 import {
   cardsOf,
@@ -152,7 +152,7 @@ export function Corkboard(props: CorkboardProps): ReactNode {
   const onCardKey = (event: KeyboardEvent<HTMLElement>, nodeId: string): void => {
     if (event.target !== event.currentTarget) return;
     const action = resolveKey(
-      { key: event.key, ctrl: event.ctrlKey, meta: event.metaKey, shift: event.shiftKey, alt: event.altKey, composing: isImeEnter(event) },
+      { ...keyFacts(event), composing: isImeEnter(event) },
       { inTextField: false, inBinder: false, inCorkboard: true },
     );
     if (action === 'reorder-up' || action === 'reorder-down') {
