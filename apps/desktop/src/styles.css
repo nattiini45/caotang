@@ -1298,6 +1298,27 @@ dialog.export-dialog::backdrop {
   color: var(--muted);
 }
 
+/* The Preview's two halves: the Draft (what goes in) and the Proof (the file it makes). */
+.export-preview-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.export-preview-views .export-option-help {
+  display: inline;
+  margin-left: 6px;
+}
+
+/* The Proof is the file's own text: its line breaks and spaces are kept, and a long line wraps inside the region. */
+.export-proof-text {
+  margin: 0;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* The refusal or save notice sits directly above the buttons it answers, so the writer reads it where they just acted. */
 .export-footer {
   display: flex;

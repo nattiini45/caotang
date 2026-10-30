@@ -507,7 +507,9 @@ test.describe('what a phone leaves to a desktop', () => {
     await waitForSaved(page);
     await openMenuItem(page, 'Compile…');
     const dialog = page.getByRole('dialog', { name: 'Export' });
-    await expect(dialog.getByRole('radio')).toHaveCount(4);
+    // Two formats and two scopes, and the Preview's Draft and Proof.
+    await expect(dialog.getByRole('radio')).toHaveCount(6);
+    await expect(dialog.getByRole('radiogroup', { name: 'Preview shows' }).getByRole('radio')).toHaveCount(2);
     await expect(dialog.getByRole('radio', { name: /^Markdown/ })).toBeChecked();
     await expect(dialog.getByRole('radio', { name: /^Plain text/ })).toBeVisible();
     await expect(dialog.getByRole('radio', { name: /Word|EPUB|PDF|Final Draft|Fountain/ })).toHaveCount(0);
