@@ -45,8 +45,9 @@
  * line is cut to its box between grapheme clusters, a conjunct whole, and the ellipsis follows a cluster. The font is read through
  * the input's `loadDevanagariFont`, and only when a sheet holds Devanagari.
  *
- * A bold run (the title, the page label, the chip) of CJK or monochrome emoji is drawn with a synthetic stroke (`./bold-run.ts`), since those
- * fonts have no Bold: `runWidth` adds its character spacing, so `fitPieces` cuts to the width that is drawn. A colour emoji takes none.
+ * A bold run (the title, the page label, the chip) of CJK or monochrome emoji is drawn with a synthetic stroke (`@caotang/pdf-fonts`,
+ * embolden.ts), since those fonts have no Bold: `runWidth` adds its character spacing, so `fitPieces` cuts to the width that is
+ * drawn. A colour emoji takes none.
  *
  * A character no font has (another Indic script, a reserved pictograph) is drawn as `?`, and the compile log names each
  * one. So is every character a font would have drawn when that font cannot be read, and the log says why.
@@ -75,6 +76,7 @@ import {
   clustersOf,
   countMarks,
   devanagariFontPrints,
+  emboldenedExtra,
   emojiStyleOf,
   fallbackCovers,
   isBidiControl,
@@ -95,7 +97,6 @@ import { sniffImage, type PlacedCard, type PlacedText, type SheetPlan } from '@c
 import type { FontkitFont } from './cid-embedding.js';
 import { CjkEmbedding, CjkFace } from './cjk-font.js';
 import { DevanagariEmbedding, DevanagariFace } from './devanagari-font.js';
-import { emboldenedExtra } from './bold-run.js';
 import { ColourEmbedding } from './colour-emoji-font.js';
 import { EmojiEmbedding, EmojiFace, type EmojiGlyph } from './emoji-font.js';
 import { isAnimatedWebp } from './image-size.js';
@@ -605,7 +606,7 @@ export async function drawContactSheet(input: ContactSheetPdfInput): Promise<Con
   const runWidth = (run: readonly Piece[], base: PdfLib.PDFFont, size: number): number => {
     const face = run[0]?.face ?? 'base';
     const glyphs = run.flatMap((piece) => piece.glyphs ?? []);
-    // A bold run (Helvetica-Bold is the base) of CJK or monochrome emoji is stroked and spaced (bold-run.ts): the spacing is in its width.
+    // A bold run (Helvetica-Bold is the base) of CJK or monochrome emoji is stroked and spaced (embolden.ts): the spacing is in its width.
     const extra = base === bold ? emboldenedExtra(glyphs.length, size) : 0;
     if (face === 'emoji') return emoji ? emoji.face.widthOf(glyphs, size) + extra : 0;
     if (face === 'colour') {

@@ -13,10 +13,9 @@
  * objects are written by {@link CidEmbedding.finish}, once every page is drawn; until then the pages point at `ref`.
  */
 
-import { CidNumbering, cidFontObjects, describeSubset, encodeSubset, padGlyphs, type PdfObject } from '@caotang/pdf-fonts';
+import { CidNumbering, cidFontObjects, describeSubset, emboldenOf, encodeSubset, padGlyphs, type PdfObject } from '@caotang/pdf-fonts';
 import type * as PdfLib from 'pdf-lib';
 
-import { emboldenOf } from './bold-run.js';
 import { registerPdfObjects } from './pdf-objects.js';
 
 /** One glyph a text draws: its id in the font, its advance in font units, and the text it stands for when copied. */
@@ -91,7 +90,7 @@ export class CidEmbedding {
     return this.entries.length > 0;
   }
 
-  /** Draws glyphs from a baseline start, in a colour. With `bold` they are stroked and spaced by one line width (bold-run.ts). */
+  /** Draws glyphs from a baseline start, in a colour. With `bold` they are stroked and spaced by one line width (`emboldenOf`, @caotang/pdf-fonts embolden.ts). */
   draw(page: PdfLib.PDFPage, glyphs: readonly CidGlyph[], x: number, y: number, size: number, ink: { r: number; g: number; b: number }, bold = false): void {
     const { pushGraphicsState, popGraphicsState, beginText, endText, setFontAndSize, setFillingRgbColor, setStrokingRgbColor, setLineWidth, setLineJoin, LineJoinStyle, setTextRenderingMode, TextRenderingMode, setCharacterSpacing, moveText, showText, PDFHexString } = this.lib;
     let key = this.keys.get(page);

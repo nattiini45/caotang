@@ -1,6 +1,6 @@
 /**
  * What the contact-sheet PDF (`@caotang/exporter`) and the screenplay PDF (`@caotang/screenplay`) share for their fallback
- * fonts. The byte checks and the WOFF unpacker are here; the fontkit helpers load fontkit lazily (./fontkit.ts); the Node
+ * fonts. The byte checks and the WOFF unpacker are here, and so is the synthetic bold of a fallback run (./embolden.ts); the fontkit helpers load fontkit lazily (./fontkit.ts); the Node
  * loaders are the subpath `@caotang/pdf-fonts/node-loader`. Arabic and Hebrew: which characters the two fonts print and how a
  * line is cut into runs are here (./rtl-script.ts); the bidirectional algorithm and the shaper hold `bidi-js` and the shaping
  * engine, so they are the subpaths `@caotang/pdf-fonts/bidi` and `@caotang/pdf-fonts/shaper`. Devanagari: which characters the font prints
@@ -26,6 +26,7 @@ export {
   HEBREW_FONT_NAME,
 } from './font-files.js';
 export { TYPE3_CODES, type3Objects, type3Place, type Type3Font, type Type3Fonts, type Type3Glyph, type Type3Pool } from './type3.js';
+export { EMBOLDEN_RATIO, emboldenOf, emboldenedExtra } from './embolden.js';
 export { hanGlyph, hanLocaleTag, type HanLanguageTag } from './han-locale.js';
 export { encodeSubset, loadFont, loadFontWithBytes, loadFontkit, openFont, padGlyphs, subsetTag, type FontkitSubset } from './fontkit.js';
 export {

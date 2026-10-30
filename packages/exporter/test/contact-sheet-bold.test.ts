@@ -1,5 +1,5 @@
 /**
- * Bold CJK and emoji in the contact sheet (storyboard.md §6, bold-run.ts): the header title, the page label and the number chip are
+ * Bold CJK and emoji in the contact sheet (storyboard.md §6, embolden.ts in @caotang/pdf-fonts): the header title, the page label and the number chip are
  * set in bold, and the fallback fonts have no Bold, so a run of CJK or monochrome emoji in one of them is drawn with the stroke
  * (`2 Tr`) and a character spacing. These tests read the content stream back: where the stroke is, that it never leaks past its run,
  * that the width the emitter cuts to is the width it draws, and that the text a reader copies is the regular run's.
@@ -7,10 +7,10 @@
 
 import { describe, expect, it } from 'vitest';
 import { PDFArray, PDFDict, PDFDocument, PDFName, PDFRawStream, StandardFonts, decodePDFRawStream } from 'pdf-lib';
+import { EMBOLDEN_RATIO } from '@caotang/pdf-fonts';
 import { loadCjkFontInNode, loadColourEmojiInNode, loadEmojiFontInNode } from '@caotang/pdf-fonts/node-loader';
 import { planContactSheet, type SheetPlan } from '@caotang/storyboard';
 import { CONTACT_SHEET_HEADER, drawContactSheet } from '../src/index.js';
-import { EMBOLDEN_RATIO } from '../src/bold-run.js';
 import { COMPILED_AT } from './fixture.js';
 import { makeMediaProject } from './media-fixture.js';
 
