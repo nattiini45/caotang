@@ -7,6 +7,10 @@
  * and traditional), Japanese kana and kanji, Korean Hangul, Greek and Cyrillic. The host passes a `FontLoader` for it, and the
  * emitter calls it only when a sheet holds a character Helvetica cannot encode, so a Latin-only export never reads the font.
  *
+ * Its Bold (`NotoSansMonoCJKsc-Bold.woff`, the same build of the upstream Bold) sets CJK text in a bold place (the title, the page
+ * label, the chip) when the host passes `loadBoldFallbackFont`: a second {@link CjkFace} and {@link CjkEmbedding}, a font of its own
+ * in the file. Without it, or when it cannot be read, that text is the Regular with the synthetic stroke (embolden.ts).
+ *
  * Its text is laid out one code point to a glyph, a Han character in the forms of the project's language (`hanLocaleTag`: the
  * font's `locl` feature, the build keeps no other), and embedded as the emoji font is (cid-embedding.ts): a CID for each
  * distinct glyph-and-text pair.
@@ -53,9 +57,32 @@ export class CjkFace {
   }
 }
 
-/** The CJK font as it is embedded in one PDF (cid-embedding.ts). */
+/** The weight class (OS/2 `usWeightClass`) a font states: 400 for the Regular, 700 for the Bold; 0 when it states none. */
+export function weightOf(font: FontkitFont): number {
+  return (font as unknown as { readonly 'OS/2'?: { readonly usWeightClass?: number } })['OS/2']?.usWeightClass ?? 0;
+}
+
+/** The least weight class a font must state to be embedded as the Bold: semibold (600) and up. */
+const BOLD_WEIGHT = 600;
+
+/**
+ * The CJK font as it is embedded in one PDF (cid-embedding.ts): the Regular, or the Bold, each a font of its own. The Bold must be a
+ * bold face: a font that states a lighter weight (the Regular passed as the Bold's loader) is refused here, so the writer falls back to
+ * the stroke and says so rather than printing regular glyphs under the Bold's name.
+ */
 export class CjkEmbedding extends CidEmbedding {
-  constructor(lib: typeof PdfLib, doc: PdfLib.PDFDocument, readonly face: CjkFace) {
-    super(lib, doc, face.font, { resource: 'NotoCjk', tag: 'CAOTCJ', postscriptName: face.font.postscriptName ?? 'NotoSansMonoCJKsc-Regular' });
+  constructor(lib: typeof PdfLib, doc: PdfLib.PDFDocument, readonly face: CjkFace, weight: 'regular' | 'bold' = 'regular') {
+    const name = face.font.postscriptName;
+    if (weight === 'bold' && weightOf(face.font) < BOLD_WEIGHT) {
+      throw new Error(`${name ?? 'the font'} is not a bold face (weight ${weightOf(face.font)})`);
+    }
+    super(
+      lib,
+      doc,
+      face.font,
+      weight === 'bold'
+        ? { resource: 'NotoCjkBold', tag: 'CAOTCB', postscriptName: name ?? 'NotoSansMonoCJKsc-Bold' }
+        : { resource: 'NotoCjk', tag: 'CAOTCJ', postscriptName: name ?? 'NotoSansMonoCJKsc-Regular' },
+    );
   }
 }
