@@ -18,6 +18,7 @@ import { LazyBoundary, lazyView } from '../components/lazy-view.js';
 
 import { commitShotCommand, importShotImage, importShotImages } from './commit.js';
 import { MediaBoundary } from './MediaBoundary.js';
+import type { SourceRoute } from './element-menu.js';
 import { ScreenplayView } from './ScreenplayView.js';
 import type { MediaPorts } from './ports.js';
 import { mediaKindOf } from './route.js';
@@ -44,6 +45,11 @@ export interface MediaViewProps {
   readonly onZoom?: (zoom: ZoomLevel) => void;
   /** Sends a request to the agent. The scene view's derive action uses it (storyboard.md §4). Absent: the action is not offered. */
   readonly onAgentIntent?: (intent: string) => void;
+  /**
+   * A screenplay scene's Source tab asks for one of its routes to the binder (screenplay.md §3): the scene's section, or its synopsis
+   * in the inspector. The node is the scene. Absent: the route chords are not taken.
+   */
+  readonly onSourceRoute?: (route: SourceRoute, node: TreeNode) => void;
 }
 
 /**
@@ -89,6 +95,7 @@ function viewOf(node: TreeNode, props: MediaViewProps): ReactNode | null {
           reveal={props.reveal}
           onRevealHandled={props.onRevealHandled}
           onAgentIntent={props.onAgentIntent}
+          onRoute={props.onSourceRoute === undefined ? undefined : (route) => props.onSourceRoute?.(route, node)}
         />
       );
     case 'storyboard':

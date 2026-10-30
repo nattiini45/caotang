@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import {
   defaultExpanded,
   dropRefusalText,
+  enclosingFolders,
   newDocumentRefusalText,
   newFolderParent,
   newItemParent,
@@ -66,6 +67,17 @@ test.describe('what the binder shows', () => {
     expect([...ids].sort()).toEqual(
       [IDS.chapterOne, IDS.sceneA, IDS.sceneB, IDS.sceneC, IDS.deep, IDS.deepScene].sort(),
     );
+  });
+});
+
+test.describe('the folders a node sits in', () => {
+  test('nearest first, up to the section, which is never listed', () => {
+    const titles = (id: string): string[] => enclosingFolders(project(), id).map((node) => node.title);
+    expect(titles(IDS.deepScene)).toEqual(['Deep', 'Chapter 1']);
+    expect(titles(IDS.sceneA)).toEqual(['Chapter 1']);
+    expect(titles(IDS.chapterOne)).toEqual([]);
+    expect(titles(IDS.note)).toEqual([]);
+    expect(titles('n_MISSING000')).toEqual([]);
   });
 });
 

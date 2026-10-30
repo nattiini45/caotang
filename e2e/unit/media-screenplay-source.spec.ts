@@ -2,7 +2,20 @@ import { expect, test } from '@playwright/test';
 
 import { fillSegments, fountainSegments, type Segment } from '../../apps/desktop/src/media/source-decor.js';
 import { cueCompletion, cueNames, enterAfterCue, enterOnEmptyDialogue } from '../../apps/desktop/src/media/screenplay-keys.js';
-import { chordLabel, chordPlatform, chordRange, elementChord, elementEntries, opensElementMenu, type ChordEvent, type ChordPlatform } from '../../apps/desktop/src/media/element-menu.js';
+import {
+  chordLabel,
+  chordPlatform,
+  chordRange,
+  elementChord,
+  elementEntries,
+  opensElementMenu,
+  routeAria,
+  routeChord,
+  routeLabel,
+  type ChordEvent,
+  type ChordPlatform,
+  type RouteChordEvent,
+} from '../../apps/desktop/src/media/element-menu.js';
 
 /** The text the segments draw, joined back together: a decoration must never change a character (screenplay.md §3). */
 function textOf(source: string, segments: readonly Segment[]): string {
@@ -287,5 +300,63 @@ test.describe('the element chords', () => {
 
   test('entries carry no chord until a platform is given', () => {
     expect(elementEntries('INT. HOUSE - DAY', 0).every((entry) => entry.chord === undefined)).toBe(true);
+  });
+});
+
+test.describe('the route chords to the scene\'s section and synopsis', () => {
+  const press = (over: Partial<RouteChordEvent> = {}): RouteChordEvent => ({
+    key: 'S',
+    code: 'KeyS',
+    ctrlKey: false,
+    metaKey: false,
+    altKey: false,
+    shiftKey: false,
+    repeat: false,
+    isComposing: false,
+    ...over,
+  });
+  const WINDOWS = { ctrlKey: true, shiftKey: true };
+  const MAC = { metaKey: true, altKey: true };
+
+  test('S is the section and Y the synopsis, with the element chords\' family on each platform', () => {
+    expect(routeChord(press({ ...WINDOWS }), 'other')).toBe('section');
+    expect(routeChord(press({ ...WINDOWS, key: 'Y', code: 'KeyY' }), 'other')).toBe('synopsis');
+    expect(routeChord(press({ ...MAC, key: 's' }), 'mac')).toBe('section');
+    expect(routeChord(press({ ...MAC, key: 'y', code: 'KeyY' }), 'mac')).toBe('synopsis');
+    expect(routeLabel('section', 'other')).toBe('Ctrl+Shift+S');
+    expect(routeLabel('synopsis', 'mac')).toBe('Cmd+Alt+Y');
+    expect(routeAria('synopsis', 'other')).toBe('Control+Shift+Y');
+    expect(routeAria('section', 'mac')).toBe('Meta+Alt+S');
+    // A digit is an element chord, never a route, and a route letter is never an element.
+    expect(routeChord(press({ ...WINDOWS, key: '#', code: 'Digit3' }), 'other')).toBeNull();
+    expect(elementChord(press({ ...WINDOWS }), 'other')).toBeNull();
+  });
+
+  test('the typed letter wins, so Y on QWERTZ is the key labelled Y, and the physical key counts only outside ASCII', () => {
+    // German QWERTZ: the key labelled Y sits where QWERTY has Z.
+    expect(routeChord(press({ ...WINDOWS, key: 'Y', code: 'KeyZ' }), 'other')).toBe('synopsis');
+    expect(routeChord(press({ ...WINDOWS, key: 'Z', code: 'KeyY' }), 'other')).toBeNull();
+    // Option on a Mac types a character on the key; the physical key is read then.
+    expect(routeChord(press({ ...MAC, key: 'ß', code: 'KeyS' }), 'mac')).toBe('section');
+    expect(routeChord(press({ ...MAC, key: '¥', code: 'KeyY' }), 'mac')).toBe('synopsis');
+    // A Russian layout types ы on the physical S.
+    expect(routeChord(press({ ...WINDOWS, key: 'Ы', code: 'KeyS' }), 'other')).toBe('section');
+    // ASCII punctuation keeps its own key: Option+L types @ on a German Mac, and that is not a route.
+    expect(routeChord(press({ ...MAC, key: '@', code: 'KeyS' }), 'mac')).toBeNull();
+  });
+
+  test('wants exactly the family, and is refused under AltGraph, on key repeat and while an input method composes', () => {
+    expect(routeChord(press({ ctrlKey: true }), 'other')).toBeNull();
+    expect(routeChord(press({ ctrlKey: true, altKey: true }), 'other')).toBeNull();
+    expect(routeChord(press({ ctrlKey: true, altKey: true, shiftKey: true }), 'other')).toBeNull();
+    expect(routeChord(press({ metaKey: true, shiftKey: true }), 'mac')).toBeNull();
+    expect(routeChord(press(MAC), 'other')).toBeNull();
+    expect(routeChord(press(WINDOWS), 'mac')).toBeNull();
+    const altGraph = (key: string): boolean => key === 'AltGraph';
+    // Polish: AltGr+S types ś. Windows reports AltGr as Ctrl+Alt, and the family never holds Alt there, but the guard refuses it first.
+    expect(routeChord(press({ ...WINDOWS, getModifierState: altGraph }), 'other')).toBeNull();
+    expect(routeChord(press({ ...MAC, getModifierState: altGraph }), 'mac')).toBeNull();
+    expect(routeChord(press({ ...WINDOWS, repeat: true }), 'other')).toBeNull();
+    expect(routeChord(press({ ...WINDOWS, isComposing: true }), 'other')).toBeNull();
   });
 });

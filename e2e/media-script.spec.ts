@@ -6,7 +6,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { binderTitle, bodyOf, createProject, firstChapter, idOf, traceNames, treeOf, waitForSaved } from './support.js';
+import { binderRow, binderTitle, bodyOf, createProject, firstChapter, idOf, traceNames, treeOf, waitForSaved } from './support.js';
 
 const PROJECT = 'Night Shift';
 
@@ -510,4 +510,67 @@ test('a browser that reports a Mac gets the Cmd+Alt chords, and its Ctrl+Shift c
   await source(page).focus();
   await page.keyboard.press('Meta+Alt+Digit3');
   await expect(source(page)).toHaveValue('@Anna waits.');
+});
+
+/** The route chord for a letter, spelled for Playwright, on the platform the browser reports. */
+async function route(page: Page, letter: 'S' | 'Y'): Promise<string> {
+  return `${(await onMac(page)) ? 'Meta+Alt' : 'Control+Shift'}+Key${letter}`;
+}
+
+test('the section chord on the Source tab selects the folder the scene is in and focuses its binder row, and changes no text', async ({ page }) => {
+  await createProject(page, PROJECT);
+  await makeScene(page);
+  await page.getByRole('radio', { name: 'Source', exact: true }).click();
+  await source(page).fill('INT. HOUSE - DAY');
+  const field = source(page);
+  await expect(field).toHaveAttribute('aria-keyshortcuts', (await onMac(page)) ? 'Meta+Alt+S Meta+Alt+Y' : 'Control+Shift+S Control+Shift+Y');
+  await page.keyboard.press(await route(page, 'S'));
+  const row = binderRow(page, 'Chapter 1');
+  await expect(row).toBeFocused();
+  await expect(row).toHaveAttribute('aria-selected', 'true');
+  // The scene's text is as it was: the chord typed nothing and wrote nothing.
+  const id = await idOf(page, 'Untitled scene');
+  await waitForSaved(page);
+  await expect.poll(() => bodyOf(page, id)).toBe('INT. HOUSE - DAY');
+});
+
+test('the synopsis chord focuses the scene\'s synopsis in the inspector, and what is typed there is the scene\'s synopsis', async ({ page }) => {
+  await createProject(page, PROJECT);
+  await makeScene(page);
+  await page.getByRole('radio', { name: 'Source', exact: true }).click();
+  await source(page).fill('INT. HOUSE - DAY');
+  await page.keyboard.press(await route(page, 'Y'));
+  const synopsis = page.locator('#inspector-synopsis');
+  await expect(synopsis).toBeFocused();
+  await page.keyboard.type('Marcus comes home.');
+  await synopsis.blur();
+  // The synopsis is the binder's field (screenplay.md §2.2), never a `=` line in the scene's text.
+  await expect(source(page)).toHaveValue('INT. HOUSE - DAY');
+  await page.getByRole('radio', { name: 'Script', exact: true }).click();
+  await binderTitle(page, 'Untitled scene').click();
+  await expect(page.locator('#inspector-synopsis')).toHaveValue('Marcus comes home.');
+  const id = await idOf(page, 'Untitled scene');
+  await waitForSaved(page);
+  await expect.poll(() => bodyOf(page, id)).toBe('INT. HOUSE - DAY');
+});
+
+test('AltGraph with S, and the route chords with a key held down, change nothing and move no focus', async ({ page }) => {
+  await createProject(page, PROJECT);
+  await makeScene(page);
+  await page.getByRole('radio', { name: 'Source', exact: true }).click();
+  await source(page).fill('Anna waits.');
+  const mac = await onMac(page);
+  const fire = (init: { ctrlKey?: boolean; metaKey?: boolean; altKey?: boolean; shiftKey?: boolean; repeat?: boolean; modifierAltGraph?: boolean }) =>
+    source(page).evaluate((field, eventInit) => {
+      const event = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, code: 'KeyS', key: 'S', ...eventInit });
+      field.dispatchEvent(event);
+      return event.defaultPrevented;
+    }, init);
+  const own = mac ? { metaKey: true, altKey: true } : { ctrlKey: true, shiftKey: true };
+  // Polish: AltGr+S types ś, and Windows reports AltGr as Ctrl+Alt.
+  expect(await fire({ ctrlKey: true, altKey: true, modifierAltGraph: true })).toBe(false);
+  expect(await fire({ ...own, modifierAltGraph: true })).toBe(false);
+  expect(await fire({ ...own, repeat: true })).toBe(false);
+  await expect(source(page)).toBeFocused();
+  await expect(source(page)).toHaveValue('Anna waits.');
 });
