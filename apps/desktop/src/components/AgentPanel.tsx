@@ -25,7 +25,7 @@ import {
 import type { ProjectState } from '@caotang/store';
 
 import { DEMO_CHOICES } from '../app/demo.js';
-import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, MODE_HINTS, phaseLabel, progressViewOf, savesAsMacro, spendLine, stepMenuOf, type DelegationCardView, type TurnView } from '../app/agent-model.js';
+import { askBackOptions, delegationViewOf, elapsedOf, formatElapsed, isSettled, MODE_HINTS, phaseLabel, progressViewOf, promptCacheLines, savesAsMacro, spendLine, stepMenuOf, type DelegationCardView, type TurnView } from '../app/agent-model.js';
 import { formatUsd, turnCostOf } from '../app/plan-preview.js';
 import { keyFacts, resolveKey, shortcutLabel } from '../app/keymap.js';
 import { isImeEnter } from '../app/ime.js';
@@ -1017,6 +1017,11 @@ function ReportLine({ report, price }: { report: TurnReport; price: TurnView['pr
         {tokens.completionTokens} out
       </p>
       {cost !== undefined ? <p className="muted agent-report-meta">About {formatUsd(cost)} for this turn, at this profile’s prices.</p> : null}
+      {promptCacheLines(report).map((line) => (
+        <p key={line} className="muted agent-report-meta" data-testid="agent-report-cache">
+          {line}
+        </p>
+      ))}
       {report.dropped.length > 0 ? (
         <details className="agent-context">
           <summary>What the prompt left out</summary>

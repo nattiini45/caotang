@@ -13,6 +13,7 @@ import {
   isLocalBase,
   modelRowFor,
   presetFor,
+  type CachePolicy,
   type ModelInfo,
   type PresetDef,
   type ProfileView,
@@ -213,6 +214,10 @@ interface FormState {
   /** The two optional price fields, as typed: dollars per 1,000 prompt tokens and per 1,000 reply tokens. Empty is no price. */
   readonly promptPrice: string;
   readonly completionPrice: string;
+  /** Prompt caching for this profile (provider-gateway §3): on by default. */
+  readonly cacheOn: boolean;
+  /** Anthropic only: how long the provider keeps a cached prompt. */
+  readonly cacheTtl: '5m' | '1h';
 }
 
 const BLANK: FormState = {
@@ -227,6 +232,8 @@ const BLANK: FormState = {
   headersTouched: false,
   promptPrice: '',
   completionPrice: '',
+  cacheOn: true,
+  cacheTtl: '5m',
 };
 
 function formFor(view: ProfileView): FormState {
@@ -242,7 +249,18 @@ function formFor(view: ProfileView): FormState {
     headersTouched: false,
     promptPrice: view.pricePer1k === undefined ? '' : String(view.pricePer1k.prompt),
     completionPrice: view.pricePer1k === undefined ? '' : String(view.pricePer1k.completion),
+    cacheOn: view.promptCache?.mode !== 'off',
+    cacheTtl: view.promptCache?.ttl ?? '5m',
   };
+}
+
+/** The presets whose lifetime setting means something: Anthropic keeps a cached prompt 5 minutes, or an hour on request. */
+const CACHE_TTL_PRESETS: ReadonlySet<string> = new Set(['anthropic']);
+
+/** The caching policy a form saves: off, or on with Anthropic's lifetime when that preset is chosen. */
+function cachePolicyOf(form: FormState): CachePolicy {
+  if (!form.cacheOn) return { mode: 'off' };
+  return CACHE_TTL_PRESETS.has(form.preset) && form.cacheTtl === '1h' ? { mode: 'auto', ttl: '1h' } : { mode: 'auto' };
 }
 
 /** The preset field values a fresh pick starts with: each declared default, nothing else. */
@@ -424,6 +442,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
           defaultModel: form.model,
           ...(form.apiKey === '' ? {} : { apiKey: form.apiKey }),
           ...(price.price === undefined ? {} : { pricePer1k: price.price }),
+          promptCache: cachePolicyOf(form),
         });
         setForm(null);
         if (outcome.models !== undefined) setModels({ profile: outcome.view.name, preset: outcome.view.preset, list: outcome.models });
@@ -447,6 +466,7 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
         defaultModel: form.model,
         ...(form.apiKey === '' ? {} : { apiKey: form.apiKey }),
         ...(priceChange === undefined ? {} : { pricePer1k: priceChange }),
+        ...(isMock === true ? {} : { promptCache: cachePolicyOf(form) }),
       });
       setForm(null);
       if (outcome.models !== undefined) setModels({ profile: outcome.view.name, preset: outcome.view.preset, list: outcome.models });
@@ -733,6 +753,27 @@ function ProvidersSection({ services, onChanged }: { services: AppServices; onCh
                 <span>Reply</span>
                 <input type="number" min={0} step="any" value={form.completionPrice} onChange={(event) => setForm({ ...form, completionPrice: event.target.value })} />
               </label>
+            </fieldset>
+          ) : null}
+          {isMock !== true ? (
+            <fieldset className="cache-fields" data-testid="profile-cache">
+              <legend>Prompt caching</legend>
+              <label className="settings-check">
+                <input type="checkbox" checked={form.cacheOn} onChange={(event) => setForm({ ...form, cacheOn: event.target.checked })} />
+                <span>
+                  Let the provider reuse the start of a prompt it has just seen. Where the provider supports it, repeated calls cost less
+                  and answer sooner; the provider keeps the reused part for a few minutes.
+                </span>
+              </label>
+              {form.cacheOn && CACHE_TTL_PRESETS.has(form.preset) ? (
+                <label>
+                  <span>Keep a cached prompt for</span>
+                  <select value={form.cacheTtl} onChange={(event) => setForm({ ...form, cacheTtl: event.target.value === '1h' ? '1h' : '5m' })}>
+                    <option value="5m">5 minutes (default)</option>
+                    <option value="1h">1 hour (costs more to write)</option>
+                  </select>
+                </label>
+              ) : null}
             </fieldset>
           ) : null}
           <div className="profile-form-actions">

@@ -15,8 +15,6 @@ Tools:
 
 # Project
 Title: The Lighthouse Keeper
-Documents: 3. Words: 25.
-Session: progress unavailable.
 Statuses: draft (Draft), revised (Revised), final (Final).
 Labels: none.
 Saved filters: 0. Goals: 0.
@@ -56,5 +54,9 @@ Brief: write the synopsis of this document.
 
 Tool: synopsis.fill
 Parameters: {}
+
+# Status
+Documents: 3. Words: 25.
+Session: progress unavailable.
 
 Show the synopsis to the writer. This server is read-only, so do not try to store it.

@@ -15,8 +15,6 @@ Tools:
 
 # Project
 Title: The Lighthouse Keeper
-Documents: 3. Words: 25.
-Session: progress unavailable.
 Statuses: draft (Draft), revised (Revised), final (Final).
 Labels: none.
 Saved filters: 0. Goals: 0.
@@ -57,5 +55,9 @@ The codex already holds: Elena (character), Kestrel (other).
 
 Tool: synopsis.fill
 Parameters: {"for":"codex-from-doc"}
+
+# Status
+Documents: 3. Words: 25.
+Session: progress unavailable.
 
 Show the proposed entries to the writer. This server is read-only, so do not try to store it. The writer can add them in Caotang.

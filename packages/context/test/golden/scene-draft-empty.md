@@ -2,13 +2,15 @@
 
 scene.draft, draft, an empty focus: the synopsis and notes stand in.
 
-Prompt: 644 tokens against a total budget of 12000; over budget: no.
+Prompt: 647 tokens against a total budget of 12000; over budget: no.
+
+User parts: L1, L2 (cache boundary), L3, L4, L5, L6, L7, status.
 
 | layer | included | base | budget | tokens | kept | dropped |
 |---|---|---|---|---|---|---|
 | L0 | yes | - | - | 295 | 0 | 0 |
 | LI | no | 1500 | - | 0 | 0 | 0 |
-| L1 | yes | 1500 | 1500 | 79 | 0 | 0 |
+| L1 | yes | 1500 | 1500 | 82 | 0 | 0 |
 | L2 | yes | 1000 | 1000 | 25 | 1 | 0 |
 | L3 | yes | 1200 | 1200 | 32 | 2 | 0 |
 | L4 | yes | 2000 | 3168 | 62 | 3 | 1 |
@@ -41,8 +43,6 @@ Tools:
 ```text
 # Project
 Title: Harbor Notes
-Documents: 6. Words: 930.
-Session: 412 words today, target 1,000.
 Statuses: draft (Draft), revised (Revised), final (Final).
 Labels: none.
 Saved filters: 0. Goals: 0.
@@ -105,4 +105,8 @@ Draft the storm chapter.
 
 Tool: scene.draft
 Parameters: {}
+
+# Status
+Documents: 6. Words: 930.
+Session: 412 words today, target 1,000.
 ```
