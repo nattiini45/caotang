@@ -63,10 +63,11 @@ export const CONTEXT_LAYER_MIN = 200;
 export const CONTEXT_LAYER_MAX = 50_000;
 
 /**
- * The layers whose budgets the spec names as config-exposed: the writer's instructions (LI), the codex (L2), the story so far (L4) and the
- * continuity tail (L5).
+ * Every layer with a budget of its own, in the stack's order (context-assembly §2): the writer's instructions (LI), the project summary
+ * (L1), the codex (L2), the structure around the focus (L3), the story so far (L4), the focus text (L5) and the recent turns (L6). L0 and
+ * L7 have no cap, so they are not here.
  */
-export const CONTEXT_LAYERS = ['LI', 'L2', 'L4', 'L5'] as const;
+export const CONTEXT_LAYERS = ['LI', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6'] as const;
 export type ContextLayerId = (typeof CONTEXT_LAYERS)[number];
 
 export interface ContextSettings {
