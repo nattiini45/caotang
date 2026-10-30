@@ -162,7 +162,7 @@ export interface ReasoningBlock {
  */
 export interface ContentPart {
   readonly text: string;
-  /** Everything up to and including this part is a prefix worth caching. */
+  /** Everything up to and including this part is a prefix worth caching. When several parts are marked, the last one is the boundary. */
   readonly cacheBoundary?: boolean;
 }
 

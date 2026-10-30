@@ -80,6 +80,7 @@ export { createIndexedDbVaultPort, type IndexedDbVaultOptions } from './keys/ind
 export { createGateway, type Gateway, type GatewayOptions, type GatewayTraceEvent } from './gateway.js';
 export type { FetchLike } from './transport.js';
 export { adapterFor } from './adapters/index.js';
+export { fnv1a64 } from './adapters/cache.js';
 export { effectiveOutput, levelForBudget, nominalThinkingTokens, type EffectiveOutput } from './adapters/effort.js';
 export type {
   AdapterId,

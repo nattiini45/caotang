@@ -136,6 +136,28 @@ describe('the turn report’s cache line', () => {
     expect(missOn(request())).toBe(CACHE_MISS_CAUSES.provider);
   });
 
+  it('names a change of the cached prefix, which the provider cannot be blamed for', () => {
+    const request = (system: string, context: string): ChatRequest => ({
+      model: 'm',
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: `${context}\n\ntask`, parts: [{ text: context, cacheBoundary: true }, { text: 'task' }] },
+      ],
+    });
+    const missOn = (next: ChatRequest): string | undefined => {
+      const watch = new CacheWatch();
+      watch.record(1, request('role', 'codex'), { promptTokens: 2000, completionTokens: 1, cacheWritePromptTokens: 2000 }, true);
+      watch.record(2, next, { promptTokens: 2100, completionTokens: 1, cachedPromptTokens: 0 }, true);
+      return watch.report()?.misses[0]?.cause;
+    };
+    expect(missOn(request('role, edited', 'codex'))).toBe(CACHE_MISS_CAUSES.prefix);
+    expect(missOn(request('role', 'codex, edited'))).toBe(CACHE_MISS_CAUSES.prefix);
+    // Text after the boundary is not cached, so changing it is not a prefix change.
+    const after = request('role', 'codex');
+    const user = after.messages[1]!;
+    expect(missOn({ ...after, messages: [after.messages[0]!, { ...user, parts: [user.parts![0]!, { text: 'another task' }] }] })).toBe(CACHE_MISS_CAUSES.provider);
+  });
+
   it('does not call a cold first call, or a drafting call, a miss', () => {
     const watch = new CacheWatch();
     watch.record(1, { messages: [] }, { promptTokens: 10, completionTokens: 1, cachedPromptTokens: 0 }, true);

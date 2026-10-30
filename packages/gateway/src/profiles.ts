@@ -230,7 +230,8 @@ function checkFields(kind: ProfileKind, raw: RawFields): CheckedFields {
 }
 
 /** A profile's caching policy, checked: `off` or `auto`, and Anthropic's lifetime `5m` or `1h`. Anything else is refused. */
-function checkCachePolicy(raw: CachePolicy): CachePolicy {
+function checkCachePolicy(raw: CachePolicy | null): CachePolicy {
+  if (raw === null || typeof raw !== 'object') throw new ProfileError('invalid', 'Prompt caching is either on or off.', 'promptCache');
   if (raw.mode !== 'off' && raw.mode !== 'auto') throw new ProfileError('invalid', 'Prompt caching is either on or off.', 'promptCache');
   if (raw.ttl !== undefined && raw.ttl !== '5m' && raw.ttl !== '1h') {
     throw new ProfileError('invalid', 'A cached prompt is kept for 5 minutes or 1 hour.', 'promptCache');

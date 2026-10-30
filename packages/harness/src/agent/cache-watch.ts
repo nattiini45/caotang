@@ -4,11 +4,12 @@
  * Each model call's usage adds to the turn's totals when the provider reported a cache breakdown (`Usage.cachedPromptTokens`,
  * `cacheWritePromptTokens`). On the planner's own thread, a call that follows a call which used the cache, and read nothing
  * from it, is a miss, and the watch names the likely cause by comparing the two requests the way Claude Code's cache line
- * does: the model or profile switched, the tool definitions changed, or the thinking level changed. With none of those, the
- * provider let the entry go (it expired or was evicted). Display only: nothing here changes a request.
+ * does: the model or profile switched, the tool definitions changed, the thinking level changed, or the cached prefix itself
+ * (the system text and the first user message up to its cache boundary) changed. With none of those it can only guess: nothing
+ * it can see changed, so the provider probably let the entry go. Display only: nothing here changes a request.
  */
 
-import type { ChatChunk, ChatRequest, ThinkingLevel, Usage } from '@caotang/gateway';
+import { fnv1a64, type ChatChunk, type ChatMessage, type ChatRequest, type ThinkingLevel, type Usage } from '@caotang/gateway';
 
 /** One call that should have read the cache and did not, and the likely reason. */
 export interface CacheMiss {
@@ -34,14 +35,37 @@ interface CallShape {
   readonly model: string | undefined;
   readonly thinking: ThinkingLevel | undefined;
   readonly tools: string;
+  /** A hash of the cached prefix: the system messages' text and the first user message's parts up to its cache boundary. */
+  readonly prefix: string;
 }
 
 export const CACHE_MISS_CAUSES = {
   model: 'the model or provider profile changed, which starts a new cache',
   tools: 'the tool definitions changed (a tool was loaded), and the tools come first in the cached prefix',
   thinking: 'the thinking level changed, which some providers render into the cached prefix',
-  provider: 'nothing changed on Caotang\'s side: the provider no longer had the cached prefix (it expired or was evicted)',
+  prefix: 'the cached start of the prompt changed (the system text or the context before the cache boundary)',
+  provider: 'possibly nothing the cache watch can see changed on Caotang\'s side, or the provider\'s cached prefix expired or was evicted',
 } as const;
+
+/** The text of the parts up to and including the last cache boundary, or '' when no part is marked. */
+function cachedPartsText(message: ChatMessage | undefined): string {
+  const parts = message?.parts ?? [];
+  let end = -1;
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    if (parts[index]?.cacheBoundary === true) {
+      end = index;
+      break;
+    }
+  }
+  return parts.slice(0, end + 1).map((part) => part.text).join('\n\n');
+}
+
+/** The hash of what a request's provider caches before the conversation: its system text and its context up to the boundary. */
+function prefixOf(request: ChatRequest): string {
+  const system = request.messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
+  const firstUser = request.messages.find((m) => m.role === 'user');
+  return fnv1a64(`${system}\u0000${cachedPartsText(firstUser)}`);
+}
 
 function shapeOf(request: ChatRequest): CallShape {
   return {
@@ -50,6 +74,7 @@ function shapeOf(request: ChatRequest): CallShape {
     thinking: request.thinking,
     // Names and the full declaration: an edited description changes the prefix as surely as a new tool.
     tools: JSON.stringify(request.tools ?? []),
+    prefix: prefixOf(request),
   };
 }
 
@@ -58,6 +83,7 @@ export function missCause(before: CallShape, now: CallShape): string {
   if (before.profileId !== now.profileId || before.model !== now.model) return CACHE_MISS_CAUSES.model;
   if (before.tools !== now.tools) return CACHE_MISS_CAUSES.tools;
   if (before.thinking !== now.thinking) return CACHE_MISS_CAUSES.thinking;
+  if (before.prefix !== now.prefix) return CACHE_MISS_CAUSES.prefix;
   return CACHE_MISS_CAUSES.provider;
 }
 

@@ -80,6 +80,17 @@ describe('Anthropic: cache_control breakpoints', () => {
     expect(controls(body)).toHaveLength(4);
   });
 
+  it('marks only the first user message that carries a boundary, so a second marked one cannot take the count past four', () => {
+    const first = plannerRequest().messages[1]!;
+    const req = plannerRequest({ messages: [...plannerRequest().messages, { role: 'assistant', content: 'Done.' }, first] });
+    const body = build(anthropicMessagesAdapter, req, ctx, cacheOf(ctx.caps, '5m', req));
+    expect(controls(body)).toHaveLength(4);
+    const users = (body.messages as { role: string; content: Record<string, unknown>[] }[]).filter((message) => message.role === 'user');
+    expect(users).toHaveLength(2);
+    expect(users[0]?.content.map((block) => block.cache_control)).toEqual([{ type: 'ephemeral' }, undefined, undefined]);
+    expect(controls(users[1])).toEqual([]);
+  });
+
   it('writes the hour-long lifetime on every breakpoint, so no shorter one comes first', () => {
     const body = build(anthropicMessagesAdapter, plannerRequest(), ctx, cacheOf(ctx.caps, '1h'));
     expect(controls(body)).toEqual(Array.from({ length: 4 }, () => ({ type: 'ephemeral', ttl: '1h' })));
@@ -136,6 +147,10 @@ describe('OpenAI Responses: breakpoints and the routing key', () => {
     const two = build(openaiResponsesAdapter, req, ctx, cacheOf(ctx.caps, '5m', req));
     expect(one.prompt_cache_key).toMatch(/^caotang-[0-9a-f]{16}$/);
     expect(one.prompt_cache_key).toBe(two.prompt_cache_key);
+    // The key follows its inputs: other system text, or another profile, routes elsewhere.
+    const otherSystem = plannerRequest({ messages: [{ role: 'system', content: `${LONG} Edited.` }, plannerRequest().messages[1]!], responseFormat: req.responseFormat });
+    expect(build(openaiResponsesAdapter, otherSystem, ctx, cacheOf(ctx.caps, '5m', otherSystem)).prompt_cache_key).not.toBe(one.prompt_cache_key);
+    expect(cacheSettingsFor({ mode: 'auto' }, ctx.caps, 'profile-2', req)?.key).not.toBe(one.prompt_cache_key);
     expect(String(one.prompt_cache_key)).not.toContain('Harbor');
     expect(String(one.instructions)).toMatch(/^Stable system text[\s\S]*Respond with JSON matching/);
     expect(one.prompt_cache_retention).toBeUndefined();
@@ -222,6 +237,7 @@ describe('profiles keep their caching policy', () => {
     const kept = await h.profiles.update(made.id, { name: 'Renamed' });
     expect(kept.promptCache).toEqual({ mode: 'off' });
     await expect(addEndpoint(h, { promptCache: { mode: 'auto', ttl: '2h' as '1h' } })).rejects.toThrow(/5 minutes or 1 hour/);
+    await expect(addEndpoint(h, { promptCache: null as unknown as { mode: 'off' } })).rejects.toThrow(/either on or off/);
   });
 
   it('hashes with FNV-1a 64', () => {

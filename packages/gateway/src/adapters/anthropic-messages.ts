@@ -17,8 +17,8 @@
  * thinking on Anthropic does not accept `temperature`, so the field is omitted.
  *
  * Prompt caching (provider-gateway §3), on a row whose `cache` is `explicit` and only then: `system` goes as an array of text
- * blocks, and `cache_control` marks the last tool, the last system block and the last part of the first user message marked
- * `cacheBoundary`, each only when the prefix it closes reaches the row's minimum; a top-level `cache_control` lets Anthropic
+ * blocks, and `cache_control` marks the last tool, the last system block and the boundary part of the first user message that carries one
+ * (`cacheBoundary`), each only when the prefix it closes reaches the row's minimum; a top-level `cache_control` lets Anthropic
  * move the fourth breakpoint along the growing thread. That is four breakpoints at most, the documented limit, and every one
  * carries the same lifetime, since a mix must run longest first. Without caching the body is what it always was.
  */

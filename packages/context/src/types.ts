@@ -310,8 +310,8 @@ export interface PromptPreview {
   readonly window?: { readonly contextWindow: number; readonly warning?: string };
   /**
    * The prompt's reusable prefix (§5, "Cache forecast"): the system message and the user parts through the cache boundary.
-   * `key` is that prefix's text, so two calls share a cache entry exactly when their keys are equal. Absent when the model's
-   * cache is not priced, or the prefix is under its minimum.
+   * `key` is the system text and the prefix's text joined with a NUL, so two calls share a cache entry exactly when both match.
+   * Absent when the model's cache is not priced, the prefix is under its minimum, or no part is marked.
    */
   readonly cache?: { readonly prefixTokens: number; readonly readMultiplier: number; readonly key: string };
   /** Display-only estimate from `pricePer1k` (provider-gateway §6). */
