@@ -1,6 +1,7 @@
 /**
  * The store's applies for the script and dialogue commands ([screenplay.md §2.2](docs/architecture/screenplay.md),
- * [dialogue-narrative.md §2.1 and §4](docs/architecture/dialogue-narrative.md)): the two imports and a container's settings.
+ * [dialogue-narrative.md §2.1 and §4](docs/architecture/dialogue-narrative.md)): the two imports and a container's settings,
+ * and the AV script's show and episode settings ([av-script.md §2](docs/architecture/av-script.md)).
  * Their descriptors are the bus's own (`packages/bus/src/descriptors-script.ts`), which check the shape, the parent and the
  * limits. What the store does here is the write, and the undo that reverses it.
  *
@@ -36,6 +37,8 @@ export interface ScriptApplies {
   readonly 'screenplay.import': ProjectApply<CommandParams['screenplay.import']>;
   readonly 'dialogue.importInk': ProjectApply<CommandParams['dialogue.importInk']>;
   readonly 'dialogue.setMeta': ProjectApply<CommandParams['dialogue.setMeta']>;
+  readonly 'script.setShowMeta': ProjectApply<CommandParams['script.setShowMeta']>;
+  readonly 'script.setEpisodeMeta': ProjectApply<CommandParams['script.setEpisodeMeta']>;
 }
 
 /** The binder's synopsis limit (ui-modules §4.1). An imported `=` line longer than this is cut to it, with a notice. */
@@ -239,9 +242,46 @@ export function scriptApplies(clock: ScriptClock): ScriptApplies {
     return { nodeId: node.id, patch: params.patch };
   };
 
+  /**
+   * `script.setShowMeta` and `script.setEpisodeMeta` — a show's and an episode's settings (av-script.md §2), with the same
+   * patch semantics as `dialogue.setMeta`: a key the patch names is set, or cleared when it is `null`, and the record goes
+   * when its last key does. The whole record and the node's `updatedAt` are copied before the change, so one undo restores both.
+   */
+  function patchRecord(field: 'showMeta' | 'episodeMeta', words: string): ProjectApply<{ nodeId: string; patch: Readonly<Record<string, unknown>> }> {
+    return (state, params, context: ApplyContext) => {
+      const node: TreeNode | undefined = nodeById(state, params.nodeId);
+      if (node === undefined) throw new Error(`no node "${params.nodeId}" to set the ${words} of`);
+      const current = node[field];
+      const before = current === undefined ? undefined : (JSON.parse(JSON.stringify(current)) as Record<string, unknown>);
+      const beforeStamp = node.updatedAt;
+      const next: Record<string, unknown> = { ...(current ?? {}) };
+      for (const [key, value] of Object.entries(params.patch)) {
+        if (value === undefined) continue;
+        if (value === null) delete next[key];
+        else next[key] = Array.isArray(value) ? [...(value as unknown[])] : value;
+      }
+      if (Object.keys(next).length === 0) delete node[field];
+      else node[field] = next;
+      node.updatedAt = now().toISOString();
+      context.undo.compensate(`restore the ${words} of "${node.title}"`, () => {
+        if (before === undefined) delete node[field];
+        else node[field] = before;
+        if (beforeStamp === undefined) delete node.updatedAt;
+        else node.updatedAt = beforeStamp;
+      });
+      context.report({
+        affected: [{ nodeId: node.id, title: node.title }],
+        summary: `changed the ${words} of "${node.title}"`,
+      });
+      return { nodeId: node.id, patch: params.patch };
+    };
+  }
+
   return {
     'screenplay.import': screenplayImport,
     'dialogue.importInk': dialogueImportInk,
     'dialogue.setMeta': dialogueSetMeta,
+    'script.setShowMeta': patchRecord('showMeta', 'show settings'),
+    'script.setEpisodeMeta': patchRecord('episodeMeta', 'episode settings'),
   };
 }

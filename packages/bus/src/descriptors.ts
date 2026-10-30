@@ -412,10 +412,11 @@ const BINDER_CREATE_TYPES = ['folder', 'document', 'shot', 'dialogue'] as const;
 function pairCreateKind(
   type: string,
   kind: string | undefined,
-): { ok: true; kind?: 'screenplay' | 'storyboard' | 'branching' } | { ok: false; message: string; hint: string } {
+): { ok: true; kind?: NonNullable<BinderCreateParams['kind']> } | { ok: false; message: string; hint: string } {
+  // A show folder holds the episodes of a podcast, a series or a channel, and an `av-script` document is one episode (av-script.md §2).
   const allowed: Readonly<Record<string, readonly string[]>> = {
-    folder: ['storyboard'],
-    document: ['screenplay'],
+    folder: ['storyboard', 'show'],
+    document: ['screenplay', 'av-script'],
     dialogue: ['branching'],
     shot: [],
   };
@@ -433,7 +434,7 @@ function pairCreateKind(
           : `a ${type} takes ${choices.map((c) => `"${c}"`).join(' or ')}, or no kind at all`,
     };
   }
-  return { ok: true, kind: kind as 'screenplay' | 'storyboard' | 'branching' };
+  return { ok: true, kind: kind as NonNullable<BinderCreateParams['kind']> };
 }
 
 export const binderMove: CommandDescriptor<BinderMoveParams> = {

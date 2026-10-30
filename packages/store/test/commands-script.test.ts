@@ -420,3 +420,75 @@ describe('dialogue.setMeta', () => {
     expect(snapshotOf(h.state)).toBe(before);
   });
 });
+
+describe('the AV script: a show folder, an episode, and their settings (av-script.md §2)', () => {
+  /** A show folder in the chapter and an episode in it, made through `binder.create` with the two new kinds. */
+  function makeShow(h: Harness): { readonly show: string; readonly episode: string } {
+    succeed(h, 'binder.create', { parentId: CHAPTER, type: 'folder', title: 'The Long Way', kind: 'show' });
+    const show = byTitle(h.state, 'The Long Way').id;
+    succeed(h, 'binder.create', { parentId: show, type: 'document', title: 'Episode 12', kind: 'av-script' });
+    return { show, episode: byTitle(h.state, 'Episode 12').id };
+  }
+
+  it('makes a show folder and an episode document that carry their kinds', () => {
+    const h = harness();
+    const { show, episode } = makeShow(h);
+    expect(nodeById(h.state, show)).toMatchObject({ type: 'folder', kind: 'show' });
+    expect(nodeById(h.state, episode)).toMatchObject({ type: 'document', kind: 'av-script' });
+    expect(getBody(h.state, episode)).toBe('');
+  });
+
+  it('sets the show settings a patch names, a null clears one, and the record goes with its last key', () => {
+    const h = harness();
+    const { show } = makeShow(h);
+    succeed(h, 'script.setShowMeta', { nodeId: show, patch: { ratePreset: 'broadcast', cueVocabulary: ['music', 'bed'], targetRuntimeSec: 1800 } });
+    expect(nodeById(h.state, show)?.showMeta).toEqual({ ratePreset: 'broadcast', cueVocabulary: ['music', 'bed'], targetRuntimeSec: 1800 });
+    expect(nodeById(h.state, show)?.updatedAt).toBe(LATER);
+    succeed(h, 'script.setShowMeta', { nodeId: show, patch: { cueVocabulary: null, targetRuntimeSec: null } });
+    expect(nodeById(h.state, show)?.showMeta).toEqual({ ratePreset: 'broadcast' });
+    succeed(h, 'script.setShowMeta', { nodeId: show, patch: { ratePreset: null } });
+    expect(nodeById(h.state, show)?.showMeta).toBeUndefined();
+  });
+
+  it('sets the episode settings, and one undo restores the record and the stamp it held before', () => {
+    const h = harness();
+    const { episode } = makeShow(h);
+    const before = snapshotOf(h.state);
+    const first = succeed(h, 'script.setEpisodeMeta', {
+      nodeId: episode,
+      patch: { audioUrl: 'https://cdn.example.com/12.mp3', audioBytes: 1024, audioMime: 'audio/mpeg' },
+    });
+    const afterFirst = snapshotOf(h.state);
+    const second = succeed(h, 'script.setEpisodeMeta', { nodeId: episode, patch: { audioBytes: null, episode: 12 } });
+    expect(nodeById(h.state, episode)?.episodeMeta).toEqual({ audioUrl: 'https://cdn.example.com/12.mp3', audioMime: 'audio/mpeg', episode: 12 });
+    undoGroup(h, second);
+    expect(snapshotOf(h.state)).toBe(afterFirst);
+    undoGroup(h, first);
+    expect(snapshotOf(h.state)).toBe(before);
+  });
+
+  it('refuses show settings on an episode and episode settings on a show, and changes nothing', () => {
+    const h = harness();
+    const { show, episode } = makeShow(h);
+    const before = snapshotOf(h.state);
+    expect(send(h, 'script.setShowMeta', { nodeId: episode, patch: { author: 'A' } }).ok).toBe(false);
+    expect(send(h, 'script.setEpisodeMeta', { nodeId: show, patch: { episode: 1 } }).ok).toBe(false);
+    expect(snapshotOf(h.state)).toBe(before);
+  });
+
+  it('writes both records to caotang.json and reads them back unchanged, with no notice', async () => {
+    const h = harness();
+    const { show, episode } = makeShow(h);
+    succeed(h, 'script.setShowMeta', { nodeId: show, patch: { speechRateWpm: 160, explicit: false, cueVocabulary: ['music', 'O.C.'] } });
+    succeed(h, 'script.setEpisodeMeta', { nodeId: episode, patch: { season: 2, episodeType: 'bonus' } });
+    const fs = new MemoryArtifactFs();
+    await writeProject(fs, h.state, { now: new Date(LATER_MS) });
+    // The episode body stays docs/<id>.md: bodyExtensionOf falls through to .md for any kind but screenplay (av-script.md §2).
+    expect(await fs.exists(`docs/${episode}.md`)).toBe(true);
+    const loaded = await readProject(fs, { now: new Date(LATER_MS) });
+    expect(nodeById(loaded.state, show)?.showMeta).toEqual({ speechRateWpm: 160, explicit: false, cueVocabulary: ['music', 'O.C.'] });
+    expect(nodeById(loaded.state, episode)?.episodeMeta).toEqual({ season: 2, episodeType: 'bonus' });
+    expect(nodeById(loaded.state, episode)?.kind).toBe('av-script');
+    expect(loaded.notices.filter((n) => n.droppedField !== undefined)).toEqual([]);
+  });
+});

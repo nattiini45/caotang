@@ -141,6 +141,8 @@ export const FOOTPRINT_CLASS: Readonly<Record<CommandName, 'content' | 'move' | 
   'screenplay.import': 'global',
   'dialogue.importInk': 'global',
   'dialogue.setMeta': 'global',
+  'script.setShowMeta': 'global',
+  'script.setEpisodeMeta': 'global',
   'skill.import': 'global',
   'skill.write': 'global',
   'skill.delete': 'global',

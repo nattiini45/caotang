@@ -154,7 +154,8 @@ describe('registration — the two names are implemented only with an exporter',
     // The agent's files add three more (`project.setInstructions`, `memory.write`, `memory.forget`): 40 + 3 = 43.
     // The macros add two more (`macro.save`, `macro.delete`): 43 + 2 = 45.
     // The hooks add two more (`hook.save`, `hook.delete`): 45 + 2 = 47.
-    expect(implemented).toHaveLength(47);
+    // The AV script adds two more (`script.setShowMeta`, `script.setEpisodeMeta`): 47 + 2 = 49.
+    expect(implemented).toHaveLength(49);
   });
 
   it('implements both names once an exporter is injected, and nothing else changes', () => {
@@ -162,8 +163,8 @@ describe('registration — the two names are implemented only with an exporter',
     expect(typeof registry['export.compile'].apply).toBe('function');
     expect(typeof registry['export.compileSelection'].apply).toBe('function');
     const implemented = Object.values(registry).filter((entry) => entry.apply !== undefined);
-    // The exporter adds exactly the two export applies to the forty-seven above (47 + 2).
-    expect(implemented).toHaveLength(49);
+    // The exporter adds exactly the two export applies to the forty-nine above (49 + 2).
+    expect(implemented).toHaveLength(51);
     // The descriptors are the bus's own, unchanged: the store adds an apply, never a rule.
     expect(registry['export.compile'].descriptor).toBe(COMMAND_REGISTRY['export.compile'].descriptor);
   });
