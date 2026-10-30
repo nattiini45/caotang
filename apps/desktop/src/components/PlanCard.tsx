@@ -39,6 +39,7 @@ import {
   type ReviewPreviewView,
   type StepPreviewView,
 } from '../app/plan-preview.js';
+import { isImeEnter } from '../app/ime.js';
 
 /** A step's estimated cost, as the card's step view carries it: the prompt's, or a staged review's (coherence.md §5.3). */
 type PlanStepCost = NonNullable<PlanStepView['cost']>;
@@ -520,7 +521,7 @@ function ExpectField({ step, live, onEdit }: { step: PlanStepView; live: boolean
           if (next !== step.expect) onEdit([{ op: 'set', index: step.index, path: ['expect'], value: next }]);
         }}
         onKeyDown={(event) => {
-          if (event.key === 'Enter') event.currentTarget.blur();
+          if (event.key === 'Enter' && !isImeEnter(event)) event.currentTarget.blur();
         }}
       />
     </label>
@@ -595,7 +596,7 @@ function TextParam({ label, name, value, live, onSend }: { label: string; name: 
           onChange={(event) => setDraft(event.target.value)}
           onBlur={commit}
           onKeyDown={(event) => {
-            if (event.key === 'Enter') event.currentTarget.blur();
+            if (event.key === 'Enter' && !isImeEnter(event)) event.currentTarget.blur();
           }}
         />
       )}

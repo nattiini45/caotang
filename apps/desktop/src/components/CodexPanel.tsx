@@ -49,6 +49,7 @@ import type { ProjectSession } from '../app/session.js';
 import { attachEntry, explain, saveEntry } from './actions.js';
 import { KEYWORDS_MAX, KEYWORD_CHARS_MAX } from './Inspector.js';
 import { EmptyState, formatCount, useDebouncedText, useReport, useSession } from './shared.js';
+import { isImeEnter } from '../app/ime.js';
 
 type Outcome = Result<ExecutionOutcome, CommandError>;
 
@@ -436,7 +437,7 @@ function NameField({ value, onCommit }: { value: string; onCommit: (name: string
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {
-          if (event.key === 'Enter') {
+          if (event.key === 'Enter' && !isImeEnter(event)) {
             event.preventDefault();
             commit();
           }
@@ -523,7 +524,7 @@ function ChipField({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
-    if (event.key === 'Enter') {
+    if (event.key === 'Enter' && !isImeEnter(event)) {
       event.preventDefault();
       add();
     }

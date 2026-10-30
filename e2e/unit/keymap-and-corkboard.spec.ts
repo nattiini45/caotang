@@ -94,6 +94,22 @@ test.describe('the keyboard map', () => {
     expect(resolveKey(keys('Enter', { ctrl: true }), ELSEWHERE)).toBe('open-in-editor');
   });
 
+  test('while an input method composes, no key is a shortcut: the Enter that confirms a candidate does not send (#188)', () => {
+    const composing = { composing: true } as const;
+    expect(resolveKey(keys('Enter', composing), AGENT_INTENT)).toBeNull();
+    expect(resolveKey(keys('Enter', { ...composing, ctrl: true }), AGENT_INTENT)).toBeNull();
+    expect(resolveKey(keys('Escape', composing), { ...AGENT_INTENT, agentIntentEmpty: true })).toBeNull();
+    expect(resolveKey(keys('Escape', composing), TYPING)).toBeNull();
+    expect(resolveKey(keys('Enter', composing), CARD)).toBeNull();
+    expect(resolveKey(keys('Enter', { ...composing, ctrl: true }), ELSEWHERE)).toBeNull();
+    expect(resolveKey(keys('n', { ...composing, ctrl: true }), ELSEWHERE)).toBeNull();
+    expect(resolveKey(keys('ArrowDown', composing), BINDER)).toBeNull();
+    // The composition over, the same keys mean what they did.
+    expect(resolveKey(keys('Enter', { composing: false }), AGENT_INTENT)).toBe('agent-send');
+    expect(resolveKey(keys('Enter'), AGENT_INTENT)).toBe('agent-send');
+    expect(resolveKey(keys('Enter', { composing: false }), CARD)).toBe('select-card');
+  });
+
   test('on a plain US layout the chords read the key, with or without the physical code', () => {
     expect(resolveKey(keys('z', { code: 'KeyZ', ctrl: true }), ELSEWHERE)).toBe('undo');
     expect(resolveKey(keys('n', { code: 'KeyN', ctrl: true }), ELSEWHERE)).toBe('new-document');

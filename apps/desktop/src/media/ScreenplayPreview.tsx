@@ -13,6 +13,7 @@ import { useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type
 import { LAYOUT, paginate, parseFountain, type LayoutLine, type LayoutPage, type TextRange } from '@caotang/screenplay';
 
 import { previewRowsOf } from './preview-rows.js';
+import { isImeEnter } from '../app/ime.js';
 
 export interface ScreenplayPreviewProps {
   /** The Fountain body the preview paginates. */
@@ -43,7 +44,7 @@ export function ScreenplayPreview({ source, title, onOpenSource }: ScreenplayPre
   const tabbable = stop !== null && linked.includes(stop) ? stop : (linked[0] ?? null);
   // Up and Down move between the lines that open the Source tab, in the page's reading order.
   const onKey = (event: KeyboardEvent<HTMLElement>, line: LayoutLine): void => {
-    if (event.key === 'Enter' || event.key === ' ') {
+    if ((event.key === 'Enter' || event.key === ' ') && !isImeEnter(event)) {
       event.preventDefault();
       open(line);
       return;

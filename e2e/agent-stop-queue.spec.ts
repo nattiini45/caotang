@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { fakeEndpoint, planThenAnswer, useFakeEndpoint, type FakeReply } from './endpoint.js';
+import { composeAndConfirm } from './support.js';
 
 /**
  * Stop, steer and the queue in the agent panel (agent-harness §8, "Stop and steer"). The model is a fake endpoint (endpoint.ts), and
@@ -129,6 +130,42 @@ test('a queued message can be edited, moved by the arrow buttons and by dragging
     /Beta/,
     /Alpha, edited/,
   ]);
+});
+
+test('the Enter that confirms an input-method candidate neither sends from the Intent box nor commits a queued message’s edit (#188)', async ({
+  page,
+}) => {
+  await fakeEndpoint(page, echo);
+  const release = await hold(page, 'Request: Keep me busy');
+  await useFakeEndpoint(page);
+  await openSample(page);
+
+  // The Intent box is in a form: the composing Enter is cancelled, so the form is not submitted, and the line stays in the box.
+  expect(await composeAndConfirm(intentBox(page), '保持忙碌')).toBe(true);
+  expect(await composeAndConfirm(intentBox(page), '保持忙碌', 'keyCode')).toBe(true);
+  await expect(intentBox(page)).toHaveValue('保持忙碌');
+  await expect(turns(page)).toHaveCount(1);
+
+  await typeAndPress(page, 'Keep me busy', 'Enter');
+  await expect(page.getByTestId('agent-stop')).toBeVisible();
+  await typeAndPress(page, 'Alpha', 'Enter');
+  const chips = page.getByTestId('agent-queue').locator('.agent-chip');
+  await expect(chips).toHaveText([/Alpha/]);
+
+  // A queued message's edit stays open on the composing Enter, and the next Enter commits it.
+  await page.getByRole('button', { name: 'Edit queued message 1' }).click();
+  const editor = page.getByRole('textbox', { name: 'Edit queued message 1' });
+  expect(await composeAndConfirm(editor, '阿尔法')).toBe(false);
+  expect(await composeAndConfirm(editor, '阿尔法', 'keyCode')).toBe(false);
+  await expect(editor).toBeVisible();
+  await expect(editor).toHaveValue('阿尔法');
+  await editor.press('Enter');
+  await expect(editor).toHaveCount(0);
+  await expect(chips).toHaveText([/阿尔法/]);
+
+  release();
+  await expect(turns(page)).toHaveCount(3);
+  await expect(turns(page).last().locator('.agent-intent-text')).toHaveText(/阿尔法/);
 });
 
 test('Stop ends a running turn as "Stopped by you.", and the queued message behind it still runs', async ({ page }) => {

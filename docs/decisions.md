@@ -439,6 +439,7 @@ Designed and approved on 2026-10-25; the specs are [av-script.md](architecture/a
 - Muted text meets 4.5:1 in every theme, checked by an axe-core scan of every surface and a computed-ratio test. Why: readable for everyone. [delegated]
 - Panels return focus to their opener; Escape saves the focused field first; menus return focus to the control that opened them. Why: keyboard users never lose their place. [delegated]
 - Corkboard cards: Enter or Space selects, F2 renames, Delete deletes through the binder's confirm, Shift+F10 opens the menu. Why: keyboard parity. [delegated]
+- While an input method composes, every Enter handler and the keyboard map leave the key alone, through one guard (`isImeEnter`: `isComposing`, or `keyCode` 229), and a repo test fails on an Enter handler without it. Why: the Enter that confirms a CJK candidate must not commit, save, blur or send half-typed text, and Safari reports its last one with `isComposing` already false. [delegated 2026-10-30]
 - After a delete, focus moves to the next sibling, else the previous, else the parent. Why: predictable focus. [delegated]
 - Controls are named starting with their visible words (WCAG 2.5.3); mode switches are radio groups. Why: voice and screen-reader users. [delegated]
 - Notices, findings, run notes and Undo labels use the writer's words, in whole sentences. Why: plain language. [delegated]

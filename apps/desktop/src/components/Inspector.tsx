@@ -32,6 +32,7 @@ import {
   type MenuAnchor,
   type MenuItem,
 } from './shared.js';
+import { isImeEnter } from '../app/ime.js';
 
 /** ui-modules §4.1 and project-format §2: the limits the inspector enforces before the command does. */
 export const NOTES_MAX_CHARS = 50_000;
@@ -220,7 +221,7 @@ function KeywordsField({ session, node }: { session: ProjectSession; node: TreeN
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
-    if (event.key === 'Enter') {
+    if (event.key === 'Enter' && !isImeEnter(event)) {
       event.preventDefault();
       add();
     }

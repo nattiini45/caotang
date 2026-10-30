@@ -18,6 +18,7 @@ import {
 } from 'react';
 
 import type { ProjectSession } from '../app/session.js';
+import { isImeEnter } from '../app/ime.js';
 
 /** Re-renders the caller whenever the session commits, saves or undoes anything. */
 export function useSession(session: ProjectSession): number {
@@ -393,6 +394,8 @@ export function InlineText({
       maxLength={120}
       onChange={(event) => setValue(event.target.value)}
       onKeyDown={(event) => {
+        // The Enter that confirms an input method's candidate, and the Escape that cancels one, are the input method's (#188).
+        if (isImeEnter(event)) return;
         if (event.key === 'Enter') {
           event.preventDefault();
           event.stopPropagation();

@@ -15,6 +15,7 @@ import { characterCandidates, pairWords } from '../app/knowledge-model.js';
 import type { ProjectSession } from '../app/session.js';
 import { useStoreDraft } from './store-draft.js';
 import { useReport, useSession } from './shared.js';
+import { isImeEnter } from '../app/ime.js';
 
 /* ------------------------------------------------------------------ *
  * Export style
@@ -545,7 +546,7 @@ function NumberField({ label, value, onCommit }: { label: string; value: number 
         onChange={(event) => draft.change(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {
-          if (event.key === 'Enter') commit();
+          if (event.key === 'Enter' && !isImeEnter(event)) commit();
         }}
       />
     </label>

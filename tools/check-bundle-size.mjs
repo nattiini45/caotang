@@ -57,6 +57,7 @@ export const BUDGET = {
   // 858.2 kB measured with the result schemas (#58); the ceiling is that plus about 1%.
   // 867.7 kB measured with the planner's cut-reply handling (#97): the loop's cut words and retry, and the plan card's cut-reply note,
   // which put the first load 0.7 kB over the old 867.0 kB ceiling, so it is raised to that plus about 1%.
+  // The input-method guard in every Enter handler and the keymap (#188) adds about 0.05 kB on top; the 876.0 kB ceiling covers both.
   initialGzip: 876_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is

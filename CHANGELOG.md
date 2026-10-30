@@ -38,6 +38,7 @@ All notable changes to Caotang are recorded here. The format follows [Keep a Cha
 ### Fixed
 
 - **Shortcuts on non-Latin keyboard layouts.** Ctrl+Z, Ctrl+N, Ctrl+Shift+F, Ctrl+Alt+F and the screenplay's Ctrl+E now work on a Russian, Greek, Hebrew, Arabic or other non-Latin layout: when the key types a letter outside the Latin alphabet, the shortcut follows the physical key, the one where the letter sits on an English keyboard. On Latin layouts the letter printed on the key still decides, so Ctrl+Z stays the key labelled Z on QWERTZ and AZERTY. AltGr, which Windows reports as Ctrl+Alt, is never taken as a Ctrl+Alt shortcut, so it always types its character (`@`, `{`, `[`, `€`).
+- **Typing Chinese, Japanese or Korean with an input method.** The Enter that confirms a candidate no longer acts on the field: it does not commit a codex name or chip, add a keyword, save a Project panel field, blur an inspector or plan-card field, create a skill, add or save a vocabulary entry, finish an inline rename, commit a queued message's edit, send or complete in the agent's Intent box, or rewrite a screenplay cue. The Enter you press after the candidate is chosen does what it did before (#188).
 
 ### Known limits
 

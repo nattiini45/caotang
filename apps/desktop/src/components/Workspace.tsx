@@ -27,6 +27,7 @@ import { childrenOf, newDocumentRefusalText, newItemParent, nodeById, summarizeS
 import { downloadBytes } from '../app/download.js';
 import { folderAccessSupported, folderIsEmpty, pickDirectory, type DirectoryHandleLike } from '../app/fs-access.js';
 import { keyFacts, resolveKey } from '../app/keymap.js';
+import { isImeEnter } from '../app/ime.js';
 import { narrowMediaFeature, togglePanel, type NarrowPanel } from '../app/narrow-model.js';
 import {
   exportBundle,
@@ -450,7 +451,7 @@ export function Workspace({
       target instanceof HTMLInputElement ||
       (target instanceof HTMLElement && target.isContentEditable);
     const action = resolveKey(
-      keyFacts(event),
+      { ...keyFacts(event), composing: isImeEnter(event) },
       { inTextField, inBinder: false },
     );
     if (action === null) return;

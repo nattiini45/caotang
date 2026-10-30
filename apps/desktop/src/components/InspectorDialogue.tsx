@@ -15,6 +15,7 @@ import { InkGate } from './InkGate.js';
 import type { ProjectSession } from '../app/session.js';
 import { useCodexEntries } from '../media/hooks.js';
 import { useReport, useSession } from './shared.js';
+import { isImeEnter } from '../app/ime.js';
 
 /** The engine each target names, in the words the writer sees. The targets are the bus's list (dialogue-narrative.md §2.1). */
 const TARGET_LABELS: Readonly<Record<(typeof DIALOGUE_ENGINE_TARGETS)[number], string>> = {
@@ -139,7 +140,7 @@ function LocaleField({ value, onCommit }: { value: string; onCommit: (locale: st
           if (text.trim() !== value) onCommit(text.trim());
         }}
         onKeyDown={(event) => {
-          if (event.key === 'Enter') event.currentTarget.blur();
+          if (event.key === 'Enter' && !isImeEnter(event)) event.currentTarget.blur();
         }}
       />
     </label>

@@ -17,6 +17,7 @@ import { useReturnFocus } from './dialog-focus.js';
 import { closeDialog, useDialogRequest } from './dialog-requests.js';
 import { useReport } from './shared.js';
 import type { ProjectSession } from '../app/session.js';
+import { isImeEnter } from '../app/ime.js';
 import './project-dialogs.css';
 
 type Field = 'title' | 'author' | 'language' | 'isbn' | 'cover';
@@ -211,7 +212,7 @@ function ProjectPanelDialog({ session }: { session: ProjectSession }): ReactNode
             onChange={(event) => setTitle(event.target.value)}
             onBlur={saveTitle}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') saveTitle();
+              if (event.key === 'Enter' && !isImeEnter(event)) saveTitle();
             }}
           />
           {refused.title !== undefined ? <span className="project-dialog-error" role="alert">{refused.title}</span> : null}
@@ -226,7 +227,7 @@ function ProjectPanelDialog({ session }: { session: ProjectSession }): ReactNode
             onChange={(event) => setAuthor(event.target.value)}
             onBlur={saveAuthor}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') saveAuthor();
+              if (event.key === 'Enter' && !isImeEnter(event)) saveAuthor();
             }}
           />
           <span className="project-dialog-help">Shown on the title page and in the EPUB and Word files. Leave it empty for none.</span>
@@ -242,7 +243,7 @@ function ProjectPanelDialog({ session }: { session: ProjectSession }): ReactNode
             onChange={(event) => setLanguage(event.target.value)}
             onBlur={saveLanguage}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') saveLanguage();
+              if (event.key === 'Enter' && !isImeEnter(event)) saveLanguage();
             }}
           />
           <span className="project-dialog-help">A language code such as en, de or en-GB. EPUB files declare it.</span>
@@ -258,7 +259,7 @@ function ProjectPanelDialog({ session }: { session: ProjectSession }): ReactNode
             onChange={(event) => setIsbn(event.target.value)}
             onBlur={saveIsbn}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') saveIsbn();
+              if (event.key === 'Enter' && !isImeEnter(event)) saveIsbn();
             }}
           />
           <span className="project-dialog-help">Optional. ISBN-10 or ISBN-13, with or without hyphens. It goes into EPUB files.</span>

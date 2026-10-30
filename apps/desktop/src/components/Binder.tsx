@@ -43,6 +43,7 @@ import {
 import { EMPTY_STATE_INTENTS } from '../app/empty-intents.js';
 import { filterResultFor, furnitureFor } from '../app/furniture-store.js';
 import { keyFacts, resolveKey } from '../app/keymap.js';
+import { isImeEnter } from '../app/ime.js';
 import type { ProjectSession } from '../app/session.js';
 import { BinderFilterBar } from './BinderFilters.js';
 import { ACCESS_LABELS, ACCESS_MARKERS, accessOf, effectiveAccess } from '../app/agent-rules-model.js';
@@ -232,7 +233,7 @@ export function Binder(props: BinderProps): ReactNode {
     if (event.target instanceof HTMLInputElement) return; // a rename field owns its keys
     if (event.ctrlKey || event.metaKey) return;
     const action = resolveKey(
-      { ...keyFacts(event), ctrl: false, meta: false },
+      { ...keyFacts(event), ctrl: false, meta: false, composing: isImeEnter(event) },
       { inTextField: false, inBinder: true },
     );
     if (action === null) return;
