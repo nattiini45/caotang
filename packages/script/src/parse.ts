@@ -370,6 +370,13 @@ export function parseEpisode(body: string, options: ParseOptions = {}): ParsedEp
             line: entry.line,
             message: `${label} is not a character in the codex, so the line is kept under the typed name; add ${label} to the codex, or add it to the show's cue vocabulary if it was meant as a cue`,
           });
+        } else {
+          const names = resolution.entries.map((e) => e.name).join(' and ');
+          notices.push({
+            kind: 'speaker-ambiguous',
+            line: entry.line,
+            message: `${label} names more than one character in the codex (${names}), so the line is kept under the typed name; give one of them a different name or alias`,
+          });
         }
       }
     }

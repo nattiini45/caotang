@@ -186,6 +186,15 @@ describe('speakers resolve against the codex', () => {
     ]);
   });
 
+  it('keeps a label two codex characters answer to under the typed name, and names both', () => {
+    const twins = [...codex, character('c_ELENA00002', 'Elena Two', ['Host A'])];
+    const episode = parseEpisode('## A\nHost A: Hello.', { codex: twins });
+    expect(episode.segments[0]?.lines[0]).toMatchObject({ kind: 'speech', speaker: 'Host A', text: 'Hello.' });
+    expect(episode.notices).toEqual([
+      expect.objectContaining({ kind: 'speaker-ambiguous', line: 2, message: expect.stringMatching(/Host A names more than one character in the codex \(Elena and Elena Two\)/) }),
+    ]);
+  });
+
   it('reports no unknown speaker when no codex is given', () => {
     expect(parseEpisode('## A\nBED: Low strings').notices).toEqual([]);
   });

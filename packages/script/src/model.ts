@@ -93,7 +93,10 @@ export interface ScriptEpisode {
 export type ScriptNoticeKind =
   /** A bracket that looks like a timing and does not parse; it stays in the text. */
   | 'bracket-unparsed'
-  /** A timing bracket in a place that takes none (an offset on a speech line, a second duration or offset). */
+  /**
+   * A timing bracket in a place that takes none (an offset on a speech line, a second duration or offset), or a bracket
+   * of words (closed, unclosed, or a stray `]`) that kept a well-formed timing before it from being applied.
+   */
   | 'bracket-misplaced'
   /** A well-formed timing bracket that was not applied, because reading stopped at a bracket after it. */
   | 'bracket-not-applied'
@@ -104,7 +107,9 @@ export type ScriptNoticeKind =
   /** A minted id a line before this one already carries; this line gets a session-local id. */
   | 'id-duplicate'
   /** A speech label that resolves to no codex character; kept under the typed name. */
-  | 'speaker-unknown';
+  | 'speaker-unknown'
+  /** A speech label that resolves to more than one codex character; kept under the typed name. */
+  | 'speaker-ambiguous';
 
 /** One thing the parse kept tolerantly and reports, with the line it is on (§3: nothing is dropped quietly). */
 export interface ScriptNotice {

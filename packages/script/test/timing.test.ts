@@ -132,6 +132,22 @@ describe('brackets are read right to left, and reading stops at the first one th
     expect(episode.notices.map((n) => n.kind)).toEqual(['bracket-misplaced', 'bracket-not-applied']);
   });
 
+  it('names the timing before an unclosed bracket of words, and stays quiet when there is none', () => {
+    const read = readTiming('Hi [0:05] [laughs', 'line');
+    expect(read.notices.map((n) => n.kind)).toEqual(['bracket-misplaced', 'bracket-not-applied']);
+    expect(read.notices[1]?.message).toBe('the duration [0:05] was not applied because reading stopped at the unclosed bracket [laughs');
+    expect(read.durationSec).toBeUndefined();
+    expect(parseEpisode('## A\nHOST: Hi [0:05] [laughs').notices.map((n) => n.kind)).toEqual(['bracket-misplaced', 'bracket-not-applied']);
+    expect(readTiming('Hi [laughs', 'line').notices).toEqual([]);
+  });
+
+  it('names the timing before a stray closing bracket, and stays quiet when there is none', () => {
+    const read = readTiming('Hi [0:05] tag]', 'line');
+    expect(read.notices.map((n) => n.kind)).toEqual(['bracket-misplaced', 'bracket-not-applied']);
+    expect(read.durationSec).toBeUndefined();
+    expect(readTiming('Hi there tag]', 'line').notices).toEqual([]);
+  });
+
   it('names the timing before an unclosed bracket', () => {
     const read = readTiming('Hi [0:05] [0:15', 'line');
     expect(read.notices.map((n) => n.kind)).toEqual(['bracket-unclosed', 'bracket-not-applied']);

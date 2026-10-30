@@ -121,12 +121,15 @@ export function readTiming(words: string, role: 'line' | 'cue'): TimingRead {
     if (!rest.endsWith(']')) {
       const open = rest.lastIndexOf('[');
       if (open >= 0 && !rest.includes(']', open)) {
-        const tail = rest.slice(open + 1);
-        if (looksLikeTiming(tail)) {
-          const bracket = rest.slice(open);
+        const bracket = rest.slice(open);
+        const unapplied = notApplied(rest.slice(0, open), `the unclosed bracket ${bracket}`);
+        // An unclosed bracket that looks like a timing is named; one of words is named only when it kept a timing from applying.
+        if (looksLikeTiming(rest.slice(open + 1))) {
           notices.push({ kind: 'bracket-unclosed', message: `the bracket ${bracket} is not closed, so it times nothing and stays in the text` });
-          notices.push(...notApplied(rest.slice(0, open), `the unclosed bracket ${bracket}`));
+        } else if (unapplied.length > 0) {
+          notices.push({ kind: 'bracket-misplaced', message: `the bracket ${bracket} is not closed, so the timing before it stays in the text` });
         }
+        notices.push(...unapplied);
       }
       break;
     }
@@ -134,7 +137,16 @@ export function readTiming(words: string, role: 'line' | 'cue'): TimingRead {
     if (open < 0) break;
     const bracket = rest.slice(open);
     const inner = bracket.slice(1, -1);
-    if (inner.includes(']')) break;
+    if (inner.includes(']')) {
+      // A stray `]` ends the words (`[0:05] tag]`): reading stops there, and a timing it kept from applying is named.
+      const stray = rest.slice(rest.lastIndexOf(']', rest.length - 2) + 1);
+      const unapplied = notApplied(rest, `the stray ] in ${stray.trim()}`);
+      if (unapplied.length > 0) {
+        notices.push({ kind: 'bracket-misplaced', message: `the ] in ${stray.trim()} closes no bracket, so the timing before it stays in the text` });
+        notices.push(...unapplied);
+      }
+      break;
+    }
     const reading = readBracket(inner);
     let stop: { readonly words: string; readonly notice?: TimingNotice } | undefined;
     if (reading.kind === 'words') {
