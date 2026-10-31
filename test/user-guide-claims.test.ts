@@ -88,6 +88,27 @@ describe('the user guide’s reviewed claims match the code', () => {
     expect(read('apps/desktop/src/components/EditorPane.tsx')).toContain('New chapter');
   });
 
+  it('says folders nest into parts, where New folder goes, and how a part compiles, as the code does (#269)', () => {
+    expect(guide).toContain('A book in parts has a folder for each part, holding its chapters: Part → Chapter → Scene. A part\'s row says **Part**.');
+    expect(guide).toContain('With a part selected, it adds a chapter inside that part.');
+    expect(guide).toContain('Chapter numbers run on across parts: if Part One has three chapters, Part Two starts at chapter 4.');
+    const model = read('apps/desktop/src/app/binder-model.ts');
+    // The binder no longer refuses a folder inside a folder, and New folder goes inside a selected part.
+    expect(model).not.toContain("'folder-in-folder'");
+    expect(model).toContain('if (isPart(state, cursor.id)) return cursor.id;');
+    expect(read('apps/desktop/src/components/Binder.tsx')).toContain('<span className="row-role">Part</span>');
+    // The compile counts parts apart from chapters, and the default part label is the part's title.
+    expect(read('packages/exporter/src/flatten.ts')).toContain('partCount += 1;');
+    expect(read('packages/exporter/src/template.ts')).toContain("partLabel: '{partTitle}',");
+    // The decision that superseded the three-tier line is recorded, and the line it replaced is gone from every doc.
+    const decisions = read('docs/decisions.md');
+    expect(decisions).toContain('Supersedes the earlier [delegated] three-tier line');
+    for (const path of ['docs/decisions.md', 'docs/ARCHITECTURE.md', 'docs/architecture/ui-modules.md', 'docs/architecture/exporter.md', 'docs/USER-GUIDE.md']) {
+      expect(read(path), path).not.toMatch(/never creates? folder-in-folder|binder is three tiers|three-tier (?:model|structure|invariant)/);
+    }
+    expect(read('docs/architecture/project-format.md')).toContain('Nesting depth is **not capped**, by decision');
+  });
+
   it('says the window is at least 960 px wide and the toolbar wraps below 1100 px', () => {
     expect(guide).toContain('At 960 px and wider the layout is the desktop one: under 1100 px the toolbar wraps onto a second row');
     const css = read('apps/desktop/src/styles.css');

@@ -50,18 +50,18 @@
 
 ## 2. Binder (module 2.2)
 
-**Responsibility:** tree view of the three-tier structure; drag-drop reorder/reparent; status/label chips; inline rename. Owns view state only.
+**Responsibility:** tree view of the manuscript and research: sections, folders and documents, where folders nest (a **part** is a folder that holds chapters: Part → Chapter → Scene, project-format §2); drag-drop reorder/reparent; status/label chips; inline rename. Owns view state only.
 
 ### 2.1 Data binding
 - Reads the tree from project-store; renders only the two roots `manuscript` + `research` (plus their subtrees) — `root` itself is never rendered (it is the project, not a node in the view).
-- Rows: indent by depth (manuscript children = depth 0 in the view), title, status chip (color dot + name), label chip, word count for documents (from `derived.wordCounts`, allowed stale), synopsis tooltip on hover (first 120 chars).
+- Rows: indent by depth (manuscript children = depth 0 in the view), title, status chip (color dot + name), label chip, word count for documents (from `derived.wordCounts`, allowed stale), synopsis tooltip on hover (first 120 chars). A part's row carries the word **Part** inside the row (`aria-level` gives its depth, the word gives its role, so a screen reader hears both); the role is read from the tree (`@caotang/store` `partFolderIds`), never stored.
 - Expansion state per node id (view state; default: expanded one level).
 - Selection: single-select (multi-select = v0.2); selection is a **view** concern but doubles as agent targeting context (active doc for `scene.draft`).
 
 ### 2.2 Gestures → commands (exact mapping)
 | Gesture | Command emitted | Notes |
 |---|---|---|
-| New folder / new document (context menu, `+` button, `Ctrl+N`) | `binder.create {parentId, type, title: 'Untitled'}` | Title enters inline-rename mode immediately after creation. |
+| New folder / new document (context menu, `+` button, `Ctrl+N`) | `binder.create {parentId, type, title: 'Untitled'}` | Title enters inline-rename mode immediately after creation. The toolbar's **New folder** goes beside the chapter the selection is in (into its section or its part), or inside a selected part, or into the selected section; nothing selected is the manuscript (`newFolderParent`). A section's and a folder's (not a storyboard's) menu offers **New folder here**, which makes it inside that node: inside a chapter it turns the chapter into a part. |
 | Drag to reorder (same parent) | `binder.move {nodeId, newParentId, index}` | Board order = sibling index (0-based position among *visible* siblings after the drop). |
 | Drag onto a folder (reparent) | `binder.move {nodeId, newParentId: folderId, index: end}` | Drop validation runs **pre-dispatch** (§2.3); invalid targets show a no-drop cursor, never an error dialog. |
 | Inline rename (double-click / F2 / rename context item) | `binder.rename {nodeId, title}` | Commits on Enter/blur, cancels on Escape; empty title = revert (validation would reject — command-bus validation error surface is avoided by the cancel, but if it fires it renders in the row's error slot). |
@@ -71,13 +71,14 @@
 | Delete (context menu, Delete key) | `project.deleteNode {nodeId}` | **User confirm dialog** (the one destructive UI flow; command-bus §4). Dialog states what is deleted: node + descendants + their docs; undo hint shown ("restorable via the agent-panel checkpoint if recent"). |
 
 ### 2.3 Drop validation (pre-dispatch, mirrors `binder.move` validate)
-- Target parent exists; drop would not create a cycle (cannot drop a node into its own subtree); document nodes cannot become parents (three-tier invariant enforced at the UI: dropping onto a document row = drop *after* it, not into it).
+- Target parent exists; drop would not create a cycle (cannot drop a node into its own subtree); document nodes cannot become parents (dropping onto a document row = drop *after* it, not into it). A folder may be dropped into a folder at any depth (#269, docs/decisions.md): that folder becomes a part, and moving its last folder out makes it a chapter again. The keyboard's Alt+Right (into the folder above) and Alt+Left (out of the folder) follow the same rules, so a chapter goes into a part with Alt+Right and a scene leaves a chapter inside a part for the part itself.
 - Manuscript/research roots cannot be moved, renamed, or deleted (reserved ids, project-format §2).
 - **The chapter rule.** A manuscript child is a chapter: a document dropped, or moved by the keyboard, directly under the manuscript is refused with "A document goes inside a chapter, not directly under the manuscript." New document gives the same sentence there, the media entries of a row's menu appear on chapters only, and `binder.create` refuses a new document or dialogue directly under the manuscript with the same words (command-bus §9). This one UI check is **wider** than the command's: `binder.move` still moves a document to or from the manuscript, so a chapterless document an older project holds can be moved into a chapter and that move undone. A put-back of a stopped tab's kept words restores each document into the chapter it recorded, or into a "Kept from a stopped tab" chapter made at the end of the manuscript when that chapter is gone. A Research document goes back to the Research folder it recorded, or to the Research root when it was there, while that parent exists: notes are never put into the manuscript's kept chapter unless their Research folder is gone.
 - Failed pre-checks = visual no-drop only; the command's own `validate` remains the backstop (defense in depth, never duplicated logic — the UI check is a subset of the command validation).
 
 ### 2.4 Empty states
 - Empty manuscript: guidance card "Create Chapter 1" (`binder.create`) + "Let the agent structure it" (`binder.restructure` plan flow).
+- A part's corkboard shows its chapters, so **New card** there makes a chapter (a folder), as on the manuscript's board.
 - Empty research: guidance card pointing at notes-first workflow.
 
 ### 2.5 Keyboard map (v0.1 minimum)

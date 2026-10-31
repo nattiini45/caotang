@@ -11,8 +11,11 @@
  * OEBPS/nav.xhtml           EPUB 3 contents, from the binder chapter list
  * OEBPS/toc.ncx             the same list, for EPUB 2 reading systems
  * OEBPS/titlepage.xhtml     the title page (added: see the report — §3a names the chapters only)
- * OEBPS/chapter-NNN.xhtml   one file per chapter
+ * OEBPS/chapter-NNN.xhtml   one file per chapter, and one per part
  * ```
+ *
+ * A part (a folder that holds chapters, project-format §2) is a file of its own, `epub:type="part"`, holding its heading and any
+ * scene filed directly in it. The contents nest: a part's chapters are a list inside its entry, in `nav.xhtml` and in `toc.ncx`.
  *
  * It is built from the same flat blocks the other renderers consume. The body text
  * goes through the shared prose model, so the XHTML is a function of the body and
@@ -34,10 +37,9 @@
  */
 
 import type { ZipOptions } from 'fflate/browser';
-import { hasTitlePage, sectionTitle, type RenderInput } from './render-input.js';
+import { hasTitlePage, headingsByBlock, sectionTitle, type RenderInput } from './render-input.js';
 import { parseProse, type ProseBlock, type Run } from './prose.js';
 import type { FlatBlock } from './types.js';
-import { chapterLabel } from './template.js';
 import { stripXmlIllegal } from './xml-text.js';
 
 /** The MIME type an EPUB is served as, and the first entry of the container. */
@@ -75,6 +77,10 @@ interface Section {
   readonly heading: string;
   /** Set when the section's heading is a scene's own title (a loose lead scene), so a `section` style does not print it twice. */
   readonly headedBy?: string;
+  /** The heading's folder depth (1 at the top), which places its entry in the nested contents. */
+  readonly level: number;
+  /** Whether the section is a part's, written as `epub:type="part"`. */
+  readonly part: boolean;
   readonly blocks: readonly FlatBlock[];
 }
 
@@ -119,33 +125,66 @@ export async function renderEpub(input: EpubInput): Promise<Uint8Array> {
  * dropped nor given the book's title as a heading it does not have.
  */
 function buildSections(input: RenderInput): Section[] {
-  const sections: { heading: string; headedBy?: string; blocks: FlatBlock[] }[] = [];
-  let current: { heading: string; headedBy?: string; blocks: FlatBlock[] } | undefined;
-  for (const block of input.blocks) {
+  type Draft = { heading: string; headedBy?: string; level: number; part: boolean; blocks: FlatBlock[] };
+  const sections: Draft[] = [];
+  const headings = headingsByBlock(input);
+  let current: Draft | undefined;
+  for (const [index, block] of input.blocks.entries()) {
     if (block.kind === 'frontmatter') continue;
     if (block.kind === 'chapter') {
-      current = { heading: chapterLabel(input.template, block.number, block.title), blocks: [] };
+      current = { heading: headings.get(index)?.label ?? block.title, level: block.level, part: block.part === true, blocks: [] };
       sections.push(current);
       continue;
     }
     if (current === undefined) {
       current =
         block.kind === 'scene'
-          ? { heading: block.title, headedBy: block.docId, blocks: [] }
-          : { heading: input.title, blocks: [] };
+          ? { heading: block.title, headedBy: block.docId, level: 1, part: false, blocks: [] }
+          : { heading: input.title, level: 1, part: false, blocks: [] };
       sections.push(current);
     }
     current.blocks.push(block);
   }
-  if (sections.length === 0) sections.push({ heading: input.title, blocks: [] });
+  if (sections.length === 0) sections.push({ heading: input.title, level: 1, part: false, blocks: [] });
 
   return sections.map((section, index) => ({
     file: `chapter-${String(index + 1).padStart(3, '0')}.xhtml`,
     id: `chapter-${String(index + 1).padStart(3, '0')}`,
     heading: section.heading,
     ...(section.headedBy === undefined ? {} : { headedBy: section.headedBy }),
+    level: section.level,
+    part: section.part,
     blocks: section.blocks,
   }));
+}
+
+/** One contents entry and the entries nested under it: a part's chapters. */
+interface NavNode {
+  readonly section: Section;
+  readonly index: number;
+  readonly children: NavNode[];
+}
+
+/**
+ * The sections as a tree for the contents: a section goes under the nearest section before it with a lower level, so a part's
+ * chapters nest in its entry and a prologue after the parts is a top-level entry again. A book without parts is a flat list.
+ */
+function navTree(sections: readonly Section[]): NavNode[] {
+  const roots: NavNode[] = [];
+  const open: NavNode[] = [];
+  sections.forEach((section, index) => {
+    const node: NavNode = { section, index, children: [] };
+    while (open.length > 0 && (open[open.length - 1]?.section.level ?? 0) >= section.level) open.pop();
+    const parent = open[open.length - 1];
+    if (parent === undefined) roots.push(node);
+    else parent.children.push(node);
+    open.push(node);
+  });
+  return roots;
+}
+
+function navDepth(nodes: readonly NavNode[]): number {
+  return nodes.reduce((deepest, node) => Math.max(deepest, 1 + navDepth(node.children)), 0);
 }
 
 // -- container and package ----------------------------------------------------
@@ -226,32 +265,41 @@ function packageOpf(input: EpubInput, sections: readonly Section[], titlePage: b
 // -- navigation -----------------------------------------------------------------
 
 function navXhtml(input: EpubInput, sections: readonly Section[]): string {
-  const items = sections.map((section) => `    <li><a href="${section.file}">${escapeXml(section.heading)}</a></li>`);
+  // An entry with children holds them in an `ol` inside its `li` (EPUB 3 §7.4.2); a leaf entry stays one line, as before.
+  const items = (nodes: readonly NavNode[], pad: string): string[] =>
+    nodes.flatMap((node) => {
+      const link = `<a href="${node.section.file}">${escapeXml(node.section.heading)}</a>`;
+      if (node.children.length === 0) return [`${pad}<li>${link}</li>`];
+      return [`${pad}<li>${link}`, `${pad}  <ol>`, ...items(node.children, `${pad}    `), `${pad}  </ol>`, `${pad}</li>`];
+    });
   return xhtmlPage(input, 'Contents', [
     '<nav epub:type="toc" id="toc">',
     '  <h1>Contents</h1>',
     '  <ol>',
-    ...items,
+    ...items(navTree(sections), '    '),
     '  </ol>',
     '</nav>',
   ]);
 }
 
 function ncx(input: EpubInput, sections: readonly Section[]): string {
-  const points = sections.map(
-    (section, index) => [
-      `    <navPoint id="navPoint-${index + 1}" playOrder="${index + 1}">`,
-      `      <navLabel><text>${escapeXml(section.heading)}</text></navLabel>`,
-      `      <content src="${section.file}"/>`,
-      '    </navPoint>',
-    ],
-  );
+  const tree = navTree(sections);
+  // A navPoint nests its children before it closes; play order is the reading order, which is the sections' order.
+  const pointsOf = (nodes: readonly NavNode[], pad: string): string[] =>
+    nodes.flatMap((node) => [
+      `${pad}<navPoint id="navPoint-${node.index + 1}" playOrder="${node.index + 1}">`,
+      `${pad}  <navLabel><text>${escapeXml(node.section.heading)}</text></navLabel>`,
+      `${pad}  <content src="${node.section.file}"/>`,
+      ...pointsOf(node.children, `${pad}  `),
+      `${pad}</navPoint>`,
+    ]);
+  const points = [pointsOf(tree, '    ')];
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">',
     '  <head>',
     `    <meta name="dtb:uid" content="${escapeXml(input.identifier)}"/>`,
-    '    <meta name="dtb:depth" content="1"/>',
+    `    <meta name="dtb:depth" content="${Math.max(1, navDepth(tree))}"/>`,
     '    <meta name="dtb:totalPageCount" content="0"/>',
     '    <meta name="dtb:maxPageNumber" content="0"/>',
     '  </head>',
@@ -290,7 +338,8 @@ function sectionXhtml(input: EpubInput, section: Section): string {
         break;
     }
   }
-  return xhtmlPage(input, section.heading, [`<section id="${section.id}" epub:type="chapter">`, ...body, '</section>']);
+  const type = section.part ? 'part' : 'chapter';
+  return xhtmlPage(input, section.heading, [`<section id="${section.id}" epub:type="${type}">`, ...body, '</section>']);
 }
 
 function indent(lines: readonly string[]): string[] {
