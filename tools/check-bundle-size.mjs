@@ -63,7 +63,10 @@ export const BUDGET = {
   // The input-method guard in every Enter handler and the keymap (#188) adds about 0.05 kB on top; the 876.0 kB ceiling covers both.
   // 877.5 kB measured with the picture registry (#152): the asset records, the backfill on open and the use scan, with the import
   // pipeline and metadata strip loaded on first import; the ceiling is that plus about 1%.
-  initialGzip: 886_000,
+  // 889.1 kB measured with the codex batch import (#273), against 885.4 kB on main at #314: `codex.importBatch`'s descriptor (its
+  // pre-validation of up to 5,000 entries and their Research pages, with a refusal per failing entry) is in the registry the app builds at
+  // start and lands in the first-load locale chunk; the ceiling is that plus about 1%.
+  initialGzip: 898_000,
   /** All JS, raw. */
   // 5,168.5 kB measured with upstream fontkit 2.0.4 (browser-module, 356 kB, loaded on use for Devanagari text) and the Indic shaper, which is
   // about 280 kB of it; the ceiling is that plus about 5%. 5,824.3 kB measured with Cousine Regular (396 kB, loaded on use for the screenplay PDF font choice, #19).
