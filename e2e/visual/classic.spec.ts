@@ -52,6 +52,13 @@ async function workspace(page: Page): Promise<void> {
   await waitForSaved(page);
 }
 
+/** Opens the agent drawer if it is closed (a new project may start with it closed). */
+async function openAgent(page: Page): Promise<void> {
+  const toggle = page.locator('.agent-toggle');
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+  await expect(page.locator('#agent-body')).toBeVisible();
+}
+
 for (const scheme of ['light', 'dark'] as const) {
   test(`Classic surfaces, ${scheme}`, async ({ page }) => {
     test.setTimeout(120_000);
@@ -61,7 +68,7 @@ for (const scheme of ['light', 'dark'] as const) {
 
     await workspace(page);
     await expect(page.getByRole('complementary', { name: 'Inspector' })).toBeVisible();
-    await expect(page.locator('#agent-body')).toBeVisible();
+    await openAgent(page);
     await shot(page, `classic-${scheme}-workspace`);
 
     await page.getByRole('radio', { name: 'Corkboard' }).click();

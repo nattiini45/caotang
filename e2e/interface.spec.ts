@@ -47,6 +47,13 @@ function watchModernCss(page: Page): string[] {
   return seen;
 }
 
+/** Opens the agent drawer if it is closed (a new project may start with it closed). */
+async function openAgent(page: Page): Promise<void> {
+  const toggle = page.locator('.agent-toggle');
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+  await expect(page.locator('#agent-body')).toBeVisible();
+}
+
 const HOME = 'Projects in this browser';
 
 test('a fresh profile resolves as the parity gate says: Classic today, stored at once, and Modern’s stylesheet is not fetched', async ({ page }) => {
@@ -90,7 +97,7 @@ test('Settings › Appearance › Interface switches live: the unsaved text, the
   await page.getByRole('toolbar', { name: 'Binder actions' }).getByRole('button', { name: 'New document' }).click();
   await page.getByRole('textbox', { name: 'Rename Untitled' }).fill('Switching');
   await page.keyboard.press('Enter');
-  await expect(page.locator('#agent-body')).toBeVisible();
+  await openAgent(page);
   // Typed and not waited for: the save is still pending (its journal holds it) when the interface changes.
   await page.getByRole('textbox', { name: 'Document text' }).fill('Words typed just before the switch.');
 
