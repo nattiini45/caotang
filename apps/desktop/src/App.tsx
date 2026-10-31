@@ -15,7 +15,8 @@ import { droppedFieldsSentence } from './app/integrity-model.js';
 import { fixtureWireFactory } from './app/mcp.js';
 import { openAppServices, type AppServices } from './app/services.js';
 import type { DirectoryHandleLike } from './app/fs-access.js';
-import { openDemoSample, setSessionDefaults, type Opened } from './app/lifecycle.js';
+import { listProjects, openDemoSample, setSessionDefaults, type Opened } from './app/lifecycle.js';
+import { interfacePending, settleInterface } from './app/interface.js';
 import { browserStorageHost, requestDurability } from './app/storage.js';
 import type { ProjectSession } from './app/session.js';
 import { installTestHook } from './app/test-hook.js';
@@ -43,6 +44,8 @@ export function App(): ReactNode {
   // The session in view, mirrored in a ref so the test hook and the switch logic read the current one without re-rendering for it.
   const current = useRef<ProjectSession | null>(null);
   const serial = useRef(0);
+  // False while the interface's default waits for the stores (app/interface.ts, modern-interface.md §3.2).
+  const [shellReady, setShellReady] = useState(() => !interfacePending());
 
   useEffect(() => {
     let alive = true;
@@ -89,6 +92,23 @@ export function App(): ReactNode {
   useEffect(() => {
     installTestHook(() => current.current);
   }, []);
+
+  // With nothing in local storage to go on, the stores decide the default before the first screen shows (resolveInterface): a project
+  // or a settings record from an earlier visit means Classic. A list that cannot be read counts as a project, so Classic stays.
+  useEffect(() => {
+    if (shellReady || store === null || services === null) return;
+    let alive = true;
+    void listProjects(store)
+      .then((projects) => projects.length > 0, () => true)
+      .then((projects) => settleInterface(projects, services.settingsKept))
+      .catch(() => undefined)
+      .then(() => {
+        if (alive) setShellReady(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [shellReady, store, services]);
 
   const show = (opened: Opened): void => {
     const previous = current.current;
@@ -154,7 +174,7 @@ export function App(): ReactNode {
       </main>
     );
   }
-  if (store === null || services === null) {
+  if (store === null || services === null || !shellReady) {
     return (
       <main className="loading" role="status">
         Opening your projects…
