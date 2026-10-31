@@ -25,7 +25,7 @@
  * undercounts strings built from fragments. The committed baseline is the number this repository
  * holds itself to; the §0.1 table is the earlier estimate and is not copied here.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -409,9 +409,14 @@ const REMEDY = 'wrap the string in t`…` or <Trans>…</Trans>';
  * and an unconditional seed would let `--init` raise the ratchet.
  */
 export function seedBaseline(path, tree) {
-  if (existsSync(path)) return { ok: false, message: `${BASELINE_FILE} exists; lower it with --write` };
   const baseline = makeBaseline(tree);
-  writeFileSync(path, renderBaseline(baseline));
+  try {
+    // 'wx' creates the file or fails if it is there, in one step, so nothing can appear between a check and the write.
+    writeFileSync(path, renderBaseline(baseline), { flag: 'wx' });
+  } catch (error) {
+    if (error?.code === 'EEXIST') return { ok: false, message: `${BASELINE_FILE} exists; lower it with --write` };
+    throw error;
+  }
   return { ok: true, baseline };
 }
 

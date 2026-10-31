@@ -290,7 +290,7 @@ export function renderReport({ englishPath, englishMarkdown, locales }) {
       lines.push(`All ${report.total} sections missing.`, '');
       continue;
     }
-    const cell = (text) => String(text).replace(/\|/g, '\\|');
+    const cell = (text) => String(text).replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
     lines.push('| # | Section | Status | Marker | English hash |', '| --- | --- | --- | --- | --- |');
     for (const row of report.sections) {
       lines.push(

@@ -17,7 +17,7 @@
  * editor's ruler and media scrubbers are the genuinely physical cases §5.1 names, and they stay in
  * the allowlist until I9 re-checks them.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -288,12 +288,15 @@ function main() {
   const write = process.argv.includes('--write');
 
   if (init) {
-    if (existsSync(allowlistPath)) {
+    try {
+      // 'wx' creates the file or fails if it is there, in one step, so nothing can appear between a check and the write.
+      writeFileSync(allowlistPath, renderAllowlist(makeAllowlist(tree.occurrences)), { flag: 'wx' });
+    } catch (error) {
+      if (error?.code !== 'EEXIST') throw error;
       console.error(`${ALLOWLIST_FILE} exists; lower it with --write`);
       process.exitCode = 1;
       return;
     }
-    writeFileSync(allowlistPath, renderAllowlist(makeAllowlist(tree.occurrences)));
     console.log(`wrote ${ALLOWLIST_FILE}: ${tree.occurrences.length} declaration(s) in ${tree.files.length} file(s)`);
     return;
   }

@@ -39,9 +39,10 @@ export function svgIntrinsicSize(svg: string): { readonly width: number; readonl
     const n = Number.parseFloat(value);
     return Number.isFinite(n) && n > 0 ? n : undefined;
   };
-  const viewBox = /([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/.exec(attr('viewBox') ?? '');
-  const width = px(attr('width')) ?? px(viewBox?.[3]);
-  const height = px(attr('height')) ?? px(viewBox?.[4]);
+  // Split rather than match: the four numbers are separated by spaces or commas, and a split cannot backtrack on a long attribute.
+  const viewBox = (attr('viewBox') ?? '').trim().split(/[\s,]+/);
+  const width = px(attr('width')) ?? (viewBox.length === 4 ? px(viewBox[2]) : undefined);
+  const height = px(attr('height')) ?? (viewBox.length === 4 ? px(viewBox[3]) : undefined);
   if (width === undefined || height === undefined) {
     throw new Error('the SVG has no readable width and height, so its size cannot be bounded');
   }
