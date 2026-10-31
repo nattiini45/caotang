@@ -14,7 +14,7 @@
   min-width: 1.4em;
   margin-inline-start: 0.4em;
   padding: 0 0.4em;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--accent-soft);
   color: var(--accent);
   font-size: 0.75em;
@@ -26,7 +26,7 @@
 .risk-badge {
   display: inline-block;
   padding: 0 0.5em;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   font-size: 0.8em;
   color: var(--ink-soft);
@@ -42,7 +42,7 @@
 .status-chip {
   display: inline-block;
   padding: 0 0.5em;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 0.8em;
   border: 1px solid var(--line);
   color: var(--ink-soft);
@@ -124,7 +124,7 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.1rem 0.6rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   font-size: 0.85em;
   white-space: nowrap;
@@ -208,7 +208,7 @@
   overflow-wrap: anywhere;
   margin: 0;
   padding: 0.5rem 0.6rem;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--raised);
   border: 1px solid var(--line);
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
@@ -323,7 +323,7 @@
   padding: 0.6rem 0.7rem;
   display: grid;
   gap: 0.35rem;
-  box-shadow: var(--shadow);
+  box-shadow: var(--elev-1);
 }
 
 .finding-head {
@@ -370,8 +370,8 @@
 }
 
 .finding-quote:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
 }
 
 .finding-actions {
@@ -432,8 +432,8 @@
 }
 
 .knowledge-scene:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
+  outline: var(--focus-width) solid var(--focus);
+  outline-offset: var(--focus-offset);
 }
 
 .knowledge-pick {
@@ -516,7 +516,7 @@
 .mention-count {
   margin-inline-start: 0.35rem;
   padding: 0 0.35rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--accent-soft);
   color: var(--accent);
   font-size: 0.8em;
@@ -676,7 +676,7 @@
   white-space: nowrap;
   padding: 0.25rem 0.5rem;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--raised);
   color: var(--ink);
   cursor: pointer;
@@ -692,7 +692,7 @@
   gap: 0.2rem;
   padding: 0.45rem 0.5rem;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--raised);
 }
 
@@ -760,7 +760,7 @@
   text-align: start;
   background: none;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   overflow-wrap: anywhere;
 }
@@ -818,7 +818,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--raised);
-  font-size: 12.5px;
+  font-size: var(--text-md);
 }
 
 .recurring-offer {
@@ -837,14 +837,14 @@
 
 .recurring h4 {
   margin: 0 0 0.25rem;
-  font-size: 12.5px;
+  font-size: var(--text-md);
   color: var(--muted);
   font-weight: 600;
 }
 
 .recurring-note,
 .recurring-empty {
-  font-size: 12.5px;
+  font-size: var(--text-md);
   margin: 0 0 0.4rem;
 }
 
@@ -858,7 +858,7 @@
 }
 
 .recurring-notices {
-  font-size: 12.5px;
+  font-size: var(--text-md);
   color: var(--review);
 }
 
@@ -902,10 +902,10 @@
 .recurring-form textarea,
 .recurring-form input {
   font: inherit;
-  font-size: 13px;
-  padding: 6px 8px;
+  font-size: var(--text-lg);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--line-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--paper);
   color: var(--ink);
 }
