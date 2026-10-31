@@ -1,6 +1,6 @@
 # Modern interface — a spatial shell beside Classic
 
-> Status: **specified, not built.** The foundation (§16, M1: the Interface setting, the `data-shell` attribute, the default rule, an empty lazily loaded Modern stylesheet, semantic-token groundwork and the Classic visual snapshots) is **being built**. Nothing else in this document exists in the current build. The decisions in §17 bind the work when it is cut.
+> Status: **specified, not built.** Epic #301, milestone "Modern interface". The foundation (§16, M1, #302: the Interface setting, the `data-shell` attribute, the default rule, an empty lazily loaded Modern stylesheet, semantic-token groundwork and the Classic visual snapshots) is **being built**. Nothing else in this document exists in the current build. The decisions in §17 bind the work when it is cut.
 > Scope: a second **shell** for the writing studio, called **Modern**, chosen by the owner from the concept "Glass 2 · Spatial" (2026-10-31): the manuscript as one solid floating page on a wallpaper, glass ornaments on its edges, a binder that grows out of a slim tab bar, the inspector and the status line in a scene-info popover, views that switch by morphing the page, and the agent in a companion glass window. The current interface stays, unchanged, as **Classic**, and the writer chooses in Settings › Appearance › Interface. A token layer that lets later **skins** restyle Classic (concepts A Calm, B Glass, C Focus) is designed here as a hook only.
 > Cross-refs: the Classic shell, the narrow layout and Settings = [ui-modules.md](ui-modules.md) §0–§5 · the keyboard map = `apps/desktop/src/app/keymap.ts` and ui-modules §2.5/§5.6 · the agent panel = [agent-harness.md](agent-harness.md) §8 · the editor, ghost and review marks = [editor-engine.md](editor-engine.md) §8/§15 · the codex panel = [codex-panels.md](codex-panels.md) · findings = [coherence.md](coherence.md) §8 · the binder footer = [binder-filters.md](binder-filters.md), [goals-progress.md](goals-progress.md) · interface languages and right-to-left = [i18n.md](i18n.md) §3, §5, §7 · the bundle gate = `tools/check-bundle-size.mjs` · the concept = `ui-concepts/glass2-spatial/index.html` (a design reference outside the repository; this document is the contract, not the mock).
 
@@ -438,14 +438,14 @@ Playwright `toHaveScreenshot` in a `visual` project, run only in CI in the pinne
 | Phase | Issue | What lands | Visible to writers |
 |---|---|---|---|
 | 0 | this spec | The contract | — |
-| 1 | M1 (being built) | The setting, `data-shell`, the default rule with the parity gate, the empty lazy Modern stylesheet, token groundwork, Classic snapshots, the Classic e2e pin | Settings › Appearance › Interface with Modern as "Preview" |
-| 2 | M2, M3 | One shell-actions list; size, shape, density, elevation and motion tokens; the skin hook | Nothing |
-| 3 | M4, M5 | The stage, wallpaper, page and materials with every fallback; ornaments, **⋯**, the Write / Board / Codex morph | Modern (Preview) is usable for writing |
-| 4 | M6, M7, M8, M9 | The sidebar, Scene info, the agent window, the palette | Every surface reachable |
-| 5 | M10, M11 | Dialogs, menus, Home and notices in glass; the narrow Modern layout | Modern complete on every width |
-| 6 | M12 | The accessibility and reachability gate; the user guide and changelog for both interfaces; the parity gate removed, so new users get Modern | New users start in Modern |
+| 1 | M1 #302 (being built) | The setting, `data-shell`, the default rule with the parity gate, the empty lazy Modern stylesheet, token groundwork, Classic snapshots, the Classic e2e pin | Settings › Appearance › Interface with Modern as "Preview" |
+| 2 | M2 #303, M3 #304 | One shell-actions list; size, shape, density, elevation and motion tokens; the skin hook | Nothing |
+| 3 | M4 #305, M5 #306 | The stage, wallpaper, page and materials with every fallback; ornaments, **⋯**, the Write / Board / Codex morph | Modern (Preview) is usable for writing |
+| 4 | M6 #307, M7 #308, M8 #309, M9 #310 | The sidebar, Scene info, the agent window, the palette | Every surface reachable |
+| 5 | M10 #311, M11 #312 | Dialogs, menus, Home and notices in glass; the narrow Modern layout | Modern complete on every width |
+| 6 | M12 #313 | The accessibility and reachability gate; the user guide and changelog for both interfaces; the parity gate removed, so new users get Modern | New users start in Modern |
 
-Phases 2 and 3 can overlap once M1 merges; M6 to M9 run in parallel after M5.
+Phases 2 and 3 can overlap once M1 merges; M6 to M9 run in parallel after M5. Each issue names what blocks it.
 
 ## 17. Decisions
 
