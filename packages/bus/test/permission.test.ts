@@ -403,8 +403,9 @@ describe('the gate\'s own lists are held against the spec, not against themselve
     // The four skill commands, the two macro commands and the two hook commands are `never` too, and nothing composes them: the harness's allowlist of primitives excludes them
     // (`NEVER_EXPOSED`), so an agent reaches a skill only through the user's own gesture. `mcp.readResource` is the same: the writer's
     // pick is the only way to it, and no tool is written over it. `codex.importBatch`, the writer's batch import from the app, is the
-    // same: no tool and no compound apply issues it, so the agent's import stays `codex.import` with its cap of 20.
-    expect([...inheritable].sort()).toEqual(['codex.importBatch', 'editor.insert', 'editor.replaceRange', 'hook.delete', 'hook.save', 'macro.delete', 'macro.save', 'mcp.readResource', 'skill.delete', 'skill.import', 'skill.setEnabled', 'skill.write']);
+    // same: no tool and no compound apply issues it, so the agent's import stays `codex.import` with its cap of 20. `binder.importTree`, the import
+    // preview's commit, is the same: the agent imports one document at a time through doc.import.
+    expect([...inheritable].sort()).toEqual(['binder.importTree', 'codex.importBatch', 'editor.insert', 'editor.replaceRange', 'hook.delete', 'hook.save', 'macro.delete', 'macro.save', 'mcp.readResource', 'skill.delete', 'skill.import', 'skill.setEnabled', 'skill.write']);
     for (const name of inheritable) {
       expect(granted(name, 'agent', { inheritedGrant: 'write-confirm' }).via, name).toBe('inherited');
     }
@@ -443,6 +444,7 @@ describe('the gate\'s own lists are held against the spec, not against themselve
       'hook.save',
       'hook.delete',
       'codex.importBatch',
+      'binder.importTree',
     ]);
     expect(byRisk.get('write-confirm')).toContain('doc.write');
     expect(byRisk.get('write-auto')).toContain('binder.move');
