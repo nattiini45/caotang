@@ -321,10 +321,10 @@ test('the arrow keys move the selection through the visible rows, and Left and R
   expect((await traceNames(page)).slice(-1)).toEqual(['view.setExpanded']);
 });
 
-test('a new folder goes straight into a section, whatever is selected, so no folder sits in a folder', async ({ page }) => {
+test('a new folder from the toolbar goes beside the chapter the selection is in', async ({ page }) => {
   await chapterWithScenes(page);
 
-  // Scene B is selected and sits in Chapter 1; a folder made from here still belongs to the manuscript.
+  // Scene B is selected and sits in Chapter 1; a folder made from here is a chapter beside Chapter 1, in the manuscript.
   await binderTitle(page, 'Scene B').click();
   await binderToolbar(page).getByRole('button', { name: 'New folder' }).click();
   await page.getByRole('textbox', { name: 'Rename Untitled' }).fill('Chapter 2');
@@ -333,7 +333,7 @@ test('a new folder goes straight into a section, whatever is selected, so no fol
   // Level 2 is a section's child; a folder inside Chapter 1 would be level 3.
   await expect(binderRow(page, 'Chapter 2')).toHaveAttribute('aria-level', '2');
 
-  // The same from a folder: with Chapter 1 selected, the new folder still lands in the manuscript.
+  // The same from a chapter: with Chapter 1 selected, the new folder lands beside it, in the manuscript.
   await binderTitle(page, 'Chapter 1').click();
   await binderToolbar(page).getByRole('button', { name: 'New folder' }).click();
   await page.getByRole('textbox', { name: 'Rename Untitled' }).fill('Chapter 3');
@@ -342,13 +342,13 @@ test('a new folder goes straight into a section, whatever is selected, so no fol
   await expect(binderRow(page, 'Chapter 3')).toHaveAttribute('aria-level', '2');
 });
 
-test('the context menu offers a new folder on a section only, and a new document on a folder but not the manuscript', async ({ page }) => {
+test('the context menu offers a new folder on a section and a folder, and a new document on a folder but not the manuscript', async ({ page }) => {
   await chapterWithScenes(page);
 
   await binderTitle(page, 'Chapter 1').click({ button: 'right' });
   const folderMenu = page.getByRole('menu', { name: 'Actions for Chapter 1' });
   await expect(folderMenu.getByRole('menuitem', { name: 'New document here' })).toBeVisible();
-  await expect(folderMenu.getByRole('menuitem', { name: 'New folder here' })).toHaveCount(0);
+  await expect(folderMenu.getByRole('menuitem', { name: 'New folder here' })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('menu')).toHaveCount(0);
 
@@ -358,6 +358,35 @@ test('the context menu offers a new folder on a section only, and a new document
   // The manuscript takes chapters only, so its menu offers no document. A screenplay scene there is the media
   // track's own entry, which its tests place on the manuscript, so it is left as it is (see the round's cross-scope requests).
   await expect(sectionMenu.getByRole('menuitem', { name: 'New document here' })).toHaveCount(0);
+});
+
+test('a part: a folder moved into the folder above holds chapters, says so, and keeps them after a reload (#269)', async ({ page }) => {
+  await chapterWithScenes(page);
+
+  // A new folder beside Chapter 1, named as a part, then moved above it with Alt+Up.
+  await binderTitle(page, 'Chapter 1').click();
+  await binderToolbar(page).getByRole('button', { name: 'New folder' }).click();
+  await page.getByRole('textbox', { name: 'Rename Untitled' }).fill('Part One');
+  await page.keyboard.press('Enter');
+  await binderTitle(page, 'Part One').click();
+  await page.keyboard.press('Alt+ArrowUp');
+  await expect.poll(() => binderTitles(page)).toEqual(['Part One', 'Chapter 1', 'Scene A', 'Scene B']);
+
+  // Alt+Right moves Chapter 1 into the folder above, which now holds a chapter: a part, one level up, that says "Part" in words.
+  await binderTitle(page, 'Chapter 1').click();
+  await page.keyboard.press('Alt+ArrowRight');
+  await expect(binderRow(page, 'Chapter 1')).toHaveAttribute('aria-level', '3');
+  await expect(binderRow(page, 'Part One')).toHaveAttribute('data-role', 'part');
+  await expect(binderRow(page, 'Part One').locator('.row-role')).toHaveText('Part');
+  await expect(binderRow(page, 'Chapter 1')).toHaveAttribute('data-role', 'chapter');
+  expect((await projectTrace(page)).slice(-1)).toEqual(['binder.move']);
+
+  // The nesting is the project's: it is there after a reload.
+  await waitForSaved(page);
+  await page.reload();
+  await page.getByRole('listitem').filter({ hasText: 'Binder Book' }).getByRole('button', { name: 'Open' }).click();
+  await expect(binderRow(page, 'Chapter 1')).toHaveAttribute('aria-level', '3');
+  await expect(binderRow(page, 'Part One')).toHaveAttribute('data-role', 'part');
 });
 
 test('with nothing selected after a load, Tab reaches the tree and the arrow keys start it', async ({ page }) => {

@@ -23,7 +23,7 @@ A comic is a new *document kind + node kind + exporters + tools*, exactly like t
 `packages/comic`, pure, injected into the store like `@caotang/storyboard`:
 
 ```ts
-tree[].kind: 'comic'                 // folder = issue/book (the three-tier invariant holds: pages are its children)
+tree[].kind: 'comic'                 // folder = issue/book (documents hold no children: pages are its children)
 tree[].type: 'comic-page'            // node; ordered, so the page number is derived (the shotNumber precedent)
 tree[].comicPage: {
   size: 'us-comic' | 'manga-b5' | 'a4' | 'letter';    // trim; bleed 3 mm / 0.125 in per preset

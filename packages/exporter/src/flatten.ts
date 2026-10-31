@@ -11,18 +11,24 @@
  * The tree is walked depth-first in `order` (§2). A node is **included** when it
  * is named in `includeRootIds` or lies under a named node, so the compile follows
  * the binder's order and not the order the caller listed the roots in. The fixed
- * roots (`root`, `manuscript`, `research`) are containers and never headings;
- * every other folder is a chapter.
+ * roots (`root`, `manuscript`, `research`) are containers and never headings.
+ * A folder that holds folders is a **part** (`@caotang/store` `partFolderIds`,
+ * project-format §2) and is written as a `chapter` block marked `part: true`,
+ * numbered among the parts; every other folder is a chapter, numbered among the
+ * chapters, so chapter numbers run on across parts. A block's `level` is its
+ * folder's depth under the section: 1 for a part or a chapter directly under the
+ * manuscript, 2 for a chapter inside a part.
  *
- * A chapter heading is emitted **lazily**, when its first scene survives: a
- * chapter whose documents are all empty produces no heading, and the empty
- * documents are reported instead. A separator goes between two consecutive scenes of
+ * A heading is emitted **lazily**, when its first scene survives: a chapter whose
+ * documents are all empty produces no heading, and the empty documents are
+ * reported instead. A part's heading goes out with the first scene anywhere
+ * inside it, ahead of that scene's chapter heading. A separator goes between two consecutive scenes of
  * the same chapter, or of the same loose run filed directly under the manuscript, and
  * never before a chapter's first scene, so the output has no stray rule at a chapter
  * boundary.
  */
 
-import { FIXED_ROOT_IDS, countBody, type ProjectState, type TreeNode } from '@caotang/store';
+import { FIXED_ROOT_IDS, countBody, partFolderIds, type ProjectState, type TreeNode } from '@caotang/store';
 import { SCENE_STYLE_ROWS, sceneStyleOf, type SceneStyleRow } from './scene-style.js';
 import type { ExportSelection, FlatBlock } from './types.js';
 
@@ -41,6 +47,8 @@ export interface FlattenResult {
   readonly notes: readonly string[];
   readonly wordCount: number;
   readonly chapterCount: number;
+  /** The part headings written (a folder that holds chapters). Not counted in `chapterCount`. */
+  readonly partCount: number;
   readonly sceneCount: number;
 }
 
@@ -48,6 +56,10 @@ export interface FlattenResult {
 interface ChapterContext {
   readonly node: TreeNode;
   readonly level: number;
+  /** Whether the folder holds folders, and so is written as a part heading. */
+  readonly part: boolean;
+  /** The part this folder sits in, whose heading must be out before this one's. */
+  readonly parent: ChapterContext | undefined;
   emitted: boolean;
   number: number;
   scenes: number;
@@ -84,7 +96,9 @@ export function flatten(state: ProjectState, selection: ExportSelection, options
   const notes: string[] = [];
   let wordCount = 0;
   let chapterCount = 0;
+  let partCount = 0;
   let sceneCount = 0;
+  const parts = partFolderIds(tree);
   let looseScenes = 0;
   /** The chapter the previous emitted scene belonged to — drives the separator. */
   let previousChapter: ChapterContext | undefined;
@@ -111,19 +125,28 @@ export function flatten(state: ProjectState, selection: ExportSelection, options
       return;
     }
 
-    if (chapter !== undefined && !chapter.emitted) {
-      chapter.emitted = true;
-      chapterCount += 1;
-      chapter.number = chapterCount;
+    // The headings not yet written, outermost first: the parts the scene sits in, then its own chapter (or part).
+    const pending: ChapterContext[] = [];
+    for (let open = chapter; open !== undefined && !open.emitted; open = open.parent) pending.unshift(open);
+    for (const folder of pending) {
+      folder.emitted = true;
+      if (folder.part) {
+        partCount += 1;
+        folder.number = partCount;
+      } else {
+        chapterCount += 1;
+        folder.number = chapterCount;
+      }
       // The folder's synopsis rides along when it has one: the Fountain renderer writes it as the section's `=` line, so a
       // section's synopsis survives a round trip (screenplay.md §2.2). The prose renderers have no use for it and ignore it.
-      const synopsis = chapter.node.synopsis;
+      const synopsis = folder.node.synopsis;
       blocks.push({
         kind: 'chapter',
-        title: chapter.node.title,
-        level: chapter.level,
-        number: chapter.number,
+        title: folder.node.title,
+        level: folder.level,
+        number: folder.number,
         ...(synopsis.trim() === '' ? {} : { synopsis }),
+        ...(folder.part ? { part: true as const } : {}),
       });
     }
     // A separator is for a scene that follows another scene **in the same chapter**. Two loose scenes filed directly
@@ -165,7 +188,7 @@ export function flatten(state: ProjectState, selection: ExportSelection, options
       // heading, so the context is made whether or not the folder is included.
       if (node.type === 'folder' && !FIXED.has(node.id)) {
         nextLevel = level + 1;
-        nextChapter = { node, level: nextLevel, emitted: false, number: 0, scenes: 0 };
+        nextChapter = { node, level: nextLevel, part: parts.has(node.id), parent: chapter, emitted: false, number: 0, scenes: 0 };
       }
       for (const child of childrenOf.get(node.id) ?? []) visit(child, include, nextChapter, nextLevel);
       return;
@@ -182,7 +205,7 @@ export function flatten(state: ProjectState, selection: ExportSelection, options
 
   if (options.titlePage) blocks.unshift({ kind: 'frontmatter', fmKind: 'titlepage' });
 
-  return { blocks, skippedDocs, notes, wordCount, chapterCount, sceneCount };
+  return { blocks, skippedDocs, notes, wordCount, chapterCount, partCount, sceneCount };
 }
 
 function compareIds(a: string, b: string): number {
