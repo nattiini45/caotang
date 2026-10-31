@@ -827,6 +827,9 @@ describe('§10 — the permission matrix, over the registry that implements the 
       case 'hook.delete':
         state.manifest.agent = { hooks: [{ id: 'h_GATE000001', name: 'No suddenly', event: 'tool.before', handler: { kind: 'check', check: { kind: 'pattern', patterns: [{ match: 'suddenly', message: 'Show it.' }] } }, enabled: true }] };
         return { hookId: 'h_GATE000001' };
+      // The writer's codex batch import (codex.md §7.1): one entry citing a research page the same command makes.
+      case 'codex.importBatch':
+        return { entries: [{ name: 'Harbourmaster', page: 0, cite: { from: 0, to: 13, quote: 'Harbourmaster' } }], pages: [{ title: 'Harbourmaster', body: 'Harbourmaster of the island.' }] };
       case 'memory.forget':
         state.agentFiles = { memory: [{ slug: 'style-dialogue', type: 'style', title: 'Dialogue tags', body: 'Use said.', modified: '', origin: 'writer' }], declined: new Map(), unreadable: [] };
         return { slug: 'style-dialogue' };
@@ -839,6 +842,7 @@ describe('§10 — the permission matrix, over the registry that implements the 
     // Read out, not typed out: a name promoted to `never` later must arrive here
     // without this file being edited.
     expect(NEVER).toEqual([
+      'codex.importBatch',
       'editor.insert',
       'editor.replaceRange',
       'hook.delete',
