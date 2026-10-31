@@ -14,8 +14,8 @@
  *   with what it holds, as the reader always has; any other element still open keeps its complete children.
  *
  * No DTD, no external entities, no namespaces: FDX uses the five predefined entities and numeric references only.
- * Character data is kept only inside `<Text>`, the one element whose characters are script text, so the tree stays
- * small. It never calls `DOMParser`, `eval` or anything else a Worker or Node lacks.
+ * Character data is kept only inside `<Text>`, the one element whose characters are script text, and inside
+ * `<Character>` and `<Location>`, which hold the names of the SmartType lists (issue #265), so the tree stays small. It never calls `DOMParser`, `eval` or anything else a Worker or Node lacks.
  */
 
 /** An element of the tree. Its children are elements and, inside `<Text>`, decoded character data. */
@@ -28,6 +28,9 @@ export interface XmlElement {
 }
 
 export type XmlNode = XmlElement | string;
+
+/** The elements whose character data is kept: script runs, and the SmartType character and location names. */
+const TEXT_HOLDERS: ReadonlySet<string> = new Set(['Text', 'Character', 'Location']);
 
 const NAMED_ENTITIES: Readonly<Record<string, string>> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
 
@@ -133,7 +136,7 @@ export function readXml(xml: string): XmlElement {
     const lt = source.indexOf('<', at);
     const textEnd = lt < 0 ? source.length : lt;
     const top = stack[stack.length - 1] as XmlElement;
-    if (textEnd > at && top.name === 'Text') top.children.push(decodeEntities(source.slice(at, textEnd)));
+    if (textEnd > at && TEXT_HOLDERS.has(top.name)) top.children.push(decodeEntities(source.slice(at, textEnd)));
     if (lt < 0) break;
     if (source.startsWith('<!--', lt)) {
       const end = source.indexOf('-->', lt + 4);
@@ -144,7 +147,7 @@ export function readXml(xml: string): XmlElement {
     if (source.startsWith('<![CDATA[', lt)) {
       const end = source.indexOf(']]>', lt + 9);
       if (end < 0) break;
-      if (top.name === 'Text') top.children.push(source.slice(lt + 9, end));
+      if (TEXT_HOLDERS.has(top.name)) top.children.push(source.slice(lt + 9, end));
       at = end + 3;
       continue;
     }
@@ -178,7 +181,7 @@ export function readXml(xml: string): XmlElement {
     }
     if (!NAME_START.test(source[lt + 1] ?? '')) {
       // A `<` that opens no name is not markup: a file written by hand can hold one. It stays text.
-      if (top.name === 'Text') top.children.push('<');
+      if (TEXT_HOLDERS.has(top.name)) top.children.push('<');
       at = lt + 1;
       continue;
     }

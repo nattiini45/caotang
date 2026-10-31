@@ -1170,6 +1170,34 @@
   font-size: 13.5px;
 }
 
+/* The optional codex rows of a Final Draft import (issue #265): unticked checkboxes, scrolling when the cast is long. */
+.fdx-seeds {
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 13.5px;
+}
+
+.fdx-seeds p {
+  margin: 4px 0 0;
+  color: var(--ink-soft);
+}
+
+.twee-report .fdx-seeds ul {
+  max-height: 14rem;
+  overflow: auto;
+  padding-left: 0;
+  list-style: none;
+}
+
+.fdx-seed {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 .scene-check {
   display: flex;
   align-items: center;

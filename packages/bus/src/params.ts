@@ -115,7 +115,7 @@ export const DECLARED_PARAMS: Readonly<Record<CommandName, readonly string[]>> =
   'asset.import': ['stagingId', 'caption', 'alt', 'source', 'largePhotos'],
   'asset.importBatch': ['items', 'largePhotos'],
   'asset.setMeta': ['assetId', 'patch', 'expect'],
-  'screenplay.import': ['format', 'text', 'parentId'],
+  'screenplay.import': ['format', 'text', 'parentId', 'codex'],
   'dialogue.importInk': ['containers', 'parentId'],
   'dialogue.setMeta': ['nodeId', 'patch'],
   'script.setShowMeta': ['nodeId', 'patch'],
