@@ -11,6 +11,7 @@ import { loadComicPage, pageFromTemplate, serializeComicPage, type Balloon, type
 import {
   KEY_STEP,
   drawnPageOf,
+  imagePlacementOf,
   liveOfMm,
   mmOfLive,
   movedPanelRect,
@@ -336,5 +337,46 @@ describe('the script link and writing the script from the pages', () => {
   it('offers nothing for a broken link or a book with no pages', () => {
     expect(scriptFromPagesCommand(linkedBook, { kind: 'broken', docId: 'sc_1' }, 3)).toBeNull();
     expect(scriptFromPagesCommand(book(BOOK), { kind: 'none' }, 0)).toBeNull();
+  });
+});
+describe('where a panel picture is drawn (imagePlacementOf)', () => {
+  const panel = { x: 10, y: 20, width: 40, height: 20 };
+  const close = (got: { x: number; y: number; width: number; height: number }, want: { x: number; y: number; width: number; height: number }): void => {
+    expect(got.x).toBeCloseTo(want.x, 6);
+    expect(got.y).toBeCloseTo(want.y, 6);
+    expect(got.width).toBeCloseTo(want.width, 6);
+    expect(got.height).toBeCloseTo(want.height, 6);
+  };
+
+  it('stretches the whole picture onto the panel when there is no crop and no pixel size', () => {
+    close(imagePlacementOf(panel, undefined, undefined, undefined), panel);
+  });
+
+  it('stretches a crop region onto the panel when the pixel size is unknown', () => {
+    // The right half of the picture fills the panel, so the whole picture is twice as wide and starts one panel width to the left.
+    close(imagePlacementOf(panel, [0.5, 0, 0.5, 1], undefined, undefined), { x: -30, y: 20, width: 80, height: 20 });
+  });
+
+  it('treats a zero or negative crop as no pixel size, never dividing the scale by it', () => {
+    const placed = imagePlacementOf(panel, [0, 0, 0, 1], 400, 200);
+    expect(Number.isFinite(placed.height)).toBe(true);
+    expect(placed.y).toBeCloseTo(20, 6);
+  });
+
+  it('covers the panel with a wide picture, centred, and keeps its proportions', () => {
+    // 400 x 100 into 40 x 20 mm: the height decides (scale 0.2), so 80 x 20 mm with 20 mm cut off each side.
+    close(imagePlacementOf(panel, undefined, 400, 100), { x: -10, y: 20, width: 80, height: 20 });
+  });
+
+  it('covers the panel with a tall picture, centred, and keeps its proportions', () => {
+    // 100 x 400 into 40 x 20 mm: the width decides (scale 0.4), so 40 x 160 mm with 70 mm cut off top and bottom.
+    close(imagePlacementOf(panel, undefined, 100, 400), { x: 10, y: -50, width: 40, height: 160 });
+  });
+
+  it('shows the top of the picture for a crop of its top half, as the comic PDF does', () => {
+    // 200 x 200 picture, crop = top half (200 x 100 px) into 40 x 20 mm: scale 0.2, drawn 40 x 40 mm, its top edge on the panel's.
+    close(imagePlacementOf(panel, [0, 0, 1, 0.5], 200, 200), { x: 10, y: 20, width: 40, height: 40 });
+    // The bottom half sits one panel height higher.
+    close(imagePlacementOf(panel, [0, 0.5, 1, 0.5], 200, 200), { x: 10, y: 0, width: 40, height: 40 });
   });
 });

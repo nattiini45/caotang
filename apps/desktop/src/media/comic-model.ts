@@ -244,7 +244,7 @@ export function imagePlacementOf(panel: DrawnRect, crop: Rect | undefined, image
   const drawnH = imageHeight * scale;
   const centreX = panel.x + panel.width / 2;
   const centreY = panel.y + panel.height / 2;
-  return { x: centreX - (c[0] + c[2] / 2) * drawnW, y: centreY + (c[1] + c[3] / 2 - 1) * drawnH, width: drawnW, height: drawnH };
+  return { x: centreX - (c[0] + c[2] / 2) * drawnW, y: centreY - (c[1] + c[3] / 2) * drawnH, width: drawnW, height: drawnH };
 }
 
 /* ------------------------------------------------------------------ *
