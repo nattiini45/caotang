@@ -1029,6 +1029,11 @@ export class ProjectSession {
    * staged bytes stay held, and the caller asks once and sends the same ids again with `largePhotos`. The answer is remembered while
    * the project is open (pictures.md §6.4 step 3), so a later batch without `largePhotos` reuses it and the question is not asked again.
    */
+  /** The large-photo answer the writer gave while this project is open, or `undefined` before they were asked (pictures.md §6.4). */
+  largePhotoChoice(): CommandParams['asset.importBatch']['largePhotos'] {
+    return this.largePhotoAnswer;
+  }
+
   async importPictures(
     items: CommandParams['asset.importBatch']['items'],
     chosen?: CommandParams['asset.importBatch']['largePhotos'],

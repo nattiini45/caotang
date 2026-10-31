@@ -103,11 +103,12 @@ test('a large photo asks once for the whole batch; Cancel writes nothing, and th
   expect(Math.max(...records.map((record) => record.width ?? 0))).toBeLessThanOrEqual(4096);
   expect(await countOf(page, 'asset.importBatch')).toBe(1);
 
+  // The answer is kept while the project is open (pictures.md §6.4): the next large photo is not asked about, and gets a working copy too.
   const third = await bigPhoto(page, 'wide-3.jpg', '#3a3');
   await importFiles(page, [third]);
-  await page.getByRole('dialog', { name: 'This picture is large' }).getByRole('button', { name: 'Keep originals' }).click();
   await expect(tiles(page)).toHaveCount(4);
-  expect((await registry(page)).records.find((record) => record.file.length > 0 && record.width === 6000)).toBeDefined();
+  await expect(page.getByRole('dialog', { name: 'This picture is large' })).toHaveCount(0);
+  expect((await registry(page)).records.filter((record) => record.workingCopy)).toHaveLength(3);
 });
 
 test('a caption, alt text and tags are edited in the details, each one undoable, and survive a reload', async ({ page }) => {

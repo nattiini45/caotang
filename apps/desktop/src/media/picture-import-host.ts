@@ -1,6 +1,8 @@
 /**
  * The app's side of a picture import (pictures.md §6.4): the files a writer chose, dropped or pasted become staged bytes and one
- * `asset.importBatch`, and the large-photo question is asked here, once, when the command says it must be.
+ * `asset.importBatch`, and the large-photo question is asked here: once while the project is open, before the first batch that holds
+ * a picture over 24 megapixels or 8 MB (the session remembers the answer), or when the command says it must be. Unasked, the command
+ * keeps originals.
  *
  * Files that cannot be pictures are left out one by one with the reason, before anything is staged, so a stray text file in a drop does
  * not stop the pictures beside it. Everything after that is the command's: it is all or nothing, so a refusal names the picture and
@@ -8,7 +10,17 @@
  */
 
 import type { LargePhotoChoice } from '@caotang/bus';
-import { decideImportSize, isPictureRefusal, PICTURE_LIMITS, sniffPicture, type AssetSource, type AssetTarget } from '@caotang/pictures';
+import {
+  decideImportSize,
+  isPictureRefusal,
+  LARGE_PHOTO_BYTES,
+  LARGE_PHOTO_PIXELS,
+  PICTURE_LIMITS,
+  pixelSize,
+  sniffPicture,
+  type AssetSource,
+  type AssetTarget,
+} from '@caotang/pictures';
 import { t } from '@lingui/core/macro';
 
 import { convertHeicInBrowser } from '../app/picture-transcoder.js';
@@ -75,6 +87,22 @@ async function readPictures(files: readonly Readable[]): Promise<{ readonly pict
   return { pictures, skipped };
 }
 
+/** The large-photo question a batch raises on its own bytes, or `null` when no picture in it is large (pictures.md §6.4). */
+export function largePhotoQuestionFor(pictures: readonly { readonly bytes: Uint8Array }[]): LargePhotoQuestion | null {
+  let count = 0;
+  const because = new Set<'pixels' | 'bytes'>();
+  for (const picture of pictures) {
+    const size = pixelSize(picture.bytes);
+    const byPixels = size !== undefined && size.width * size.height > LARGE_PHOTO_PIXELS;
+    const byBytes = picture.bytes.length > LARGE_PHOTO_BYTES;
+    if (!byPixels && !byBytes) continue;
+    count += 1;
+    if (byPixels) because.add('pixels');
+    if (byBytes) because.add('bytes');
+  }
+  return count === 0 ? null : { count, because: [...because] };
+}
+
 /**
  * Imports the files as pictures. Resolves with what came of it, and never throws: a refusal is the report's `failed`, in the command's
  * own words. The staged bytes are let go whatever the outcome, so a cancel or a refusal leaves nothing held.
@@ -95,7 +123,16 @@ export async function importPictureFiles(session: ProjectSession, files: readonl
   const attempt = async (known?: LargePhotoChoice): Promise<ImportReport> => {
     let kept = false;
     try {
-      let choice = known;
+      let choice = known ?? session.largePhotoChoice();
+      if (choice === undefined) {
+        // Asked once while the project is open: the session keeps the answer, so the batches that follow are not asked again.
+        const question = largePhotoQuestionFor(pictures);
+        if (question !== null) {
+          const answer = await options.ask(question);
+          if (answer === null) return { status: 'cancelled', created: 0, reused: 0, assetIds: [], skipped };
+          choice = answer;
+        }
+      }
       let result = await session.importPictures(items, choice);
       if (!result.ok && choice === undefined) {
         const question = largePhotoQuestionOf(result.error.details);
