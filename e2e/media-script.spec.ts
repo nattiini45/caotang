@@ -73,32 +73,52 @@ test('a whole Fountain file imports as sections and scenes, and the import is on
   await expect.poll(() => bodyOf(page, house?.id ?? '')).toBe('INT. HOUSE - DAY\n\nAlice waves.');
 });
 
-test('a Final Draft file imports with its scene numbers, and the notice says the title page was read but not stored', async ({ page }) => {
+test('a Final Draft file shows its notes and dual dialogue before it imports, then imports with its scene numbers', async ({ page }) => {
   await createProject(page, PROJECT);
-  // A byte order mark and Windows line ends, as a Windows editor saves the file.
+  // A byte order mark and Windows line ends, as a Windows editor saves the file. The note and the wrapped dual-dialogue pair
+  // nest paragraphs inside paragraphs, as Final Draft writes them (issue #264).
   const fdx = [
     '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>',
     '<FinalDraft DocumentType="Script" Template="No" Version="3">',
     '  <TitlePage><Content><Paragraph><Text>Title: Night Watch</Text></Paragraph></Content></TitlePage>',
     '  <Content>',
     '    <Paragraph Type="Scene Heading" Number="2A"><Text>INT. HOUSE - DAY</Text></Paragraph>',
-    '    <Paragraph Type="Action"><Text>Alice waves.</Text></Paragraph>',
+    '    <Paragraph Type="Action"><ScriptNote><Paragraph><Text>Louder?</Text></Paragraph></ScriptNote><Text>Alice waves.</Text></Paragraph>',
+    '    <Paragraph><DualDialogue>',
+    '      <Paragraph Type="Character"><Text>ALICE</Text></Paragraph><Paragraph Type="Dialogue"><Text>Hi.</Text></Paragraph>',
+    '      <Paragraph Type="Character"><Text>BOB</Text></Paragraph><Paragraph Type="Dialogue"><Text>Hey.</Text></Paragraph>',
+    '    </DualDialogue></Paragraph>',
     '  </Content>',
     '</FinalDraft>',
   ].join('\r\n');
-  await page.locator('input[type="file"][aria-label="Script file"]').setInputFiles({
-    name: 'night.fdx',
-    mimeType: 'application/xml',
-    buffer: Buffer.from(`\uFEFF${fdx}`, 'utf8'),
-  });
+  const choose = async (): Promise<void> => {
+    await page.locator('input[type="file"][aria-label="Script file"]').setInputFiles({
+      name: 'night.fdx',
+      mimeType: 'application/xml',
+      buffer: Buffer.from(`\uFEFF${fdx}`, 'utf8'),
+    });
+  };
 
+  await choose();
+  const dialog = page.getByRole('dialog', { name: 'Import this Final Draft script?' });
+  await expect(dialog).toBeVisible();
+  const report = dialog.getByRole('list', { name: 'What the import does' });
+  await expect(report).toContainText('1 scene and 0 sections will be made, in one undo step.');
+  await expect(report).toContainText('1 script note kept as Fountain notes');
+  await expect(report).toContainText('1 dual-dialogue pair kept side by side');
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog).toBeHidden();
+  expect(await traceNames(page)).not.toContain('screenplay.import');
+
+  await choose();
+  await dialog.getByRole('button', { name: 'Import', exact: true }).click();
   await expect(page.getByText(/Imported 1 scene and .* from night\.fdx/)).toBeVisible();
   await expect(page.getByText(/The title page was read but not stored/)).toBeVisible();
   await waitForSaved(page);
 
   const house = (await treeOf(page)).find((node) => node.title === 'INT. HOUSE - DAY');
   expect(house).toBeDefined();
-  await expect.poll(() => bodyOf(page, house?.id ?? '')).toBe('INT. HOUSE - DAY #2A#\n\nAlice waves.');
+  await expect.poll(() => bodyOf(page, house?.id ?? '')).toBe('INT. HOUSE - DAY #2A#\n\nAlice waves. [[Louder?]]\n\nALICE\nHi.\n\nBOB ^\nHey.');
 });
 
 test('the Source tab draws a scene heading and a cue, and Tab completes a cue from the cues already in the scene', async ({ page }) => {
