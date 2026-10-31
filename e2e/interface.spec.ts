@@ -104,7 +104,7 @@ test('Settings › Appearance › Interface switches live: the unsaved text, the
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = page.getByTestId('settings');
   await settings.getByRole('button', { name: 'Appearance', exact: true }).click();
-  const group = settings.getByRole('group', { name: 'Interface' });
+  const group = settings.getByRole('group', { name: 'Interface', exact: true });
   const modern = group.getByRole('radio', { name: 'Modern (Preview)' });
   await modern.check();
   await expect(modern).toBeFocused();

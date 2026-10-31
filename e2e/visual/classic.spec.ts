@@ -84,7 +84,7 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     const settings = page.getByTestId('settings');
     await settings.getByRole('button', { name: 'Appearance', exact: true }).click();
-    await expect(settings.getByRole('group', { name: 'Interface' })).toBeVisible();
+    await expect(settings.getByRole('group', { name: 'Interface', exact: true })).toBeVisible();
     await shot(page, `classic-${scheme}-settings-appearance`);
     await settings.getByRole('button', { name: 'Close' }).click();
     await expect(settings).toHaveCount(0);
